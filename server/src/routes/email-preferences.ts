@@ -222,6 +222,74 @@ router.post("/preferences/:token", async (req, res) => {
           },
         });
 
+        if (requestedStatus === "UNSUBSCRIBED") {
+          if (tokenRow.subscription.constituentId) {
+            await tx.constituent.update({
+              where: { id: tokenRow.subscription.constituentId },
+              data: { emailOptOut: true },
+            }).catch(() => {
+              // Ignore missing constituent edge cases.
+            });
+          }
+
+          const existingSuppression = await tx.emailSuppression.findFirst({
+            where: {
+              organizationId: tokenRow.organizationId,
+              email: tokenRow.subscription.email,
+              reason: "UNSUBSCRIBED",
+            },
+            select: { id: true },
+          });
+
+          if (existingSuppression) {
+            await tx.emailSuppression.update({
+              where: { id: existingSuppression.id },
+              data: {
+                active: true,
+                constituentId: tokenRow.subscription.constituentId,
+                source: "public-unsubscribe",
+                notes: "Updated from public preference center",
+              },
+            });
+          } else {
+            await tx.emailSuppression.create({
+              data: {
+                organizationId: tokenRow.organizationId,
+                constituentId: tokenRow.subscription.constituentId,
+                email: tokenRow.subscription.email,
+                reason: "UNSUBSCRIBED",
+                source: "public-unsubscribe",
+                active: true,
+                notes: "Created from public preference center",
+              },
+            });
+          }
+        }
+
+        if (requestedStatus === "SUBSCRIBED") {
+          if (tokenRow.subscription.constituentId) {
+            await tx.constituent.update({
+              where: { id: tokenRow.subscription.constituentId },
+              data: { emailOptOut: false },
+            }).catch(() => {
+              // Ignore missing constituent edge cases.
+            });
+          }
+
+          await tx.emailSuppression.updateMany({
+            where: {
+              organizationId: tokenRow.organizationId,
+              email: tokenRow.subscription.email,
+              reason: "UNSUBSCRIBED",
+              active: true,
+            },
+            data: {
+              active: false,
+              notes: "Cleared by public resubscribe",
+            },
+          });
+        }
+
         await tx.emailConsentEvent.create({
           data: {
             organizationId: tokenRow.organizationId,
@@ -323,6 +391,48 @@ router.post("/unsubscribe/:token", async (req, res) => {
             unsubscribedAt: new Date(),
           },
         });
+
+        if (tokenRow.subscription.constituentId) {
+          await tx.constituent.update({
+            where: { id: tokenRow.subscription.constituentId },
+            data: { emailOptOut: true },
+          }).catch(() => {
+            // Ignore missing constituent edge cases.
+          });
+        }
+
+        const existingSuppression = await tx.emailSuppression.findFirst({
+          where: {
+            organizationId: tokenRow.organizationId,
+            email: tokenRow.subscription.email,
+            reason: "UNSUBSCRIBED",
+          },
+          select: { id: true },
+        });
+
+        if (existingSuppression) {
+          await tx.emailSuppression.update({
+            where: { id: existingSuppression.id },
+            data: {
+              active: true,
+              constituentId: tokenRow.subscription.constituentId,
+              source: "public-unsubscribe",
+              notes: "Updated from one-click unsubscribe",
+            },
+          });
+        } else {
+          await tx.emailSuppression.create({
+            data: {
+              organizationId: tokenRow.organizationId,
+              constituentId: tokenRow.subscription.constituentId,
+              email: tokenRow.subscription.email,
+              reason: "UNSUBSCRIBED",
+              source: "public-unsubscribe",
+              active: true,
+              notes: "Created from one-click unsubscribe",
+            },
+          });
+        }
 
         await tx.emailConsentEvent.create({
           data: {

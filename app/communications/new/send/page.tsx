@@ -1,15 +1,7 @@
-/** Wizard step: schedule or send communication. */
-import CommunicationsWizardStep from "@/app/components/communications/CommunicationsWizardStep";
+/** Legacy wizard route redirected to OyamaEmail send step. */
+import { redirect } from "next/navigation";
 
-/** Renders final send and scheduling step. */
+/** Redirects old send step into the redesigned send wizard. */
 export default function CommunicationsNewSendPage() {
-  return (
-    <CommunicationsWizardStep
-      stepIndex={5}
-      title="New Communication - Send"
-      helper="Choose schedule or send-now execution with final confirmation."
-      prevHref="/communications/new/review"
-      nextHref="/communications/log"
-    />
-  );
+  redirect("/oyama-email/send");
 }

@@ -1,12 +1,12 @@
-/** Campaign workspace page route for one communications mailing. */
-import CampaignWorkspace from "@/app/components/communications/CampaignWorkspace";
+/** Legacy campaign workspace route redirected to OyamaEmail campaign detail. */
+import { redirect } from "next/navigation";
 
 interface PageProps {
   params: Promise<{ campaignId: string }>;
 }
 
-/** CampaignWorkspacePage resolves the route campaign ID and renders the client workspace. */
+/** Resolves campaign ID and redirects into redesigned OyamaEmail campaign detail. */
 export default async function CampaignWorkspacePage({ params }: PageProps) {
   const { campaignId } = await params;
-  return <CampaignWorkspace campaignId={campaignId} />;
+  redirect(`/oyama-email/campaigns/${campaignId}`);
 }

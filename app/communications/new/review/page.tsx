@@ -1,15 +1,7 @@
-/** Wizard step: review and validate communication readiness. */
-import CommunicationsWizardStep from "@/app/components/communications/CommunicationsWizardStep";
+/** Legacy wizard route redirected to OyamaEmail publish checks. */
+import { redirect } from "next/navigation";
 
-/** Renders review checklist and compliance step. */
+/** Redirects old review step into the redesigned send flow. */
 export default function CommunicationsNewReviewPage() {
-  return (
-    <CommunicationsWizardStep
-      stepIndex={4}
-      title="New Communication - Review"
-      helper="Run readiness checks, send test, and confirm merge/compliance constraints."
-      prevHref="/communications/new/editor"
-      nextHref="/communications/new/send"
-    />
-  );
+  redirect("/oyama-email/send");
 }

@@ -30,6 +30,11 @@ import {
   requiresPreferenceCompliance,
 } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
+import {
+  normalizeEmailTemplateDocument,
+  normalizeEmailTemplateSettings,
+  renderEmailTemplateDocument,
+} from "../services/oyama-email/email-render-service.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 
@@ -53,7 +58,7 @@ type DeliveryWebhookPayload = {
 /** Maps provider event labels into canonical delivery event types. */
 function mapProviderEventType(raw: unknown): DeliveryEventType | null {
   if (typeof raw !== "string") return null;
-  const normalized = raw.trim().toUpperCase();
+  const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
   if (!normalized) return null;
   if (normalized === "QUEUED" || normalized === "PROCESSED" || normalized === "ACCEPTED") return "QUEUED";
   if (normalized === "DELIVERED") return "DELIVERED";
@@ -61,6 +66,19 @@ function mapProviderEventType(raw: unknown): DeliveryEventType | null {
   if (normalized === "CLICK" || normalized === "CLICKED") return "CLICKED";
   if (normalized === "BOUNCE" || normalized === "BOUNCED" || normalized === "DROPPED" || normalized === "DEFERRED") return "BOUNCED";
   return null;
+}
+
+/** True when provider event indicates recipient opted out/unsubscribed. */
+function isProviderUnsubscribeEvent(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (!normalized) return false;
+  return normalized === "UNSUBSCRIBE"
+    || normalized === "UNSUBSCRIBED"
+    || normalized === "OPT_OUT"
+    || normalized === "OPTOUT"
+    || normalized === "LIST_UNSUBSCRIBE"
+    || normalized === "UNSUBSCRIPTION";
 }
 
 /** Validates one webhook request against configured secret header or bearer token. */
@@ -101,6 +119,76 @@ function parseWebhookEventAt(value: unknown): Date {
   return new Date();
 }
 
+/** Returns the first non-empty string value from a candidate list. */
+function firstString(values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
+/** Returns the first finite positive number from a candidate list. */
+function firstPositiveNumber(values: unknown[]): number | null {
+  for (const value of values) {
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(numeric)) continue;
+    if (numeric > 0) return Math.floor(numeric);
+  }
+  return null;
+}
+
+/** Merges webhook fields and event metadata into one normalized queue/event metadata payload. */
+function buildDeliveryEventMetadata(item: DeliveryWebhookPayload, mappedEventType: DeliveryEventType, eventAt: Date): Prisma.InputJsonValue {
+  const incoming = item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+    ? { ...(item.metadata as Record<string, unknown>) }
+    : {};
+
+  const providerResponse = firstString([
+    incoming.providerResponse,
+    incoming.smtpResponse,
+    incoming.response,
+    (item as { providerResponse?: unknown }).providerResponse,
+    (item as { smtpResponse?: unknown }).smtpResponse,
+    (item as { response?: unknown }).response,
+  ]);
+
+  const providerMessageId = firstString([
+    incoming.providerMessageId,
+    incoming.messageId,
+    incoming.providerEventId,
+    (item as { providerMessageId?: unknown }).providerMessageId,
+    (item as { messageId?: unknown }).messageId,
+    (item as { providerEventId?: unknown }).providerEventId,
+  ]);
+
+  const attemptCount = firstPositiveNumber([
+    incoming.attemptCount,
+    incoming.attempt,
+    incoming.attempts,
+    (item as { attemptCount?: unknown }).attemptCount,
+    (item as { attempts?: unknown }).attempts,
+  ]);
+
+  const rawSentAt = firstString([
+    incoming.sentAt,
+    (item as { sentAt?: unknown }).sentAt,
+  ]);
+  const sentAt = rawSentAt ? parseWebhookEventAt(rawSentAt).toISOString() : eventAt.toISOString();
+
+  return {
+    ...incoming,
+    rawEventType: typeof item.eventType === "string" ? item.eventType : item.event,
+    normalizedEventType: mappedEventType,
+    source: "provider_webhook",
+    ...(providerResponse ? { providerResponse } : {}),
+    ...(providerMessageId ? { providerMessageId } : {}),
+    ...(attemptCount ? { attemptCount } : {}),
+    sentAt,
+  } as Prisma.InputJsonValue;
+}
+
 /**
  * POST /api/email-campaigns/webhooks/delivery
  * Description: Ingests provider delivery/open/click/bounce webhooks into campaign analytics.
@@ -139,7 +227,9 @@ router.post("/webhooks/delivery", async (req, res) => {
     const item = rawEvents[index] as DeliveryWebhookPayload;
     const campaignId = typeof item?.campaignId === "string" ? item.campaignId.trim() : "";
     const recipientEmail = typeof item?.recipientEmail === "string" ? item.recipientEmail.trim().toLowerCase() : "";
-    const mappedEventType = mapProviderEventType(item?.eventType ?? item?.event);
+    const rawEventType = item?.eventType ?? item?.event;
+    const mappedEventType = mapProviderEventType(rawEventType);
+    const unsubscribeEvent = isProviderUnsubscribeEvent(rawEventType);
 
     if (!campaignId) {
       errors.push({ index, reason: "campaignId is required" });
@@ -149,7 +239,7 @@ router.post("/webhooks/delivery", async (req, res) => {
       errors.push({ index, reason: "recipientEmail must be a valid email" });
       continue;
     }
-    if (!mappedEventType) {
+    if (!mappedEventType && !unsubscribeEvent) {
       errors.push({ index, reason: "eventType/event is unsupported" });
       continue;
     }
@@ -169,7 +259,60 @@ router.post("/webhooks/delivery", async (req, res) => {
     }
 
     const safeEventAt = parseWebhookEventAt(item?.eventAt ?? item?.timestamp);
-    const metadataInput = (item?.metadata ?? null) as Prisma.InputJsonValue;
+
+    if (unsubscribeEvent) {
+      const subscription = await prisma.emailSubscription.upsert({
+        where: {
+          organizationId_email: {
+            organizationId,
+            email: recipientEmail,
+          },
+        },
+        create: {
+          organizationId,
+          email: recipientEmail,
+          globalStatus: "UNSUBSCRIBED",
+          unsubscribedAt: safeEventAt,
+          source: "provider-webhook",
+        },
+        update: {
+          globalStatus: "UNSUBSCRIBED",
+          unsubscribedAt: safeEventAt,
+          source: "provider-webhook",
+        },
+        select: {
+          id: true,
+          constituentId: true,
+        },
+      });
+
+      await prisma.emailConsentEvent.create({
+        data: {
+          organizationId,
+          subscriptionId: subscription.id,
+          constituentId: subscription.constituentId,
+          email: recipientEmail,
+          eventType: "OPT_OUT",
+          source: "provider-webhook",
+          metadata: {
+            campaignId,
+            rawEventType: typeof rawEventType === "string" ? rawEventType : null,
+            eventAt: safeEventAt.toISOString(),
+          },
+        },
+      });
+
+      touchedCampaigns.add(campaignId);
+      processed += 1;
+      continue;
+    }
+
+    if (!mappedEventType) {
+      errors.push({ index, reason: "eventType/event is unsupported" });
+      continue;
+    }
+
+    const metadataInput = buildDeliveryEventMetadata(item, mappedEventType, safeEventAt);
 
     await prisma.emailCampaignDeliveryEvent.upsert({
       where: {
@@ -192,6 +335,18 @@ router.post("/webhooks/delivery", async (req, res) => {
         metadata: metadataInput,
       },
     });
+
+    if (mappedEventType === "QUEUED") {
+      await prisma.emailSendRecipient.updateMany({
+        where: {
+          campaignId,
+          email: recipientEmail,
+        },
+        data: {
+          sentAt: safeEventAt,
+        },
+      });
+    }
 
     touchedCampaigns.add(campaignId);
     processed += 1;
@@ -285,6 +440,67 @@ interface ResolvedRecipientPlan {
   recipientListId?: string;
 }
 
+interface CampaignQueueRow {
+  recipientLabel: string;
+  email: string;
+  status: string;
+  lastEvent: string;
+  attemptCount: string;
+  providerResponse: string;
+  queuedAt: string;
+  sentAt: string;
+  deliveredAt: string;
+  openedAt: string;
+  clickedAt: string;
+  bouncedAt: string;
+  unsubscribedAt: string;
+  failureReason: string;
+}
+
+interface CampaignLiveSnapshotPayload {
+  campaignId: string;
+  delivery: {
+    summary: {
+      queued: number;
+      delivered: number;
+      opened: number;
+      clicked: number;
+      bounced: number;
+      openRate: number;
+      clickRate: number;
+      bounceRate: number;
+    };
+    diagnostics: {
+      providerWebhookConfigured: boolean;
+      lastEventAt: Date | null;
+      totalEvents: number;
+      uniqueRecipients: number;
+      deliveryToQueueRate: number;
+      openToDeliveredRate: number;
+      clickToOpenRate: number;
+    };
+    events: Array<{
+      id: string;
+      recipientEmail: string;
+      eventType: string;
+      eventAt: Date;
+      metadata: Prisma.JsonValue | null;
+    }>;
+  } | null;
+  activity: Array<{
+    id: string;
+    action: string;
+    createdAt: Date;
+    metadata: Prisma.JsonValue;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+  }>;
+  queueRows: CampaignQueueRow[];
+}
+
 type DeliveryEventType = "QUEUED" | "DELIVERED" | "OPENED" | "CLICKED" | "BOUNCED";
 
 const DELIVERY_EVENT_TYPES: DeliveryEventType[] = ["QUEUED", "DELIVERED", "OPENED", "CLICKED", "BOUNCED"];
@@ -356,9 +572,33 @@ function ensureComplianceFooter(content: string, format: "html" | "text"): strin
   return `${safeContent}${buildAutomaticComplianceFooterText(missingUnsubscribe, missingPreferences)}`;
 }
 
-function buildCampaignDeliveryBodies(campaign: { bodyHtml: string | null; bodyText: string | null }, purpose: EmailPurpose) {
-  const baseHtml = campaign.bodyHtml?.trim() || `<p>${campaign.bodyText || "No content"}</p>`;
-  const baseText = campaign.bodyText?.trim() || "No text content";
+function buildCampaignDeliveryBodies(
+  campaign: { bodyHtml: string | null; bodyText: string | null; templateJson?: string | null },
+  purpose: EmailPurpose,
+) {
+  let baseHtml = campaign.bodyHtml?.trim() || `<p>${campaign.bodyText || "No content"}</p>`;
+  let baseText = campaign.bodyText?.trim() || "No text content";
+
+  if (campaign.templateJson?.trim()) {
+    try {
+      const parsed = JSON.parse(campaign.templateJson) as unknown;
+      const parsedObj = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+      const templateSource = parsedObj.template ?? parsed;
+      const settingsSource = parsedObj.settings ?? {};
+
+      const rendered = renderEmailTemplateDocument(
+        normalizeEmailTemplateDocument(templateSource),
+        normalizeEmailTemplateSettings(settingsSource),
+      );
+
+      baseHtml = rendered.html;
+      baseText = rendered.text || baseText;
+    } catch {
+      // Keep existing campaign body fields when template JSON is malformed.
+    }
+  }
 
   if (!requiresPreferenceCompliance(purpose)) {
     return { html: baseHtml, text: baseText };
@@ -1250,6 +1490,303 @@ async function createDeliveryEvents(params: {
   });
 }
 
+/** Upserts one per-recipient event row while preserving uniqueness by campaign+recipient+type. */
+async function upsertDeliveryEvent(params: {
+  organizationId: string;
+  campaignId: string;
+  recipientEmail: string;
+  eventType: DeliveryEventType;
+  eventAt?: Date;
+  metadata?: Record<string, unknown>;
+}) {
+  const safeRecipientEmail = params.recipientEmail.trim().toLowerCase();
+  if (!safeRecipientEmail) return;
+
+  await prisma.emailCampaignDeliveryEvent.upsert({
+    where: {
+      campaignId_recipientEmail_eventType: {
+        campaignId: params.campaignId,
+        recipientEmail: safeRecipientEmail,
+        eventType: params.eventType,
+      },
+    },
+    update: {
+      eventAt: params.eventAt ?? new Date(),
+      metadata: (params.metadata ?? null) as Prisma.InputJsonValue,
+    },
+    create: {
+      organizationId: params.organizationId,
+      campaignId: params.campaignId,
+      recipientEmail: safeRecipientEmail,
+      eventType: params.eventType,
+      eventAt: params.eventAt ?? new Date(),
+      metadata: (params.metadata ?? null) as Prisma.InputJsonValue,
+    },
+  });
+}
+
+function resolveQueueStatusFromEvents(params: {
+  eventTypes: Set<string>;
+  eligibilityStatus: EmailRecipientEligibilityStatus;
+  sentAt: Date | null;
+  unsubscribedAt: Date | null;
+}): string {
+  if (params.unsubscribedAt) return "UNSUBSCRIBED";
+
+  const eventTypes = params.eventTypes;
+  if (eventTypes.has("BOUNCED")) return "BOUNCED";
+  if (eventTypes.has("CLICKED")) return "CLICKED";
+  if (eventTypes.has("OPENED")) return "OPENED";
+  if (eventTypes.has("DELIVERED")) return "DELIVERED";
+  if (eventTypes.has("QUEUED")) return "QUEUED";
+  if (params.sentAt) return "SENT";
+
+  if (params.eligibilityStatus === "SKIPPED_SUPPRESSED") return "SUPPRESSED";
+  if (params.eligibilityStatus === "SKIPPED_UNSUBSCRIBED" || params.eligibilityStatus === "SKIPPED_CATEGORY_OPT_OUT") return "UNSUBSCRIBED";
+  if (params.eligibilityStatus !== "ELIGIBLE") return "FAILED";
+  return "READY";
+}
+
+function asIsoOrDash(value: Date | null | undefined): string {
+  if (!(value instanceof Date)) return "-";
+  if (Number.isNaN(value.getTime())) return "-";
+  return value.toISOString();
+}
+
+function asProviderMetadata(metadata: Prisma.JsonValue | null | undefined): Record<string, unknown> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+  return metadata as Record<string, unknown>;
+}
+
+/** Builds campaign queue rows with provider-backed sent/attempt/response fields. */
+async function buildCampaignQueueRows(params: {
+  organizationId: string;
+  campaignId: string;
+}): Promise<CampaignQueueRow[]> {
+  const [sendRecipients, events] = await Promise.all([
+    prisma.emailSendRecipient.findMany({
+      where: {
+        organizationId: params.organizationId,
+        campaignId: params.campaignId,
+      },
+      orderBy: { queuedAt: "desc" },
+      include: {
+        constituent: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        subscription: {
+          select: {
+            unsubscribedAt: true,
+          },
+        },
+      },
+    }),
+    prisma.emailCampaignDeliveryEvent.findMany({
+      where: {
+        organizationId: params.organizationId,
+        campaignId: params.campaignId,
+      },
+      orderBy: { eventAt: "desc" },
+    }),
+  ]);
+
+  const eventsByEmail = new Map<string, typeof events>();
+  for (const event of events) {
+    const email = event.recipientEmail.trim().toLowerCase();
+    const existing = eventsByEmail.get(email) ?? [];
+    existing.push(event);
+    eventsByEmail.set(email, existing);
+  }
+
+  return sendRecipients.map((recipient) => {
+    const email = recipient.email.trim().toLowerCase();
+    const recipientEvents = eventsByEmail.get(email) ?? [];
+    const eventTypes = new Set(recipientEvents.map((event) => event.eventType));
+    const latest = recipientEvents[0] ?? null;
+
+    const queued = recipientEvents.find((event) => event.eventType === "QUEUED") ?? null;
+    const delivered = recipientEvents.find((event) => event.eventType === "DELIVERED") ?? null;
+    const opened = recipientEvents.find((event) => event.eventType === "OPENED") ?? null;
+    const clicked = recipientEvents.find((event) => event.eventType === "CLICKED") ?? null;
+    const bounced = recipientEvents.find((event) => event.eventType === "BOUNCED") ?? null;
+
+    const metadata = asProviderMetadata(queued?.metadata ?? latest?.metadata ?? null);
+    const attemptCountValue = firstPositiveNumber([metadata.attemptCount, metadata.attempt, metadata.attempts]);
+    const providerResponse = firstString([metadata.providerResponse, metadata.smtpResponse, metadata.response]) ?? "Not tracked yet";
+    const failureReason = firstString([metadata.reason, recipient.ineligibilityReason]) ?? "-";
+
+    const sentAtFromMetadataRaw = firstString([metadata.sentAt]);
+    const sentAtFromMetadata = sentAtFromMetadataRaw ? parseWebhookEventAt(sentAtFromMetadataRaw) : null;
+    const sentAt = recipient.sentAt ?? sentAtFromMetadata;
+
+    const unsubscribeAtFromMetadataRaw = recipientEvents
+      .map((event) => asProviderMetadata(event.metadata))
+      .map((eventMetadata) => firstString([
+        eventMetadata.unsubscribedAt,
+        eventMetadata.unsubscribeAt,
+        eventMetadata.optOutAt,
+        eventMetadata.optedOutAt,
+      ]))
+      .find((value): value is string => Boolean(value)) ?? null;
+    const unsubscribeAtFromMetadata = unsubscribeAtFromMetadataRaw ? parseWebhookEventAt(unsubscribeAtFromMetadataRaw) : null;
+    const unsubscribedAt = recipient.subscription?.unsubscribedAt ?? unsubscribeAtFromMetadata;
+
+    const fullName = [recipient.constituent?.firstName ?? "", recipient.constituent?.lastName ?? ""].join(" ").trim();
+
+    return {
+      recipientLabel: fullName || email.split("@")[0] || email,
+      email,
+      status: resolveQueueStatusFromEvents({
+        eventTypes,
+        eligibilityStatus: recipient.eligibilityStatus,
+        sentAt,
+        unsubscribedAt,
+      }),
+      lastEvent: latest ? `${latest.eventType} @ ${latest.eventAt.toISOString()}` : "Waiting for events",
+      attemptCount: attemptCountValue ? String(attemptCountValue) : (sentAt ? "1" : "Not tracked yet"),
+      providerResponse,
+      queuedAt: asIsoOrDash(recipient.queuedAt ?? queued?.eventAt ?? null),
+      sentAt: asIsoOrDash(sentAt),
+      deliveredAt: asIsoOrDash(delivered?.eventAt ?? null),
+      openedAt: asIsoOrDash(opened?.eventAt ?? null),
+      clickedAt: asIsoOrDash(clicked?.eventAt ?? null),
+      bouncedAt: asIsoOrDash(bounced?.eventAt ?? null),
+      unsubscribedAt: unsubscribedAt ? asIsoOrDash(unsubscribedAt) : "Not tracked yet",
+      failureReason,
+    };
+  });
+}
+
+/** Loads one campaign snapshot payload used by SSE and fallback queue reads. */
+async function buildCampaignLiveSnapshot(params: {
+  organizationId: string;
+  campaignId: string;
+  sendLogLimit?: number;
+  eventLimit?: number;
+}): Promise<CampaignLiveSnapshotPayload> {
+  const sendLogLimit = Math.min(Math.max(params.sendLogLimit ?? 120, 1), 300);
+  const eventLimit = Math.min(Math.max(params.eventLimit ?? 250, 1), 1000);
+
+  const [events, grouped, latestEvent, distinctRecipients, auditLog, queueRows] = await Promise.all([
+    prisma.emailCampaignDeliveryEvent.findMany({
+      where: {
+        organizationId: params.organizationId,
+        campaignId: params.campaignId,
+      },
+      orderBy: { eventAt: "desc" },
+      take: eventLimit,
+    }),
+    prisma.emailCampaignDeliveryEvent.groupBy({
+      by: ["eventType"],
+      where: {
+        organizationId: params.organizationId,
+        campaignId: params.campaignId,
+      },
+      _count: { eventType: true },
+    }),
+    prisma.emailCampaignDeliveryEvent.findFirst({
+      where: {
+        organizationId: params.organizationId,
+        campaignId: params.campaignId,
+      },
+      orderBy: { eventAt: "desc" },
+      select: { eventAt: true },
+    }),
+    prisma.emailCampaignDeliveryEvent.findMany({
+      where: {
+        organizationId: params.organizationId,
+        campaignId: params.campaignId,
+      },
+      distinct: ["recipientEmail"],
+      select: { recipientEmail: true },
+    }),
+    prisma.auditLog.findMany({
+      where: {
+        organizationId: params.organizationId,
+        entity: "EmailCampaign",
+        entityId: params.campaignId,
+        action: {
+          in: [
+            "EMAIL_CAMPAIGN_CREATED",
+            "EMAIL_CAMPAIGN_UPDATED",
+            "EMAIL_CAMPAIGN_SENT",
+            "EMAIL_CAMPAIGN_SEND_FAILED",
+            "EMAIL_CAMPAIGN_TEST_SENT",
+            "EMAIL_CAMPAIGN_SCHEDULED",
+            "EMAIL_CAMPAIGN_CANCELLED",
+          ],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: sendLogLimit,
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
+    }),
+    buildCampaignQueueRows({
+      organizationId: params.organizationId,
+      campaignId: params.campaignId,
+    }),
+  ]);
+
+  const byType = Object.fromEntries(grouped.map((row) => [row.eventType, row._count.eventType])) as Record<string, number>;
+  const delivered = byType.DELIVERED ?? 0;
+  const opened = byType.OPENED ?? 0;
+  const clicked = byType.CLICKED ?? 0;
+  const bounced = byType.BOUNCED ?? 0;
+
+  return {
+    campaignId: params.campaignId,
+    delivery: {
+      summary: {
+        queued: byType.QUEUED ?? 0,
+        delivered,
+        opened,
+        clicked,
+        bounced,
+        openRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
+        clickRate: delivered > 0 ? Math.round((clicked / delivered) * 100) : 0,
+        bounceRate: delivered > 0 ? Math.round((bounced / delivered) * 100) : 0,
+      },
+      diagnostics: {
+        providerWebhookConfigured: Boolean(EMAIL_CAMPAIGN_WEBHOOK_SECRET),
+        lastEventAt: latestEvent?.eventAt ?? null,
+        totalEvents: events.length,
+        uniqueRecipients: distinctRecipients.length,
+        deliveryToQueueRate: (byType.QUEUED ?? 0) > 0 ? Math.round((delivered / (byType.QUEUED ?? 0)) * 100) : 0,
+        openToDeliveredRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
+        clickToOpenRate: opened > 0 ? Math.round((clicked / opened) * 100) : 0,
+      },
+      events: events.map((event) => ({
+        id: event.id,
+        recipientEmail: event.recipientEmail,
+        eventType: event.eventType,
+        eventAt: event.eventAt,
+        metadata: event.metadata,
+      })),
+    },
+    activity: auditLog.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      createdAt: entry.createdAt,
+      metadata: entry.metadata,
+      user: entry.user
+        ? {
+            id: entry.user.id,
+            name: `${entry.user.firstName ?? ""} ${entry.user.lastName ?? ""}`.trim() || entry.user.email,
+            email: entry.user.email,
+          }
+        : null,
+    })),
+    queueRows,
+  };
+}
+
 /** Persists one eligibility snapshot row per campaign recipient for compliance and reporting. */
 async function persistSendRecipients(params: {
   organizationId: string;
@@ -1501,28 +2038,6 @@ export async function sendCampaignNow(
       throw new CampaignSendError("No recipients match this audience filter.", 400);
     }
 
-    await createDeliveryEvents({
-      organizationId: campaign.organizationId,
-      campaignId: campaign.id,
-      recipients: to,
-      eventType: "QUEUED",
-      metadata: {
-        trigger,
-        sendMode: recipientPlan.sendMode,
-        audienceType: recipientPlan.audienceType,
-      },
-    });
-
-    await prisma.emailSendRecipient.updateMany({
-      where: {
-        campaignId: campaign.id,
-        email: { in: to },
-      },
-      data: {
-        sentAt: new Date(),
-      },
-    });
-
     const recipientDecisions = new Map(recipientPlan.decisions.map((decision) => [decision.email, decision]));
 
     for (const recipientEmail of to) {
@@ -1544,25 +2059,42 @@ export async function sendCampaignNow(
         constituentId: recipientDecision?.constituentId ?? null,
       });
 
-      await sender.send({
+      const sendResult = await sender.send({
         to: recipientEmail,
         subject: personalizedContent.subject,
         text: personalizedContent.text,
         html: personalizedContent.html,
         fromNameOverride: campaign.fromName,
       });
-    }
 
-    await createDeliveryEvents({
-      organizationId: campaign.organizationId,
-      campaignId: campaign.id,
-      recipients: to,
-      eventType: "DELIVERED",
-      metadata: {
-        trigger,
-        sendMode: recipientPlan.sendMode,
-      },
-    });
+      await prisma.emailSendRecipient.updateMany({
+        where: {
+          campaignId: campaign.id,
+          email: recipientEmail,
+        },
+        data: {
+          sentAt: sendResult.acceptedAt,
+        },
+      });
+
+      await upsertDeliveryEvent({
+        organizationId: campaign.organizationId,
+        campaignId: campaign.id,
+        recipientEmail,
+        eventType: "QUEUED",
+        eventAt: sendResult.acceptedAt,
+        metadata: {
+          trigger,
+          sendMode: recipientPlan.sendMode,
+          audienceType: recipientPlan.audienceType,
+          attemptCount: 1,
+          providerResponse: sendResult.providerResponse,
+          providerMessageId: sendResult.providerMessageId,
+          sentAt: sendResult.acceptedAt.toISOString(),
+          source: "smtp_acceptance",
+        },
+      });
+    }
 
     await writeRecipientTimelineActivities({
       organizationId: campaign.organizationId,
@@ -1850,72 +2382,143 @@ router.get("/:id/delivery-events", async (req, res) => {
 
   const parsedLimit = Number.parseInt((req.query.limit as string) ?? "200", 10);
   const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 1000) : 200;
+  const snapshot = await buildCampaignLiveSnapshot({
+    organizationId,
+    campaignId: campaign.id,
+    eventLimit: limit,
+  });
 
-  const [events, grouped] = await Promise.all([
-    prisma.emailCampaignDeliveryEvent.findMany({
-      where: {
-        organizationId,
-        campaignId: campaign.id,
-      },
-      orderBy: { eventAt: "desc" },
-      take: limit,
-    }),
-    prisma.emailCampaignDeliveryEvent.groupBy({
-      by: ["eventType"],
-      where: {
-        organizationId,
-        campaignId: campaign.id,
-      },
-      _count: { eventType: true },
-    }),
-  ]);
-
-  const [latestEvent, distinctRecipients] = await Promise.all([
-    prisma.emailCampaignDeliveryEvent.findFirst({
-      where: {
-        organizationId,
-        campaignId: campaign.id,
-      },
-      orderBy: { eventAt: "desc" },
-      select: { eventAt: true },
-    }),
-    prisma.emailCampaignDeliveryEvent.findMany({
-      where: {
-        organizationId,
-        campaignId: campaign.id,
-      },
-      distinct: ["recipientEmail"],
-      select: { recipientEmail: true },
-    }),
-  ]);
-
-  const byType = Object.fromEntries(grouped.map((row) => [row.eventType, row._count.eventType])) as Record<string, number>;
-  const delivered = byType.DELIVERED ?? 0;
-  const opened = byType.OPENED ?? 0;
-  const clicked = byType.CLICKED ?? 0;
-  const bounced = byType.BOUNCED ?? 0;
-
-  res.json({
+  res.json(snapshot.delivery ?? {
     summary: {
-      queued: byType.QUEUED ?? 0,
-      delivered,
-      opened,
-      clicked,
-      bounced,
-      openRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
-      clickRate: delivered > 0 ? Math.round((clicked / delivered) * 100) : 0,
-      bounceRate: delivered > 0 ? Math.round((bounced / delivered) * 100) : 0,
+      queued: 0,
+      delivered: 0,
+      opened: 0,
+      clicked: 0,
+      bounced: 0,
+      openRate: 0,
+      clickRate: 0,
+      bounceRate: 0,
     },
     diagnostics: {
       providerWebhookConfigured: Boolean(EMAIL_CAMPAIGN_WEBHOOK_SECRET),
-      lastEventAt: latestEvent?.eventAt ?? null,
-      totalEvents: events.length,
-      uniqueRecipients: distinctRecipients.length,
-      deliveryToQueueRate: (byType.QUEUED ?? 0) > 0 ? Math.round((delivered / (byType.QUEUED ?? 0)) * 100) : 0,
-      openToDeliveredRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
-      clickToOpenRate: opened > 0 ? Math.round((clicked / opened) * 100) : 0,
+      lastEventAt: null,
+      totalEvents: 0,
+      uniqueRecipients: 0,
+      deliveryToQueueRate: 0,
+      openToDeliveredRate: 0,
+      clickToOpenRate: 0,
     },
-    events,
+    events: [],
+  });
+});
+
+/**
+ * GET /api/email-campaigns/:id/queue
+ * Description: Returns campaign queue rows with provider-backed attempt/response/sent fields.
+ */
+router.get("/:id/queue", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this campaign" } });
+    return;
+  }
+
+  const rows = await buildCampaignQueueRows({
+    organizationId,
+    campaignId: campaign.id,
+  });
+
+  res.json({ rows });
+});
+
+/**
+ * GET /api/email-campaigns/:id/stream
+ * Description: Streams live campaign snapshot updates over SSE for overview/queue/analytics/activity tabs.
+ */
+router.get("/:id/stream", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+    select: { id: true, audienceFilter: true },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  if (!canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this campaign" } });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  let closed = false;
+
+  const sendSnapshot = async () => {
+    const snapshot = await buildCampaignLiveSnapshot({
+      organizationId,
+      campaignId: campaign.id,
+      eventLimit: 300,
+      sendLogLimit: 160,
+    });
+    if (closed) return;
+    res.write(`event: snapshot\n`);
+    res.write(`data: ${JSON.stringify(snapshot)}\n\n`);
+  };
+
+  await sendSnapshot();
+
+  const heartbeatTimer = setInterval(() => {
+    if (closed) return;
+    res.write(`event: ping\n`);
+    res.write(`data: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+  }, 15000);
+
+  const snapshotTimer = setInterval(() => {
+    void sendSnapshot().catch(() => {
+      if (closed) return;
+      res.write(`event: error\n`);
+      res.write(`data: ${JSON.stringify({ message: "snapshot_failed" })}\n\n`);
+    });
+  }, 5000);
+
+  req.on("close", () => {
+    closed = true;
+    clearInterval(heartbeatTimer);
+    clearInterval(snapshotTimer);
   });
 });
 
@@ -1972,33 +2575,48 @@ router.post("/:id/delivery-events", async (req, res) => {
     res.status(400).json({ error: { code: "INVALID_EVENT_AT", message: "eventAt must be a valid ISO datetime." } });
     return;
   }
-  const metadataInput = metadata as Prisma.InputJsonValue | undefined;
+  const normalizedRecipient = recipientEmail.trim().toLowerCase();
+  const metadataInput = {
+    ...(metadata ?? {}),
+    source: "manual_event",
+    normalizedEventType: safeType,
+    sentAt: safeType === "QUEUED" ? safeEventAt.toISOString() : firstString([metadata?.sentAt]),
+  } as Record<string, unknown>;
 
-  const event = await prisma.emailCampaignDeliveryEvent.upsert({
-    where: {
-      campaignId_recipientEmail_eventType: {
-        campaignId: campaign.id,
-        recipientEmail: recipientEmail.trim().toLowerCase(),
-        eventType: safeType,
-      },
-    },
-    update: {
-      eventAt: safeEventAt,
-      metadata: metadataInput,
-    },
-    create: {
-      organizationId,
-      campaignId: campaign.id,
-      recipientEmail: recipientEmail.trim().toLowerCase(),
-      eventType: safeType,
-      eventAt: safeEventAt,
-      metadata: metadataInput,
-    },
+  await upsertDeliveryEvent({
+    organizationId,
+    campaignId: campaign.id,
+    recipientEmail: normalizedRecipient,
+    eventType: safeType,
+    eventAt: safeEventAt,
+    metadata: metadataInput,
   });
+
+  if (safeType === "QUEUED") {
+    await prisma.emailSendRecipient.updateMany({
+      where: {
+        campaignId: campaign.id,
+        email: normalizedRecipient,
+      },
+      data: {
+        sentAt: safeEventAt,
+      },
+    });
+  }
 
   await recalculateCampaignDeliveryStats(campaign.id);
 
-  res.status(201).json(event);
+  const refreshed = await prisma.emailCampaignDeliveryEvent.findUnique({
+    where: {
+      campaignId_recipientEmail_eventType: {
+        campaignId: campaign.id,
+        recipientEmail: normalizedRecipient,
+        eventType: safeType,
+      },
+    },
+  });
+
+  res.status(201).json(refreshed);
 });
 
 /**

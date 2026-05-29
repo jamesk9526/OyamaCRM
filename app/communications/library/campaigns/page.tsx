@@ -1,7 +1,7 @@
 /** Communication campaign library route backed by the canonical Communications workspace. */
 import { redirect } from "next/navigation";
 
-/** Redirects legacy/deep campaign-library traffic to the project library view. */
+/** Redirects legacy campaign library route to OyamaEmail campaigns. */
 export default function CommunicationsLibraryCampaignsPage() {
-  redirect("/communications?view=email-campaigns");
+  redirect("/oyama-email/campaigns");
 }

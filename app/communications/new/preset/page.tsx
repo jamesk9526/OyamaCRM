@@ -1,15 +1,7 @@
-/** Wizard step: pick communication preset/template. */
-import CommunicationsWizardStep from "@/app/components/communications/CommunicationsWizardStep";
+/** Legacy wizard route redirected to OyamaEmail templates. */
+import { redirect } from "next/navigation";
 
-/** Renders preset selection step. */
+/** Redirects old preset step into the redesigned template library. */
 export default function CommunicationsNewPresetPage() {
-  return (
-    <CommunicationsWizardStep
-      stepIndex={2}
-      title="New Communication - Choose Preset"
-      helper="Pick a template or preset before entering the editor."
-      prevHref="/communications/new/audience"
-      nextHref="/communications/new/editor"
-    />
-  );
+  redirect("/oyama-email/templates");
 }

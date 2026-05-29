@@ -42,9 +42,15 @@ interface SendEmailPayload {
   fromNameOverride?: string;
 }
 
+export interface OrganizationSendResult {
+  acceptedAt: Date;
+  providerResponse: string;
+  providerMessageId: string | null;
+}
+
 export interface OrganizationEmailSender {
   mode: EmailProviderType;
-  send(payload: SendEmailPayload): Promise<void>;
+  send(payload: SendEmailPayload): Promise<OrganizationSendResult>;
 }
 
 export interface ResolvedSmtpSettings {
@@ -396,7 +402,7 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
 
     return {
       mode: "microsoft_graph",
-      async send(payload: SendEmailPayload): Promise<void> {
+      async send(payload: SendEmailPayload): Promise<OrganizationSendResult> {
         const html = payload.html ?? `<p>${payload.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
         await sendMicrosoftGraphMail({
           provider: activeProvider,
@@ -405,6 +411,12 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
           html,
           accessToken: activeProvider.graphAccessToken,
         });
+
+        return {
+          acceptedAt: new Date(),
+          providerResponse: "Microsoft Graph accepted message (202).",
+          providerMessageId: null,
+        };
       },
     };
   }
@@ -420,14 +432,27 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
 
   return {
     mode: provider.provider,
-    async send(payload: SendEmailPayload): Promise<void> {
-      await transporter.sendMail({
+    async send(payload: SendEmailPayload): Promise<OrganizationSendResult> {
+      const info = await transporter.sendMail({
         from: `"${payload.fromNameOverride || effectiveSmtp.smtpFromName || "OyamaCRM"}" <${effectiveSmtp.smtpFromEmail}>`,
         to: payload.to,
         subject: payload.subject,
         text: payload.text,
         html: payload.html ?? `<p>${payload.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`,
       });
+
+      const providerResponse = typeof info.response === "string" && info.response.trim()
+        ? info.response.trim()
+        : "SMTP accepted message.";
+      const providerMessageId = typeof info.messageId === "string" && info.messageId.trim()
+        ? info.messageId.trim()
+        : null;
+
+      return {
+        acceptedAt: new Date(),
+        providerResponse,
+        providerMessageId,
+      };
     },
   };
 }

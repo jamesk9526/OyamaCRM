@@ -1,14 +1,7 @@
-/** Wizard step: choose communication type. */
-import CommunicationsWizardStep from "@/app/components/communications/CommunicationsWizardStep";
+/** Legacy wizard route redirected to OyamaEmail. */
+import { redirect } from "next/navigation";
 
-/** Renders communication type selection step. */
+/** Redirects old type step into the redesigned send workflow. */
 export default function CommunicationsNewTypePage() {
-  return (
-    <CommunicationsWizardStep
-      stepIndex={0}
-      title="New Communication - Choose Type"
-      helper="Start by selecting campaign type before audience and preset details."
-      nextHref="/communications/new/audience"
-    />
-  );
+  redirect("/oyama-email/send");
 }

@@ -21,6 +21,15 @@ Notes:
 - This pass prioritizes the new workspace requested from `Oyamaletters-uiplan.md` while using only live CRM/letters API data and explicit empty states.
 - Validation evidence on 2026-05-28: `pnpm typecheck`, `pnpm typecheck:letters`, targeted ESLint for touched letters routes/components, focused Vitest source contracts, HTTP route sweep, and escalated `npm run build`. A later build rerun was declined after additional builder/settings changes; targeted typecheck, ESLint, Vitest, and route checks passed for those changes.
 
+## OyamaEmail Standalone Workspace Snapshot (2026-05-29)
+
+| Item | Status | Evidence |
+|---|---|---|
+| `/oyama-email` has a dedicated standalone workspace shell and does not reuse legacy communications email UI | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/components/oyama-email/types.ts`, `app/oyama-email/page.tsx` |
+| Template, builder, publish, send, campaigns, audience, queue, analytics, and settings routes are wired | Working | `app/oyama-email/templates/page.tsx`, `app/oyama-email/templates/new/page.tsx`, `app/oyama-email/templates/[templateId]/builder/page.tsx`, `app/oyama-email/templates/[templateId]/publish/page.tsx`, `app/oyama-email/send/page.tsx`, `app/oyama-email/campaigns/page.tsx`, `app/oyama-email/campaigns/[campaignId]/page.tsx`, `app/oyama-email/audience/page.tsx`, `app/oyama-email/queue/page.tsx`, `app/oyama-email/analytics/page.tsx`, `app/oyama-email/settings/page.tsx` |
+| Legacy communications email entry routes redirect into OyamaEmail routes | Working | `app/communications/page.tsx`, `app/communications/new/page.tsx`, `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/log/page.tsx`, `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/library/campaigns/page.tsx`, `app/communications/[campaignId]/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` |
+| Sidebar navigation enters OyamaEmail as the primary donor email tool | Working | `app/components/layout/sidebar-configs.tsx` |
+
 ## Status Definitions
 
 Use only these status labels:

@@ -1,14 +1,12 @@
-/** Campaign review route for communications workspace. */
-import CommunicationCampaignActionPage from "@/app/components/communications/CommunicationCampaignActionPage";
+/** Legacy campaign review route redirected to OyamaEmail campaign detail. */
+import { redirect } from "next/navigation";
 
-/** Renders a campaign-scoped review page shell. */
-export default function CommunicationReviewPage() {
-  return (
-    <CommunicationCampaignActionPage
-      title="Campaign Review"
-      helper="Validate content, recipients, and compliance checks before schedule/send."
-      ctaLabel="Open Email Workspace"
-      ctaHref="/communications/:campaignId?mode=build"
-    />
-  );
+interface PageProps {
+  params: Promise<{ campaignId: string }>;
+}
+
+/** Resolves campaign ID and redirects to redesigned campaign page. */
+export default async function CommunicationReviewPage({ params }: PageProps) {
+  const { campaignId } = await params;
+  redirect(`/oyama-email/campaigns/${campaignId}`);
 }

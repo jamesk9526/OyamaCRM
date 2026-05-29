@@ -14,6 +14,14 @@ _Last deep audit: 2026-05-18 (v1.1.0)_
 | Legacy letters UI removal and compatibility | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/letters/page.tsx`, `app/letters-printables/page.tsx`, `apps/letters/app/page.tsx` | Old routed letters UI components were removed from the main app and standalone package. Existing `/letters`, `/letters-printables`, Communications, and standalone app entries redirect into the refreshed workspace. |
 | Workspace switcher access | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts`, `app/help-content/scope.ts`, `app/lib/feedback/getFeedbackContext.ts` | OyamaLetters is available as a primary workspace switcher entry with help and feedback context mapped back to donor scope. |
 
+## 2026-05-29 OyamaEmail Standalone Workspace Launch Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| OyamaEmail dedicated route surface | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/components/oyama-email/types.ts`, `app/oyama-email/page.tsx`, `app/oyama-email/templates/page.tsx`, `app/oyama-email/templates/new/page.tsx`, `app/oyama-email/templates/[templateId]/builder/page.tsx`, `app/oyama-email/templates/[templateId]/publish/page.tsx`, `app/oyama-email/send/page.tsx`, `app/oyama-email/campaigns/page.tsx`, `app/oyama-email/campaigns/[campaignId]/page.tsx`, `app/oyama-email/audience/page.tsx`, `app/oyama-email/queue/page.tsx`, `app/oyama-email/analytics/page.tsx`, `app/oyama-email/settings/page.tsx` | Added a standalone OyamaEmail studio with dedicated template, builder, publish, send, campaigns, audience, queue, analytics, and settings routes wired to live email APIs. |
+| Legacy communications email-route cutover | Working | `app/communications/page.tsx`, `app/communications/new/page.tsx`, `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/log/page.tsx`, `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/library/campaigns/page.tsx`, `app/communications/[campaignId]/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` | Legacy Communications email entry points now redirect into OyamaEmail routes so users no longer land in deprecated email workspace UIs. |
+| Donor sidebar email navigation cutover | Working | `app/components/layout/sidebar-configs.tsx` | Removed duplicate legacy Communications entry under Communication Tools and promoted OyamaEmail as the primary email workspace navigation path. |
+
 ## 2026-05-28 OyamaLetters Publish + Generate Reliability Pass
 
 | Area | Status | Evidence | Notes |

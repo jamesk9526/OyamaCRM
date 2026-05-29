@@ -1,15 +1,7 @@
-/** Wizard step: edit communication content. */
-import CommunicationsWizardStep from "@/app/components/communications/CommunicationsWizardStep";
+/** Legacy wizard route redirected to OyamaEmail builder. */
+import { redirect } from "next/navigation";
 
-/** Renders content editing step. */
+/** Redirects old editor step into the redesigned template builder. */
 export default function CommunicationsNewEditorPage() {
-  return (
-    <CommunicationsWizardStep
-      stepIndex={3}
-      title="New Communication - Edit"
-      helper="Open the builder, refine content, and prepare merge fields for review."
-      prevHref="/communications/new/preset"
-      nextHref="/communications/new/review"
-    />
-  );
+  redirect("/oyama-email/templates/new");
 }

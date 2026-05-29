@@ -1,14 +1,12 @@
-/** Campaign schedule route for communications workspace. */
-import CommunicationCampaignActionPage from "@/app/components/communications/CommunicationCampaignActionPage";
+/** Legacy campaign schedule route redirected to OyamaEmail campaign detail. */
+import { redirect } from "next/navigation";
 
-/** Renders a campaign-scoped scheduling page shell. */
-export default function CommunicationSchedulePage() {
-  return (
-    <CommunicationCampaignActionPage
-      title="Campaign Schedule"
-      helper="Set send time and execution options for this campaign."
-      ctaLabel="Open Send Workspace"
-      ctaHref="/communications/:campaignId?mode=send"
-    />
-  );
+interface PageProps {
+  params: Promise<{ campaignId: string }>;
+}
+
+/** Resolves campaign ID and redirects to redesigned campaign page. */
+export default async function CommunicationSchedulePage({ params }: PageProps) {
+  const { campaignId } = await params;
+  redirect(`/oyama-email/campaigns/${campaignId}`);
 }

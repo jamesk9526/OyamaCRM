@@ -258,13 +258,15 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       collapsible: true,
       items: [
         {
-          id: "communications",
-          label: "Communications",
-          href: "/communications",
+          id: "oyama-email",
+          label: "OyamaEmail",
+          href: "/oyama-email",
+          activePath: "/oyama-email",
           icon: DONOR_ICONS.communications,
           kind: "communication_tool",
+          badge: "Tool",
           permissions: ["view:communications"],
-          description: "Manage email projects, communication activity, and outreach work.",
+          description: "Open the dedicated email studio for templates, send workflows, queue management, and analytics.",
         },
         {
           id: "contacts-manager",
