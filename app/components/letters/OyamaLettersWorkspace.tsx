@@ -2216,6 +2216,7 @@ function GenerateWorkspace() {
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [batch, setBatch] = useState<BatchResult | null>(null);
+  const [selectedTemplateDetail, setSelectedTemplateDetail] = useState<LetterTemplateDetail | null>(null);
   const [recipientTab, setRecipientTab] = useState<"all" | "missingAddress" | "missingRequired" | "suppressed">("all");
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [recipientStepTab, setRecipientStepTab] = useState<"lists" | "segments" | "filters" | "individuals">("segments");
@@ -2266,6 +2267,26 @@ function GenerateWorkspace() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!templateId) {
+      setSelectedTemplateDetail(null);
+      return;
+    }
+
+    void apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`)
+      .then((detail) => {
+        if (!cancelled) setSelectedTemplateDetail(detail);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedTemplateDetail(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [templateId]);
 
   // Quick Print: when arriving from a constituent profile with quickPrint=1,
   // skip recipient selection and jump straight to step 3 (Donation Context)
@@ -2683,6 +2704,12 @@ function GenerateWorkspace() {
   }
 
   const selectedTemplate = templates.find((template) => template.id === templateId) ?? null;
+  const previewHeaderDraft = selectedTemplateDetail?.headerPreset
+    ? headerPresetToDraft(selectedTemplateDetail.headerPreset)
+    : buildImportedHeaderPreset(branding);
+  const previewFooterDraft = selectedTemplateDetail?.footerPreset
+    ? footerPresetToDraft(selectedTemplateDetail.footerPreset)
+    : buildImportedFooterPreset(branding);
   const selectedDirectRecipientId = constituentId || activeRecipientIds[0] || pendingRecipientIds[0] || "";
   const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   const effectiveRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
@@ -2992,9 +3019,9 @@ function GenerateWorkspace() {
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#f3f5f8] p-3">
               <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
-                <LetterPreviewHeader branding={branding} header={buildImportedHeaderPreset(branding)} />
+                <LetterPreviewHeader branding={branding} header={previewHeaderDraft} />
                 <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run review preview in Step 2 to load merged output." showLetterhead={false} />
-                <LetterPreviewFooter branding={branding} footer={buildImportedFooterPreset(branding)} />
+                <LetterPreviewFooter branding={branding} footer={previewFooterDraft} />
               </div>
             </div>
               <Button onClick={() => setWizardStep(2)} disabled={!canOpenRecipientsStep}>Edit Recipient Selection</Button>
@@ -3369,9 +3396,9 @@ function GenerateWorkspace() {
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#f3f5f8] p-3">
               <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
-                <LetterPreviewHeader branding={branding} header={buildImportedHeaderPreset(branding)} />
+                <LetterPreviewHeader branding={branding} header={previewHeaderDraft} />
                 <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run preview to render the letter sample." showLetterhead={false} />
-                <LetterPreviewFooter branding={branding} footer={buildImportedFooterPreset(branding)} />
+                <LetterPreviewFooter branding={branding} footer={previewFooterDraft} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">

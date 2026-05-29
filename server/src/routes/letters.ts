@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { Router, type Request } from "express";
 import type { jsPDF as JsPdfDocument } from "jspdf";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -1005,12 +1005,22 @@ function readTextConfig(config: unknown, key: string): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
+function readFirstTextConfig(config: unknown, keys: string[]): string {
+  for (const key of keys) {
+    const value = readTextConfig(config, key);
+    if (value) return value;
+  }
+  return "";
+}
+
 function buildAddressLineFromBranding(config: unknown): string {
+  const city = readFirstTextConfig(config, ["city", "town"]);
+  const state = readFirstTextConfig(config, ["stateProvince", "state", "province"]);
   const parts = [
-    readTextConfig(config, "streetAddress1"),
-    readTextConfig(config, "streetAddress2"),
-    [readTextConfig(config, "city"), readTextConfig(config, "stateProvince")].filter(Boolean).join(", "),
-    readTextConfig(config, "postalCode"),
+    readFirstTextConfig(config, ["streetAddress1", "addressLine1", "address1"]),
+    readFirstTextConfig(config, ["streetAddress2", "addressLine2", "address2"]),
+    [city, state].filter(Boolean).join(", "),
+    readFirstTextConfig(config, ["postalCode", "zip", "zipCode"]),
     readTextConfig(config, "country"),
   ].filter(Boolean);
   return parts.join(" | ");
@@ -1040,13 +1050,23 @@ function normalizePdfHexColor(value: string): [number, number, number] {
 }
 
 async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
-  const logoPath = rawLogoPath.trim().replace(/\\/g, "/");
+  let logoPath = rawLogoPath.trim().replace(/\\/g, "/");
+  if (!logoPath) return null;
+  if (!logoPath.startsWith("/") && /^https?:\/\//i.test(logoPath)) {
+    try {
+      const parsed = new URL(logoPath);
+      logoPath = `${parsed.pathname || ""}${parsed.search || ""}`;
+    } catch {
+      return null;
+    }
+  }
+  const logoWithoutQuery = logoPath.split("?")[0]?.split("#")[0] ?? logoPath;
   const inlineFormat = inferPdfLogoFormatFromDataUrl(logoPath);
   if (inlineFormat) return { dataUrl: logoPath, format: inlineFormat };
-  if (!logoPath.startsWith("/")) return null;
+  if (!logoWithoutQuery.startsWith("/")) return null;
 
   const publicDir = path.resolve(process.cwd(), "public");
-  const absolutePath = path.resolve(publicDir, `.${logoPath}`);
+  const absolutePath = path.resolve(publicDir, `.${logoWithoutQuery}`);
   if (!absolutePath.startsWith(publicDir)) return null;
 
   const extension = path.extname(absolutePath).toLowerCase();
@@ -1063,15 +1083,48 @@ async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: 
   }
 }
 
-async function resolveBrandingLogoDataUrl(branding: unknown): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
+async function resolveFallbackBrandingLogoPath(organizationId: string): Promise<string | null> {
+  const brandingDir = path.resolve(process.cwd(), "public", "uploads", "branding", organizationId);
+  try {
+    const entries = await readdir(brandingDir, { withFileTypes: true });
+    const candidates = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((fileName) => /\.(png|jpe?g|webp)$/i.test(fileName));
+    if (candidates.length === 0) return null;
+
+    const ranked = await Promise.all(candidates.map(async (fileName) => {
+      const absolutePath = path.join(brandingDir, fileName);
+      const metadata = await stat(absolutePath);
+      return { fileName, mtimeMs: metadata.mtimeMs };
+    }));
+
+    ranked.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return `/uploads/branding/${organizationId}/${ranked[0]?.fileName ?? ""}`;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveBrandingLogoDataUrl(
+  branding: unknown,
+  organizationId: string,
+): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
   const candidates = [
-    readTextConfig(branding, "logoUrl"),
-    readTextConfig(branding, "logoSquareUrl"),
+    readFirstTextConfig(branding, ["logoUrl", "logo", "primaryLogoUrl", "brandLogoUrl"]),
+    readFirstTextConfig(branding, ["logoSquareUrl", "squareLogoUrl", "secondaryLogoUrl"]),
   ].filter(Boolean);
   for (const candidate of candidates) {
     const logo = await loadBrandingLogoDataUrl(candidate);
     if (logo) return logo;
   }
+
+  const fallbackPath = await resolveFallbackBrandingLogoPath(organizationId);
+  if (fallbackPath) {
+    const fallbackLogo = await loadBrandingLogoDataUrl(fallbackPath);
+    if (fallbackLogo) return fallbackLogo;
+  }
+
   return null;
 }
 
@@ -1087,28 +1140,27 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
 
   const branding = brandingSetting?.config;
   const organizationName =
-    readTextConfig(branding, "organizationDisplayName")
-    || readTextConfig(branding, "legalOrganizationName")
+    readFirstTextConfig(branding, ["organizationDisplayName", "legalOrganizationName", "organizationName"])
     || organization?.name
     || settings?.smtpFromName
     || "Organization";
   const contactLine = [
-    readTextConfig(branding, "contactPhone"),
-    readTextConfig(branding, "contactEmail") || settings?.smtpFromEmail || "",
-    readTextConfig(branding, "websiteUrl"),
+    readFirstTextConfig(branding, ["contactPhone", "phone"]),
+    readFirstTextConfig(branding, ["contactEmail", "email"]) || settings?.smtpFromEmail || "",
+    readFirstTextConfig(branding, ["websiteUrl", "website"]),
   ].filter(Boolean).join(" | ");
-  const logo = await resolveBrandingLogoDataUrl(branding);
+  const logo = await resolveBrandingLogoDataUrl(branding, organizationId);
 
   return {
     organizationName,
     tagline: readTextConfig(branding, "tagline"),
     addressLine: buildAddressLineFromBranding(branding),
     contactLine,
-    taxId: readTextConfig(branding, "taxId"),
+    taxId: readFirstTextConfig(branding, ["taxId", "ein"]),
     footerLegalText: readTextConfig(branding, "footerLegalText"),
     logoDataUrl: logo?.dataUrl ?? null,
     logoFormat: logo?.format ?? null,
-    primaryColor: readTextConfig(branding, "primaryColor") || "#0f766e",
+    primaryColor: readFirstTextConfig(branding, ["primaryColor", "accentColor"]) || "#0f766e",
   };
 }
 
