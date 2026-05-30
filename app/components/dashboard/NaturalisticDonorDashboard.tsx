@@ -335,7 +335,15 @@ export default function NaturalisticDonorDashboard({
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatDashboardCurrency(value)} />
+                    <Tooltip
+                      formatter={(value) => {
+                        const scalar = Array.isArray(value) ? value[0] : value;
+                        const normalized = typeof scalar === "number" || typeof scalar === "string"
+                          ? scalar
+                          : undefined;
+                        return formatDashboardCurrency(toDashboardNumber(normalized));
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -422,7 +430,13 @@ export default function NaturalisticDonorDashboard({
                         width={72}
                       />
                       <Tooltip
-                        formatter={(value: number) => formatDashboardCurrency(Number(value))}
+                        formatter={(value) => {
+                          const scalar = Array.isArray(value) ? value[0] : value;
+                          const normalized = typeof scalar === "number" || typeof scalar === "string"
+                            ? scalar
+                            : undefined;
+                          return formatDashboardCurrency(toDashboardNumber(normalized));
+                        }}
                         labelClassName="text-xs font-semibold text-slate-700"
                         contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0" }}
                       />

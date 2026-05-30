@@ -9,7 +9,7 @@
 /** The event name fired to open Steward with a specific prompt. */
 export const STEWARD_OPEN_EVENT = "steward:open-with-prompt" as const;
 
-type StewardModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "hrm" | "all";
+type StewardModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password" | "all";
 type StewardChatMode = "ask" | "analyze" | "draft" | "action" | "help";
 
 /** Payload attached to the steward:open-with-prompt CustomEvent. */
