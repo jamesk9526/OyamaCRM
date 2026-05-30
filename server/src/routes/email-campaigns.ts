@@ -408,11 +408,64 @@ interface CampaignSharingSettings {
 
 type CampaignPreparationStatus = "NOT_STARTED" | "DRAFT" | "READY";
 
+type CampaignQueueState = "ACTIVE" | "PAUSED";
+
+type CampaignWorkspaceStatus =
+  | "DRAFT"
+  | "NEEDS_REVIEW"
+  | "READY"
+  | "SCHEDULED"
+  | "QUEUED"
+  | "SENDING"
+  | "SENT"
+  | "DELIVERED"
+  | "FAILED"
+  | "CANCELLED"
+  | "ARCHIVED";
+
+interface CampaignTemplateSnapshot {
+  templateId: string | null;
+  templateVersion: string | null;
+  templateName: string | null;
+}
+
 interface CampaignWorkflowSettings {
   preparationStatus: CampaignPreparationStatus;
+  needsReview: boolean;
+  archivedAt: string | null;
+  archivedById: string | null;
+  queueState: CampaignQueueState;
+  lastQueueActionAt: string | null;
+  lastQueueActionById: string | null;
+  templateSnapshot: CampaignTemplateSnapshot | null;
 }
 
 const CAMPAIGN_PREPARATION_STATUSES: CampaignPreparationStatus[] = ["NOT_STARTED", "DRAFT", "READY"];
+const CAMPAIGN_QUEUE_STATES: CampaignQueueState[] = ["ACTIVE", "PAUSED"];
+const CAMPAIGN_WORKSPACE_STATUSES: CampaignWorkspaceStatus[] = [
+  "DRAFT",
+  "NEEDS_REVIEW",
+  "READY",
+  "SCHEDULED",
+  "QUEUED",
+  "SENDING",
+  "SENT",
+  "DELIVERED",
+  "FAILED",
+  "CANCELLED",
+  "ARCHIVED",
+];
+
+const DEFAULT_CAMPAIGN_WORKFLOW: CampaignWorkflowSettings = {
+  preparationStatus: "DRAFT",
+  needsReview: false,
+  archivedAt: null,
+  archivedById: null,
+  queueState: "ACTIVE",
+  lastQueueActionAt: null,
+  lastQueueActionById: null,
+  templateSnapshot: null,
+};
 
 type CampaignSendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL" | "MULTI_SEGMENT" | "MULTI_LIST";
 
@@ -1335,6 +1388,59 @@ function normalizePreparationStatus(
   return CAMPAIGN_PREPARATION_STATUSES.includes(normalized) ? normalized : fallback;
 }
 
+function normalizeQueueState(raw: unknown, fallback: CampaignQueueState = "ACTIVE"): CampaignQueueState {
+  if (typeof raw !== "string") return fallback;
+  const normalized = raw.trim().toUpperCase() as CampaignQueueState;
+  return CAMPAIGN_QUEUE_STATES.includes(normalized) ? normalized : fallback;
+}
+
+function normalizeTemplateSnapshot(raw: unknown): CampaignTemplateSnapshot | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  const templateId = typeof value.templateId === "string" ? value.templateId.trim() : "";
+  const templateVersion = typeof value.templateVersion === "string" ? value.templateVersion.trim() : "";
+  const templateName = typeof value.templateName === "string" ? value.templateName.trim() : "";
+  if (!templateId && !templateVersion && !templateName) return null;
+  return {
+    templateId: templateId || null,
+    templateVersion: templateVersion || null,
+    templateName: templateName || null,
+  };
+}
+
+function normalizeCampaignWorkflow(
+  raw: unknown,
+  fallback: CampaignWorkflowSettings = DEFAULT_CAMPAIGN_WORKFLOW,
+): CampaignWorkflowSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ...fallback };
+  }
+  const value = raw as Record<string, unknown>;
+  return {
+    preparationStatus: normalizePreparationStatus(value.preparationStatus, fallback.preparationStatus),
+    needsReview: typeof value.needsReview === "boolean" ? value.needsReview : fallback.needsReview,
+    archivedAt: typeof value.archivedAt === "string" && value.archivedAt.trim() ? value.archivedAt.trim() : fallback.archivedAt,
+    archivedById: typeof value.archivedById === "string" && value.archivedById.trim() ? value.archivedById.trim() : fallback.archivedById,
+    queueState: normalizeQueueState(value.queueState, fallback.queueState),
+    lastQueueActionAt:
+      typeof value.lastQueueActionAt === "string" && value.lastQueueActionAt.trim()
+        ? value.lastQueueActionAt.trim()
+        : fallback.lastQueueActionAt,
+    lastQueueActionById:
+      typeof value.lastQueueActionById === "string" && value.lastQueueActionById.trim()
+        ? value.lastQueueActionById.trim()
+        : fallback.lastQueueActionById,
+    templateSnapshot: normalizeTemplateSnapshot(value.templateSnapshot) ?? fallback.templateSnapshot,
+  };
+}
+
+function withWorkflow(
+  workflow: Partial<CampaignWorkflowSettings> | null | undefined,
+  fallback: CampaignWorkflowSettings = DEFAULT_CAMPAIGN_WORKFLOW,
+): CampaignWorkflowSettings {
+  return normalizeCampaignWorkflow({ ...fallback, ...(workflow ?? {}) }, fallback);
+}
+
 /** Parse audienceFilter JSON into filter + sharing/workflow settings with safe defaults. */
 function parseCampaignAudienceFilter(
   raw: string | null,
@@ -1343,7 +1449,7 @@ function parseCampaignAudienceFilter(
     return {
       filter: null,
       sharing: { ownerId: null, sharedWithOrganization: true },
-      workflow: { preparationStatus: "DRAFT" },
+      workflow: { ...DEFAULT_CAMPAIGN_WORKFLOW },
     };
   }
 
@@ -1358,8 +1464,13 @@ function parseCampaignAudienceFilter(
       ? (workflow as Record<string, unknown>)
       : null;
 
+    const filter = { ...parsed };
+    delete filter._sharing;
+    delete filter._workflow;
+    const hasFilterKeys = Object.keys(filter).length > 0;
+
     return {
-      filter: { type: typeof parsed.type === "string" ? parsed.type : undefined },
+      filter: hasFilterKeys ? filter as AudienceFilter : null,
       sharing: {
         ownerId: sharingObj && typeof sharingObj.ownerId === "string" ? sharingObj.ownerId : null,
         sharedWithOrganization:
@@ -1367,18 +1478,13 @@ function parseCampaignAudienceFilter(
             ? sharingObj.sharedWithOrganization
             : true,
       },
-      workflow: {
-        preparationStatus: normalizePreparationStatus(
-          workflowObj?.preparationStatus,
-          "DRAFT",
-        ),
-      },
+      workflow: normalizeCampaignWorkflow(workflowObj, DEFAULT_CAMPAIGN_WORKFLOW),
     };
   } catch {
     return {
       filter: null,
       sharing: { ownerId: null, sharedWithOrganization: true },
-      workflow: { preparationStatus: "DRAFT" },
+      workflow: { ...DEFAULT_CAMPAIGN_WORKFLOW },
     };
   }
 }
@@ -1388,18 +1494,20 @@ function serializeCampaignAudienceFilter(
   filter: AudienceFilter,
   ownerId: string,
   sharedWithOrganization: boolean,
-  preparationStatus: CampaignPreparationStatus,
+  workflowOrPreparation: CampaignWorkflowSettings | CampaignPreparationStatus,
 ): string {
   const safeFilter = filter && typeof filter === "object" ? { ...filter } : {};
+  const workflow = typeof workflowOrPreparation === "string"
+    ? withWorkflow({ preparationStatus: normalizePreparationStatus(workflowOrPreparation, "DRAFT") })
+    : withWorkflow(workflowOrPreparation);
+
   return JSON.stringify({
     ...safeFilter,
     _sharing: {
       ownerId,
       sharedWithOrganization,
     },
-    _workflow: {
-      preparationStatus,
-    },
+    _workflow: workflow,
   });
 }
 
@@ -1931,6 +2039,167 @@ async function recalculateCampaignDeliveryStats(campaignId: string) {
   });
 }
 
+interface CampaignEventStats {
+  queued: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+}
+
+function emptyCampaignEventStats(): CampaignEventStats {
+  return {
+    queued: 0,
+    delivered: 0,
+    opened: 0,
+    clicked: 0,
+    bounced: 0,
+  };
+}
+
+function isEnumWorkspaceStatus(value: string): value is CampaignWorkspaceStatus {
+  return CAMPAIGN_WORKSPACE_STATUSES.includes(value as CampaignWorkspaceStatus);
+}
+
+function resolveWorkspaceStatus(params: {
+  status: string;
+  workflow: CampaignWorkflowSettings;
+  scheduledAt: Date | null;
+  sentAt: Date | null;
+  eventStats: CampaignEventStats;
+  hasRecentSendFailure: boolean;
+}): CampaignWorkspaceStatus {
+  if (params.workflow.archivedAt) return "ARCHIVED";
+
+  const status = params.status.toUpperCase();
+  const { eventStats } = params;
+
+  if (status === "CANCELLED") return "CANCELLED";
+  if (status === "SENDING") return "SENDING";
+
+  if (status === "SCHEDULED") {
+    if (params.workflow.queueState === "PAUSED") return "QUEUED";
+    if (eventStats.queued > 0) return "QUEUED";
+    return "SCHEDULED";
+  }
+
+  if (status === "SENT") {
+    if (eventStats.delivered > 0 || eventStats.opened > 0 || eventStats.clicked > 0) return "DELIVERED";
+    if (eventStats.bounced > 0 && eventStats.delivered === 0) return "FAILED";
+    if (eventStats.queued > 0) return "SENT";
+    if (params.sentAt) return "SENT";
+  }
+
+  if (params.hasRecentSendFailure) return "FAILED";
+
+  if (status === "DRAFT") {
+    if (params.workflow.preparationStatus === "READY") {
+      if (params.workflow.needsReview) return "NEEDS_REVIEW";
+      return "READY";
+    }
+    return "DRAFT";
+  }
+
+  if (isEnumWorkspaceStatus(status)) return status;
+  return "DRAFT";
+}
+
+function nextActionForWorkspaceStatus(status: CampaignWorkspaceStatus): string {
+  if (status === "DRAFT") return "Continue Setup";
+  if (status === "NEEDS_REVIEW") return "Queue for Review";
+  if (status === "READY") return "Schedule";
+  if (status === "SCHEDULED") return "Monitor Schedule";
+  if (status === "QUEUED") return "View Queue";
+  if (status === "SENDING") return "Monitor Queue";
+  if (status === "SENT" || status === "DELIVERED") return "View Analytics";
+  if (status === "FAILED") return "Fix and Retry";
+  if (status === "CANCELLED") return "Duplicate Campaign";
+  if (status === "ARCHIVED") return "Duplicate Campaign";
+  return "Open Campaign";
+}
+
+async function fetchCampaignEventStatsMap(organizationId: string, campaignIds: string[]): Promise<Map<string, CampaignEventStats>> {
+  if (campaignIds.length === 0) return new Map();
+  const grouped = await prisma.emailCampaignDeliveryEvent.groupBy({
+    by: ["campaignId", "eventType"],
+    where: {
+      organizationId,
+      campaignId: { in: campaignIds },
+    },
+    _count: { eventType: true },
+  });
+
+  const map = new Map<string, CampaignEventStats>();
+  for (const row of grouped) {
+    const existing = map.get(row.campaignId) ?? emptyCampaignEventStats();
+    if (row.eventType === "QUEUED") existing.queued = row._count.eventType;
+    if (row.eventType === "DELIVERED") existing.delivered = row._count.eventType;
+    if (row.eventType === "OPENED") existing.opened = row._count.eventType;
+    if (row.eventType === "CLICKED") existing.clicked = row._count.eventType;
+    if (row.eventType === "BOUNCED") existing.bounced = row._count.eventType;
+    map.set(row.campaignId, existing);
+  }
+  return map;
+}
+
+async function fetchRecentSendFailureMap(organizationId: string, campaignIds: string[]): Promise<Map<string, boolean>> {
+  if (campaignIds.length === 0) return new Map();
+  const rows = await prisma.auditLog.findMany({
+    where: {
+      organizationId,
+      entity: "EmailCampaign",
+      action: "EMAIL_CAMPAIGN_SEND_FAILED",
+      entityId: { in: campaignIds },
+    },
+    select: {
+      entityId: true,
+    },
+    distinct: ["entityId"],
+  });
+  const map = new Map<string, boolean>();
+  for (const row of rows) {
+    if (typeof row.entityId === "string" && row.entityId.trim()) {
+      map.set(row.entityId, true);
+    }
+  }
+  return map;
+}
+
+function withCampaignWorkspaceFields<T extends {
+  id: string;
+  status: string;
+  audienceFilter: string | null;
+  scheduledAt: Date | null;
+  sentAt: Date | null;
+}>(
+  campaign: T,
+  options: {
+    eventStats?: CampaignEventStats;
+    hasRecentSendFailure?: boolean;
+  } = {},
+) {
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  const workspaceStatus = resolveWorkspaceStatus({
+    status: campaign.status,
+    workflow: parsed.workflow,
+    scheduledAt: campaign.scheduledAt,
+    sentAt: campaign.sentAt,
+    eventStats: options.eventStats ?? emptyCampaignEventStats(),
+    hasRecentSendFailure: Boolean(options.hasRecentSendFailure),
+  });
+
+  return {
+    ...campaign,
+    ownerId: parsed.sharing.ownerId,
+    sharedWithOrganization: parsed.sharing.sharedWithOrganization,
+    preparationStatus: parsed.workflow.preparationStatus,
+    workflow: parsed.workflow,
+    templateSnapshot: parsed.workflow.templateSnapshot,
+    workspaceStatus,
+    nextRecommendedAction: nextActionForWorkspaceStatus(workspaceStatus),
+  };
+}
+
 /** True when user can view campaign. */
 function canAccessCampaign(sharing: CampaignSharingSettings, userId: string, role: string | undefined): boolean {
   if (role === "admin") return true;
@@ -1944,6 +2213,168 @@ function canManageCampaign(sharing: CampaignSharingSettings, userId: string, rol
   if (role === "admin") return true;
   if (!sharing.ownerId) return true;
   return sharing.ownerId === userId;
+}
+
+interface CampaignValidationCheck {
+  key: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+  blocking: boolean;
+}
+
+interface CampaignValidationResult {
+  valid: boolean;
+  checks: CampaignValidationCheck[];
+  blockers: string[];
+  audience: Omit<AudiencePreview, "recipients">;
+}
+
+async function validateCampaignSendReadiness(params: {
+  campaign: {
+    id: string;
+    organizationId: string;
+    subject: string;
+    fromName: string;
+    fromEmail: string;
+    replyToEmail: string | null;
+    bodyHtml: string | null;
+    bodyText: string | null;
+    templateJson: string | null;
+    purpose: EmailPurpose;
+    audienceFilter: string | null;
+  };
+  sendOptions?: CampaignSendOptions;
+}): Promise<CampaignValidationResult> {
+  const purpose = parseEmailPurpose(params.campaign.purpose);
+  const deliveryBodies = buildCampaignDeliveryBodies(params.campaign, purpose);
+
+  const requiredFieldsChecks: CampaignValidationCheck[] = [
+    {
+      key: "subject",
+      label: "Subject",
+      passed: Boolean(params.campaign.subject?.trim()),
+      detail: params.campaign.subject?.trim() ? "Subject is set." : "Campaign subject is required.",
+      blocking: true,
+    },
+    {
+      key: "fromEmail",
+      label: "Sender Email",
+      passed: Boolean(params.campaign.fromEmail?.trim()) && isValidEmail(params.campaign.fromEmail),
+      detail: isValidEmail(params.campaign.fromEmail || "") ? "Sender email is valid." : "fromEmail must be a valid email address.",
+      blocking: true,
+    },
+    {
+      key: "replyToEmail",
+      label: "Reply-To Email",
+      passed: !params.campaign.replyToEmail || isValidEmail(params.campaign.replyToEmail),
+      detail: !params.campaign.replyToEmail || isValidEmail(params.campaign.replyToEmail)
+        ? "Reply-to is valid."
+        : "replyToEmail must be a valid email address.",
+      blocking: true,
+    },
+    {
+      key: "body",
+      label: "Template Body",
+      passed: Boolean(deliveryBodies.html?.trim()) || Boolean(deliveryBodies.text?.trim()),
+      detail: (deliveryBodies.html?.trim() || deliveryBodies.text?.trim())
+        ? "Template body is present."
+        : "Campaign body content is required.",
+      blocking: true,
+    },
+  ];
+
+  const recipientPlan = await resolveRecipientPlan({
+    organizationId: params.campaign.organizationId,
+    audienceFilter: params.campaign.audienceFilter,
+    purpose,
+  }, params.sendOptions);
+
+  const complianceIssues = getCampaignComplianceIssues({
+    purpose,
+    subject: params.campaign.subject,
+    bodyHtml: deliveryBodies.html,
+    bodyText: deliveryBodies.text,
+    fromEmail: params.campaign.fromEmail,
+    replyToEmail: params.campaign.replyToEmail,
+  });
+
+  const complianceChecks = complianceIssues.length === 0
+    ? [{
+        key: "compliance",
+        label: "Compliance",
+        passed: true,
+        detail: "Compliance checks passed.",
+        blocking: true,
+      } satisfies CampaignValidationCheck]
+    : complianceIssues.map((issue, index) => ({
+        key: `compliance-${index + 1}`,
+        label: "Compliance",
+        passed: false,
+        detail: issue,
+        blocking: true,
+      } satisfies CampaignValidationCheck));
+
+  let smtpCheck: CampaignValidationCheck;
+  try {
+    await createOrganizationEmailSender(params.campaign.organizationId);
+    smtpCheck = {
+      key: "smtp",
+      label: "SMTP / Provider",
+      passed: true,
+      detail: "Outbound provider is configured.",
+      blocking: true,
+    };
+  } catch (error) {
+    smtpCheck = {
+      key: "smtp",
+      label: "SMTP / Provider",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Outbound email provider is not ready.",
+      blocking: true,
+    };
+  }
+
+  const audienceChecks: CampaignValidationCheck[] = [
+    {
+      key: "audience-valid",
+      label: "Audience Valid Recipients",
+      passed: recipientPlan.audience.finalSendCount > 0,
+      detail: recipientPlan.audience.finalSendCount > 0
+        ? `${recipientPlan.audience.finalSendCount} recipients are eligible.`
+        : "No recipients are eligible for send.",
+      blocking: true,
+    },
+    {
+      key: "audience-optout",
+      label: "Unsubscribe / Suppression",
+      passed: true,
+      detail: `Opted out: ${recipientPlan.audience.optedOut + recipientPlan.audience.categoryOptOut}, suppressed: ${recipientPlan.audience.suppressed}, do-not-contact: ${recipientPlan.audience.doNotContact}.`,
+      blocking: false,
+    },
+  ];
+
+  const checks = [...requiredFieldsChecks, ...complianceChecks, smtpCheck, ...audienceChecks];
+  const blockers = checks.filter((check) => check.blocking && !check.passed).map((check) => check.detail);
+
+  return {
+    valid: blockers.length === 0,
+    checks,
+    blockers,
+    audience: {
+      totalMatched: recipientPlan.audience.totalMatched,
+      validEmail: recipientPlan.audience.validEmail,
+      missingEmail: recipientPlan.audience.missingEmail,
+      optedOut: recipientPlan.audience.optedOut,
+      duplicateEmails: recipientPlan.audience.duplicateEmails,
+      suppressionCount: recipientPlan.audience.suppressionCount,
+      categoryOptOut: recipientPlan.audience.categoryOptOut,
+      doNotContact: recipientPlan.audience.doNotContact,
+      invalidEmail: recipientPlan.audience.invalidEmail,
+      suppressed: recipientPlan.audience.suppressed,
+      finalSendCount: recipientPlan.audience.finalSendCount,
+    },
+  };
 }
 
 /** Typed HTTP-friendly error for campaign send flows. */
@@ -2679,36 +3110,112 @@ router.get("/", async (req, res) => {
     return;
   }
 
-  const { status, search, limit = "50" } = req.query as Record<string, string>;
+  const {
+    status,
+    search,
+    ownerId,
+    sortBy = "updatedAt",
+    sortDirection = "desc",
+    limit = "50",
+  } = req.query as Record<string, string>;
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.json([]);
     return;
   }
 
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 250);
+  const statusFilters = (status ?? "")
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean);
+
   const campaigns = await prisma.emailCampaign.findMany({
     where: {
       organizationId,
-      ...(status && { status: status as never }),
-      ...(search && { name: { contains: search } }),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search } },
+              { subject: { contains: search } },
+              { fromName: { contains: search } },
+              { fromEmail: { contains: search } },
+            ],
+          }
+        : {}),
     },
     orderBy: { updatedAt: "desc" },
-    take: Math.min(parseInt(limit), 200),
+    take: safeLimit,
   });
 
-  const visible = campaigns
-    .filter((campaign) => canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role))
-    .map((campaign) => {
-      const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
-      return {
-        ...campaign,
-        ownerId: parsed.sharing.ownerId,
-        sharedWithOrganization: parsed.sharing.sharedWithOrganization,
-        preparationStatus: parsed.workflow.preparationStatus,
-      };
-    });
+  const visibleCampaigns = campaigns
+    .filter((campaign) => canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role));
 
-  res.json(visible);
+  const campaignIds = visibleCampaigns.map((campaign) => campaign.id);
+  const [eventStatsMap, failedMap] = await Promise.all([
+    fetchCampaignEventStatsMap(organizationId, campaignIds),
+    fetchRecentSendFailureMap(organizationId, campaignIds),
+  ]);
+
+  const enriched = visibleCampaigns.map((campaign) => withCampaignWorkspaceFields(campaign, {
+    eventStats: eventStatsMap.get(campaign.id) ?? emptyCampaignEventStats(),
+    hasRecentSendFailure: failedMap.get(campaign.id) ?? false,
+  }));
+
+  const ownerFiltered = ownerId
+    ? enriched.filter((campaign) => (campaign.ownerId ?? "") === ownerId)
+    : enriched;
+
+  const statusFiltered = statusFilters.length > 0
+    ? ownerFiltered.filter((campaign) => {
+        const legacyStatus = campaign.status.toUpperCase();
+        const workspaceStatus = campaign.workspaceStatus.toUpperCase();
+        return statusFilters.includes(legacyStatus) || statusFilters.includes(workspaceStatus);
+      })
+    : ownerFiltered;
+
+  const searched = search
+    ? statusFiltered.filter((campaign) => {
+        const needle = search.toLowerCase();
+        const templateName = campaign.templateSnapshot?.templateName ?? "";
+        const owner = campaign.ownerId ?? "";
+        return [
+          campaign.name,
+          campaign.subject,
+          campaign.status,
+          campaign.workspaceStatus,
+          templateName,
+          owner,
+        ].join(" ").toLowerCase().includes(needle);
+      })
+    : statusFiltered;
+
+  const sorted = [...searched].sort((a, b) => {
+    const direction = sortDirection.toLowerCase() === "asc" ? 1 : -1;
+
+    const safeDate = (value: Date | string | null | undefined) => {
+      if (!value) return 0;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+    };
+
+    const safeRate = (opened: number, delivered: number) => (delivered > 0 ? opened / delivered : 0);
+    const byUpdated = safeDate(a.updatedAt) - safeDate(b.updatedAt);
+    const byScheduled = safeDate(a.scheduledAt) - safeDate(b.scheduledAt);
+    const bySent = safeDate(a.sentAt) - safeDate(b.sentAt);
+    const byOpenRate = safeRate(a.opened, a.delivered) - safeRate(b.opened, b.delivered);
+    const byClickRate = safeRate(a.clicked, a.delivered) - safeRate(b.clicked, b.delivered);
+    const byAudience = (a.totalRecipients ?? 0) - (b.totalRecipients ?? 0);
+
+    if (sortBy === "scheduledAt") return byScheduled * direction;
+    if (sortBy === "sentAt") return bySent * direction;
+    if (sortBy === "openRate") return byOpenRate * direction;
+    if (sortBy === "clickRate") return byClickRate * direction;
+    if (sortBy === "audienceSize") return byAudience * direction;
+    return byUpdated * direction;
+  });
+
+  res.json(sorted.slice(0, safeLimit));
 });
 
 /** GET /api/email-campaigns/stats — Aggregate email engagement metrics (total, sent, open rate, etc.) across all campaigns. */
@@ -3010,6 +3517,110 @@ router.delete("/lists/:listId", async (req, res) => {
   res.status(204).send();
 });
 
+/**
+ * GET /api/email-campaigns/calendar
+ * Description: Returns calendar events for campaign planning and an unscheduled drafts rail.
+ * Query: from?: ISO datetime, to?: ISO datetime
+ */
+router.get("/calendar", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({
+      range: { from: null, to: null },
+      events: [],
+      unscheduledDrafts: [],
+    });
+    return;
+  }
+
+  const fromRaw = typeof req.query.from === "string" ? req.query.from : "";
+  const toRaw = typeof req.query.to === "string" ? req.query.to : "";
+  const from = fromRaw ? new Date(fromRaw) : new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
+  const to = toRaw ? new Date(toRaw) : new Date(Date.now() + (90 * 24 * 60 * 60 * 1000));
+
+  const safeFrom = Number.isNaN(from.getTime()) ? new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)) : from;
+  const safeTo = Number.isNaN(to.getTime()) ? new Date(Date.now() + (90 * 24 * 60 * 60 * 1000)) : to;
+
+  const campaigns = await prisma.emailCampaign.findMany({
+    where: { organizationId },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const visibleCampaigns = campaigns.filter((campaign) =>
+    canAccessCampaign(parseCampaignAudienceFilter(campaign.audienceFilter).sharing, userId, role)
+  );
+
+  const ids = visibleCampaigns.map((campaign) => campaign.id);
+  const [eventStatsMap, failedMap] = await Promise.all([
+    fetchCampaignEventStatsMap(organizationId, ids),
+    fetchRecentSendFailureMap(organizationId, ids),
+  ]);
+
+  const enriched = visibleCampaigns.map((campaign) => withCampaignWorkspaceFields(campaign, {
+    eventStats: eventStatsMap.get(campaign.id) ?? emptyCampaignEventStats(),
+    hasRecentSendFailure: failedMap.get(campaign.id) ?? false,
+  }));
+
+  const events = enriched.flatMap((campaign) => {
+    const status = campaign.workspaceStatus;
+    const scheduledAt = campaign.scheduledAt ? new Date(campaign.scheduledAt) : null;
+    const sentAt = campaign.sentAt ? new Date(campaign.sentAt) : null;
+
+    if (["SCHEDULED", "QUEUED", "SENDING"].includes(status) && scheduledAt && scheduledAt >= safeFrom && scheduledAt <= safeTo) {
+      return [{
+        id: `${campaign.id}:scheduled`,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        status,
+        at: scheduledAt.toISOString(),
+        kind: "scheduled",
+        draggable: !["SENDING", "SENT", "DELIVERED", "CANCELLED", "ARCHIVED"].includes(status),
+      }];
+    }
+
+    if (["SENT", "DELIVERED"].includes(status) && sentAt && sentAt >= safeFrom && sentAt <= safeTo) {
+      return [{
+        id: `${campaign.id}:sent`,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        status,
+        at: sentAt.toISOString(),
+        kind: "sent",
+        draggable: false,
+      }];
+    }
+
+    return [];
+  });
+
+  const unscheduledDrafts = enriched
+    .filter((campaign) => ["DRAFT", "READY", "NEEDS_REVIEW"].includes(campaign.workspaceStatus) && !campaign.scheduledAt)
+    .map((campaign) => ({
+      campaignId: campaign.id,
+      campaignName: campaign.name,
+      subject: campaign.subject,
+      status: campaign.workspaceStatus,
+      updatedAt: campaign.updatedAt,
+      audienceCount: campaign.totalRecipients,
+    }));
+
+  res.json({
+    range: {
+      from: safeFrom.toISOString(),
+      to: safeTo.toISOString(),
+    },
+    events,
+    unscheduledDrafts,
+  });
+});
+
 /** GET /api/email-campaigns/:id — Fetch a single email campaign by ID. */
 router.get("/:id", async (req, res) => {
   const userId = req.user?.sub;
@@ -3042,12 +3653,15 @@ router.get("/:id", async (req, res) => {
     return;
   }
 
-  res.json({
-    ...campaign,
-    ownerId: parsed.sharing.ownerId,
-    sharedWithOrganization: parsed.sharing.sharedWithOrganization,
-    preparationStatus: parsed.workflow.preparationStatus,
-  });
+  const [eventStatsMap, failedMap] = await Promise.all([
+    fetchCampaignEventStatsMap(organizationId, [campaign.id]),
+    fetchRecentSendFailureMap(organizationId, [campaign.id]),
+  ]);
+
+  res.json(withCampaignWorkspaceFields(campaign, {
+    eventStats: eventStatsMap.get(campaign.id) ?? emptyCampaignEventStats(),
+    hasRecentSendFailure: failedMap.get(campaign.id) ?? false,
+  }));
 });
 
 /**
@@ -3082,6 +3696,20 @@ router.post("/", async (req, res) => {
   }
 
   const defaultPreparationStatus = bodyHtml || bodyText || templateJson ? "DRAFT" : "NOT_STARTED";
+  const templateSnapshot = normalizeTemplateSnapshot(
+    req.body?.templateSnapshot
+    ?? {
+      templateId: typeof req.body?.templateId === "string" ? req.body.templateId : null,
+      templateVersion: typeof req.body?.templateVersion === "string" ? req.body.templateVersion : null,
+      templateName: typeof req.body?.templateName === "string" ? req.body.templateName : null,
+    },
+  );
+
+  const workflow = withWorkflow({
+    preparationStatus: normalizePreparationStatus(preparationStatus, defaultPreparationStatus),
+    needsReview: false,
+    templateSnapshot,
+  });
 
   const campaign = await prisma.emailCampaign.create({
     data: {
@@ -3098,7 +3726,7 @@ router.post("/", async (req, res) => {
         (audienceFilter ?? null) as AudienceFilter,
         userId,
         Boolean(sharedWithOrganization),
-        normalizePreparationStatus(preparationStatus, defaultPreparationStatus),
+        workflow,
       ),
       status: scheduledAt ? "SCHEDULED" : "DRAFT",
     },
@@ -3120,7 +3748,7 @@ router.post("/", async (req, res) => {
     // Best-effort logging for revision-history surfaces.
   });
 
-  res.status(201).json(campaign);
+  res.status(201).json(withCampaignWorkspaceFields(campaign));
 });
 
 /** PUT /api/email-campaigns/:id — Update campaign content, scheduling, or audience filter. */
@@ -3172,6 +3800,47 @@ router.put("/:id", async (req, res) => {
     ? (audienceFilter as AudienceFilter)
     : parsedExisting.filter;
 
+  const requestedWorkflow = req.body?.workflow && typeof req.body.workflow === "object" && !Array.isArray(req.body.workflow)
+    ? (req.body.workflow as Partial<CampaignWorkflowSettings>)
+    : null;
+  const requestedTemplateSnapshot = normalizeTemplateSnapshot(
+    req.body?.templateSnapshot
+    ?? {
+      templateId: typeof req.body?.templateId === "string" ? req.body.templateId : null,
+      templateVersion: typeof req.body?.templateVersion === "string" ? req.body.templateVersion : null,
+      templateName: typeof req.body?.templateName === "string" ? req.body.templateName : null,
+    },
+  );
+
+  const nextWorkflow = withWorkflow({
+    ...parsedExisting.workflow,
+    ...(requestedWorkflow ?? {}),
+    preparationStatus: nextPreparationStatus,
+    needsReview:
+      typeof req.body?.needsReview === "boolean"
+        ? req.body.needsReview
+        : (requestedWorkflow?.needsReview ?? parsedExisting.workflow.needsReview),
+    queueState:
+      req.body?.queueState !== undefined
+        ? normalizeQueueState(req.body.queueState, parsedExisting.workflow.queueState)
+        : (requestedWorkflow?.queueState
+          ? normalizeQueueState(requestedWorkflow.queueState, parsedExisting.workflow.queueState)
+          : parsedExisting.workflow.queueState),
+    archivedAt:
+      req.body?.archivedAt === null
+        ? null
+        : (typeof req.body?.archivedAt === "string" && req.body.archivedAt.trim()
+          ? req.body.archivedAt.trim()
+          : (requestedWorkflow?.archivedAt ?? parsedExisting.workflow.archivedAt)),
+    archivedById:
+      req.body?.archivedById === null
+        ? null
+        : (typeof req.body?.archivedById === "string" && req.body.archivedById.trim()
+          ? req.body.archivedById.trim()
+          : (requestedWorkflow?.archivedById ?? parsedExisting.workflow.archivedById)),
+    templateSnapshot: requestedTemplateSnapshot ?? requestedWorkflow?.templateSnapshot ?? parsedExisting.workflow.templateSnapshot,
+  });
+
   const campaign = await prisma.emailCampaign.update({
     where: { id: req.params.id },
     data: {
@@ -3179,7 +3848,7 @@ router.put("/:id", async (req, res) => {
       purpose: nextPurpose,
       bodyHtml, bodyText, templateJson,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
-      audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing, nextPreparationStatus),
+      audienceFilter: serializeCampaignAudienceFilter(nextFilter, ownerId, nextSharing, nextWorkflow),
       status,
     },
   });
@@ -3206,12 +3875,7 @@ router.put("/:id", async (req, res) => {
     // Best-effort logging for revision-history surfaces.
   });
 
-  res.json({
-    ...campaign,
-    ownerId,
-    sharedWithOrganization: nextSharing,
-    preparationStatus: nextPreparationStatus,
-  });
+  res.json(withCampaignWorkspaceFields(campaign));
 });
 
 /**
@@ -3312,6 +3976,458 @@ router.post("/:id/preview", async (req, res) => {
     previewMode: previewTarget.mode,
     previewRecipient,
   });
+});
+
+/**
+ * POST /api/email-campaigns/:id/validate
+ * Description: Validates campaign readiness for send/schedule actions.
+ */
+router.post("/:id/validate", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canManageCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can validate this campaign" } });
+    return;
+  }
+
+  try {
+    const result = await validateCampaignSendReadiness({
+      campaign: {
+        id: campaign.id,
+        organizationId: campaign.organizationId,
+        subject: campaign.subject,
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+        replyToEmail: campaign.replyToEmail,
+        bodyHtml: campaign.bodyHtml,
+        bodyText: campaign.bodyText,
+        templateJson: campaign.templateJson,
+        purpose: campaign.purpose,
+        audienceFilter: campaign.audienceFilter,
+      },
+      sendOptions: req.body as CampaignSendOptions,
+    });
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to validate campaign.";
+    res.status(400).json({ error: { code: "VALIDATION_FAILED", message } });
+  }
+});
+
+/** POST /api/email-campaigns/:id/ready — marks campaign preparation as READY. */
+router.post("/:id/ready", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: req.params.id, organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canManageCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can update this campaign" } });
+    return;
+  }
+
+  const workflow = withWorkflow({
+    ...parsed.workflow,
+    preparationStatus: "READY",
+    needsReview: false,
+  });
+
+  const updated = await prisma.emailCampaign.update({
+    where: { id: campaign.id },
+    data: {
+      audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, workflow),
+      status: campaign.status === "CANCELLED" ? "DRAFT" : campaign.status,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_UPDATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { action: "SET_READY" },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json(withCampaignWorkspaceFields(updated));
+});
+
+/** POST /api/email-campaigns/:id/queue — sets campaign to ready + needs review. */
+router.post("/:id/queue", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: req.params.id, organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canManageCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can queue this campaign" } });
+    return;
+  }
+
+  const workflow = withWorkflow({
+    ...parsed.workflow,
+    preparationStatus: "READY",
+    needsReview: true,
+  });
+
+  const updated = await prisma.emailCampaign.update({
+    where: { id: campaign.id },
+    data: {
+      audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, workflow),
+      status: "DRAFT",
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_UPDATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { action: "QUEUE_FOR_REVIEW" },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json(withCampaignWorkspaceFields(updated));
+});
+
+/** POST /api/email-campaigns/:id/unschedule — removes scheduled send time. */
+router.post("/:id/unschedule", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: req.params.id, organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canManageCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can unschedule this campaign" } });
+    return;
+  }
+
+  if (!campaign.scheduledAt && campaign.status !== "SCHEDULED") {
+    res.status(400).json({ error: { code: "NOT_SCHEDULED", message: "Campaign is not scheduled." } });
+    return;
+  }
+
+  const updated = await prisma.emailCampaign.update({
+    where: { id: campaign.id },
+    data: {
+      status: campaign.status === "SCHEDULED" ? "DRAFT" : campaign.status,
+      scheduledAt: null,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_UPDATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { action: "UNSCHEDULED" },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json(withCampaignWorkspaceFields(updated));
+});
+
+/**
+ * POST /api/email-campaigns/:id/queue-control
+ * Request: { action: "PAUSE" | "RESUME" | "CANCEL_REMAINING" }
+ */
+router.post("/:id/queue-control", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const action = typeof req.body?.action === "string" ? req.body.action.trim().toUpperCase() : "";
+  if (!["PAUSE", "RESUME", "CANCEL_REMAINING"].includes(action)) {
+    res.status(400).json({ error: { code: "INVALID_ACTION", message: "Action must be PAUSE, RESUME, or CANCEL_REMAINING." } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: req.params.id, organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canManageCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can control this queue" } });
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const workflowBase = withWorkflow(parsed.workflow);
+  let updated = campaign;
+
+  if (action === "PAUSE") {
+    const workflow = withWorkflow({
+      ...workflowBase,
+      queueState: "PAUSED",
+      lastQueueActionAt: nowIso,
+      lastQueueActionById: userId,
+    });
+
+    updated = await prisma.emailCampaign.update({
+      where: { id: campaign.id },
+      data: {
+        audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, workflow),
+      },
+    });
+  }
+
+  if (action === "RESUME") {
+    const workflow = withWorkflow({
+      ...workflowBase,
+      queueState: "ACTIVE",
+      lastQueueActionAt: nowIso,
+      lastQueueActionById: userId,
+    });
+
+    updated = await prisma.emailCampaign.update({
+      where: { id: campaign.id },
+      data: {
+        audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, workflow),
+      },
+    });
+  }
+
+  if (action === "CANCEL_REMAINING") {
+    await prisma.emailSendRecipient.updateMany({
+      where: {
+        campaignId: campaign.id,
+        sentAt: null,
+      },
+      data: {
+        eligibilityStatus: "SKIPPED_SUPPRESSED",
+        ineligibilityReason: "Cancelled remaining sends by operator.",
+      },
+    });
+
+    const workflow = withWorkflow({
+      ...workflowBase,
+      queueState: "PAUSED",
+      lastQueueActionAt: nowIso,
+      lastQueueActionById: userId,
+    });
+
+    updated = await prisma.emailCampaign.update({
+      where: { id: campaign.id },
+      data: {
+        status: "CANCELLED",
+        scheduledAt: null,
+        audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, workflow),
+      },
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: action === "CANCEL_REMAINING" ? "EMAIL_CAMPAIGN_CANCELLED" : "EMAIL_CAMPAIGN_UPDATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { action: `QUEUE_CONTROL_${action}` },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json(withCampaignWorkspaceFields(updated));
+});
+
+/** POST /api/email-campaigns/:id/archive — archives campaign from active workflow lanes. */
+router.post("/:id/archive", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: req.params.id, organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canManageCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the owner can archive this campaign" } });
+    return;
+  }
+
+  const workflow = withWorkflow({
+    ...parsed.workflow,
+    archivedAt: new Date().toISOString(),
+    archivedById: userId,
+  });
+
+  const updated = await prisma.emailCampaign.update({
+    where: { id: campaign.id },
+    data: {
+      status: campaign.status === "SCHEDULED" ? "CANCELLED" : campaign.status,
+      scheduledAt: campaign.status === "SCHEDULED" ? null : campaign.scheduledAt,
+      audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, workflow),
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_UPDATED",
+      entity: "EmailCampaign",
+      entityId: campaign.id,
+      metadata: { action: "ARCHIVED" },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json(withCampaignWorkspaceFields(updated));
+});
+
+/** POST /api/email-campaigns/:id/duplicate — duplicates campaign into a fresh draft. */
+router.post("/:id/duplicate", async (req, res) => {
+  const userId = req.user?.sub;
+  const role = req.user?.role;
+  const organizationId = await resolveOrganizationId({ req });
+  if (!userId || !organizationId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: req.params.id, organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+    return;
+  }
+
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (!canAccessCampaign(parsed.sharing, userId, role)) {
+    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to duplicate this campaign" } });
+    return;
+  }
+
+  const duplicatedWorkflow = withWorkflow({
+    ...parsed.workflow,
+    archivedAt: null,
+    archivedById: null,
+    needsReview: false,
+    queueState: "ACTIVE",
+    lastQueueActionAt: null,
+    lastQueueActionById: null,
+    preparationStatus: "DRAFT",
+  });
+
+  const duplicate = await prisma.emailCampaign.create({
+    data: {
+      organizationId: campaign.organizationId,
+      name: `${campaign.name} (Copy)`,
+      subject: campaign.subject,
+      purpose: campaign.purpose,
+      previewText: campaign.previewText,
+      fromName: campaign.fromName,
+      fromEmail: campaign.fromEmail,
+      replyToEmail: campaign.replyToEmail,
+      bodyHtml: campaign.bodyHtml,
+      bodyText: campaign.bodyText,
+      templateJson: campaign.templateJson,
+      status: "DRAFT",
+      scheduledAt: null,
+      sentAt: null,
+      totalRecipients: 0,
+      delivered: 0,
+      opened: 0,
+      clicked: 0,
+      bounced: 0,
+      unsubscribed: 0,
+      audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, duplicatedWorkflow),
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_CAMPAIGN_CREATED",
+      entity: "EmailCampaign",
+      entityId: duplicate.id,
+      metadata: {
+        sourceCampaignId: campaign.id,
+        action: "DUPLICATED",
+      },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.status(201).json(withCampaignWorkspaceFields(duplicate));
 });
 
 /**
@@ -3458,31 +4574,64 @@ router.post("/:id/schedule", async (req, res) => {
     return;
   }
 
-  const schedulePurpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
-  const scheduleBodies = buildCampaignDeliveryBodies(campaign, schedulePurpose);
-  const scheduleComplianceIssues = getCampaignComplianceIssues({
-    purpose: schedulePurpose,
-    subject: campaign.subject,
-    bodyHtml: scheduleBodies.html,
-    bodyText: scheduleBodies.text,
-    fromEmail: campaign.fromEmail,
-    replyToEmail: campaign.replyToEmail,
-  });
-  if (scheduleComplianceIssues.length > 0) {
+  const parsed = parseCampaignAudienceFilter(campaign.audienceFilter);
+
+  const validation = await validateCampaignSendReadiness({
+    campaign: {
+      id: campaign.id,
+      organizationId: campaign.organizationId,
+      subject: campaign.subject,
+      fromName: campaign.fromName,
+      fromEmail: campaign.fromEmail,
+      replyToEmail: campaign.replyToEmail,
+      bodyHtml: campaign.bodyHtml,
+      bodyText: campaign.bodyText,
+      templateJson: campaign.templateJson,
+      purpose: campaign.purpose,
+      audienceFilter: campaign.audienceFilter,
+    },
+  }).catch((error) => ({
+    valid: false,
+    checks: [],
+    blockers: [error instanceof Error ? error.message : "Campaign failed validation."],
+    audience: {
+      totalMatched: 0,
+      validEmail: 0,
+      missingEmail: 0,
+      optedOut: 0,
+      duplicateEmails: 0,
+      suppressionCount: 0,
+      categoryOptOut: 0,
+      doNotContact: 0,
+      invalidEmail: 0,
+      suppressed: 0,
+      finalSendCount: 0,
+    },
+  }));
+
+  if (!validation.valid) {
     res.status(400).json({
       error: {
         code: "CAMPAIGN_NOT_READY",
-        message: `Campaign failed compliance checks: ${scheduleComplianceIssues.join(" ")}`,
+        message: `Campaign failed validation: ${validation.blockers.join(" ")}`,
       },
+      validation,
     });
     return;
   }
+
+  const nextWorkflow = withWorkflow({
+    ...parsed.workflow,
+    needsReview: false,
+    queueState: "ACTIVE",
+  });
 
   const updated = await prisma.emailCampaign.update({
     where: { id: req.params.id },
     data: {
       status: "SCHEDULED",
       scheduledAt: scheduledDate,
+      audienceFilter: serializeCampaignAudienceFilter(parsed.filter, parsed.sharing.ownerId ?? userId, parsed.sharing.sharedWithOrganization, nextWorkflow),
     },
   });
 
@@ -3496,7 +4645,7 @@ router.post("/:id/schedule", async (req, res) => {
     },
   });
 
-  res.json(updated);
+  res.json(withCampaignWorkspaceFields(updated));
 });
 
 /**
@@ -3552,7 +4701,7 @@ router.post("/:id/cancel", async (req, res) => {
     },
   });
 
-  res.json(updated);
+  res.json(withCampaignWorkspaceFields(updated));
 });
 
 /**
@@ -3574,7 +4723,6 @@ router.post("/:id/send", async (req, res) => {
         id: req.params.id,
         organizationId,
       },
-      select: { id: true, audienceFilter: true },
     });
     if (!campaign) {
       res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
@@ -3603,19 +4751,56 @@ router.post("/:id/send", async (req, res) => {
       recipientEmails: Array.isArray(body.recipientEmails) ? body.recipientEmails : undefined,
     };
 
+    const validation = await validateCampaignSendReadiness({
+      campaign: {
+        id: campaign.id,
+        organizationId: campaign.organizationId,
+        subject: campaign.subject,
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+        replyToEmail: campaign.replyToEmail,
+        bodyHtml: campaign.bodyHtml,
+        bodyText: campaign.bodyText,
+        templateJson: campaign.templateJson,
+        purpose: campaign.purpose,
+        audienceFilter: campaign.audienceFilter,
+      },
+      sendOptions,
+    });
+
+    if (!validation.valid) {
+      res.status(400).json({
+        error: {
+          code: "CAMPAIGN_NOT_READY",
+          message: `Campaign failed validation: ${validation.blockers.join(" ")}`,
+        },
+        validation,
+      });
+      return;
+    }
+
     const updated = await sendCampaignNow(req.params.id as string, "MANUAL", sendOptions);
+    const [eventStatsMap, failedMap] = await Promise.all([
+      fetchCampaignEventStatsMap(organizationId, [updated.id]),
+      fetchRecentSendFailureMap(organizationId, [updated.id]),
+    ]);
+    const enriched = withCampaignWorkspaceFields(updated, {
+      eventStats: eventStatsMap.get(updated.id) ?? emptyCampaignEventStats(),
+      hasRecentSendFailure: failedMap.get(updated.id) ?? false,
+    });
+
     res.json({
-      ...updated,
+      ...enriched,
       sendSummary: {
         trigger: "MANUAL",
         sendMode: sendOptions.sendMode ?? "CAMPAIGN_AUDIENCE",
-        status: updated.status,
-        totalRecipients: updated.totalRecipients,
-        delivered: updated.delivered,
-        opened: updated.opened,
-        clicked: updated.clicked,
-        bounced: updated.bounced,
-        sentAt: updated.sentAt,
+        status: enriched.workspaceStatus,
+        totalRecipients: enriched.totalRecipients,
+        delivered: enriched.delivered,
+        opened: enriched.opened,
+        clicked: enriched.clicked,
+        bounced: enriched.bounced,
+        sentAt: enriched.sentAt,
       },
     });
   } catch (err) {

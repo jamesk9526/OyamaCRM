@@ -121,22 +121,37 @@ function isCorsOriginAllowed(origin: string): boolean {
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed < min) return min;
+  if (parsed > max) return max;
+  return parsed;
+}
+
+const globalRateLimitWindowMs = clampInt(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS, 60_000, 10_000, 600_000);
+const globalRateLimitMax = clampInt(process.env.GLOBAL_RATE_LIMIT_MAX, 800, 100, 10_000);
+const authRateLimitWindowMs = clampInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 60_000, 10_000, 600_000);
+const authRateLimitMax = clampInt(process.env.AUTH_RATE_LIMIT_MAX, 40, 5, 500);
+
 /**
- * Global rate limiter — 200 requests per minute per IP.
- * Auth routes use a tighter limiter (20/min) defined below.
+ * Global rate limiter for API traffic.
+ * Default is intentionally relaxed for workspace polling and streaming views.
+ * Auth routes use a separately tuned tighter limiter defined below.
  */
 const globalLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
+  windowMs: globalRateLimitWindowMs,
+  max: globalRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path === "/health" || req.path === "/api/health",
   message: { error: { code: "RATE_LIMITED", message: "Too many requests — please slow down." } },
 });
 
 /** Tight rate limiter for auth endpoints to limit brute-force attempts. */
 const authLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
+  windowMs: authRateLimitWindowMs,
+  max: authRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: "RATE_LIMITED", message: "Too many auth attempts — try again in a minute." } },

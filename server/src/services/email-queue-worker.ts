@@ -55,6 +55,21 @@ function isDemoCampaignId(id: string): boolean {
   return id.trim().toLowerCase().startsWith("demo_mail_");
 }
 
+/** Reads queue control state from campaign audienceFilter metadata. */
+function resolveQueueState(rawAudienceFilter: string | null): "ACTIVE" | "PAUSED" {
+  if (!rawAudienceFilter) return "ACTIVE";
+  try {
+    const parsed = JSON.parse(rawAudienceFilter) as Record<string, unknown>;
+    const workflow = parsed._workflow;
+    if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) return "ACTIVE";
+    const queueState = (workflow as { queueState?: unknown }).queueState;
+    if (typeof queueState !== "string") return "ACTIVE";
+    return queueState.trim().toUpperCase() === "PAUSED" ? "PAUSED" : "ACTIVE";
+  } catch {
+    return "ACTIVE";
+  }
+}
+
 /** Counts queued scheduled campaigns that are currently due for delivery. */
 async function countDueCampaigns(now: Date): Promise<number> {
   return prisma.emailCampaign.count({
@@ -87,10 +102,17 @@ async function processQueuePass(): Promise<void> {
       },
       orderBy: { scheduledAt: "asc" },
       take: workerState.batchSize,
-      select: { id: true },
+      select: {
+        id: true,
+        audienceFilter: true,
+      },
     });
 
     for (const campaign of dueCampaigns) {
+      if (resolveQueueState(campaign.audienceFilter) === "PAUSED") {
+        continue;
+      }
+
       if (isDemoCampaignId(campaign.id)) {
         await prisma.emailCampaign.update({
           where: { id: campaign.id },

@@ -6,6 +6,7 @@ export type OyamaEmailView =
   | "publish"
   | "send"
   | "campaigns"
+  | "callender"
   | "audience"
   | "queue"
   | "analytics"
@@ -43,6 +44,33 @@ export interface OyamaEmailCampaign {
   ownerId?: string | null;
   preparationStatus?: "NOT_STARTED" | "DRAFT" | "READY";
   sharedWithOrganization?: boolean;
+  workspaceStatus?:
+    | "DRAFT"
+    | "NEEDS_REVIEW"
+    | "READY"
+    | "SCHEDULED"
+    | "QUEUED"
+    | "SENDING"
+    | "SENT"
+    | "DELIVERED"
+    | "FAILED"
+    | "CANCELLED"
+    | "ARCHIVED";
+  nextRecommendedAction?: string;
+  templateSnapshot?: {
+    templateId?: string | null;
+    templateVersion?: string | null;
+    templateName?: string | null;
+  } | null;
+  workflow?: {
+    preparationStatus?: "NOT_STARTED" | "DRAFT" | "READY";
+    needsReview?: boolean;
+    archivedAt?: string | null;
+    archivedById?: string | null;
+    queueState?: "ACTIVE" | "PAUSED";
+    lastQueueActionAt?: string | null;
+    lastQueueActionById?: string | null;
+  } | null;
 }
 
 export interface OyamaEmailStats {

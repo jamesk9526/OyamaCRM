@@ -14,6 +14,8 @@ describe("OyamaEmail workspace source contract", () => {
     const publish = read("app/oyama-email/templates/[templateId]/publish/page.tsx");
     const send = read("app/oyama-email/send/page.tsx");
     const campaigns = read("app/oyama-email/campaigns/page.tsx");
+    const callender = read("app/oyama-email/callender/page.tsx");
+    const calendarAlias = read("app/oyama-email/calendar/page.tsx");
     const campaignsNew = read("app/oyama-email/campaigns/new/page.tsx");
     const campaignDetail = read("app/oyama-email/campaigns/[campaignId]/page.tsx");
     const audience = read("app/oyama-email/audience/page.tsx");
@@ -27,6 +29,8 @@ describe("OyamaEmail workspace source contract", () => {
     expect(publish).toContain('view="publish"');
     expect(send).toContain('redirect("/oyama-email/campaigns/new")');
     expect(campaigns).toContain('view="campaigns"');
+    expect(callender).toContain('view="callender"');
+    expect(calendarAlias).toContain('redirect("/oyama-email/callender")');
     expect(campaignsNew).toContain('view="campaigns"');
     expect(campaignDetail).toContain('view="campaigns"');
     expect(audience).toContain('redirect("/oyama-email/campaigns?tab=audience")');
@@ -41,10 +45,15 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("/api/email-campaigns?limit=100");
     expect(workspace).toContain("/api/email-campaigns/stats");
     expect(workspace).toContain("/api/email-campaigns/lists");
+    expect(workspace).toContain("/api/email-campaigns/calendar");
+    expect(workspace).toContain("/api/email-campaigns/");
+    expect(workspace).toContain("/validate");
+    expect(workspace).toContain("/queue-control");
     expect(workspace).toContain("/api/constituents?limit=all");
 
     expect(workspace).toContain("Templates");
     expect(workspace).toContain("Campaigns");
+    expect(workspace).toContain("Callender");
     expect(workspace).toContain("Settings");
     expect(workspace).toContain("Back to CRM");
 
@@ -53,6 +62,7 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Queue");
     expect(workspace).toContain("Analytics");
     expect(workspace).toContain("Activity Log");
+    expect(workspace).toContain("Campaign Command Center");
   });
 
   it("keeps legacy communications routes redirected into OyamaEmail", () => {

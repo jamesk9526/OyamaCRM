@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
 import type {
@@ -17,6 +17,7 @@ import type {
 const SIDEBAR_ITEMS: Array<{ label: string; href: string; view?: OyamaEmailView; matchPrefix?: string }> = [
   { label: "Templates", href: "/oyama-email/templates", view: "templates" },
   { label: "Campaigns", href: "/oyama-email/campaigns", view: "campaigns" },
+  { label: "Callender", href: "/oyama-email/callender", view: "callender" },
   { label: "Settings", href: "/oyama-email/settings", view: "settings" },
 ];
 
@@ -29,6 +30,29 @@ const CAMPAIGN_WORKSPACE_TABS: Array<{ id: CampaignWorkspaceTab; label: string }
   { id: "analytics", label: "Analytics" },
   { id: "activity", label: "Activity Log" },
   { id: "settings", label: "Settings" },
+];
+
+const CAMPAIGN_FILTER_CHIPS = [
+  "ALL",
+  "DRAFT",
+  "NEEDS_REVIEW",
+  "READY",
+  "SCHEDULED",
+  "QUEUED",
+  "SENDING",
+  "SENT",
+  "FAILED",
+  "CANCELLED",
+  "ARCHIVED",
+] as const;
+
+const CAMPAIGN_SORT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "updatedAt", label: "Updated Date" },
+  { value: "scheduledAt", label: "Scheduled Date" },
+  { value: "sentAt", label: "Sent Date" },
+  { value: "openRate", label: "Open Rate" },
+  { value: "clickRate", label: "Click Rate" },
+  { value: "audienceSize", label: "Audience Size" },
 ];
 
 const CAMPAIGN_EMAIL_TYPE_OPTIONS = [
@@ -134,6 +158,47 @@ interface CampaignAudiencePreviewResponse {
     suppressed: number;
     finalSendCount: number;
   };
+}
+
+interface CampaignValidationResponse {
+  valid: boolean;
+  checks: Array<{
+    key: string;
+    label: string;
+    passed: boolean;
+    detail: string;
+    blocking: boolean;
+  }>;
+  blockers: string[];
+  audience: CampaignAudiencePreviewResponse["audience"];
+}
+
+interface CampaignCalendarEvent {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  status: string;
+  at: string;
+  kind: "scheduled" | "sent";
+  draggable: boolean;
+}
+
+interface CampaignCalendarDraft {
+  campaignId: string;
+  campaignName: string;
+  subject?: string | null;
+  status: string;
+  updatedAt: string;
+  audienceCount: number;
+}
+
+interface CampaignCalendarResponse {
+  range: {
+    from: string | null;
+    to: string | null;
+  };
+  events: CampaignCalendarEvent[];
+  unscheduledDrafts: CampaignCalendarDraft[];
 }
 
 const BUILDER_PLACEHOLDER_HTML = [
@@ -315,17 +380,6 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
       preparationStatus: focusedCampaign.preparationStatus || "DRAFT",
     });
   }, [focusedCampaign]);
-
-  useEffect(() => {
-    if (selectedRecipientIds.length > 0) return;
-    const defaults = constituents
-      .filter((row) => Boolean(row.email))
-      .slice(0, 12)
-      .map((row) => row.id);
-    if (defaults.length > 0) {
-      setSelectedRecipientIds(defaults);
-    }
-  }, [constituents, selectedRecipientIds.length]);
 
   const selectedCampaign = useMemo(() => {
     if (focusedCampaign) return focusedCampaign;
@@ -515,12 +569,14 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
               onPublish={publishTemplate}
             />
           ) : null}
-          {!loading && normalizedView === "campaigns" ? (
+          {!loading && (normalizedView === "campaigns" || normalizedView === "callender") ? (
             <CampaignsView
               campaigns={campaigns}
               stats={stats}
               focusedCampaignId={campaignId ?? null}
               initialTab={initialCampaignTab}
+              initialViewMode={normalizedView === "callender" ? "calendar" : "board"}
+              calendarOnly={normalizedView === "callender"}
               openWizard={openCampaignWizard}
               wizardPageMode={wizardPageMode}
               preferredTemplateId={preferredTemplateId}
@@ -1125,6 +1181,8 @@ function CampaignsView({
   stats,
   focusedCampaignId,
   initialTab,
+  initialViewMode,
+  calendarOnly,
   openWizard,
   wizardPageMode,
   preferredTemplateId,
@@ -1136,6 +1194,8 @@ function CampaignsView({
   stats: OyamaEmailStats | null;
   focusedCampaignId: string | null;
   initialTab: CampaignWorkspaceTab;
+  initialViewMode: "board" | "calendar";
+  calendarOnly: boolean;
   openWizard: boolean;
   wizardPageMode: boolean;
   preferredTemplateId: string | null;
@@ -1145,12 +1205,19 @@ function CampaignsView({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState<(typeof CAMPAIGN_FILTER_CHIPS)[number]>("ALL");
+  const [sortBy, setSortBy] = useState<string>("updatedAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [viewMode, setViewMode] = useState<"board" | "calendar">(initialViewMode);
   const [wizardVisible, setWizardVisible] = useState(openWizard);
   const [tab, setTab] = useState<CampaignWorkspaceTab>(initialTab);
   const [deliveryData, setDeliveryData] = useState<DeliveryEventsPayload | null>(null);
   const [activityRows, setActivityRows] = useState<CampaignActivityRow[]>([]);
   const [queueRows, setQueueRows] = useState<CampaignQueueRow[]>([]);
   const [audiencePreview, setAudiencePreview] = useState<CampaignAudiencePreviewResponse["audience"] | null>(null);
+  const [calendarData, setCalendarData] = useState<CampaignCalendarResponse | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
 
   const selectedCampaign = useMemo(
     () => campaigns.find((row) => row.id === focusedCampaignId) ?? null,
@@ -1162,22 +1229,59 @@ function CampaignsView({
   }, [openWizard]);
 
   useEffect(() => {
+    setViewMode(initialViewMode);
+  }, [initialViewMode]);
+
+  useEffect(() => {
     setTab(initialTab);
   }, [initialTab, focusedCampaignId]);
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return campaigns.filter((row) => {
+    const searched = campaigns.filter((row) => {
       if (!needle) return true;
-      return `${row.name} ${row.subject || ""}`.toLowerCase().includes(needle);
+      return [
+        row.name,
+        row.subject,
+        row.templateSnapshot?.templateName,
+        row.ownerId,
+        row.workspaceStatus,
+        row.status,
+      ].filter(Boolean).join(" ").toLowerCase().includes(needle);
     });
-  }, [campaigns, search]);
 
-  const draftRows = rows.filter((row) => ["DRAFT", "VALIDATING", "READY"].includes(row.status.toUpperCase()));
-  const scheduledRows = rows.filter((row) => ["SCHEDULED", "QUEUED"].includes(row.status.toUpperCase()));
-  const sendingRows = rows.filter((row) => ["SENDING"].includes(row.status.toUpperCase()));
-  const recentRows = rows.filter((row) => ["SENT", "DELIVERED", "OPENED", "CLICKED", "FAILED", "BOUNCED", "UNSUBSCRIBED"].includes(row.status.toUpperCase()));
-  const archivedRows = rows.filter((row) => ["ARCHIVED", "CANCELLED"].includes(row.status.toUpperCase()));
+    const filtered = activeFilter === "ALL"
+      ? searched
+      : searched.filter((row) => effectiveCampaignStatus(row) === activeFilter);
+
+    return [...filtered].sort((a, b) => {
+      const direction = sortDirection === "asc" ? 1 : -1;
+      const safeDate = (value?: string | null) => {
+        if (!value) return 0;
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+      };
+      const openRateA = a.delivered > 0 ? a.opened / a.delivered : 0;
+      const openRateB = b.delivered > 0 ? b.opened / b.delivered : 0;
+      const clickRateA = a.delivered > 0 ? a.clicked / a.delivered : 0;
+      const clickRateB = b.delivered > 0 ? b.clicked / b.delivered : 0;
+
+      if (sortBy === "scheduledAt") return (safeDate(a.scheduledAt) - safeDate(b.scheduledAt)) * direction;
+      if (sortBy === "sentAt") return (safeDate(a.sentAt) - safeDate(b.sentAt)) * direction;
+      if (sortBy === "openRate") return (openRateA - openRateB) * direction;
+      if (sortBy === "clickRate") return (clickRateA - clickRateB) * direction;
+      if (sortBy === "audienceSize") return ((a.totalRecipients ?? 0) - (b.totalRecipients ?? 0)) * direction;
+      return (safeDate(a.updatedAt) - safeDate(b.updatedAt)) * direction;
+    });
+  }, [activeFilter, campaigns, search, sortBy, sortDirection]);
+
+  const needsSetupRows = rows.filter((row) => effectiveCampaignStatus(row) === "DRAFT");
+  const readyToScheduleRows = rows.filter((row) => ["READY", "NEEDS_REVIEW"].includes(effectiveCampaignStatus(row)));
+  const scheduledRows = rows.filter((row) => ["SCHEDULED", "QUEUED"].includes(effectiveCampaignStatus(row)));
+  const sendingRows = rows.filter((row) => effectiveCampaignStatus(row) === "SENDING");
+  const recentRows = rows.filter((row) => ["SENT", "DELIVERED"].includes(effectiveCampaignStatus(row)));
+  const failedRows = rows.filter((row) => effectiveCampaignStatus(row) === "FAILED");
+  const archivedRows = rows.filter((row) => ["ARCHIVED", "CANCELLED"].includes(effectiveCampaignStatus(row)));
 
   useEffect(() => {
     if (!selectedCampaign?.id) {
@@ -1233,6 +1337,43 @@ function CampaignsView({
       .catch(() => setAudiencePreview(null));
   }, [selectedCampaign?.audienceFilter, selectedCampaign?.id, selectedCampaign?.purpose, tab]);
 
+  const refreshCalendar = useCallback(async () => {
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      const now = new Date();
+      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      const to = new Date(now.getFullYear(), now.getMonth() + 3, 0, 23, 59, 59, 999).toISOString();
+      const payload = await apiFetch<CampaignCalendarResponse>(`/api/email-campaigns/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      setCalendarData(payload);
+    } catch (requestError) {
+      setCalendarError(requestError instanceof Error ? requestError.message : "Failed to load calendar.");
+      setCalendarData(null);
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (viewMode !== "calendar") return;
+    void refreshCalendar();
+  }, [refreshCalendar, viewMode]);
+
+  const applySchedule = useCallback(async (campaignId: string, when: string) => {
+    const existing = campaigns.find((row) => row.id === campaignId);
+    if (!existing) return;
+    const status = effectiveCampaignStatus(existing);
+    if (["SENT", "DELIVERED", "ARCHIVED", "CANCELLED", "SENDING"].includes(status)) {
+      throw new Error("This campaign is locked and cannot be rescheduled.");
+    }
+
+    await apiFetch(`/api/email-campaigns/${campaignId}/schedule`, {
+      method: "POST",
+      body: JSON.stringify({ scheduledAt: when }),
+    });
+    await Promise.all([onRefresh(), refreshCalendar()]);
+  }, [campaigns, onRefresh, refreshCalendar]);
+
   function openCampaign(campaign: OyamaEmailCampaign) {
     router.push(`/oyama-email/campaigns/${campaign.id}?tab=${tab}`);
   }
@@ -1256,43 +1397,115 @@ function CampaignsView({
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-2xl font-semibold text-slate-900">Campaigns</p>
-                <p className="text-sm text-slate-600">New Campaign, Draft Campaigns, Scheduled Campaigns, Sending Now, Recently Sent, and Archived Campaigns.</p>
+                <p className="text-2xl font-semibold text-slate-900">{calendarOnly ? "Callender" : "Campaigns"}</p>
+                <p className="text-sm text-slate-600">
+                  {calendarOnly
+                    ? "Manage all email schedules from one timeline with drag-and-drop rescheduling and upcoming send visibility."
+                    : "Campaign-first workspace with board lanes, status controls, and calendar planning."}
+                </p>
               </div>
-              {wizardPageMode ? (
-                <WorkspaceAction href="/oyama-email/campaigns">Back to Campaigns</WorkspaceAction>
-              ) : (
-                <WorkspaceAction href="/oyama-email/campaigns/new" tone="primary">New Campaign</WorkspaceAction>
-              )}
+              <div className="flex items-center gap-2">
+                {!calendarOnly ? (
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("board")}
+                    className={[
+                      "rounded-md border px-3 py-2 text-xs font-semibold",
+                      viewMode === "board" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700",
+                    ].join(" ")}
+                  >
+                    Board
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setViewMode("calendar")}
+                  className={[
+                    "rounded-md border px-3 py-2 text-xs font-semibold",
+                    viewMode === "calendar" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700",
+                  ].join(" ")}
+                >
+                  Calendar
+                </button>
+                {wizardPageMode ? (
+                  <WorkspaceAction href="/oyama-email/campaigns">Back to Campaigns</WorkspaceAction>
+                ) : !calendarOnly ? (
+                  <WorkspaceAction href="/oyama-email/campaigns/new" tone="primary">New Campaign</WorkspaceAction>
+                ) : null}
+              </div>
             </div>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns..." className="rounded-md border border-slate-300 px-3 py-2 text-sm md:col-span-2" />
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                Campaigns tracked: <span className="font-semibold text-slate-900">{stats?.total ?? campaigns.length}</span>
+            <div className="mt-3 grid gap-3 md:grid-cols-4">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, subject, template, owner, status..."
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm md:col-span-2"
+              />
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                {CAMPAIGN_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <select value={sortDirection} onChange={(event) => setSortDirection(event.target.value === "asc" ? "asc" : "desc")} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <option value="desc">Newest First</option>
+                <option value="asc">Oldest First</option>
+              </select>
+            </div>
+            {!calendarOnly ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {CAMPAIGN_FILTER_CHIPS.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => setActiveFilter(chip)}
+                    className={[
+                      "rounded-full border px-3 py-1 text-xs font-semibold",
+                      activeFilter === chip ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    {chip === "NEEDS_REVIEW" ? "Needs Review" : chip}
+                  </button>
+                ))}
               </div>
+            ) : null}
+            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Campaigns tracked: <span className="font-semibold text-slate-900">{stats?.total ?? campaigns.length}</span>
             </div>
           </div>
 
-          {wizardVisible ? (
-            <NewCampaignWizardPanel
-              templates={campaigns}
-              lists={lists}
-              constituents={constituents}
-              preferredTemplateId={preferredTemplateId}
-              onCancel={() => {
-                setWizardVisible(false);
-                if (wizardPageMode) router.push("/oyama-email/campaigns");
-              }}
-              pageMode={wizardPageMode}
-              onCreated={onCreatedCampaign}
+          {viewMode === "calendar" ? (
+            <CampaignCalendarWorkspace
+              loading={calendarLoading}
+              error={calendarError}
+              data={calendarData}
+              onSchedule={applySchedule}
+              onOpenCampaign={(campaignId) => router.push(`/oyama-email/campaigns/${campaignId}?tab=overview`)}
+              onRefresh={refreshCalendar}
             />
-          ) : null}
+          ) : (
+            <>
+              {wizardVisible ? (
+                <NewCampaignWizardPanel
+                  templates={campaigns}
+                  lists={lists}
+                  constituents={constituents}
+                  preferredTemplateId={preferredTemplateId}
+                  onCancel={() => {
+                    setWizardVisible(false);
+                    if (wizardPageMode) router.push("/oyama-email/campaigns");
+                  }}
+                  pageMode={wizardPageMode}
+                  onCreated={onCreatedCampaign}
+                />
+              ) : null}
 
-          {!wizardPageMode ? <CampaignBoardSection title="Draft Campaigns" rows={draftRows} onOpen={openCampaign} /> : null}
-          {!wizardPageMode ? <CampaignBoardSection title="Scheduled Campaigns" rows={scheduledRows} onOpen={openCampaign} /> : null}
-          {!wizardPageMode ? <CampaignBoardSection title="Sending Now" rows={sendingRows} onOpen={openCampaign} /> : null}
-          {!wizardPageMode ? <CampaignBoardSection title="Recently Sent" rows={recentRows} onOpen={openCampaign} /> : null}
-          {!wizardPageMode ? <CampaignBoardSection title="Archived Campaigns" rows={archivedRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Needs Setup" rows={needsSetupRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Ready to Schedule" rows={readyToScheduleRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Scheduled" rows={scheduledRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Sending Now" rows={sendingRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Recently Sent" rows={recentRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Failed / Needs Attention" rows={failedRows} onOpen={openCampaign} /> : null}
+              {!wizardPageMode ? <CampaignBoardSection title="Archived" rows={archivedRows} onOpen={openCampaign} /> : null}
+            </>
+          )}
         </>
       ) : (
         <CampaignDetailWorkspace
@@ -1304,6 +1517,12 @@ function CampaignsView({
           activityRows={activityRows}
           queueRows={queueRows}
           audiencePreview={audiencePreview}
+          onCampaignMutated={async () => {
+            await onRefresh();
+            if (viewMode === "calendar") {
+              await refreshCalendar();
+            }
+          }}
         />
       )}
     </section>
@@ -1331,10 +1550,11 @@ function CampaignBoardSection({
       {rows.length > 0 ? (
         <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {rows.map((row) => {
-            const sentCount = row.sentAt ? String(row.totalRecipients || 0) : waitingMetric(row.status);
-            const queuedCount = ["SCHEDULED", "QUEUED", "SENDING"].includes(row.status.toUpperCase())
+            const status = effectiveCampaignStatus(row);
+            const sentCount = row.sentAt ? String(row.totalRecipients || 0) : waitingMetric(status);
+            const queuedCount = ["SCHEDULED", "QUEUED", "SENDING"].includes(status)
               ? String(row.totalRecipients || 0)
-              : waitingMetric(row.status);
+              : waitingMetric(status);
 
             return (
               <article key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1343,21 +1563,21 @@ function CampaignBoardSection({
                     <p className="line-clamp-1 text-base font-semibold text-slate-900">{row.name || "Untitled Campaign"}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{row.subject || "No subject line"}</p>
                   </div>
-                  <StatusBadge label={row.status} tone={statusTone(row.status)} />
+                  <StatusBadge label={statusLabel(status)} tone={statusTone(status)} />
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <MetricChip label="Template Used" value={row.preparationStatus === "READY" ? "Snapshot ready" : "Not tracked yet"} />
+                  <MetricChip label="Template Used" value={row.templateSnapshot?.templateName || row.templateSnapshot?.templateId || "Not linked"} />
                   <MetricChip label="Audience Count" value={String(row.totalRecipients ?? 0)} />
                   <MetricChip label="Queued Count" value={queuedCount} />
                   <MetricChip label="Sent Count" value={sentCount} />
-                  <MetricChip label="Delivered" value={trackedMetric(row.delivered, row.status)} />
-                  <MetricChip label="Opened" value={trackedMetric(row.opened, row.status)} />
-                  <MetricChip label="Clicked" value={trackedMetric(row.clicked, row.status)} />
-                  <MetricChip label="Bounced" value={trackedMetric(row.bounced, row.status)} />
-                  <MetricChip label="Unsubscribed" value={trackedMetric(row.unsubscribed, row.status)} />
+                  <MetricChip label="Delivered" value={trackedMetric(row.delivered, status)} />
+                  <MetricChip label="Opened" value={trackedMetric(row.opened, status)} />
+                  <MetricChip label="Clicked" value={trackedMetric(row.clicked, status)} />
+                  <MetricChip label="Bounced" value={trackedMetric(row.bounced, status)} />
+                  <MetricChip label="Unsubscribed" value={trackedMetric(row.unsubscribed, status)} />
                   <MetricChip label="Last Activity" value={formatDateTime(row.sentAt || row.updatedAt)} />
-                  <MetricChip label="Owner" value={row.ownerId || "Not tracked yet"} />
+                  <MetricChip label="Owner" value={row.ownerId || "Unassigned"} />
                 </div>
 
                 <div className="mt-3 flex gap-2">
@@ -1368,13 +1588,284 @@ function CampaignBoardSection({
                   >
                     Open Campaign
                   </button>
-                  <WorkspaceAction href={`/oyama-email/templates/${row.id}/builder`}>Edit Content</WorkspaceAction>
+                  <WorkspaceAction href={`/oyama-email/campaigns/${row.id}?tab=settings`}>Edit Campaign</WorkspaceAction>
                 </div>
               </article>
             );
           })}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function CampaignCalendarWorkspace({
+  loading,
+  error,
+  data,
+  onSchedule,
+  onOpenCampaign,
+  onRefresh,
+}: {
+  loading: boolean;
+  error: string | null;
+  data: CampaignCalendarResponse | null;
+  onSchedule: (campaignId: string, when: string) => Promise<void>;
+  onOpenCampaign: (campaignId: string) => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const [viewScale, setViewScale] = useState<"month" | "week" | "day">("month");
+  const [anchorDate, setAnchorDate] = useState<Date>(new Date());
+  const [drawerEvent, setDrawerEvent] = useState<CampaignCalendarEvent | null>(null);
+  const [calendarNotice, setCalendarNotice] = useState<string | null>(null);
+  const [calendarActionError, setCalendarActionError] = useState<string | null>(null);
+
+  const events = useMemo(() => data?.events ?? [], [data?.events]);
+  const drafts = useMemo(() => data?.unscheduledDrafts ?? [], [data?.unscheduledDrafts]);
+
+  const visibleDates = useMemo(() => {
+    const anchor = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate());
+
+    if (viewScale === "day") {
+      return [anchor];
+    }
+
+    if (viewScale === "week") {
+      const start = new Date(anchor);
+      const day = start.getDay();
+      start.setDate(start.getDate() - day);
+      return Array.from({ length: 7 }, (_, idx) => {
+        const date = new Date(start);
+        date.setDate(start.getDate() + idx);
+        return date;
+      });
+    }
+
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const startDay = start.getDay();
+    start.setDate(start.getDate() - startDay);
+    return Array.from({ length: 42 }, (_, idx) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + idx);
+      return date;
+    });
+  }, [anchorDate, viewScale]);
+
+  const eventMap = useMemo(() => {
+    const map = new Map<string, CampaignCalendarEvent[]>();
+    for (const event of events) {
+      const key = toDayKey(event.at);
+      const rows = map.get(key) ?? [];
+      rows.push(event);
+      map.set(key, rows);
+    }
+    return map;
+  }, [events]);
+
+  const scheduleMetrics = useMemo(() => {
+    const now = Date.now();
+    const nextWeek = now + (7 * 24 * 60 * 60 * 1000);
+    let upcoming = 0;
+    let inNextSevenDays = 0;
+    let sentCount = 0;
+    for (const event of events) {
+      const ts = new Date(event.at).getTime();
+      if (Number.isNaN(ts)) continue;
+      if (event.kind === "sent") {
+        sentCount += 1;
+        continue;
+      }
+      if (ts >= now) {
+        upcoming += 1;
+      }
+      if (ts >= now && ts <= nextWeek) {
+        inNextSevenDays += 1;
+      }
+    }
+
+    return {
+      upcoming,
+      inNextSevenDays,
+      sentCount,
+      unscheduledDrafts: drafts.length,
+    };
+  }, [drafts.length, events]);
+
+  const upcomingEvents = useMemo(() => {
+    const now = Date.now();
+    return events
+      .filter((event) => event.kind === "scheduled")
+      .filter((event) => {
+        const ts = new Date(event.at).getTime();
+        return !Number.isNaN(ts) && ts >= now;
+      })
+      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+      .slice(0, 8);
+  }, [events]);
+
+  const moveWindow = useCallback((direction: "prev" | "next") => {
+    setAnchorDate((prev) => {
+      const next = new Date(prev);
+      const multiplier = direction === "next" ? 1 : -1;
+      if (viewScale === "month") next.setMonth(prev.getMonth() + multiplier);
+      if (viewScale === "week") next.setDate(prev.getDate() + (7 * multiplier));
+      if (viewScale === "day") next.setDate(prev.getDate() + multiplier);
+      return next;
+    });
+  }, [viewScale]);
+
+  const handleDrop = useCallback(async (event: DragEvent<HTMLDivElement>, day: Date) => {
+    event.preventDefault();
+    const campaignId = event.dataTransfer.getData("text/plain");
+    if (!campaignId) return;
+
+    setCalendarNotice(null);
+    setCalendarActionError(null);
+
+    const scheduledAt = new Date(day);
+    scheduledAt.setHours(10, 0, 0, 0);
+
+    try {
+      await onSchedule(campaignId, scheduledAt.toISOString());
+      setCalendarNotice("Campaign schedule updated.");
+      await onRefresh();
+    } catch (requestError) {
+      setCalendarActionError(requestError instanceof Error ? requestError.message : "Failed to update schedule.");
+    }
+  }, [onRefresh, onSchedule]);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricChip label="Upcoming Schedules" value={String(scheduleMetrics.upcoming)} />
+          <MetricChip label="Next 7 Days" value={String(scheduleMetrics.inNextSevenDays)} />
+          <MetricChip label="Sent Events" value={String(scheduleMetrics.sentCount)} />
+          <MetricChip label="Unscheduled Drafts" value={String(scheduleMetrics.unscheduledDrafts)} />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => moveWindow("prev")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Prev</button>
+            <button type="button" onClick={() => moveWindow("next")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Next</button>
+            <p className="text-sm font-semibold text-slate-900">{anchorDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {(["day", "week", "month"] as const).map((scale) => (
+              <button
+                key={scale}
+                type="button"
+                onClick={() => setViewScale(scale)}
+                className={[
+                  "rounded-md border px-3 py-2 text-xs font-semibold",
+                  viewScale === scale ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700",
+                ].join(" ")}
+              >
+                {scale.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? <p className="mt-4 text-sm text-slate-500">Loading calendar...</p> : null}
+        {error ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+        {calendarActionError ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{calendarActionError}</p> : null}
+        {calendarNotice ? <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{calendarNotice}</p> : null}
+
+        <div className={["mt-4 grid gap-2", viewScale === "month" ? "grid-cols-7" : viewScale === "week" ? "grid-cols-7" : "grid-cols-1"].join(" ")}>
+          {visibleDates.map((day) => {
+            const key = toDayKey(day.toISOString());
+            const dayEvents = eventMap.get(key) ?? [];
+            return (
+              <div
+                key={key}
+                onDrop={(event) => void handleDrop(event, day)}
+                onDragOver={(event) => event.preventDefault()}
+                className="min-h-[108px] rounded-lg border border-slate-200 bg-slate-50 p-2"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{day.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                <div className="mt-2 space-y-1">
+                  {dayEvents.slice(0, 4).map((eventRow) => (
+                    <button
+                      key={eventRow.id}
+                      type="button"
+                      draggable={eventRow.draggable}
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("text/plain", eventRow.campaignId);
+                      }}
+                      onClick={() => setDrawerEvent(eventRow)}
+                      className={[
+                        "w-full rounded px-2 py-1 text-left text-[11px] font-semibold",
+                        eventRow.status === "SENT" || eventRow.status === "DELIVERED"
+                          ? "bg-emerald-100 text-emerald-900"
+                          : eventRow.status === "SENDING"
+                            ? "bg-blue-100 text-blue-900"
+                            : eventRow.status === "READY"
+                              ? "bg-amber-100 text-amber-900"
+                              : "bg-white text-slate-700",
+                      ].join(" ")}
+                    >
+                      {eventRow.campaignName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-base font-semibold text-slate-900">Upcoming Email Schedules</p>
+        <div className="space-y-2">
+          {upcomingEvents.length === 0 ? <p className="text-xs text-slate-500">No upcoming scheduled campaigns.</p> : null}
+          {upcomingEvents.map((eventRow) => (
+            <button
+              key={eventRow.id}
+              type="button"
+              onClick={() => onOpenCampaign(eventRow.campaignId)}
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left"
+            >
+              <p className="text-xs font-semibold text-slate-900">{eventRow.campaignName}</p>
+              <p className="text-[11px] text-slate-600">{formatDateTime(eventRow.at)}</p>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-base font-semibold text-slate-900">Unscheduled Drafts</p>
+        <p className="text-xs text-slate-600">Drag a draft or ready campaign onto a date to set scheduled send time.</p>
+        <div className="space-y-2">
+          {drafts.length === 0 ? <p className="text-xs text-slate-500">No unscheduled drafts.</p> : null}
+          {drafts.map((draft) => (
+            <button
+              key={draft.campaignId}
+              type="button"
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData("text/plain", draft.campaignId);
+              }}
+              onClick={() => onOpenCampaign(draft.campaignId)}
+              className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left"
+            >
+              <p className="text-xs font-semibold text-slate-900">{draft.campaignName}</p>
+              <p className="text-[11px] text-slate-600">{statusLabel(draft.status)}</p>
+            </button>
+          ))}
+        </div>
+
+        {drawerEvent ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Campaign Detail</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{drawerEvent.campaignName}</p>
+            <p className="text-xs text-slate-600">{statusLabel(drawerEvent.status)}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatDateTime(drawerEvent.at)}</p>
+            <div className="mt-2 flex gap-2">
+              <button type="button" onClick={() => onOpenCampaign(drawerEvent.campaignId)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700">Open</button>
+              <button type="button" onClick={() => setDrawerEvent(null)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700">Close</button>
+            </div>
+          </div>
+        ) : null}
+      </aside>
     </div>
   );
 }
@@ -1388,6 +1879,7 @@ function CampaignDetailWorkspace({
   activityRows,
   queueRows,
   audiencePreview,
+  onCampaignMutated,
 }: {
   campaign: OyamaEmailCampaign;
   tab: CampaignWorkspaceTab;
@@ -1397,11 +1889,132 @@ function CampaignDetailWorkspace({
   activityRows: CampaignActivityRow[];
   queueRows: CampaignQueueRow[];
   audiencePreview: CampaignAudiencePreviewResponse["audience"] | null;
+  onCampaignMutated: () => Promise<void>;
 }) {
+  const workspaceStatus = effectiveCampaignStatus(campaign);
+  const queueState = campaign.workflow?.queueState ?? "ACTIVE";
+  const templateBuilderHref = campaign.templateSnapshot?.templateId
+    ? `/oyama-email/templates/${campaign.templateSnapshot.templateId}/builder`
+    : `/oyama-email/campaigns/${campaign.id}?tab=settings`;
+
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [validation, setValidation] = useState<CampaignValidationResponse | null>(null);
+
   const summary = deliveryData?.summary;
   const totalAudience = Math.max(campaign.totalRecipients || 0, summary?.queued ?? 0, summary?.delivered ?? 0);
   const completed = (summary?.delivered ?? 0) + (summary?.bounced ?? 0);
   const progressPercent = totalAudience > 0 ? Math.min(100, Math.round((completed / totalAudience) * 100)) : 0;
+
+  const runCampaignAction = useCallback(async (
+    actionKey: string,
+    run: () => Promise<void>,
+    noticeMessage: string,
+  ) => {
+    setActionBusy(actionKey);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      await run();
+      await onCampaignMutated();
+      setActionNotice(noticeMessage);
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : "Campaign action failed.");
+    } finally {
+      setActionBusy(null);
+    }
+  }, [onCampaignMutated]);
+
+  const runValidation = useCallback(async () => {
+    await runCampaignAction("validate", async () => {
+      const result = await apiFetch<CampaignValidationResponse>(`/api/email-campaigns/${campaign.id}/validate`, {
+        method: "POST",
+      });
+      setValidation(result);
+    }, "Validation complete.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runReady = useCallback(async () => {
+    await runCampaignAction("ready", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/ready`, { method: "POST" });
+    }, "Campaign marked as ready.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runQueue = useCallback(async () => {
+    await runCampaignAction("queue", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/queue`, { method: "POST" });
+    }, "Campaign moved into review queue.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runSchedule = useCallback(async () => {
+    const defaultDate = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 16);
+    const value = window.prompt("Schedule send datetime (YYYY-MM-DDTHH:mm)", defaultDate);
+    if (!value) return;
+    const scheduledAt = new Date(value);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      setActionError("Enter a valid date/time value.");
+      return;
+    }
+    await runCampaignAction("schedule", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/schedule`, {
+        method: "POST",
+        body: JSON.stringify({ scheduledAt: scheduledAt.toISOString() }),
+      });
+    }, "Campaign scheduled.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runUnschedule = useCallback(async () => {
+    if (!window.confirm("Unschedule this campaign?")) return;
+    await runCampaignAction("unschedule", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/unschedule`, { method: "POST" });
+    }, "Campaign unscheduled.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runQueueControl = useCallback(async (action: "PAUSE" | "RESUME" | "CANCEL_REMAINING") => {
+    if (action === "CANCEL_REMAINING" && !window.confirm("Cancel remaining unsent recipients? This cannot be undone.")) return;
+    await runCampaignAction(`queue-${action.toLowerCase()}`, async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/queue-control`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+    }, action === "PAUSE" ? "Queue paused." : action === "RESUME" ? "Queue resumed." : "Remaining recipients cancelled.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runSendNow = useCallback(async () => {
+    if (!window.confirm("Send this campaign now?")) return;
+    await runCampaignAction("send", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/send`, {
+        method: "POST",
+        body: JSON.stringify({ sendMode: "CAMPAIGN_AUDIENCE" }),
+      });
+    }, "Campaign send initiated.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runSendTest = useCallback(async () => {
+    const email = window.prompt("Test recipient email", campaign.replyToEmail || campaign.fromEmail || "");
+    if (!email) return;
+    await runCampaignAction("send-test", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/send-test`, {
+        method: "POST",
+        body: JSON.stringify({ toEmail: email }),
+      });
+    }, `Test email sent to ${email}.`);
+  }, [campaign.fromEmail, campaign.id, campaign.replyToEmail, runCampaignAction]);
+
+  const runArchive = useCallback(async () => {
+    if (!window.confirm("Archive this campaign?")) return;
+    await runCampaignAction("archive", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/archive`, { method: "POST" });
+    }, "Campaign archived.");
+  }, [campaign.id, runCampaignAction]);
+
+  const runDuplicate = useCallback(async () => {
+    await runCampaignAction("duplicate", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}/duplicate`, { method: "POST" });
+    }, "Campaign duplicated.");
+  }, [campaign.id, runCampaignAction]);
+
   const mergedActivity = useMemo(() => {
     const fromAudit = activityRows.map((row) => ({
       key: `audit-${row.id}`,
@@ -1426,10 +2039,16 @@ function CampaignDetailWorkspace({
             <p className="text-sm text-slate-600">{campaign.subject || "No subject line"}</p>
           </div>
           <div className="flex items-center gap-2">
-            <StatusBadge label={campaign.status} tone={statusTone(campaign.status)} />
-            <WorkspaceAction href={`/oyama-email/templates/${campaign.id}/builder`}>Edit / Confirm Email Content</WorkspaceAction>
+            <StatusBadge label={statusLabel(workspaceStatus)} tone={statusTone(workspaceStatus)} />
+            <WorkspaceAction href={templateBuilderHref}>{campaign.templateSnapshot?.templateId ? "Edit / Confirm Email Content" : "Open Campaign Settings"}</WorkspaceAction>
           </div>
         </div>
+
+        {campaign.nextRecommendedAction ? (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Recommended next step: <span className="font-semibold">{campaign.nextRecommendedAction}</span>
+          </p>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {CAMPAIGN_WORKSPACE_TABS.map((item) => (
@@ -1446,6 +2065,73 @@ function CampaignDetailWorkspace({
             </button>
           ))}
         </div>
+
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Campaign Command Center</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runValidation()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "validate" ? "Validating..." : "Validate"}</button>
+            <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runSendTest()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "send-test" ? "Sending Test..." : "Send Test"}</button>
+            <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runDuplicate()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "duplicate" ? "Duplicating..." : "Duplicate"}</button>
+
+            {["DRAFT", "NEEDS_REVIEW", "CANCELLED"].includes(workspaceStatus) ? (
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runReady()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "ready" ? "Updating..." : "Mark Ready"}</button>
+            ) : null}
+
+            {["DRAFT", "READY", "NEEDS_REVIEW"].includes(workspaceStatus) ? (
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runQueue()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue" ? "Queueing..." : "Queue For Review"}</button>
+            ) : null}
+
+            {["DRAFT", "READY", "NEEDS_REVIEW"].includes(workspaceStatus) ? (
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runSchedule()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "schedule" ? "Scheduling..." : "Schedule"}</button>
+            ) : null}
+
+            {workspaceStatus === "SCHEDULED" ? (
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runUnschedule()} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "unschedule" ? "Unscheduling..." : "Unschedule"}</button>
+            ) : null}
+
+            {["READY", "SCHEDULED", "QUEUED", "NEEDS_REVIEW"].includes(workspaceStatus) ? (
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runSendNow()} className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "send" ? "Sending..." : "Send Now"}</button>
+            ) : null}
+
+            {workspaceStatus === "SENDING" || workspaceStatus === "QUEUED" ? (
+              <>
+                {queueState === "PAUSED" ? (
+                  <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runQueueControl("RESUME")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue-resume" ? "Resuming..." : "Resume Queue"}</button>
+                ) : (
+                  <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runQueueControl("PAUSE")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue-pause" ? "Pausing..." : "Pause Queue"}</button>
+                )}
+                <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runQueueControl("CANCEL_REMAINING")} className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue-cancel_remaining" ? "Cancelling..." : "Cancel Remaining"}</button>
+              </>
+            ) : null}
+
+            {workspaceStatus !== "ARCHIVED" ? (
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runArchive()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "archive" ? "Archiving..." : "Archive"}</button>
+            ) : null}
+          </div>
+
+          {actionError ? <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{actionError}</p> : null}
+          {actionNotice ? <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{actionNotice}</p> : null}
+        </div>
+
+        {validation ? (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Validation Snapshot</p>
+              <StatusBadge label={validation.valid ? "READY" : "BLOCKED"} tone={validation.valid ? "green" : "red"} />
+            </div>
+            {validation.blockers.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-xs text-red-700">
+                {validation.blockers.map((blocker) => <li key={blocker} className="rounded bg-red-50 px-2 py-1">{blocker}</li>)}
+              </ul>
+            ) : null}
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <MetricChip label="Matched" value={String(validation.audience.totalMatched)} />
+              <MetricChip label="Valid" value={String(validation.audience.finalSendCount)} />
+              <MetricChip label="Missing Email" value={String(validation.audience.missingEmail)} />
+              <MetricChip label="Invalid Email" value={String(validation.audience.invalidEmail)} />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {tab === "overview" ? (
@@ -2629,6 +3315,7 @@ function SideIcon({ label }: { label: string }) {
     Templates: "M4 5h16v14H4zM8 9h8M8 13h8",
     "Send Email": "M3 12h18M5 7l7 5 7-5",
     Campaigns: "M5 19h14M8 16V9m4 7V6m4 10v-4",
+    Callender: "M8 7V4m8 3V4M4 10h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z",
     Audience: "M17 20v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m16 0v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
     Queue: "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01",
     Analytics: "M4 19h16M7 16V9m5 7V6m5 10v-4",
@@ -2670,6 +3357,7 @@ function workspaceTitle(view: OyamaEmailView): string {
   if (view === "templates") return "Email Template Library";
   if (view === "builder") return "Email Builder";
   if (view === "publish") return "Publish & Compliance";
+  if (view === "callender") return "Callender";
   if (view === "campaigns" || view === "send" || view === "audience" || view === "queue" || view === "analytics") return "Campaigns";
   return "Settings";
 }
@@ -2679,16 +3367,45 @@ function workspaceSubtitle(view: OyamaEmailView, campaign: OyamaEmailCampaign | 
   if (view === "publish") return "Review compliance checks and publish this template for send workflows.";
   if (view === "send") return "Use the New Campaign wizard inside Campaigns for one-direction flow.";
   if (view === "templates") return "Choose a template to get started or create a new email from scratch.";
+  if (view === "callender") return "Manage all upcoming email schedules with timeline planning and quick campaign access.";
   if (view === "campaigns" || view === "audience" || view === "queue" || view === "analytics") {
     return "Run real send activity through campaign-first workflow with internal tabs for Overview, Audience, Queue, Analytics, Activity Log, and Settings.";
   }
   return "Configure delivery defaults and compliance policy behavior.";
 }
 
+function effectiveCampaignStatus(campaign: OyamaEmailCampaign): string {
+  return (campaign.workspaceStatus || campaign.status || "DRAFT").toUpperCase();
+}
+
+function statusLabel(status: string): string {
+  const normalized = status.toUpperCase();
+  if (normalized === "NEEDS_REVIEW") return "Needs Review";
+  if (normalized === "READY") return "Ready";
+  if (normalized === "SCHEDULED") return "Scheduled";
+  if (normalized === "QUEUED") return "Queued";
+  if (normalized === "SENDING") return "Sending";
+  if (normalized === "SENT") return "Sent";
+  if (normalized === "DELIVERED") return "Delivered";
+  if (normalized === "FAILED") return "Failed";
+  if (normalized === "CANCELLED") return "Cancelled";
+  if (normalized === "ARCHIVED") return "Archived";
+  return "Draft";
+}
+
+function toDayKey(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "invalid-date";
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function statusTone(status: string): "green" | "amber" | "red" | "slate" {
   const normalized = status.toUpperCase();
-  if (normalized === "SENT") return "green";
-  if (normalized === "SCHEDULED" || normalized === "SENDING" || normalized === "DRAFT") return "amber";
+  if (normalized === "SENT" || normalized === "DELIVERED") return "green";
+  if (normalized === "SCHEDULED" || normalized === "SENDING" || normalized === "DRAFT" || normalized === "READY" || normalized === "NEEDS_REVIEW" || normalized === "QUEUED") return "amber";
   if (normalized === "CANCELLED" || normalized === "FAILED") return "red";
   return "slate";
 }
