@@ -55,6 +55,21 @@ describe("letters-merge", () => {
     expect(Array.from(missingFields)).toEqual(["donor.addressBlock"]);
   });
 
+  it("falls back to first name when last name is missing", () => {
+    const missingFields = new Set<string>();
+    const output = renderMergeFields(
+      "Dear {{ donor.firstName }} {{ donor.lastName }},",
+      {
+        "donor.firstName": "Ava",
+        "donor.lastName": "",
+      },
+      { missingMode: "highlight", missingFields },
+    );
+
+    expect(output).toBe("Dear Ava Ava,");
+    expect(Array.from(missingFields)).toEqual([]);
+  });
+
   it("contains core donor and gift merge tokens", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donor.firstName}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.firstName}}");

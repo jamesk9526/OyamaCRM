@@ -189,6 +189,13 @@ export function renderMergeFields(template: string, values: Record<string, strin
       return `{{${normalized}}}`;
     }
     const filtered = applyMergeFilters(values[canonical] ?? "", parseFilters(rawFilters));
+    if (!filtered.trim() && canonical.endsWith(".lastName")) {
+      const firstNameKey = canonical.replace(/\.lastName$/, ".firstName");
+      const firstNameFallback = applyMergeFilters(values[firstNameKey] ?? "", parseFilters(rawFilters));
+      if (firstNameFallback.trim()) {
+        return firstNameFallback;
+      }
+    }
     if (!filtered.trim()) {
       options.missingFields?.add(normalized);
       return options.missingMode === "highlight" ? missingFieldMarkup(normalized) : "";
