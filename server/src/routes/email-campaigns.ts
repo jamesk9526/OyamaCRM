@@ -9,7 +9,7 @@
  *   GET    /api/email-campaigns/:id     — single email campaign detail
  *   POST   /api/email-campaigns         — create a draft or scheduled campaign
  *   PUT    /api/email-campaigns/:id     — update campaign content or metadata
- *   POST   /api/email-campaigns/:id/send — trigger (simulated) campaign send
+ *   POST   /api/email-campaigns/:id/send — trigger campaign send
  *   DELETE /api/email-campaigns/:id     — delete a campaign
  *
  * @module routes/email-campaigns
@@ -501,6 +501,7 @@ interface CampaignQueueRow {
   attemptCount: string;
   providerResponse: string;
   queuedAt: string;
+  sendingStartedAt: string;
   sentAt: string;
   deliveredAt: string;
   openedAt: string;
@@ -514,11 +515,21 @@ interface CampaignLiveSnapshotPayload {
   campaignId: string;
   delivery: {
     summary: {
+      eligibleRecipients: number;
+      processedRecipients: number;
+      sendProgressPercent: number;
       queued: number;
+      sending: number;
+      accepted: number;
       delivered: number;
       opened: number;
       clicked: number;
       bounced: number;
+      failed: number;
+      suppressed: number;
+      unsubscribed: number;
+      cancelled: number;
+      remaining: number;
       openRate: number;
       clickRate: number;
       bounceRate: number;
@@ -1636,10 +1647,15 @@ async function upsertDeliveryEvent(params: {
 function resolveQueueStatusFromEvents(params: {
   eventTypes: Set<string>;
   eligibilityStatus: EmailRecipientEligibilityStatus;
+  ineligibilityReason: string | null;
   sentAt: Date | null;
   unsubscribedAt: Date | null;
 }): string {
   if (params.unsubscribedAt) return "UNSUBSCRIBED";
+
+  if (!params.sentAt && params.ineligibilityReason?.startsWith("SMTP_SEND_FAILED")) {
+    return "FAILED";
+  }
 
   const eventTypes = params.eventTypes;
   if (eventTypes.has("BOUNCED")) return "BOUNCED";
@@ -1648,6 +1664,7 @@ function resolveQueueStatusFromEvents(params: {
   if (eventTypes.has("DELIVERED")) return "DELIVERED";
   if (eventTypes.has("QUEUED")) return "QUEUED";
   if (params.sentAt) return "SENT";
+  if (params.ineligibilityReason?.startsWith("SMTP_SENDING")) return "SENDING";
 
   if (params.eligibilityStatus === "SKIPPED_SUPPRESSED") return "SUPPRESSED";
   if (params.eligibilityStatus === "SKIPPED_UNSUBSCRIBED" || params.eligibilityStatus === "SKIPPED_CATEGORY_OPT_OUT") return "UNSUBSCRIBED";
@@ -1723,8 +1740,12 @@ async function buildCampaignQueueRows(params: {
 
     const metadata = asProviderMetadata(queued?.metadata ?? latest?.metadata ?? null);
     const attemptCountValue = firstPositiveNumber([metadata.attemptCount, metadata.attempt, metadata.attempts]);
-    const providerResponse = firstString([metadata.providerResponse, metadata.smtpResponse, metadata.response]) ?? "Not tracked yet";
+    const providerResponse = firstString([metadata.providerResponse, metadata.smtpResponse, metadata.response])
+      ?? (recipient.ineligibilityReason?.startsWith("SMTP_SEND_FAILED") ? "SMTP rejected the message before provider acceptance." : "Not tracked yet");
     const failureReason = firstString([metadata.reason, recipient.ineligibilityReason]) ?? "-";
+
+    const sendingStartedAtRaw = firstString([metadata.sendingStartedAt]);
+    const sendingStartedAt = sendingStartedAtRaw ? parseWebhookEventAt(sendingStartedAtRaw) : null;
 
     const sentAtFromMetadataRaw = firstString([metadata.sentAt]);
     const sentAtFromMetadata = sentAtFromMetadataRaw ? parseWebhookEventAt(sentAtFromMetadataRaw) : null;
@@ -1750,6 +1771,7 @@ async function buildCampaignQueueRows(params: {
       status: resolveQueueStatusFromEvents({
         eventTypes,
         eligibilityStatus: recipient.eligibilityStatus,
+        ineligibilityReason: recipient.ineligibilityReason,
         sentAt,
         unsubscribedAt,
       }),
@@ -1757,6 +1779,7 @@ async function buildCampaignQueueRows(params: {
       attemptCount: attemptCountValue ? String(attemptCountValue) : (sentAt ? "1" : "Not tracked yet"),
       providerResponse,
       queuedAt: asIsoOrDash(recipient.queuedAt ?? queued?.eventAt ?? null),
+      sendingStartedAt: asIsoOrDash(sendingStartedAt),
       sentAt: asIsoOrDash(sentAt),
       deliveredAt: asIsoOrDash(delivered?.eventAt ?? null),
       openedAt: asIsoOrDash(opened?.eventAt ?? null),
@@ -1821,6 +1844,7 @@ async function buildCampaignLiveSnapshot(params: {
             "EMAIL_CAMPAIGN_CREATED",
             "EMAIL_CAMPAIGN_UPDATED",
             "EMAIL_CAMPAIGN_SENT",
+            "EMAIL_CAMPAIGN_SEND_PARTIAL",
             "EMAIL_CAMPAIGN_SEND_FAILED",
             "EMAIL_CAMPAIGN_TEST_SENT",
             "EMAIL_CAMPAIGN_SCHEDULED",
@@ -1843,20 +1867,75 @@ async function buildCampaignLiveSnapshot(params: {
   ]);
 
   const byType = Object.fromEntries(grouped.map((row) => [row.eventType, row._count.eventType])) as Record<string, number>;
+  const queueCounts = queueRows.reduce((acc, row) => {
+    acc.total += 1;
+    const status = row.status.toUpperCase();
+    if (status === "QUEUED") acc.queued += 1;
+    else if (status === "SENDING") acc.sending += 1;
+    else if (status === "SENT") acc.accepted += 1;
+    else if (status === "DELIVERED") {
+      acc.accepted += 1;
+      acc.delivered += 1;
+    } else if (status === "OPENED") {
+      acc.accepted += 1;
+      acc.delivered += 1;
+      acc.opened += 1;
+    } else if (status === "CLICKED") {
+      acc.accepted += 1;
+      acc.delivered += 1;
+      acc.opened += 1;
+      acc.clicked += 1;
+    } else if (status === "BOUNCED") acc.bounced += 1;
+    else if (status === "FAILED") acc.failed += 1;
+    else if (status === "SUPPRESSED") acc.suppressed += 1;
+    else if (status === "UNSUBSCRIBED") acc.unsubscribed += 1;
+    else if (status === "CANCELLED") acc.cancelled += 1;
+    return acc;
+  }, {
+    total: 0,
+    queued: 0,
+    sending: 0,
+    accepted: 0,
+    delivered: 0,
+    opened: 0,
+    clicked: 0,
+    bounced: 0,
+    failed: 0,
+    suppressed: 0,
+    unsubscribed: 0,
+    cancelled: 0,
+  });
+
   const delivered = byType.DELIVERED ?? 0;
   const opened = byType.OPENED ?? 0;
   const clicked = byType.CLICKED ?? 0;
   const bounced = byType.BOUNCED ?? 0;
+  const eligibleRecipients = queueCounts.total;
+  const processedRecipients = queueCounts.accepted + queueCounts.failed + queueCounts.bounced + queueCounts.suppressed + queueCounts.cancelled;
+  const sendProgressPercent = eligibleRecipients > 0
+    ? Math.min(100, Math.round((processedRecipients / eligibleRecipients) * 100))
+    : 0;
+  const remaining = Math.max(0, eligibleRecipients - processedRecipients);
 
   return {
     campaignId: params.campaignId,
     delivery: {
       summary: {
-        queued: byType.QUEUED ?? 0,
+        eligibleRecipients,
+        processedRecipients,
+        sendProgressPercent,
+        queued: queueCounts.queued,
+        sending: queueCounts.sending,
+        accepted: queueCounts.accepted,
         delivered,
         opened,
         clicked,
         bounced,
+        failed: queueCounts.failed,
+        suppressed: queueCounts.suppressed,
+        unsubscribed: queueCounts.unsubscribed,
+        cancelled: queueCounts.cancelled,
+        remaining,
         openRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0,
         clickRate: delivered > 0 ? Math.round((clicked / delivered) * 100) : 0,
         bounceRate: delivered > 0 ? Math.round((bounced / delivered) * 100) : 0,
@@ -2439,8 +2518,6 @@ export async function sendCampaignNow(
     throw new CampaignSendError("Campaign is currently being processed.", 409);
   }
 
-  let resolvedPlan: ResolvedRecipientPlan | null = null;
-
   try {
     const sender = await createOrganizationEmailSender(campaign.organizationId).catch((error) => {
       const message = error instanceof Error ? error.message : "Outbound email provider is not ready.";
@@ -2452,8 +2529,6 @@ export async function sendCampaignNow(
       audienceFilter: campaign.audienceFilter,
       purpose,
     }, options);
-    resolvedPlan = recipientPlan;
-
     await persistSendRecipients({
       organizationId: campaign.organizationId,
       campaignId: campaign.id,
@@ -2470,6 +2545,9 @@ export async function sendCampaignNow(
     }
 
     const recipientDecisions = new Map(recipientPlan.decisions.map((decision) => [decision.email, decision]));
+
+    const acceptedRecipients: string[] = [];
+    const failedRecipients: Array<{ email: string; reason: string }> = [];
 
     for (const recipientEmail of to) {
       const recipientDecision = recipientDecisions.get(recipientEmail);
@@ -2490,13 +2568,7 @@ export async function sendCampaignNow(
         constituentId: recipientDecision?.constituentId ?? null,
       });
 
-      const sendResult = await sender.send({
-        to: recipientEmail,
-        subject: personalizedContent.subject,
-        text: personalizedContent.text,
-        html: personalizedContent.html,
-        fromNameOverride: campaign.fromName,
-      });
+      const sendingStartedAt = new Date();
 
       await prisma.emailSendRecipient.updateMany({
         where: {
@@ -2504,27 +2576,69 @@ export async function sendCampaignNow(
           email: recipientEmail,
         },
         data: {
-          sentAt: sendResult.acceptedAt,
+          ineligibilityReason: `SMTP_SENDING:${sendingStartedAt.toISOString()}`,
         },
       });
 
-      await upsertDeliveryEvent({
-        organizationId: campaign.organizationId,
-        campaignId: campaign.id,
-        recipientEmail,
-        eventType: "QUEUED",
-        eventAt: sendResult.acceptedAt,
-        metadata: {
-          trigger,
-          sendMode: recipientPlan.sendMode,
-          audienceType: recipientPlan.audienceType,
-          attemptCount: 1,
-          providerResponse: sendResult.providerResponse,
-          providerMessageId: sendResult.providerMessageId,
-          sentAt: sendResult.acceptedAt.toISOString(),
-          source: "smtp_acceptance",
-        },
-      });
+      try {
+        const sendResult = await sender.send({
+          to: recipientEmail,
+          subject: personalizedContent.subject,
+          text: personalizedContent.text,
+          html: personalizedContent.html,
+          fromNameOverride: campaign.fromName,
+        });
+
+        await prisma.emailSendRecipient.updateMany({
+          where: {
+            campaignId: campaign.id,
+            email: recipientEmail,
+          },
+          data: {
+            sentAt: sendResult.acceptedAt,
+            ineligibilityReason: null,
+          },
+        });
+
+        await upsertDeliveryEvent({
+          organizationId: campaign.organizationId,
+          campaignId: campaign.id,
+          recipientEmail,
+          eventType: "QUEUED",
+          eventAt: sendResult.acceptedAt,
+          metadata: {
+            trigger,
+            sendMode: recipientPlan.sendMode,
+            audienceType: recipientPlan.audienceType,
+            attemptCount: 1,
+            providerResponse: sendResult.providerResponse,
+            providerMessageId: sendResult.providerMessageId,
+            sentAt: sendResult.acceptedAt.toISOString(),
+            sendingStartedAt: sendingStartedAt.toISOString(),
+            source: "smtp_acceptance",
+          },
+        });
+
+        acceptedRecipients.push(recipientEmail);
+      } catch (recipientError) {
+        const reason = recipientError instanceof Error ? recipientError.message : String(recipientError);
+        failedRecipients.push({ email: recipientEmail, reason });
+
+        await prisma.emailSendRecipient.updateMany({
+          where: {
+            campaignId: campaign.id,
+            email: recipientEmail,
+          },
+          data: {
+            sentAt: null,
+            ineligibilityReason: `SMTP_SEND_FAILED:${reason}`,
+          },
+        });
+      }
+    }
+
+    if (acceptedRecipients.length === 0) {
+      throw new CampaignSendError("All recipient send attempts failed before provider acceptance.", 502);
     }
 
     await writeRecipientTimelineActivities({
@@ -2532,7 +2646,7 @@ export async function sendCampaignNow(
       campaignId: campaign.id,
       campaignName: campaign.name,
       subject: campaign.subject || campaign.name,
-      recipients: to,
+      recipients: acceptedRecipients,
       trigger,
       sendMode: recipientPlan.sendMode,
       audienceType: recipientPlan.audienceType,
@@ -2548,6 +2662,25 @@ export async function sendCampaignNow(
     });
 
     await recalculateCampaignDeliveryStats(campaign.id);
+
+    if (failedRecipients.length > 0) {
+      await prisma.auditLog.create({
+        data: {
+          organizationId: campaign.organizationId,
+          action: "EMAIL_CAMPAIGN_SEND_PARTIAL",
+          entity: "EmailCampaign",
+          entityId: campaign.id,
+          metadata: {
+            trigger,
+            sendMode: recipientPlan.sendMode,
+            audienceType: recipientPlan.audienceType,
+            acceptedRecipientCount: acceptedRecipients.length,
+            failedRecipientCount: failedRecipients.length,
+            failedRecipients: failedRecipients.slice(0, 50),
+          },
+        },
+      });
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -2571,6 +2704,9 @@ export async function sendCampaignNow(
           recipientListId: recipientPlan.recipientListId,
           purpose,
           category: recipientPlan.category,
+          acceptedRecipientCount: acceptedRecipients.length,
+          failedRecipientCount: failedRecipients.length,
+          failedRecipients: failedRecipients.slice(0, 50),
         },
       },
     });
@@ -2583,24 +2719,9 @@ export async function sendCampaignNow(
       data: { status: previousStatus },
     });
 
-    if (resolvedPlan && resolvedPlan.recipients.length > 0) {
-      await createDeliveryEvents({
-        organizationId: campaign.organizationId,
-        campaignId: campaign.id,
-        recipients: resolvedPlan.recipients,
-        eventType: "BOUNCED",
-        metadata: {
-          trigger,
-          reason: err instanceof Error ? err.message : String(err),
-        },
-      }).catch(() => {
-        // Best-effort event write for failed sends.
-      });
-
-      await recalculateCampaignDeliveryStats(campaign.id).catch(() => {
-        // Best-effort stat rebuild for failed sends.
-      });
-    }
+    await recalculateCampaignDeliveryStats(campaign.id).catch(() => {
+      // Best-effort stat rebuild for failed sends.
+    });
 
     await prisma.auditLog.create({
       data: {
@@ -2664,6 +2785,7 @@ router.get("/:id/send-log", async (req, res) => {
           "EMAIL_CAMPAIGN_CREATED",
           "EMAIL_CAMPAIGN_UPDATED",
           "EMAIL_CAMPAIGN_SENT",
+          "EMAIL_CAMPAIGN_SEND_PARTIAL",
           "EMAIL_CAMPAIGN_SEND_FAILED",
           "EMAIL_CAMPAIGN_TEST_SENT",
           "EMAIL_CAMPAIGN_SCHEDULED",

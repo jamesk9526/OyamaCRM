@@ -2,6 +2,8 @@ import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { loginAsAdmin } from "@/tests/helpers/auth";
 
+process.env.EMAIL_CAMPAIGN_WEBHOOK_SECRET ??= "test-webhook-secret";
+
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 let adminToken = "";
 
@@ -149,5 +151,51 @@ describe("email campaign workflow api", () => {
 
     const matchingDraft = (calendar.body?.unscheduledDrafts ?? []).find((row: { campaignId?: string }) => row.campaignId === created.body.id);
     expect(matchingDraft).toBeTruthy();
+  });
+
+  it("ingests delivery webhooks idempotently and updates campaign delivery stats", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const created = await request(app)
+      .post("/api/email-campaigns")
+      .set(auth)
+      .send({
+        name: `Webhook Campaign ${Date.now()}`,
+        subject: "Webhook coverage",
+      });
+
+    expect(created.status).toBe(201);
+
+    const payload = {
+      campaignId: created.body.id,
+      recipientEmail: "recipient+webhook@example.org",
+      eventType: "delivered",
+      eventAt: new Date().toISOString(),
+    };
+
+    const first = await request(app)
+      .post("/api/email-campaigns/webhooks/delivery")
+      .set({ "x-oyama-webhook-secret": "test-webhook-secret" })
+      .send(payload);
+
+    expect(first.status).toBe(202);
+    expect(first.body?.processed).toBe(1);
+    expect(first.body?.rejected).toBe(0);
+
+    const second = await request(app)
+      .post("/api/email-campaigns/webhooks/delivery")
+      .set({ "x-oyama-webhook-secret": "test-webhook-secret" })
+      .send(payload);
+
+    expect(second.status).toBe(202);
+    expect(second.body?.processed).toBe(1);
+    expect(second.body?.rejected).toBe(0);
+
+    const campaign = await request(app)
+      .get(`/api/email-campaigns/${created.body.id}`)
+      .set(auth);
+
+    expect(campaign.status).toBe(200);
+    expect(campaign.body?.delivered).toBe(1);
   });
 });

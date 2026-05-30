@@ -90,11 +90,21 @@ interface DeliveryEventRow {
 
 interface DeliveryEventsPayload {
   summary: {
+    eligibleRecipients: number;
+    processedRecipients: number;
+    sendProgressPercent: number;
     queued: number;
+    sending: number;
+    accepted: number;
     delivered: number;
     opened: number;
     clicked: number;
     bounced: number;
+    failed: number;
+    suppressed: number;
+    unsubscribed: number;
+    cancelled: number;
+    remaining: number;
     openRate: number;
     clickRate: number;
     bounceRate: number;
@@ -116,6 +126,7 @@ interface CampaignQueueRow {
   attemptCount: string;
   providerResponse: string;
   queuedAt: string;
+  sendingStartedAt: string;
   sentAt: string;
   deliveredAt: string;
   openedAt: string;
@@ -1903,9 +1914,11 @@ function CampaignDetailWorkspace({
   const [validation, setValidation] = useState<CampaignValidationResponse | null>(null);
 
   const summary = deliveryData?.summary;
-  const totalAudience = Math.max(campaign.totalRecipients || 0, summary?.queued ?? 0, summary?.delivered ?? 0);
-  const completed = (summary?.delivered ?? 0) + (summary?.bounced ?? 0);
-  const progressPercent = totalAudience > 0 ? Math.min(100, Math.round((completed / totalAudience) * 100)) : 0;
+  const queueStatusCounts = useMemo(() => buildQueueStatusCounts(queueRows), [queueRows]);
+  const totalAudience = summary?.eligibleRecipients ?? queueStatusCounts.total;
+  const completed = summary?.processedRecipients ?? queueStatusCounts.processed;
+  const progressPercent = summary?.sendProgressPercent
+    ?? (totalAudience > 0 ? Math.min(100, Math.round((completed / totalAudience) * 100)) : 0);
 
   const runCampaignAction = useCallback(async (
     actionKey: string,
@@ -2016,15 +2029,16 @@ function CampaignDetailWorkspace({
   }, [campaign.id, runCampaignAction]);
 
   const mergedActivity = useMemo(() => {
+    const readableAction = (action: string) => action.replaceAll("_", " ");
     const fromAudit = activityRows.map((row) => ({
       key: `audit-${row.id}`,
       ts: new Date(row.createdAt).getTime() || 0,
-      label: `${formatDateTime(row.createdAt)} — ${row.action.replaceAll("_", " ")}${row.user?.name ? ` by ${row.user.name}` : ""}`,
+      label: `${formatDateTime(row.createdAt)} — ${readableAction(row.action)}${row.user?.name ? ` by ${row.user.name}` : ""}`,
     }));
     const fromDelivery = (deliveryData?.events ?? []).slice(0, 80).map((row) => ({
       key: `delivery-${row.id}`,
       ts: new Date(row.eventAt).getTime() || 0,
-      label: `${formatDateTime(row.eventAt)} — ${row.eventType} ${row.recipientEmail}`,
+      label: `${formatDateTime(row.eventAt)} — ${row.eventType} ${row.recipientEmail}${typeof row.metadata?.providerResponse === "string" ? ` (${row.metadata.providerResponse})` : ""}`,
     }));
     return [...fromAudit, ...fromDelivery].sort((a, b) => b.ts - a.ts).slice(0, 120);
   }, [activityRows, deliveryData?.events]);
@@ -2147,13 +2161,34 @@ function CampaignDetailWorkspace({
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <MetricChip label="Queued" value={String(summary?.queued ?? 0)} />
+                <MetricChip label="Sending" value={String(summary?.sending ?? queueStatusCounts.sending)} />
+                <MetricChip label="Accepted" value={String(summary?.accepted ?? queueStatusCounts.accepted)} />
                 <MetricChip label="Delivered" value={String(summary?.delivered ?? 0)} />
                 <MetricChip label="Opened" value={String(summary?.opened ?? 0)} />
                 <MetricChip label="Clicked" value={String(summary?.clicked ?? 0)} />
                 <MetricChip label="Bounced" value={String(summary?.bounced ?? 0)} />
-                <MetricChip label="Failed" value="Not tracked yet" />
-                <MetricChip label="Unsubscribed" value={trackedMetric(campaign.unsubscribed, campaign.status)} />
-                <MetricChip label="Suppressed" value="Not tracked yet" />
+                <MetricChip label="Failed" value={String(summary?.failed ?? queueStatusCounts.failed)} />
+                <MetricChip label="Unsubscribed" value={String(summary?.unsubscribed ?? queueStatusCounts.unsubscribed)} />
+                <MetricChip label="Suppressed" value={String(summary?.suppressed ?? queueStatusCounts.suppressed)} />
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+                <SendingProgressDonut
+                  eligibleRecipients={totalAudience}
+                  processedRecipients={completed}
+                  progressPercent={progressPercent}
+                />
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                  <p className="font-semibold text-slate-800">Progress Formula</p>
+                  <p className="mt-1">eligibleRecipients = final send audience</p>
+                  <p>processedRecipients = accepted + failed + bounced + suppressed + cancelled</p>
+                  <p>sendProgressPercent = processedRecipients / eligibleRecipients * 100</p>
+                  {!deliveryData?.diagnostics?.providerWebhookConfigured ? (
+                    <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">
+                      Delivery tracking not configured: delivered/opened/clicked depend on provider webhooks.
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -2184,6 +2219,8 @@ function CampaignDetailWorkspace({
           <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-base font-semibold text-slate-900">Campaign Summary</p>
             <SummaryLine label="Audience" value={String(campaign.totalRecipients ?? 0)} />
+            <SummaryLine label="Eligible Recipients" value={String(totalAudience)} />
+            <SummaryLine label="Processed" value={String(completed)} />
             <SummaryLine label="Queued" value={String(summary?.queued ?? 0)} />
             <SummaryLine label="Delivered" value={String(summary?.delivered ?? 0)} />
             <SummaryLine label="Open Rate" value={summary ? `${summary.openRate}%` : "Not tracked yet"} />
@@ -2226,9 +2263,9 @@ function CampaignDetailWorkspace({
       {tab === "queue" ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-base font-semibold text-slate-900">Campaign Queue</p>
-          <p className="mt-1 text-sm text-slate-600">Queued = prepared by OyamaCRM. Delivered/Opened/Clicked only from provider/webhook events.</p>
+          <p className="mt-1 text-sm text-slate-600">Queued = accepted by provider. Delivered/Opened/Clicked only come from provider webhook events.</p>
           <div className="mt-3 overflow-auto rounded-lg border border-slate-200">
-            <table className="w-full min-w-[1220px] text-left text-xs">
+            <table className="w-full min-w-[1320px] text-left text-xs">
               <thead className="bg-slate-50 uppercase tracking-wide text-slate-600">
                 <tr>
                   <th className="px-2 py-2">Recipient</th>
@@ -2238,6 +2275,7 @@ function CampaignDetailWorkspace({
                   <th className="px-2 py-2">Attempt Count</th>
                   <th className="px-2 py-2">SMTP/Provider Response</th>
                   <th className="px-2 py-2">Queued At</th>
+                  <th className="px-2 py-2">Sending Started At</th>
                   <th className="px-2 py-2">Sent At</th>
                   <th className="px-2 py-2">Delivered At</th>
                   <th className="px-2 py-2">Opened At</th>
@@ -2250,7 +2288,7 @@ function CampaignDetailWorkspace({
               <tbody className="divide-y divide-slate-200">
                 {queueRows.length === 0 ? (
                   <tr>
-                    <td className="px-2 py-4 text-slate-500" colSpan={14}>Waiting for queue or delivery events.</td>
+                    <td className="px-2 py-4 text-slate-500" colSpan={15}>Waiting for queue or delivery events.</td>
                   </tr>
                 ) : null}
                 {queueRows.map((row) => (
@@ -2262,6 +2300,7 @@ function CampaignDetailWorkspace({
                     <td className="px-2 py-2">{row.attemptCount}</td>
                     <td className="px-2 py-2">{row.providerResponse}</td>
                     <td className="px-2 py-2">{row.queuedAt}</td>
+                    <td className="px-2 py-2">{row.sendingStartedAt}</td>
                     <td className="px-2 py-2">{row.sentAt}</td>
                     <td className="px-2 py-2">{row.deliveredAt}</td>
                     <td className="px-2 py-2">{row.openedAt}</td>
@@ -2283,18 +2322,18 @@ function CampaignDetailWorkspace({
             <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-base font-semibold text-slate-900">Delivery Summary</p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <MetricChip label="Total Audience" value={String(campaign.totalRecipients ?? 0)} />
+                <MetricChip label="Eligible Audience" value={String(totalAudience)} />
                 <MetricChip label="Queued" value={String(summary?.queued ?? 0)} />
-                <MetricChip label="Sent" value={campaign.sentAt ? String(campaign.totalRecipients ?? 0) : waitingMetric(campaign.status)} />
+                <MetricChip label="Accepted" value={String(summary?.accepted ?? queueStatusCounts.accepted)} />
                 <MetricChip label="Delivered" value={String(summary?.delivered ?? 0)} />
                 <MetricChip label="Opened" value={String(summary?.opened ?? 0)} />
                 <MetricChip label="Unique Opens" value={String(summary?.opened ?? 0)} />
                 <MetricChip label="Clicked" value={String(summary?.clicked ?? 0)} />
                 <MetricChip label="Unique Clicks" value={String(summary?.clicked ?? 0)} />
                 <MetricChip label="Bounced" value={String(summary?.bounced ?? 0)} />
-                <MetricChip label="Deferred" value="Not tracked yet" />
-                <MetricChip label="Failed" value="Not tracked yet" />
-                <MetricChip label="Unsubscribed" value={trackedMetric(campaign.unsubscribed, campaign.status)} />
+                <MetricChip label="Failed" value={String(summary?.failed ?? queueStatusCounts.failed)} />
+                <MetricChip label="Suppressed" value={String(summary?.suppressed ?? queueStatusCounts.suppressed)} />
+                <MetricChip label="Unsubscribed" value={String(summary?.unsubscribed ?? queueStatusCounts.unsubscribed)} />
               </div>
             </article>
 
@@ -2866,6 +2905,51 @@ function waitingMetric(status: string): string {
   return "Not tracked yet";
 }
 
+function buildQueueStatusCounts(rows: CampaignQueueRow[]) {
+  const counts = {
+    total: rows.length,
+    queued: 0,
+    sending: 0,
+    accepted: 0,
+    delivered: 0,
+    opened: 0,
+    clicked: 0,
+    bounced: 0,
+    failed: 0,
+    suppressed: 0,
+    unsubscribed: 0,
+    cancelled: 0,
+    processed: 0,
+  };
+
+  for (const row of rows) {
+    const status = row.status.toUpperCase();
+    if (status === "QUEUED") counts.queued += 1;
+    else if (status === "SENDING") counts.sending += 1;
+    else if (status === "SENT") counts.accepted += 1;
+    else if (status === "DELIVERED") {
+      counts.accepted += 1;
+      counts.delivered += 1;
+    } else if (status === "OPENED") {
+      counts.accepted += 1;
+      counts.delivered += 1;
+      counts.opened += 1;
+    } else if (status === "CLICKED") {
+      counts.accepted += 1;
+      counts.delivered += 1;
+      counts.opened += 1;
+      counts.clicked += 1;
+    } else if (status === "BOUNCED") counts.bounced += 1;
+    else if (status === "FAILED") counts.failed += 1;
+    else if (status === "SUPPRESSED") counts.suppressed += 1;
+    else if (status === "UNSUBSCRIBED") counts.unsubscribed += 1;
+    else if (status === "CANCELLED") counts.cancelled += 1;
+  }
+
+  counts.processed = counts.accepted + counts.failed + counts.bounced + counts.suppressed + counts.cancelled;
+  return counts;
+}
+
 async function streamCampaignLiveUpdates(
   campaignId: string,
   onSnapshot: (snapshot: CampaignLiveSnapshot) => void,
@@ -2947,6 +3031,51 @@ function FlowNode({ label, active }: { label: string; active: boolean }) {
 
 function FlowArrow() {
   return <span className="text-slate-400">-&gt;</span>;
+}
+
+function SendingProgressDonut({
+  eligibleRecipients,
+  processedRecipients,
+  progressPercent,
+}: {
+  eligibleRecipients: number;
+  processedRecipients: number;
+  progressPercent: number;
+}) {
+  const clampedPercent = Math.max(0, Math.min(100, progressPercent));
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - ((clampedPercent / 100) * circumference);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Sending Progress</p>
+      <div className="flex items-center gap-3">
+        <svg viewBox="0 0 120 120" className="h-24 w-24">
+          <circle cx="60" cy="60" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+          <circle
+            cx="60"
+            cy="60"
+            r={radius}
+            fill="none"
+            stroke="#0f766e"
+            strokeWidth="10"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            transform="rotate(-90 60 60)"
+          />
+          <text x="60" y="58" textAnchor="middle" className="fill-slate-900 text-[18px] font-semibold">{clampedPercent}%</text>
+          <text x="60" y="75" textAnchor="middle" className="fill-slate-500 text-[9px] uppercase">complete</text>
+        </svg>
+        <div className="text-xs text-slate-700">
+          <p><span className="font-semibold text-slate-900">Eligible:</span> {eligibleRecipients}</p>
+          <p><span className="font-semibold text-slate-900">Processed:</span> {processedRecipients}</p>
+          <p><span className="font-semibold text-slate-900">Remaining:</span> {Math.max(0, eligibleRecipients - processedRecipients)}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DeliveryFunnelChart({
