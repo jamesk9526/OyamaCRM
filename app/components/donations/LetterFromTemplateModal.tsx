@@ -11,6 +11,9 @@ interface LetterTemplateOption {
   category: string;
   status: string;
   updatedAt: string;
+  headerPresetId?: string | null;
+  footerPresetId?: string | null;
+  signatureBlockId?: string | null;
 }
 
 interface DonationContext {
@@ -52,7 +55,10 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
       setError(null);
       try {
         const rows = await apiFetch<LetterTemplateOption[]>("/api/letters/templates?status=ACTIVE");
-        if (!cancelled) setTemplates(rows ?? []);
+        const ready = (rows ?? []).filter((template) => {
+          return template.status === "ACTIVE" && Boolean(template.headerPresetId) && Boolean(template.footerPresetId) && Boolean(template.signatureBlockId);
+        });
+        if (!cancelled) setTemplates(ready);
       } catch (requestError) {
         if (!cancelled) {
           setError(requestError instanceof Error ? requestError.message : "Failed to load letter templates.");
@@ -133,6 +139,10 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
         </div>
 
         <div className="p-6 space-y-4">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+            Only published, generation-ready templates are shown here.
+          </div>
+
           <div className="relative">
             <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -166,7 +176,7 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-10 text-center text-sm text-gray-500">
                   {search
                     ? "No letter templates match your search."
-                    : "No active letter templates found. Activate one in Letters & Printables first."}
+                    : "No published and generation-ready templates found. Publish a template with header, footer, and signature in Letters & Printables first."}
                 </div>
               ) : (
                 <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">

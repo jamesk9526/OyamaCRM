@@ -74,6 +74,20 @@ interface ImportHistoryItem {
   } | null;
 }
 
+interface NameFixIssue {
+  key: string;
+  constituentId: string;
+  reason: string;
+  currentFirstName: string;
+  currentLastName: string;
+  suggestedFirstName: string;
+  suggestedLastName: string;
+}
+
+interface IgnoredNameFixIssue extends NameFixIssue {
+  ignoredAt: string;
+}
+
 /** Data tools page with real CSV exports and live data-quality metrics. */
 export default function DataToolsPage() {
   const [constituents, setConstituents] = useState<Constituent[]>([]);
@@ -82,6 +96,12 @@ export default function DataToolsPage() {
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [exporting, setExporting] = useState<"constituents" | "donations" | "campaigns" | "designations" | null>(null);
+  const [nameFixOpen, setNameFixOpen] = useState(false);
+  const [activeIssueKey, setActiveIssueKey] = useState<string | null>(null);
+  const [ignoredNameIssues, setIgnoredNameIssues] = useState<IgnoredNameFixIssue[]>([]);
+  const [nameFixDraft, setNameFixDraft] = useState<{ firstName: string; lastName: string }>({ firstName: "", lastName: "" });
+  const [nameFixSaving, setNameFixSaving] = useState(false);
+  const [nameFixError, setNameFixError] = useState<string | null>(null);
 
   // Steward Paths CSV import state
   const [spImportStatus, setSpImportStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
@@ -128,6 +148,130 @@ export default function DataToolsPage() {
     const missingPhone = constituents.filter((c) => !c.phone).length;
     return { missingEmail, duplicateCount, missingPhone };
   }, [constituents]);
+
+  const detectedNameIssues = useMemo<NameFixIssue[]>(() => {
+    const issues: NameFixIssue[] = [];
+    for (const constituent of constituents) {
+      const firstName = (constituent.firstName ?? "").trim();
+      const lastName = (constituent.lastName ?? "").trim();
+      if (!firstName) continue;
+
+      const commaMatch = firstName.match(/^\s*([^,]+),\s*(.+)\s*$/);
+      if (commaMatch) {
+        const suggestedLast = commaMatch[1]?.trim() ?? "";
+        const suggestedFirst = commaMatch[2]?.trim() ?? "";
+        if (suggestedFirst && suggestedLast) {
+          issues.push({
+            key: `name-fix:${constituent.id}:comma`,
+            constituentId: constituent.id,
+            reason: "First name appears to contain 'Last, First'.",
+            currentFirstName: firstName,
+            currentLastName: lastName,
+            suggestedFirstName: suggestedFirst,
+            suggestedLastName: suggestedLast,
+          });
+          continue;
+        }
+      }
+
+      if (!lastName && firstName.includes(" ")) {
+        const tokens = firstName.split(/\s+/).filter(Boolean);
+        if (tokens.length >= 2) {
+          const suggestedFirst = tokens[0] ?? "";
+          const suggestedLast = tokens.slice(1).join(" ");
+          issues.push({
+            key: `name-fix:${constituent.id}:split`,
+            constituentId: constituent.id,
+            reason: "First and last names may both be in First Name while Last Name is empty.",
+            currentFirstName: firstName,
+            currentLastName: lastName,
+            suggestedFirstName: suggestedFirst,
+            suggestedLastName: suggestedLast,
+          });
+        }
+      }
+    }
+    return issues;
+  }, [constituents]);
+
+  const ignoredIssueKeySet = useMemo(() => new Set(ignoredNameIssues.map((issue) => issue.key)), [ignoredNameIssues]);
+
+  const pendingNameIssues = useMemo(
+    () => detectedNameIssues.filter((issue) => !ignoredIssueKeySet.has(issue.key)),
+    [detectedNameIssues, ignoredIssueKeySet],
+  );
+
+  const activeNameIssue = useMemo(() => {
+    if (pendingNameIssues.length === 0) return null;
+    if (!activeIssueKey) return pendingNameIssues[0];
+    return pendingNameIssues.find((issue) => issue.key === activeIssueKey) ?? pendingNameIssues[0];
+  }, [activeIssueKey, pendingNameIssues]);
+
+  useEffect(() => {
+    if (!activeNameIssue) {
+      setNameFixDraft({ firstName: "", lastName: "" });
+      return;
+    }
+    setNameFixDraft({
+      firstName: activeNameIssue.suggestedFirstName,
+      lastName: activeNameIssue.suggestedLastName,
+    });
+  }, [activeNameIssue?.key]);
+
+  async function approveActiveNameIssue() {
+    if (!activeNameIssue) return;
+    const nextFirst = nameFixDraft.firstName.trim();
+    const nextLast = nameFixDraft.lastName.trim();
+    if (!nextFirst || !nextLast) {
+      setNameFixError("First and last names are both required before approval.");
+      return;
+    }
+
+    setNameFixSaving(true);
+    setNameFixError(null);
+    try {
+      await apiFetch(`/api/constituents/${activeNameIssue.constituentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: nextFirst,
+          lastName: nextLast,
+        }),
+      });
+
+      setConstituents((prev) => prev.map((item) => (
+        item.id === activeNameIssue.constituentId
+          ? { ...item, firstName: nextFirst, lastName: nextLast }
+          : item
+      )));
+      setIgnoredNameIssues((prev) => prev.filter((issue) => issue.key !== activeNameIssue.key));
+
+      const currentIndex = pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key);
+      const nextIssue = pendingNameIssues[currentIndex + 1] ?? pendingNameIssues[currentIndex - 1] ?? null;
+      setActiveIssueKey(nextIssue?.key ?? null);
+    } catch (error) {
+      setNameFixError(error instanceof Error ? error.message : "Unable to update this constituent.");
+    } finally {
+      setNameFixSaving(false);
+    }
+  }
+
+  function ignoreActiveNameIssue() {
+    if (!activeNameIssue) return;
+    setIgnoredNameIssues((prev) => {
+      if (prev.some((issue) => issue.key === activeNameIssue.key)) return prev;
+      return [...prev, { ...activeNameIssue, ignoredAt: new Date().toISOString() }];
+    });
+    setNameFixError(null);
+
+    const currentIndex = pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key);
+    const nextIssue = pendingNameIssues[currentIndex + 1] ?? pendingNameIssues[currentIndex - 1] ?? null;
+    setActiveIssueKey(nextIssue?.key ?? null);
+  }
+
+  function unignoreNameIssue(key: string) {
+    setIgnoredNameIssues((prev) => prev.filter((issue) => issue.key !== key));
+  }
 
   function toCsv(rows: Array<Record<string, unknown>>) {
     if (rows.length === 0) return "";
@@ -375,11 +519,52 @@ export default function DataToolsPage() {
 
       {/* ── Data Quality ── */}
       <div id="data-tools-quality" className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-900">Data Quality</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Data Quality</h2>
+            <p className="text-sm text-gray-500 mt-1">Review and correct profile issues before they affect segmentation, mail merges, and communications.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setNameFixOpen(true);
+              setActiveIssueKey(pendingNameIssues[0]?.key ?? null);
+              setNameFixError(null);
+            }}
+            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+          >
+            Launch Name Correction ({pendingNameIssues.length})
+          </button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-4">
           <QualityCard label="Missing Email" value={quality.missingEmail} hint="Profiles without an email address." />
           <QualityCard label="Duplicate Emails" value={quality.duplicateCount} hint="Email addresses used on multiple profiles." />
           <QualityCard label="Missing Phone" value={quality.missingPhone} hint="Profiles with no phone number." />
+          <QualityCard label="Name Issues" value={pendingNameIssues.length} hint="Possible first/last name field errors ready for guided correction." />
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Ignored Name Issues</p>
+          {ignoredNameIssues.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-500">No ignored entries yet.</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {ignoredNameIssues.map((issue) => (
+                <div key={issue.key} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{issue.currentFirstName} {issue.currentLastName || "(no last name)"}</p>
+                    <p className="text-xs text-gray-500">{issue.reason} · Ignored {new Date(issue.ignoredAt).toLocaleString()}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => unignoreNameIssue(issue.key)}
+                    className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                  >
+                    Remove Ignore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -387,6 +572,129 @@ export default function DataToolsPage() {
       <div id="data-tools-merge">
         <MergeWorkflow constituents={constituents} />
       </div>
+
+      {nameFixOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Guided Name Corrections</p>
+                <p className="text-xs text-gray-500">Step-by-step review of likely first/last name field errors.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNameFixOpen(false)}
+                className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              {activeNameIssue ? (
+                <>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Issue</p>
+                    <p className="mt-1 text-sm text-blue-900">{activeNameIssue.reason}</p>
+                    <p className="mt-2 text-xs text-blue-800">
+                      Reviewing {pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key) + 1} of {pendingNameIssues.length}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Current Record</p>
+                      <p className="mt-2 text-sm text-gray-800">First Name: <span className="font-medium">{activeNameIssue.currentFirstName || "-"}</span></p>
+                      <p className="text-sm text-gray-800">Last Name: <span className="font-medium">{activeNameIssue.currentLastName || "-"}</span></p>
+                    </div>
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Suggested Split</p>
+                      <p className="mt-2 text-sm text-green-900">First Name: <span className="font-medium">{activeNameIssue.suggestedFirstName || "-"}</span></p>
+                      <p className="text-sm text-green-900">Last Name: <span className="font-medium">{activeNameIssue.suggestedLastName || "-"}</span></p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Correct First Name
+                      <input
+                        value={nameFixDraft.firstName}
+                        onChange={(event) => setNameFixDraft((prev) => ({ ...prev, firstName: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-gray-700">
+                      Correct Last Name
+                      <input
+                        value={nameFixDraft.lastName}
+                        onChange={(event) => setNameFixDraft((prev) => ({ ...prev, lastName: event.target.value }))}
+                        className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+                      />
+                    </label>
+                  </div>
+
+                  {nameFixError ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{nameFixError}</p> : null}
+
+                  <div className="flex flex-wrap justify-between gap-2 border-t border-gray-200 pt-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentIndex = pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key);
+                          const previousIssue = pendingNameIssues[currentIndex - 1] ?? null;
+                          setActiveIssueKey(previousIssue?.key ?? activeNameIssue.key);
+                          setNameFixError(null);
+                        }}
+                        disabled={pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key) <= 0}
+                        className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:opacity-40"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentIndex = pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key);
+                          const nextIssue = pendingNameIssues[currentIndex + 1] ?? null;
+                          setActiveIssueKey(nextIssue?.key ?? activeNameIssue.key);
+                          setNameFixError(null);
+                        }}
+                        disabled={pendingNameIssues.findIndex((issue) => issue.key === activeNameIssue.key) >= pendingNameIssues.length - 1}
+                        className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={ignoreActiveNameIssue}
+                        disabled={nameFixSaving}
+                        className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-40"
+                      >
+                        Ignore
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void approveActiveNameIssue()}
+                        disabled={nameFixSaving}
+                        className="rounded-md border border-green-700 bg-green-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                      >
+                        {nameFixSaving ? "Saving..." : "Approve Correction"}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-6 text-center">
+                  <p className="text-sm font-semibold text-green-800">No pending name issues.</p>
+                  <p className="mt-1 text-xs text-green-700">All detected entries are either fixed or ignored.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* ── Steward Paths Workflow Import ── */}
       <div id="data-tools-steward-paths" className="bg-white rounded-lg border border-gray-200 p-6 space-y-5">

@@ -36,7 +36,7 @@ body {
 
 /* Shared CRM visual language primitives for calm, consistent page surfaces. */
 .crm-page-surface {
-  background: #f6fbf8;
+  background: #f7faf8;
 }
 
 .crm-shell-surface {
@@ -56,9 +56,13 @@ body {
 
 /* Global app chrome keeps the green accent while borrowing the reference titlebar feel. */
 [data-topbar-root="true"] {
-  background:
-    linear-gradient(90deg, rgba(240, 253, 244, 0.98) 0%, rgba(220, 252, 231, 0.96) 48%, rgba(236, 253, 245, 0.98) 100%) !important;
-  border-bottom-color: #b9d7c1 !important;
+  background: #ffffff !important;
+  border-bottom-color: #dbe4de !important;
+}
+
+[data-topbar-root="true"][data-donor-topbar="true"] {
+  background: #ffffff !important;
+  border-bottom-color: #d4dfd8 !important;
 }
 
 /* Windows Explorer-inspired workspace command surfaces. */

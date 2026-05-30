@@ -39,7 +39,7 @@ describe("letters-merge", () => {
     expect(output).toContain("{{custom.field}}");
   });
 
-  it("supports fallback filters and highlighted missing fields", () => {
+  it("supports fallback filters and tracks missing fields without inline missing markers", () => {
     const missingFields = new Set<string>();
     const output = renderMergeFields(
       "Dear {{ constituent.firstName | fallback:\"Friend\" }} {{ donor.addressBlock }}",
@@ -51,7 +51,7 @@ describe("letters-merge", () => {
     );
 
     expect(output).toContain("Dear Friend");
-    expect(output).toContain("Missing: {{donor.addressBlock}}");
+    expect(output).not.toContain("Missing: {{donor.addressBlock}}");
     expect(Array.from(missingFields)).toEqual(["donor.addressBlock"]);
   });
 

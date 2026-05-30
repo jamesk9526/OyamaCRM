@@ -6,11 +6,11 @@ interface StewardAvatarIconProps {
   alt?: string;
 }
 
-/** Renders a plain custom SVG mark for Steward without using the character artwork. */
+/** Renders a generic AI glyph so assistant surfaces do not use character-specific branding. */
 export default function StewardAvatarIcon({ size = 24, className = "", alt = "Steward" }: StewardAvatarIconProps) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 bg-black text-white ${className}`.trim()}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 bg-slate-900 text-white ${className}`.trim()}
       style={{ width: size, height: size }}
       role={alt ? "img" : undefined}
       aria-label={alt || undefined}
@@ -18,28 +18,16 @@ export default function StewardAvatarIcon({ size = 24, className = "", alt = "St
       <svg
         aria-hidden="true"
         viewBox="0 0 32 32"
-        className="h-[72%] w-[72%]"
+        className="h-[74%] w-[74%]"
         fill="none"
       >
-        <path
-          d="M16 4.5c6.35 0 11.5 5.15 11.5 11.5S22.35 27.5 16 27.5 4.5 22.35 4.5 16 9.65 4.5 16 4.5Z"
-          stroke="currentColor"
-          strokeWidth="2"
-          opacity="0.92"
-        />
-        <path
-          d="M10.2 17.9c0-4.75 3.38-7.55 7.15-7.55 2.9 0 5.15 1.66 5.15 4.08 0 4.18-6.12 3.48-6.12 6.17 0 1.16.96 1.88 2.34 1.88 1.5 0 2.74-.7 3.72-1.78"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M10.1 21.7c1.06-1.2 2.43-1.82 4.08-1.82"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
+        <rect x="8" y="9" width="16" height="14" rx="4" stroke="currentColor" strokeWidth="2" />
+        <circle cx="13" cy="16" r="1.4" fill="currentColor" />
+        <circle cx="19" cy="16" r="1.4" fill="currentColor" />
+        <path d="M13 20h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M16 5.5V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <path d="M8 13.5H6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M26 13.5h-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     </span>
   );

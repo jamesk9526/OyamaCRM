@@ -101,21 +101,21 @@ export default function LoginPage() {
 
   /* ── Main login UI - split layout: curved brand left / form right ─────── */
   return (
-    <div className="min-h-screen w-screen overflow-x-hidden bg-[#f8faf9]">
+    <div className="min-h-screen w-screen overflow-x-hidden bg-[#f4f7f6]">
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(430px,520px)]">
 
         {/* ── Left brand panel ── */}
         <LoginBrandPanel />
 
         {/* ── Right form panel ── */}
-        <section className="relative flex min-h-screen flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.08),transparent_32%),linear-gradient(180deg,#ffffff,#f8faf9)] px-4 py-8 sm:px-8 lg:px-10">
+        <section className="relative flex min-h-screen flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#ffffff,#f3f7f6)] px-4 py-8 sm:px-8 lg:px-10">
           <div className="w-full max-w-[400px]">
 
             {/* Mobile-only logo */}
             <LoginMobileBrand />
 
             {/* Form card */}
-            <div className="rounded-[28px] border border-slate-200/90 bg-white/95 px-6 py-7 shadow-[0_22px_60px_rgba(15,23,42,0.10)] backdrop-blur sm:px-8 sm:py-8">
+            <div className="rounded-[22px] border border-slate-200/90 bg-white px-6 py-7 shadow-[0_20px_52px_rgba(15,23,42,0.10)] backdrop-blur sm:px-8 sm:py-8">
               <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Secure workspace</p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Sign in to OyamaCRM</h2>
@@ -163,7 +163,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(5,150,105,0.22)] transition hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(5,150,105,0.22)] transition hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? (
                     <>
@@ -178,7 +178,8 @@ export default function LoginPage() {
                   )}
                 </button>
 
-                <div className="text-right">
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-400">Need help signing in?</span>
                   <Link href="/login/forgot-password" className="text-xs font-semibold text-emerald-700 transition-colors hover:text-emerald-800">
                     Forgot password?
                   </Link>

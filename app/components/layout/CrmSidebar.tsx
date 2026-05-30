@@ -87,54 +87,56 @@ interface CrmSidebarProps {
     ariaLabel?: string;
     onClick: () => void;
   };
+  brandHeader?: React.ReactNode;
+  brandHeaderCollapsed?: React.ReactNode;
 }
 
 const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; accent: string; focusRing: string; buttonTone: string }> = {
   green: {
-    iconActive: "text-emerald-100",
+    iconActive: "text-emerald-200",
     accent: "bg-emerald-500",
-    focusRing: "focus-visible:ring-emerald-300",
-    buttonTone: "border-emerald-300/25 bg-white/10 text-emerald-50 hover:border-emerald-200/45 hover:bg-white/15",
+    focusRing: "focus-visible:ring-emerald-400",
+    buttonTone: "border-emerald-800/70 bg-emerald-900/35 text-emerald-100 hover:border-emerald-600/70 hover:bg-emerald-800/45",
   },
   blue: {
-    iconActive: "text-blue-100",
+    iconActive: "text-blue-200",
     accent: "bg-blue-500",
-    focusRing: "focus-visible:ring-blue-300",
-    buttonTone: "border-blue-300/25 bg-white/10 text-blue-50 hover:border-blue-200/45 hover:bg-white/15",
+    focusRing: "focus-visible:ring-blue-400",
+    buttonTone: "border-blue-900/60 bg-blue-950/55 text-blue-100 hover:border-blue-700 hover:bg-blue-900/65",
   },
   teal: {
-    iconActive: "text-teal-100",
+    iconActive: "text-teal-200",
     accent: "bg-teal-500",
-    focusRing: "focus-visible:ring-teal-300",
-    buttonTone: "border-teal-300/25 bg-white/10 text-teal-50 hover:border-teal-200/45 hover:bg-white/15",
+    focusRing: "focus-visible:ring-teal-400",
+    buttonTone: "border-teal-900/60 bg-teal-950/55 text-teal-100 hover:border-teal-700 hover:bg-teal-900/65",
   },
   amber: {
-    iconActive: "text-amber-100",
+    iconActive: "text-amber-200",
     accent: "bg-amber-500",
-    focusRing: "focus-visible:ring-amber-300",
-    buttonTone: "border-amber-300/25 bg-white/10 text-amber-50 hover:border-amber-200/45 hover:bg-white/15",
+    focusRing: "focus-visible:ring-amber-400",
+    buttonTone: "border-amber-900/60 bg-amber-950/55 text-amber-100 hover:border-amber-700 hover:bg-amber-900/65",
   },
 };
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-[linear-gradient(180deg,#012c25_0%,#075443_54%,#0f766e_100%)] border-r border-emerald-300/20 shadow-[14px_0_42px_rgba(1,44,37,0.24)]",
-    navSurface: "bg-[radial-gradient(circle_at_18%_0%,rgba(52,211,153,0.2),transparent_38%)]",
-    heading: "text-emerald-100/65",
+    aside: "bg-[linear-gradient(180deg,#063229_0%,#042a23_36%,#03231d_100%)] border-r border-[#0a2318] shadow-[4px_0_12px_rgba(2,18,14,0.35)]",
+    navSurface: "",
+    heading: "text-emerald-100/58",
     headingMuted: "hover:text-emerald-50",
-    itemActive: "text-white bg-white/15 font-semibold shadow-[inset_3px_0_0_rgba(52,211,153,0.92),inset_0_0_0_1px_rgba(167,243,208,0.16),0_8px_22px_rgba(1,44,37,0.18)]",
-    itemInactive: "text-emerald-50/78 hover:bg-white/10 hover:text-white",
-    iconActive: "text-emerald-100",
-    iconInactive: "text-emerald-100/52 group-hover:text-emerald-50",
-    badge: "bg-white/10 text-emerald-50 ring-1 ring-white/10",
+    itemActive: "text-emerald-50 bg-emerald-500/18 font-semibold ring-1 ring-emerald-300/18 shadow-[0_4px_10px_rgba(0,0,0,0.16)]",
+    itemInactive: "text-emerald-100/86 hover:bg-emerald-500/10 hover:text-white",
+    iconActive: "text-emerald-200",
+    iconInactive: "text-emerald-200/64 group-hover:text-emerald-100",
+    badge: "bg-emerald-200/14 text-emerald-100 ring-1 ring-emerald-200/18",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:bg-white/[0.04]",
-    footer: "border-t border-emerald-300/20 bg-emerald-950/55 backdrop-blur-xl",
-    footerText: "text-emerald-50/68",
-    collapseButton: "border-emerald-200/20 bg-white/10 text-emerald-50 hover:bg-white/15 hover:text-white",
-    tooltip: "border-emerald-200/20 bg-[#012c25] text-emerald-50 shadow-2xl shadow-emerald-950/30",
-    tooltipSubtitle: "text-emerald-100/70",
-    divider: "bg-emerald-200/28",
+    sectionHover: "hover:bg-emerald-900/16",
+    footer: "border-t border-emerald-900/60 bg-[#0b281d]",
+    footerText: "text-emerald-200/80",
+    collapseButton: "border-emerald-800/70 bg-emerald-950/30 text-emerald-200 hover:bg-emerald-900/55 hover:text-white",
+    tooltip: "border-emerald-800/60 bg-emerald-950 text-emerald-50 shadow-xl",
+    tooltipSubtitle: "text-emerald-200/80",
+    divider: "bg-emerald-500/26",
     accent: "bg-emerald-500",
   },
   compassion: {
@@ -280,6 +282,8 @@ export default function CrmSidebar({
   donorAccentTone = "green",
   donorChromeTint,
   footerAction,
+  brandHeader,
+  brandHeaderCollapsed,
 }: CrmSidebarProps) {
   const pathname = usePathname();
   const donorAccent = DONOR_ACCENT_OVERRIDES[donorAccentTone];
@@ -293,9 +297,7 @@ export default function CrmSidebar({
   const isDonorChrome = variant === "donor";
   const donorTintStyle = isDonorChrome && donorChromeTint
     ? {
-      background: `linear-gradient(180deg, ${donorChromeTint.dark} 0%, ${donorChromeTint.mid} 54%, ${donorChromeTint.base} 100%)`,
       borderColor: donorChromeTint.border,
-      boxShadow: `10px 0 30px rgba(${donorChromeTint.shadowRgb}, 0.15)`,
     }
     : undefined;
   const focusRingClass = variant === "donor" ? donorAccent.focusRing : "focus-visible:ring-green-500";
@@ -394,6 +396,17 @@ export default function CrmSidebar({
   }, [groups]);
 
   const isCollapsed = forceExpanded ? false : compactDesktop ? !compactExpanded : collapsed;
+  const hasBrandHeader = Boolean(brandHeader || brandHeaderCollapsed);
+  const donorCompact = variant === "donor";
+
+  const toggleSidebar = () => {
+    if (compactDesktop) {
+      setCompactExpanded((current) => !current);
+      return;
+    }
+
+    setCollapsed((current) => !current);
+  };
 
   const visibleGroups = useMemo(() => {
     return groups
@@ -434,21 +447,42 @@ export default function CrmSidebar({
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
       style={donorTintStyle}
     >
-      <div className={`flex-1 overflow-y-auto px-3 py-6 ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
-        {!forceExpanded ? (
-          <div className={`mb-3 flex h-9 items-center ${isCollapsed ? "justify-center" : "justify-end"}`}>
+      {hasBrandHeader ? (
+        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-900/65 bg-[#0b281d]" : "border-slate-200 bg-white"} ${donorCompact ? "px-2.5 py-2" : "px-3 py-3"}`}>
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {isCollapsed ? brandHeaderCollapsed : brandHeader}
+            </div>
+            {!forceExpanded ? (
+              <button
+                type="button"
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!isCollapsed}
+                onClick={toggleSidebar}
+                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-all hover:-translate-y-px ${styles.collapseButton}`}
+              >
+                {isCollapsed ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                )}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      <div className={`flex-1 overflow-y-auto ${donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+        {!forceExpanded && !hasBrandHeader ? (
+          <div className={`mb-2 flex ${donorCompact ? "h-8" : "h-9"} items-center ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
               type="button"
               aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!isCollapsed}
-              onClick={() => {
-                if (compactDesktop) {
-                  setCompactExpanded((current) => !current);
-                  return;
-                }
-
-                setCollapsed((current) => !current);
-              }}
+              onClick={toggleSidebar}
               className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border shadow-sm transition-all hover:-translate-y-px ${styles.collapseButton}`}
             >
               {isCollapsed ? (
@@ -471,7 +505,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`mb-2 rounded-xl border px-0.5 py-0.5 transition-colors ${isDonorChrome ? "bg-emerald-950/24 backdrop-blur-sm" : "bg-white/70"} ${groupActive && !isCollapsed ? (isDonorChrome ? "border-emerald-200/20" : "border-slate-200/70") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
+              className={`mb-1.5 rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="group/section relative px-2 py-1.5" aria-hidden="true">
@@ -481,7 +515,7 @@ export default function CrmSidebar({
                   </span>
                 </div>
               ) : (
-                  <div className="px-2 py-1">
+                  <div className="px-1.5 py-0.5">
                   {group.collapsible ? (
                     <button
                       type="button"
@@ -491,7 +525,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`w-full flex items-center justify-between px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors ${groupActive ? (isDonorChrome ? "text-emerald-50" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
+                      className={`w-full flex items-center justify-between px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg
@@ -513,7 +547,7 @@ export default function CrmSidebar({
               )}
 
               {groupIsOpen && (
-                <nav className="space-y-0.5 pb-0.5" aria-label={group.label}>
+                <nav className="space-y-0 pb-0.5" aria-label={group.label}>
                   {group.items.map((item) => {
                     const active = isSidebarItemActive(item, pathname, hash);
 
@@ -523,14 +557,11 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-10 justify-center rounded-xl px-1.5 py-2" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12.5px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-8 justify-center rounded-xl px-1.5 py-1" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
                         title={isCollapsed ? item.label : undefined}
                       >
-                        {active ? (
-                          <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${styles.accent}`} aria-hidden="true" />
-                        ) : null}
                         <span
-                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-950/45" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
+                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
                           aria-hidden="true"
                         >
                           {item.icon}
@@ -544,7 +575,7 @@ export default function CrmSidebar({
                             <span className="min-w-0 flex-1">
                               <span className="block truncate">{item.label}</span>
                               {item.secondaryLabel ? (
-                                <span className={`block truncate text-[10px] font-medium ${isDonorChrome ? "text-emerald-100/55" : "text-slate-500"}`}>
+                                <span className="block truncate text-[10px] font-medium text-slate-500">
                                   {item.secondaryLabel}
                                 </span>
                               ) : null}
@@ -563,7 +594,7 @@ export default function CrmSidebar({
                             className={`pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden min-w-[220px] -translate-y-1/2 rounded-xl border px-3 py-2 text-left shadow-2xl group-hover:block group-focus-visible:block ${styles.tooltip}`}
                           >
                             <span className="flex items-center gap-2 text-xs font-semibold">
-                              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${active ? styles.itemActive : (isDonorChrome ? "bg-emerald-950/45" : "bg-slate-50")}`}>{item.icon}</span>
+                              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${active ? styles.itemActive : "bg-slate-50"}`}>{item.icon}</span>
                               <span>{item.label}</span>
                               {item.badge ? (
                                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${styles.badge}`}>
@@ -592,7 +623,7 @@ export default function CrmSidebar({
         })}
       </div>
 
-      <div className={`px-4 py-3 ${styles.footer}`}>
+      <div className={`${donorCompact ? "px-3 py-2.5" : "px-4 py-3"} ${styles.footer}`}>
         {footerAction ? (
           <button
             type="button"

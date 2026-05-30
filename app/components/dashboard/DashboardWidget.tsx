@@ -99,16 +99,16 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        bg-white/95 rounded-md border border-emerald-200/85 flex flex-col transition-all duration-200 shadow-[0_1px_2px_rgba(15,23,42,0.06)]
+        bg-white rounded-2xl border border-slate-200/90 flex flex-col transition-all duration-200 shadow-[0_10px_28px_rgba(15,23,42,0.08)]
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
-        ${editMode && isDragOver ? "ring-2 ring-green-400 ring-offset-1 border-transparent" : ""}
-        ${editMode ? "ring-1 ring-green-200" : "hover:border-emerald-300 hover:shadow-[0_2px_5px_rgba(5,150,105,0.09)]"}
+        ${editMode && isDragOver ? "ring-2 ring-emerald-400 ring-offset-1 border-transparent" : ""}
+        ${editMode ? "ring-1 ring-emerald-200" : "hover:border-slate-300 hover:shadow-[0_12px_30px_rgba(15,23,42,0.1)]"}
         ${layoutClassName}
         ${className}
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex min-h-12 items-center gap-2 border-b border-emerald-100 bg-gradient-to-r from-white to-emerald-50/55 px-3 py-2 select-none">
+      <div className="flex min-h-12 items-center gap-2 border-b border-slate-100 bg-white px-4 py-2.5 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
@@ -140,7 +140,7 @@ export default function DashboardWidget({
         {/* Move up / down arrows — visible only in edit mode */}
         {editMode && (
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            <div className="hidden items-center rounded-sm border border-emerald-200 bg-white p-0.5 sm:flex">
+            <div className="hidden items-center rounded-lg border border-slate-200 bg-white p-0.5 sm:flex">
               {WIDGET_SIZE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -152,8 +152,8 @@ export default function DashboardWidget({
                   title={option.title}
                   className={`h-6 min-w-6 rounded px-1.5 text-[10px] font-semibold transition-colors ${
                     size === option.value
-                      ? "bg-green-600 text-white"
-                      : "text-gray-500 hover:bg-emerald-50 hover:text-emerald-800"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                   }`}
                 >
                   {option.label}
@@ -163,7 +163,7 @@ export default function DashboardWidget({
             <button
               onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
               disabled={!canMoveUp}
-              className="rounded-sm p-1 text-gray-400 transition-colors hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-20"
+              className="rounded-sm p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-20"
               title="Move up"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -173,7 +173,7 @@ export default function DashboardWidget({
             <button
               onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
               disabled={!canMoveDown}
-              className="rounded-sm p-1 text-gray-400 transition-colors hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-20"
+              className="rounded-sm p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-20"
               title="Move down"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -185,7 +185,7 @@ export default function DashboardWidget({
       </div>
 
       {/* ── Card body ── */}
-      <div className="flex-1 overflow-auto p-3">
+      <div className="flex-1 overflow-auto p-4">
         {children}
       </div>
     </div>

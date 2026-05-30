@@ -3,7 +3,7 @@
 import type { HelpArticle } from "@/app/help-content/types";
 
 /** Shared image placeholder reused by first-pass article examples. */
-const GUIDE_IMAGE = "/branding/oyama-mark-64.png";
+const GUIDE_IMAGE = "/branding/oyama-donor-crm-icon.svg";
 
 /** Published Help App seed articles for donor, events, compassion, and global workflows. */
 export const HELP_ARTICLES: HelpArticle[] = [

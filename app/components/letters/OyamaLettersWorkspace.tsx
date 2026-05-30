@@ -303,6 +303,8 @@ const RULER_PX_PER_INCH = 96;
 const LETTERS_TEMPLATE_RECOVERY_STORAGE_KEY = "oyamaLetters.templateRecovery.v1";
 const LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY = "oyamaLetters.aiComposerOpen.v1";
 const LETTERS_INLINE_SUGGEST_STORAGE_KEY = "oyamaLetters.inlineSuggestEnabled.v1";
+const LETTERS_TEMPLATE_SETUP_HINT_DISMISSED_KEY = "oyamaLetters.templateSetupHintDismissed.v1";
+const LETTERS_TEMPLATE_SETUP_HINT_COMPLETED_KEY = "oyamaLetters.templateSetupHintCompleted.v1";
 
 const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
@@ -647,6 +649,20 @@ function TemplateLibrary() {
   const [status, setStatus] = useState("ALL");
   const [category, setCategory] = useState("ALL");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [setupHintOpen, setSetupHintOpen] = useState(false);
+  const [setupHintStep, setSetupHintStep] = useState<0 | 1 | 2>(0);
+  const [applyingDefaults, setApplyingDefaults] = useState(false);
+  const [setupHintError, setSetupHintError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const dismissed = window.localStorage.getItem(LETTERS_TEMPLATE_SETUP_HINT_DISMISSED_KEY) === "1";
+      const completed = window.localStorage.getItem(LETTERS_TEMPLATE_SETUP_HINT_COMPLETED_KEY) === "1";
+      if (!dismissed && !completed) setSetupHintOpen(true);
+    } catch {
+      setSetupHintOpen(true);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -672,6 +688,42 @@ function TemplateLibrary() {
   const activeCount = templates.filter((item) => item.status === "ACTIVE").length;
   const draftCount = templates.filter((item) => item.status === "DRAFT").length;
   const archivedCount = templates.filter((item) => item.status === "ARCHIVED").length;
+
+  function dismissSetupHint() {
+    try {
+      window.localStorage.setItem(LETTERS_TEMPLATE_SETUP_HINT_DISMISSED_KEY, "1");
+    } catch {
+      // Ignore storage failures in private mode.
+    }
+    setSetupHintOpen(false);
+  }
+
+  function completeSetupHint() {
+    try {
+      window.localStorage.setItem(LETTERS_TEMPLATE_SETUP_HINT_COMPLETED_KEY, "1");
+    } catch {
+      // Ignore storage failures in private mode.
+    }
+    setSetupHintOpen(false);
+  }
+
+  async function applyDefaultsToTemplates() {
+    setApplyingDefaults(true);
+    setSetupHintError(null);
+    try {
+      const result = await apiFetch<{ updatedCount: number }>("/api/letters/templates/apply-default-branding", {
+        method: "POST",
+      });
+      completeSetupHint();
+      setError(null);
+      void load();
+      alert(`Applied default header/footer/signature to ${result.updatedCount} template${result.updatedCount === 1 ? "" : "s"}.`);
+    } catch (requestError) {
+      setSetupHintError(errorMessage(requestError, "Could not apply defaults to templates yet."));
+    } finally {
+      setApplyingDefaults(false);
+    }
+  }
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
@@ -728,6 +780,65 @@ function TemplateLibrary() {
       <div className="px-4 pb-4 text-xs text-slate-600 xl:px-7 xl:pb-6">
         Showing {templates.length} template{templates.length === 1 ? "" : "s"}
       </div>
+
+      {setupHintOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-base font-semibold text-slate-900">First-Time Template Setup</p>
+                <p className="mt-1 text-sm text-slate-600">To avoid broken previews and publish blockers, set up branding assets first.</p>
+              </div>
+              <button type="button" onClick={dismissSetupHint} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Dismiss</button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              {setupHintStep === 0 ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-700">You need three pieces configured before publishing letters:</p>
+                  <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+                    <li>Default Header preset</li>
+                    <li>Default Footer preset</li>
+                    <li>Default Signature block</li>
+                  </ul>
+                  <div className="flex justify-end gap-2">
+                    <Button onClick={() => setSetupHintStep(1)} tone="primary">Let&apos;s do it</Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {setupHintStep === 1 ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-slate-900">Step-by-step setup</p>
+                  <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-700">
+                    <li>Open <Link href="/settings/branding/letter-presets" className="font-semibold text-emerald-700 hover:underline">Letter Presets</Link> and set one Header + one Footer as default.</li>
+                    <li>Open <Link href="/settings/branding/signatures" className="font-semibold text-emerald-700 hover:underline">Signatures</Link> and set one active default signature.</li>
+                    <li>Return here when done.</li>
+                  </ol>
+                  <div className="flex justify-between gap-2">
+                    <Button onClick={() => setSetupHintStep(0)}>Back</Button>
+                    <Button onClick={() => setSetupHintStep(2)} tone="primary">I&apos;ve set them up</Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {setupHintStep === 2 ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-700">Great. Do you want to apply the default header/footer/signature to all current templates now?</p>
+                  {setupHintError ? <Alert tone="amber">{setupHintError}</Alert> : null}
+                  <div className="flex justify-between gap-2">
+                    <Button onClick={() => setSetupHintStep(1)}>Back</Button>
+                    <div className="flex gap-2">
+                      <Button onClick={completeSetupHint}>Skip for now</Button>
+                      <Button onClick={() => void applyDefaultsToTemplates()} tone="primary" disabled={applyingDefaults}>{applyingDefaults ? "Applying..." : "Apply To All Templates"}</Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -1758,6 +1869,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </div>
             {/* Saved Sections group */}
             <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Blocks & Snippets</p>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Saved Sections</p>
               <div className="rounded-md border border-slate-200 bg-white p-3">
                 <div className="space-y-2">
@@ -2060,6 +2172,9 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [samplePdfLoading, setSamplePdfLoading] = useState(false);
+  const [savedPreviewPdfUrl, setSavedPreviewPdfUrl] = useState<string | null>(null);
+  const [savedPreviewPdfLoading, setSavedPreviewPdfLoading] = useState(false);
+  const [savedPreviewPdfError, setSavedPreviewPdfError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -2095,6 +2210,14 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    return () => {
+      if (savedPreviewPdfUrl) {
+        URL.revokeObjectURL(savedPreviewPdfUrl);
+      }
+    };
+  }, [savedPreviewPdfUrl]);
 
   const registry = useMemo(() => new Set(sections.flatMap((section) => section.fields).map(normalizeToken)), [sections]);
   const tokens = useMemo(() => extractTokens(`${template?.printSubject ?? ""} ${template?.printBody ?? ""} ${template?.emailSubject ?? ""} ${template?.emailBody ?? ""}`), [template]);
@@ -2166,6 +2289,48 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       setSamplePdfLoading(false);
     }
   }
+
+  const loadSavedPreviewPdf = useCallback(async () => {
+    if (!templateId) return;
+    setSavedPreviewPdfLoading(true);
+    setSavedPreviewPdfError(null);
+    try {
+      const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(templateId)}/sample-pdf?preview=1&inline=1`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        let message = `Sample PDF preview failed (${response.status}).`;
+        try {
+          const parsed = await response.json();
+          if (parsed?.error?.message) message = String(parsed.error.message);
+        } catch {
+          // Keep default message when response is not JSON.
+        }
+        throw new Error(message);
+      }
+      const pdfBlob = await response.blob();
+      if (pdfBlob.size === 0) {
+        throw new Error("Sample PDF preview returned an empty file.");
+      }
+      const nextUrl = URL.createObjectURL(pdfBlob);
+      setSavedPreviewPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return nextUrl;
+      });
+    } catch (requestError) {
+      setSavedPreviewPdfError(errorMessage(requestError, "Unable to load server preview."));
+      setSavedPreviewPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+    } finally {
+      setSavedPreviewPdfLoading(false);
+    }
+  }, [templateId]);
+
+  useEffect(() => {
+    void loadSavedPreviewPdf();
+  }, [loadSavedPreviewPdf]);
 
   if (loading) return <LoadingPage label="Loading publish workspace..." />;
 
@@ -2255,9 +2420,22 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
         <aside className="space-y-3">
           <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
             <h2 className="font-semibold">Saved Template Preview</h2>
-            <p className="mt-1 text-xs text-slate-600">This is saved template content, not sample recipient data.</p>
+            <p className="mt-1 text-xs text-slate-600">Server-rendered PDF preview with official header/footer/signature branding.</p>
             <div className="mt-4 rounded-md border border-slate-200 bg-[#f3f5f8] p-4">
-              <MiniDocument html={template?.printBody || ""} />
+              {savedPreviewPdfLoading ? (
+                <p className="py-12 text-center text-xs text-slate-600">Rendering branded sample PDF...</p>
+              ) : savedPreviewPdfUrl ? (
+                <object title="Saved template server preview" data={`${savedPreviewPdfUrl}#toolbar=0&navpanes=0&view=FitH`} type="application/pdf" className="h-[500px] w-full rounded border border-slate-200 bg-white">
+                  <div className="flex h-[500px] items-center justify-center p-6 text-center text-xs text-slate-700">
+                    Inline PDF preview is unavailable in this browser. Use Open Sample Server PDF above.
+                  </div>
+                </object>
+              ) : (
+                <>
+                  <MiniDocument html={template?.printBody || ""} />
+                  <p className="mt-3 text-xs text-amber-700">{savedPreviewPdfError || "Server preview unavailable, showing raw template body."}</p>
+                </>
+              )}
             </div>
           </div>
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
@@ -3883,6 +4061,9 @@ function QueueWorkspace() {
   const [batchId, setBatchId] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [previewRow, setPreviewRow] = useState<LetterPrintQueueItem | LetterMailQueueItem | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewPdfLoading, setPreviewPdfLoading] = useState(false);
+  const [previewPdfError, setPreviewPdfError] = useState<string | null>(null);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
   const [pdfViewerTitle, setPdfViewerTitle] = useState("Generated Letter PDF");
   const [pdfViewerFileName, setPdfViewerFileName] = useState("generated-letter.pdf");
@@ -3926,6 +4107,12 @@ function QueueWorkspace() {
       if (pdfViewerUrl) URL.revokeObjectURL(pdfViewerUrl);
     };
   }, [pdfViewerUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+    };
+  }, [previewPdfUrl]);
 
   const allRows = tab === "print" ? printRows : mailRows;
   const availableStatuses = useMemo(() => ["ALL", ...Array.from(new Set(allRows.map((row) => row.queueStatus))).sort()], [allRows]);
@@ -4019,6 +4206,58 @@ function QueueWorkspace() {
       setPdfLoading(false);
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPreviewPdf(letterId: string) {
+      setPreviewPdfLoading(true);
+      setPreviewPdfError(null);
+      try {
+        const pdf = await requestQueuePdfBlobUrl(
+          `/api/letters/generated/${encodeURIComponent(letterId)}/export-pdf?preview=1&inline=1`,
+          undefined,
+          `letter_${letterId}.pdf`,
+        );
+        if (cancelled) {
+          URL.revokeObjectURL(pdf.objectUrl);
+          return;
+        }
+        setPreviewPdfUrl((previous) => {
+          if (previous) URL.revokeObjectURL(previous);
+          return pdf.objectUrl;
+        });
+      } catch (requestError) {
+        if (!cancelled) {
+          setPreviewPdfError(errorMessage(requestError, "Failed to render queue preview PDF."));
+          setPreviewPdfUrl((previous) => {
+            if (previous) URL.revokeObjectURL(previous);
+            return null;
+          });
+        }
+      } finally {
+        if (!cancelled) setPreviewPdfLoading(false);
+      }
+    }
+
+    if (!previewRow) {
+      setPreviewPdfLoading(false);
+      setPreviewPdfError(null);
+      setPreviewPdfUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return null;
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void loadPreviewPdf(previewRow.id);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewRow?.id]);
 
   async function openSelectedBatchPdf(title = "Selected Letters PDF") {
     if (selectedIds.length === 0) {
@@ -4298,7 +4537,30 @@ function QueueWorkspace() {
               </div>
             </div>
             <div className="overflow-auto bg-[#f3f5f8] p-5">
-              <MiniDocument html={previewRow.mergedPrintBody || ""} emptyText="No generated print content is available for this letter." />
+              {previewPdfLoading ? (
+                <div className="flex min-h-[65vh] items-center justify-center rounded-md border border-slate-200 bg-white text-sm text-slate-600">
+                  Rendering server preview...
+                </div>
+              ) : null}
+              {!previewPdfLoading && previewPdfError ? (
+                <div className="space-y-3">
+                  <Alert tone="amber">{previewPdfError}</Alert>
+                  <MiniDocument html={previewRow.mergedPrintBody || ""} emptyText="No generated print content is available for this letter." />
+                </div>
+              ) : null}
+              {!previewPdfLoading && !previewPdfError && previewPdfUrl ? (
+                <object
+                  aria-label="Queue preview PDF"
+                  title="Queue preview PDF"
+                  data={`${previewPdfUrl}#toolbar=1&navpanes=0&view=FitH`}
+                  type="application/pdf"
+                  className="min-h-[72vh] w-full rounded-md border border-slate-200 bg-white"
+                >
+                  <div className="flex min-h-[65vh] items-center justify-center rounded-md border border-slate-200 bg-white p-6 text-center text-sm text-slate-700">
+                    This browser is not rendering the PDF inline. Use Open PDF to view and download the server-rendered preview.
+                  </div>
+                </object>
+              ) : null}
             </div>
           </div>
         </div>

@@ -116,6 +116,15 @@ interface LetterPdfPresetContext {
   } | null;
 }
 
+interface LetterPdfRecipientContext {
+  fullName: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
 interface LettersWorkflowPolicy {
   autoQueueBatchToPrint: boolean;
   requirePrintApproval: boolean;
@@ -1200,10 +1209,73 @@ function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPrese
   ].filter(Boolean);
 }
 
+function buildRecipientCityStateZip(recipient?: LetterPdfRecipientContext | null): string {
+  if (!recipient) return "";
+  const city = recipient.city.trim();
+  const state = recipient.state.trim();
+  const zip = recipient.zip.trim();
+  const cityState = [city, state].filter(Boolean).join(", ");
+  return [cityState, zip].filter(Boolean).join(" ").trim();
+}
+
+function buildRecipientAddressLines(recipient?: LetterPdfRecipientContext | null): string[] {
+  if (!recipient) return [];
+  const lines = [
+    recipient.fullName.trim(),
+    recipient.addressLine1.trim(),
+    recipient.addressLine2.trim(),
+    buildRecipientCityStateZip(recipient),
+  ].filter((value) => value.length > 0);
+  return lines;
+}
+
+function normalizeAddressCompare(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function stripLeadingRecipientAddressBlocks(blocks: PdfContentBlock[], recipient?: LetterPdfRecipientContext | null): PdfContentBlock[] {
+  const recipientLines = buildRecipientAddressLines(recipient);
+  if (recipientLines.length === 0 || blocks.length === 0) return blocks;
+
+  const normalizedRecipientLines = recipientLines
+    .map((line) => normalizeAddressCompare(line))
+    .filter((line) => line.length > 0);
+  if (normalizedRecipientLines.length === 0) return blocks;
+
+  const matchesRecipientLine = (line: string): boolean => {
+    const normalized = normalizeAddressCompare(line);
+    if (!normalized) return false;
+    return normalizedRecipientLines.some((recipientLine) => {
+      if (!recipientLine) return false;
+      return normalized === recipientLine
+        || normalized.includes(recipientLine)
+        || recipientLine.includes(normalized);
+    });
+  };
+
+  let index = 0;
+  let matched = 0;
+
+  while (index < blocks.length) {
+    const block = blocks[index];
+    if (block.kind !== "paragraph") break;
+    if (!matchesRecipientLine(block.text)) {
+      if (matched > 0) break;
+      return blocks;
+    }
+    matched += 1;
+    index += 1;
+  }
+
+  if (matched === 0) return blocks;
+  return blocks.slice(index);
+}
+
 function drawPdfChrome(
   doc: JsPdfDocument,
   branding: LetterPdfBrandingContext,
   presets: LetterPdfPresetContext,
+  recipient?: LetterPdfRecipientContext | null,
   pageRange?: { startPage?: number; endPage?: number },
 ): void {
   const pageCount = doc.getNumberOfPages();
@@ -1211,8 +1283,10 @@ function drawPdfChrome(
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
   const footerY = pageHeight - 54;
-  const logoWidth = 48;
-  const logoHeight = 48;
+  const fallbackLogoWidth = 48;
+  const fallbackLogoHeight = 48;
+  const logoMaxWidth = 160;
+  const logoMaxHeight = 48;
   const normalizedLogoAlignment = String(presets.headerPreset?.logoAlignment ?? "LEFT").toUpperCase();
   const logoAlignment = normalizedLogoAlignment === "CENTER" || normalizedLogoAlignment === "RIGHT" || normalizedLogoAlignment === "NONE"
     ? normalizedLogoAlignment
@@ -1220,10 +1294,33 @@ function drawPdfChrome(
   const showLogoSlot = logoAlignment !== "NONE";
   const hasLogo = showLogoSlot && Boolean(branding.logoDataUrl);
   const hasFallbackLogo = showLogoSlot && !hasLogo;
+  let renderedLogoWidth = fallbackLogoWidth;
+  let renderedLogoHeight = fallbackLogoHeight;
+
+  if (hasLogo && branding.logoDataUrl) {
+    try {
+      const properties = doc.getImageProperties(branding.logoDataUrl) as { width?: number; height?: number };
+      const sourceWidth = Number(properties?.width ?? 0);
+      const sourceHeight = Number(properties?.height ?? 0);
+      if (sourceWidth > 0 && sourceHeight > 0) {
+        const scale = Math.min(logoMaxWidth / sourceWidth, logoMaxHeight / sourceHeight);
+        renderedLogoWidth = Math.max(12, sourceWidth * scale);
+        renderedLogoHeight = Math.max(12, sourceHeight * scale);
+      }
+    } catch {
+      renderedLogoWidth = fallbackLogoWidth;
+      renderedLogoHeight = fallbackLogoHeight;
+    }
+  }
+
   const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
   const headerTextX = logoAlignment === "CENTER" ? pageWidth / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX : marginX;
-  const logoX = logoAlignment === "CENTER" ? (pageWidth - logoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - logoWidth : marginX;
+  const activeLogoWidth = hasFallbackLogo ? fallbackLogoWidth : renderedLogoWidth;
+  const activeLogoHeight = hasFallbackLogo ? fallbackLogoHeight : renderedLogoHeight;
+  const logoX = logoAlignment === "CENTER" ? (pageWidth - activeLogoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - activeLogoWidth : marginX;
+  const logoY = 24 + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
   const header = headerLines(branding, presets.headerPreset);
+  const recipientAddressLines = buildRecipientAddressLines(recipient);
   const footer = footerLines(branding, presets.footerPreset);
   const logoFormat = branding.logoFormat ?? "PNG";
   const [brandR, brandG, brandB] = normalizePdfHexColor(branding.primaryColor);
@@ -1237,18 +1334,18 @@ function drawPdfChrome(
 
     if (hasLogo && branding.logoDataUrl) {
       try {
-        doc.addImage(branding.logoDataUrl, logoFormat, logoX, 24, logoWidth, logoHeight);
+        doc.addImage(branding.logoDataUrl, logoFormat, logoX, logoY, renderedLogoWidth, renderedLogoHeight);
       } catch {
         // Keep PDF generation resilient if logo decoding fails.
       }
     }
     if (hasFallbackLogo) {
       doc.setFillColor(brandR, brandG, brandB);
-      doc.roundedRect(logoX, 24, logoWidth, logoHeight, 8, 8, "F");
+      doc.roundedRect(logoX, logoY, fallbackLogoWidth, fallbackLogoHeight, 8, 8, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
       doc.setTextColor(255, 255, 255);
-      doc.text((branding.organizationName.trim()[0] || "O").toUpperCase(), logoX + logoWidth / 2, 55, { align: "center" });
+      doc.text((branding.organizationName.trim()[0] || "O").toUpperCase(), logoX + fallbackLogoWidth / 2, logoY + 31, { align: "center" });
       doc.setTextColor(15, 23, 42);
     }
 
@@ -1264,6 +1361,17 @@ function drawPdfChrome(
       });
       doc.setDrawColor(brandR, brandG, brandB);
       doc.line(marginX, 116, pageWidth - marginX, 116);
+    }
+
+    if (recipientAddressLines.length > 0 && page === firstPage) {
+      const maxLines = 5;
+      const rightColumnLines = recipientAddressLines.slice(0, maxLines);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      rightColumnLines.forEach((line, index) => {
+        doc.text(line, pageWidth - marginX, 60 + index * 12, { align: "right" });
+      });
     }
 
     doc.setDrawColor(226, 232, 240);
@@ -1359,6 +1467,7 @@ async function renderGeneratedLetterPdf(params: {
   templateName: string;
   subject: string;
   constituentName: string;
+  recipient?: LetterPdfRecipientContext | null;
   generatedAt: Date;
   mergedPrintBody: string;
   branding: LetterPdfBrandingContext;
@@ -1367,11 +1476,14 @@ async function renderGeneratedLetterPdf(params: {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
 
-  const blocks = appendSignatureBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.presets.signatureBlock);
+  const blocks = appendSignatureBlocks(
+    stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.recipient),
+    params.presets.signatureBlock,
+  );
   renderPdfContentBlocks(doc, blocks, {
     startY: 150,
   });
-  drawPdfChrome(doc, params.branding, params.presets);
+  drawPdfChrome(doc, params.branding, params.presets, params.recipient);
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -1382,6 +1494,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
   templateName: string;
   subject: string;
   constituentName: string;
+  recipient?: LetterPdfRecipientContext | null;
   generatedAt: Date;
   mergedPrintBody: string;
   branding: LetterPdfBrandingContext;
@@ -1395,12 +1508,15 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
       doc.addPage();
     }
     const startPage = doc.getNumberOfPages();
-    const blocks = appendSignatureBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.presets.signatureBlock);
+    const blocks = appendSignatureBlocks(
+      stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.recipient),
+      item.presets.signatureBlock,
+    );
     renderPdfContentBlocks(doc, blocks, {
       startY: 150,
     });
     const endPage = doc.getNumberOfPages();
-    drawPdfChrome(doc, item.branding, item.presets, {
+    drawPdfChrome(doc, item.branding, item.presets, item.recipient, {
       startPage,
       endPage,
     });
@@ -2038,6 +2154,68 @@ router.get("/templates/:id", requirePermission("letters.view"), async (req, res)
   }
 });
 
+/** POST /api/letters/templates/apply-default-branding — Applies current default header/footer/signature to all non-archived templates. */
+router.post("/templates/apply-default-branding", requirePermission("letters.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const [defaultHeader, defaultFooter, defaultSignature] = await Promise.all([
+    prisma.letterHeaderPreset.findFirst({ where: { organizationId, isDefault: true, isActive: true }, select: { id: true } }),
+    prisma.letterFooterPreset.findFirst({ where: { organizationId, isDefault: true, isActive: true }, select: { id: true } }),
+    prisma.letterSignatureBlock.findFirst({ where: { organizationId, isDefault: true, isActive: true }, select: { id: true } }),
+  ]);
+
+  if (!defaultHeader || !defaultFooter || !defaultSignature) {
+    res.status(400).json({
+      error: {
+        code: "DEFAULT_BRANDING_INCOMPLETE",
+        message: "Set an active default header, footer, and signature before applying defaults to templates.",
+      },
+    });
+    return;
+  }
+
+  const result = await prisma.letterTemplate.updateMany({
+    where: {
+      organizationId,
+      status: { in: ["DRAFT", "ACTIVE"] },
+    },
+    data: {
+      headerPresetId: defaultHeader.id,
+      footerPresetId: defaultFooter.id,
+      signatureBlockId: defaultSignature.id,
+      updatedByUserId: userId,
+    },
+  });
+
+  await logAudit({
+    action: "LETTER_TEMPLATE_DEFAULT_BRANDING_APPLIED",
+    entity: "LetterTemplate",
+    organizationId,
+    userId,
+    metadata: {
+      updatedCount: result.count,
+      headerPresetId: defaultHeader.id,
+      footerPresetId: defaultFooter.id,
+      signatureBlockId: defaultSignature.id,
+    },
+  });
+
+  res.json({
+    success: true,
+    updatedCount: result.count,
+    applied: {
+      headerPresetId: defaultHeader.id,
+      footerPresetId: defaultFooter.id,
+      signatureBlockId: defaultSignature.id,
+    },
+  });
+});
+
 /** POST /api/letters/templates — Creates a new letter template. */
 router.post("/templates", requirePermission("letters.create"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -2625,6 +2803,14 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       templateName,
       subject,
       constituentName,
+      recipient: {
+        fullName: constituentName,
+        addressLine1: sampleConstituent.addressLine1 ?? "",
+        addressLine2: sampleConstituent.addressLine2 ?? "",
+        city: sampleConstituent.city ?? "",
+        state: sampleConstituent.state ?? "",
+        zip: sampleConstituent.zip ?? "",
+      },
       generatedAt: new Date(),
       mergedPrintBody: merged.mergedPrintBody || previewTemplate.printBody || "",
       branding,
@@ -4180,7 +4366,17 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
           signatureBlock: true,
         },
       },
-      constituent: { select: { firstName: true, lastName: true } },
+      constituent: {
+        select: {
+          firstName: true,
+          lastName: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          zip: true,
+        },
+      },
     },
   });
 
@@ -4202,6 +4398,14 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       templateName,
       subject,
       constituentName,
+      recipient: {
+        fullName: constituentName,
+        addressLine1: generatedLetter.constituent?.addressLine1 ?? "",
+        addressLine2: generatedLetter.constituent?.addressLine2 ?? "",
+        city: generatedLetter.constituent?.city ?? "",
+        state: generatedLetter.constituent?.state ?? "",
+        zip: generatedLetter.constituent?.zip ?? "",
+      },
       generatedAt: generatedLetter.generatedAt,
       mergedPrintBody: generatedLetter.mergedPrintBody,
       branding,
@@ -4328,7 +4532,17 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           signatureBlock: true,
         },
       },
-      constituent: { select: { firstName: true, lastName: true } },
+      constituent: {
+        select: {
+          firstName: true,
+          lastName: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          zip: true,
+        },
+      },
     },
   });
 
@@ -4366,6 +4580,14 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           templateName,
           subject,
           constituentName,
+          recipient: {
+            fullName: constituentName,
+            addressLine1: row.constituent?.addressLine1 ?? "",
+            addressLine2: row.constituent?.addressLine2 ?? "",
+            city: row.constituent?.city ?? "",
+            state: row.constituent?.state ?? "",
+            zip: row.constituent?.zip ?? "",
+          },
           generatedAt: row.generatedAt,
           mergedPrintBody: row.mergedPrintBody,
           branding,

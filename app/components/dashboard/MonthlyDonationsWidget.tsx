@@ -39,6 +39,7 @@ interface EmailCampaignDraft {
 }
 
 type EmailTemplateKey = "thank-you" | "impact-update" | "recurring-invite";
+type LetterTemplateKey = "thank-you-letter" | "impact-letter" | "monthly-update-letter";
 
 const EMAIL_TEMPLATES: Array<{ key: EmailTemplateKey; label: string; subject: string; body: string }> = [
   {
@@ -59,6 +60,12 @@ const EMAIL_TEMPLATES: Array<{ key: EmailTemplateKey; label: string; subject: st
     subject: "Would you consider making your support monthly?",
     body: "Thank you for your recent gift. If it fits your giving plans, monthly support helps us plan with confidence and sustain ministry throughout the year.\n\nWe are grateful for every way you choose to partner with us.",
   },
+];
+
+const LETTER_TEMPLATES: Array<{ key: LetterTemplateKey; label: string }> = [
+  { key: "thank-you-letter", label: "Thank-you letter" },
+  { key: "impact-letter", label: "Impact follow-up letter" },
+  { key: "monthly-update-letter", label: "Monthly update letter" },
 ];
 
 function formatUsd(value: number): string {
@@ -111,6 +118,8 @@ export default function MonthlyDonationsWidget() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savedList, setSavedList] = useState<SavedRecipientList | null>(null);
+  const [emailTemplateByDonor, setEmailTemplateByDonor] = useState<Record<string, EmailTemplateKey>>({});
+  const [letterTemplateByDonor, setLetterTemplateByDonor] = useState<Record<string, LetterTemplateKey>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,6 +128,9 @@ export default function MonthlyDonationsWidget() {
       const result = await apiFetch<MonthlyData>("/api/reports/donors-this-month");
       setData(result);
       setSelectedIds(new Set(result.donors.map((donor) => donor.id)));
+      const uniqueDonorIds = Array.from(new Set(result.donors.map((donor) => donor.id)));
+      setEmailTemplateByDonor(Object.fromEntries(uniqueDonorIds.map((id) => [id, "thank-you" as const])));
+      setLetterTemplateByDonor(Object.fromEntries(uniqueDonorIds.map((id) => [id, "thank-you-letter" as const])));
       setSavedList(null);
     } catch {
       setData(null);
@@ -304,6 +316,48 @@ export default function MonthlyDonationsWidget() {
     }
   }
 
+  async function createEmailDraftForDonor(donor: MonthDonor, templateKey: EmailTemplateKey) {
+    clearActionState();
+    if (!donor.email) {
+      setActionError(`${donor.firstName} ${donor.lastName} does not have an email on file.`);
+      return;
+    }
+    setSaving(`email-single-${donor.id}`);
+    try {
+      const template = EMAIL_TEMPLATES.find((item) => item.key === templateKey) ?? EMAIL_TEMPLATES[0];
+      const list = await apiFetch<SavedRecipientList>("/api/email-campaigns/lists", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `${donor.firstName} ${donor.lastName} - ${monthLabel}`,
+          description: `Dashboard-generated list for ${donor.firstName} ${donor.lastName}.`,
+          recipientEmails: [donor.email],
+        }),
+      });
+      const campaign = await apiFetch<EmailCampaignDraft>("/api/email-campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `${donor.firstName} ${donor.lastName} - ${template.label}`,
+          subject: template.subject,
+          bodyText: template.body,
+          preparationStatus: "DRAFT",
+          sharedWithOrganization: true,
+          audienceFilter: {
+            type: "active",
+            _quickSelection: {
+              sendMode: "SAVED_LIST",
+              recipientListId: list.id,
+            },
+          },
+        }),
+      });
+      router.push(`/communications/${campaign.id}?mode=build`);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Failed to create donor email draft.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
     <div className="space-y-3">
       {/* ── Running total row ── */}
@@ -409,7 +463,7 @@ export default function MonthlyDonationsWidget() {
               <div className="min-h-0 overflow-y-auto p-3 sm:p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-500">
-                    Showing one row per donor · {selectedDonors.length} selected · {selectedEmailDonors.length} with email
+                    Showing one row per donor (deduped for this month) · {selectedDonors.length} selected · {selectedEmailDonors.length} with email
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -464,6 +518,60 @@ export default function MonthlyDonationsWidget() {
                           >
                             {saving === `task-${donor.id}` ? "Saving..." : "Add task"}
                           </button>
+
+                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400">Email template</p>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <select
+                                  value={emailTemplateByDonor[donor.id] ?? "thank-you"}
+                                  onChange={(event) => {
+                                    const value = event.target.value as EmailTemplateKey;
+                                    setEmailTemplateByDonor((current) => ({ ...current, [donor.id]: value }));
+                                  }}
+                                  className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-green-400"
+                                  aria-label={`Select email template for ${donor.firstName} ${donor.lastName}`}
+                                >
+                                  {EMAIL_TEMPLATES.map((template) => (
+                                    <option key={template.key} value={template.key}>{template.label}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => void createEmailDraftForDonor(donor, emailTemplateByDonor[donor.id] ?? "thank-you")}
+                                  disabled={saving === `email-single-${donor.id}` || !donor.email}
+                                  className="h-7 rounded-md border border-green-200 bg-green-50 px-2 text-[11px] font-semibold text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {saving === `email-single-${donor.id}` ? "Creating..." : "Use"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400">Letter template</p>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <select
+                                  value={letterTemplateByDonor[donor.id] ?? "thank-you-letter"}
+                                  onChange={(event) => {
+                                    const value = event.target.value as LetterTemplateKey;
+                                    setLetterTemplateByDonor((current) => ({ ...current, [donor.id]: value }));
+                                  }}
+                                  className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-green-400"
+                                  aria-label={`Select letter template for ${donor.firstName} ${donor.lastName}`}
+                                >
+                                  {LETTER_TEMPLATES.map((template) => (
+                                    <option key={template.key} value={template.key}>{template.label}</option>
+                                  ))}
+                                </select>
+                                <Link
+                                  href={`/oyama-letters/generate?constituentId=${encodeURIComponent(donor.id)}&template=${encodeURIComponent(letterTemplateByDonor[donor.id] ?? "thank-you-letter")}`}
+                                  className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                                >
+                                  Use
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}

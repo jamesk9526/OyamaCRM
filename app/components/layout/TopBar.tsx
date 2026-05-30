@@ -12,6 +12,7 @@ import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
 import { apiFetch, API_BASE as AUTH_API_BASE } from "@/app/lib/auth-client";
+import { OYAMA_PRODUCT_LOGO } from "@/app/lib/product-branding";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
   fetchWorkspaceSettings,
@@ -106,6 +107,26 @@ function BellIcon({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+/** Neutral AI icon for the donor topbar Steward workspace entry point. */
+function AiOrbIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5M18.54 5.46l-1.77 1.77M7.23 16.77l-1.77 1.77M18.54 18.54l-1.77-1.77M7.23 7.23L5.46 5.46" />
+    </svg>
+  );
+}
+
+/** Envelope icon used for donor-mode messages control to match enterprise topbar pattern. */
+function MailIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.75h17a1.75 1.75 0 0 1 1.75 1.75v7a1.75 1.75 0 0 1-1.75 1.75h-17a1.75 1.75 0 0 1-1.75-1.75v-7A1.75 1.75 0 0 1 3.5 6.75z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8l8.25 6 8.25-6" />
+    </svg>
+  );
+}
+
 /** Workspace switcher icon set using inline SVG (no custom image assets). */
 function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey: TopBarModuleKey; className?: string }) {
   if (moduleKey === "letters") {
@@ -170,6 +191,67 @@ function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey
     <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l2.2 4.5 4.9.7-3.5 3.4.8 4.9L12 15.9 7.6 18l.8-4.9-3.5-3.4 4.9-.7L12 4.5z" />
     </svg>
+  );
+}
+
+/** Quick Add dropdown for Donor CRM mode — links to the most common creation flows. */
+function DonorQuickAddButton() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  const items = [
+    { label: "New Gift", href: "/donations/new", icon: "M12 2v20m7-15H9a3 3 0 100 6h6a3 3 0 110 6H5" },
+    { label: "New Constituent", href: "/constituents/new", icon: "M12 4a4 4 0 100 8 4 4 0 000-8zM6 20v-1a6 6 0 0112 0v1" },
+    { label: "New Campaign", href: "/campaigns", icon: "M12 3l2.8 5.7L21 9.6l-4.5 4.4 1 6.2L12 17l-5.5 3.2 1-6.2L3 9.6l6.2-.9L12 3z" },
+    { label: "New Task", href: "/tasks", icon: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" },
+  ];
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Quick Add"
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-700 px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-emerald-800 hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+      >
+        <svg className="h-4 w-4 shrink-0 text-white/95" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+        </svg>
+        <span>Quick Add</span>
+        <svg className={`h-3.5 w-3.5 shrink-0 text-white/85 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div role="menu" className="absolute left-0 top-full mt-1.5 w-48 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl z-50">
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+            >
+              <svg className="h-4 w-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+              </svg>
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -769,10 +851,11 @@ function GlobalSearch({
 interface TopBarProps {
   scrolled?: boolean;
   donorChromeTint?: DashboardChromeTint;
+  donorSidebarOffset?: boolean;
 }
 
 /** Full-width top navigation bar — spans the entire viewport width. */
-export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProps) {
+export default function TopBar({ scrolled = false, donorChromeTint, donorSidebarOffset = false }: TopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut } = useAuth();
@@ -807,7 +890,7 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
-  const chromeButtonBase = "flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/95 text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
+  const chromeButtonBase = "flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/96 text-slate-600 shadow-[0_5px_14px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
   const darkIconButtonBase = "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
@@ -824,6 +907,7 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
           : moduleKey === "oshareview"
             ? "bg-cyan-600"
             : donorAccentTheme.topBarAccentLine;
+  const isDonorEnterpriseChrome = moduleKey === "donor";
   const moduleChromePalette = moduleKey === "compassion"
     ? {
       scoopStart: "#1e3a8a",
@@ -914,14 +998,14 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
                 mobileBorderColor: donorChromeTint.border,
                 mobileShadow: `0 8px 20px rgba(${donorChromeTint.shadowRgb}, 0.15)`,
               } : {
-                scoopStart: "#012c25",
-                scoopMid: "#075443",
-                scoopEnd: "#0f766e",
-                scoopStroke: "#0b6b5c",
-                glowStart: "#34d399",
-                glowMid: "#10b981",
-                glowEnd: "#064e3b",
-                mobileGradient: "radial-gradient(circle at 8% 0%, rgba(52,211,153,0.24), transparent 42%), linear-gradient(135deg, #012c25, #075443 58%, #0f766e)",
+                scoopStart: "#013a31",
+                scoopMid: "#0a6b58",
+                scoopEnd: "#10a886",
+                scoopStroke: "#0d806b",
+                glowStart: "#6ee7c4",
+                glowMid: "#22c597",
+                glowEnd: "#075a48",
+                mobileGradient: "radial-gradient(circle at 8% 0%, rgba(110,231,196,0.28), transparent 42%), linear-gradient(135deg, #013a31, #0a6b58 58%, #10a886)",
                 mobileBorderColor: "rgba(167,243,208,0.18)",
                 mobileShadow: "0 10px 26px rgba(6,78,59,0.20)",
               };
@@ -1406,13 +1490,21 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
           </div>
         </>
       )}
-      <header data-topbar-root="true" className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 border-b border-slate-200/80 bg-white/96 backdrop-blur-xl transition-[height,box-shadow,background-color,border-color] ${shellMotionClass} xl:border-b-0 ${scrolled ? "shadow-[0_10px_28px_rgba(15,23,42,0.075)] xl:h-20" : "shadow-none xl:h-28"}`} style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
-        <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden transition-[height,width] ${shellMotionClass} xl:block ${scrolled ? "h-[94px] w-[424px]" : "h-[136px] w-[548px]"}`}>
+      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-20 h-16 w-full shrink-0 transition-[height,box-shadow,background-color,border-color,left] ${shellMotionClass} ${donorSidebarOffset && isDonorEnterpriseChrome ? "xl:left-[248px]" : ""} ${isDonorEnterpriseChrome
+        ? (scrolled
+          ? "border-b border-slate-200 bg-white shadow-[0_6px_14px_rgba(15,23,42,0.06)] xl:h-[72px]"
+          : "border-b border-slate-200 bg-white shadow-[0_1px_6px_rgba(15,23,42,0.035)] xl:h-[78px]")
+        : (scrolled
+          ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px] xl:border-b-0"
+          : "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-[98px] xl:border-b-0")}`}
+        style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+        {!isDonorEnterpriseChrome ? (
+          <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden transition-[height,width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "h-[84px] w-[372px]" : "h-[116px] w-[472px]"}`}>
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
             <defs>
               <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
-                <stop offset="0%" stopColor={moduleChromePalette.glowStart} stopOpacity="0.34" />
-                <stop offset="58%" stopColor={moduleChromePalette.glowMid} stopOpacity="0.1" />
+                <stop offset="0%" stopColor={moduleChromePalette.glowStart} stopOpacity="0.44" />
+                <stop offset="58%" stopColor={moduleChromePalette.glowMid} stopOpacity="0.14" />
                 <stop offset="100%" stopColor={moduleChromePalette.glowEnd} stopOpacity="0" />
               </radialGradient>
               <linearGradient id="oyama-brand-scoop" x1="0%" y1="0%" x2="100%" y2="92%">
@@ -1434,17 +1526,19 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
               fill="url(#oyama-brand-glow)"
             />
           </svg>
-        </div>
-        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px bg-slate-200/55 transition-[left,opacity] ${shellMotionClass} xl:block ${scrolled ? "left-[280px] opacity-100" : "left-[480px] opacity-70"}`} />
+          </div>
+        ) : null}
+        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px bg-slate-200/55 transition-[left,opacity] ${shellMotionClass} xl:block ${scrolled ? (isDonorEnterpriseChrome ? "left-0 opacity-100" : "left-[280px] opacity-100") : (isDonorEnterpriseChrome ? "left-0 opacity-85" : "left-[480px] opacity-70")}`} />
         <div
           aria-hidden="true"
-          className={`absolute bottom-0 left-[280px] right-0 h-px pointer-events-none hidden transition-opacity ${shellMotionClass} xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
+          className={`absolute bottom-0 ${isDonorEnterpriseChrome ? "left-0" : "left-[280px]"} right-0 h-px pointer-events-none hidden transition-opacity ${shellMotionClass} xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
         />
 
-        <div className="relative z-20 hidden h-full w-[520px] xl:block">
-          <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-1 py-0.5 transition-[top,opacity] ${shellMotionClass} hover:opacity-90 ${scrolled ? "top-3" : "top-5"}`} aria-label="Go to workspace home">
+        <div className={`relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-[40px]" : "w-[520px]"} xl:block`}>
+          {!isDonorEnterpriseChrome ? (
+          <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-2 py-1 transition-[top,opacity,background-color,border-color] ${shellMotionClass} hover:opacity-90 ${isDonorEnterpriseChrome ? "border border-slate-200/80 bg-white/90" : ""} ${scrolled ? "top-2.5" : "top-4"}`} aria-label="Go to workspace home">
             <Image
-              src="/branding/oyama-crm-logo-final.png"
+              src={OYAMA_PRODUCT_LOGO}
               alt="OyamaCRM"
               width={260}
               height={74}
@@ -1452,12 +1546,7 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
               priority
             />
           </Link>
-
-          {workspaceSettings.showModuleSwitcher && (
-            <div className={`absolute transition-[left,top] ${shellMotionClass} ${scrolled ? "left-[176px] top-[14px]" : "left-[152px] top-[62px]"}`}>
-              <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
-            </div>
-          )}
+          ) : null}
         </div>
 
         <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-2 px-2 max-[380px]:gap-1.5 sm:px-3 xl:hidden">
@@ -1484,7 +1573,7 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
               {/* ── TopBar Brand ── */}
               <Link href={homeHref} className="flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1" aria-label="Go to workspace home">
                 <Image
-                  src="/branding/oyama-crm-logo-final.png"
+                  src={OYAMA_PRODUCT_LOGO}
                   alt="OyamaCRM"
                   width={144}
                   height={48}
@@ -1652,24 +1741,25 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? "pl-[338px] pr-5 2xl:pl-[362px] 2xl:pr-8" : "pl-[414px] pr-5 2xl:pl-[452px] 2xl:pr-8"}`}>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-            <div className={`flex min-w-0 w-full max-w-[1000px] items-center rounded-xl border border-slate-200/90 bg-white/96 shadow-[0_8px_22px_rgba(15,23,42,0.07)] transition-[height,padding] ${shellMotionClass} ${scrolled ? "h-10 px-1.5" : "h-11 px-2"}`}>
-              <div className="hidden shrink-0 items-center gap-1.5 border-r border-slate-200/80 pr-2 text-slate-500 min-[1440px]:flex">
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-600">
-                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
-                  </svg>
-                </span>
-                <div className="leading-tight">
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Action Ribbon</p>
-                  <p className="text-[10px] font-medium text-slate-600">Workspace Commands</p>
-                </div>
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? "pl-5 pr-5" : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? "pl-5 pr-5" : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
+          <div className={`mx-auto flex min-w-0 w-full items-center gap-3 ${isDonorEnterpriseChrome ? "max-w-[1260px]" : ""}`}>
+          <div className={`flex min-w-0 flex-1 items-center gap-3 ${isDonorEnterpriseChrome ? "justify-start" : "justify-end"}`}>
+            {workspaceSettings.showModuleSwitcher && !isDonorEnterpriseChrome && (
+              <div className="shrink-0">
+                <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
               </div>
+            )}
 
-              <div className="min-w-0 flex-1 px-1.5">
+            <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "max-w-[960px] flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? (scrolled ? "h-11 px-2 border-slate-200 bg-white shadow-[0_1px_4px_rgba(15,23,42,0.04)]" : "h-11.5 px-2 border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.05)]") : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
+              <div className={`min-w-0 flex-1 ${isDonorEnterpriseChrome ? "px-1" : "px-1.5"}`}>
                 <GlobalSearch moduleKey={moduleKey} pathname={pathname} onNavigate={() => setNotificationsOpen(false)} />
               </div>
+
+              {isDonorEnterpriseChrome && (
+                <div className="mx-1.5 shrink-0">
+                  <DonorQuickAddButton />
+                </div>
+              )}
 
               {isStewardSignalsWorkspace && (
                 <button
@@ -1682,7 +1772,7 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
                 </button>
               )}
 
-              <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200/80" />
+              <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200" />
 
               <div ref={desktopNotificationsRef} className="relative shrink-0">
                 <button
@@ -1796,8 +1886,8 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
 
               <button
                 type="button"
-                title="Open Steward and messages"
-                aria-label="Open Steward and messages"
+                title={isDonorEnterpriseChrome ? "Open messages" : "Open Steward and messages"}
+                aria-label={isDonorEnterpriseChrome ? "Open messages" : "Open Steward and messages"}
                 onClick={() => {
                   setMessengerOpen(true);
                   setNotificationsOpen(false);
@@ -1807,7 +1897,11 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
                 }}
                 className={`${darkIconButtonBase} relative ml-0.5`}
               >
-                <StewardAvatarIcon size={17} alt="" className="ring-slate-300/80" />
+                {isDonorEnterpriseChrome ? (
+                  <MailIcon className="h-4 w-4" />
+                ) : (
+                  <StewardAvatarIcon size={17} alt="" className="ring-slate-300/80" />
+                )}
                 {messengerUnread > 0 ? (
                   <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white">
                     {Math.min(messengerUnread, 99)}
@@ -1815,25 +1909,43 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
                 ) : null}
               </button>
 
-              <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200/80" />
+              {isDonorEnterpriseChrome ? (
+                <>
+                  <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200/80" />
 
-              <div className="shrink-0">
-                <StewardAiRuntimePill
-                  canRunConnectionTest={canRunAiConnectionTest}
-                  onOpenSettings={openAiSettings}
-                  compact
-                />
-              </div>
+                  <Link
+                    href="/steward-ai-workspace"
+                    title="Open Steward Workspace"
+                    aria-label="Open Steward Workspace"
+                    className="ml-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-2 text-[11px] font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <AiOrbIcon className="h-3.5 w-3.5" />
+                    <span className="hidden min-[1400px]:inline">Steward Workspace</span>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <div className="mx-1.5 h-6 w-px shrink-0 bg-slate-200/80" />
 
-              <Link
-                href="/steward-ai-workspace"
-                title="Open Steward Workspace"
-                aria-label="Open Steward Workspace"
-                className="ml-0.5 inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-              >
-                <StewardAvatarIcon size={12} alt="Steward" className="ring-slate-300/80" />
-                <span className="hidden min-[1500px]:inline">Workspace</span>
-              </Link>
+                  <div className="shrink-0">
+                    <StewardAiRuntimePill
+                      canRunConnectionTest={canRunAiConnectionTest}
+                      onOpenSettings={openAiSettings}
+                      compact
+                    />
+                  </div>
+
+                  <Link
+                    href="/steward-ai-workspace"
+                    title="Open Steward Workspace"
+                    aria-label="Open Steward Workspace"
+                    className="ml-0.5 inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <StewardAvatarIcon size={12} alt="Steward" className="ring-slate-300/80" />
+                    <span className="hidden min-[1500px]:inline">Workspace</span>
+                  </Link>
+                </>
+              )}
 
               <Link
                 href={helpHref}
@@ -1845,35 +1957,64 @@ export default function TopBar({ scrolled = false, donorChromeTint }: TopBarProp
               </Link>
             </div>
 
-            <div className="shrink-0">
-              <UserMenu
-                moduleKey={moduleKey}
-                showApps={showTopBarAppLauncher}
-                onOpenApps={() => {
-                  setAppsOpen(true);
-                  setNotificationsOpen(false);
-                  setMessengerOpen(false);
-                }}
-                onOpenFeedback={() => {
-                  setFeedbackOpen(true);
-                  setNotificationsOpen(false);
-                  setMessengerOpen(false);
-                }}
-                onToggleMessages={() => {
-                  setMessengerOpen(true);
-                  setNotificationsOpen(false);
-                }}
-                messengerUnread={messengerUnread}
-                helpHref={helpHref}
-                reportingWindow={moduleKey === "donor" ? {
-                  label: donorReportingModeLabel,
-                  description: donorReportingModeDescription,
-                  mode: reportingYearMode,
-                  justChanged: reportingModeJustChanged,
-                  onToggle: handleReportingWindowToggle,
-                } : undefined}
-              />
-            </div>
+            {isDonorEnterpriseChrome ? (
+              <div className="shrink-0 ml-auto">
+                <UserMenu
+                  moduleKey={moduleKey}
+                  showApps={showTopBarAppLauncher}
+                  onOpenApps={() => {
+                    setAppsOpen(true);
+                    setNotificationsOpen(false);
+                    setMessengerOpen(false);
+                  }}
+                  onOpenFeedback={() => {
+                    setFeedbackOpen(true);
+                    setNotificationsOpen(false);
+                    setMessengerOpen(false);
+                  }}
+                  onToggleMessages={() => {
+                    setMessengerOpen(true);
+                    setNotificationsOpen(false);
+                  }}
+                  messengerUnread={messengerUnread}
+                  helpHref={helpHref}
+                  reportingWindow={{
+                    label: donorReportingModeLabel,
+                    description: donorReportingModeDescription,
+                    mode: reportingYearMode,
+                    justChanged: reportingModeJustChanged,
+                    onToggle: handleReportingWindowToggle,
+                  }}
+                />
+              </div>
+            ) : null}
+
+            {!isDonorEnterpriseChrome ? (
+              <div className="shrink-0">
+                <UserMenu
+                  moduleKey={moduleKey}
+                  showApps={showTopBarAppLauncher}
+                  onOpenApps={() => {
+                    setAppsOpen(true);
+                    setNotificationsOpen(false);
+                    setMessengerOpen(false);
+                  }}
+                  onOpenFeedback={() => {
+                    setFeedbackOpen(true);
+                    setNotificationsOpen(false);
+                    setMessengerOpen(false);
+                  }}
+                  onToggleMessages={() => {
+                    setMessengerOpen(true);
+                    setNotificationsOpen(false);
+                  }}
+                  messengerUnread={messengerUnread}
+                  helpHref={helpHref}
+                  reportingWindow={undefined}
+                />
+              </div>
+            ) : null}
+          </div>
           </div>
         </div>
 
@@ -2099,7 +2240,9 @@ function ModuleSwitcher({
   if (modules.length === 0) return null;
 
   const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = "border-transparent bg-white/10";
+  const switcherButtonTone = scrolled
+    ? "border-slate-200/95 bg-white text-slate-800 shadow-[0_3px_10px_rgba(15,23,42,0.06)]"
+    : "border-slate-200/95 bg-white text-slate-800 shadow-[0_4px_12px_rgba(15,23,42,0.065)]";
 
   function switchTo(href: string) {
     setOpen(false);
@@ -2112,20 +2255,20 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group relative overflow-hidden flex items-center rounded-[18px] border ${switcherButtonTone} text-white shadow-[0_10px_28px_rgba(2,6,23,0.26)] backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-transparent hover:bg-white/16 ${scrolled ? "gap-1 px-1 py-0.5 xl:min-w-[138px] xl:gap-1.5 xl:rounded-xl xl:px-2 xl:py-1" : "gap-1.5 px-2 py-1 xl:min-w-[166px] xl:gap-2 xl:rounded-2xl xl:px-2.5 xl:py-1.5"}`}
+        className={`group relative overflow-hidden flex items-center rounded-2xl border ${switcherButtonTone} backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-slate-300 hover:bg-white ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[140px] xl:gap-1.5 xl:px-2 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[168px] xl:gap-2 xl:px-3 xl:py-1"}`}
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-2 right-2 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-transparent via-emerald-300 to-transparent transition-all duration-500 ${open ? "opacity-100" : "opacity-55 group-hover:opacity-90"}`}
+          className={`pointer-events-none absolute left-2 right-2 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-transparent via-slate-300 to-transparent transition-all duration-500 ${open ? "opacity-90" : "opacity-45 group-hover:opacity-75"}`}
         />
-        <span className={`flex items-center justify-center rounded-xl border border-emerald-300/35 bg-emerald-400/12 text-emerald-200 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "h-5 w-5 xl:h-6 xl:w-6" : "h-6 w-6 xl:h-7 xl:w-7"}`}>
+        <span className={`flex items-center justify-center rounded-xl border transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "border-slate-200 bg-slate-50 text-slate-700 h-5 w-5 xl:h-5 xl:w-5" : "border-slate-200 bg-slate-50 text-slate-700 h-6 w-6 xl:h-6 xl:w-6"}`}>
           {current.icon}
         </span>
         <div className="hidden min-[1180px]:block text-left leading-tight min-w-0 lg:block">
-          <p className={`overflow-hidden uppercase text-white/65 transition-[max-height,opacity,letter-spacing,font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "max-h-0 text-[0px] opacity-0" : "max-h-3.5 text-[8px] tracking-[0.14em] opacity-100"}`}>Workspace</p>
-          <p className={`truncate font-semibold text-white transition-[font-size] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "text-[11px]" : "text-[12px]"}`}>{current.label}</p>
+          <p className="max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.14em] text-slate-500">Workspace</p>
+          <p className={`truncate font-semibold transition-[font-size,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "text-[10px] text-slate-700" : "text-[12px] text-slate-800"}`}>{current.label}</p>
         </div>
-        <svg className={`h-3 w-3 text-white/70 transition-transform group-hover:text-emerald-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`h-3 w-3 transition-[transform,color] ${scrolled ? "text-slate-500 group-hover:text-emerald-700" : "text-slate-500 group-hover:text-emerald-700"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -2260,7 +2403,7 @@ function UserMenu({
         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] max-[480px]:h-9 max-[480px]:w-9 max-[480px]:text-xs ${avatarCls}`}>
           {initials}
         </span>
-        <span className="hidden min-w-0 leading-tight 2xl:block">
+        <span className="hidden min-w-0 leading-tight min-[1400px]:block">
           <span className="block max-w-[132px] truncate text-sm font-semibold text-slate-900">
             {user ? `${user.firstName} ${user.lastName}` : "Account"}
           </span>

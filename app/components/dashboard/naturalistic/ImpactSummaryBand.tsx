@@ -130,7 +130,7 @@ export default function ImpactSummaryBand({
   ];
 
   return (
-    <div className="relative -mt-10 z-10 mx-4 rounded-2xl border border-slate-100 bg-white shadow-xl shadow-slate-200/60">
+    <div className="relative -mt-5 z-10 mx-4 rounded-2xl border border-slate-100 bg-white shadow-lg shadow-slate-200/50">
       <div className="grid grid-cols-2 divide-y divide-slate-100 sm:grid-cols-3 sm:divide-y-0 lg:grid-cols-6 lg:divide-x lg:divide-y-0">
         {metrics.map(({ key: metricKey, trendText, ...metricProps }, idx) => (
           <div

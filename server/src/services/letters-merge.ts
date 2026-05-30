@@ -151,10 +151,6 @@ function applyMergeFilters(value: string, filters: string[]): string {
   return output;
 }
 
-function missingFieldMarkup(key: string): string {
-  return `<mark class="merge-field-missing" data-merge-field="${key}">Missing: {{${key}}}</mark>`;
-}
-
 /** Returns all merge field keys referenced in one or more text blocks. */
 export function collectMergeFieldKeys(...blocks: Array<string | null | undefined>): string[] {
   const keys = new Set<string>();
@@ -180,7 +176,9 @@ export interface RenderMergeFieldsOptions {
   missingFields?: Set<string>;
 }
 
-/** Replaces all supported placeholders while leaving unsupported tokens untouched. */
+/** Replaces all supported placeholders while leaving unsupported tokens untouched.
+ * Missing supported fields are always rendered as blank, while missingFields collects warnings.
+ */
 export function renderMergeFields(template: string, values: Record<string, string>, options: RenderMergeFieldsOptions = {}): string {
   return template.replace(FIELD_PATTERN, (_full, key: string, rawFilters: string | undefined) => {
     const normalized = String(key ?? "").trim();
@@ -198,7 +196,7 @@ export function renderMergeFields(template: string, values: Record<string, strin
     }
     if (!filtered.trim()) {
       options.missingFields?.add(normalized);
-      return options.missingMode === "highlight" ? missingFieldMarkup(normalized) : "";
+      return "";
     }
     return filtered;
   });

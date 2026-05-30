@@ -62,14 +62,14 @@ export default function StewardMessageRenderer({ content, tone = "dark", renderM
   }
 
   return (
-    <div className={`max-w-none text-sm leading-7 tracking-[0.01em] ${textClass}`}>
+    <div className={`max-w-none text-sm leading-7 tracking-[0.01em] ${textClass} ${isLight ? "space-y-0.5" : ""}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => <h1 className={`text-lg font-semibold mt-4 mb-2 ${headingClass}`}>{children}</h1>,
           h2: ({ children }) => <h2 className={`text-base font-semibold mt-4 mb-2 ${headingClass}`}>{children}</h2>,
           h3: ({ children }) => <h3 className={`text-sm font-semibold mt-3 mb-1.5 ${headingClass}`}>{children}</h3>,
-          p: ({ children }) => <p className={`my-2 ${textClass}`}>{children}</p>,
+          p: ({ children }) => <p className={`my-2 ${textClass} ${isLight ? "text-[14px]" : ""}`}>{children}</p>,
           a: ({ href, children }) => {
             const internalHref = resolveInternalHref(href);
 
@@ -101,13 +101,13 @@ export default function StewardMessageRenderer({ content, tone = "dark", renderM
           ),
           li: ({ children }) => <li className="my-0.5 leading-6">{children}</li>,
           blockquote: ({ children }) => (
-            <blockquote className={`border-l-2 pl-3 italic my-3 ${subtleClass} ${borderClass}`}>
+            <blockquote className={`my-3 rounded-r-xl border-l-2 px-3 py-2 italic ${subtleClass} ${borderClass} ${isLight ? "bg-slate-50" : ""}`}>
               {children}
             </blockquote>
           ),
           hr: () => <hr className={`my-3 ${borderClass}`} />,
           table: ({ children }) => (
-            <div className={`overflow-x-auto chat-scroll-smooth my-3 rounded-lg border ${borderClass}`}>
+            <div className={`overflow-x-auto chat-scroll-smooth my-3 rounded-xl border ${borderClass} ${isLight ? "bg-white" : ""}`}>
               <table className="w-full text-xs">{children}</table>
             </div>
           ),

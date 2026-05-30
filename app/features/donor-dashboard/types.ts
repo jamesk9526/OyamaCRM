@@ -49,6 +49,9 @@ export interface DonationPreview {
 export interface TrendPoint {
   label: string;
   amount: number;
+  count?: number;
+  giftCount?: number;
+  donationCount?: number;
 }
 
 export interface DesignationSlice {

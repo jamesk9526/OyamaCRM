@@ -295,11 +295,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const donorSidebarDesktopEnabled = donorShellVisible && effectiveDonorLayout === "sidebar";
   const contentTopPaddingClass = donorMegaMenuEnabled
     ? shellScrolled
-      ? "pt-48 xl:pt-60"
-      : "pt-48 xl:pt-72"
+      ? "pt-52 xl:pt-64"
+      : "pt-52 xl:pt-76"
     : shellScrolled
-      ? "pt-16 xl:pt-20"
-      : "pt-16 xl:pt-28";
+      ? "pt-18 xl:pt-22"
+      : "pt-19 xl:pt-30";
 
   const shellStyle: CSSProperties = {
     "--oyama-donor-chrome-start": dashboardChromeTint.dark,
@@ -315,11 +315,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
       style={shellStyle}
     >
-      <TopBar scrolled={shellScrolled} donorChromeTint={dashboardChromeTint} />
+      <TopBar
+        scrolled={shellScrolled}
+        donorChromeTint={dashboardChromeTint}
+        donorSidebarOffset={donorSidebarDesktopEnabled}
+      />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${contentTopPaddingClass}`}>
+      <div className="relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
         {donorSidebarDesktopEnabled ? (
-          <div className="hidden md:flex h-full">
+          <div className="hidden md:flex h-full relative z-30">
             <Sidebar
               donorAccentTone={workspaceSettings.donorAccentTone}
               donorChromeTint={dashboardChromeTint}
@@ -337,13 +341,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </MobileSidebarDrawer>
         ) : null}
 
-        {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-        <main data-crm-scroll-root="true" className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
+        <div className={`flex-1 min-w-0 overflow-hidden ${contentTopPaddingClass}`}>
+          {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
+          <main data-crm-scroll-root="true" className="h-full min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
 
-          <ErrorBoundary>
-            <div className="min-w-0 max-w-full">{children}</div>
-          </ErrorBoundary>
-        </main>
+            <ErrorBoundary>
+              <div className="min-w-0 max-w-full">{children}</div>
+            </ErrorBoundary>
+          </main>
+        </div>
       </div>
     </div>
   );

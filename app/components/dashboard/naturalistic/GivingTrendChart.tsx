@@ -4,6 +4,8 @@
  */
 "use client";
 
+import { useMemo, useState } from "react";
+
 import {
   Area,
   AreaChart,
@@ -28,6 +30,16 @@ interface GivingTrendChartProps {
   trendPercent: number | null;
 }
 
+type TrendRangeOption = "mom" | "3m" | "6m" | "1y" | "all";
+
+const RANGE_OPTIONS: { key: TrendRangeOption; label: string; maxPoints: number }[] = [
+  { key: "mom", label: "MoM", maxPoints: 2 },
+  { key: "3m", label: "3M", maxPoints: 3 },
+  { key: "6m", label: "6M", maxPoints: 6 },
+  { key: "1y", label: "1Y", maxPoints: 12 },
+  { key: "all", label: "All", maxPoints: Number.POSITIVE_INFINITY },
+];
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
@@ -47,19 +59,68 @@ export default function GivingTrendChart({
   rangeLabel,
   trendPercent,
 }: GivingTrendChartProps) {
+  const [selectedRange, setSelectedRange] = useState<TrendRangeOption>("6m");
+
+  const filteredPoints = useMemo(() => {
+    const option = RANGE_OPTIONS.find((item) => item.key === selectedRange) ?? RANGE_OPTIONS[2];
+    if (!Number.isFinite(option.maxPoints) || points.length <= option.maxPoints) {
+      return points;
+    }
+    return points.slice(-option.maxPoints);
+  }, [points, selectedRange]);
+
+  const computedTotal = useMemo(() => {
+    if (filteredPoints.length === 0) return 0;
+    return filteredPoints.reduce((sum, point) => sum + point.amount, 0);
+  }, [filteredPoints]);
+
+  const computedTrendPercent = useMemo(() => {
+    if (filteredPoints.length < 2) return trendPercent;
+    const previous = filteredPoints[filteredPoints.length - 2]?.amount ?? 0;
+    const current = filteredPoints[filteredPoints.length - 1]?.amount ?? 0;
+    if (previous <= 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous) * 100;
+  }, [filteredPoints, trendPercent]);
+
+  const rangeHelpLabel = selectedRange === "mom"
+    ? "Month-over-month"
+    : selectedRange === "3m"
+      ? "Last 3 months"
+      : selectedRange === "6m"
+        ? "Last 6 months"
+        : selectedRange === "1y"
+          ? "Last 12 months"
+          : "Full trend";
+
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
       {/* Header */}
       <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-base font-bold text-slate-900">Giving Trend</h2>
-          <p className="mt-0.5 text-xs font-medium text-slate-400">{rangeLabel} · {giftCount.toLocaleString()} gifts</p>
+          <p className="mt-0.5 text-xs font-medium text-slate-400">{rangeLabel} · {giftCount.toLocaleString()} gifts · {rangeHelpLabel}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setSelectedRange(option.key)}
+                className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${selectedRange === option.key
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800"
+                }`}
+                aria-pressed={selectedRange === option.key}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold tracking-tight text-slate-950">{formatCurrency(total)}</p>
-          {trendPercent != null ? (
-            <p className={`mt-0.5 text-xs font-semibold ${trendPercent >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-              {trendPercent >= 0 ? "↑" : "↓"} {Math.abs(Math.round(trendPercent))}% vs prior period
+          <p className="text-2xl font-bold tracking-tight text-slate-950">{formatCurrency(computedTotal || total)}</p>
+          {computedTrendPercent != null ? (
+            <p className={`mt-0.5 text-xs font-semibold ${computedTrendPercent >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+              {computedTrendPercent >= 0 ? "↑" : "↓"} {Math.abs(Math.round(computedTrendPercent))}% vs prior period
             </p>
           ) : null}
         </div>
@@ -70,7 +131,7 @@ export default function GivingTrendChart({
         <div className="flex h-48 items-center justify-center rounded-xl bg-slate-50 text-xs font-medium text-slate-400 animate-pulse">
           Loading giving data…
         </div>
-      ) : points.length === 0 || total === 0 ? (
+      ) : filteredPoints.length === 0 || computedTotal === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center">
           <p className="text-sm font-semibold text-slate-500">No giving data in this view</p>
           <p className="mt-1 text-xs text-slate-400">Adjust the date range or record a donation to see trends.</p>
@@ -78,7 +139,7 @@ export default function GivingTrendChart({
       ) : (
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <AreaChart data={filteredPoints} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="naturalisticGivingGrad" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor="#059669" stopOpacity={0.22} />
@@ -123,11 +184,11 @@ export default function GivingTrendChart({
       )}
 
       {/* Insight line */}
-      {!loading && total > 0 && trendPercent != null ? (
+      {!loading && computedTotal > 0 && computedTrendPercent != null ? (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
-          {trendPercent >= 0
-            ? `Giving is up ${Math.abs(Math.round(trendPercent))}% compared to the prior period.`
-            : `Giving is down ${Math.abs(Math.round(trendPercent))}% compared to the prior period.`}
+          {computedTrendPercent >= 0
+            ? `Giving is up ${Math.abs(Math.round(computedTrendPercent))}% compared to the prior period.`
+            : `Giving is down ${Math.abs(Math.round(computedTrendPercent))}% compared to the prior period.`}
         </p>
       ) : null}
     </div>

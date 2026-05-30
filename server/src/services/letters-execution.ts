@@ -305,7 +305,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   };
 
   const missingFields = new Set<string>();
-  const renderOptions = { missingMode: "highlight" as const, missingFields };
+  const renderOptions = { missingMode: "blank" as const, missingFields };
   const mergedPrintBody = renderMergeFields(params.template.printBody, values, renderOptions);
   const mergedEmailBody = params.template.emailBody ? renderMergeFields(params.template.emailBody, values, renderOptions) : null;
   const mergedPrintSubject = params.template.printSubject ? renderMergeFields(params.template.printSubject, values, renderOptions) : null;

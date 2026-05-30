@@ -29,6 +29,16 @@ interface TrendResponse {
   trendPercent?: number | null;
 }
 
+function normalizeTrendPoints(points: TrendPoint[] | undefined): TrendPoint[] {
+  return (points ?? []).map((point) => ({
+    ...point,
+    amount: toDashboardNumber(point.amount),
+    count: Number.isFinite(Number(point.count)) ? Number(point.count) : undefined,
+    giftCount: Number.isFinite(Number(point.giftCount)) ? Number(point.giftCount) : undefined,
+    donationCount: Number.isFinite(Number(point.donationCount)) ? Number(point.donationCount) : undefined,
+  }));
+}
+
 interface DesignationResponse {
   slices?: DesignationSlice[];
   total?: number | string;
@@ -74,7 +84,7 @@ export async function loadDonorDashboardData(input: {
     period: appearance.defaultPeriod,
     appearance,
     recentDonations: donationsResult.status === "fulfilled" ? normalizeDonationList(donationsResult.value) : [],
-    trendPoints: trend?.points ?? [],
+    trendPoints: normalizeTrendPoints(trend?.points),
     trendTotal: toDashboardNumber(trend?.total),
     trendGiftCount: trend?.giftCount ?? 0,
     trendPercent: trend?.trendPercent ?? null,

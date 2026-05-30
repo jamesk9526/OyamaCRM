@@ -42,6 +42,8 @@ interface StewardChatPanelProps {
   moduleKey: ModuleKey;
   scopePath: string;
   displayMode?: StewardChatDisplayMode;
+  /** When set to external-pill, hide the built-in footer composer and accept prompts via externalPrompt. */
+  composerPlacement?: "panel" | "external-pill";
   onDisplayModeChange?: (mode: StewardPanelMode) => void;
   onTraceUpdate?: (trace: StewardTraceSnapshot) => void;
   /** Prompt supplied by context buttons that should be sent as soon as the dock opens. */
@@ -386,6 +388,7 @@ export default function StewardChatPanel({
   moduleKey,
   scopePath,
   displayMode = "dock",
+  composerPlacement = "panel",
   onDisplayModeChange,
   onTraceUpdate,
   externalPrompt,
@@ -419,6 +422,7 @@ export default function StewardChatPanel({
   const isPopoutMode = displayMode === "popout";
   const isMaximizedMode = displayMode === "maximized";
   const isDockMode = displayMode === "dock" || displayMode === "dock-right";
+  const usesExternalComposer = composerPlacement === "external-pill";
   const promptChips = useMemo(() => promptsForModule(moduleKey), [moduleKey]);
   const filteredPromptChips = useMemo(() => {
     const normalizedDraft = draft.trim().toLowerCase();
@@ -1476,6 +1480,7 @@ export default function StewardChatPanel({
                   </div>
                 </div>
 
+                {!usesExternalComposer ? (
                 <footer className="border-t border-slate-200 bg-white/95 px-2 sm:px-3 pt-2 sm:pt-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] sm:pb-3">
                   <div className={`mx-auto rounded-2xl border p-2 sm:p-3 shadow-[0_14px_24px_rgba(15,23,42,0.08)] ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white" : "max-w-[680px] border-slate-200 bg-white"}`}>
                     <div className={`flex flex-wrap gap-2 ${isDockMode ? "items-start" : "items-center justify-between"}`}>
@@ -1592,6 +1597,7 @@ export default function StewardChatPanel({
                     </div>
                   </div>
                 </footer>
+                ) : null}
               </section>
             </div>
           </>
