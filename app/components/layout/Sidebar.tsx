@@ -44,9 +44,9 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
           <Image
             src={OYAMA_PRODUCT_LOGO}
             alt="Oyama Donor CRM"
-            width={204}
-            height={54}
-            className="h-11 w-[178px] object-contain object-left"
+            width={256}
+            height={72}
+            className="h-14 w-[212px] object-contain object-left"
             priority
           />
         </div>
@@ -65,7 +65,7 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
           </div>
         </div>
       )}
-      expandedWidthClass="w-[216px]"
+      expandedWidthClass="w-[246px]"
       collapsedWidthClass="w-[68px]"
       organizationLabel="Oyama Organization"
     />

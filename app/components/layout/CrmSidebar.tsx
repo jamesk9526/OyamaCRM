@@ -448,7 +448,7 @@ export default function CrmSidebar({
       style={donorTintStyle}
     >
       {hasBrandHeader ? (
-        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-900/65 bg-[#0b281d]" : "border-slate-200 bg-white"} ${donorCompact ? "px-2.5 py-2" : "px-3 py-3"}`}>
+        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-900/65 bg-[#0b281d]" : "border-slate-200 bg-white"} ${donorCompact ? "px-3 py-2.5" : "px-3 py-3"}`}>
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               {isCollapsed ? brandHeaderCollapsed : brandHeader}

@@ -171,7 +171,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       items: [
         {
           id: "donations",
-          label: "Gifts",
+          label: "Donations",
           href: "/donations",
           icon: DONOR_ICONS.donations,
           kind: "core_record" as const,
