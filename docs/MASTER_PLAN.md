@@ -1,6 +1,6 @@
 # OyamaCRM Master Plan and Reality Audit
 
-Last updated: 2026-05-14
+Last updated: 2026-05-31
 Canonical owner: Platform architecture and delivery planning
 
 This is the canonical project master plan.
@@ -184,23 +184,42 @@ Evidence:
 
 - Release gate source of truth: `docs/status/production-readiness-checklist.md`
 - Latest audited command evidence set under `docs/status/audit-artifacts/2026-05-12/`
+- Current cleanup audit and gate matrix: `docs/audits/OYAMACRM_REPO_CLEANUP_AUDIT.md`
 
 Blocking lanes currently documented as Broken include lint, e2e lanes, and Prisma generate in the latest recorded pass.
+
+### Latest Cleanup Gate Snapshot (2026-05-31)
+
+Current run outcomes:
+
+- `pnpm lint`: Broken (`166 problems`, including `28 errors`)
+- `pnpm typecheck`: Working
+- `pnpm test`: Working (`66/66` files, `570/570` tests)
+- `pnpm build`: Working
+- `npx depcheck`: findings present (unused/missing dependency candidates)
+- `npx knip`: findings present (unused files/exports/deps candidates)
+
+Cleanup detail packets for this pass:
+
+- `docs/audits/OYAMACRM_REPO_CLEANUP_AUDIT.md`
+- `docs/audits/DELETABLE_MARKDOWN_FILES.md`
+- `docs/audits/UNUSED_CODE_CANDIDATES.md`
+- `docs/audits/UI_CLUTTER_REDUCTION_PLAN.md`
 
 ## Current Blockers
 
 - Release-gate lane failures tracked in `docs/status/production-readiness-checklist.md`
+- Primary gate blocker: lint errors across hooks, Next.js Link usage, and ref-access rules
 - Workspace-permission enforcement is incomplete in parts of the platform
 - Remaining scaffold/partial surfaces in Events, Compassion advanced workflows, and some engagement depth
 
 ## Next Implementation Priorities
 
-1. Clear Broken release-gate lanes first (lint, e2e reliability, Prisma generation reliability).
+1. Triage lint errors by severity category and remove hook-order/linking/ref blockers first.
 2. Complete workspace permission enforcement and policy coverage.
-3. Continue incremental Steward Paths persistence/execution hardening.
-4. Finish partial engagement-system edges (communications depth, letters/export depth, orchestration parity).
-5. Roll Workspace Control Rail pattern to additional high-complexity workspaces.
-6. Keep all status docs evidence-backed and synchronized after each pass.
+3. Execute phased UI clutter reduction with functional-only controls.
+4. Run staged dependency/unused-code cleanup from knip/depcheck candidate lists.
+5. Keep all status docs evidence-backed and synchronized after each pass.
 
 ## Documentation Source-of-Truth Map
 
@@ -211,6 +230,7 @@ Blocking lanes currently documented as Broken include lint, e2e lanes, and Prism
 - Active planning packets: `docs/plans/*`
 - Backlog-focused planning: `docs/backlog/*`
 - Historical audits: `docs/audits/*`
+- 2026-05-31 cleanup packet: `docs/audits/OYAMACRM_REPO_CLEANUP_AUDIT.md`, `docs/audits/DELETABLE_MARKDOWN_FILES.md`, `docs/audits/UNUSED_CODE_CANDIDATES.md`, `docs/audits/UI_CLUTTER_REDUCTION_PLAN.md`
 - Office operations guide: `docs/howto/HOW_TO_USE.md`
 - Workspace layout architecture: `docs/architecture/workspace-layout-system.md`
 

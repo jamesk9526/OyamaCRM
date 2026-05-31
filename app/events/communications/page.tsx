@@ -9,6 +9,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
@@ -156,9 +157,9 @@ export default function EventCommunicationsPage() {
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Audience">
-          <WorkspaceRibbonButton label="Guests" href={selectedEventId ? `/events/${selectedEventId}/guests` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Hosts" href={selectedEventId ? `/events/${selectedEventId}/hosts` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Follow-Up" href={selectedEventId ? `/events/${selectedEventId}/follow-up` : undefined} disabled={!selectedEventId} accentTone="purple" />
+          <EventScopedRibbonButton label="Guests" eventId={selectedEventId} eventPath="guests" accentTone="purple" />
+          <EventScopedRibbonButton label="Hosts" eventId={selectedEventId} eventPath="hosts" accentTone="purple" />
+          <EventScopedRibbonButton label="Follow-Up" eventId={selectedEventId} eventPath="follow-up" accentTone="purple" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Actions">
           <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace(selectedEventId)} disabled={!selectedEventId} accentTone="purple" />

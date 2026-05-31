@@ -44,10 +44,10 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(naturalDashboard).toContain("setSuggestions(data.stewardshipAlerts)");
     expect(naturalDashboard).toContain("Recent Gifts");
     expect(naturalDashboard).toContain("Giving Overview");
-    expect(naturalDashboard).toContain("Giving Trends");
-    expect(naturalDashboard).toContain("Top Campaigns");
+    expect(naturalDashboard).toContain("Steward Recommendations");
+    expect(naturalDashboard).toContain("Recent Activity");
+    expect(naturalDashboard).toContain("Needs Attention");
     expect(naturalDashboard).toContain("Upcoming Events");
-    expect(naturalDashboard).toContain("My Tasks");
     expect(dashboardService).toContain("/api/reports/giving-trend");
     expect(dashboardService).toContain("/api/reports/designations-summary");
     expect(dashboardService).toContain("/api/settings/dashboard-appearance");
@@ -148,7 +148,8 @@ describe("Donor CRM visual refresh foundation", () => {
 
     expect(page).toContain("apiFetch<{ items?: Task[]; total?: number }>");
     expect(page).toContain("CRMActionBar");
-    expect(page).toContain("WorkspaceRibbonGroup");
+    expect(page).toContain("WorkspaceBreadcrumbBar");
+    expect(page).toContain("WorkspaceRibbonButton");
     expect(table).toContain("CRMDataTable");
     expect(table).toContain("CRMEmptyState");
     expect(table).toContain("onComplete");

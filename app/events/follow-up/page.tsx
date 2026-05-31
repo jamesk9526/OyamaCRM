@@ -9,6 +9,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
@@ -146,9 +147,9 @@ export default function EventFollowUpPage() {
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Workflow">
-          <WorkspaceRibbonButton label="Donations" href={selectedEventId ? `/events/${selectedEventId}/donations` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Emails" href={selectedEventId ? `/events/${selectedEventId}/emails` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Reports" href={selectedEventId ? `/events/${selectedEventId}/reports` : undefined} disabled={!selectedEventId} accentTone="purple" />
+          <EventScopedRibbonButton label="Donations" eventId={selectedEventId} eventPath="donations" accentTone="purple" />
+          <EventScopedRibbonButton label="Emails" eventId={selectedEventId} eventPath="emails" accentTone="purple" />
+          <EventScopedRibbonButton label="Reports" eventId={selectedEventId} eventPath="reports" accentTone="purple" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Actions">
           <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace(selectedEventId)} disabled={!selectedEventId} accentTone="purple" />

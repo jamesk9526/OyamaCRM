@@ -140,6 +140,7 @@ interface CrmSidebarProps {
   };
   brandHeader?: React.ReactNode;
   brandHeaderCollapsed?: React.ReactNode;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; accent: string; focusRing: string; buttonTone: string }> = {
@@ -335,6 +336,7 @@ export default function CrmSidebar({
   footerAction,
   brandHeader,
   brandHeaderCollapsed,
+  onCollapsedChange,
 }: CrmSidebarProps) {
   const pathname = usePathname();
   const donorAccent = DONOR_ACCENT_OVERRIDES[donorAccentTone];
@@ -450,6 +452,10 @@ export default function CrmSidebar({
   const isCollapsed = forceExpanded ? false : compactDesktop ? !compactExpanded : collapsed;
   const hasBrandHeader = Boolean(brandHeader || brandHeaderCollapsed);
   const donorCompact = variant === "donor";
+
+  useEffect(() => {
+    onCollapsedChange?.(isCollapsed);
+  }, [isCollapsed, onCollapsedChange]);
 
   const toggleSidebar = () => {
     if (compactDesktop) {

@@ -724,7 +724,7 @@ function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targ
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <WorkspaceAction href="/" tone="secondary">Back to CRM</WorkspaceAction>
+          <WorkspaceAction href="/" tone="default">Back to CRM</WorkspaceAction>
           {view === "builder" ? (
             <WorkspaceAction href={targetCampaign?.id ? `/oyama-email/templates/${targetCampaign.id}/publish` : "/oyama-email/templates/new"} tone="primary">Next: Publish &amp; Compliance</WorkspaceAction>
           ) : null}

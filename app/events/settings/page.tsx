@@ -11,6 +11,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 interface EventItem {
@@ -202,9 +203,9 @@ export default function EventSettingsPage() {
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Navigation">
-          <WorkspaceRibbonButton label="Overview" href={selectedEventId ? `/events/${selectedEventId}/overview` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Emails" href={selectedEventId ? `/events/${selectedEventId}/emails` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Donations" href={selectedEventId ? `/events/${selectedEventId}/donations` : undefined} disabled={!selectedEventId} accentTone="purple" />
+          <EventScopedRibbonButton label="Overview" eventId={selectedEventId} eventPath="overview" accentTone="purple" />
+          <EventScopedRibbonButton label="Emails" eventId={selectedEventId} eventPath="emails" accentTone="purple" />
+          <EventScopedRibbonButton label="Donations" eventId={selectedEventId} eventPath="donations" accentTone="purple" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Admin">
           <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace()} accentTone="purple" />

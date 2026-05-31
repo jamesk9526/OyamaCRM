@@ -19,7 +19,7 @@ type OyamaGradientIconName =
 
 const ICON_SLUGS: Record<OyamaGradientIconName, string> = {
   "client-profile-sync": "integrations",
-  "contact-checklist": "tasks",
+  "contact-checklist": "contacts-manager",
   "constituent-search": "constituents",
   "growth-analytics": "donor-dashboard",
   "task-checklist": "tasks",

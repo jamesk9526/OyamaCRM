@@ -137,6 +137,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dockInsetPx, setDockInsetPx] = useState(0);
   const [compactDesktop, setCompactDesktop] = useState(false);
+  const [donorSidebarCollapsed, setDonorSidebarCollapsed] = useState(false);
   const [shellScrolled, setShellScrolled] = useState(false);
   const [routeTransitioning, setRouteTransitioning] = useState(false);
   const [displayedRoutePath, setDisplayedRoutePath] = useState(pathname);
@@ -277,6 +278,31 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
+    const updateInitialSidebarOffset = () => {
+      if (mediaQuery.matches) {
+        setDonorSidebarCollapsed(true);
+        return;
+      }
+
+      const stored = window.localStorage.getItem("oyamacrm.sidebar.donor.collapsed");
+      setDonorSidebarCollapsed(stored === "1" || stored === "true");
+    };
+
+    updateInitialSidebarOffset();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateInitialSidebarOffset);
+      return () => mediaQuery.removeEventListener("change", updateInitialSidebarOffset);
+    }
+
+    mediaQuery.addListener(updateInitialSidebarOffset);
+    return () => mediaQuery.removeListener(updateInitialSidebarOffset);
+  }, []);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (prefersReducedMotion) {
@@ -366,14 +392,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         scrolled={shellScrolled}
         donorChromeTint={dashboardChromeTint}
         donorSidebarOffset={donorSidebarDesktopEnabled}
+        donorSidebarCollapsed={donorSidebarCollapsed}
       />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
       <div className="relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
         {donorSidebarDesktopEnabled ? (
-          <div className="hidden md:flex h-full relative z-30">
+          <div className="hidden md:flex h-full relative z-[60]">
             <Sidebar
               donorAccentTone={workspaceSettings.donorAccentTone}
               donorChromeTint={dashboardChromeTint}
+              onCollapsedChange={setDonorSidebarCollapsed}
             />
           </div>
         ) : null}

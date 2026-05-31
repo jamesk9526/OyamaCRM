@@ -9,6 +9,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
+import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
@@ -156,9 +157,9 @@ export default function EventFundraisingPage() {
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Workspace">
-          <WorkspaceRibbonButton label="Orders" href={selectedEventId ? `/events/${selectedEventId}/orders` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Reports" href={selectedEventId ? `/events/${selectedEventId}/reports` : undefined} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Follow-Up" href={selectedEventId ? `/events/${selectedEventId}/follow-up` : undefined} disabled={!selectedEventId} accentTone="purple" />
+          <EventScopedRibbonButton label="Orders" eventId={selectedEventId} eventPath="orders" accentTone="purple" />
+          <EventScopedRibbonButton label="Reports" eventId={selectedEventId} eventPath="reports" accentTone="purple" />
+          <EventScopedRibbonButton label="Follow-Up" eventId={selectedEventId} eventPath="follow-up" accentTone="purple" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Actions">
           <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace(selectedEventId)} disabled={!selectedEventId} accentTone="purple" />

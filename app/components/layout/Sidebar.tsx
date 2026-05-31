@@ -15,10 +15,11 @@ interface SidebarProps {
   donorAccentTone?: DonorAccentTone;
   donorChromeTint?: DashboardChromeTint;
   onSwitchToMegaMenu?: () => void;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 /** Renders Donor CRM sidebar with grouped navigation, badges, and persisted collapse state. */
-export default function Sidebar({ forceExpanded = false, donorAccentTone = "green", donorChromeTint, onSwitchToMegaMenu }: SidebarProps) {
+export default function Sidebar({ forceExpanded = false, donorAccentTone = "green", donorChromeTint, onSwitchToMegaMenu, onCollapsedChange }: SidebarProps) {
   const { qbEnabled } = usePlugins();
   const { user } = useAuth();
 
@@ -43,6 +44,7 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
       expandedWidthClass="w-[296px]"
       collapsedWidthClass="w-[96px]"
       organizationLabel="Oyama Organization"
+      onCollapsedChange={onCollapsedChange}
     />
   );
 }

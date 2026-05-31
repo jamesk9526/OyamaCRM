@@ -29,6 +29,19 @@ import {
 } from "@/app/lib/fiscal-year";
 import { buildHelpHref, mapModuleKeyToHelpScope } from "@/app/help-content";
 import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
+import {
+  openAppsFromTopBarLauncher,
+  openAppsFromUserMenu,
+  openFeedbackFromUserMenu,
+  openMessagesFromUserMenu,
+  type TopBarPanelSetters,
+} from "@/app/components/layout/topbar/panel-callbacks";
+import {
+  resolveModuleSwitcherTone,
+  resolveTopBarHomeHref,
+  resolveTopBarModuleAccentClass,
+  resolveTopBarModuleChromePalette,
+} from "@/app/components/layout/topbar/theme-tokens";
 
 interface SearchResult {
   id: string;
@@ -852,10 +865,11 @@ interface TopBarProps {
   scrolled?: boolean;
   donorChromeTint?: DashboardChromeTint;
   donorSidebarOffset?: boolean;
+  donorSidebarCollapsed?: boolean;
 }
 
 /** Full-width top navigation bar — spans the entire viewport width. */
-export default function TopBar({ scrolled = false, donorChromeTint, donorSidebarOffset = false }: TopBarProps) {
+export default function TopBar({ scrolled = false, donorChromeTint, donorSidebarOffset = false, donorSidebarCollapsed = false }: TopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut } = useAuth();
@@ -893,138 +907,19 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const chromeButtonBase = "flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/96 text-slate-600 shadow-[0_5px_14px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
-  const moduleAccentClass = moduleKey === "compassion"
-    ? "bg-blue-600"
-    : moduleKey === "events"
-      ? "bg-violet-500"
-      : moduleKey === "watchdog"
-        ? "bg-red-600"
-        : moduleKey === "webmaster"
-          ? "bg-indigo-600"
-          : moduleKey === "hrm"
-            ? "bg-teal-600"
-          : moduleKey === "oshareview"
-            ? "bg-cyan-600"
-            : donorAccentTheme.topBarAccentLine;
+  const moduleAccentClass = resolveTopBarModuleAccentClass(moduleKey, donorAccentTheme.topBarAccentLine);
   const isDonorEnterpriseChrome = moduleKey === "donor";
+  const donorDesktopInsetClass = donorSidebarOffset && isDonorEnterpriseChrome
+    ? donorSidebarCollapsed
+      ? "xl:pl-[108px]"
+      : "xl:pl-[308px]"
+    : "";
   const darkIconButtonBase = isDonorEnterpriseChrome
     ? "flex h-6 w-6 shrink-0 touch-manipulation items-center justify-center rounded-md border border-transparent bg-transparent text-emerald-50/80 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:scale-95"
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
-  const moduleChromePalette = moduleKey === "compassion"
-    ? {
-      scoopStart: "#1e3a8a",
-      scoopMid: "#1d4ed8",
-      scoopEnd: "#2563eb",
-      scoopStroke: "#1e40af",
-      glowStart: "#60a5fa",
-      glowMid: "#2563eb",
-      glowEnd: "#1e3a8a",
-      mobileGradient: "radial-gradient(circle at 8% 0%, rgba(96,165,250,0.24), transparent 42%), linear-gradient(135deg, #1e3a8a, #1d4ed8 58%, #2563eb)",
-      mobileBorderColor: "rgba(147,197,253,0.25)",
-      mobileShadow: "0 10px 26px rgba(30,58,138,0.24)",
-    }
-    : moduleKey === "events"
-      ? {
-        scoopStart: "#4c1d95",
-        scoopMid: "#6d28d9",
-        scoopEnd: "#7c3aed",
-        scoopStroke: "#5b21b6",
-        glowStart: "#c4b5fd",
-        glowMid: "#8b5cf6",
-        glowEnd: "#4c1d95",
-        mobileGradient: "radial-gradient(circle at 8% 0%, rgba(196,181,253,0.24), transparent 42%), linear-gradient(135deg, #4c1d95, #6d28d9 58%, #7c3aed)",
-        mobileBorderColor: "rgba(196,181,253,0.25)",
-        mobileShadow: "0 10px 26px rgba(76,29,149,0.24)",
-      }
-      : moduleKey === "watchdog"
-        ? {
-          scoopStart: "#7f1d1d",
-          scoopMid: "#b91c1c",
-          scoopEnd: "#dc2626",
-          scoopStroke: "#991b1b",
-          glowStart: "#fca5a5",
-          glowMid: "#ef4444",
-          glowEnd: "#7f1d1d",
-          mobileGradient: "radial-gradient(circle at 8% 0%, rgba(252,165,165,0.22), transparent 42%), linear-gradient(135deg, #7f1d1d, #b91c1c 58%, #dc2626)",
-          mobileBorderColor: "rgba(252,165,165,0.24)",
-          mobileShadow: "0 10px 26px rgba(127,29,29,0.24)",
-        }
-        : moduleKey === "webmaster"
-          ? {
-            scoopStart: "#312e81",
-            scoopMid: "#4f46e5",
-            scoopEnd: "#6366f1",
-            scoopStroke: "#3730a3",
-            glowStart: "#c7d2fe",
-            glowMid: "#818cf8",
-            glowEnd: "#312e81",
-            mobileGradient: "radial-gradient(circle at 8% 0%, rgba(199,210,254,0.24), transparent 42%), linear-gradient(135deg, #312e81, #4f46e5 58%, #6366f1)",
-            mobileBorderColor: "rgba(199,210,254,0.25)",
-            mobileShadow: "0 10px 26px rgba(49,46,129,0.24)",
-          }
-          : moduleKey === "hrm"
-            ? {
-              scoopStart: "#115e59",
-              scoopMid: "#0f766e",
-              scoopEnd: "#0d9488",
-              scoopStroke: "#0f766e",
-              glowStart: "#99f6e4",
-              glowMid: "#2dd4bf",
-              glowEnd: "#115e59",
-              mobileGradient: "radial-gradient(circle at 8% 0%, rgba(153,246,228,0.22), transparent 42%), linear-gradient(135deg, #115e59, #0f766e 58%, #0d9488)",
-              mobileBorderColor: "rgba(153,246,228,0.22)",
-              mobileShadow: "0 10px 26px rgba(17,94,89,0.24)",
-            }
-            : moduleKey === "oshareview"
-              ? {
-                scoopStart: "#0e7490",
-                scoopMid: "#0891b2",
-                scoopEnd: "#06b6d4",
-                scoopStroke: "#0e7490",
-                glowStart: "#a5f3fc",
-                glowMid: "#22d3ee",
-                glowEnd: "#0e7490",
-                mobileGradient: "radial-gradient(circle at 8% 0%, rgba(165,243,252,0.24), transparent 42%), linear-gradient(135deg, #0e7490, #0891b2 58%, #06b6d4)",
-                mobileBorderColor: "rgba(165,243,252,0.24)",
-                mobileShadow: "0 10px 26px rgba(14,116,144,0.24)",
-              }
-              : donorChromeTint ? {
-                scoopStart: donorChromeTint.dark,
-                scoopMid: donorChromeTint.mid,
-                scoopEnd: donorChromeTint.base,
-                scoopStroke: donorChromeTint.mid,
-                glowStart: donorChromeTint.light,
-                glowMid: donorChromeTint.base,
-                glowEnd: donorChromeTint.dark,
-                mobileGradient: `radial-gradient(circle at 8% 0%, ${donorChromeTint.light}24, transparent 42%), linear-gradient(135deg, ${donorChromeTint.dark}, ${donorChromeTint.mid} 58%, ${donorChromeTint.base})`,
-                mobileBorderColor: donorChromeTint.border,
-                mobileShadow: `0 8px 20px rgba(${donorChromeTint.shadowRgb}, 0.15)`,
-              } : {
-                scoopStart: "#013a31",
-                scoopMid: "#0a6b58",
-                scoopEnd: "#10a886",
-                scoopStroke: "#0d806b",
-                glowStart: "#6ee7c4",
-                glowMid: "#22c597",
-                glowEnd: "#075a48",
-                mobileGradient: "radial-gradient(circle at 8% 0%, rgba(110,231,196,0.28), transparent 42%), linear-gradient(135deg, #013a31, #0a6b58 58%, #10a886)",
-                mobileBorderColor: "rgba(167,243,208,0.18)",
-                mobileShadow: "0 10px 26px rgba(6,78,59,0.20)",
-              };
-  const homeHref = moduleKey === "compassion"
-    ? "/compassion/dashboard"
-    : moduleKey === "events"
-      ? "/events/events"
-      : moduleKey === "watchdog"
-        ? "/watchdog"
-        : moduleKey === "webmaster"
-          ? "/webmaster"
-          : moduleKey === "hrm"
-            ? "/hrm"
-          : moduleKey === "oshareview"
-            ? "/reports"
-            : "/";
+  const moduleChromePalette = resolveTopBarModuleChromePalette(moduleKey, donorChromeTint);
+  const homeHref = resolveTopBarHomeHref(moduleKey);
   const helpHref = buildHelpHref({
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
@@ -1035,6 +930,15 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     ? `Fiscal year mode is on. FY${currentFiscalYear} runs month ${fiscalSettings.fiscalYearStart}-${fiscalSettings.fiscalYearEnd}.`
     : "Calendar year mode is on. Click to use the fiscal year offset from Organization Settings.";
   const canRunAiConnectionTest = user?.role === "admin" || user?.role === "super_admin";
+  const topBarPanelSetters: TopBarPanelSetters = {
+    setAppsOpen,
+    setFeedbackOpen,
+    setNotificationsOpen,
+    setMobileQuickOpen,
+    setMobileSearchOpen,
+    setCompactActionsOpen,
+    setMessengerOpen,
+  };
 
   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
   const triggerTopBarReactiveGlow = useCallback(() => {
@@ -1493,7 +1397,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
         </>
       )}
-      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[height,box-shadow,background-color,border-color,left] ${shellMotionClass} ${donorSidebarOffset && isDonorEnterpriseChrome ? "xl:left-[296px]" : ""} ${isDonorEnterpriseChrome
+      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[height,box-shadow,background-color,border-color,left] ${shellMotionClass} ${isDonorEnterpriseChrome
         ? "border-b border-emerald-200/15 bg-[radial-gradient(circle_at_12%_0%,#05412e_0,#032b21_44%,#011814_100%)] shadow-none xl:h-12"
         : (scrolled
           ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px] xl:border-b-0"
@@ -1742,9 +1646,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? "pl-4 pr-4" : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? "pl-4 pr-4" : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
-          <div className={`mx-auto flex min-w-0 w-full items-center gap-3 ${isDonorEnterpriseChrome ? "max-w-[1260px]" : ""}`}>
-          <div className={`flex min-w-0 flex-1 items-center gap-3 ${isDonorEnterpriseChrome ? "justify-start" : "justify-end"}`}>
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? `pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? `pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
+          <div className={`mx-auto flex min-w-0 w-full items-center ${isDonorEnterpriseChrome ? "max-w-[1480px] gap-2" : "gap-3"}`}>
+          <div className={`flex min-w-0 flex-1 items-center ${isDonorEnterpriseChrome ? "gap-2 justify-start" : "gap-3 justify-end"}`}>
             {showModuleSwitcher && (
               <div className="shrink-0">
                 <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
@@ -1754,14 +1658,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             {showTopBarAppLauncher ? (
               <button
                 type="button"
-                onClick={() => {
-                  setAppsOpen(true);
-                  setNotificationsOpen(false);
-                  setMessengerOpen(false);
-                  setMobileQuickOpen(false);
-                  setMobileSearchOpen(false);
-                  setCompactActionsOpen(false);
-                }}
+                onClick={() => openAppsFromTopBarLauncher(topBarPanelSetters)}
                 title="Open app launcher"
                 aria-label="Open app launcher"
                 className={isDonorEnterpriseChrome
@@ -1772,13 +1669,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               </button>
             ) : null}
 
-            <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "max-w-[960px] flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-8 border-white/20 bg-emerald-950/28 px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
+            <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-8 border-white/20 bg-emerald-950/28 px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
               <div className={`min-w-0 flex-1 ${isDonorEnterpriseChrome ? "px-1" : "px-1.5"}`}>
                 <GlobalSearch moduleKey={moduleKey} pathname={pathname} onNavigate={() => setNotificationsOpen(false)} />
               </div>
 
               {isDonorEnterpriseChrome && (
-                <div className="mx-1.5 shrink-0">
+                <div className="mx-1 shrink-0">
                   <DonorQuickAddButton />
                 </div>
               )}
@@ -1794,7 +1691,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </button>
               )}
 
-              <div className={`mx-1.5 h-5 w-px shrink-0 ${isDonorEnterpriseChrome ? "bg-white/20" : "bg-slate-200"}`} />
+              <div className={`mx-1 h-5 w-px shrink-0 ${isDonorEnterpriseChrome ? "bg-white/20" : "bg-slate-200"}`} />
 
               <div ref={desktopNotificationsRef} className="relative shrink-0">
                 <button
@@ -1983,20 +1880,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               <UserMenu
                 moduleKey={moduleKey}
                 showApps={showTopBarAppLauncher}
-                onOpenApps={() => {
-                  setAppsOpen(true);
-                  setNotificationsOpen(false);
-                  setMessengerOpen(false);
-                }}
-                onOpenFeedback={() => {
-                  setFeedbackOpen(true);
-                  setNotificationsOpen(false);
-                  setMessengerOpen(false);
-                }}
-                onToggleMessages={() => {
-                  setMessengerOpen(true);
-                  setNotificationsOpen(false);
-                }}
+                onOpenApps={() => openAppsFromUserMenu(topBarPanelSetters)}
+                onOpenFeedback={() => openFeedbackFromUserMenu(topBarPanelSetters)}
+                onToggleMessages={() => openMessagesFromUserMenu(topBarPanelSetters)}
                 messengerUnread={messengerUnread}
                 helpHref={helpHref}
                 reportingWindow={isDonorEnterpriseChrome
@@ -2052,10 +1938,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 {showTopBarAppLauncher ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setMobileQuickOpen(false);
-                      setAppsOpen(true);
-                    }}
+                    onClick={() => openAppsFromTopBarLauncher(topBarPanelSetters)}
                     className="flex w-full min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-700"
                   >
                     <AppsGridIcon className="h-4 w-4 shrink-0" />
@@ -2241,41 +2124,7 @@ function ModuleSwitcher({
     setOpen(false);
   }, [pathname]);
 
-  const switcherBaseTone = current.key === "donor"
-    ? {
-      glow: "from-emerald-300/16 via-emerald-200/8 to-transparent",
-      button: scrolled
-        ? "border-white/20 bg-emerald-950/30 text-emerald-50 shadow-[0_6px_16px_rgba(2,8,23,0.3)]"
-        : "border-white/20 bg-emerald-950/32 text-emerald-50 shadow-[0_8px_20px_rgba(2,8,23,0.32)]",
-      activeItem: "border-emerald-200/35 bg-emerald-50/55",
-    }
-    : {
-      glow: "from-slate-200/50 via-slate-100/40 to-transparent",
-      button: scrolled
-        ? "border-slate-300/90 bg-white text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)]"
-        : "border-slate-300/90 bg-white text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.1)]",
-      activeItem: "border-slate-300 bg-slate-50",
-    };
-
-  const activeAccentTone = current.key === "compassion"
-    ? {
-      activeIcon: "border-blue-200 bg-blue-50 text-blue-700",
-      activePill: "bg-blue-100 text-blue-700",
-    }
-    : current.key === "events"
-      ? {
-        activeIcon: "border-amber-200 bg-amber-50 text-amber-700",
-        activePill: "bg-amber-100 text-amber-700",
-      }
-      : {
-        activeIcon: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        activePill: "bg-emerald-100 text-emerald-700",
-      };
-
-  const switcherTone = {
-    ...switcherBaseTone,
-    ...activeAccentTone,
-  };
+  const switcherTone = resolveModuleSwitcherTone(current.key as TopBarModuleKey, scrolled);
 
   function switchTo(href: string) {
     setOpen(false);

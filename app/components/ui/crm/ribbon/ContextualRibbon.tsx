@@ -107,6 +107,10 @@ function commandLooksLikeMenu(command: CrmRibbonCommand): boolean {
   return /(new-|bulk|saved|export|share|columns|density|view|date-range|sort|group)/.test(command.id);
 }
 
+function commandIsWired(command: CrmRibbonCommand, handlers: CrmRibbonCommandHandlers): boolean {
+  return Boolean(command.href || handlers[command.id]);
+}
+
 function ChevronDownIcon({ className = "h-3 w-3" }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -171,7 +175,7 @@ function RibbonCommandButton({ command, context, handlers }: { command: CrmRibbo
 }
 
 function RibbonGroup({ group, context, handlers }: { group: CrmRibbonCommandGroup; context: CrmRibbonContext; handlers: CrmRibbonCommandHandlers }) {
-  const visibleCommands = group.commands.filter((command) => !command.hidden?.(context));
+  const visibleCommands = group.commands.filter((command) => !command.hidden?.(context) && commandIsWired(command, handlers));
   if (visibleCommands.length === 0) return null;
 
   return (
@@ -199,6 +203,7 @@ function findCommand(config: CrmRibbonPageConfig, id: string | undefined): CrmRi
 
 function RibbonPrimaryAction({ command, context, handlers }: { command: CrmRibbonCommand | null; context: CrmRibbonContext; handlers: CrmRibbonCommandHandlers }) {
   if (!command || command.hidden?.(context)) return null;
+  if (!commandIsWired(command, handlers)) return null;
   const disabledReason = resolveCommandDisabledReason(command, context, handlers);
   const isDisabled = Boolean(disabledReason);
   const icon = command.icon ?? iconForCommand(command.id);
@@ -281,19 +286,6 @@ export default function ContextualRibbon({ pathname, className = "", context, ha
             })}
           </div>
           <RibbonPrimaryAction command={primaryCommand} context={mergedContext} handlers={resolvedHandlers} />
-          <button
-            type="button"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-900 shadow-[0_5px_10px_rgba(15,23,42,0.07)] transition hover:bg-slate-50 disabled:opacity-100"
-            title="More ribbon commands"
-            aria-label="More ribbon commands"
-            disabled
-          >
-            <svg className="h-[18px] w-[18px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="5" r="1.8" />
-              <circle cx="12" cy="12" r="1.8" />
-              <circle cx="12" cy="19" r="1.8" />
-            </svg>
-          </button>
         </div>
 
         <div className="overflow-x-auto bg-[linear-gradient(180deg,#ffffff_0%,#fbfdfd_100%)] px-2">

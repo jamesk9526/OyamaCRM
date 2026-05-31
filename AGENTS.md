@@ -104,3 +104,18 @@ Plan sequencing default:
 - Keep the repo root clean. Do not commit scratch logs, one-off output dumps, or temporary validation files there.
 - Put durable audit artifacts under `docs/status/audit-artifacts/`.
 - If you add a temporary file to debug something, remove it before you finish.
+
+## 8. Cleanup and merge governance (required)
+
+- Modularization-only refactor passes must not delete routes. Route deletion is allowed only in a dedicated cleanup phase after parity proof and redirect safety.
+- Functional-only UI policy is strict: remove, hide, or truthfully gate non-working controls. Do not leave dead buttons as production UI.
+- For markdown cleanup, prefer consolidation and canonical ownership over bulk deletes. Root-level planning docs should be migrated into `docs/plans/` before removal.
+- Every deletion or merge candidate must pass this checklist:
+  1. confirm canonical replacement,
+  2. migrate unique content,
+  3. run reference scan,
+  4. update inbound links,
+  5. record change in a dated audit note,
+  6. keep rollback path clear.
+- Required validation matrix for major cleanup batches: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `npx depcheck`, `npx knip`.
+- If any gate fails, document blocker details and stop short of risky broad rewrites in the same pass.

@@ -9,40 +9,8 @@ interface DonorSidebarOptions {
   qbEnabled: boolean;
 }
 
-const DONOR_TO_ADVANCED_ICON: Record<string, string> = {
-  "donor-dashboard": "dashboard",
-  constituents: "donors",
-  donations: "donation",
-  campaigns: "campaign",
-  grants: "files",
-  "fund-designation": "notes",
-  "quickbooks-queue": "billing",
-  reports: "reports",
-  tasks: "tasks",
-  calendar: "notes",
-  communications: "chat",
-  "contacts-manager": "contacts",
-  letters: "notes",
-  "steward-signals": "analytics",
-  "steward-ai": "chat",
-  volunteer: "users",
-  "event-fundraising": "campaign",
-  "workflow-automation": "integrations",
-  database: "files",
-  "field-mapping": "files",
-  settings: "settings",
-  help: "help",
-  "system-status": "security",
-  documentation: "files",
-  integrations: "integrations",
-};
-
 const DonorPackIcon = ({ slug }: { slug: string }) => (
-  <OyamaAdvancedIcon
-    name={DONOR_TO_ADVANCED_ICON[slug] ?? "dashboard"}
-    size={18}
-    className="h-[18px] w-[18px] shrink-0"
-  />
+  <OyamaDonorPackIcon slug={slug} size={18} className="h-[18px] w-[18px] shrink-0" alt="" />
 );
 
 const AdvancedPackIcon = ({ name }: { name: string }) => (
@@ -485,12 +453,12 @@ function buildEventWorkspaceGroups(activeEvent: EventsSidebarContext): CrmSideba
       items: [
         { id: "overview", label: "Overview", href: `/events/${eventId}/overview`, activePath: `/events/${eventId}`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "workspace", description: "Event-level dashboard and operating summary." },
         { id: "guests", label: "Guests / Registrants", href: `/events/${eventId}/guests`, icon: <OyamaGradientIcon name="constituent-search" />, kind: "core_record", description: "Track registrants, donor links, RSVP status, and attendance details." },
-        { id: "tables", label: "Tables / Seating", href: `/events/${eventId}/tables`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", description: "Manage floor plan, table capacity, and guest placement." },
-        { id: "hosts", label: "Table Hosts", href: `/events/${eventId}/hosts`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "daily_tool", badge: "Partial", description: "Manage table hosts, host outreach, and open-seat follow-up queues." },
-        { id: "sponsors", label: "Sponsors", href: `/events/${eventId}/sponsors`, icon: <OyamaGradientIcon name="relationship-partnership" />, kind: "core_record", description: "Manage sponsor packages and fulfillment steps." },
+        { id: "tables", label: "Tables / Seating", href: `/events/${eventId}/tables`, icon: DONOR_ICONS.tasks, kind: "daily_tool", description: "Manage floor plan, table capacity, and guest placement." },
+        { id: "hosts", label: "Table Hosts", href: `/events/${eventId}/hosts`, icon: DONOR_ICONS.volunteers, kind: "daily_tool", badge: "Partial", description: "Manage table hosts, host outreach, and open-seat follow-up queues." },
+        { id: "sponsors", label: "Sponsors", href: `/events/${eventId}/sponsors`, icon: DONOR_ICONS.campaigns, kind: "core_record", description: "Manage sponsor packages and fulfillment steps." },
         { id: "donations", label: "Donations / Pledges", href: `/events/${eventId}/donations`, icon: DONOR_ICONS.donations, kind: "core_record", description: "Track event donations, pledges, and giving follow-up status." },
         { id: "check-in", label: "Check-In", href: `/events/${eventId}/check-in`, icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "daily_tool", badge: "Live", description: "Run event-night check-in with dark focused door operations." },
-        { id: "event-page", label: "Event Page Builder", href: `/events/${eventId}/event-page`, icon: <OyamaGradientIcon name="growth-analytics" />, kind: "communication_tool", description: "Build or edit the public event page for this event." },
+        { id: "event-page", label: "Event Page Builder", href: `/events/${eventId}/event-page`, icon: DONOR_ICONS.webmaster, kind: "communication_tool", description: "Build or edit the public event page for this event." },
         { id: "emails", label: "Emails", href: `/events/${eventId}/emails`, icon: DONOR_ICONS.communications, kind: "communication_tool", description: "Prepare event invitations, reminders, host emails, and follow-up messages." },
         { id: "reports", label: "Reports", href: `/events/${eventId}/reports`, icon: <OyamaGradientIcon name="reporting-dashboard" />, kind: "insight", description: "Review event outcomes, attendance, revenue, and follow-up metrics." },
         { id: "follow-up", label: "Follow-Up", href: `/events/${eventId}/follow-up`, icon: <OyamaGradientIcon name="momentum-growth" />, kind: "daily_tool", badge: "Partial", description: "Queue post-event thank-yous, outreach tasks, and donor handoff lists." },
@@ -505,7 +473,7 @@ function buildEventWorkspaceGroups(activeEvent: EventsSidebarContext): CrmSideba
         { id: "event-details", label: "Event Details", href: `/events/${eventId}/settings`, icon: DONOR_ICONS.settings, kind: "system", description: "Manage event details, defaults, and internal setup notes." },
         { id: "forms-registration", label: "Forms / Registration", href: `/events/${eventId}/tickets`, icon: <OyamaGradientIcon name="donor-gift" />, kind: "system", description: "Configure ticketing, registration rules, and capacity controls." },
         { id: "team-staff", label: "Team / Staff", href: `/events/${eventId}/volunteers`, icon: DONOR_ICONS.volunteers, kind: "system", description: "Coordinate volunteer teams, staffing assignments, and event roles." },
-        { id: "integrations", label: "Integrations", href: `/events/${eventId}/settings?tab=integrations`, icon: DONOR_ICONS.settings, kind: "system", description: "Review manager integration imports and payment/email readiness." },
+        { id: "integrations", label: "Integrations", href: `/events/${eventId}/settings?tab=integrations`, icon: DONOR_ICONS.qbSync, kind: "system", description: "Review manager integration imports and payment/email readiness." },
       ],
     },
   ];
@@ -592,7 +560,7 @@ export function buildWatchdogSidebarGroups(): CrmSidebarGroup[] {
       collapsible: true,
       items: [
         { id: "settings", label: "Settings", href: "/watchdog/settings", icon: DONOR_ICONS.settings, kind: "system", description: "Manage Watchdog policy and workspace-level settings." },
-        { id: "feedback-tickets", label: "Feedback Tickets", href: "/watchdog/feedback-tickets", icon: <OyamaGradientIcon name="reporting-dashboard" size={16} />, kind: "system", description: "Review and triage cross-CRM user feedback." },
+        { id: "feedback-tickets", label: "Feedback Tickets", href: "/watchdog/feedback-tickets", icon: DONOR_ICONS.communications, kind: "system", description: "Review and triage cross-CRM user feedback." },
       ],
     },
   ];

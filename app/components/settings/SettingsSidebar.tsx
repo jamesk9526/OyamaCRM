@@ -4,31 +4,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
-import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
+import OyamaDonorPackIcon from "@/app/components/ui/OyamaDonorPackIcon";
 
 interface SettingsNavItem {
   label: string;
   href: string;
-  icon: "growth-analytics" | "contact-checklist" | "client-profile-sync" | "constituent-search" | "task-checklist" | "client-support-chat" | "reporting-dashboard" | "goal-target" | "momentum-growth" | "donor-gift" | "relationship-partnership" | "messaging-chat";
+  iconSlug: "donor-dashboard" | "documentation" | "constituents" | "fund-designation" | "users" | "system-status" | "field-mapping" | "event-fundraising" | "steward-ai" | "integrations" | "quickbooks-queue" | "communications" | "giving-trends" | "reports" | "help";
 }
 
 const SETTINGS_NAV: SettingsNavItem[] = [
-  { label: "Overview", href: "/settings", icon: "growth-analytics" },
-  { label: "Desktop App", href: "/settings/desktop-app", icon: "messaging-chat" },
-  { label: "Organization", href: "/settings/organization", icon: "constituent-search" },
-  { label: "Branding", href: "/settings/branding", icon: "donor-gift" },
-  { label: "Users", href: "/settings/users", icon: "relationship-partnership" },
-  { label: "Roles & Scopes", href: "/settings/roles", icon: "goal-target" },
-  { label: "CRM Modules", href: "/settings/modules", icon: "task-checklist" },
-  { label: "Events CRM", href: "/settings/events", icon: "contact-checklist" },
-  { label: "AI Assistant", href: "/settings/ai", icon: "client-support-chat" },
-  { label: "Integrations", href: "/settings/integrations", icon: "client-profile-sync" },
-  { label: "Payments", href: "/settings/payments", icon: "donor-gift" },
-  { label: "Site Embeds", href: "/settings/site-embeds", icon: "messaging-chat" },
-  { label: "Security & Audit", href: "/settings/security", icon: "goal-target" },
-  { label: "System Updates", href: "/settings/system-updates", icon: "momentum-growth" },
-  { label: "System Status", href: "/settings/system-status", icon: "reporting-dashboard" },
-  { label: "About", href: "/settings/about", icon: "growth-analytics" },
+  { label: "Overview", href: "/settings", iconSlug: "donor-dashboard" },
+  { label: "Desktop App", href: "/settings/desktop-app", iconSlug: "documentation" },
+  { label: "Organization", href: "/settings/organization", iconSlug: "constituents" },
+  { label: "Branding", href: "/settings/branding", iconSlug: "fund-designation" },
+  { label: "Users", href: "/settings/users", iconSlug: "users" },
+  { label: "Roles & Scopes", href: "/settings/roles", iconSlug: "system-status" },
+  { label: "CRM Modules", href: "/settings/modules", iconSlug: "field-mapping" },
+  { label: "Events CRM", href: "/settings/events", iconSlug: "event-fundraising" },
+  { label: "AI Assistant", href: "/settings/ai", iconSlug: "steward-ai" },
+  { label: "Integrations", href: "/settings/integrations", iconSlug: "integrations" },
+  { label: "Payments", href: "/settings/payments", iconSlug: "quickbooks-queue" },
+  { label: "Site Embeds", href: "/settings/site-embeds", iconSlug: "communications" },
+  { label: "Security & Audit", href: "/settings/security", iconSlug: "system-status" },
+  { label: "System Updates", href: "/settings/system-updates", iconSlug: "giving-trends" },
+  { label: "System Status", href: "/settings/system-status", iconSlug: "reports" },
+  { label: "About", href: "/settings/about", iconSlug: "help" },
 ];
 
 /** SettingsSidebar highlights the current settings route and groups config pages. */
@@ -56,7 +56,7 @@ export default function SettingsSidebar() {
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               }`}
             >
-              <OyamaGradientIcon name={item.icon} size={16} />
+              <OyamaDonorPackIcon slug={item.iconSlug} size={16} alt="" />
               <span>{item.label}</span>
             </Link>
           );
