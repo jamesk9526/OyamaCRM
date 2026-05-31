@@ -324,7 +324,7 @@ export default function CampaignDetailPage() {
             Generate Appeal Letter
           </Link>
           <Link
-            href={`/automations?source=campaign&campaignId=${campaign.id}`}
+            href={`/steward-paths/builder?quickStart=event-follow-up&source=campaign&campaignId=${campaign.id}`}
             className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50"
           >
             Start Follow-Up Path

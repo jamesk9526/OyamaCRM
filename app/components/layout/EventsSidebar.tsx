@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import CrmSidebar from "@/app/components/layout/CrmSidebar";
 import { apiFetch } from "@/app/lib/auth-client";
 import { buildEventsSidebarGroups, resolveActiveEventId, type EventsSidebarContext } from "@/app/components/layout/sidebar-configs";
@@ -87,6 +88,8 @@ export default function EventsSidebar({ forceExpanded = false }: EventsSidebarPr
       storageKey="oyamacrm.sidebar.events.collapsed"
       userRole={user?.role}
       forceExpanded={forceExpanded}
+      brandHeader={<CrmBrandLockup moduleLabel="Events CRM" className="w-full" />}
+      brandHeaderCollapsed={<CrmBrandLockup moduleLabel="Events CRM" compact />}
       expandedWidthClass="w-64"
       collapsedWidthClass="w-20"
       organizationLabel="EventSTUDIO"

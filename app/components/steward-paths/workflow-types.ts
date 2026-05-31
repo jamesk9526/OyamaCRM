@@ -20,6 +20,7 @@ export type NodeCategory =
   | "email"
   | "print"
   | "task"
+  | "livecom"
   | "donor-data"
   | "logic"
   | "safety";

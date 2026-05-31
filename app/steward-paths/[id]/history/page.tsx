@@ -54,7 +54,7 @@ export default function StewardPathHistoryPage({ params }: HistoryPageProps) {
     <div className="space-y-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-gray-900">Steward Path History</h1>
-        <Link href={pathId ? `/steward-paths/builder/${encodeURIComponent(pathId)}` : "/steward-paths"} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+        <Link href={pathId ? `/steward-paths/${encodeURIComponent(pathId)}/builder` : "/steward-paths/library"} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
           Edit workflow
         </Link>
       </div>

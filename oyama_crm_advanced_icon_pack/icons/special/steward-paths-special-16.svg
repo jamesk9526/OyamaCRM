@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Steward Paths Special Icon</title>
+  <desc id="desc">A special Oyama Steward Paths icon: a rooted stewardship tree connected into branching automation path nodes.</desc>
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+</svg>

@@ -34,6 +34,13 @@ Use the dated audit docs for details:
 2. Use the module switcher in the top bar to choose DonorCRM, Compassion CRM, or Events CRM.
 3. Stay inside one module for the full task whenever possible (for cleaner activity history).
 
+### Workspace-first operating rule (required)
+
+1. Use the canonical workspace for the job (for example, `/oyama-email`, `/oyama-letters`, `/steward-paths`).
+2. Follow one direction through the workflow: list/overview -> build/edit -> review -> publish/activate -> history.
+3. Avoid legacy duplicate paths when a canonical route exists.
+4. If a screen shows in-development messaging, treat it as non-production and use the closest Working workflow instead.
+
 ## DonorCRM Browser QA Baseline (2026-05-13)
 
 This release includes a full browser-driven DonorCRM route pass with fresh screenshots and viewport checks.
@@ -87,25 +94,17 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 6. Use Print & Mail Queue for live print/mail queue rows and Settings for Letters-only organization import, header/footer setup, signature links, and workflow policy controls.
 7. Current status: Working for the refreshed workspace routes. The UI uses live API data and empty states; it does not ship placeholder recipient/template data.
 
-### Communications hub workflow
+### OyamaEmail workflow (canonical)
 
-Use Communications as the donor outreach control center:
+Use OyamaEmail as the donor email command center:
 
-1. Start from Communications Home project cards (Campaign Library, Drafts, Scheduled, Sent Archive, Presets, Create New Communication).
-2. Use Create New Communication to open the guided wizard flow:
-	- `/communications/new/type`
-	- `/communications/new/audience`
-	- `/communications/new/preset`
-	- `/communications/new/editor`
-	- `/communications/new/review`
-	- `/communications/new/send`
-3. Use Campaign Library for draft/schedule/send lifecycle management.
-4. Use Drafts and Scheduled cards for queue-first operations.
-5. Use Communication Log for cross-channel outreach history.
-6. Use related route helpers as needed:
-	- `/communications/library/templates`
-	- `/communications/library/segments`
-	- `/communications/log`
+1. Open `/oyama-email` for campaign planning and execution.
+2. Follow the one-direction route pattern:
+	- Templates -> Builder -> Publish
+	- Campaigns -> Send -> Queue -> Analytics
+3. Use Audience lists from canonical audience/list flows before scheduling sends.
+4. Use Queue and Analytics to verify delivery outcomes and failed-recipient truth.
+5. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
 
 ### Steward Paths builder workflow
 

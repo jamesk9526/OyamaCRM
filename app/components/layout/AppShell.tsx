@@ -21,7 +21,7 @@ import type { CSSProperties } from "react";
 // Module routes render their own shells — bypass AppShell wrapper.
 // /steward-ai-workspace uses its own standalone PWA layout.
 const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/hrm", "/apps", "/steward-ai-workspace", "/tablelink"];
-const SHELL_BYPASS_PATHS = ["/events", "/oyama-letters", "/oyama-email"];
+const SHELL_BYPASS_PATHS = ["/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",
   "apps",

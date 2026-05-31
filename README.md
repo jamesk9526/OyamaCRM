@@ -30,6 +30,21 @@ OyamaCRM is an integrated nonprofit management platform built for teams that man
 | **Compassion CRM** | Client intake, cases, appointments, care plans, assessments |
 | **Events CRM** | Event ticketing, guests, seating, check-in, sponsors |
 
+## Workspace and Workflow Standard (Current Rule)
+
+All new product work follows a dedicated-workspace, one-direction workflow model.
+
+- Dedicated workspace ownership: major tools should have a canonical route and workspace shell.
+- One-direction flow: list/overview -> build/edit -> review/validate -> publish/activate -> history/activity.
+- Functional-only UI: no fake data, dead controls, or placeholder behavior presented as complete.
+- Legacy cleanup path: keep redirects/wrappers until replacement parity is proven, then remove duplicate flows.
+
+Governance sources:
+
+- `AGENTS.md`
+- `docs/architecture/workspace-layout-system.md`
+- `docs/status/production-readiness-checklist.md`
+
 ---
 
 ## What's New in v1.1.0

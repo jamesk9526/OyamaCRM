@@ -4,6 +4,37 @@ Last updated: 2026-05-18 (v1.1.0 — help search engine improvements, EventSTUDI
 
 This file is the release-gate source of truth for production readiness.
 
+## Design and Workflow Governance Gate (required)
+
+Before a major workspace feature can be considered `Working` for release claims, it must satisfy all of the following:
+
+1. Dedicated workspace ownership
+   - Major workflow uses a canonical route family and does not depend on duplicate parallel legacy pages.
+2. One-direction progression
+   - Primary staff path is clear: list/overview -> build/edit -> review/validate -> publish/activate -> history/activity.
+3. Functional-only UI
+   - No fake data, dead controls, or placeholder behavior presented as complete production behavior.
+4. Legacy transition truthfulness
+   - Compatibility redirects may exist, but docs and UI clearly identify canonical routes.
+5. Evidence-backed status
+   - Validation artifacts exist for changed scope (typecheck/build/tests and route-level behavior checks where applicable).
+
+If any item above is not met, status must remain `Partially Working`, `Demo Only`, `Broken`, or `Not Implemented`.
+
+## Steward Paths Dedicated Workspace Phase 1 Snapshot (2026-05-30)
+
+| Item | Status | Evidence |
+|---|---|---|
+| `/steward-paths/*` uses a dedicated workspace shell instead of DonorCRM page chrome | Working | `app/components/layout/AppShell.tsx`, `app/steward-paths/layout.tsx`, `app/components/steward-paths/StewardPathsAppShell.tsx` |
+| Stage routes are explicit and map to live surfaces (Library, Builder, Enrollments, Review, Activity, Analytics, Settings) | Working | `app/steward-paths/page.tsx`, `app/steward-paths/builder/page.tsx`, `app/steward-paths/enrollments/page.tsx`, `app/steward-paths/review/page.tsx`, `app/steward-paths/activity/page.tsx`, `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx` |
+| Review queue stage supports real activation/pause actions on live templates API | Working | `app/steward-paths/review/page.tsx`, `server/src/routes/steward-paths.ts` |
+| Activity stage is live-data based and links to template-specific history timelines | Working | `app/steward-paths/activity/page.tsx`, `app/steward-paths/[id]/history/page.tsx` |
+| Enrollments stage uses live enrollment APIs with pause/resume/cancel/manual-step actions | Working | `app/steward-paths/enrollments/page.tsx`, `server/src/routes/steward-paths.ts` |
+| Analytics stage uses live template/enrollment distributions without placeholder metrics | Working | `app/steward-paths/analytics/page.tsx`, `server/src/routes/steward-paths.ts` |
+| Settings stage exposes real process-due and legacy migration operations | Working | `app/steward-paths/settings/page.tsx`, `server/src/routes/steward-paths.ts` |
+| Campaign follow-up shortcut points to canonical Steward Paths builder flow | Working | `app/campaigns/[id]/page.tsx` |
+| Legacy `/automations` route remains compatibility-only redirect | Working | `app/automations/page.tsx` |
+
 ## OyamaLetters Standalone Workspace Snapshot (2026-05-28)
 
 | Item | Status | Evidence |

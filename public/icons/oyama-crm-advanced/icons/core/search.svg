@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Search</title>
+  <desc id="desc">Search icon in the Oyama CRM advanced icon pack</desc>
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="21" cy="21" r="10"/><path d="m29 29 10 10"/>
+  </g>
+</svg>

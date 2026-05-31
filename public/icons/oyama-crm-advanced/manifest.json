@@ -1,0 +1,1306 @@
+{
+  "pack": "Oyama CRM Advanced Icon Pack",
+  "version": "1.0.0",
+  "palette": {
+    "oyamaGreen": "#004225",
+    "oyamaGreen2": "#006B3F",
+    "stewardMint": "#52C58A",
+    "stewardBlue": "#4A90E2",
+    "pathPurple": "#8B5CF6",
+    "taskOrange": "#F97316",
+    "alertRed": "#EF4444",
+    "gold": "#D4AF37",
+    "slate": "#0F172A",
+    "soft": "#F8FAFC"
+  },
+  "icons": [
+    {
+      "name": "dashboard",
+      "category": "core",
+      "file": "icons/core/dashboard.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "dashboard-tile",
+      "category": "core",
+      "file": "icons/core/dashboard-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "search",
+      "category": "core",
+      "file": "icons/core/search.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "search-tile",
+      "category": "core",
+      "file": "icons/core/search-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "filter",
+      "category": "core",
+      "file": "icons/core/filter.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "filter-tile",
+      "category": "core",
+      "file": "icons/core/filter-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "sort",
+      "category": "core",
+      "file": "icons/core/sort.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "sort-tile",
+      "category": "core",
+      "file": "icons/core/sort-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "settings",
+      "category": "core",
+      "file": "icons/core/settings.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "settings-tile",
+      "category": "core",
+      "file": "icons/core/settings-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "help",
+      "category": "core",
+      "file": "icons/core/help.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "help-tile",
+      "category": "core",
+      "file": "icons/core/help-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "users",
+      "category": "core",
+      "file": "icons/core/users.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "users-tile",
+      "category": "core",
+      "file": "icons/core/users-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "security",
+      "category": "core",
+      "file": "icons/core/security.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "security-tile",
+      "category": "core",
+      "file": "icons/core/security-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "integrations",
+      "category": "core",
+      "file": "icons/core/integrations.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "integrations-tile",
+      "category": "core",
+      "file": "icons/core/integrations-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "billing",
+      "category": "core",
+      "file": "icons/core/billing.svg",
+      "accent": "#004225",
+      "style": "outline"
+    },
+    {
+      "name": "billing-tile",
+      "category": "core",
+      "file": "icons/core/billing-tile.svg",
+      "accent": "#004225",
+      "style": "tile"
+    },
+    {
+      "name": "donors",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/donors.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "donors-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/donors-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "contacts",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/contacts.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "contacts-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/contacts-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "donation",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/donation.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "donation-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/donation-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "campaign",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/campaign.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "campaign-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/campaign-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "reports",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/reports.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "reports-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/reports-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "analytics",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/analytics.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "analytics-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/analytics-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "tasks",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/tasks.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "tasks-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/tasks-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "notes",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/notes.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "notes-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/notes-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "files",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/files.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "files-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/files-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "chat",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/chat.svg",
+      "accent": "#52C58A",
+      "style": "outline"
+    },
+    {
+      "name": "chat-tile",
+      "category": "donor-crm",
+      "file": "icons/donor-crm/chat-tile.svg",
+      "accent": "#52C58A",
+      "style": "tile"
+    },
+    {
+      "name": "clients",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/clients.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "clients-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/clients-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "calendar",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/calendar.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "calendar-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/calendar-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "forms",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/forms.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "forms-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/forms-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "appointments",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/appointments.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "appointments-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/appointments-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "case-notes",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/case-notes.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "case-notes-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/case-notes-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "resources",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/resources.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "resources-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/resources-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "pregnancy-test",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/pregnancy-test.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "pregnancy-test-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/pregnancy-test-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "ultrasound",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/ultrasound.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "ultrasound-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/ultrasound-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "material-aid",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/material-aid.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "material-aid-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/material-aid-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "referrals",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/referrals.svg",
+      "accent": "#D4AF37",
+      "style": "outline"
+    },
+    {
+      "name": "referrals-tile",
+      "category": "compassion-crm",
+      "file": "icons/compassion-crm/referrals-tile.svg",
+      "accent": "#D4AF37",
+      "style": "tile"
+    },
+    {
+      "name": "events",
+      "category": "events-crm",
+      "file": "icons/events-crm/events.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "events-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/events-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "tickets",
+      "category": "events-crm",
+      "file": "icons/events-crm/tickets.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "tickets-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/tickets-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "attendees",
+      "category": "events-crm",
+      "file": "icons/events-crm/attendees.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "attendees-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/attendees-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "sponsors",
+      "category": "events-crm",
+      "file": "icons/events-crm/sponsors.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "sponsors-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/sponsors-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "auction",
+      "category": "events-crm",
+      "file": "icons/events-crm/auction.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "auction-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/auction-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "table-seating",
+      "category": "events-crm",
+      "file": "icons/events-crm/table-seating.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "table-seating-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/table-seating-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "check-in",
+      "category": "events-crm",
+      "file": "icons/events-crm/check-in.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "check-in-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/check-in-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "fish-race",
+      "category": "events-crm",
+      "file": "icons/events-crm/fish-race.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "fish-race-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/fish-race-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "event-page",
+      "category": "events-crm",
+      "file": "icons/events-crm/event-page.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "event-page-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/event-page-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "event-analytics",
+      "category": "events-crm",
+      "file": "icons/events-crm/event-analytics.svg",
+      "accent": "#F97316",
+      "style": "outline"
+    },
+    {
+      "name": "event-analytics-tile",
+      "category": "events-crm",
+      "file": "icons/events-crm/event-analytics-tile.svg",
+      "accent": "#F97316",
+      "style": "tile"
+    },
+    {
+      "name": "email",
+      "category": "communications",
+      "file": "icons/communications/email.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "email-tile",
+      "category": "communications",
+      "file": "icons/communications/email-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "letters",
+      "category": "communications",
+      "file": "icons/communications/letters.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "letters-tile",
+      "category": "communications",
+      "file": "icons/communications/letters-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "media",
+      "category": "communications",
+      "file": "icons/communications/media.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "media-tile",
+      "category": "communications",
+      "file": "icons/communications/media-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "newsletter",
+      "category": "communications",
+      "file": "icons/communications/newsletter.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "newsletter-tile",
+      "category": "communications",
+      "file": "icons/communications/newsletter-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "sms",
+      "category": "communications",
+      "file": "icons/communications/sms.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "sms-tile",
+      "category": "communications",
+      "file": "icons/communications/sms-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "templates",
+      "category": "communications",
+      "file": "icons/communications/templates.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "templates-tile",
+      "category": "communications",
+      "file": "icons/communications/templates-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "inbox",
+      "category": "communications",
+      "file": "icons/communications/inbox.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "inbox-tile",
+      "category": "communications",
+      "file": "icons/communications/inbox-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "send",
+      "category": "communications",
+      "file": "icons/communications/send.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "send-tile",
+      "category": "communications",
+      "file": "icons/communications/send-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "draft",
+      "category": "communications",
+      "file": "icons/communications/draft.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "draft-tile",
+      "category": "communications",
+      "file": "icons/communications/draft-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "sequence",
+      "category": "communications",
+      "file": "icons/communications/sequence.svg",
+      "accent": "#4A90E2",
+      "style": "outline"
+    },
+    {
+      "name": "sequence-tile",
+      "category": "communications",
+      "file": "icons/communications/sequence-tile.svg",
+      "accent": "#4A90E2",
+      "style": "tile"
+    },
+    {
+      "name": "steward-paths",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/steward-paths.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "steward-paths-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/steward-paths-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "path-library",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/path-library.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "path-library-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/path-library-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "builder",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/builder.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "builder-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/builder-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "enrollments",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/enrollments.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "enrollments-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/enrollments-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "activity",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/activity.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "activity-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/activity-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "automation",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/automation.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "automation-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/automation-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "trigger",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/trigger.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "trigger-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/trigger-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "branch",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/branch.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "branch-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/branch-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "delay",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/delay.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "delay-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/delay-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "exit-goal",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/exit-goal.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "exit-goal-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/exit-goal-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "validation",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/validation.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "validation-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/validation-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "publish",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/publish.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "publish-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/publish-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "archive",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/archive.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "archive-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/archive-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "import",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/import.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "import-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/import-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "export",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/export.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "export-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/export-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "template",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/template.svg",
+      "accent": "#006B3F",
+      "style": "outline"
+    },
+    {
+      "name": "template-tile",
+      "category": "steward-paths",
+      "file": "icons/steward-paths/template-tile.svg",
+      "accent": "#006B3F",
+      "style": "tile"
+    },
+    {
+      "name": "first-time-donor",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/first-time-donor.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "first-time-donor-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/first-time-donor-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "lapsed-donor",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/lapsed-donor.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "lapsed-donor-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/lapsed-donor-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "major-gift",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/major-gift.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "major-gift-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/major-gift-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "monthly-donor",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/monthly-donor.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "monthly-donor-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/monthly-donor-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "gift-received",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/gift-received.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "gift-received-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/gift-received-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "event-attended",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/event-attended.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "event-attended-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/event-attended-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "send-email",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/send-email.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "send-email-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/send-email-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "generate-letter",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/generate-letter.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "generate-letter-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/generate-letter-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "create-task",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/create-task.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "create-task-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/create-task-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "update-donor",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/update-donor.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "update-donor-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/update-donor-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "add-tag",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/add-tag.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "add-tag-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/add-tag-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "remove-tag",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/remove-tag.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "remove-tag-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/remove-tag-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "notify-staff",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/notify-staff.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "notify-staff-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/notify-staff-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "assign-owner",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/assign-owner.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "assign-owner-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/assign-owner-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "create-note",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/create-note.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "create-note-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/create-note-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "call-reminder",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/call-reminder.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "call-reminder-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/call-reminder-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "segment",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/segment.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "segment-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/segment-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "condition-check",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/condition-check.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "condition-check-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/condition-check-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "split-path",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/split-path.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "split-path-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/split-path-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "merge-path",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/merge-path.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "merge-path-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/merge-path-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "limit-frequency",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/limit-frequency.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "limit-frequency-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/limit-frequency-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "mark-complete",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/mark-complete.svg",
+      "accent": "#8B5CF6",
+      "style": "outline"
+    },
+    {
+      "name": "mark-complete-tile",
+      "category": "automation-nodes",
+      "file": "icons/automation-nodes/mark-complete-tile.svg",
+      "accent": "#8B5CF6",
+      "style": "tile"
+    },
+    {
+      "name": "steward-paths-special",
+      "category": "special",
+      "file": "icons/special/steward-paths-special.svg",
+      "accent": "#006B3F",
+      "style": "special"
+    },
+    {
+      "name": "steward-paths-special-16",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-16.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    },
+    {
+      "name": "steward-paths-special-24",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-24.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    },
+    {
+      "name": "steward-paths-special-32",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-32.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    },
+    {
+      "name": "steward-paths-special-48",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-48.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    },
+    {
+      "name": "steward-paths-special-64",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-64.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    },
+    {
+      "name": "steward-paths-special-128",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-128.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    },
+    {
+      "name": "steward-paths-special-256",
+      "category": "special",
+      "file": "icons/special/steward-paths-special-256.svg",
+      "accent": "#006B3F",
+      "style": "special-size"
+    }
+  ]
+}

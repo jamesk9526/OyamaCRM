@@ -14,7 +14,7 @@ beforeAll(async () => {
 });
 
 describe("steward paths api", () => {
-  it("supports duplicate/share/test-run/history operations for one template", async () => {
+  it("supports duplicate/share/playground operations without production writes", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
 
     const created = await request(app)
@@ -56,12 +56,82 @@ describe("steward paths api", () => {
     expect(Array.isArray(duplicate.body.steps)).toBe(true);
     expect(duplicate.body.steps.length).toBeGreaterThan(0);
 
+    const enrollmentsBefore = await request(app)
+      .get(`/api/steward-paths/enrollments?pathId=${encodeURIComponent(pathId)}`)
+      .set(auth);
+    expect(enrollmentsBefore.status).toBe(200);
+
+    const historyBefore = await request(app)
+      .get(`/api/steward-paths/templates/${pathId}/history`)
+      .set(auth);
+    expect(historyBefore.status).toBe(200);
+    expect(Array.isArray(historyBefore.body.items)).toBe(true);
+    const historyBeforeCount = (historyBefore.body.items as Array<unknown>).length;
+
+    const scenarios = await request(app)
+      .get(`/api/steward-paths/${pathId}/playground/scenarios?constituentId=con_01`)
+      .set(auth);
+    expect(scenarios.status).toBe(200);
+    expect(scenarios.body.isSandbox).toBe(true);
+    expect(Array.isArray(scenarios.body.scenarios)).toBe(true);
+    expect(scenarios.body.scenarios.length).toBeGreaterThan(0);
+
+    const run = await request(app)
+      .post(`/api/steward-paths/${pathId}/playground/run`)
+      .set(auth)
+      .send({
+        constituentId: "con_01",
+        scenarioId: scenarios.body.scenarios[0]?.id,
+        options: {
+          skipDelays: true,
+          testEmail: "qa@example.org",
+        },
+      });
+    expect(run.status).toBe(201);
+    expect(run.body.isSandbox).toBe(true);
+    expect(typeof run.body.runId).toBe("string");
+
+    const stepped = await request(app)
+      .post(`/api/steward-paths/${pathId}/playground/step`)
+      .set(auth)
+      .send({ runId: run.body.runId, action: "auto" });
+    expect(stepped.status).toBe(200);
+    expect(stepped.body.status).toBe("completed");
+
+    const runSnapshot = await request(app)
+      .get(`/api/steward-paths/${pathId}/playground/runs/${encodeURIComponent(run.body.runId as string)}`)
+      .set(auth);
+    expect(runSnapshot.status).toBe(200);
+    expect(runSnapshot.body.runId).toBe(run.body.runId);
+
+    const runActivity = await request(app)
+      .get(`/api/steward-paths/${pathId}/playground/runs/${encodeURIComponent(run.body.runId as string)}/activity`)
+      .set(auth);
+    expect(runActivity.status).toBe(200);
+    expect(runActivity.body.isSandbox).toBe(true);
+    expect(Array.isArray(runActivity.body.items)).toBe(true);
+
+    const sandboxEmails = await request(app)
+      .post(`/api/steward-paths/${pathId}/playground/send-test-email`)
+      .set(auth)
+      .send({ runId: run.body.runId, testEmail: "qa@example.org" });
+    expect(sandboxEmails.status).toBe(200);
+    expect(sandboxEmails.body.isSandbox).toBe(true);
+    expect(sandboxEmails.body.analyticsTracked).toBe(false);
+
     const testRun = await request(app)
       .post(`/api/steward-paths/templates/${pathId}/test-run`)
       .set(auth)
       .send({ constituentId: "con_01" });
     expect(testRun.status).toBe(201);
     expect(testRun.body.success).toBe(true);
+    expect(testRun.body.isSandbox).toBe(true);
+
+    const enrollmentsAfter = await request(app)
+      .get(`/api/steward-paths/enrollments?pathId=${encodeURIComponent(pathId)}`)
+      .set(auth);
+    expect(enrollmentsAfter.status).toBe(200);
+    expect((enrollmentsAfter.body as Array<unknown>).length).toBe((enrollmentsBefore.body as Array<unknown>).length);
 
     const history = await request(app)
       .get(`/api/steward-paths/templates/${pathId}/history`)
@@ -69,6 +139,7 @@ describe("steward paths api", () => {
     expect(history.status).toBe(200);
     expect(history.body.pathId).toBe(pathId);
     expect(Array.isArray(history.body.items)).toBe(true);
+    expect((history.body.items as Array<unknown>).length).toBe(historyBeforeCount);
 
     const archived = await request(app)
       .delete(`/api/steward-paths/templates/${pathId}`)

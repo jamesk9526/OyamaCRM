@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Enrollments</title>
+  <desc id="desc">Enrollments icon in the Oyama CRM advanced icon pack</desc>
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><path d="M8 38c1.4-6.5 5.5-9 9-9s7.6 2.5 9 9"/><path d="M32 14v12M26 20h12"/>
+  </g>
+</svg>

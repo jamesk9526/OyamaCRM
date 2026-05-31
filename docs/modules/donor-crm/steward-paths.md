@@ -1,16 +1,35 @@
 # DonorCRM Steward Paths
 
-Last updated: 2026-05-13
+Last updated: 2026-05-30
 
 ## Purpose
 
 Steward Paths is the DonorCRM orchestration workspace for sequenced donor follow-up. It creates and advances tasks, letters, and communication drafts while keeping draft-first and review-first safety defaults.
+
+## Workspace standard (current direction)
+
+Steward Paths is a dedicated workspace and should not be implemented as scattered mini-flows across unrelated pages.
+
+Required workflow direction:
+
+1. Path list and status triage
+2. Builder/editing workspace
+3. Validation and safety review
+4. Activation/publish actions
+5. Run history and activity analysis
+
+Legacy duplicate operations should be redirected into canonical Steward Paths routes as parity is confirmed.
 
 ## Canonical Routes
 
 - `/steward-paths` — saved visual paths list with operations
 - `/steward-paths/builder` — create a new visual path
 - `/steward-paths/builder/:id` — edit an existing path
+- `/steward-paths/enrollments` — live enrollment queue and status operations
+- `/steward-paths/review` — review queue for draft/paused workflows and activation decisions
+- `/steward-paths/activity` — recent path activity with direct timeline jump links
+- `/steward-paths/analytics` — path/enrollment metrics and distribution analytics
+- `/steward-paths/settings` — processing and migration operations
 - `/steward-paths/:id` — detail route (currently redirects to history)
 - `/steward-paths/:id/history` — path timeline and run history
 
@@ -75,8 +94,15 @@ Current mapping highlights:
 
 ## Current Parity Status
 
-- Working: canonical list routing, builder-by-id route, history route, share/duplicate/test-run/archive operations, migration endpoint.
+- Working: dedicated Steward Paths shell at `/steward-paths/*`, canonical list routing, builder-by-id route, enrollments route, review queue route, activity route, analytics route, settings route, history route, share/duplicate/test-run/archive operations, migration endpoint.
 - Partially Working: inspector parity for linked campaign/template selectors and open-in-email-builder shortcuts.
+
+## V2 guardrails
+
+- Keep the builder and runtime workflow one-direction and deterministic.
+- Do not expose fake metrics, fake run history, or non-functional activation controls.
+- Activation remains review-first and must respect communication preferences and permission boundaries.
+- Route ownership remains in `/steward-paths/*`; legacy `/automations` behavior is compatibility-only.
 
 ## Safety Defaults
 

@@ -4,8 +4,9 @@ Last updated: 2026-05-14
 
 ## Purpose
 
-This document describes the shared workspace-ribbon system used in parts of OyamaCRM.
-It is reference material for pages that adopt that pattern, not a requirement that every workspace use the same layout.
+This document defines the required workspace model for new major product surfaces and for major workspace refactors.
+
+It is not just visual reference material. It is the architecture contract for dedicated workspaces and one-direction user flow.
 
 Hierarchy:
 
@@ -15,6 +16,26 @@ Hierarchy:
 4. Contextual inspector only when editing detail (drawer/panel, not permanent nav)
 
 When used, this system applies inside page content and does not replace the global sidebar.
+
+## Mandatory workspace standards
+
+All new major workspaces (and major rewrites of existing workspaces) must follow these rules:
+
+1. Dedicated workspace ownership
+	- One canonical route family per major tool.
+	- Clear workspace shell identity (sidebar/topbar/action model) appropriate to that module.
+	- Cross-module access should deep-link into canonical routes, not duplicate local variants.
+2. One-direction workflow
+	- Primary path should move forward: list/overview -> build/edit -> review/validate -> publish/activate -> activity/history.
+	- Avoid competing parallel flows for the same operation.
+3. Functional-only UI
+	- No fake lists, fake counters, or fake chart points in production-facing surfaces.
+	- No dead controls that appear available without explicit not-implemented messaging.
+4. Legacy transition discipline
+	- Keep compatibility redirects/wrappers while parity is being proven.
+	- Remove duplicate legacy surfaces only after feature/safety parity and validation evidence.
+
+Status labels across all workspace documentation must remain: Working, Partially Working, Demo Only, Broken, Not Implemented.
 
 ## Core Components
 
@@ -97,6 +118,13 @@ Suggested next candidates:
 - Compassion client workspace tabs
 - Data Tools importer
 - Settings subsections
+
+Mandatory evidence for a major workspace rollout:
+
+- Route inventory (canonical + redirect compatibility map)
+- API boundary list for live data behavior
+- Safety defaults check (draft-first/review-first where applicable)
+- Validation proof (typecheck/build/tests relevant to changed scope)
 
 ## Accessibility and Responsiveness
 

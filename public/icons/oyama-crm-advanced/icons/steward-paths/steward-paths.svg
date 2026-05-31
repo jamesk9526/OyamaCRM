@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Steward Paths</title>
+  <desc id="desc">Steward Paths icon in the Oyama CRM advanced icon pack</desc>
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V20"/><path d="M24 20c-6 0-10-3.8-10-9 6 0 10 3.8 10 9z"/><path d="M24 20c6 0 10-3.8 10-9-6 0-10 3.8-10 9z"/><circle cx="14" cy="36" r="4"/><circle cx="34" cy="36" r="4"/><path d="M24 28c-5 0-10 2-10 8M24 28c5 0 10 2 10 8"/>
+  </g>
+</svg>

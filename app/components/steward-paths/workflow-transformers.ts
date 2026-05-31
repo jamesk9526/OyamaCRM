@@ -9,6 +9,7 @@ import type {
   WorkflowDocumentStatus,
   WorkflowNode,
   WorkflowBranchNode,
+  WorkflowBranchConditionGroup,
 } from "./workflow-types";
 import { isBranchNode } from "./workflow-types";
 
@@ -316,6 +317,18 @@ function actionNodeToStep(node: WorkflowNode): Omit<BackendStewardPathStepInput,
         isRequired: true,
         isActive: true,
       };
+    case "donor.set_retention_stage":
+      return {
+        name: node.title,
+        description: node.note ?? null,
+        stepType: "STATUS_CHANGE",
+        configJson: {
+          targetField: "retentionStage",
+          value: typeof node.config.value === "string" ? node.config.value : "AT_RISK",
+        },
+        isRequired: true,
+        isActive: true,
+      };
     case "donor.add_tag":
       return {
         name: node.title,
@@ -369,6 +382,8 @@ function actionNodeToStep(node: WorkflowNode): Omit<BackendStewardPathStepInput,
     case "task.assign_staff":
     case "task.wait_for_completion":
     case "task.escalate_overdue":
+    case "livecom.send_message":
+    case "livecom.wait_for_reply":
     case "email.add_to_sequence":
     case "email.wait_for_open":
     case "email.mark_failed":
@@ -376,6 +391,7 @@ function actionNodeToStep(node: WorkflowNode): Omit<BackendStewardPathStepInput,
     case "logic.donation_amount_condition":
     case "logic.communication_preference_condition":
     case "logic.email_engagement_condition":
+    case "logic.retention_risk_condition":
     case "safety.notify_staff":
     case "safety.stop_enrollment":
       return {
@@ -388,6 +404,23 @@ function actionNodeToStep(node: WorkflowNode): Omit<BackendStewardPathStepInput,
             ? node.config.instruction
             : node.note || node.title,
           ...node.config,
+        },
+        isRequired: true,
+        isActive: true,
+      };
+    case "livecom.route_to_staff":
+      return {
+        name: node.title,
+        description: node.note ?? null,
+        stepType: "CREATE_TASK",
+        configJson: {
+          command: "livecom.route_to_staff",
+          title: typeof node.config.title === "string" && node.config.title.trim()
+            ? node.config.title
+            : "Follow up LiveCom conversation",
+          assignee: readString(node.config, "assignee", "Stewardship Team"),
+          priority: readString(node.config, "priority", "MEDIUM"),
+          instruction: readString(node.config, "instruction", "Route this LiveCom conversation to staff."),
         },
         isRequired: true,
         isActive: true,
@@ -512,18 +545,25 @@ function pushBranchStep(
   condition: Record<string, unknown>,
   whenTrueLabel: string | null,
   whenFalseLabel: string | null,
+  builderMeta?: Record<string, unknown>,
 ) {
+  const configJson: Record<string, unknown> = {
+    condition,
+    whenTrueAdvanceToLabel: whenTrueLabel,
+    whenFalseAdvanceToLabel: whenFalseLabel,
+  };
+
+  if (builderMeta && Object.keys(builderMeta).length > 0) {
+    configJson.builderMeta = builderMeta;
+  }
+
   steps.push({
     label,
     step: {
       name,
       description,
       stepType: "BRANCH_PLACEHOLDER",
-      configJson: {
-        condition,
-        whenTrueAdvanceToLabel: whenTrueLabel,
-        whenFalseAdvanceToLabel: whenFalseLabel,
-      },
+      configJson,
       isRequired: true,
       isActive: true,
     },
@@ -567,6 +607,7 @@ function compileNodeChain(
 
     const nonFallback = node.lanes.filter((lane) => !lane.isFallback);
     const fallbackLane = node.lanes.find((lane) => lane.isFallback) ?? null;
+    const branchGroupKey = `branch:${node.id}`;
 
     for (let laneIndex = 0; laneIndex < nonFallback.length; laneIndex += 1) {
       const lane = nonFallback[laneIndex];
@@ -576,15 +617,23 @@ function compileNodeChain(
       const nextCheckLabel = laneIndex < nonFallback.length - 1
         ? `node:${node.id}:check:${laneIndex + 1}`
         : (fallbackLane && fallbackLane.nodeIds.length > 0 ? `node:${fallbackLane.nodeIds[0]}` : nextLabel);
+      const laneCondition = buildLaneCondition(node, node.lanes.findIndex((candidate) => candidate.id === lane.id));
 
       pushBranchStep(
         steps,
         checkLabel,
         `${node.title} - ${lane.label}`,
         node.note ?? null,
-        buildLaneCondition(node, node.lanes.findIndex((candidate) => candidate.id === lane.id)),
+        laneCondition,
         laneStartLabel,
         nextCheckLabel,
+        {
+          groupKey: branchGroupKey,
+          title: node.title,
+          laneLabel: lane.label,
+          laneIndex,
+          fallbackLabel: fallbackLane?.label ?? "Otherwise",
+        },
       );
 
       if (lane.nodeIds.length > 0) {
@@ -677,21 +726,56 @@ function kindFromBackendStep(step: BackendStewardPathTemplateResponse["steps"][n
   switch (step.stepType) {
     case "DELAY":
       return "timing.delay";
-    case "CREATE_TASK":
+    case "CREATE_TASK": {
+      const command = typeof step.configJson?.command === "string" ? step.configJson.command : "";
+      if (command === "livecom.route_to_staff") return "livecom.route_to_staff";
       return "task.create";
+    }
     case "GENERATE_LETTER":
       return "print.generate_letter";
-    case "DRAFT_EMAIL":
-    case "SEND_EMAIL":
+    case "DRAFT_EMAIL": {
+      if (step.configJson?.waitForReview === true || step.configJson?.requireApprovalBeforeSend === true) {
+        return "email.send_review_request";
+      }
       return "email.create_draft";
-    case "INTERNAL_NOTE":
+    }
+    case "SEND_EMAIL":
+      return "email.schedule_blast";
+    case "INTERNAL_NOTE": {
+      const operation = typeof step.configJson?.operation === "string" ? step.configJson.operation : "";
+      if (operation === "add_tag") return "donor.add_tag";
+      if (operation === "remove_tag") return "donor.remove_tag";
+      if (operation === "add_to_print_queue") return "print.add_to_print_queue";
+      if (operation === "require_print_approval") return "print.require_print_approval";
+      if (operation === "mark_printed") return "print.mark_printed";
+      if (operation === "add_to_mail_queue") return "print.add_to_mail_queue";
+      if (operation === "mark_mailed") return "print.mark_mailed";
       return "donor.add_note";
+    }
     case "STATUS_CHANGE": {
       const targetField = typeof step.configJson?.targetField === "string" ? step.configJson.targetField : "";
+      if (targetField === "retentionStage") return "donor.set_retention_stage";
       return targetField === "engagementScore" ? "donor.adjust_engagement_score" : "donor.update_status";
     }
-    case "MANUAL_ACTION":
+    case "MANUAL_ACTION": {
+      const command = typeof step.configJson?.command === "string" ? step.configJson.command : "";
+      if (command === "task.assign_staff") return "task.assign_staff";
+      if (command === "task.wait_for_completion") return "task.wait_for_completion";
+      if (command === "task.escalate_overdue") return "task.escalate_overdue";
+      if (command === "livecom.send_message") return "livecom.send_message";
+      if (command === "livecom.wait_for_reply") return "livecom.wait_for_reply";
+      if (command === "email.add_to_sequence") return "email.add_to_sequence";
+      if (command === "email.wait_for_open") return "email.wait_for_open";
+      if (command === "email.mark_failed") return "email.mark_failed";
+      if (command === "logic.segment_condition") return "logic.segment_condition";
+      if (command === "logic.donation_amount_condition") return "logic.donation_amount_condition";
+      if (command === "logic.communication_preference_condition") return "logic.communication_preference_condition";
+      if (command === "logic.email_engagement_condition") return "logic.email_engagement_condition";
+      if (command === "logic.retention_risk_condition") return "logic.retention_risk_condition";
+      if (command === "safety.notify_staff") return "safety.notify_staff";
+      if (command === "safety.stop_enrollment") return "safety.stop_enrollment";
       return "safety.require_human_approval";
+    }
     case "BRANCH_PLACEHOLDER":
     default:
       return "logic.if_else";
@@ -710,8 +794,133 @@ function branchKindFromField(field: string): string {
   if (field === "doNotEmail" || field === "emailOptOut" || field === "doNotMail" || field === "doNotCall" || field === "doNotContact") {
     return "logic.communication_preference_condition";
   }
+  if (field === "retentionRiskScore") return "logic.retention_risk_condition";
   if (field === "engagementScore") return "logic.email_engagement_condition";
   return "logic.if_else";
+}
+
+/** Normalizes one branch condition value into text stored by builder forms. */
+function toConditionText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+/** Returns one safe config object from a backend step row. */
+function stepConfig(step: BackendStewardPathTemplateResponse["steps"][number]): Record<string, unknown> {
+  if (step.configJson && typeof step.configJson === "object" && !Array.isArray(step.configJson)) {
+    return step.configJson as Record<string, unknown>;
+  }
+  return {};
+}
+
+/** Reads optional builder-only metadata embedded in branch placeholder config. */
+function stepBuilderMeta(step: BackendStewardPathTemplateResponse["steps"][number]): Record<string, unknown> | null {
+  const config = stepConfig(step);
+  const meta = config.builderMeta;
+  if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+    return meta as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** Splits names emitted as `Branch title - Lane label` by the export compiler. */
+function parseBranchLaneName(name: string): { branchTitle: string; laneLabel: string } | null {
+  const splitAt = name.lastIndexOf(" - ");
+  if (splitAt <= 0 || splitAt >= name.length - 3) {
+    return null;
+  }
+  const branchTitle = name.slice(0, splitAt).trim();
+  const laneLabel = name.slice(splitAt + 3).trim();
+  if (!branchTitle || !laneLabel) return null;
+  return { branchTitle, laneLabel };
+}
+
+/** Converts one backend `condition` object into a builder lane condition group. */
+function conditionToGroup(
+  condition: Record<string, unknown> | null,
+  idFactory: () => string,
+): WorkflowBranchConditionGroup {
+  if (!condition) {
+    return { id: idFactory(), operator: "eq", value: "" };
+  }
+
+  const rawOperator = typeof condition.operator === "string" ? condition.operator : "eq";
+  if (rawOperator === "between") {
+    return {
+      id: idFactory(),
+      operator: "between",
+      value: toConditionText(condition.value),
+      valueTo: toConditionText(condition.valueTo ?? condition.value),
+    };
+  }
+
+  if (rawOperator === "in" || rawOperator === "not_in") {
+    const rawValues = Array.isArray(condition.value)
+      ? condition.value
+      : condition.value === undefined || condition.value === null
+        ? []
+        : [condition.value];
+
+    return {
+      id: idFactory(),
+      operator: rawOperator,
+      value: rawValues.map((value) => toConditionText(value)).filter(Boolean).join(", "),
+    };
+  }
+
+  return {
+    id: idFactory(),
+    operator: rawOperator as WorkflowBranchConditionGroup["operator"],
+    value: toConditionText(condition.value),
+  };
+}
+
+/** Rebuilds one multi-lane branch node from contiguous branch placeholder rows. */
+function mergedBranchNodeFromSteps(
+  steps: Array<BackendStewardPathTemplateResponse["steps"][number]>,
+  idFactory: () => string,
+): WorkflowBranchNode {
+  const first = steps[0];
+  const firstMeta = stepBuilderMeta(first) ?? {};
+  const parsedFirst = parseBranchLaneName(first.name || "");
+
+  const title = readString(firstMeta, "title", parsedFirst?.branchTitle || first.name || "Conditional Branch");
+  const fallbackLabel = readString(firstMeta, "fallbackLabel", "Otherwise");
+
+  let field = "lastGiftAmount";
+  const lanes = steps.map((step, index) => {
+    const config = stepConfig(step);
+    const meta = stepBuilderMeta(step) ?? {};
+    const condition = config.condition && typeof config.condition === "object" && !Array.isArray(config.condition)
+      ? (config.condition as Record<string, unknown>)
+      : null;
+
+    if (condition && typeof condition.field === "string" && condition.field.trim()) {
+      field = condition.field.trim();
+    }
+
+    const parsed = parseBranchLaneName(step.name || "");
+    const laneLabel = readString(meta, "laneLabel", parsed?.laneLabel || `Path ${index + 1}`);
+
+    return {
+      ...createBranchLane(idFactory, laneLabel, { includeDefaultCondition: false }),
+      conditionGroups: [conditionToGroup(condition, idFactory)],
+    };
+  });
+
+  lanes.push(createBranchLane(idFactory, fallbackLabel, { isFallback: true, includeDefaultCondition: false }));
+
+  return {
+    id: first.id,
+    nodeType: "branch",
+    kind: branchKindFromField(field),
+    title,
+    note: first.description ?? undefined,
+    statusLabel: "Draft",
+    config: { field },
+    lanes,
+  };
 }
 
 /** Builds a branch node shape from one backend BRANCH_PLACEHOLDER step. */
@@ -719,23 +928,38 @@ function branchNodeFromStep(
   step: BackendStewardPathTemplateResponse["steps"][number],
   idFactory: () => string,
 ): WorkflowBranchNode {
-  const config = step.configJson ?? {};
-  const field = typeof config.field === "string" ? config.field : "lastGiftAmount";
+  const config = stepConfig(step);
+  const meta = stepBuilderMeta(step) ?? {};
+  const condition = config.condition && typeof config.condition === "object" && !Array.isArray(config.condition)
+    ? (config.condition as Record<string, unknown>)
+    : null;
+  const parsed = parseBranchLaneName(step.name || "");
+
+  const field = condition && typeof condition.field === "string" && condition.field.trim()
+    ? condition.field.trim()
+    : (typeof config.field === "string" && config.field.trim() ? config.field.trim() : "lastGiftAmount");
   const branchKind = branchKindFromField(field);
+
+  const trueLabel = readString(meta, "laneLabel", parsed?.laneLabel || "True");
+  const falseLabel = readString(meta, "fallbackLabel", "False");
+  const title = readString(meta, "title", parsed?.branchTitle || step.name || labelFromKind(branchKind));
+
   return {
     id: step.id,
     nodeType: "branch",
     kind: branchKind,
-    title: step.name || labelFromKind(branchKind),
+    title,
     note: step.description ?? undefined,
     statusLabel: "Draft",
     config: {
       field,
-      ...config,
     },
     lanes: [
-      createBranchLane(idFactory, "True", { includeDefaultCondition: true }),
-      createBranchLane(idFactory, "False", { includeDefaultCondition: false, isFallback: true }),
+      {
+        ...createBranchLane(idFactory, trueLabel, { includeDefaultCondition: false }),
+        conditionGroups: [conditionToGroup(condition, idFactory)],
+      },
+      createBranchLane(idFactory, falseLabel, { includeDefaultCondition: false, isFallback: true }),
     ],
   };
 }
@@ -765,9 +989,48 @@ export function fromBackendTemplate(
     .filter((step) => step.isActive !== false)
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
-  for (const step of orderedSteps) {
+  for (let stepIndex = 0; stepIndex < orderedSteps.length; stepIndex += 1) {
+    const step = orderedSteps[stepIndex];
     const kind = kindFromBackendStep(step);
     if (step.stepType === "BRANCH_PLACEHOLDER") {
+      const firstMeta = stepBuilderMeta(step) ?? {};
+      const groupKey = readString(firstMeta, "groupKey");
+      const parsedFirst = parseBranchLaneName(step.name || "");
+
+      const groupedSteps = [step];
+      let cursor = stepIndex + 1;
+      while (cursor < orderedSteps.length) {
+        const candidate = orderedSteps[cursor];
+        if (candidate.stepType !== "BRANCH_PLACEHOLDER") break;
+
+        const candidateMeta = stepBuilderMeta(candidate) ?? {};
+        const candidateGroupKey = readString(candidateMeta, "groupKey");
+        if (groupKey && candidateGroupKey === groupKey) {
+          groupedSteps.push(candidate);
+          cursor += 1;
+          continue;
+        }
+
+        if (!groupKey && parsedFirst) {
+          const parsedCandidate = parseBranchLaneName(candidate.name || "");
+          if (parsedCandidate && parsedCandidate.branchTitle === parsedFirst.branchTitle) {
+            groupedSteps.push(candidate);
+            cursor += 1;
+            continue;
+          }
+        }
+
+        break;
+      }
+
+      if (groupedSteps.length > 1) {
+        const mergedBranch = mergedBranchNodeFromSteps(groupedSteps, idFactory);
+        nodesById[mergedBranch.id] = mergedBranch;
+        rootNodeIds.push(mergedBranch.id);
+        stepIndex = cursor - 1;
+        continue;
+      }
+
       const branchNode = branchNodeFromStep(step, idFactory);
       nodesById[branchNode.id] = branchNode;
       rootNodeIds.push(branchNode.id);

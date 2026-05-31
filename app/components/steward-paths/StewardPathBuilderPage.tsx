@@ -10,7 +10,7 @@ import Link from "next/link";
 import ConstituentSearchCombobox from "./ConstituentSearchCombobox";
 import NodeInspector from "./NodeInspector";
 import NodePalette from "./NodePalette";
-import TestRunModal from "./TestRunModal";
+import StewardPathsPlaygroundModal from "./StewardPathsPlaygroundModal";
 import { PALETTE_ITEMS } from "./palette-catalog";
 import WorkflowCanvas from "./WorkflowCanvas";
 import { describeInsertTarget } from "./workflow-layout";
@@ -200,6 +200,8 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   const [testConstituentId, setTestConstituentId] = useState("");
   const [testDonorName, setTestDonorName] = useState("");
   const [showTestModal, setShowTestModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 
   const supportReport = useMemo(() => analyzeWorkflowSupport(doc), [doc]);
   const contentSignature = useMemo(() => workflowContentSignature(doc), [doc]);
@@ -210,6 +212,13 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
     () => (selectedNodeId ? doc.nodesById[selectedNodeId] ?? null : null),
     [doc.nodesById, selectedNodeId],
   );
+  const saveStatusMessage = saveMode === "auto"
+    ? "Saving..."
+    : saveMode === "manual"
+      ? "Saving..."
+      : hasUnsavedChanges
+        ? "Unsaved changes"
+        : `Saved ${doc.persistence.lastSavedAt ? formatSavedAt(doc.persistence.lastSavedAt) : "not yet"}`;
 
   /** Persists the current linear workflow to steward-paths APIs and returns template id. */
   const persistLinearWorkflow = useCallback(async (silent = false): Promise<string | null> => {
@@ -557,38 +566,138 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
     ));
   }, []);
 
+  /** Runs non-destructive validation and surfaces the first actionable result. */
+  const validateWorkflow = useCallback(() => {
+    if (supportReport.canSaveLinear) {
+      setFeedbackMessage("Validation passed. Workflow is save-ready.");
+      return;
+    }
+    setFeedbackMessage(supportReport.reasons[0] ?? "Validation failed. Resolve workflow issues before saving.");
+  }, [supportReport.canSaveLinear, supportReport.reasons]);
+
+  /** Opens run history in a modal and refreshes history data for this template. */
+  const openHistoryModal = useCallback(() => {
+    setShowHistoryModal(true);
+
+    if (!doc.persistence.templateId) {
+      setHistoryItems([]);
+      setHistoryError("Save this workflow first to load run history.");
+      return;
+    }
+
+    setHistoryLoading(true);
+    setHistoryError(null);
+    void apiFetch<StewardPathHistoryResponse>(`/api/steward-paths/templates/${doc.persistence.templateId}/history?limit=40`)
+      .then((response) => {
+        setHistoryItems(response.items ?? []);
+      })
+      .catch((error) => {
+        setHistoryError(error instanceof Error ? error.message : "Failed to load workflow history.");
+      })
+      .finally(() => {
+        setHistoryLoading(false);
+      });
+  }, [doc.persistence.templateId]);
+
+  const historyContent = historyLoading ? (
+    <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">Loading…</p>
+  ) : historyError ? (
+    <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{historyError}</p>
+  ) : historyItems.length === 0 ? (
+    <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">No history events yet for this path.</p>
+  ) : (
+    <div className="space-y-2">
+      {historyItems.map((item) => (
+        <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-semibold text-slate-800">{item.eventType}</span>
+            <span className="text-slate-400">{new Date(item.createdAt).toLocaleString()}</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-700">{item.message || "No message"}</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">Enrollment: {item.enrollmentId}</p>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="flex h-screen min-w-0 flex-col bg-white text-slate-950">
-      <header className="shrink-0 border-b border-slate-200 bg-white px-6 py-5">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="truncate text-[22px] font-semibold tracking-tight text-slate-950">Steward Automation Paths</h1>
-            <p className="mt-1 text-sm text-slate-500">Build automated donor journeys that cultivate relationships and drive impact.</p>
+    <div className="flex h-full min-w-0 flex-col bg-white text-slate-950">
+      <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Link href="/steward-paths" className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+              <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 12 6 8l4-4" />
+              </svg>
+              Back to Paths
+            </Link>
+
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <input
+                  type="text"
+                  value={doc.pathName}
+                  onChange={(event) => setDoc((prev) => ({ ...prev, pathName: event.target.value }))}
+                  className="min-w-0 max-w-[24rem] truncate border-b border-transparent bg-transparent px-1 text-lg font-semibold text-slate-950 outline-none transition focus:border-slate-400"
+                />
+                <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  doc.status === "active"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : doc.status === "archived"
+                      ? "bg-slate-100 text-slate-600"
+                      : doc.status === "test-mode"
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-slate-100 text-slate-600"
+                }`}>
+                  {doc.status === "active" ? "Active" : doc.status === "archived" ? "Archived" : doc.status === "test-mode" ? "Test" : "Draft"}
+                </span>
+              </div>
+              <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  <span className={`h-1.5 w-1.5 rounded-full ${hasUnsavedChanges ? "bg-amber-500" : "bg-emerald-500"}`} />
+                  {saveStatusMessage}
+                </span>
+                {!autosaveEnabled ? <span className="rounded-full bg-slate-100 px-2 py-0.5">Autosave off</span> : null}
+                {loadingTemplate ? <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700">Loading template...</span> : null}
+              </div>
+            </div>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
-              <svg className="h-4 w-4 text-slate-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                <circle cx="8" cy="8" r="6.5" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8.2 7 10l4-4" />
-              </svg>
-              {saveMode === "auto"
-                ? "Autosaving..."
-                : saveMode === "manual"
-                  ? "Saving..."
-                  : hasUnsavedChanges
-                    ? "Unsaved changes"
-                    : `Last saved ${doc.persistence.lastSavedAt ? formatSavedAt(doc.persistence.lastSavedAt) : "not yet"}`}
-            </span>
-            <label className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm">
-              <input
-                type="checkbox"
-                checked={autosaveEnabled}
-                onChange={(event) => setAutosaveEnabled(event.target.checked)}
-                className="rounded border-slate-300"
-              />
-              Autosave
-            </label>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <select
+              value={doc.activeTab}
+              onChange={(event) => setDoc((prev) => ({ ...prev, activeTab: event.target.value as WorkflowDocument["activeTab"] }))}
+              className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 shadow-sm"
+              aria-label="Builder view"
+            >
+              <option value="actions">Builder</option>
+              <option value="settings">Settings</option>
+              <option value="history">History</option>
+            </select>
+
+            <select
+              defaultValue="version-1"
+              className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 shadow-sm"
+              aria-label="Path version"
+            >
+              <option value="version-1">Version 1</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => setAutosaveEnabled((prev) => !prev)}
+              className={`inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold shadow-sm ${autosaveEnabled ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+            >
+              {autosaveEnabled ? "Autosave On" : "Autosave Off"}
+            </button>
+
+            <button
+              type="button"
+              onClick={validateWorkflow}
+              className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              Validate
+            </button>
 
             {showTestInput ? (
               <ConstituentSearchCombobox
@@ -607,23 +716,33 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
                 onClick={() => runTestEnrollment()}
                 disabled={busyAction !== null || !doc.persistence.templateId}
                 title={doc.persistence.templateId ? "Start one manual test enrollment" : "Save first to enable test"}
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path d="M5.5 3.5l7 4.5-7 4.5V3.5z" />
-                </svg>
-                {busyAction === "test" ? "Testing..." : "Test Workflow"}
+                Test Path
               </button>
             )}
+
+            {doc.persistence.templateId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTestInput(false);
+                  setShowTestModal(true);
+                }}
+                className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Playground
+              </button>
+            ) : null}
 
             <button
               type="button"
               onClick={() => void activateWorkflow()}
               disabled={busyAction !== null || !supportReport.canActivate}
               title={supportReport.canActivate ? "Publish and activate workflow" : (supportReport.reasons[0] ?? "Activation blocked")}
-              className="h-10 rounded-md bg-slate-950 px-8 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {busyAction === "activate" ? "Publishing..." : "Publish"}
+              {busyAction === "activate" ? "Publishing..." : "Publish Path"}
             </button>
 
             <button
@@ -631,99 +750,40 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               onClick={() => void saveDraft()}
               disabled={busyAction !== null}
               title="Save workflow (Ctrl+S)"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
             >
-              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 2.5h8l2 2v9H3v-11z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 2.5v4h5v-4M5 13v-3h6v3" />
-              </svg>
-              {busyAction === "save" ? "Saving..." : "Save Workflow"}
+              {busyAction === "save" ? "Saving..." : "Save"}
             </button>
+
+            {!isFullscreenCanvas && doc.activeTab === "actions" ? (
+              <button
+                type="button"
+                onClick={() => setInspectorCollapsed((prev) => !prev)}
+                className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                {inspectorCollapsed ? "Show Inspector" : "Hide Inspector"}
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
 
-      <div className="grid h-[62px] shrink-0 grid-cols-[minmax(12rem,1fr)_minmax(0,1.3fr)_minmax(12rem,1fr)] items-center border-b border-slate-200 bg-white px-6">
-        <Link href="/steward-paths" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-950">
-          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 12 6 8l4-4" />
-          </svg>
-          Back to Workflows
-        </Link>
-
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <input
-            type="text"
-            value={doc.pathName}
-            onChange={(event) => setDoc((prev) => ({ ...prev, pathName: event.target.value }))}
-            className="min-w-0 max-w-[22rem] truncate border-b border-transparent bg-transparent px-1 text-center text-base font-semibold text-slate-950 outline-none transition focus:border-slate-400"
-          />
-          <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-            doc.status === "active"
-              ? "bg-emerald-100 text-emerald-700"
-              : doc.status === "archived"
-                ? "bg-slate-100 text-slate-600"
-                : doc.status === "test-mode"
-                  ? "bg-indigo-100 text-indigo-700"
-                  : "bg-slate-100 text-slate-600"
-          }`}>
-            {doc.status === "active" ? "Active" : doc.status === "archived" ? "Archived" : doc.status === "test-mode" ? "Test" : "Draft"}
-          </span>
-          {loadingTemplate ? <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700">Loading</span> : null}
-        </div>
-
-        <div className="flex justify-end gap-5">
-          <button
-            type="button"
-            onClick={() => setDoc((prev) => ({ ...prev, activeTab: prev.activeTab === "settings" ? "actions" : "settings" }))}
-            className={`inline-flex items-center gap-2 text-sm font-medium transition ${doc.activeTab === "settings" ? "text-slate-950" : "text-slate-600 hover:text-slate-950"}`}
-          >
-            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <circle cx="8" cy="8" r="2.5" />
-              <path strokeLinecap="round" d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" />
-            </svg>
-            Settings
-          </button>
-          <button
-            type="button"
-            onClick={() => setDoc((prev) => ({ ...prev, activeTab: prev.activeTab === "history" ? "actions" : "history" }))}
-            className={`inline-flex items-center gap-2 text-sm font-medium transition ${doc.activeTab === "history" ? "text-slate-950" : "text-slate-600 hover:text-slate-950"}`}
-          >
-            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2 12l4-5 3 3 2.5-4 2.5 3" />
-            </svg>
-            Analytics
-          </button>
-          <button
-            type="button"
-            onClick={() => setDoc((prev) => resetCanvasLayout(prev))}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
-            title="Reset freely dragged node positions"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8a5 5 0 0 1 8.5-3.5L13 6M13 3v3h-3M13 8a5 5 0 0 1-8.5 3.5L3 10M3 13v-3h3" />
-            </svg>
-            Reset Layout
-          </button>
-        </div>
-      </div>
-
       {/* ── Feedback / warning banners ── */}
       {feedbackMessage && (
-        <div className="flex shrink-0 items-center justify-between border-b border-sky-200 bg-sky-50 px-6 py-1.5 text-xs text-sky-900">
+        <div className="flex shrink-0 items-center justify-between border-b border-sky-200 bg-sky-50 px-4 py-1 text-xs text-sky-900">
           <span>{feedbackMessage}</span>
           <button type="button" onClick={() => setFeedbackMessage(null)} className="ml-4 text-sky-500 hover:text-sky-800" aria-label="Dismiss">×</button>
         </div>
       )}
       {!supportReport.canSaveLinear && (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-6 py-1.5 text-xs text-amber-900">
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-1 text-xs text-amber-900">
           <span className="font-semibold">Save blocked: </span>
           {supportReport.reasons[0] ?? "Resolve workflow issues to enable save."}
         </div>
       )}
 
       {/* ── Three-panel body: palette | canvas/content | inspector ── */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {!isFullscreenCanvas && (
           <NodePalette onAdd={addNode} insertionTargetLabel={insertTargetLabel} />
         )}
@@ -735,6 +795,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             onSelect={(nodeId) => {
               setSelectedNodeId(nodeId);
               setInsertTarget({ kind: "after-node", nodeId });
+              setInspectorCollapsed(false);
             }}
             onMoveNode={moveNode}
             onRemove={deleteNode}
@@ -743,6 +804,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             onDropPaletteKind={handleDropPaletteKind}
             nodeOffsets={doc.canvasLayout.nodeOffsets}
             onNodeOffsetChange={moveNodeFreely}
+            onResetLayout={() => setDoc((prev) => resetCanvasLayout(prev))}
           />
         ) : doc.activeTab === "settings" ? (
           <div className="flex flex-1 overflow-auto bg-[#f8faf9] p-6">
@@ -799,12 +861,13 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
                   {busyAction === "save" ? "Saving..." : "Save Draft"}
                 </button>
                 {doc.persistence.templateId && (
-                  <Link
-                    href={`/steward-paths/${encodeURIComponent(doc.persistence.templateId)}/history`}
+                  <button
+                    type="button"
+                    onClick={openHistoryModal}
                     className="text-xs text-slate-500 hover:text-slate-700"
                   >
                     View run history →
-                  </Link>
+                  </button>
                 )}
               </div>
             </div>
@@ -826,31 +889,12 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
                   ← Back to canvas
                 </button>
               </div>
-              {historyLoading ? (
-                <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">Loading…</p>
-              ) : historyError ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{historyError}</p>
-              ) : historyItems.length === 0 ? (
-                <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">No history events yet for this path.</p>
-              ) : (
-                <div className="space-y-2">
-                  {historyItems.map((item) => (
-                    <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-slate-800">{item.eventType}</span>
-                        <span className="text-slate-400">{new Date(item.createdAt).toLocaleString()}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-700">{item.message || "No message"}</p>
-                      <p className="mt-0.5 text-[11px] text-slate-400">Enrollment: {item.enrollmentId}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {historyContent}
             </div>
           </div>
         )}
 
-        {!isFullscreenCanvas && (
+        {!isFullscreenCanvas && doc.activeTab === "actions" && !inspectorCollapsed && (
           <NodeInspector
             node={selectedNode}
             onChange={patchNode}
@@ -861,23 +905,93 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             onAddConditionGroup={appendConditionGroup}
             onRemoveConditionGroup={deleteConditionGroup}
             onUpdateConditionGroup={patchConditionGroup}
+            onDeleteNode={deleteNode}
             onClose={() => setSelectedNodeId(null)}
+            onCollapse={() => setInspectorCollapsed(true)}
           />
         )}
+
+        {!isFullscreenCanvas && doc.activeTab === "actions" && inspectorCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setInspectorCollapsed(false)}
+            className="absolute right-3 top-3 z-30 inline-flex h-8 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 3.5 10 8l-4.5 4.5" />
+            </svg>
+            Open Inspector
+          </button>
+        ) : null}
       </div>
+
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <button
+            type="button"
+            aria-label="Close run history modal"
+            onClick={() => setShowHistoryModal(false)}
+            className="absolute inset-0 bg-slate-950/45"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Workflow run history"
+            className="relative z-10 flex w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Run History</h3>
+                <p className="mt-0.5 text-xs text-slate-500">Timeline events for {doc.pathName || "this workflow"}.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+                aria-label="Close run history modal"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4 12 12M12 4 4 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="max-h-[65vh] overflow-y-auto px-5 py-4">
+              {historyContent}
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3">
+              {doc.persistence.templateId ? (
+                <Link
+                  href={`/steward-paths/${encodeURIComponent(doc.persistence.templateId)}/history`}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Open full history page →
+                </Link>
+              ) : <span />}
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Test Run Modal — visual dry-run simulation */}
       {showTestModal && (
-        <TestRunModal
-          doc={doc}
-          constituentId={testConstituentId}
-          donorName={testDonorName}
+        <StewardPathsPlaygroundModal
+          templateId={doc.persistence.templateId ?? ""}
+          pathName={doc.pathName}
+          initialConstituentId={testConstituentId}
+          initialDonorName={testDonorName}
           onClose={() => {
             setShowTestModal(false);
             setTestConstituentId("");
             setTestDonorName("");
             setDoc((prev) => ({ ...prev, status: "test-mode" }));
-            setFeedbackMessage(`Dry run complete for ${testDonorName || testConstituentId}.`);
+            setFeedbackMessage(`Playground run closed for ${testDonorName || testConstituentId}.`);
           }}
         />
       )}

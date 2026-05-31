@@ -28,6 +28,19 @@ interface WorkflowNodeLocation {
 /** Public container shape used by drag-and-drop relocation helpers. */
 export type WorkflowContainerRef = WorkflowNodeLocation["container"];
 
+const BRANCH_LANE_START_ANCHOR_PREFIX = "__branch_lane_start__";
+const BRANCH_LANE_END_ANCHOR_PREFIX = "__branch_lane_end__";
+
+/** Returns the DOM connector anchor id used above one branch lane card. */
+export function getBranchLaneStartAnchorId(laneId: string): string {
+  return `${BRANCH_LANE_START_ANCHOR_PREFIX}${laneId}`;
+}
+
+/** Returns the DOM connector anchor id used below one branch lane card. */
+export function getBranchLaneEndAnchorId(laneId: string): string {
+  return `${BRANCH_LANE_END_ANCHOR_PREFIX}${laneId}`;
+}
+
 /** Creates an empty workflow document with a persistence mode that supports linear saves. */
 export function createWorkflowDocument(idFactory: WorkflowIdFactory): WorkflowDocument {
   return {
@@ -80,7 +93,7 @@ export function createBranchLane(
  * Branch nodes get starter lanes so users can immediately see split paths.
  */
 export function createNodeFromPalette(item: NodePaletteItem, idFactory: WorkflowIdFactory): WorkflowNode {
-  if (item.kind === "logic.if_else" || item.kind === "logic.segment_condition" || item.kind === "logic.donation_amount_condition" || item.kind === "logic.communication_preference_condition" || item.kind === "logic.email_engagement_condition") {
+  if (item.kind === "logic.if_else" || item.kind === "logic.segment_condition" || item.kind === "logic.donation_amount_condition" || item.kind === "logic.communication_preference_condition" || item.kind === "logic.email_engagement_condition" || item.kind === "logic.retention_risk_condition") {
     if (item.kind === "logic.if_else") {
       return {
         id: idFactory(),
@@ -162,6 +175,30 @@ export function createNodeFromPalette(item: NodePaletteItem, idFactory: Workflow
             conditionGroups: [{ id: idFactory(), operator: "gte", value: "70" }],
           },
           createBranchLane(idFactory, "Low engagement", { isFallback: true, includeDefaultCondition: false }),
+        ],
+      };
+    }
+
+    if (item.kind === "logic.retention_risk_condition") {
+      return {
+        id: idFactory(),
+        nodeType: "branch",
+        kind: item.kind,
+        title: "Retention Risk Branch",
+        config: {
+          field: "retentionRiskScore",
+        },
+        statusLabel: "Draft",
+        lanes: [
+          {
+            ...createBranchLane(idFactory, "High risk", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "gte", value: "70" }],
+          },
+          {
+            ...createBranchLane(idFactory, "Medium risk", { includeDefaultCondition: false }),
+            conditionGroups: [{ id: idFactory(), operator: "between", value: "40", valueTo: "69" }],
+          },
+          createBranchLane(idFactory, "Low risk", { isFallback: true, includeDefaultCondition: false }),
         ],
       };
     }

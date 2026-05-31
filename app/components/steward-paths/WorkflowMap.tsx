@@ -29,6 +29,9 @@ interface WorkflowMapProps {
   isDragging?: boolean;
   nodeOffsets: Record<string, WorkflowNodeCanvasOffset>;
   onNodeOffsetChange: (nodeId: string, offset: WorkflowNodeCanvasOffset) => void;
+  laneOffsets: Record<string, WorkflowNodeCanvasOffset>;
+  onLaneOffsetChange: (laneId: string, offset: WorkflowNodeCanvasOffset) => void;
+  gridSize: number;
   numberPrefix?: string;
 }
 
@@ -48,6 +51,9 @@ export default function WorkflowMap({
   isDragging = false,
   nodeOffsets,
   onNodeOffsetChange,
+  laneOffsets,
+  onLaneOffsetChange,
+  gridSize,
   numberPrefix = "",
 }: WorkflowMapProps) {
   const containerRef: WorkflowContainerRef = container.kind === "root"
@@ -124,6 +130,7 @@ export default function WorkflowMap({
                   compact={compact}
                   freeOffset={nodeOffsets[node.id] ?? { x: 0, y: 0 }}
                   onFreeMove={onNodeOffsetChange}
+                  gridSize={gridSize}
                   onDragStartNode={() => {
                     onSelectNode(node.id);
                   }}
@@ -133,6 +140,11 @@ export default function WorkflowMap({
               {isBranchNode(node) && (
                 <BranchGroup
                   branchNode={node}
+                  selectedBranchNode={selectedNodeId === node.id}
+                  onSelectBranchNode={onSelectNode}
+                  laneOffsets={laneOffsets}
+                  onLaneOffsetChange={onLaneOffsetChange}
+                  gridSize={gridSize}
                   onAddToLaneStart={(laneId) => onInsertTarget({
                     kind: "branch-lane",
                     branchNodeId: node.id,
@@ -154,6 +166,9 @@ export default function WorkflowMap({
                       isDragging={isDragging}
                       nodeOffsets={nodeOffsets}
                       onNodeOffsetChange={onNodeOffsetChange}
+                      laneOffsets={laneOffsets}
+                      onLaneOffsetChange={onLaneOffsetChange}
+                      gridSize={gridSize}
                       numberPrefix={`${numberLabel}${String.fromCharCode(65 + laneIndex)}.`}
                     />
                   )}

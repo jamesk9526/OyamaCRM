@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 
 interface SettingsNavItem {
@@ -36,7 +37,10 @@ export default function SettingsSidebar() {
 
   return (
     <aside className="w-64 shrink-0 bg-white border border-gray-200 rounded-lg p-3 h-fit">
-      <h2 className="px-2 pb-2 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">
+      <div className="rounded-lg border border-gray-200 bg-slate-50 p-2">
+        <CrmBrandLockup moduleLabel="Settings CRM" className="w-full" />
+      </div>
+      <h2 className="mt-3 px-2 pb-2 text-xs font-bold text-gray-500 uppercase tracking-widest border-b border-gray-100">
         Settings
       </h2>
       <nav className="pt-2 space-y-1">

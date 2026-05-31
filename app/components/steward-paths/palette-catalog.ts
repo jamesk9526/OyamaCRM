@@ -48,11 +48,17 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
   { kind: "task.wait_for_completion", category: "task", label: "Wait for task completion", summary: "Pause path until task done.", readiness: "working", defaultConfig: { slaDays: 7, instruction: "Wait until the current task is completed." } },
   { kind: "task.escalate_overdue", category: "task", label: "Escalate overdue task", summary: "Notify lead when overdue.", readiness: "working", defaultConfig: { assignee: "Team lead", slaDays: 3, instruction: "Escalate when overdue." } },
 
+  // LiveCom
+  { kind: "livecom.send_message", category: "livecom", label: "Send LiveCom message", summary: "Send a guided chat message in LiveCom.", readiness: "working", defaultConfig: { messageTemplate: "Hi {{firstName}}, thank you again for your support.", channel: "inbox" } },
+  { kind: "livecom.wait_for_reply", category: "livecom", label: "Wait for LiveCom reply", summary: "Pause until donor replies in chat.", readiness: "working", defaultConfig: { waitDays: 3, instruction: "Wait for donor reply in LiveCom before continuing." } },
+  { kind: "livecom.route_to_staff", category: "livecom", label: "Route LiveCom to staff", summary: "Hand off the conversation to a staff owner.", readiness: "working", defaultConfig: { assignee: "Stewardship Team", priority: "MEDIUM", instruction: "Route this LiveCom conversation to a staff owner." } },
+
   // Donor data
   { kind: "donor.add_tag", category: "donor-data", label: "Add tag", summary: "Tag the donor.", readiness: "working", defaultConfig: { tag: "Engaged Donor" } },
   { kind: "donor.remove_tag", category: "donor-data", label: "Remove tag", summary: "Untag the donor.", readiness: "working", defaultConfig: { tag: "Needs Follow Up" } },
   { kind: "donor.update_status", category: "donor-data", label: "Update donor status", summary: "Change donor status field (uses STATUS_CHANGE step).", readiness: "working", defaultConfig: { value: "ACTIVE" } },
   { kind: "donor.adjust_engagement_score", category: "donor-data", label: "Adjust engagement score", summary: "Set the engagement score 0-100 (uses STATUS_CHANGE step).", readiness: "working", defaultConfig: { value: 65 } },
+  { kind: "donor.set_retention_stage", category: "donor-data", label: "Set retention stage", summary: "Set donor retention stage for win-back workflows.", readiness: "working", defaultConfig: { value: "AT_RISK" } },
   { kind: "donor.add_note", category: "donor-data", label: "Add note", summary: "Append an internal note.", readiness: "working", defaultConfig: { noteTemplate: "Stewardship path note added." } },
 
   // Logic
@@ -61,6 +67,7 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
   { kind: "logic.donation_amount_condition", category: "logic", label: "Donation amount condition", summary: "Branch by gift size.", readiness: "working" },
   { kind: "logic.communication_preference_condition", category: "logic", label: "Communication preference condition", summary: "Branch by opt-in/out flags.", readiness: "working" },
   { kind: "logic.email_engagement_condition", category: "logic", label: "Email engagement condition", summary: "Branch on opens/clicks.", readiness: "working" },
+  { kind: "logic.retention_risk_condition", category: "logic", label: "Retention risk condition", summary: "Branch by retention risk score and gift recency.", readiness: "working" },
 
   // Safety / Review
   { kind: "safety.require_human_approval", category: "safety", label: "Require human approval", summary: "Hold for explicit approval.", readiness: "working", defaultConfig: { approver: "Manager", priority: "MEDIUM", instruction: "Approve before continuing." } },
@@ -76,6 +83,7 @@ export const CATEGORY_LABELS: Record<NodePaletteItem["category"], string> = {
   email: "Email Actions",
   print: "Print Actions",
   task: "Task Actions",
+  livecom: "LiveCom Actions",
   "donor-data": "Donor Data Actions",
   logic: "Logic",
   safety: "Safety / Review",

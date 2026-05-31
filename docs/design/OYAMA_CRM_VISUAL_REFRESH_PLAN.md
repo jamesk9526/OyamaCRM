@@ -8,6 +8,14 @@ Use the provided screenshots as inspiration only. The refresh should keep curren
 
 This file is a historical implementation plan for the May 2026 refresh work. It is not a repo-wide rule source.
 
+Current governance source of truth for new major workspace design decisions:
+
+- `AGENTS.md`
+- `docs/architecture/workspace-layout-system.md`
+- `docs/status/production-readiness-checklist.md`
+
+If this historical plan conflicts with the current workspace-first governance standard, follow the governance docs above.
+
 ## Reference Direction Used For That Pass
 
 - Light CRM background: `#f8faf9` / slate-50 family.

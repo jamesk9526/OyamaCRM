@@ -8,5 +8,5 @@ interface StewardPathDetailPageProps {
 /** Redirects detail route to canonical history surface until dedicated detail UI lands. */
 export default async function StewardPathDetailPage({ params }: StewardPathDetailPageProps) {
   const { id } = await params;
-  redirect(`/steward-paths/${encodeURIComponent(id)}/history`);
+  redirect(`/steward-paths/${encodeURIComponent(id)}/builder`);
 }

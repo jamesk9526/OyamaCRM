@@ -17,7 +17,7 @@ import type {
 const SIDEBAR_ITEMS: Array<{ label: string; href: string; view?: OyamaEmailView; matchPrefix?: string }> = [
   { label: "Templates", href: "/oyama-email/templates", view: "templates" },
   { label: "Campaigns", href: "/oyama-email/campaigns", view: "campaigns" },
-  { label: "Callender", href: "/oyama-email/callender", view: "callender" },
+  { label: "Calendar", href: "/oyama-email/calendar", view: "callender", matchPrefix: "/oyama-email/cal" },
   { label: "Settings", href: "/oyama-email/settings", view: "settings" },
 ];
 
@@ -1408,7 +1408,7 @@ function CampaignsView({
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-2xl font-semibold text-slate-900">{calendarOnly ? "Callender" : "Campaigns"}</p>
+                <p className="text-2xl font-semibold text-slate-900">{calendarOnly ? "Calendar" : "Campaigns"}</p>
                 <p className="text-sm text-slate-600">
                   {calendarOnly
                     ? "Manage all email schedules from one timeline with drag-and-drop rescheduling and upcoming send visibility."
@@ -3444,7 +3444,7 @@ function SideIcon({ label }: { label: string }) {
     Templates: "M4 5h16v14H4zM8 9h8M8 13h8",
     "Send Email": "M3 12h18M5 7l7 5 7-5",
     Campaigns: "M5 19h14M8 16V9m4 7V6m4 10v-4",
-    Callender: "M8 7V4m8 3V4M4 10h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z",
+    Calendar: "M8 7V4m8 3V4M4 10h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z",
     Audience: "M17 20v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m16 0v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
     Queue: "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01",
     Analytics: "M4 19h16M7 16V9m5 7V6m5 10v-4",
@@ -3486,7 +3486,7 @@ function workspaceTitle(view: OyamaEmailView): string {
   if (view === "templates") return "Email Template Library";
   if (view === "builder") return "Email Builder";
   if (view === "publish") return "Publish & Compliance";
-  if (view === "callender") return "Callender";
+  if (view === "callender") return "Calendar";
   if (view === "campaigns" || view === "send" || view === "audience" || view === "queue" || view === "analytics") return "Campaigns";
   return "Settings";
 }

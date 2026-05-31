@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
+import OyamaDonorPackIcon from "@/app/components/ui/OyamaDonorPackIcon";
 import { type DonorAccentTone } from "@/app/lib/workspace-settings";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -256,7 +257,7 @@ const RIBBON_TABS: RibbonTab[] = [
   { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/oyama-letters", "/livecom", "/meetings", "/steward-paths"] },
   { id: "reports", label: "Reports", href: "/reports", match: ["/reports", "/steward-signals", "/steward-ai-workspace"] },
   { id: "data", label: "Data", href: "/data-tools", match: ["/data-tools", "/custom-fields"] },
-  { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/steward-paths", "/automations"] },
+  { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/steward-paths"] },
   { id: "view", label: "View", href: "/preferences", match: ["/preferences"] },
 ];
 
@@ -327,20 +328,26 @@ function ChevronDown({ open }: { open: boolean }) {
   );
 }
 
-/** Minimal line icon used to keep the navigation compact without extra dependencies. */
+/** Section-level icon glyphs sourced from the donor icon pack. */
 function NavGlyph({ id }: { id: string }) {
-  const pathById: Record<string, string> = {
-    dashboard: "M4 13h6V5H4v8Zm10 6h6V5h-6v14ZM4 19h6v-4H4v4Z",
-    "core-crm": "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 20a5 5 0 0 1 10 0M12 20a5 5 0 0 1 8-4",
-    fundraising: "M12 3v18M7 7.5h7a3 3 0 0 1 0 6h-4a3 3 0 0 0 0 6h7",
-    outreach: "M4 6h16v12H4V6Zm0 0 8 7 8-7",
-    insights: "M5 19V5m0 14h14M9 15l3-4 3 2 4-6",
-    admin: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3M4.9 19.1 7 17m10-10 2.1-2.1",
+  const slugById: Record<string, string> = {
+    dashboard: "donor-dashboard",
+    "core-crm": "constituents",
+    fundraising: "campaigns",
+    outreach: "communications",
+    insights: "reports",
+    admin: "settings",
   };
-  const path = pathById[id] ?? "M5 12h14M12 5l7 7-7 7";
+
+  const slug = slugById[id];
+
+  if (slug) {
+    return <OyamaDonorPackIcon slug={slug} size={16} className="h-4 w-4 rounded-full" alt="" />;
+  }
+
   return (
     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
     </svg>
   );
 }

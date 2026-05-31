@@ -2,6 +2,7 @@
 "use client";
 
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import CrmSidebar from "@/app/components/layout/CrmSidebar";
 import { buildHrmSidebarGroups } from "@/app/components/layout/sidebar-configs";
 
@@ -20,6 +21,8 @@ export default function HrmSidebar({ forceExpanded = false }: HrmSidebarProps) {
       storageKey="oyamacrm.sidebar.hrm.collapsed"
       userRole={user?.role}
       forceExpanded={forceExpanded}
+      brandHeader={<CrmBrandLockup moduleLabel="HRM CRM" className="w-full" />}
+      brandHeaderCollapsed={<CrmBrandLockup moduleLabel="HRM CRM" compact />}
       expandedWidthClass="w-60"
       collapsedWidthClass="w-20"
       organizationLabel="HRM Workspace"

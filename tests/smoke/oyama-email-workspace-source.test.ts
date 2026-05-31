@@ -53,7 +53,7 @@ describe("OyamaEmail workspace source contract", () => {
 
     expect(workspace).toContain("Templates");
     expect(workspace).toContain("Campaigns");
-    expect(workspace).toContain("Callender");
+    expect(workspace).toContain("Calendar");
     expect(workspace).toContain("Settings");
     expect(workspace).toContain("Back to CRM");
 

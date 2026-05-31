@@ -16,6 +16,7 @@ import type { WorkflowNode } from "./workflow-types";
 
 interface EmailDraftBuilderModalProps {
   node: WorkflowNode;
+  startFresh?: boolean;
   onChange: (next: WorkflowNode) => void;
   onClose: () => void;
 }
@@ -103,15 +104,15 @@ function buildStarterTemplate(node: WorkflowNode): EmailTemplate {
 }
 
 /** Full-screen modal that links a workflow email step to a real campaign draft. */
-export default function EmailDraftBuilderModal({ node, onChange, onClose }: EmailDraftBuilderModalProps) {
-  const [campaignId, setCampaignId] = useState(() => readString(node.config, "campaignId"));
+export default function EmailDraftBuilderModal({ node, startFresh = false, onChange, onClose }: EmailDraftBuilderModalProps) {
+  const [campaignId, setCampaignId] = useState(() => (startFresh ? "" : readString(node.config, "campaignId")));
   const [campaignStatus, setCampaignStatus] = useState(() => readString(node.config, "campaignStatus") || "DRAFT");
   const [lastSavedAt, setLastSavedAt] = useState(() => readString(node.config, "emailBuilderSavedAt"));
   const [previewHtml, setPreviewHtml] = useState(() => generateEmailHtml(buildStarterTemplate(node)));
   const [previewSubject, setPreviewSubject] = useState(() => readString(node.config, "subjectTemplate") || node.title || "Steward Path Email Draft");
   const [previewIsUnsaved, setPreviewIsUnsaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(() => Boolean(readString(node.config, "campaignId").trim()));
+  const [creating, setCreating] = useState(() => Boolean((startFresh ? "" : readString(node.config, "campaignId")).trim()));
   const nodeRef = useRef(node);
   const onChangeRef = useRef(onChange);
 
@@ -283,11 +284,33 @@ export default function EmailDraftBuilderModal({ node, onChange, onClose }: Emai
     setPreviewIsUnsaved(draft.dirty);
   }, []);
 
+  const attemptClose = useCallback(() => {
+    if (!previewIsUnsaved) {
+      onClose();
+      return;
+    }
+
+    const confirmed = window.confirm("You have unsaved email builder changes. Close and lose unsaved edits?");
+    if (!confirmed) return;
+    onClose();
+  }, [onClose, previewIsUnsaved]);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      attemptClose();
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [attemptClose]);
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm"
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) attemptClose();
       }}
     >
       <div className="flex h-[94vh] w-[96vw] max-w-[1720px] flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
@@ -304,7 +327,7 @@ export default function EmailDraftBuilderModal({ node, onChange, onClose }: Emai
             </span>
             <button
               type="button"
-              onClick={onClose}
+              onClick={attemptClose}
               className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-slate-900"
             >
               Close

@@ -1,60 +1,50 @@
 // Central sidebar configuration maps for Donor, Compassion, Events, HRM, and Watchdog modules.
 
-import type React from "react";
 import type { CrmSidebarGroup, SidebarItemBadge } from "@/app/components/layout/CrmSidebar";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
-import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
+import OyamaAdvancedIcon from "@/app/components/ui/OyamaAdvancedIcon";
+import OyamaDonorPackIcon from "@/app/components/ui/OyamaDonorPackIcon";
 
 interface DonorSidebarOptions {
   qbEnabled: boolean;
 }
 
-/** Helper that wraps SVG paths in a consistent icon frame. */
-const Ico = ({ d, children, className }: { d?: string; children?: React.ReactNode; className?: string }) => (
-  <svg
-    width={18}
-    height={18}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.75}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    aria-hidden="true"
-  >
-    {d ? <path d={d} /> : children}
-  </svg>
+const DonorPackIcon = ({ slug }: { slug: string }) => (
+  <OyamaDonorPackIcon slug={slug} size={18} className="h-[18px] w-[18px] shrink-0 rounded-full" alt="" />
+);
+
+const AdvancedPackIcon = ({ name }: { name: string }) => (
+  <OyamaAdvancedIcon name={name} size={18} className="h-[18px] w-[18px] shrink-0" />
 );
 
 const DONOR_ICONS = {
-  dashboard: <Ico d="M3 13h8V3H3v10zm10 8h8V3h-8v18zM3 21h8v-6H3v6z" />,
-  constituents: <Ico d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2m20 0v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 11a4 4 0 100-8 4 4 0 000 8z" />,
-  donations: <Ico d="M12 2v20m7-15H9a3 3 0 100 6h6a3 3 0 110 6H5" />,
-  campaigns: <Ico d="M12 3l2.8 5.7L21 9.6l-4.5 4.4 1 6.2L12 17l-5.5 3.2 1-6.2L3 9.6l6.2-.9L12 3z" />,
-  grants: <Ico d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.6a1 1 0 01.7.3l5.4 5.4a1 1 0 01.3.7V19a2 2 0 01-2 2z" />,
-  designations: <Ico d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />,
-  payments: <Ico><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></Ico>,
-  reports: <Ico d="M4 19h16M7 15V9m5 6V5m5 10v-3" />,
-  tasks: <Ico d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />,
-  meetings: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
-  communications: <Ico d="M4 6h16v12H4zM4 7l8 6 8-6" />,
-  contactsManager: <Ico d="M4 6h16M4 12h10M4 18h16M17 10a3 3 0 110 6 3 3 0 010-6z" />,
-  letters: <Ico d="M8 2h8l4 4v16H4V2h4zm1 9h6m-6 4h6m-6 4h4" />,
-  livecom: <Ico d="M4 12a8 8 0 1116 0v5a2 2 0 01-2 2h-3v-6h5M4 13h5v6H6a2 2 0 01-2-2v-4z" />,
-  stewardPaths: <Ico d="M5 7h5M14 7h5M7.5 7a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0zM5 17h5m4 0h5m-7-10v10m-2.5 0a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0z" />,
-  signals: <Ico d="M3 12h4l2 5 4-10 2 5h6" />,
-  agentSteward: <StewardAvatarIcon size={18} alt="" className="ring-emerald-300" />,
-  volunteers: <Ico d="M16 11c1.7 0 3-1.6 3-3.5S17.7 4 16 4s-3 1.6-3 3.5 1.3 3.5 3 3.5zM8 11c1.7 0 3-1.6 3-3.5S9.7 4 8 4 5 5.6 5 7.5 6.3 11 8 11zm0 2c-2.8 0-5 1.8-5 4v3h10v-3c0-2.2-2.2-4-5-4zm8 0c-.9 0-1.8.2-2.6.6 1 .9 1.6 2.1 1.6 3.4v3h6v-3c0-2.2-2.2-4-5-4z" />,
-  events: <Ico d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
-  automations: <Ico d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
-  dataTools: <Ico d="M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" />,
-  customFields: <Ico><path d="M4 6h16M4 10h10M4 14h16M4 18h8" /><circle cx="16" cy="10" r="2" /><circle cx="14" cy="18" r="2" /></Ico>,
-  settings: <Ico d="M10.3 4.3c.4-1.8 2.9-1.8 3.4 0 .2.8.9 1.3 1.7 1.3.3 0 .6-.1.9-.2 1.5-.9 3.3.8 2.4 2.4-.5.8-.2 1.9.7 2.3 1.8.4 1.8 2.9 0 3.4-.8.2-1.3.9-1.3 1.7 0 .3.1.6.2.9.9 1.5-.8 3.3-2.4 2.4-.8-.5-1.9-.2-2.3.7-.4 1.8-2.9 1.8-3.4 0-.2-.8-.9-1.3-1.7-1.3-.3 0-.6.1-.9.2-1.5.9-3.3-.8-2.4-2.4.5-.8.2-1.9-.7-2.3-1.8-.4-1.8-2.9 0-3.4.8-.2 1.3-.9 1.3-1.7 0-.3-.1-.6-.2-.9-.9-1.5.8-3.3 2.4-2.4.8.5 1.9.2 2.3-.7zM12 15a3 3 0 100-6 3 3 0 000 6z" />,
-  help: <Ico d="M9.1 9a3 3 0 115.8 1c0 2-3 2.3-3 4m.1 4h.1M22 12A10 10 0 112 12a10 10 0 0120 0z" />,
-  watchdog: <Ico d="M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4zm0 7v4m0 4h.01" />,
-  webmaster: <Ico d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20M4.9 4.9a15 15 0 0014.2 14.2M19.1 4.9A15 15 0 014.9 19.1" />,
-  qbSync: <Ico d="M4 4v5h.6m14.8 2A8 8 0 004.6 9M20 20v-5h-.6m0 0A8 8 0 015 13m14.4 2H15" />,
+  dashboard: <DonorPackIcon slug="donor-dashboard" />,
+  constituents: <DonorPackIcon slug="constituents" />,
+  donations: <DonorPackIcon slug="donations" />,
+  campaigns: <DonorPackIcon slug="campaigns" />,
+  grants: <DonorPackIcon slug="grants" />,
+  designations: <DonorPackIcon slug="fund-designation" />,
+  payments: <DonorPackIcon slug="quickbooks-queue" />,
+  reports: <DonorPackIcon slug="reports" />,
+  tasks: <DonorPackIcon slug="tasks" />,
+  meetings: <DonorPackIcon slug="calendar" />,
+  communications: <DonorPackIcon slug="communications" />,
+  contactsManager: <DonorPackIcon slug="contacts-manager" />,
+  letters: <DonorPackIcon slug="letters" />,
+  livecom: <DonorPackIcon slug="communications" />,
+  stewardPaths: <AdvancedPackIcon name="steward-paths-special" />,
+  signals: <DonorPackIcon slug="steward-signals" />,
+  agentSteward: <DonorPackIcon slug="steward-ai" />,
+  volunteers: <DonorPackIcon slug="volunteer" />,
+  events: <DonorPackIcon slug="event-fundraising" />,
+  automations: <DonorPackIcon slug="workflow-automation" />,
+  dataTools: <DonorPackIcon slug="database" />,
+  customFields: <DonorPackIcon slug="field-mapping" />,
+  settings: <DonorPackIcon slug="settings" />,
+  help: <DonorPackIcon slug="help" />,
+  watchdog: <DonorPackIcon slug="system-status" />,
+  webmaster: <DonorPackIcon slug="documentation" />,
+  qbSync: <DonorPackIcon slug="integrations" />,
 };
 
 /** Returns the refined Donor CRM sidebar groups with item metadata and stable routes. */
@@ -67,14 +57,6 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       icon: DONOR_ICONS.reports,
       kind: "insight" as const,
       description: "Open DonorCRM report tools for giving, retention, stewardship, and campaigns.",
-    },
-    {
-      id: "automations",
-      label: "Automations",
-      href: "/automations",
-      icon: DONOR_ICONS.automations,
-      kind: "system" as const,
-      description: "Manage automated donor workflows and scheduled actions.",
     },
     {
       id: "settings",

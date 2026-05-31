@@ -1,7 +1,7 @@
 /** Canonical Steward Paths workspace route. */
-import StewardPathsWorkspacePage from "@/app/components/steward-paths/StewardPathsWorkspacePage";
+import { redirect } from "next/navigation";
 
-/** Renders the saved visual paths list and canonical workflow actions. */
+/** Redirects to the dedicated Path Library main screen. */
 export default function StewardPathsCanonicalPage() {
-  return <StewardPathsWorkspacePage />;
+  redirect("/steward-paths/library");
 }

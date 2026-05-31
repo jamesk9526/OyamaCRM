@@ -2,6 +2,7 @@
 "use client";
 
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import CrmSidebar from "@/app/components/layout/CrmSidebar";
 import { buildCompassionSidebarGroups } from "@/app/components/layout/sidebar-configs";
 
@@ -20,6 +21,8 @@ export default function CompassionSidebar({ forceExpanded = false }: CompassionS
       storageKey="oyamacrm.sidebar.compassion.collapsed"
       userRole={user?.role}
       forceExpanded={forceExpanded}
+      brandHeader={<CrmBrandLockup moduleLabel="Compassion CRM" className="w-full" />}
+      brandHeaderCollapsed={<CrmBrandLockup moduleLabel="Compassion CRM" compact />}
       expandedWidthClass="w-64"
       collapsedWidthClass="w-20"
       organizationLabel="Oyama Organization"

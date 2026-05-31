@@ -8,6 +8,12 @@ This guide explains the current DonorCRM in plain office workflow language.
 
 Use DonorCRM to manage donors, gifts, campaigns, stewardship follow-up, and fundraising reporting in one workspace.
 
+## Workspace operating standard
+
+- Use canonical dedicated workspaces for major tools (for example, OyamaEmail, OyamaLetters, Steward Paths).
+- Prefer one-direction progression inside each workspace: overview -> build/edit -> review -> activate -> history.
+- Treat legacy routes as compatibility paths when canonical replacements exist.
+
 ## Dashboard
 
 - Start here each morning for revenue, retention, and stewardship attention summaries.

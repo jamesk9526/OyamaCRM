@@ -43,6 +43,16 @@ OyamaCRM is **one platform with five integrated modules**, each purpose-built fo
 | **OyamaWatchdog** | Security monitoring, audit logs, incident workflow | ✅ Active |
 | **OyamaWebMaster** | Visual website builder, CMS, publishing | 🔨 In Development |
 
+## Workspace-first product rule (current)
+
+Major workflows should ship as dedicated workspace routes with one canonical ownership model.
+
+- Flow direction standard: list/overview -> build/edit -> review/validate -> publish/activate -> activity/history.
+- UI truthfulness standard: no fake production data, dead controls, or hidden non-working behavior.
+- Legacy transition standard: keep compatibility redirects while proving parity, then remove duplicate legacy flows.
+
+See `AGENTS.md` and `docs/architecture/workspace-layout-system.md` for enforceable implementation rules.
+
 ---
 
 ## Release Readiness Snapshot (2026-05-12 Audit Run)

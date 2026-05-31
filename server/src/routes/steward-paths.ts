@@ -10,6 +10,17 @@ import { prisma } from "../lib/prisma.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { completeCurrentManualStep, createTimelineEvent, processDueStewardPathEnrollments } from "../services/steward-paths-sequence-engine.js";
+import {
+  advancePlaygroundRun,
+  buildPlaygroundScenarios,
+  createPlaygroundRun,
+  getPlaygroundRunActivity,
+  getPlaygroundRunSnapshot,
+  previewSandboxTestEmails,
+  resetPlaygroundRun,
+  type PlaygroundConstituentSnapshot,
+  type PlaygroundTemplateStep,
+} from "../services/steward-paths-playground.js";
 
 const router = Router();
 
@@ -149,6 +160,89 @@ function mapLegacyActionType(type: string): StewardPathStepType {
   if (normalized === "REMOVE_TAG") return "STATUS_CHANGE";
   if (normalized === "ASSIGN_USER") return "MANUAL_ACTION";
   return "MANUAL_ACTION";
+}
+
+/** Loads one path with active steps for sandbox playback endpoints. */
+async function loadPlaygroundPath(pathId: string, organizationId: string): Promise<{
+  id: string;
+  name: string;
+  targetType: StewardPathTarget;
+  steps: PlaygroundTemplateStep[];
+} | null> {
+  const path = await prisma.stewardPath.findFirst({
+    where: { id: pathId, organizationId },
+    include: {
+      steps: {
+        where: { isActive: true },
+        orderBy: { orderIndex: "asc" },
+        select: {
+          id: true,
+          orderIndex: true,
+          name: true,
+          stepType: true,
+          configJson: true,
+        },
+      },
+    },
+  });
+  if (!path) return null;
+
+  return {
+    id: path.id,
+    name: path.name,
+    targetType: path.targetType,
+    steps: path.steps.map((step) => ({
+      id: step.id,
+      orderIndex: step.orderIndex,
+      name: step.name,
+      stepType: step.stepType,
+      configJson: step.configJson,
+    })),
+  };
+}
+
+/** Loads one constituent snapshot for sandbox scenario seeding. */
+async function loadPlaygroundConstituent(
+  organizationId: string,
+  constituentId: string,
+): Promise<PlaygroundConstituentSnapshot | null> {
+  const normalizedId = constituentId.trim();
+  if (!normalizedId) return null;
+
+  const constituent = await prisma.constituent.findFirst({
+    where: { id: normalizedId, organizationId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      donorStatus: true,
+      totalLifetimeGiving: true,
+      lastGiftAmount: true,
+      lastGiftDate: true,
+      engagementScore: true,
+      doNotEmail: true,
+      doNotMail: true,
+      doNotContact: true,
+    },
+  });
+
+  if (!constituent) return null;
+
+  return {
+    id: constituent.id,
+    firstName: constituent.firstName,
+    lastName: constituent.lastName,
+    email: constituent.email,
+    donorStatus: constituent.donorStatus,
+    totalLifetimeGiving: constituent.totalLifetimeGiving,
+    lastGiftAmount: constituent.lastGiftAmount,
+    lastGiftDate: constituent.lastGiftDate,
+    engagementScore: constituent.engagementScore,
+    doNotEmail: constituent.doNotEmail,
+    doNotMail: constituent.doNotMail,
+    doNotContact: constituent.doNotContact,
+  };
 }
 
 /** GET /api/steward-paths/templates — list sequence templates for the org. */
@@ -514,20 +608,263 @@ router.post("/templates/:id/duplicate", requirePermission("steward_paths.create"
   res.status(201).json(copy);
 });
 
-/** POST /api/steward-paths/templates/:id/test-run — creates a safe completed test enrollment, with no sends. */
-router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), async (req, res) => {
+/** GET /api/steward-paths/:id/playground/scenarios — sandbox scenario catalog for one path. */
+router.get("/:id/playground/scenarios", requirePermission("steward_paths.view"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
-  const userId = req.user?.sub;
   if (!organizationId) {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
     return;
   }
 
-  const existing = await prisma.stewardPath.findFirst({
-    where: { id: getRouteId(req), organizationId },
-    include: { steps: { where: { isActive: true }, orderBy: { orderIndex: "asc" } } },
+  const path = await loadPlaygroundPath(getRouteId(req), organizationId);
+  if (!path) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
+    return;
+  }
+
+  const constituentId = typeof req.query.constituentId === "string" ? req.query.constituentId.trim() : "";
+  let constituent: PlaygroundConstituentSnapshot | null = null;
+  if (constituentId) {
+    constituent = await loadPlaygroundConstituent(organizationId, constituentId);
+    if (!constituent) {
+      res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found in this organization." } });
+      return;
+    }
+  }
+
+  const scenarios = buildPlaygroundScenarios(constituent);
+  res.json({
+    isSandbox: true,
+    pathId: path.id,
+    pathName: path.name,
+    scenarios,
+    defaults: {
+      scenarioId: scenarios[0]?.id ?? null,
+      skipDelays: true,
+    },
   });
-  if (!existing) {
+});
+
+/** POST /api/steward-paths/:id/playground/run — create a new sandbox run snapshot. */
+router.post("/:id/playground/run", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const path = await loadPlaygroundPath(getRouteId(req), organizationId);
+  if (!path) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
+    return;
+  }
+  if (path.steps.length === 0) {
+    res.status(400).json({ error: { code: "NO_STEPS", message: "Playground run requires at least one active step." } });
+    return;
+  }
+
+  const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId.trim() : "";
+  if (!constituentId) {
+    res.status(400).json({ error: { code: "CONSTITUENT_REQUIRED", message: "constituentId is required." } });
+    return;
+  }
+
+  const constituent = await loadPlaygroundConstituent(organizationId, constituentId);
+  if (!constituent) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found in this organization." } });
+    return;
+  }
+
+  const options = req.body?.options && typeof req.body.options === "object" && !Array.isArray(req.body.options)
+    ? req.body.options as Record<string, unknown>
+    : {};
+  const scenarioFromBody = typeof req.body?.scenarioId === "string" ? req.body.scenarioId.trim() : "";
+  const scenarioFromOptions = typeof options.scenarioId === "string" ? options.scenarioId.trim() : "";
+
+  const run = createPlaygroundRun({
+    organizationId,
+    pathId: path.id,
+    pathName: path.name,
+    steps: path.steps,
+    constituent,
+    scenarioId: scenarioFromBody || scenarioFromOptions || null,
+    skipDelays: options.skipDelays !== false,
+    testEmail: typeof options.testEmail === "string" ? options.testEmail : null,
+  });
+
+  res.status(201).json(run);
+});
+
+/** POST /api/steward-paths/:id/playground/step — applies one playback control action. */
+router.post("/:id/playground/step", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const runId = typeof req.body?.runId === "string" ? req.body.runId.trim() : "";
+  if (!runId) {
+    res.status(400).json({ error: { code: "RUN_ID_REQUIRED", message: "runId is required." } });
+    return;
+  }
+
+  const actionRaw = typeof req.body?.action === "string" ? req.body.action.trim().toLowerCase() : "step";
+  const action = actionRaw === "auto" || actionRaw === "pause" || actionRaw === "fast-forward"
+    ? actionRaw
+    : actionRaw === "step"
+      ? "step"
+      : null;
+  if (!action) {
+    res.status(400).json({ error: { code: "INVALID_ACTION", message: "action must be one of: step, auto, pause, fast-forward." } });
+    return;
+  }
+
+  const run = advancePlaygroundRun({
+    organizationId,
+    pathId: getRouteId(req),
+    runId,
+    action,
+  });
+  if (!run) {
+    res.status(404).json({ error: { code: "RUN_NOT_FOUND", message: "Playground run not found." } });
+    return;
+  }
+
+  res.json(run);
+});
+
+/** POST /api/steward-paths/:id/playground/reset — resets one run back to pending state. */
+router.post("/:id/playground/reset", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const runId = typeof req.body?.runId === "string" ? req.body.runId.trim() : "";
+  if (!runId) {
+    res.status(400).json({ error: { code: "RUN_ID_REQUIRED", message: "runId is required." } });
+    return;
+  }
+
+  const run = resetPlaygroundRun({
+    organizationId,
+    pathId: getRouteId(req),
+    runId,
+  });
+  if (!run) {
+    res.status(404).json({ error: { code: "RUN_NOT_FOUND", message: "Playground run not found." } });
+    return;
+  }
+
+  res.json(run);
+});
+
+/** GET /api/steward-paths/:id/playground/runs/:runId — returns one sandbox run snapshot. */
+router.get("/:id/playground/runs/:runId", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const run = getPlaygroundRunSnapshot({
+    organizationId,
+    pathId: getRouteId(req),
+    runId: getRouteParam(req, "runId"),
+  });
+  if (!run) {
+    res.status(404).json({ error: { code: "RUN_NOT_FOUND", message: "Playground run not found." } });
+    return;
+  }
+
+  res.json(run);
+});
+
+/** GET /api/steward-paths/:id/playground/runs/:runId/activity — returns sandbox playback activity log. */
+router.get("/:id/playground/runs/:runId/activity", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const runId = getRouteParam(req, "runId");
+  const items = getPlaygroundRunActivity({
+    organizationId,
+    pathId: getRouteId(req),
+    runId,
+  });
+  if (!items) {
+    res.status(404).json({ error: { code: "RUN_NOT_FOUND", message: "Playground run not found." } });
+    return;
+  }
+
+  res.json({
+    isSandbox: true,
+    pathId: getRouteId(req),
+    runId,
+    items,
+  });
+});
+
+/** POST /api/steward-paths/:id/playground/send-test-email — generates sandbox email previews only. */
+router.post("/:id/playground/send-test-email", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const runId = typeof req.body?.runId === "string" ? req.body.runId.trim() : "";
+  if (!runId) {
+    res.status(400).json({ error: { code: "RUN_ID_REQUIRED", message: "runId is required." } });
+    return;
+  }
+  const testEmail = typeof req.body?.testEmail === "string" ? req.body.testEmail.trim() : "";
+  if (!testEmail) {
+    res.status(400).json({ error: { code: "TEST_EMAIL_REQUIRED", message: "testEmail is required." } });
+    return;
+  }
+
+  try {
+    const preview = previewSandboxTestEmails({
+      organizationId,
+      pathId: getRouteId(req),
+      runId,
+      testEmail,
+    });
+    if (!preview) {
+      res.status(404).json({ error: { code: "RUN_NOT_FOUND", message: "Playground run not found." } });
+      return;
+    }
+    res.json(preview);
+  } catch (error) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_TEST_EMAIL",
+        message: error instanceof Error ? error.message : "Invalid test email address.",
+      },
+    });
+  }
+});
+
+/**
+ * POST /api/steward-paths/templates/:id/test-run
+ *
+ * Backward-compatible dry-run endpoint used by existing builder surfaces.
+ * Internally delegates to the sandbox Playground service and fast-forwards all steps.
+ */
+router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "Organization context is required." } });
+    return;
+  }
+
+  const path = await loadPlaygroundPath(getRouteId(req), organizationId);
+  if (!path) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Steward Path template not found." } });
     return;
   }
@@ -538,197 +875,57 @@ router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), 
     return;
   }
 
-  // Look up constituent for display info — no writes, read-only
-  const constituent = await prisma.constituent.findFirst({
-    where: { id: constituentId, organizationId },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      donorStatus: true,
-      totalLifetimeGiving: true,
-      lastGiftDate: true,
-      doNotEmail: true,
-      doNotMail: true,
-      doNotContact: true,
-    },
-  });
+  const constituent = await loadPlaygroundConstituent(organizationId, constituentId);
   if (!constituent) {
     res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found in this organization." } });
     return;
   }
 
-  // Build the step-by-step simulation result — purely in memory, no DB writes
-  interface DryRunStepPreview {
-    type: string;
-    subject?: string;
-    fromEmail?: string;
-    templateName?: string;
-    taskTitle?: string;
-    taskPriority?: string;
-    waitAmount?: number;
-    waitUnit?: string;
-    description: string;
-  }
-  interface DryRunStep {
-    stepId: string;
-    label: string;
-    stepType: string;
-    orderIndex: number;
-    result: "passed" | "skipped" | "branched" | "blocked";
-    blockReason?: string;
-    preview: DryRunStepPreview;
-  }
+  const options = req.body?.options && typeof req.body.options === "object" && !Array.isArray(req.body.options)
+    ? req.body.options as Record<string, unknown>
+    : {};
 
-  const dryRunSteps: DryRunStep[] = existing.steps.map((step) => {
-    const cfg = (step.configJson ?? {}) as Record<string, unknown>;
-    const str = (key: string, fallback = ""): string =>
-      typeof cfg[key] === "string" ? (cfg[key] as string) : fallback;
-    const num = (key: string, fallback = 0): number =>
-      typeof cfg[key] === "number" ? (cfg[key] as number) : fallback;
+  const scenarioFromBody = typeof req.body?.scenarioId === "string" ? req.body.scenarioId.trim() : "";
+  const scenarioFromOptions = typeof options.scenarioId === "string" ? options.scenarioId.trim() : "";
 
-    switch (step.stepType) {
-      case "DELAY":
-        return {
-          stepId: step.id,
-          label: step.name ?? "Wait",
-          stepType: "DELAY",
-          orderIndex: step.orderIndex,
-          result: "skipped",
-          preview: {
-            type: "timing",
-            waitAmount: num("amount", 1),
-            waitUnit: str("unit", "days"),
-            description: `Timing step — simulated as instant in dry run. Would wait ${num("amount", 1)} ${str("unit", "days")} in production.`,
-          },
-        };
-
-      case "DRAFT_EMAIL":
-      case "SEND_EMAIL": {
-        const doNotEmail = constituent.doNotEmail || constituent.doNotContact;
-        return {
-          stepId: step.id,
-          label: step.name ?? "Send Email",
-          stepType: step.stepType,
-          orderIndex: step.orderIndex,
-          result: doNotEmail ? "blocked" : "passed",
-          blockReason: doNotEmail ? "Constituent has email opt-out or do-not-contact flag set." : undefined,
-          preview: {
-            type: "email",
-            subject: str("subjectTemplate", "(no subject configured)"),
-            fromEmail: str("fromEmail", "hello@yourorg.org"),
-            templateName: str("templateName", str("emailTemplateId", "default")),
-            description: doNotEmail
-              ? "Would be blocked — constituent has email opt-out."
-              : `Would queue email draft: "${str("subjectTemplate", "(no subject)")}"`,
-          },
-        };
-      }
-
-      case "GENERATE_LETTER": {
-        const doNotMail = constituent.doNotMail || constituent.doNotContact;
-        return {
-          stepId: step.id,
-          label: step.name ?? "Generate Letter",
-          stepType: "GENERATE_LETTER",
-          orderIndex: step.orderIndex,
-          result: doNotMail ? "blocked" : "passed",
-          blockReason: doNotMail ? "Constituent has do-not-mail flag set." : undefined,
-          preview: {
-            type: "letter",
-            templateName: str("templateName", str("templateId", "default")),
-            description: doNotMail
-              ? "Would be blocked — constituent has do-not-mail flag."
-              : `Would generate print letter using template: "${str("templateName", str("templateId", "default"))}"`,
-          },
-        };
-      }
-
-      case "CREATE_TASK":
-        return {
-          stepId: step.id,
-          label: step.name ?? "Create Task",
-          stepType: "CREATE_TASK",
-          orderIndex: step.orderIndex,
-          result: "passed",
-          preview: {
-            type: "task",
-            taskTitle: str("titleTemplate", "(untitled task)"),
-            taskPriority: str("priority", "MEDIUM"),
-            description: `Would create a ${str("priority", "MEDIUM").toLowerCase()}-priority task: "${str("titleTemplate", "(untitled task)")}"`,
-          },
-        };
-
-      case "BRANCH_PLACEHOLDER":
-        return {
-          stepId: step.id,
-          label: step.name ?? "Branch Condition",
-          stepType: "BRANCH_PLACEHOLDER",
-          orderIndex: step.orderIndex,
-          result: "branched",
-          preview: {
-            type: "condition",
-            description: "Branch condition would be evaluated against constituent data. Dry run follows first branch.",
-          },
-        };
-
-      default:
-        return {
-          stepId: step.id,
-          label: step.name ?? step.stepType,
-          stepType: step.stepType,
-          orderIndex: step.orderIndex,
-          result: "passed",
-          preview: {
-            type: "action",
-            description: `${step.stepType} step would execute.`,
-          },
-        };
-    }
+  const run = createPlaygroundRun({
+    organizationId,
+    pathId: path.id,
+    pathName: path.name,
+    steps: path.steps,
+    constituent,
+    scenarioId: scenarioFromBody || scenarioFromOptions || null,
+    skipDelays: options.skipDelays !== false,
+    testEmail: typeof options.testEmail === "string" ? options.testEmail : null,
   });
 
-  // Summary counts
+  const completed = advancePlaygroundRun({
+    organizationId,
+    pathId: path.id,
+    runId: run.runId,
+    action: "fast-forward",
+  });
+  if (!completed) {
+    res.status(500).json({ error: { code: "RUN_FAILED", message: "Failed to execute sandbox dry run." } });
+    return;
+  }
+
   const summary = {
-    totalSteps: dryRunSteps.length,
-    emailsQueued: dryRunSteps.filter((s) => (s.stepType === "DRAFT_EMAIL" || s.stepType === "SEND_EMAIL") && s.result === "passed").length,
-    tasksCreated: dryRunSteps.filter((s) => s.stepType === "CREATE_TASK" && s.result === "passed").length,
-    lettersGenerated: dryRunSteps.filter((s) => s.stepType === "GENERATE_LETTER" && s.result === "passed").length,
-    timingStepsSkipped: dryRunSteps.filter((s) => s.stepType === "DELAY").length,
-    blocked: dryRunSteps.filter((s) => s.result === "blocked").length,
+    totalSteps: completed.summary.totalSteps,
+    emailsQueued: completed.summary.emailsSimulated,
+    tasksCreated: completed.summary.tasksSimulated,
+    lettersGenerated: completed.summary.lettersSimulated,
+    timingStepsSkipped: completed.summary.skipped,
+    blocked: completed.summary.blocked,
   };
-
-  const enrollment = await prisma.stewardPathEnrollment.create({
-    data: {
-      organizationId,
-      pathId: existing.id,
-      targetType: existing.targetType,
-      targetId: constituent.id,
-      constituentId: constituent.id,
-      status: "COMPLETED",
-      completedAt: new Date(),
-      lastStepCompletedAt: new Date(),
-      timelineEvents: {
-        create: {
-          eventType: "PATH_COMPLETED",
-          message: `Safe test run completed for ${constituent.firstName} ${constituent.lastName}`.trim(),
-          createdByUserId: userId,
-          metadataJson: {
-            testRun: true,
-            dryRun: true,
-            summary,
-          },
-        },
-      },
-    },
-  });
 
   res.status(201).json({
     success: true,
-    enrollmentId: enrollment.id,
     dryRun: true,
-    pathId: existing.id,
-    pathName: existing.name,
+    isSandbox: true,
+    runId: completed.runId,
+    pathId: path.id,
+    pathName: path.name,
     constituent: {
       id: constituent.id,
       firstName: constituent.firstName,
@@ -736,7 +933,15 @@ router.post("/templates/:id/test-run", requirePermission("steward_paths.view"), 
       email: constituent.email,
       donorStatus: constituent.donorStatus,
     },
-    steps: dryRunSteps,
+    steps: completed.steps.map((step) => ({
+      stepId: step.stepId,
+      label: step.label,
+      stepType: step.stepType,
+      orderIndex: step.orderIndex,
+      result: step.result ?? step.plannedResult,
+      blockReason: step.blockReason,
+      preview: step.preview,
+    })),
     summary,
   });
 });

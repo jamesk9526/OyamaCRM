@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Users</title>
+  <desc id="desc">Users icon in the Oyama CRM advanced icon pack</desc>
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+</svg>

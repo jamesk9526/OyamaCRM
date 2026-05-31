@@ -2,6 +2,29 @@
 
 _Last deep audit: 2026-05-18 (v1.1.0)_
 
+## Governance baseline for new feature claims
+
+Feature claims in this file should follow the workspace-first governance baseline:
+
+- Dedicated workspace ownership for major tools
+- One-direction workflow progression
+- Functional-only UI behavior (no fake production behavior)
+- Canonical route truth when compatibility redirects still exist
+
+Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
+
+## 2026-05-30 Steward Paths Dedicated Workspace Phase 1
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Dedicated Steward Paths shell routing | Working | `app/components/layout/AppShell.tsx`, `app/steward-paths/layout.tsx`, `app/components/steward-paths/StewardPathsAppShell.tsx` | Steward Paths now bypasses the donor page chrome and renders in its own workspace shell with staged navigation and Back to CRM path. |
+| Mockup-aligned stage route surface | Working | `app/steward-paths/page.tsx`, `app/steward-paths/builder/page.tsx`, `app/steward-paths/enrollments/page.tsx`, `app/steward-paths/review/page.tsx`, `app/steward-paths/activity/page.tsx`, `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx` | Canonical progression now includes live enrollments, analytics, and settings operations in the dedicated workspace shell. |
+| Review queue operations | Working | `app/steward-paths/review/page.tsx`, `server/src/routes/steward-paths.ts` | Draft and paused workflows can be reviewed and moved to active/paused states through live API operations. |
+| Enrollments operations | Working | `app/steward-paths/enrollments/page.tsx`, `server/src/routes/steward-paths.ts` | Staff can filter enrollments and perform pause/resume/cancel/manual-step completion on live enrollment records. |
+| Analytics and settings operations | Working | `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx`, `server/src/routes/steward-paths.ts` | Analytics uses live distributions from templates/enrollments; settings runs real process-due and legacy migration actions. |
+| Activity route and timeline jump flow | Working | `app/steward-paths/activity/page.tsx`, `app/steward-paths/[id]/history/page.tsx` | Recent path activity is shown from live templates data with direct history navigation per template. |
+| Canonical navigation cleanup | Working | `app/campaigns/[id]/page.tsx`, `app/components/layout/sidebar-configs.tsx`, `app/components/layout/DonorMegaMenu.tsx` | Campaign follow-up now deep-links to Steward Paths builder; duplicate legacy Automations entry removed from donor system navigation. |
+
 ## 2026-05-28 OyamaLetters Standalone Workspace Pass
 
 | Area | Status | Evidence | Notes |

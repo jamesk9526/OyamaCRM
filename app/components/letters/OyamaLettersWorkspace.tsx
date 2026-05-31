@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import {
@@ -378,16 +379,14 @@ function LettersSidebar({
       ].join(" ")}>
         <Link href="/oyama-letters" className={[
           "flex min-w-0 items-center",
-          collapsed ? "justify-center" : "gap-3",
+          collapsed ? "justify-center" : "w-full",
         ].join(" ")}>
-          <LogoMark className={collapsed ? "h-9 w-9 text-white" : "h-10 w-10 text-white"} />
-          {!collapsed ? (
-            <div className="min-w-0">
-              <p className="text-base font-semibold tracking-[0.12em]">OYAMA</p>
-              <p className="-mt-0.5 text-xs font-semibold tracking-[0.24em]">LETTERS</p>
-              <p className="mt-1 text-[10px] text-emerald-100">Letter Workspace</p>
-            </div>
-          ) : null}
+          <CrmBrandLockup
+            moduleLabel="Letters CRM"
+            tone="light"
+            compact={collapsed}
+            className={collapsed ? "" : "w-full"}
+          />
         </Link>
         {!collapsed ? (
           <button

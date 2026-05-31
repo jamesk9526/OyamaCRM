@@ -1,0 +1,2642 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<symbol id="oyama-dashboard" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="10" width="12" height="12" rx="3"/><rect x="28" y="10" width="12" height="8" rx="3"/><rect x="8" y="30" width="12" height="8" rx="3"/><rect x="28" y="26" width="12" height="12" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-dashboard-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="10" width="12" height="12" rx="3"/><rect x="28" y="10" width="12" height="8" rx="3"/><rect x="8" y="30" width="12" height="8" rx="3"/><rect x="28" y="26" width="12" height="12" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-search" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="21" cy="21" r="10"/><path d="m29 29 10 10"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-search-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="21" cy="21" r="10"/><path d="m29 29 10 10"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-filter" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 11h32L28 25v12l-8 4V25z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-filter-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 11h32L28 25v12l-8 4V25z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sort" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 10v28M9 15l5-5 5 5M34 38V10M29 33l5 5 5-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sort-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 10v28M9 15l5-5 5 5M34 38V10M29 33l5 5 5-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-settings" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="5"/><path d="M24 6v6M24 36v6M6 24h6M36 24h6M11.3 11.3l4.2 4.2M32.5 32.5l4.2 4.2M36.7 11.3l-4.2 4.2M15.5 32.5l-4.2 4.2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-settings-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="5"/><path d="M24 6v6M24 36v6M6 24h6M36 24h6M11.3 11.3l4.2 4.2M32.5 32.5l4.2 4.2M36.7 11.3l-4.2 4.2M15.5 32.5l-4.2 4.2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-help" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="17"/><path d="M19 18a5 5 0 1 1 8 4c-2 1.4-3 2.5-3 5M24 34h.01"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-help-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="17"/><path d="M19 18a5 5 0 1 1 8 4c-2 1.4-3 2.5-3 5M24 34h.01"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-users" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-users-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-security" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6 38 12v10c0 9-6 15-14 20-8-5-14-11-14-20V12z"/><path d="m18 24 4 4 8-9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-security-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6 38 12v10c0 9-6 15-14 20-8-5-14-11-14-20V12z"/><path d="m18 24 4 4 8-9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-integrations" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M18 14h12v8H18zM9 30h12v8H9zM27 30h12v8H27z"/><path d="M24 22v8M21 34h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-integrations-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M18 14h12v8H18zM9 30h12v8H9zM27 30h12v8H27z"/><path d="M24 22v8M21 34h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-billing" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="M8 21h32M16 30h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-billing-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#004225" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#004225" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#004225" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="M8 21h32M16 30h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-donors" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="18" cy="18" r="6"/><path d="M8 38c1.7-7 6.5-10 10-10s8.3 3 10 10"/><circle cx="32" cy="20" r="5"/><path d="M28 31c4.2.4 7.5 2.8 9 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-donors-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="18" cy="18" r="6"/><path d="M8 38c1.7-7 6.5-10 10-10s8.3 3 10 10"/><circle cx="32" cy="20" r="5"/><path d="M28 31c4.2.4 7.5 2.8 9 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-contacts" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="10" y="8" width="28" height="32" rx="5"/><path d="M17 16h14M17 24h14M17 32h8"/><path d="M38 16h4M38 24h4M38 32h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-contacts-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="10" y="8" width="28" height="32" rx="5"/><path d="M17 16h14M17 24h14M17 32h8"/><path d="M38 16h4M38 24h4M38 32h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-donation" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-donation-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-campaign" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 29V17l22-7v26z"/><path d="M10 29h-3a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3h3M16 31l4 9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-campaign-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 29V17l22-7v26z"/><path d="M10 29h-3a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3h3M16 31l4 9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-reports" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 7h24v34H12z"/><path d="M18 32V22M24 32V14M30 32V26"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-reports-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 7h24v34H12z"/><path d="M18 32V22M24 32V14M30 32V26"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-analytics" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 38h32"/><rect x="12" y="24" width="6" height="10" rx="2"/><rect x="22" y="14" width="6" height="20" rx="2"/><rect x="32" y="9" width="6" height="25" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-analytics-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 38h32"/><rect x="12" y="24" width="6" height="10" rx="2"/><rect x="22" y="14" width="6" height="20" rx="2"/><rect x="32" y="9" width="6" height="25" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-tasks" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="8" width="30" height="32" rx="5"/><path d="m16 18 3 3 6-7M16 30l3 3 6-7M29 20h5M29 32h5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-tasks-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="8" width="30" height="32" rx="5"/><path d="m16 18 3 3 6-7M16 30l3 3 6-7M29 20h5M29 32h5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-notes" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 7h22v34H13z"/><path d="M19 17h10M19 25h10M19 33h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-notes-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 7h22v34H13z"/><path d="M19 17h10M19 25h10M19 33h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-files" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 7h14l8 8v26H14z"/><path d="M28 7v9h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-files-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 7h14l8 8v26H14z"/><path d="M28 7v9h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-chat" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 12h30v20H21l-8 7v-7H9z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-chat-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#52C58A" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 12h30v20H21l-8 7v-7H9z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-clients" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="17" r="7"/><path d="M10 39c2-8 8-12 14-12s12 4 14 12"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-clients-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="17" r="7"/><path d="M10 39c2-8 8-12 14-12s12 4 14 12"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-calendar" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="11" width="30" height="28" rx="4"/><path d="M16 7v8M32 7v8M9 20h30"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-calendar-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="11" width="30" height="28" rx="4"/><path d="M16 7v8M32 7v8M9 20h30"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-forms" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="11" y="7" width="26" height="34" rx="4"/><path d="M17 16h14M17 24h14M17 32h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-forms-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="11" y="7" width="26" height="34" rx="4"/><path d="M17 16h14M17 24h14M17 32h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-appointments" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="11" width="30" height="28" rx="4"/><path d="M16 7v8M32 7v8M9 20h30"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-appointments-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="11" width="30" height="28" rx="4"/><path d="M16 7v8M32 7v8M9 20h30"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-case-notes" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 7h22v34H13z"/><path d="M19 17h10M19 25h10M19 33h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-case-notes-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 7h22v34H13z"/><path d="M19 17h10M19 25h10M19 33h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-resources" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 7h14l8 8v26H14z"/><path d="M28 7v9h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-resources-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14 7h14l8 8v26H14z"/><path d="M28 7v9h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-pregnancy-test" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-pregnancy-test-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-ultrasound" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="11" width="32" height="26" rx="4"/><path d="m20 19 11 5-11 5z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-ultrasound-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="11" width="32" height="26" rx="4"/><path d="m20 19 11 5-11 5z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-material-aid" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-material-aid-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-referrals" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6l16 16-16 16L8 22z"/><path d="M24 38v4M24 6V3M8 22H4M40 22h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-referrals-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#D4AF37" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4AF37" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6l16 16-16 16L8 22z"/><path d="M24 38v4M24 6V3M8 22H4M40 22h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-events" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="12" width="30" height="27" rx="4"/><path d="M15 8v8M33 8v8M9 20h30"/><circle cx="18" cy="28" r="2"/><circle cx="30" cy="28" r="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-events-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="12" width="30" height="27" rx="4"/><path d="M15 8v8M33 8v8M9 20h30"/><circle cx="18" cy="28" r="2"/><circle cx="30" cy="28" r="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-tickets" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="M8 21h32M16 30h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-tickets-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="M8 21h32M16 30h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-attendees" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-attendees-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sponsors" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="18" cy="18" r="6"/><path d="M8 38c1.7-7 6.5-10 10-10s8.3 3 10 10"/><circle cx="32" cy="20" r="5"/><path d="M28 31c4.2.4 7.5 2.8 9 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sponsors-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="18" cy="18" r="6"/><path d="M8 38c1.7-7 6.5-10 10-10s8.3 3 10 10"/><circle cx="32" cy="20" r="5"/><path d="M28 31c4.2.4 7.5 2.8 9 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-auction" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 29V17l22-7v26z"/><path d="M10 29h-3a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3h3M16 31l4 9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-auction-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 29V17l22-7v26z"/><path d="M10 29h-3a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3h3M16 31l4 9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-table-seating" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="10" width="12" height="12" rx="3"/><rect x="28" y="10" width="12" height="8" rx="3"/><rect x="8" y="30" width="12" height="8" rx="3"/><rect x="28" y="26" width="12" height="12" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-table-seating-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="10" width="12" height="12" rx="3"/><rect x="28" y="10" width="12" height="8" rx="3"/><rect x="8" y="30" width="12" height="8" rx="3"/><rect x="28" y="26" width="12" height="12" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-check-in" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-check-in-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-fish-race" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M6 25h8l4-12 8 24 5-15h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-fish-race-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M6 25h8l4-12 8 24 5-15h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-event-page" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="11" y="7" width="26" height="34" rx="4"/><path d="M17 16h14M17 24h14M17 32h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-event-page-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="11" y="7" width="26" height="34" rx="4"/><path d="M17 16h14M17 24h14M17 32h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-event-analytics" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 38h32"/><rect x="12" y="24" width="6" height="10" rx="2"/><rect x="22" y="14" width="6" height="20" rx="2"/><rect x="32" y="9" width="6" height="25" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-event-analytics-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#F97316" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 38h32"/><rect x="12" y="24" width="6" height="10" rx="2"/><rect x="22" y="14" width="6" height="20" rx="2"/><rect x="32" y="9" width="6" height="25" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-email" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-email-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-letters" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M15 7h15l7 7v27H15z"/><path d="M30 7v8h8M20 24h13M20 31h13M20 38h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-letters-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M15 7h15l7 7v27H15z"/><path d="M30 7v8h8M20 24h13M20 31h13M20 38h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-media" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="11" width="32" height="26" rx="4"/><path d="m20 19 11 5-11 5z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-media-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="11" width="32" height="26" rx="4"/><path d="m20 19 11 5-11 5z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-newsletter" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-newsletter-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sms" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 12h30v20H21l-8 7v-7H9z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sms-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 12h30v20H21l-8 7v-7H9z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-templates" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-templates-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-inbox" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-inbox-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-send" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V12"/><path d="m14 22 10-10 10 10"/><path d="M10 38h28"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-send-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V12"/><path d="m14 22 10-10 10 10"/><path d="M10 38h28"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-draft" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M15 7h15l7 7v27H15z"/><path d="M30 7v8h8M20 24h13M20 31h13M20 38h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-draft-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M15 7h15l7 7v27H15z"/><path d="M30 7v8h8M20 24h13M20 31h13M20 38h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sequence" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 14h11v11H10zM27 23h11v11H27z"/><path d="M21 19h6M24 19v9"/><path d="M16 25v9h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-sequence-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#4A90E2" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 14h11v11H10zM27 23h11v11H27z"/><path d="M21 19h6M24 19v9"/><path d="M16 25v9h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V20"/><path d="M24 20c-6 0-10-3.8-10-9 6 0 10 3.8 10 9z"/><path d="M24 20c6 0 10-3.8 10-9-6 0-10 3.8-10 9z"/><circle cx="14" cy="36" r="4"/><circle cx="34" cy="36" r="4"/><path d="M24 28c-5 0-10 2-10 8M24 28c5 0 10 2 10 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V20"/><path d="M24 20c-6 0-10-3.8-10-9 6 0 10 3.8 10 9z"/><path d="M24 20c6 0 10-3.8 10-9-6 0-10 3.8-10 9z"/><circle cx="14" cy="36" r="4"/><circle cx="34" cy="36" r="4"/><path d="M24 28c-5 0-10 2-10 8M24 28c5 0 10 2 10 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-path-library" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 13h12v10H9zM27 8h12v10H27zM27 30h12v10H27z"/><path d="M21 18h6M24 18v17h3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-path-library-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 13h12v10H9zM27 8h12v10H27zM27 30h12v10H27z"/><path d="M21 18h6M24 18v17h3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-builder" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 13h12v10H12zM28 25h8v8h-8zM12 31h10v8H12z"/><path d="M24 18h7v7M22 36h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-builder-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M12 13h12v10H12zM28 25h8v8h-8zM12 31h10v8H12z"/><path d="M24 18h7v7M22 36h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-enrollments" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><path d="M8 38c1.4-6.5 5.5-9 9-9s7.6 2.5 9 9"/><path d="M32 14v12M26 20h12"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-enrollments-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><path d="M8 38c1.4-6.5 5.5-9 9-9s7.6 2.5 9 9"/><path d="M32 14v12M26 20h12"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-activity" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M6 25h8l4-12 8 24 5-15h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-activity-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M6 25h8l4-12 8 24 5-15h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-automation" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 14h11v11H10zM27 23h11v11H27z"/><path d="M21 19h6M24 19v9"/><path d="M16 25v9h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-automation-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 14h11v11H10zM27 23h11v11H27z"/><path d="M21 19h6M24 19v9"/><path d="M16 25v9h11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-trigger" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M16 8v13h-7l13 19V27h7L16 8z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-trigger-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M16 8v13h-7l13 19V27h7L16 8z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-branch" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6l16 16-16 16L8 22z"/><path d="M24 38v4M24 6V3M8 22H4M40 22h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-branch-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6l16 16-16 16L8 22z"/><path d="M24 38v4M24 6V3M8 22H4M40 22h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-delay" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="16"/><path d="M24 14v11l8 5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-delay-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="16"/><path d="M24 14v11l8 5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-exit-goal" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 10h20v28H10z"/><path d="M22 24h18M33 17l7 7-7 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-exit-goal-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 10h20v28H10z"/><path d="M22 24h18M33 17l7 7-7 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-validation" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-validation-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-publish" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V12"/><path d="m14 22 10-10 10 10"/><path d="M10 38h28"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-publish-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 39V12"/><path d="m14 22 10-10 10 10"/><path d="M10 38h28"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-archive" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="12" width="32" height="8" rx="2"/><path d="M12 20v18h24V20"/><path d="M19 28h10"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-archive-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="12" width="32" height="8" rx="2"/><path d="M12 20v18h24V20"/><path d="M19 28h10"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-import" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 8v22"/><path d="m15 21 9 9 9-9"/><rect x="10" y="34" width="28" height="7" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-import-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 8v22"/><path d="m15 21 9 9 9-9"/><rect x="10" y="34" width="28" height="7" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-export" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 32V10"/><path d="m15 19 9-9 9 9"/><rect x="10" y="34" width="28" height="7" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-export-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 32V10"/><path d="m15 19 9-9 9 9"/><rect x="10" y="34" width="28" height="7" rx="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-template" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-template-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#006B3F" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#006B3F" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#006B3F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-first-time-donor" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="18" cy="18" r="6"/><path d="M8 38c1.7-7 6.5-10 10-10s8.3 3 10 10"/><circle cx="32" cy="20" r="5"/><path d="M28 31c4.2.4 7.5 2.8 9 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-first-time-donor-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="18" cy="18" r="6"/><path d="M8 38c1.7-7 6.5-10 10-10s8.3 3 10 10"/><circle cx="32" cy="20" r="5"/><path d="M28 31c4.2.4 7.5 2.8 9 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-lapsed-donor" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="16"/><path d="M24 14v11l8 5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-lapsed-donor-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="16"/><path d="M24 14v11l8 5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-major-gift" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-major-gift-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-monthly-donor" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="11" width="30" height="28" rx="4"/><path d="M16 7v8M32 7v8M9 20h30"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-monthly-donor-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="11" width="30" height="28" rx="4"/><path d="M16 7v8M32 7v8M9 20h30"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-gift-received" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-gift-received-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 10v28"/><path d="M32 16c-1.7-3-4.7-4.5-8-4.5-4.4 0-8 2.4-8 6s3.6 5.1 8 6 8 2.2 8 6-3.6 6-8 6c-4 0-7-1.8-9-5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-event-attended" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="12" width="30" height="27" rx="4"/><path d="M15 8v8M33 8v8M9 20h30"/><circle cx="18" cy="28" r="2"/><circle cx="30" cy="28" r="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-event-attended-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="12" width="30" height="27" rx="4"/><path d="M15 8v8M33 8v8M9 20h30"/><circle cx="18" cy="28" r="2"/><circle cx="30" cy="28" r="2"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-send-email" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-send-email-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="13" width="32" height="24" rx="4"/><path d="m10 17 14 11 14-11"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-generate-letter" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M15 7h15l7 7v27H15z"/><path d="M30 7v8h8M20 24h13M20 31h13M20 38h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-generate-letter-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M15 7h15l7 7v27H15z"/><path d="M30 7v8h8M20 24h13M20 31h13M20 38h8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-create-task" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="8" width="30" height="32" rx="5"/><path d="m16 18 3 3 6-7M16 30l3 3 6-7M29 20h5M29 32h5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-create-task-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="8" width="30" height="32" rx="5"/><path d="m16 18 3 3 6-7M16 30l3 3 6-7M29 20h5M29 32h5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-update-donor" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="10" y="8" width="28" height="32" rx="5"/><path d="M17 16h14M17 24h14M17 32h8"/><path d="M38 16h4M38 24h4M38 32h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-update-donor-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="10" y="8" width="28" height="32" rx="5"/><path d="M17 16h14M17 24h14M17 32h8"/><path d="M38 16h4M38 24h4M38 32h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-add-tag" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-add-tag-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="8" width="14" height="14" rx="3"/><rect x="26" y="8" width="14" height="14" rx="3"/><rect x="8" y="26" width="14" height="14" rx="3"/><rect x="26" y="26" width="14" height="14" rx="3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-remove-tag" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="12" width="32" height="8" rx="2"/><path d="M12 20v18h24V20"/><path d="M19 28h10"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-remove-tag-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="8" y="12" width="32" height="8" rx="2"/><path d="M12 20v18h24V20"/><path d="M19 28h10"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-notify-staff" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 12h30v20H21l-8 7v-7H9z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-notify-staff-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 12h30v20H21l-8 7v-7H9z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-assign-owner" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-assign-owner-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="17" cy="18" r="5"/><circle cx="31" cy="18" r="5"/><path d="M7 38c1.3-6 5-9 10-9s8.7 3 10 9M21 38c1.2-5.4 4.6-8 10-8 4.7 0 8.2 2.8 9.5 8"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-create-note" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 7h22v34H13z"/><path d="M19 17h10M19 25h10M19 33h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-create-note-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M13 7h22v34H13z"/><path d="M19 17h10M19 25h10M19 33h6"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-call-reminder" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="8" width="30" height="32" rx="5"/><path d="m16 18 3 3 6-7M16 30l3 3 6-7M29 20h5M29 32h5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-call-reminder-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<rect x="9" y="8" width="30" height="32" rx="5"/><path d="m16 18 3 3 6-7M16 30l3 3 6-7M29 20h5M29 32h5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-segment" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 11h32L28 25v12l-8 4V25z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-segment-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 11h32L28 25v12l-8 4V25z"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-condition-check" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-condition-check-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="m9 25 9 9 21-22"/><path d="M24 6a18 18 0 1 0 17 24"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-split-path" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6l16 16-16 16L8 22z"/><path d="M24 38v4M24 6V3M8 22H4M40 22h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-split-path-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 6l16 16-16 16L8 22z"/><path d="M24 38v4M24 6V3M8 22H4M40 22h4"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-merge-path" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 13h12v10H9zM27 8h12v10H27zM27 30h12v10H27z"/><path d="M21 18h6M24 18v17h3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-merge-path-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 13h12v10H9zM27 8h12v10H27zM27 30h12v10H27z"/><path d="M21 18h6M24 18v17h3"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-limit-frequency" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="16"/><path d="M24 14v11l8 5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-limit-frequency-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="24" cy="24" r="16"/><path d="M24 14v11l8 5"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-mark-complete" viewBox="0 0 48 48">
+
+  
+  
+  
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 10h20v28H10z"/><path d="M22 24h18M33 17l7 7-7 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-mark-complete-tile" viewBox="0 0 48 48">
+
+  
+  
+  
+  <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#bg)" stroke="#8B5CF6" stroke-opacity=".28" stroke-width="1.5"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#004225" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 10h20v28H10z"/><path d="M22 24h18M33 17l7 7-7 7"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special" viewBox="0 0 512 512">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-16" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-24" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-32" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-48" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-64" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-128" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+<symbol id="oyama-steward-paths-special-256" viewBox="0 0 48 48">
+
+  
+  
+  <defs>
+    <linearGradient id="leaf" x1="103" y1="56" x2="421" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#52C58A"/>
+      <stop offset=".5" stop-color="#006B3F"/>
+      <stop offset="1" stop-color="#004225"/>
+    </linearGradient>
+    <linearGradient id="node" x1="95" y1="132" x2="433" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A90E2"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00351F" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="#F8FAFC"/>
+  <rect x="34" y="34" width="444" height="444" rx="118" fill="url(#leaf)" opacity=".10"/>
+  <g filter="url(#shadow)">
+    <path d="M256 392V206" stroke="url(#leaf)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M256 209c-70 0-118-43-120-112 70 0 118 43 120 112Z" fill="url(#leaf)"/>
+    <path d="M256 209c70 0 118-43 120-112-70 0-118 43-120 112Z" fill="url(#leaf)" opacity=".92"/>
+    <path d="M256 284c-58 0-111 34-111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 284c58 0 111 34 111 88" stroke="url(#node)" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <circle cx="145" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="367" cy="382" r="43" fill="#FFFFFF" stroke="url(#node)" stroke-width="18"/>
+    <circle cx="256" cy="284" r="27" fill="#FFFFFF" stroke="#006B3F" stroke-width="15"/>
+    <path d="M173 382h-45M384 382h-34M256 284v-39" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity=".9"/>
+  </g>
+
+</symbol>
+</svg>

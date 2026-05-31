@@ -4,11 +4,16 @@
  */
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import WorkflowMap from "./WorkflowMap";
 import type { NodeInsertTarget, WorkflowDocument, WorkflowNodeCanvasOffset } from "./workflow-types";
 import { isBranchNode } from "./workflow-types";
-import type { WorkflowContainerRef } from "./workflow-utils";
+import {
+  getBranchLaneEndAnchorId,
+  getBranchLaneStartAnchorId,
+  type WorkflowContainerRef,
+} from "./workflow-utils";
 
 interface WorkflowCanvasProps {
   doc: WorkflowDocument;
@@ -21,6 +26,7 @@ interface WorkflowCanvasProps {
   onDropPaletteKind: (kind: string, target: NodeInsertTarget) => void;
   nodeOffsets: Record<string, WorkflowNodeCanvasOffset>;
   onNodeOffsetChange: (nodeId: string, offset: WorkflowNodeCanvasOffset) => void;
+  onResetLayout?: () => void;
 }
 
 interface CanvasConnectorLine {
@@ -31,6 +37,24 @@ interface CanvasConnectorLine {
   targetY: number;
 }
 
+interface CanvasPanDragState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originPanX: number;
+  originPanY: number;
+}
+
+interface CanvasMiniNode {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const CANVAS_GRID_SIZE = 20;
+
 /** Returns visual parent-child edges that should stay connected during free drag. */
 function collectWorkflowEdges(doc: WorkflowDocument): Array<{ sourceId: string; targetId: string }> {
   const edges: Array<{ sourceId: string; targetId: string }> = [];
@@ -39,19 +63,33 @@ function collectWorkflowEdges(doc: WorkflowDocument): Array<{ sourceId: string; 
     for (let index = 0; index < ids.length; index += 1) {
       const currentId = ids[index];
       const nextId = ids[index + 1];
-      if (nextId) {
-        edges.push({ sourceId: currentId, targetId: nextId });
-      }
 
       const node = doc.nodesById[currentId];
-      if (node && isBranchNode(node)) {
-        for (const lane of node.lanes) {
-          const firstLaneNodeId = lane.nodeIds[0];
-          if (firstLaneNodeId) {
-            edges.push({ sourceId: node.id, targetId: firstLaneNodeId });
-          }
-          visit(lane.nodeIds);
+      if (!node) continue;
+
+      if (!isBranchNode(node)) {
+        if (nextId) {
+          edges.push({ sourceId: currentId, targetId: nextId });
         }
+        continue;
+      }
+
+      for (const lane of node.lanes) {
+        const laneStartAnchorId = getBranchLaneStartAnchorId(lane.id);
+        const laneEndAnchorId = getBranchLaneEndAnchorId(lane.id);
+        const firstLaneNodeId = lane.nodeIds[0];
+        const laneTerminalNodeId = lane.nodeIds[lane.nodeIds.length - 1] ?? laneStartAnchorId;
+
+        edges.push({ sourceId: node.id, targetId: laneStartAnchorId });
+        if (firstLaneNodeId) {
+          edges.push({ sourceId: laneStartAnchorId, targetId: firstLaneNodeId });
+        }
+        edges.push({ sourceId: laneTerminalNodeId, targetId: laneEndAnchorId });
+        if (nextId) {
+          edges.push({ sourceId: laneEndAnchorId, targetId: nextId });
+        }
+
+        visit(lane.nodeIds);
       }
     }
   }
@@ -72,21 +110,105 @@ export default function WorkflowCanvas({
   onDropPaletteKind,
   nodeOffsets,
   onNodeOffsetChange,
+  onResetLayout,
 }: WorkflowCanvasProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [connectorLines, setConnectorLines] = useState<CanvasConnectorLine[]>([]);
   const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 900 });
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [laneOffsets, setLaneOffsets] = useState<Record<string, WorkflowNodeCanvasOffset>>({});
+  const [miniNodes, setMiniNodes] = useState<CanvasMiniNode[]>([]);
+  const [showMiniMap, setShowMiniMap] = useState(true);
+  const [isPanning, setIsPanning] = useState(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const dragCountRef = useRef(0);
+  const panDragRef = useRef<CanvasPanDragState | null>(null);
+
+  const setZoomClamped = useCallback((nextZoom: number | ((current: number) => number)) => {
+    setZoom((current) => {
+      const resolved = typeof nextZoom === "function" ? nextZoom(current) : nextZoom;
+      return Math.min(1.7, Math.max(0.55, resolved));
+    });
+  }, []);
+
+  function canStartPanFromTarget(target: EventTarget | null): boolean {
+    const element = target as HTMLElement | null;
+    if (!element) return false;
+    if (element.closest("[data-workflow-node-id], button, input, select, textarea, a")) return false;
+    return true;
+  }
+
+  function beginCanvasPan(event: ReactPointerEvent<HTMLDivElement>) {
+    const allowMiddleButtonPan = event.button === 1;
+    const allowLeftButtonPan = event.button === 0 && canStartPanFromTarget(event.target);
+    if (!allowMiddleButtonPan && !allowLeftButtonPan) return;
+
+    event.preventDefault();
+    panDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originPanX: pan.x,
+      originPanY: pan.y,
+    };
+    setIsPanning(true);
+
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function moveCanvasPan(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    setPan({ x: drag.originPanX + deltaX, y: drag.originPanY + deltaY });
+  }
+
+  function endCanvasPan(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = panDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    panDragRef.current = null;
+    setIsPanning(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  const handleCanvasWheel = useCallback((event: WheelEvent) => {
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      setZoomClamped((current) => current - event.deltaY * 0.0015);
+      return;
+    }
+
+    setPan((current) => ({
+      x: current.x - event.deltaX,
+      y: current.y - event.deltaY,
+    }));
+  }, [setZoomClamped]);
+
+  const handleLaneOffsetChange = useCallback((laneId: string, offset: WorkflowNodeCanvasOffset) => {
+    setLaneOffsets((current) => {
+      const existing = current[laneId] ?? { x: 0, y: 0 };
+      if (existing.x === offset.x && existing.y === offset.y) return current;
+      return {
+        ...current,
+        [laneId]: offset,
+      };
+    });
+  }, []);
 
   const measureConnectorLines = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     setCanvasSize((current) => (
-      current.width === canvas.scrollWidth && current.height === canvas.scrollHeight
+      current.width === canvas.clientWidth && current.height === canvas.clientHeight
         ? current
-        : { width: canvas.scrollWidth, height: canvas.scrollHeight }
+        : { width: canvas.clientWidth, height: canvas.clientHeight }
     ));
 
     const canvasRect = canvas.getBoundingClientRect();
@@ -101,19 +223,70 @@ export default function WorkflowCanvas({
 
       return [{
         id: `${edge.sourceId}-${edge.targetId}`,
-        sourceX: sourceRect.left - canvasRect.left + canvas.scrollLeft + sourceRect.width / 2,
-        sourceY: sourceRect.bottom - canvasRect.top + canvas.scrollTop,
-        targetX: targetRect.left - canvasRect.left + canvas.scrollLeft + targetRect.width / 2,
-        targetY: targetRect.top - canvasRect.top + canvas.scrollTop,
+        sourceX: sourceRect.left - canvasRect.left + sourceRect.width / 2,
+        sourceY: sourceRect.bottom - canvasRect.top,
+        targetX: targetRect.left - canvasRect.left + targetRect.width / 2,
+        targetY: targetRect.top - canvasRect.top,
       }];
     });
 
     setConnectorLines(nextLines);
+
+    const nextMiniNodes = Array.from(canvas.querySelectorAll<HTMLElement>("[data-workflow-node-id]")).flatMap((element) => {
+      const nodeId = element.getAttribute("data-workflow-node-id") || "";
+      if (!nodeId || nodeId.startsWith("__branch_lane_")) return [];
+
+      const rect = element.getBoundingClientRect();
+      return [{
+        id: nodeId,
+        x: rect.left - canvasRect.left,
+        y: rect.top - canvasRect.top,
+        width: rect.width,
+        height: rect.height,
+      }];
+    });
+    setMiniNodes(nextMiniNodes);
   }, [doc]);
+
+  const miniMapGeometry = useMemo(() => {
+    const miniWidth = 108;
+    const miniHeight = 82;
+    const padding = 5;
+
+    const contentMinX = miniNodes.length ? Math.min(...miniNodes.map((node) => node.x)) : 0;
+    const contentMinY = miniNodes.length ? Math.min(...miniNodes.map((node) => node.y)) : 0;
+    const contentMaxX = miniNodes.length ? Math.max(...miniNodes.map((node) => node.x + node.width)) : canvasSize.width;
+    const contentMaxY = miniNodes.length ? Math.max(...miniNodes.map((node) => node.y + node.height)) : canvasSize.height;
+
+    const totalWidth = Math.max(contentMaxX - contentMinX, canvasSize.width, 1);
+    const totalHeight = Math.max(contentMaxY - contentMinY, canvasSize.height, 1);
+
+    const scale = Math.min((miniWidth - padding * 2) / totalWidth, (miniHeight - padding * 2) / totalHeight);
+    const scaledWidth = totalWidth * scale;
+    const scaledHeight = totalHeight * scale;
+    const originX = (miniWidth - scaledWidth) / 2;
+    const originY = (miniHeight - scaledHeight) / 2;
+
+    return {
+      miniWidth,
+      miniHeight,
+      contentMinX,
+      contentMinY,
+      scale,
+      originX,
+      originY,
+      viewportRect: {
+        x: originX + (0 - contentMinX) * scale,
+        y: originY + (0 - contentMinY) * scale,
+        width: canvasSize.width * scale,
+        height: canvasSize.height * scale,
+      },
+    };
+  }, [canvasSize.height, canvasSize.width, miniNodes]);
 
   useLayoutEffect(() => {
     measureConnectorLines();
-  }, [doc, measureConnectorLines, nodeOffsets]);
+  }, [doc, measureConnectorLines, nodeOffsets, laneOffsets, zoom, pan]);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -121,24 +294,23 @@ export default function WorkflowCanvas({
 
     const resizeObserver = new ResizeObserver(() => measureConnectorLines());
     resizeObserver.observe(canvas);
-    const onScroll = () => measureConnectorLines();
-    canvas.addEventListener("scroll", onScroll, { passive: true });
+    canvas.addEventListener("wheel", handleCanvasWheel, { passive: false });
     window.addEventListener("resize", measureConnectorLines);
 
     return () => {
       resizeObserver.disconnect();
-      canvas.removeEventListener("scroll", onScroll);
+      canvas.removeEventListener("wheel", handleCanvasWheel);
       window.removeEventListener("resize", measureConnectorLines);
     };
-  }, [measureConnectorLines]);
+  }, [handleCanvasWheel, measureConnectorLines]);
 
   if (doc.rootNodeIds.length === 0) {
     return (
       <div
         className="flex flex-1 items-center justify-center bg-white"
         style={{
-          backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.28) 1px, transparent 0)",
-          backgroundSize: "18px 18px",
+          backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.22) 1px, transparent 0)",
+          backgroundSize: "20px 20px",
         }}
       >
         <div className="max-w-md rounded-2xl border border-gray-200 bg-white/95 px-6 py-6 text-center shadow-sm">
@@ -161,12 +333,16 @@ export default function WorkflowCanvas({
   return (
     <div
       ref={canvasRef}
-      className="relative flex-1 overflow-auto p-6"
+      className={`relative flex-1 overflow-hidden p-3 md:p-4 ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
       style={{
-        backgroundColor: "#ffffff",
-        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.28) 1px, transparent 0)",
-        backgroundSize: "18px 18px",
+        backgroundColor: "#f8fafb",
+        backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.22) 1px, transparent 0)",
+        backgroundSize: "20px 20px",
       }}
+      onPointerDown={beginCanvasPan}
+      onPointerMove={moveCanvasPan}
+      onPointerUp={endCanvasPan}
+      onPointerCancel={endCanvasPan}
       onDragEnter={() => { dragCountRef.current++; setIsDragging(true); }}
       onDragLeave={() => {
         dragCountRef.current--;
@@ -186,7 +362,7 @@ export default function WorkflowCanvas({
           </marker>
         </defs>
         {connectorLines.map((line) => {
-          const bend = Math.max(38, Math.abs(line.targetY - line.sourceY) * 0.45);
+          const bend = Math.max(34, Math.abs(line.targetY - line.sourceY) * 0.45);
           const path = `M ${line.sourceX} ${line.sourceY} C ${line.sourceX} ${line.sourceY + bend}, ${line.targetX} ${line.targetY - bend}, ${line.targetX} ${line.targetY}`;
           return (
             <path
@@ -194,7 +370,7 @@ export default function WorkflowCanvas({
               d={path}
               fill="none"
               stroke="#94a3b8"
-              strokeWidth="1.6"
+              strokeWidth="1.5"
               strokeLinecap="round"
               markerEnd="url(#steward-path-arrow)"
             />
@@ -202,7 +378,140 @@ export default function WorkflowCanvas({
         })}
       </svg>
 
-      <div className="relative z-10 mx-auto w-full min-w-[780px] max-w-5xl">
+      <div className="pointer-events-auto absolute right-4 top-3 z-20 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setZoomClamped(zoom - 0.1)}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+          title="Zoom out"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <circle cx="7" cy="7" r="4.5" />
+            <path strokeLinecap="round" d="M4.5 7h5" />
+            <path strokeLinecap="round" d="M10.5 10.5l3 3" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setZoomClamped(1)}
+          className="inline-flex h-7 min-w-[58px] items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+          title="Reset zoom"
+        >
+          {Math.round(zoom * 100)}%
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setZoomClamped(zoom + 0.1)}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+          title="Zoom in"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <circle cx="7" cy="7" r="4.5" />
+            <path strokeLinecap="round" d="M4.5 7h5M7 4.5v5" />
+            <path strokeLinecap="round" d="M10.5 10.5l3 3" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setZoomClamped(1.2);
+            setPan({ x: 0, y: 0 });
+          }}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+          title="Focus"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 6v-3.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowMiniMap((current) => !current)}
+          className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${showMiniMap ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-slate-100"}`}
+          title={showMiniMap ? "Hide mini map" : "Show mini map"}
+        >
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path strokeLinecap="round" d="M3.5 3.5h9v9h-9z" />
+            <path d="M6.5 3.5v9M9.5 3.5v9M3.5 6.5h9M3.5 9.5h9" />
+          </svg>
+        </button>
+      </div>
+
+      {showMiniMap ? (
+        <div className="pointer-events-auto absolute bottom-3 left-3 z-20 flex items-end gap-2">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white/95 p-1.5 shadow-sm">
+            <svg width={miniMapGeometry.miniWidth} height={miniMapGeometry.miniHeight} aria-hidden="true">
+              <rect x="0" y="0" width={miniMapGeometry.miniWidth} height={miniMapGeometry.miniHeight} fill="#f8fafc" stroke="#e2e8f0" />
+              {miniNodes.map((node) => (
+                <rect
+                  key={node.id}
+                  x={miniMapGeometry.originX + (node.x - miniMapGeometry.contentMinX) * miniMapGeometry.scale}
+                  y={miniMapGeometry.originY + (node.y - miniMapGeometry.contentMinY) * miniMapGeometry.scale}
+                  width={Math.max(2, node.width * miniMapGeometry.scale)}
+                  height={Math.max(2, node.height * miniMapGeometry.scale)}
+                  rx="0.8"
+                  fill="#cbd5e1"
+                  stroke="#94a3b8"
+                  strokeWidth="0.5"
+                />
+              ))}
+              <rect
+                x={miniMapGeometry.viewportRect.x}
+                y={miniMapGeometry.viewportRect.y}
+                width={miniMapGeometry.viewportRect.width}
+                height={miniMapGeometry.viewportRect.height}
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="1"
+              />
+            </svg>
+          </div>
+
+          <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setZoomClamped(1.2);
+                setPan({ x: 0, y: 0 });
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+              title="Fit view"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 6v-3.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+              </svg>
+            </button>
+            {onResetLayout ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onResetLayout();
+                  setLaneOffsets({});
+                  setPan({ x: 0, y: 0 });
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+                title="Reset layout"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8a5 5 0 0 1 8.5-3.5L13 6M13 3v3h-3M13 8a5 5 0 0 1-8.5 3.5L3 10M3 13v-3h3" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        className="relative z-10 mx-auto w-full min-w-[780px] max-w-5xl"
+        style={{
+          transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+          transformOrigin: "top center",
+        }}
+      >
         <WorkflowMap
           doc={doc}
           nodeIds={doc.rootNodeIds}
@@ -217,18 +526,12 @@ export default function WorkflowCanvas({
           isDragging={isDragging}
           nodeOffsets={nodeOffsets}
           onNodeOffsetChange={onNodeOffsetChange}
+          laneOffsets={laneOffsets}
+          onLaneOffsetChange={handleLaneOffsetChange}
+          gridSize={CANVAS_GRID_SIZE}
         />
       </div>
-      <div className="pointer-events-none sticky bottom-5 left-full ml-auto mr-3 h-36 w-36 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm">
-        <div className="relative h-full w-full rounded bg-slate-50">
-          <span className="absolute left-12 top-2 h-5 w-8 rounded border border-slate-300 bg-white" />
-          <span className="absolute left-11 top-9 h-6 w-10 rounded border border-blue-300 bg-blue-50" />
-          <span className="absolute left-12 top-[4.4rem] h-5 w-8 rounded border border-amber-300 bg-amber-50" />
-          <span className="absolute left-3 top-[5.8rem] h-5 w-9 rounded border border-green-300 bg-green-50" />
-          <span className="absolute right-3 top-[5.8rem] h-5 w-9 rounded border border-blue-300 bg-blue-50" />
-          <span className="absolute inset-x-6 top-8 h-16 rounded border-2 border-blue-400/70" />
-        </div>
-      </div>
+
     </div>
   );
 }

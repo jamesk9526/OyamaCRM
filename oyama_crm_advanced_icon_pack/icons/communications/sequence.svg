@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Sequence</title>
+  <desc id="desc">Sequence icon in the Oyama CRM advanced icon pack</desc>
+  
+  <g fill="none" stroke="#4A90E2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M10 14h11v11H10zM27 23h11v11H27z"/><path d="M21 19h6M24 19v9"/><path d="M16 25v9h11"/>
+  </g>
+</svg>
