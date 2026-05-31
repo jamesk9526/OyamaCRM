@@ -346,9 +346,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     ? shellScrolled
       ? "pt-52 xl:pt-64"
       : "pt-52 xl:pt-76"
-    : shellScrolled
-      ? "pt-18 xl:pt-22"
-      : "pt-19 xl:pt-30";
+    : "pt-14";
 
   const shellStyle: CSSProperties = {
     "--oyama-donor-chrome-start": dashboardChromeTint.dark,
@@ -392,7 +390,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className={`flex-1 min-w-0 overflow-hidden ${contentTopPaddingClass}`}>
           {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-          <main data-crm-scroll-root="true" className="h-full min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
+          <main data-crm-scroll-root="true" className="h-full min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-0 sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-0 xl:px-7 xl:pb-7 xl:pt-0 min-[1440px]:px-8 min-[1440px]:pt-0 2xl:px-9 2xl:pt-0">
 
             <ErrorBoundary>
               <div className="min-w-0 max-w-full">

@@ -13,6 +13,14 @@ Feature claims in this file should follow the workspace-first governance baselin
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
 
+## 2026-05-31 Context-Aware Ribbon Visual Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Shared route-aware ribbon config | Partially Working | `app/components/ui/crm/ribbon/config.ts`, `app/components/ui/crm/ribbon/ContextualRibbon.tsx`, `app/components/ui/crm/CRMActionBar.tsx` | Donor dashboard, Constituents, donor profiles, Donations, Campaigns, OyamaEmail, OyamaLetters, and Steward Paths now resolve page-specific tabs and command groups instead of one giant ribbon. |
+| Full-width compact sticky placement | Partially Working | `app/components/layout/AppShell.tsx`, `app/components/layout/EnterprisePageShell.tsx`, `app/components/workspace-ribbon/WorkspaceRibbonButton.tsx` | Donor CRM page ribbons are full-width within the workspace content area, moved up to meet the global top bar, and use a compact context header plus ribbon row. |
+| Selection-aware command state | Partially Working | `app/constituents/page.tsx`, `app/components/constituents/ConstituentTable.tsx`, `app/donations/page.tsx`, `app/components/donations/DonationTable.tsx` | Constituents and Donations expose row selection counts to the ribbon so selection-gated commands can show disabled/enabled states truthfully. Some bulk operations remain disabled until their real workflows are connected. |
+
 ## 2026-05-30 Steward Paths Dedicated Workspace Phase 1
 
 | Area | Status | Evidence | Notes |

@@ -5,8 +5,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface StewardPathTemplate {
@@ -527,6 +528,7 @@ export default function StewardPathsWorkspaceV2Page({
   initialOpenCreate = false,
 }: StewardPathsWorkspaceV2PageProps) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [paths, setPaths] = useState<StewardPathTemplate[]>([]);
   const [enrollments, setEnrollments] = useState<StewardEnrollment[]>([]);
@@ -894,6 +896,33 @@ export default function StewardPathsWorkspaceV2Page({
             </div>
           </div>
         </header>
+
+        <ContextualRibbon
+          pathname={pathname}
+          className="top-0 z-30"
+          context={{
+            flags: {
+              pathStatusFilter: statusFilter,
+              pathCategoryFilter: categoryFilter,
+            },
+          }}
+          handlers={{
+            "create-path": openCreateModal,
+            "paths-use-template": () => {
+              setCreateDraft((current) => ({ ...current, mode: "template" }));
+              openCreateModal();
+            },
+            "paths-filter-status": () => {
+              setStatusFilter(statusFilter === "ALL" ? "ACTIVE" : "ALL");
+            },
+            "paths-filter-category": () => {
+              setCategoryFilter(categoryFilter === "all" ? "donation-follow-up" : "all");
+            },
+            "paths-library-view": () => router.push("/steward-paths/library"),
+            "paths-activity-view": () => router.push("/steward-paths/activity"),
+            "paths-analytics-view": () => router.push("/steward-paths/analytics"),
+          }}
+        />
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="grid gap-2 lg:grid-cols-[minmax(260px,1.2fr)_170px_170px_150px_170px_auto]">

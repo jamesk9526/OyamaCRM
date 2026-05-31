@@ -33,7 +33,11 @@ export interface CrmRibbonTab {
 
 export interface CrmRibbonPageConfig {
   id: string;
+  workspaceLabel?: string;
   pageLabel: string;
+  statusLabel?: string;
+  summaryText?: string;
+  primaryCommandId?: string;
   tabs: CrmRibbonTab[];
   defaultTabId: string;
 }

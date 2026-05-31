@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
+import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
 import type {
   OyamaEmailCampaign,
@@ -559,6 +560,27 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
 
         <div className="flex min-w-0 flex-1 flex-col">
           {normalizedView !== "builder" ? <OyamaEmailTopBar view={normalizedView} targetCampaign={selectedCampaign} /> : null}
+          {normalizedView !== "builder" ? (
+            <ContextualRibbon
+              pathname={pathname}
+              className="top-12 z-20 mx-4 mt-3 xl:mx-6"
+              context={{
+                selectionCount: selectedRecipientIds.length,
+                flags: {
+                  hasSelectedCampaign: Boolean(selectedCampaign?.id),
+                  hasRecipients: selectedRecipientIds.length > 0,
+                },
+              }}
+              handlers={{
+                "new-email": () => router.push("/oyama-email/templates/new"),
+                "new-newsletter": () => router.push("/oyama-email/templates/new?type=newsletter"),
+                "open-drafts": () => router.push("/oyama-email/campaigns?status=DRAFT"),
+                "scheduled-sends": () => router.push("/oyama-email/calendar"),
+                "open-email-templates": () => router.push("/oyama-email/templates"),
+                "new-email-template": () => router.push("/oyama-email/templates/new"),
+              }}
+            />
+          ) : null}
 
           {error ? <Alert tone="error">{error}</Alert> : null}
           {notice ? <Alert tone="success">{notice}</Alert> : null}
@@ -701,11 +723,12 @@ function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targ
           <p className="text-sm text-slate-600">{workspaceSubtitle(view, targetCampaign)}</p>
         </div>
 
-        {view === "builder" ? (
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          <WorkspaceAction href="/" tone="secondary">Back to CRM</WorkspaceAction>
+          {view === "builder" ? (
             <WorkspaceAction href={targetCampaign?.id ? `/oyama-email/templates/${targetCampaign.id}/publish` : "/oyama-email/templates/new"} tone="primary">Next: Publish &amp; Compliance</WorkspaceAction>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </header>
   );

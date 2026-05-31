@@ -463,7 +463,7 @@ export default function NodeInspector({
 
   if (!node) {
     return (
-      <aside className="w-[352px] shrink-0 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <aside className="w-[330px] shrink-0 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
         <div className="border-b border-slate-200 px-4 py-4">
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <h2 className="text-base font-semibold text-slate-950">Node Settings</h2>
@@ -556,7 +556,7 @@ export default function NodeInspector({
           : "bg-slate-50 text-slate-700 ring-slate-100";
 
   return (
-    <aside className="w-[352px] shrink-0 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <aside className="w-[330px] shrink-0 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-950">Node Settings</h2>

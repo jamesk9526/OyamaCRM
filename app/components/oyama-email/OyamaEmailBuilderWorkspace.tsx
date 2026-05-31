@@ -1593,15 +1593,15 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-white">
+    <div className="flex min-h-[100dvh] flex-col bg-[#f6f8fb]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
         {/* Row 1: back + name + status + actions */}
-        <div className="flex h-14 items-center gap-3 px-4">
+        <div className="flex h-16 items-center gap-3 px-6">
           <button
             type="button"
             onClick={() => router.back()}
-            className="flex-none rounded p-1 text-slate-500 hover:bg-slate-100"
+            className="flex-none rounded-lg p-1.5 text-slate-700 hover:bg-slate-100"
             title="Back"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
@@ -1615,14 +1615,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               onChange={(e) => setDraftField("name", e.target.value)}
               onBlur={() => setEditingName(false)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }}
-              className="h-8 flex-1 rounded border border-emerald-400 bg-white px-2 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="h-9 flex-1 rounded-lg border border-emerald-400 bg-white px-2 text-lg font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               autoFocus
             />
           ) : (
             <button
               type="button"
               onClick={() => setEditingName(true)}
-              className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-slate-900 hover:text-emerald-700"
+              className="min-w-0 flex-1 truncate text-left text-xl font-semibold text-slate-950 hover:text-emerald-700"
               title="Click to rename"
             >
               {draft.name || "Untitled Email Template"}
@@ -1639,21 +1639,21 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               type="button"
               onClick={() => void saveTemplate(false)}
               disabled={saving || autosaving}
-              className="h-8 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save Draft"}
             </button>
             <button
               type="button"
               onClick={() => setTestEmailDialogOpen(true)}
-              className="h-8 rounded-md border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
             >
               Send Test
             </button>
             {canPublish ? (
               <Link
                 href={publishHref}
-                className="inline-flex h-8 items-center rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600"
+                className="inline-flex h-10 items-center rounded-lg border border-emerald-800 bg-emerald-800 px-5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
               >
                 Next: Publish →
               </Link>
@@ -1662,7 +1662,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 type="button"
                 disabled
                 title="Save template first"
-                className="h-8 rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-400"
+                className="h-10 rounded-lg border border-slate-200 bg-slate-100 px-5 text-sm font-semibold text-slate-400"
               >
                 Next: Publish →
               </button>
@@ -1671,12 +1671,12 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </div>
 
         {/* Row 2: Ribbon tabs + zoom + device toggle */}
-        <div className="flex h-10 items-end border-t border-slate-100 px-4">
-          <div className="flex h-full items-end gap-6 mr-4">
+        <div className="flex h-12 items-end border-t border-slate-100 px-6">
+          <div className="mr-4 flex h-full items-end gap-8">
             <button
               type="button"
               onClick={() => setActiveTab("edit")}
-              className={["h-10 border-b-2 px-1 text-sm font-medium transition-colors",
+              className={["h-12 border-b-2 px-1 text-sm font-semibold transition-colors",
                 activeTab === "edit" ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-600 hover:text-slate-900"
               ].join(" ")}
             >
@@ -1685,21 +1685,21 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             <button
               type="button"
               onClick={() => void handlePreviewOpen()}
-              className="h-10 border-b-2 border-transparent px-1 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              className="h-12 border-b-2 border-transparent px-1 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
             >
               {previewRefreshing ? "Loading…" : "Preview"}
             </button>
             <button
               type="button"
               onClick={() => setPlainTextModalOpen(true)}
-              className="h-10 border-b-2 border-transparent px-1 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              className="h-12 border-b-2 border-transparent px-1 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
             >
               Plain Text
             </button>
             <button
               type="button"
               onClick={() => setActiveTab(activeTab === "mobilePreview" ? "edit" : "mobilePreview")}
-              className={["h-10 border-b-2 px-1 text-sm font-medium transition-colors",
+              className={["h-12 border-b-2 px-1 text-sm font-semibold transition-colors",
                 activeTab === "mobilePreview" ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-600 hover:text-slate-900"
               ].join(" ")}
             >
@@ -1754,16 +1754,16 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       </header>
 
       {/* ── 3-col layout ─────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden bg-[#f6f8fb] p-3">
         {/* LEFT PANEL */}
-        <aside className="flex w-[230px] flex-none flex-col border-r border-slate-200 bg-white">
-          <div className="flex-1 overflow-y-auto px-3 py-4">
+        <aside className="flex w-[304px] flex-none flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
             {/* Add Content */}
             <div className="mb-4">
               <button
                 type="button"
                 onClick={() => setAddContentExpanded((v) => !v)}
-                className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500"
+                className="flex w-full items-center justify-between text-base font-semibold text-slate-950"
               >
                 Add Content
                 <svg viewBox="0 0 20 20" className={["h-4 w-4 transition-transform", addContentExpanded ? "rotate-180" : ""].join(" ")} fill="currentColor">
@@ -1778,7 +1778,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                         key={choice.type}
                         type="button"
                         onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)}
-                        className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 text-[11px] font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
+                        className="flex min-h-[58px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
                       >
                         <BlockTypeIcon type={choice.type} />
                         {choice.label}
@@ -1810,7 +1810,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               <button
                 type="button"
                 onClick={() => setMergeFieldsExpanded((v) => !v)}
-                className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500"
+                className="flex w-full items-center justify-between text-base font-semibold text-slate-950"
               >
                 Merge Fields
                 <svg viewBox="0 0 20 20" className={["h-4 w-4 transition-transform", mergeFieldsExpanded ? "rotate-180" : ""].join(" ")} fill="currentColor">
@@ -1876,14 +1876,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </aside>
 
         {/* CANVAS */}
-        <main className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#edf1f5]">
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto rounded-xl border border-slate-200 bg-[#f8fafc]">
           <div
             className="mx-auto my-6 px-6"
-            style={{ maxWidth: activeTab === "mobilePreview" ? 430 : canvasWidth + 80 }}
+            style={{ maxWidth: activeTab === "mobilePreview" ? 430 : canvasWidth + 96 }}
           >
             <div
               style={{ ...(scaledStyle || {}), width: canvasWidth, maxWidth: "100%", margin: "0 auto" }}
-              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+              className="overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white shadow-sm"
             >
               {draft.template.blocks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-center">
@@ -2018,9 +2018,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="flex w-[270px] flex-none flex-col border-l border-slate-200 bg-white">
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Email Settings</p>
+        <aside className="flex w-[340px] flex-none flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <p className="text-base font-semibold text-slate-950">Email Settings</p>
             {builderWarnings.length > 0 ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-900">Validation Warnings</p>

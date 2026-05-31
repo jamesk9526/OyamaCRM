@@ -9,8 +9,6 @@ import {
   typeLabel,
 } from "@/app/components/constituents/constituent-utils";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
@@ -46,6 +44,7 @@ export default function ConstituentsPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [summary, setSummary] = useState<ConstituentsPageResponse["summary"]>(undefined);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -96,6 +95,10 @@ export default function ConstituentsPage() {
     setPage(1);
   }, [search, typeFilter, statusFilter, pageSize]);
 
+  useEffect(() => {
+    setSelectedIds((current) => current.filter((id) => constituents.some((row) => row.id === id)));
+  }, [constituents]);
+
   const stats = {
     total: summary?.total ?? total,
     active: summary?.active ?? constituents.filter((c) => c.donorStatus === "ACTIVE" || c.donorStatus === "MAJOR_DONOR").length,
@@ -121,56 +124,44 @@ export default function ConstituentsPage() {
   return (
     <EnterprisePageShell
       ribbon={(
-        <div className="space-y-3">
-          <WorkspaceBreadcrumbBar
-            items={[
-              { label: "Donor CRM", href: "/" },
-              { label: "Constituents" },
-            ]}
-            statusLabel={loading ? "Loading" : "Working"}
-            metadata={`${loading ? "Loading records" : `${stats.total.toLocaleString()} total · ${stats.active.toLocaleString()} active donors · ${stats.prospects.toLocaleString()} prospects`}`}
-            primaryAction={<WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />}
-          />
-        </div>
+        <CRMActionBar
+          context={{
+            selectionCount: selectedIds.length,
+            flags: {
+              hasFilters,
+            },
+          }}
+          commandHandlers={{
+            "view-all-constituents": () => {
+              setTypeFilter("");
+              setStatusFilter("");
+              setPage(1);
+            },
+            "view-active-donors": () => {
+              setTypeFilter("");
+              setStatusFilter("ACTIVE");
+              setPage(1);
+            },
+            "view-prospects": () => {
+              setTypeFilter("PROSPECT");
+              setStatusFilter("");
+              setPage(1);
+            },
+            "clear-filters": () => {
+              setSearch("");
+              setTypeFilter("");
+              setStatusFilter("");
+              setPage(1);
+            },
+            "advanced-filter": () => {
+              const filterInput = document.querySelector<HTMLInputElement>('input[type="search"]');
+              filterInput?.focus();
+            },
+          }}
+        />
       )}
     >
       <div className="space-y-5">
-      <CRMActionBar
-        context={{
-          selectionCount: 0,
-          flags: {
-            hasFilters,
-          },
-        }}
-        commandHandlers={{
-          "view-all-constituents": () => {
-            setTypeFilter("");
-            setStatusFilter("");
-            setPage(1);
-          },
-          "view-active-donors": () => {
-            setTypeFilter("");
-            setStatusFilter("ACTIVE");
-            setPage(1);
-          },
-          "view-prospects": () => {
-            setTypeFilter("PROSPECT");
-            setStatusFilter("");
-            setPage(1);
-          },
-          "clear-filters": () => {
-            setSearch("");
-            setTypeFilter("");
-            setStatusFilter("");
-            setPage(1);
-          },
-          "advanced-filter": () => {
-            const filterInput = document.querySelector<HTMLInputElement>('input[type="search"]');
-            filterInput?.focus();
-          },
-        }}
-      />
-
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <CRMMetricCard label="Total Constituents" value={loading ? "—" : stats.total.toLocaleString()} tone="green" icon={<PeopleIcon />} helper="All constituent records" />
         <CRMMetricCard label="Active Donors" value={loading ? "—" : stats.active.toLocaleString()} tone="blue" icon={<PersonIcon />} helper="Currently engaged donors" />
@@ -247,7 +238,13 @@ export default function ConstituentsPage() {
       )}
 
       <CRMDataTable>
-        <ConstituentTable constituents={constituents} loading={loading && !error} onDelete={handleDelete} />
+        <ConstituentTable
+          constituents={constituents}
+          loading={loading && !error}
+          onDelete={handleDelete}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+        />
       </CRMDataTable>
 
       {!loading && !error && total > 0 && (

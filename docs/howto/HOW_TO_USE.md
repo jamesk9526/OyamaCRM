@@ -33,6 +33,7 @@ Use the dated audit docs for details:
 1. Open the app and sign in with your assigned staff account.
 2. Use the module switcher in the top bar to choose DonorCRM, Compassion CRM, or Events CRM.
 3. Stay inside one module for the full task whenever possible (for cleaner activity history).
+4. Use the ribbon directly below the top bar for page-specific actions. The tabs and commands change by page, so Dashboard tools, list tools, profile tools, gifts tools, and Steward Paths tools are intentionally different.
 
 ### Workspace-first operating rule (required)
 
@@ -63,19 +64,20 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 ### Record a donation and stewardship follow-up
 
 1. Go to Donations.
-2. Add the donation with the correct date, amount, and campaign/designation.
-3. Use `Complete Loop` to run the first-pass stewardship workflow in one action:
+2. Use the compact Donations ribbon for New Gift, range controls, gift actions, receipts, batches, data tools, reports, and view controls. Commands that need a selected gift remain disabled until a row is selected.
+3. Add the donation with the correct date, amount, and campaign/designation.
+4. Use `Complete Loop` to run the first-pass stewardship workflow in one action:
 	- Create or reuse donation email draft
 	- Create or reuse follow-up call task
 	- Start or reuse steward path enrollment
-4. Use row quick actions to:
+5. Use row quick actions to:
 	- Generate Letter
 	- Create Email Draft
 	- Create Call Task
 	- Start Path
 	- Mark Thanked
-5. Open Communications for campaign and draft review/scheduling.
-6. Open Tasks for assignment and completion tracking.
+6. Open Communications for campaign and draft review/scheduling.
+7. Open Tasks for assignment and completion tracking.
 
 ### Campaign operations
 

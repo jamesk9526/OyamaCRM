@@ -2,7 +2,11 @@ import type { CrmRibbonPageConfig } from "@/app/components/ui/crm/ribbon/types";
 
 const DASHBOARD_CONFIG: CrmRibbonPageConfig = {
   id: "dashboard",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Dashboard",
+  statusLabel: "Working",
+  summaryText: "Today",
+  primaryCommandId: "customize-dashboard",
   defaultTabId: "home",
   tabs: [
     {
@@ -86,7 +90,11 @@ const DASHBOARD_CONFIG: CrmRibbonPageConfig = {
 
 const CONSTITUENTS_CONFIG: CrmRibbonPageConfig = {
   id: "constituents",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Constituents",
+  statusLabel: "Working",
+  summaryText: "4,163 total  •  3,024 active donors  •  29 prospects",
+  primaryCommandId: "new-constituent",
   defaultTabId: "home",
   tabs: [
     {
@@ -95,13 +103,56 @@ const CONSTITUENTS_CONFIG: CrmRibbonPageConfig = {
       groups: [
         {
           id: "constituents-home",
-          label: "Constituents",
+          label: "Create",
           commands: [
             { id: "new-constituent", label: "New Constituent", href: "/constituents/new" },
-            { id: "import-constituents", label: "Import", href: "/data-tools/import?target=constituents" },
+            { id: "add-constituent", label: "Add Constituent", href: "/constituents/new" },
+            { id: "import-constituents", label: "Import Constituents", href: "/data-tools/import?target=constituents" },
+          ],
+        },
+        {
+          id: "constituents-home-manage",
+          label: "Manage",
+          commands: [
             { id: "view-all-constituents", label: "All Constituents" },
             { id: "view-active-donors", label: "Active Donors" },
             { id: "view-prospects", label: "Prospects" },
+          ],
+        },
+        {
+          id: "constituents-home-actions",
+          label: "Manage",
+          commands: [
+            { id: "merge-constituents", label: "Merge Constituents", requiredSelectionMin: 2, disabledReason: "Select at least 2 constituents to merge." },
+            { id: "dedupe-constituents", label: "De-duplicate", disabledReason: "De-duplicate flow is not connected for this view yet." },
+            { id: "bulk-update-constituents", label: "Bulk Update", requiredSelectionMin: 1, disabledReason: "Select at least 1 constituent to bulk update." },
+            { id: "tag-constituents", label: "Tag Constituents", requiredSelectionMin: 1, disabledReason: "Select at least 1 constituent to tag." },
+          ],
+        },
+        {
+          id: "constituents-home-filters",
+          label: "Filters",
+          commands: [
+            { id: "advanced-filter", label: "Advanced Filter" },
+            { id: "saved-views", label: "Saved Views", disabledReason: "Saved views are not available on this page yet." },
+            { id: "clear-filters", label: "Clear Filters" },
+          ],
+        },
+        {
+          id: "constituents-home-share",
+          label: "Share & Export",
+          commands: [
+            { id: "export-constituents", label: "Export", disabledReason: "Constituent export is not wired on this grid yet." },
+            { id: "share-list", label: "Share List", disabledReason: "List sharing is not connected for this view yet." },
+          ],
+        },
+        {
+          id: "constituents-home-view",
+          label: "View",
+          commands: [
+            { id: "column-manager", label: "Columns", disabledReason: "Column manager is not available on this table yet." },
+            { id: "compact-rows", label: "Density", disabledReason: "Row density controls are not implemented yet." },
+            { id: "table-view", label: "View", active: () => true },
           ],
         },
       ],
@@ -176,6 +227,21 @@ const CONSTITUENTS_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
+      id: "automations",
+      label: "Automations",
+      groups: [
+        {
+          id: "constituent-automations",
+          label: "Automations",
+          commands: [
+            { id: "enroll-selected-in-path", label: "Enroll in Path", requiredSelectionMin: 1, disabledReason: "Select at least 1 constituent to enroll in a path." },
+            { id: "view-path-enrollments", label: "Path Enrollments", href: "/steward-paths/enrollments" },
+            { id: "open-steward-paths", label: "Steward Paths", href: "/steward-paths" },
+          ],
+        },
+      ],
+    },
+    {
       id: "view",
       label: "View",
       groups: [
@@ -207,7 +273,11 @@ const CONSTITUENTS_CONFIG: CrmRibbonPageConfig = {
 
 const DONOR_PROFILE_CONFIG: CrmRibbonPageConfig = {
   id: "donor-profile",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Donor Profile",
+  statusLabel: "Working",
+  summaryText: "Individual donor record",
+  primaryCommandId: "add-gift-profile",
   defaultTabId: "profile",
   tabs: [
     {
@@ -261,12 +331,78 @@ const DONOR_PROFILE_CONFIG: CrmRibbonPageConfig = {
         },
       ],
     },
+    {
+      id: "profile-tasks",
+      label: "Tasks",
+      groups: [
+        {
+          id: "profile-task-actions",
+          label: "Tasks",
+          commands: [
+            { id: "profile-create-task", label: "Create Task" },
+            { id: "profile-schedule-follow-up", label: "Schedule Follow-Up", href: "/tasks" },
+            { id: "profile-mark-complete", label: "Mark Complete", disabledReason: "Select an open task on this profile to mark it complete." },
+            { id: "profile-assign-staff", label: "Assign Staff", disabledReason: "Task assignment is available from the task detail workflow." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "profile-relationships",
+      label: "Relationships",
+      groups: [
+        {
+          id: "profile-relationship-actions",
+          label: "Relationships",
+          commands: [
+            { id: "profile-household", label: "Household" },
+            { id: "profile-related-donors", label: "Related Donors" },
+            { id: "profile-link-person", label: "Link Person", disabledReason: "Relationship linking is not connected in this profile view yet." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "profile-automations",
+      label: "Automations",
+      groups: [
+        {
+          id: "profile-automation-actions",
+          label: "Paths",
+          commands: [
+            { id: "profile-enroll-path", label: "Enroll in Path", href: "/steward-paths" },
+            { id: "profile-active-paths", label: "Active Paths", href: "/steward-paths/enrollments" },
+            { id: "profile-pause-enrollment", label: "Pause Enrollment", disabledReason: "Select an active enrollment before pausing it." },
+            { id: "profile-exit-path", label: "Exit Path", disabledReason: "Select an active enrollment before exiting it." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "profile-view",
+      label: "View",
+      groups: [
+        {
+          id: "profile-view-actions",
+          label: "View",
+          commands: [
+            { id: "profile-overview-tab", label: "Overview" },
+            { id: "profile-giving-tab", label: "Giving" },
+            { id: "profile-timeline-tab", label: "Timeline" },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 const DONATIONS_CONFIG: CrmRibbonPageConfig = {
   id: "donations",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Donations",
+  statusLabel: "Working",
+  summaryText: "2,765 records  •  $9,883,746 raised",
+  primaryCommandId: "new-gift",
   defaultTabId: "home",
   tabs: [
     {
@@ -354,6 +490,21 @@ const DONATIONS_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
+      id: "reports",
+      label: "Reports",
+      groups: [
+        {
+          id: "donation-reports",
+          label: "Reports",
+          commands: [
+            { id: "giving-report", label: "Giving Report", href: "/reports" },
+            { id: "receipt-report", label: "Receipt Report", href: "/reports" },
+            { id: "deposit-report-donations", label: "Deposit Report", href: "/reports" },
+          ],
+        },
+      ],
+    },
+    {
       id: "view",
       label: "View",
       groups: [
@@ -369,7 +520,11 @@ const DONATIONS_CONFIG: CrmRibbonPageConfig = {
 
 const CAMPAIGNS_CONFIG: CrmRibbonPageConfig = {
   id: "campaigns",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Campaigns",
+  statusLabel: "Working",
+  summaryText: "Planning, giving, outreach, and reports",
+  primaryCommandId: "new-campaign",
   defaultTabId: "home",
   tabs: [
     {
@@ -401,6 +556,23 @@ const CAMPAIGNS_CONFIG: CrmRibbonPageConfig = {
             { id: "manage-funds", label: "Manage Funds" },
             { id: "campaign-timeline", label: "Timeline" },
             { id: "campaign-tasks", label: "Tasks", href: "/tasks" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "giving",
+      label: "Giving",
+      groups: [
+        {
+          id: "campaign-giving",
+          label: "Giving",
+          commands: [
+            { id: "campaign-gifts", label: "Campaign Gifts", href: "/donations" },
+            { id: "campaign-add-gift", label: "Add Gift", href: "/donations?recordGift=1" },
+            { id: "gift-attribution", label: "Gift Attribution", disabledReason: "Open a campaign to manage gift attribution." },
+            { id: "campaign-pledges", label: "Pledges", disabledReason: "Campaign pledge workflow is not connected yet." },
+            { id: "campaign-progress", label: "Progress" },
           ],
         },
       ],
@@ -440,6 +612,23 @@ const CAMPAIGNS_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
+      id: "segments",
+      label: "Segments",
+      groups: [
+        {
+          id: "campaign-segments",
+          label: "Segments",
+          commands: [
+            { id: "target-donors", label: "Target Donors", href: "/constituents" },
+            { id: "lapsed-donors", label: "Lapsed Donors", href: "/constituents" },
+            { id: "major-donors", label: "Major Donors", href: "/constituents" },
+            { id: "campaign-prospects", label: "Prospects", href: "/constituents" },
+            { id: "campaign-saved-lists", label: "Saved Lists", disabledReason: "Saved list selection is not connected from this campaign ribbon yet." },
+          ],
+        },
+      ],
+    },
+    {
       id: "reports",
       label: "Reports",
       groups: [
@@ -459,7 +648,10 @@ const CAMPAIGNS_CONFIG: CrmRibbonPageConfig = {
 
 const DATA_TOOLS_CONFIG: CrmRibbonPageConfig = {
   id: "data-tools",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Data Tools",
+  statusLabel: "Working",
+  summaryText: "Imports, exports, filters, and saved views",
   defaultTabId: "home",
   tabs: [
     {
@@ -518,7 +710,11 @@ const DATA_TOOLS_CONFIG: CrmRibbonPageConfig = {
 
 const OYAMA_EMAIL_CONFIG: CrmRibbonPageConfig = {
   id: "oyama-email",
+  workspaceLabel: "OyamaEmail",
   pageLabel: "OyamaEmail",
+  statusLabel: "Working",
+  summaryText: "Templates, audiences, sends, and analytics",
+  primaryCommandId: "new-email",
   defaultTabId: "home",
   tabs: [
     {
@@ -556,6 +752,53 @@ const OYAMA_EMAIL_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
+      id: "audience",
+      label: "Audience",
+      groups: [
+        {
+          id: "email-audience",
+          label: "Audience",
+          commands: [
+            { id: "select-segment", label: "Select Segment", href: "/oyama-email/campaigns" },
+            { id: "saved-list", label: "Saved List", href: "/oyama-email/campaigns" },
+            { id: "suppression-list", label: "Suppression List", href: "/settings/email" },
+            { id: "missing-emails", label: "Missing Emails", href: "/oyama-email/campaigns?tab=audience" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "templates",
+      label: "Templates",
+      groups: [
+        {
+          id: "email-templates",
+          label: "Templates",
+          commands: [
+            { id: "open-email-templates", label: "Templates", href: "/oyama-email/templates" },
+            { id: "new-email-template", label: "New Template", href: "/oyama-email/templates/new" },
+            { id: "duplicate-email-template", label: "Duplicate", disabledReason: "Open a template before duplicating it." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "sending",
+      label: "Sending",
+      groups: [
+        {
+          id: "email-sending",
+          label: "Sending",
+          commands: [
+            { id: "send-test", label: "Send Test", disabledReason: "Open or save an email draft before sending a test." },
+            { id: "schedule-email", label: "Schedule", href: "/oyama-email/campaigns" },
+            { id: "send-now", label: "Send Now", disabledReason: "Send Now requires an approved campaign with valid recipients." },
+            { id: "pause-send", label: "Pause Send", disabledReason: "Select a scheduled or sending campaign to pause it." },
+          ],
+        },
+      ],
+    },
+    {
       id: "analytics",
       label: "Analytics",
       groups: [
@@ -572,12 +815,31 @@ const OYAMA_EMAIL_CONFIG: CrmRibbonPageConfig = {
         },
       ],
     },
+    {
+      id: "view",
+      label: "View",
+      groups: [
+        {
+          id: "email-view",
+          label: "View",
+          commands: [
+            { id: "email-template-view", label: "Templates", href: "/oyama-email/templates" },
+            { id: "email-campaign-view", label: "Campaigns", href: "/oyama-email/campaigns" },
+            { id: "email-calendar-view", label: "Calendar", href: "/oyama-email/calendar" },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
   id: "oyama-letters",
+  workspaceLabel: "OyamaLetters",
   pageLabel: "OyamaLetters",
+  statusLabel: "Working",
+  summaryText: "Templates, merge fields, recipients, and print queues",
+  primaryCommandId: "new-letter",
   defaultTabId: "home",
   tabs: [
     {
@@ -592,6 +854,24 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
             { id: "open-template", label: "Open Template" },
             { id: "save-template", label: "Save Template" },
             { id: "duplicate-template", label: "Duplicate" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "design",
+      label: "Design",
+      groups: [
+        {
+          id: "letters-design",
+          label: "Design",
+          commands: [
+            { id: "letters-font", label: "Font", disabledReason: "Open a template builder to edit font styles." },
+            { id: "letters-spacing", label: "Spacing", disabledReason: "Open a template builder to edit spacing." },
+            { id: "letters-header", label: "Header", href: "/oyama-letters/settings" },
+            { id: "letters-footer", label: "Footer", href: "/oyama-letters/settings" },
+            { id: "letters-margins", label: "Margins", disabledReason: "Open a template builder to edit margins." },
+            { id: "letters-brand-styles", label: "Brand Styles", href: "/settings/branding" },
           ],
         },
       ],
@@ -613,6 +893,22 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
+      id: "recipients",
+      label: "Recipients",
+      groups: [
+        {
+          id: "letters-recipients",
+          label: "Recipients",
+          commands: [
+            { id: "select-donors", label: "Select Donors", href: "/oyama-letters/generate" },
+            { id: "letters-saved-list", label: "Saved List", href: "/oyama-letters/generate" },
+            { id: "missing-addresses", label: "Missing Addresses", href: "/oyama-letters/generate" },
+            { id: "preview-recipients", label: "Preview Recipients", href: "/oyama-letters/generate" },
+          ],
+        },
+      ],
+    },
+    {
       id: "print-mail",
       label: "Print & Mail",
       groups: [
@@ -628,12 +924,47 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
         },
       ],
     },
+    {
+      id: "review",
+      label: "Review",
+      groups: [
+        {
+          id: "letters-review",
+          label: "Review",
+          commands: [
+            { id: "letters-preview", label: "Preview", href: "/oyama-letters/generate" },
+            { id: "letters-validate", label: "Validate", disabledReason: "Open a template or generation batch to validate fields." },
+            { id: "check-missing-fields", label: "Missing Fields", disabledReason: "Open a template or generation batch to check missing fields." },
+            { id: "letters-approve", label: "Approve", disabledReason: "Approval is available from the publish workspace." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "view",
+      label: "View",
+      groups: [
+        {
+          id: "letters-view",
+          label: "View",
+          commands: [
+            { id: "letters-library-view", label: "Library", href: "/oyama-letters" },
+            { id: "letters-generate-view", label: "Generate", href: "/oyama-letters/generate" },
+            { id: "letters-queue-view", label: "Queue", href: "/oyama-letters/queue" },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 const STEWARD_PATHS_LIBRARY_CONFIG: CrmRibbonPageConfig = {
   id: "steward-paths-library",
-  pageLabel: "Steward Paths Library",
+  workspaceLabel: "Steward Paths",
+  pageLabel: "Path Library",
+  statusLabel: "Working",
+  summaryText: "Create, manage, and monitor stewardship paths",
+  primaryCommandId: "create-path",
   defaultTabId: "home",
   tabs: [
     {
@@ -654,6 +985,51 @@ const STEWARD_PATHS_LIBRARY_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
+      id: "templates",
+      label: "Templates",
+      groups: [
+        {
+          id: "paths-templates",
+          label: "Templates",
+          commands: [
+            { id: "paths-use-template", label: "Use Template", href: "/steward-paths/library?create=1" },
+            { id: "paths-template-library", label: "Template Library", href: "/steward-paths/library" },
+            { id: "paths-import-template", label: "Import Template", disabledReason: "Path import is not connected in this workspace yet." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "manage",
+      label: "Manage",
+      groups: [
+        {
+          id: "paths-manage",
+          label: "Manage",
+          commands: [
+            { id: "paths-filter-status", label: "Filter Status" },
+            { id: "paths-filter-category", label: "Filter Category" },
+            { id: "paths-duplicate-selected", label: "Duplicate", disabledReason: "Select a path to duplicate." },
+            { id: "paths-archive-selected", label: "Archive", disabledReason: "Select a path to archive." },
+          ],
+        },
+      ],
+    },
+    {
+      id: "activity",
+      label: "Activity",
+      groups: [
+        {
+          id: "paths-activity",
+          label: "Activity",
+          commands: [
+            { id: "paths-open-activity", label: "View Activity", href: "/steward-paths/activity" },
+            { id: "paths-open-enrollments", label: "Enrollments", href: "/steward-paths/enrollments" },
+          ],
+        },
+      ],
+    },
+    {
       id: "analytics",
       label: "Analytics",
       groups: [
@@ -667,12 +1043,31 @@ const STEWARD_PATHS_LIBRARY_CONFIG: CrmRibbonPageConfig = {
         },
       ],
     },
+    {
+      id: "view",
+      label: "View",
+      groups: [
+        {
+          id: "paths-view",
+          label: "View",
+          commands: [
+            { id: "paths-library-view", label: "Library", href: "/steward-paths/library" },
+            { id: "paths-activity-view", label: "Activity", href: "/steward-paths/activity" },
+            { id: "paths-analytics-view", label: "Analytics", href: "/steward-paths/analytics" },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 const STEWARD_PATHS_BUILDER_CONFIG: CrmRibbonPageConfig = {
   id: "steward-paths-builder",
+  workspaceLabel: "Steward Paths",
   pageLabel: "Path Builder",
+  statusLabel: "Working",
+  summaryText: "Build, validate, test, and publish a path",
+  primaryCommandId: "publish-path",
   defaultTabId: "build",
   tabs: [
     {
@@ -689,6 +1084,23 @@ const STEWARD_PATHS_BUILDER_CONFIG: CrmRibbonPageConfig = {
             { id: "undo-builder", label: "Undo" },
             { id: "redo-builder", label: "Redo" },
             { id: "auto-layout", label: "Auto Layout" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "nodes",
+      label: "Nodes",
+      groups: [
+        {
+          id: "builder-nodes",
+          label: "Nodes",
+          commands: [
+            { id: "builder-triggers", label: "Triggers" },
+            { id: "builder-actions", label: "Actions" },
+            { id: "builder-flow-control", label: "Flow Control" },
+            { id: "builder-exit-goals", label: "Exit Goals" },
+            { id: "builder-node-settings", label: "Node Settings", disabledReason: "Select a node to edit its settings." },
           ],
         },
       ],
@@ -743,12 +1155,32 @@ const STEWARD_PATHS_BUILDER_CONFIG: CrmRibbonPageConfig = {
         },
       ],
     },
+    {
+      id: "view",
+      label: "View",
+      groups: [
+        {
+          id: "builder-view",
+          label: "View",
+          commands: [
+            { id: "zoom-in", label: "Zoom In" },
+            { id: "zoom-out", label: "Zoom Out" },
+            { id: "fit-canvas", label: "Fit Canvas" },
+            { id: "mini-map", label: "Mini Map" },
+            { id: "show-activity-builder", label: "Show Activity", href: "/steward-paths/activity" },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 const STEWARD_PATHS_PLAYGROUND_CONFIG: CrmRibbonPageConfig = {
   id: "steward-paths-playground",
+  workspaceLabel: "Steward Paths",
   pageLabel: "Path Playground",
+  statusLabel: "Working",
+  summaryText: "Run scenarios and review sandbox activity",
   defaultTabId: "scenario",
   tabs: [
     {
@@ -784,12 +1216,57 @@ const STEWARD_PATHS_PLAYGROUND_CONFIG: CrmRibbonPageConfig = {
         },
       ],
     },
+    {
+      id: "test-email",
+      label: "Test Email",
+      groups: [
+        {
+          id: "playground-email",
+          label: "Email",
+          commands: [
+            { id: "send-test-email-playground", label: "Send Test Email" },
+            { id: "open-email-builder-playground", label: "Open Email", href: "/oyama-email" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "results",
+      label: "Results",
+      groups: [
+        {
+          id: "playground-results",
+          label: "Results",
+          commands: [
+            { id: "view-sandbox-log", label: "Sandbox Log" },
+            { id: "view-test-results", label: "Test Results" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "view",
+      label: "View",
+      groups: [
+        {
+          id: "playground-view",
+          label: "View",
+          commands: [
+            { id: "playground-library", label: "Library", href: "/steward-paths/library" },
+            { id: "playground-builder", label: "Builder", href: "/steward-paths/builder" },
+          ],
+        },
+      ],
+    },
   ],
 };
 
 const TASKS_CONFIG: CrmRibbonPageConfig = {
   id: "tasks",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Tasks",
+  statusLabel: "Working",
+  summaryText: "Follow-up work and staff assignments",
   defaultTabId: "home",
   tabs: [
     {
@@ -828,7 +1305,10 @@ const TASKS_CONFIG: CrmRibbonPageConfig = {
 
 const MEETINGS_CONFIG: CrmRibbonPageConfig = {
   id: "meetings",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Meetings",
+  statusLabel: "Working",
+  summaryText: "Calls, meetings, and interaction history",
   defaultTabId: "home",
   tabs: [
     {
@@ -864,7 +1344,9 @@ const MEETINGS_CONFIG: CrmRibbonPageConfig = {
 
 const FALLBACK_CONFIG: CrmRibbonPageConfig = {
   id: "generic",
+  workspaceLabel: "Donor CRM",
   pageLabel: "Workspace",
+  statusLabel: "Working",
   defaultTabId: "home",
   tabs: [
     {
@@ -889,6 +1371,16 @@ function isConstituentProfilePath(pathname: string): boolean {
   return segments[0] === "constituents" && segments.length === 2 && segments[1] !== "new";
 }
 
+function isStewardPathBuilderPath(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  return segments[0] === "steward-paths" && (segments.includes("builder") || segments[1] === "builder");
+}
+
+function isStewardPathPlaygroundPath(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  return segments[0] === "steward-paths" && (segments.includes("playground") || segments.includes("livecom"));
+}
+
 export function resolveCrmRibbonConfig(pathname: string): CrmRibbonPageConfig {
   if (pathname === "/" || pathname === "/dashboard") return DASHBOARD_CONFIG;
   if (pathname.startsWith("/constituents") && !isConstituentProfilePath(pathname)) return CONSTITUENTS_CONFIG;
@@ -898,8 +1390,8 @@ export function resolveCrmRibbonConfig(pathname: string): CrmRibbonPageConfig {
   if (pathname.startsWith("/data-tools")) return DATA_TOOLS_CONFIG;
   if (pathname.startsWith("/oyama-email")) return OYAMA_EMAIL_CONFIG;
   if (pathname.startsWith("/oyama-letters")) return OYAMA_LETTERS_CONFIG;
-  if (pathname.startsWith("/steward-paths/builder")) return STEWARD_PATHS_BUILDER_CONFIG;
-  if (pathname.startsWith("/steward-paths/livecom")) return STEWARD_PATHS_PLAYGROUND_CONFIG;
+  if (isStewardPathBuilderPath(pathname)) return STEWARD_PATHS_BUILDER_CONFIG;
+  if (isStewardPathPlaygroundPath(pathname)) return STEWARD_PATHS_PLAYGROUND_CONFIG;
   if (pathname.startsWith("/steward-paths")) return STEWARD_PATHS_LIBRARY_CONFIG;
   if (pathname.startsWith("/tasks")) return TASKS_CONFIG;
   if (pathname.startsWith("/meetings")) return MEETINGS_CONFIG;

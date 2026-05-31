@@ -9,6 +9,8 @@ type SortKey = "date" | "amount" | "constituent" | "status";
 interface Props {
   donations: DonationRow[];
   onDelete?: (id: string) => void;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
   onMarkThanked?: (id: string) => void;
   onCreateEmailDraft?: (id: string) => void;
   onEmailFromTemplate?: (id: string) => void;
@@ -210,6 +212,8 @@ function SortHeader({
 export default function DonationTable({
   donations,
   onDelete,
+  selectedIds = [],
+  onSelectionChange,
   onMarkThanked,
   onCreateEmailDraft,
   onEmailFromTemplate,
@@ -231,6 +235,24 @@ export default function DonationTable({
     else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
     return sortDir === "asc" ? cmp : -cmp;
   });
+
+  const selectable = Boolean(onSelectionChange);
+  const selectedSet = new Set(selectedIds);
+  const allVisibleSelected = sorted.length > 0 && sorted.every((row) => selectedSet.has(row.id));
+
+  function toggleRow(id: string) {
+    if (!onSelectionChange) return;
+    onSelectionChange(selectedSet.has(id) ? selectedIds.filter((rowId) => rowId !== id) : [...selectedIds, id]);
+  }
+
+  function toggleAllVisible() {
+    if (!onSelectionChange) return;
+    if (allVisibleSelected) {
+      onSelectionChange(selectedIds.filter((id) => !sorted.some((row) => row.id === id)));
+      return;
+    }
+    onSelectionChange(Array.from(new Set([...selectedIds, ...sorted.map((row) => row.id)])));
+  }
 
   function toggle(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -325,6 +347,17 @@ export default function DonationTable({
       <table className="w-full text-sm">
         <thead className="border-b border-slate-100 bg-slate-50/80">
           <tr>
+            {selectable ? (
+              <th className="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleAllVisible}
+                  aria-label="Select all visible gifts"
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+              </th>
+            ) : null}
             <SortHeader label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <SortHeader label="Donor" col="constituent" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <SortHeader label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
@@ -337,6 +370,17 @@ export default function DonationTable({
         <tbody className="divide-y divide-slate-100">
           {sorted.map(d => (
             <tr key={d.id} className="transition-colors hover:bg-emerald-50/35">
+              {selectable ? (
+                <td className="px-3 py-3 align-top">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(d.id)}
+                    onChange={() => toggleRow(d.id)}
+                    aria-label={`Select gift from ${d.constituent.firstName} ${d.constituent.lastName}`}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                </td>
+              ) : null}
               <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDonationDate(d.date)}</td>
               <td className="px-4 py-3">
                 <Link href={`/constituents/${d.constituent.id}`} className="font-semibold text-slate-900 hover:text-emerald-700">

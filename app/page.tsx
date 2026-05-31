@@ -6,6 +6,8 @@
 "use client";
 
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import NaturalisticDonorDashboard from "./components/dashboard/NaturalisticDonorDashboard";
 import DashboardLayoutModal from "./components/dashboard/DashboardLayoutModal";
 import DashboardWidgetRenderer from "./components/dashboard/DashboardWidgetRenderer";
@@ -57,7 +59,43 @@ export default function DashboardPage() {
   );
 
   return (
-    <>
+    <EnterprisePageShell
+      ribbon={(
+        <CRMActionBar
+          context={{
+            flags: {
+              dashboardEditMode: dashboardState.editMode,
+            },
+          }}
+          commandHandlers={{
+            "refresh-dashboard": () => {
+              void dashboardState.load();
+            },
+            "customize-dashboard": dashboardState.openCustomizeModal,
+            "quick-add": () => {
+              window.location.href = "/constituents/new";
+            },
+            "needs-attention": () => {
+              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            },
+            "steward-recommendations": dashboardState.enableAiWidgets,
+            "giving-trends": () => {
+              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            },
+            "donor-activity": () => {
+              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            },
+            "campaign-health": () => {
+              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            },
+            "card-layout": dashboardState.showAllWidgets,
+            "compact-layout": dashboardState.openCustomizeModal,
+            "toggle-widgets": dashboardState.openCustomizeModal,
+            "reset-layout": dashboardState.resetLayout,
+          }}
+        />
+      )}
+    >
       <NaturalisticDonorDashboard
         greeting={greeting}
         name={name}
@@ -81,7 +119,7 @@ export default function DashboardPage() {
             Customize Dashboard
           </button>
         )}
-        extraSections={widgetArea}
+        extraSections={<div id="dashboard-widgets">{widgetArea}</div>}
       />
 
       {dashboardState.showCustomizeModal ? (
@@ -98,7 +136,7 @@ export default function DashboardPage() {
           initialWidgetSizes={dashboardState.widgetSizes}
         />
       ) : null}
-    </>
+    </EnterprisePageShell>
   );
 }
 

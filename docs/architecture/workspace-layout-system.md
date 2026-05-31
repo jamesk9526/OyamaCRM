@@ -1,6 +1,6 @@
 # Workspace Layout System
 
-Last updated: 2026-05-14
+Last updated: 2026-05-31
 
 ## Purpose
 
@@ -11,11 +11,15 @@ It is not just visual reference material. It is the architecture contract for de
 Hierarchy:
 
 1. Global module navigation: left sidebar from AppShell
-2. Workspace ribbon: grouped project and action controls at top of workspace content
-3. Focused tool work area: center workspace content with project-library-first entry blocks
-4. Contextual inspector only when editing detail (drawer/panel, not permanent nav)
+2. Global top bar: workspace switcher, search, quick add, Steward, notifications, and user controls
+3. Context header: route identity, readiness status, live metadata, and one primary page action
+4. Context-aware ribbon: page-specific tabs and grouped commands for only the current module/page
+5. Focused tool work area: center workspace content with project-library-first entry blocks
+6. Contextual inspector only when editing detail (drawer/panel, not permanent nav)
 
 When used, this system applies inside page content and does not replace the global sidebar.
+
+The contextual ribbon must be a shared system, not one global command dump. Dashboard, Constituents, donor profiles, Donations, Campaigns, OyamaEmail, OyamaLetters, and Steward Paths each declare their own tabs and commands. Commands that are not relevant to the current page are hidden; commands that are relevant but blocked must be disabled with a reason.
 
 ## Mandatory workspace standards
 
@@ -71,6 +75,9 @@ Legacy compatibility location: `app/components/workspace/`
 
 Current workspace-ribbon adoption targets:
 
+- Donor dashboard, Constituents, constituent profile, Donations, and Campaigns
+- OyamaEmail and OyamaLetters dedicated workspaces
+- Steward Paths Library, Builder, and Playground route families
 - Communications workspace
 - Letters & Printables workspace
 - Steward Paths legacy operations workspace (`/automations?view=legacy`)

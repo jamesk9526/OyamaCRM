@@ -19,6 +19,8 @@ interface Props {
   constituents: ConstituentRow[];
   loading?: boolean;
   onDelete?: (id: string) => void;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
 }
 
 const COLUMNS = [
@@ -105,7 +107,7 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
   );
 }
 
-export default function ConstituentTable({ constituents, loading, onDelete }: Props) {
+export default function ConstituentTable({ constituents, loading, onDelete, selectedIds = [], onSelectionChange }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -134,6 +136,24 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
     if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
     return 0;
   });
+
+  const selectable = Boolean(onSelectionChange);
+  const selectedSet = new Set(selectedIds);
+  const allVisibleSelected = sorted.length > 0 && sorted.every((row) => selectedSet.has(row.id));
+
+  function toggleRow(id: string) {
+    if (!onSelectionChange) return;
+    onSelectionChange(selectedSet.has(id) ? selectedIds.filter((rowId) => rowId !== id) : [...selectedIds, id]);
+  }
+
+  function toggleAllVisible() {
+    if (!onSelectionChange) return;
+    if (allVisibleSelected) {
+      onSelectionChange(selectedIds.filter((id) => !sorted.some((row) => row.id === id)));
+      return;
+    }
+    onSelectionChange(Array.from(new Set([...selectedIds, ...sorted.map((row) => row.id)])));
+  }
 
   if (loading) {
     return (
@@ -237,6 +257,17 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
       <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50/80">
+            {selectable ? (
+              <th className="sticky left-0 top-0 z-20 w-10 border-b border-slate-100 bg-slate-50/95 px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleAllVisible}
+                  aria-label="Select all visible constituents"
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+              </th>
+            ) : null}
             {COLUMNS.map((col) => (
               <th
                 key={col.key}
@@ -258,8 +289,19 @@ export default function ConstituentTable({ constituents, loading, onDelete }: Pr
         <tbody>
           {sorted.map((c) => (
             <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-emerald-50/35">
+              {selectable ? (
+                <td className="sticky left-0 z-[2] bg-inherit px-3 py-4 align-top">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(c.id)}
+                    onChange={() => toggleRow(c.id)}
+                    aria-label={`Select ${c.firstName} ${c.lastName}`}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                </td>
+              ) : null}
               {/* Name */}
-              <td className="sticky left-0 z-[1] bg-inherit px-4 py-4 align-top">
+              <td className={`${selectable ? "" : "sticky left-0 z-[1]"} bg-inherit px-4 py-4 align-top`}>
                 <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-emerald-700">
                   {c.firstName} {c.lastName}
                 </Link>

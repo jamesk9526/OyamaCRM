@@ -348,8 +348,10 @@ export default function WorkspaceRibbonButton({
   const tip = title ?? label;
 
   const className = [
-    "workspace-ribbon-command inline-flex min-h-14 w-[5.1rem] max-w-full shrink-0 touch-manipulation flex-col items-center justify-start gap-1 rounded-md border px-1.5 py-1.5",
-    "text-center text-[11px] font-medium leading-tight transition-colors touch-manipulation",
+    "workspace-ribbon-command inline-flex max-w-full shrink-0 touch-manipulation rounded-md border transition-colors touch-manipulation",
+    variant === "primary"
+      ? "h-8 w-auto flex-row items-center justify-center gap-1.5 px-3 text-center text-[12px] font-semibold leading-none"
+      : "min-h-14 w-[5.1rem] flex-col items-center justify-start gap-1 px-1.5 py-1.5 text-center text-[11px] font-medium leading-tight",
     "[&_.workspace-ribbon-command-icon>svg]:h-[14px] [&_.workspace-ribbon-command-icon>svg]:w-[14px]",
     tone,
     disabled ? "cursor-not-allowed opacity-50" : "",
@@ -360,7 +362,7 @@ export default function WorkspaceRibbonButton({
   if (href && !disabled) {
     return (
       <Link href={href} className={className} title={tip} data-mobile-touch="true">
-        <span className="workspace-ribbon-command-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">{iconNode}</span>
+        <span className={`${variant === "primary" ? "h-5 w-5 border-transparent bg-transparent" : "h-7 w-7 border-slate-200 bg-white"} workspace-ribbon-command-icon inline-flex shrink-0 items-center justify-center rounded-md border text-slate-600`}>{iconNode}</span>
         <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
       </Link>
     );
@@ -368,7 +370,7 @@ export default function WorkspaceRibbonButton({
 
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip} data-mobile-touch="true">
-      <span className="workspace-ribbon-command-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">{iconNode}</span>
+      <span className={`${variant === "primary" ? "h-5 w-5 border-transparent bg-transparent" : "h-7 w-7 border-slate-200 bg-white"} workspace-ribbon-command-icon inline-flex shrink-0 items-center justify-center rounded-md border text-slate-600`}>{iconNode}</span>
       <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
     </button>
   );

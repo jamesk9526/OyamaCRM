@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   formatCurrency,
   formatDate,
@@ -20,6 +20,7 @@ import EmailPreferencePanel from "@/app/components/constituents/EmailPreferenceP
 import DonorStewardSignalsWidget from "@/app/components/steward/DonorStewardSignalsWidget";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import WorkspaceFrame from "@/app/components/workspace/WorkspaceFrame";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface HouseholdData {
@@ -123,6 +124,7 @@ type TabKey =
 
 export default function ConstituentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [constituent, setConstituent] = useState<ConstituentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +275,32 @@ export default function ConstituentDetailPage() {
           <svg className="h-3 w-3 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
           <span className="font-medium text-gray-900 truncate">{fullName}</span>
         </nav>
+
+        <CRMActionBar
+          context={{
+            flags: {
+              hasOpenTasks: openTasks.length > 0,
+              hasReceiptableGift: c.donations.some((gift) => gift.status === "COMPLETED"),
+            },
+          }}
+          commandHandlers={{
+            "edit-profile": () => router.push(`/constituents/${id}/edit`),
+            "add-note": () => setTab("notes"),
+            "change-status": () => router.push(`/constituents/${id}/edit`),
+            "assign-owner": () => router.push(`/constituents/${id}/edit`),
+            "profile-add-gift": () => setShowGiftModal(true),
+            "profile-gift-history": () => setTab("giving"),
+            "profile-send-email": () => router.push(`/communications?new=1&source=constituent&constituentId=${id}`),
+            "profile-generate-letter": () => router.push(`/oyama-letters/generate?constituentId=${id}`),
+            "profile-log-call": () => router.push(`/meetings?constituentId=${id}`),
+            "profile-create-task": () => router.push(`/tasks?focus=my&constituentId=${id}`),
+            "profile-household": () => setTab("household"),
+            "profile-related-donors": () => setTab("household"),
+            "profile-overview-tab": () => setTab("overview"),
+            "profile-giving-tab": () => setTab("giving"),
+            "profile-timeline-tab": () => setTab("timeline"),
+          }}
+        />
 
         {/* Profile Header */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

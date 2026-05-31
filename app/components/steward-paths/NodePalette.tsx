@@ -348,10 +348,10 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
   }, [query]);
 
   return (
-    <aside className="flex h-full w-[330px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-3.5">
+    <aside className="flex h-full w-[292px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
+      <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-950">Add Node</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Add Node</h2>
           <button type="button" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" title="Palette settings">
             <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 2h4M3 8h10M5 14h6" />
@@ -377,7 +377,7 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {sections.map((section) => {
           const tone = sectionTone(section.key);
           const showAll = showAllBySection[section.key];
@@ -404,7 +404,7 @@ export default function NodePalette({ onAdd, insertionTargetLabel }: NodePalette
                       event.dataTransfer.effectAllowed = "copy";
                     }}
                     onClick={() => onAdd(item)}
-                    className={`group flex min-h-[64px] flex-col items-start gap-1 rounded-lg border px-2.5 py-2 text-left transition ${tone.cardClass}`}
+                    className={`group flex min-h-[62px] flex-col items-start gap-1 rounded-lg border px-2.5 py-2 text-left transition ${tone.cardClass}`}
                   >
                     <span className={`inline-flex h-5 w-5 items-center justify-center rounded ${tone.iconWrapClass}`}>
                       <span className={tone.iconClass}>

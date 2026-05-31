@@ -74,8 +74,8 @@ body {
 }
 
 [data-topbar-root="true"][data-donor-topbar="true"] {
-  background: #ffffff !important;
-  border-bottom-color: #d4dfd8 !important;
+  background: radial-gradient(circle at 12% 0%, #05412e 0, #032b21 44%, #011814 100%) !important;
+  border-bottom-color: rgba(167, 243, 208, 0.2) !important;
 }
 
 /* Windows Explorer-inspired workspace command surfaces. */

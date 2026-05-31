@@ -9,8 +9,6 @@ import EmailFromTemplateModal from "@/app/components/donations/EmailFromTemplate
 import LetterFromTemplateModal from "@/app/components/donations/LetterFromTemplateModal";
 import RecordGiftModal from "@/app/components/donations/RecordGiftModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
@@ -76,6 +74,7 @@ export default function DonationsPage() {
   const [actionBusyDonationId, setActionBusyDonationId] = useState<string | null>(null);
   const [emailTemplateDonation, setEmailTemplateDonation] = useState<DonationRow | null>(null);
   const [letterTemplateDonation, setLetterTemplateDonation] = useState<DonationRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [page, setPage] = useState(1);
   const [allYears, setAllYears] = useState(false);
@@ -158,6 +157,10 @@ export default function DonationsPage() {
   useEffect(() => {
     setPage(1);
   }, [search, status, from, to, allYears, campaignIdFilter]);
+
+  useEffect(() => {
+    setSelectedIds((current) => current.filter((id) => donations.some((row) => row.id === id)));
+  }, [donations]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -298,61 +301,49 @@ export default function DonationsPage() {
     <>
     <EnterprisePageShell
       ribbon={(
-        <div className="space-y-3">
-          <WorkspaceBreadcrumbBar
-            items={[
-              { label: "Donor CRM", href: "/" },
-              { label: "Donations" },
-            ]}
-            statusLabel={loading ? "Loading" : "Working"}
-            metadata={`${total.toLocaleString()} records · ${formatCurrency(stats.totalRaised)} raised${campaignNameFilter ? ` · ${campaignNameFilter}` : ""}`}
-            primaryAction={<WorkspaceRibbonButton label="Record Gift" href={recordGiftHref} variant="primary" />}
-          />
-        </div>
+        <CRMActionBar
+          context={{
+            selectionCount: selectedIds.length,
+            flags: {
+              allYears,
+            },
+          }}
+          commandHandlers={{
+            "new-gift": () => {
+              router.push(recordGiftHref);
+            },
+            "find-gift": () => {
+              const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search donor name"]');
+              searchInput?.focus();
+            },
+            "date-range-ytd": () => {
+              setAllYears(false);
+            },
+            "date-range-all-years": () => {
+              setAllYears(true);
+            },
+            "filter-gifts": () => {
+              const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search donor name"]');
+              searchInput?.focus();
+            },
+            "refresh-donations": () => {
+              void load();
+            },
+            "clear-donation-filters": () => {
+              setSearch("");
+              setStatus("");
+              setAllYears(false);
+              setFrom(defaultRange.from);
+              setTo(defaultRange.to);
+            },
+            "receipt-status-overview": () => {
+              setStatus("COMPLETED");
+            },
+          }}
+        />
       )}
     >
     <div className="space-y-5">
-      <CRMActionBar
-        context={{
-          selectionCount: 0,
-          flags: {
-            allYears,
-          },
-        }}
-        commandHandlers={{
-          "new-gift": () => {
-            router.push(recordGiftHref);
-          },
-          "find-gift": () => {
-            const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search donor name"]');
-            searchInput?.focus();
-          },
-          "date-range-ytd": () => {
-            setAllYears(false);
-          },
-          "date-range-all-years": () => {
-            setAllYears(true);
-          },
-          "filter-gifts": () => {
-            const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search donor name"]');
-            searchInput?.focus();
-          },
-          "refresh-donations": () => {
-            void load();
-          },
-          "clear-donation-filters": () => {
-            setSearch("");
-            setStatus("");
-            setAllYears(false);
-            setFrom(defaultRange.from);
-            setTo(defaultRange.to);
-          },
-          "receipt-status-overview": () => {
-            setStatus("COMPLETED");
-          },
-        }}
-      />
-
       {campaignIdFilter && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-center justify-between gap-3">
           <p>
@@ -436,6 +427,8 @@ export default function DonationsPage() {
         ) : (
           <DonationTable
             donations={donations}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
             onDelete={handleDelete}
             onMarkThanked={handleMarkThanked}
             onCreateEmailDraft={handleCreateEmailDraft}
