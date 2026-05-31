@@ -4,6 +4,7 @@
 "use client";
 
 import { useEffect } from "react";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 export interface SearchSelectOption {
   id: string;
@@ -54,39 +55,25 @@ export default function SearchSelectModal({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <WorkspaceSetupModal
+      title={title}
+      subtitle="Search and select one linked record."
+      checklist={["Search", "Review options", "Select record"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-4xl"
+      closeOnBackdropClick
     >
-      <div className="flex max-h-[78vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
-            aria-label="Close search modal"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4 12 12M12 4 4 12" />
-            </svg>
-          </button>
-        </div>
+      <div className="space-y-4 px-4 py-4">
+        <input
+          type="search"
+          value={searchValue}
+          onChange={(event) => onSearchChange(event.target.value)}
+          autoFocus
+          placeholder={searchPlaceholder}
+          className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+        />
 
-        <div className="border-b border-slate-200 px-4 py-3">
-          <input
-            type="search"
-            value={searchValue}
-            onChange={(event) => onSearchChange(event.target.value)}
-            autoFocus
-            placeholder={searchPlaceholder}
-            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-          />
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 max-h-[52vh] overflow-y-auto">
           {loading ? (
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">Loading options...</p>
           ) : error ? (
@@ -130,6 +117,6 @@ export default function SearchSelectModal({
           )}
         </div>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

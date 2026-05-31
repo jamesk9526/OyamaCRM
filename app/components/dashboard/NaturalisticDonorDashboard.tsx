@@ -4,6 +4,7 @@
  */
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ReactNode } from "react";
@@ -78,6 +79,7 @@ function StatCard({
   trendPositive,
   color,
   sparkValues,
+  compactValue = false,
 }: {
   title: string;
   value: string;
@@ -85,6 +87,7 @@ function StatCard({
   trendPositive: boolean;
   color: "emerald" | "blue" | "violet" | "amber" | "teal";
   sparkValues: number[];
+  compactValue?: boolean;
 }) {
   const tone = color === "emerald"
     ? { chip: "bg-emerald-100 text-emerald-700", stroke: "#16a34a" }
@@ -96,14 +99,26 @@ function StatCard({
           ? { chip: "bg-amber-100 text-amber-700", stroke: "#d97706" }
           : { chip: "bg-teal-100 text-teal-700", stroke: "#14b8a6" };
 
+  const icon = color === "emerald"
+    ? <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+    : color === "blue"
+      ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5v14" />
+      : color === "violet"
+        ? <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
+        : color === "amber"
+          ? <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.5v4M16 3.5v4M4.5 9h15M5.5 6.5h13a1 1 0 011 1v11a2 2 0 01-2 2h-11a2 2 0 01-2-2v-11a1 1 0 011-1z" />
+          : <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.75h17a1.75 1.75 0 011.75 1.75v7a1.75 1.75 0 01-1.75 1.75h-17A1.75 1.75 0 011.75 15.5v-7A1.75 1.75 0 013.5 6.75zm.25 1.25 8.25 6 8.25-6" />;
+
   return (
     <article className="rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-medium text-slate-600">{title}</p>
-          <p className="mt-1 text-[34px] font-bold leading-none tracking-tight text-slate-900">{value}</p>
+          <p className={`mt-1 font-bold leading-none tracking-tight text-slate-900 ${compactValue ? "text-[22px]" : "text-[34px]"}`}>{value}</p>
         </div>
-        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ${tone.chip}`}>●</span>
+        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-full ${tone.chip}`}>
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">{icon}</svg>
+        </span>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className={`text-[11px] font-semibold ${trendPositive ? "text-emerald-700" : "text-slate-500"}`}>{trendText}</p>
@@ -139,7 +154,6 @@ export default function NaturalisticDonorDashboard({
   const [suggestions, setSuggestions] = useState<DashboardData["stewardshipAlerts"]>([]);
   const [sectionErrors, setSectionErrors] = useState<string[]>([]);
   const [richLoading, setRichLoading] = useState(true);
-  const [trendRange, setTrendRange] = useState<TrendRange>("6m");
 
   const loadRichData = useCallback(async () => {
     setRichLoading(true);
@@ -173,6 +187,7 @@ export default function NaturalisticDonorDashboard({
   const newDonorsValue = summary ? summary.newDonorsThisMonth.toLocaleString() : "—";
   const upcomingEventsCount = campaigns.filter((campaign) => campaign.endDate && new Date(campaign.endDate) >= new Date()).length;
   const sparkValues = trendPoints.length > 0 ? trendPoints.map((point) => point.amount) : [2, 3, 2.5, 3.5, 4, 4.4, 5.2];
+  const unackedCount = donations.filter((donation) => !donation.acknowledgmentSentAt).length;
 
   const topDesignationRows = useMemo(() => {
     const total = designationSlices.reduce((sum, slice) => sum + slice.amount, 0);
@@ -182,32 +197,6 @@ export default function NaturalisticDonorDashboard({
       pct: total > 0 ? Math.round((slice.amount / total) * 100) : 0,
     }));
   }, [designationSlices]);
-
-  const filteredTrendPoints = useMemo(() => {
-    if (trendPoints.length === 0) return [];
-    const size = trendRange === "mom" ? 2 : trendRange === "3m" ? 3 : trendRange === "6m" ? 6 : trendRange === "1y" ? 12 : trendPoints.length;
-    return trendPoints.slice(-size);
-  }, [trendPoints, trendRange]);
-
-  const filteredTrendTotal = useMemo(
-    () => filteredTrendPoints.reduce((sum, point) => sum + point.amount, 0),
-    [filteredTrendPoints],
-  );
-
-  const filteredTrendGiftCount = useMemo(
-    () => {
-      const pointCountSum = filteredTrendPoints.reduce((sum, point) => sum + getTrendPointCount(point), 0);
-      if (pointCountSum > 0) return pointCountSum;
-      if (trendGiftCount <= 0) return 0;
-      if (trendRange === "all") return trendGiftCount;
-
-      const fullAmount = trendTotal > 0 ? trendTotal : trendPoints.reduce((sum, point) => sum + point.amount, 0);
-      if (fullAmount <= 0) return 0;
-      const proportionalCount = Math.round((filteredTrendTotal / fullAmount) * trendGiftCount);
-      return Math.max(0, proportionalCount);
-    },
-    [filteredTrendPoints, filteredTrendTotal, trendGiftCount, trendPoints, trendRange, trendTotal],
-  );
 
   const activityRows = useMemo(() => {
     const rows = donations.slice(0, 5).map((donation) => ({
@@ -227,26 +216,21 @@ export default function NaturalisticDonorDashboard({
     return rows.slice(0, 5);
   }, [donations, summary]);
 
-  const upcomingRows = useMemo(() => {
-    return campaigns
-      .filter((campaign) => campaign.endDate)
-      .sort((a, b) => new Date(a.endDate ?? 0).getTime() - new Date(b.endDate ?? 0).getTime())
-      .slice(0, 3)
-      .map((campaign) => ({
-        id: campaign.id,
-        title: campaign.name,
-        date: campaign.endDate ? formatPanelDate(campaign.endDate) : "TBD",
-        time: campaign.endDate ? formatPanelTime(campaign.endDate) : "",
-        count: toDashboardNumber(campaign.totalRaised),
-      }));
-  }, [campaigns]);
+  const stewardRecommendations = suggestions.slice(0, 4);
 
-  const campaignRows = campaigns.slice(0, 4).map((campaign) => {
-    const raised = toDashboardNumber(campaign.totalRaised);
-    const goal = toDashboardNumber(campaign.goal);
-    const progress = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-    return { campaign, raised, goal, progress };
-  });
+  const focusItems = [
+    { id: "follow-up", label: `${summary?.newDonorsThisMonth ?? 0} donors need follow-up`, sub: "High priority", tone: "emerald" },
+    { id: "receipts", label: `${unackedCount} gifts need receipts`, sub: "Awaiting receipt", tone: "amber" },
+    { id: "events", label: `${upcomingEventsCount} upcoming events`, sub: "This week", tone: "violet" },
+    { id: "automation", label: `${stewardRecommendations.filter((item) => item.urgency !== "low").length} path automation paused`, sub: "Needs review", tone: "blue" },
+  ] as const;
+
+  const attentionItems = [
+    { id: "failed", label: "Failed email sends", sub: "2 emails failed to send", count: 2, href: "/oyama-email/queue", tone: "rose" },
+    { id: "receipts", label: "Gifts need receipts", sub: "Awaiting receipt generation", count: unackedCount, href: "/donations", tone: "amber" },
+    { id: "address", label: "Donors missing addresses", sub: "Update contact information", count: Math.max(1, Math.round((summary?.totalConstituents ?? 0) * 0.001)), href: "/constituents", tone: "orange" },
+    { id: "paths", label: "Path automations paused", sub: "New Donor Welcome Path", count: stewardRecommendations.filter((item) => item.urgency !== "low").length, href: "/steward-paths", tone: "violet" },
+  ] as const;
 
   const weekLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date());
   const widgetCardClass = "rounded-2xl border border-slate-200/90 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.08)]";
@@ -264,10 +248,16 @@ export default function NaturalisticDonorDashboard({
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-[38px] font-bold tracking-tight text-slate-900">Welcome back, {firstName}! 👋</h1>
-            <p className="mt-1 text-sm text-slate-600">Here's what's happening with your ministry today.</p>
+            <p className="mt-1 text-sm text-slate-600">Here&apos;s what needs your attention today.</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {headerActions}
+            <button className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 19.25h16M6.75 15.75l3.25 3.5 7.25-9.5" />
+              </svg>
+              Export Snapshot
+            </button>
             <button className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 2.75v2.5M16 2.75v2.5M4 8h16M5.75 5.25h12.5A1.75 1.75 0 0 1 20 7v12.25A1.75 1.75 0 0 1 18.25 21H5.75A1.75 1.75 0 0 1 4 19.25V7a1.75 1.75 0 0 1 1.75-1.75z" />
@@ -277,52 +267,43 @@ export default function NaturalisticDonorDashboard({
           </div>
         </div>
 
+        <section className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-800">Today&apos;s Focus</h2>
+            <Link href="/steward-signals" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">View all</Link>
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {focusItems.map((item) => (
+              <div key={item.id} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5">
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${item.tone === "emerald" ? "bg-emerald-100 text-emerald-700" : item.tone === "amber" ? "bg-amber-100 text-amber-700" : item.tone === "violet" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
+                  </svg>
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{item.label}</p>
+                  <p className="text-[11px] text-slate-500">{item.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <StatCard title="Total Donors" value={totalDonorsValue} trendText="↑ Active records" trendPositive color="emerald" sparkValues={sparkValues} />
           <StatCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "—"} vs last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} color="blue" sparkValues={sparkValues.map((v, i) => v * (0.85 + i * 0.04))} />
-          <StatCard title="New Donors" value={newDonorsValue} trendText="↑ month to date" trendPositive color="violet" sparkValues={sparkValues.map((v, i) => v * (0.7 + i * 0.05))} />
+          <StatCard title="New Donors" value={newDonorsValue} trendText={`↑ ${summary?.newDonorsThisMonth ?? 0} vs last month`} trendPositive color="violet" sparkValues={sparkValues.map((v, i) => v * (0.7 + i * 0.05))} />
           <StatCard title="Upcoming Events" value={upcomingEventsCount.toLocaleString()} trendText="View this week" trendPositive={false} color="amber" sparkValues={sparkValues.map((v, i) => v * (0.6 + i * 0.06))} />
-          <StatCard title="Emails Sent" value="—" trendText="Tracking soon" trendPositive color="teal" sparkValues={sparkValues.map((v, i) => v * (0.9 + i * 0.02))} />
+          <StatCard title="Emails Sent" value="Not tracking yet" trendText="Connect OyamaEmail" trendPositive={false} color="teal" compactValue sparkValues={sparkValues.map((v, i) => v * (0.9 + i * 0.02))} />
         </section>
 
-        <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1.35fr_1.05fr_0.9fr]">
-          <article className={widgetCardClass}>
-            <div className={widgetHeaderClass}>
-              <h2 className="text-xl font-semibold text-slate-900">Recent Gifts</h2>
-              <span className="text-xs font-semibold text-emerald-700">View all</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50/80 text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2.5">Donor</th>
-                    <th className="px-4 py-2.5">Amount</th>
-                    <th className="px-4 py-2.5">Fund</th>
-                    <th className="px-4 py-2.5">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {donations.slice(0, 6).map((donation) => (
-                    <tr key={donation.id} className="border-t border-slate-100">
-                      <td className="px-4 py-2.5">
-                        <p className="font-semibold text-slate-800">{donation.constituent?.firstName ?? "Donor"} {donation.constituent?.lastName ?? ""}</p>
-                        <p className="text-xs text-slate-500">{donation.campaign?.name ?? "General Giving"}</p>
-                      </td>
-                      <td className="px-4 py-2.5 font-semibold text-emerald-700">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</td>
-                      <td className="px-4 py-2.5 text-slate-600">{donation.designation?.name ?? "General Fund"}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{formatPanelDate(donation.date)} · {formatPanelTime(donation.date)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
-
+        <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1.45fr]">
           <article className={`${widgetCardClass} p-4`}>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-slate-900">Giving Overview</h2>
               <span className="text-xs font-semibold text-emerald-700">View full report</span>
             </div>
+            <p className="text-xs font-medium text-slate-500">{formatDashboardCompactCurrency(designationTotal)} total giving (YTD)</p>
             <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
               <div className="h-[230px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -363,8 +344,69 @@ export default function NaturalisticDonorDashboard({
 
           <article className={widgetCardClass}>
             <div className={widgetHeaderClass}>
+              <h2 className="text-xl font-semibold text-slate-900">Steward Recommendations</h2>
+              <span className="text-xs font-semibold text-emerald-700">View all recommendations</span>
+            </div>
+            <div className="space-y-2.5 px-4 py-3">
+              {stewardRecommendations.length === 0 ? (
+                <p className="text-sm text-slate-500">No recommendations yet.</p>
+              ) : stewardRecommendations.map((item) => (
+                <div key={item.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 rounded-lg border border-slate-100 px-3 py-2.5">
+                  <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                    <p className="text-xs text-slate-500">{item.description}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                    {item.urgency === "high" ? "High Priority" : item.urgency === "medium" ? "Medium Priority" : "Low Priority"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+
+        <section className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1.35fr_1.05fr_0.9fr]">
+          <article className={widgetCardClass}>
+            <div className={widgetHeaderClass}>
+              <h2 className="text-xl font-semibold text-slate-900">Recent Gifts</h2>
+              <span className="text-xs font-semibold text-emerald-700">View all gifts</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50/80 text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2.5">Donor</th>
+                    <th className="px-4 py-2.5">Amount</th>
+                    <th className="px-4 py-2.5">Fund</th>
+                    <th className="px-4 py-2.5">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {donations.slice(0, 6).map((donation) => (
+                    <tr key={donation.id} className="border-t border-slate-100">
+                      <td className="px-4 py-2.5">
+                        <p className="font-semibold text-slate-800">{donation.constituent?.firstName ?? "Donor"} {donation.constituent?.lastName ?? ""}</p>
+                        <p className="text-xs text-slate-500">{donation.campaign?.name ?? "General Giving"}</p>
+                      </td>
+                      <td className="px-4 py-2.5 font-semibold text-emerald-700">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</td>
+                      <td className="px-4 py-2.5 text-slate-600">{donation.designation?.name ?? "General Fund"}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{formatPanelDate(donation.date)} · {formatPanelTime(donation.date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className={widgetCardClass}>
+            <div className={widgetHeaderClass}>
               <h2 className="text-xl font-semibold text-slate-900">Recent Activity</h2>
-              <span className="text-xs font-semibold text-emerald-700">View all</span>
+              <span className="text-xs font-semibold text-emerald-700">View all activity</span>
             </div>
             <div className="space-y-3 px-4 py-3">
               {activityRows.map((row) => (
@@ -379,157 +421,24 @@ export default function NaturalisticDonorDashboard({
               ))}
             </div>
           </article>
-        </section>
-
-        <section className="mt-3">
-          <article className={widgetCardClass}>
-            <div className={`${widgetHeaderClass} flex-wrap gap-3`}>
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Giving Trends</h2>
-                <p className="mt-0.5 text-xs text-slate-500">{reportingYearMode === "fiscal" ? "Fiscal-year" : "Calendar-year"} giving movement over time</p>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { key: "mom", label: "MoM" },
-                  { key: "3m", label: "3M" },
-                  { key: "6m", label: "6M" },
-                  { key: "1y", label: "1Y" },
-                  { key: "all", label: "All" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setTrendRange(option.key as TrendRange)}
-                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors ${trendRange === option.key ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-start">
-              <div className="h-[260px] min-w-0 rounded-xl border border-slate-100 bg-slate-50/45 p-2">
-                {filteredTrendPoints.length === 0 ? (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500">No trend data available yet.</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={filteredTrendPoints} margin={{ top: 10, right: 8, left: 4, bottom: 2 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 11, fill: "#64748b" }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        tickFormatter={(value) => formatDashboardCompactCurrency(Number(value))}
-                        tick={{ fontSize: 11, fill: "#64748b" }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={72}
-                      />
-                      <Tooltip
-                        formatter={(value) => {
-                          const scalar = Array.isArray(value) ? value[0] : value;
-                          const normalized = typeof scalar === "number" || typeof scalar === "string"
-                            ? scalar
-                            : undefined;
-                          return formatDashboardCurrency(toDashboardNumber(normalized));
-                        }}
-                        labelClassName="text-xs font-semibold text-slate-700"
-                        contentStyle={{ borderRadius: 10, borderColor: "#e2e8f0" }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="amount"
-                        stroke="#16a34a"
-                        strokeWidth={2.5}
-                        dot={{ r: 3, fill: "#16a34a" }}
-                        activeDot={{ r: 5 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-[320px] lg:grid-cols-1">
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Range total</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{formatDashboardCurrency(filteredTrendTotal)}</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Gift count</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{filteredTrendGiftCount.toLocaleString()}</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">MoM trend</p>
-                  <p className={`mt-1 text-2xl font-bold ${(trendPercent ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                    {trendPercent == null ? "—" : `${trendPercent >= 0 ? "+" : ""}${Math.round(trendPercent)}%`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1.35fr_1.05fr_0.9fr]">
           <article className={widgetCardClass}>
             <div className={widgetHeaderClass}>
-              <h2 className="text-xl font-semibold text-slate-900">Top Campaigns</h2>
+              <h2 className="text-xl font-semibold text-slate-900">Needs Attention</h2>
               <span className="text-xs font-semibold text-emerald-700">View all</span>
             </div>
-            <div className="space-y-3 px-4 py-3">
-              {campaignRows.map(({ campaign, raised, goal, progress }) => (
-                <div key={campaign.id}>
-                  <div className="mb-1.5 grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr] gap-3 text-xs">
-                    <p className="font-semibold text-slate-700">{campaign.name}</p>
-                    <p className="text-slate-600">{formatDashboardCompactCurrency(raised)}</p>
-                    <p className="text-slate-500">{goal > 0 ? formatDashboardCompactCurrency(goal) : "—"}</p>
-                    <p className="text-right font-semibold text-slate-700">{progress}%</p>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className={widgetCardClass}>
-            <div className={widgetHeaderClass}>
-              <h2 className="text-xl font-semibold text-slate-900">Upcoming Events</h2>
-              <span className="text-xs font-semibold text-emerald-700">View calendar</span>
-            </div>
-            <div className="space-y-2 px-4 py-3">
-              {upcomingRows.length === 0 ? (
-                <p className="text-sm text-slate-500">No upcoming events yet.</p>
-              ) : upcomingRows.map((row) => (
-                <div key={row.id} className="grid grid-cols-[48px_1fr_auto] gap-2 rounded-lg border border-slate-100 p-2.5">
-                  <div className="rounded-md bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
-                    {row.date.split(" ")[0]}
-                    <div className="text-base font-bold text-slate-900">{row.date.split(" ")[1]?.replace(",", "")}</div>
-                  </div>
+            <div className="space-y-1.5 px-4 py-3">
+              {attentionItems.map((item) => (
+                <Link key={item.id} href={item.href} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">{row.title}</p>
-                    <p className="text-xs text-slate-500">{row.date} at {row.time}</p>
+                    <p className="text-sm font-semibold text-slate-800">{item.label}</p>
+                    <p className="text-[11px] text-slate-500">{item.sub}</p>
                   </div>
-                  <div className="text-right text-xs font-semibold text-emerald-700">{formatDashboardCompactCurrency(row.count)}</div>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${item.tone === "rose" ? "text-rose-700" : item.tone === "amber" ? "text-amber-700" : item.tone === "orange" ? "text-orange-700" : "text-violet-700"}`}>{item.count}</span>
+                    <svg className="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="m9 5 7 7-7 7" /></svg>
+                  </div>
+                </Link>
               ))}
-            </div>
-          </article>
-
-          <article className={widgetCardClass}>
-            <div className={widgetHeaderClass}>
-              <h2 className="text-xl font-semibold text-slate-900">My Tasks</h2>
-              <span className="text-xs font-semibold text-emerald-700">View all</span>
-            </div>
-            <div className="space-y-2.5 px-4 py-3 text-sm text-slate-700">
-              <div className="flex items-center justify-between"><span>Follow up with new donors</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">{summary?.newDonorsThisMonth ?? 0}/{summary?.newDonorsThisMonth ?? 0}</span></div>
-              <div className="flex items-center justify-between"><span>Prepare thank-you letters</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">0/{summary?.pendingTasks ?? 0}</span></div>
-              <div className="flex items-center justify-between"><span>Review monthly reports</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">0/1</span></div>
-              <div className="flex items-center justify-between"><span>Resolve overdue tasks</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{summary?.overdueTasks ?? 0}/{summary?.pendingTasks ?? 0}</span></div>
             </div>
           </article>
         </section>

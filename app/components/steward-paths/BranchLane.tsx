@@ -47,9 +47,21 @@ export default function BranchLane({
     return Math.round(value / gridSize) * gridSize;
   }
 
-  function beginLaneMove(event: PointerEvent<HTMLButtonElement>) {
+  function shouldStartLaneDrag(target: EventTarget | null): boolean {
+    const element = target as HTMLElement | null;
+    if (!element) return false;
+    if (element.closest("button, input, select, textarea, a")) return false;
+    if (element.closest('[data-workflow-node-id]:not([data-workflow-node-id^="__branch_lane_"])')) return false;
+    return true;
+  }
+
+  function beginLaneMove(event: PointerEvent<HTMLElement>) {
+    const fromHandle = Boolean((event.target as HTMLElement | null)?.closest("[data-lane-drag-handle='true']"));
+    if (!fromHandle && !shouldStartLaneDrag(event.target)) return;
+
     event.preventDefault();
     event.stopPropagation();
+    onSelectLane();
 
     dragRef.current = {
       pointerId: event.pointerId,
@@ -64,7 +76,7 @@ export default function BranchLane({
     }
   }
 
-  function moveLane(event: PointerEvent<HTMLButtonElement>) {
+  function moveLane(event: PointerEvent<HTMLElement>) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const nextX = drag.originX + event.clientX - drag.startX;
@@ -72,7 +84,7 @@ export default function BranchLane({
     onFreeMove(lane.id, { x: snapToGrid(nextX), y: snapToGrid(nextY) });
   }
 
-  function endLaneMove(event: PointerEvent<HTMLButtonElement>) {
+  function endLaneMove(event: PointerEvent<HTMLElement>) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null;
@@ -113,8 +125,12 @@ export default function BranchLane({
 
   return (
     <article
-      className={`group relative min-w-[260px] flex-1 rounded-xl border bg-white px-2 py-2 ${isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : tone.panelBorder}`}
+      className={`group relative min-w-[260px] flex-1 cursor-grab touch-none rounded-xl border bg-white px-2 py-2 active:cursor-grabbing ${isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : tone.panelBorder}`}
       style={{ transform: `translate(${freeOffset.x}px, ${freeOffset.y}px)` }}
+      onPointerDown={beginLaneMove}
+      onPointerMove={moveLane}
+      onPointerUp={endLaneMove}
+      onPointerCancel={endLaneMove}
       onClick={handleLaneSelect}
     >
       <span
@@ -130,6 +146,7 @@ export default function BranchLane({
 
       <button
         type="button"
+        data-lane-drag-handle="true"
         title="Drag branch lane"
         aria-label="Drag branch lane"
         className="absolute right-2 top-2 z-20 inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 opacity-0 shadow-sm transition hover:bg-slate-100 group-hover:opacity-100"

@@ -1,4 +1,5 @@
 "use client";
+// NOTE: Keep this modal custom; it is a two-step template library plus live preview editor workflow.
 
 /**
  * EmailFromTemplateModal

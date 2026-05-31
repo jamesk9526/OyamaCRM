@@ -1303,8 +1303,8 @@ async function loadPublicLiveComThread(args: {
     where: {
       constituent: { organizationId: args.organizationId },
     },
-    orderBy: { createdAt: "asc" },
-    take: 200,
+    orderBy: { createdAt: "desc" },
+    take: 1000,
     include: {
       constituent: {
         select: {
@@ -1318,7 +1318,7 @@ async function loadPublicLiveComThread(args: {
     },
   });
 
-  const messages = rows
+  const conversationRows = rows
     .filter((row) => {
       const metadata = readActivityMetadata(row.metadata);
       const publicEmbed = readActivityMetadata(metadata.publicEmbed as Prisma.JsonValue | null);
@@ -1330,6 +1330,9 @@ async function loadPublicLiveComThread(args: {
         && publicRole
         && (publicEmbed.siteId === args.siteId || role === "staff");
     })
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+  const messages = conversationRows
     .map((row) => {
       const metadata = readActivityMetadata(row.metadata);
       const role = String(metadata.messageRole || "visitor");
@@ -1344,10 +1347,7 @@ async function loadPublicLiveComThread(args: {
 
   if (messages.length === 0) return null;
 
-  const latest = [...rows].reverse().find((row) => {
-    const metadata = readActivityMetadata(row.metadata);
-    return metadata.conversationId === args.conversationId;
-  });
+  const latest = conversationRows[conversationRows.length - 1];
   const metadata = readActivityMetadata(latest?.metadata ?? null);
   const constituent = latest?.constituent;
   const visitorName = String(metadata.visitorName || `${constituent?.firstName ?? ""} ${constituent?.lastName ?? ""}`.trim() || "Website Visitor");

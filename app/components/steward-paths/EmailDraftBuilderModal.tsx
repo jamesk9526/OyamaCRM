@@ -1,6 +1,7 @@
 /**
  * EmailDraftBuilderModal embeds the Communications email builder for a workflow email-draft node.
  */
+// NOTE: Keep this modal custom; it embeds the full email builder and campaign draft persistence.
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

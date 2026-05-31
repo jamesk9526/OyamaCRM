@@ -35,6 +35,7 @@ interface CanvasConnectorLine {
   sourceY: number;
   targetX: number;
   targetY: number;
+  overlay: boolean;
 }
 
 interface CanvasPanDragState {
@@ -213,6 +214,11 @@ export default function WorkflowCanvas({
 
     const canvasRect = canvas.getBoundingClientRect();
     const edges = collectWorkflowEdges(doc);
+    const branchNodeIds = new Set(
+      Object.values(doc.nodesById)
+        .filter((node) => isBranchNode(node))
+        .map((node) => node.id),
+    );
     const nextLines = edges.flatMap((edge) => {
       const source = canvas.querySelector<HTMLElement>(`[data-workflow-node-id="${edge.sourceId}"]`);
       const target = canvas.querySelector<HTMLElement>(`[data-workflow-node-id="${edge.targetId}"]`);
@@ -221,12 +227,16 @@ export default function WorkflowCanvas({
       const sourceRect = source.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
 
+      const branchAnchorEdge = edge.sourceId.startsWith("__branch_lane_") || edge.targetId.startsWith("__branch_lane_");
+      const branchNodeEdge = branchNodeIds.has(edge.sourceId) || branchNodeIds.has(edge.targetId);
+
       return [{
         id: `${edge.sourceId}-${edge.targetId}`,
         sourceX: sourceRect.left - canvasRect.left + sourceRect.width / 2,
         sourceY: sourceRect.bottom - canvasRect.top,
         targetX: targetRect.left - canvasRect.left + targetRect.width / 2,
         targetY: targetRect.top - canvasRect.top,
+        overlay: branchAnchorEdge || branchNodeEdge,
       }];
     });
 
@@ -362,6 +372,7 @@ export default function WorkflowCanvas({
           </marker>
         </defs>
         {connectorLines.map((line) => {
+          if (line.overlay) return null;
           const bend = Math.max(34, Math.abs(line.targetY - line.sourceY) * 0.45);
           const path = `M ${line.sourceX} ${line.sourceY} C ${line.sourceX} ${line.sourceY + bend}, ${line.targetX} ${line.targetY - bend}, ${line.targetX} ${line.targetY}`;
           return (
@@ -373,6 +384,35 @@ export default function WorkflowCanvas({
               strokeWidth="1.5"
               strokeLinecap="round"
               markerEnd="url(#steward-path-arrow)"
+            />
+          );
+        })}
+      </svg>
+
+      <svg
+        className="pointer-events-none absolute left-0 top-0 z-[12]"
+        width={canvasSize.width}
+        height={canvasSize.height}
+        aria-hidden="true"
+      >
+        <defs>
+          <marker id="steward-path-arrow-overlay" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <path d="M1 1 7 4 1 7" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </marker>
+        </defs>
+        {connectorLines.map((line) => {
+          if (!line.overlay) return null;
+          const bend = Math.max(34, Math.abs(line.targetY - line.sourceY) * 0.45);
+          const path = `M ${line.sourceX} ${line.sourceY} C ${line.sourceX} ${line.sourceY + bend}, ${line.targetX} ${line.targetY - bend}, ${line.targetX} ${line.targetY}`;
+          return (
+            <path
+              key={`overlay-${line.id}`}
+              d={path}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              markerEnd="url(#steward-path-arrow-overlay)"
             />
           );
         })}

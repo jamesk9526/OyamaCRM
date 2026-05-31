@@ -1,9 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Manrope, Sora } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
 import { PluginProvider } from "./components/plugins/PluginProvider";
 import PWARegister from "./components/pwa/PWARegister";
+
+const crmSans = Manrope({
+  subsets: ["latin"],
+  variable: "--font-crm-sans",
+  display: "swap",
+});
+
+const crmHeading = Sora({
+  subsets: ["latin"],
+  variable: "--font-crm-heading",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "OyamaCRM",
@@ -60,7 +73,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`h-full antialiased ${crmSans.variable} ${crmHeading.variable}`}>
       <body className="h-full">
         <PWARegister />
         <AuthProvider>

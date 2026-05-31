@@ -220,25 +220,25 @@ function nextTicketNumber(previousTicketNumber: string | null): string {
 
 /** Creates one ticket with retry logic to handle rare sequence collisions. */
 async function createTicketWithSequence(data: Omit<Prisma.WatchdogFeedbackTicketUncheckedCreateInput, "ticketNumber">) {
-  let attempts = 0;
+  const latest = await prisma.watchdogFeedbackTicket.findFirst({
+    where: { ticketNumber: { startsWith: "WD-" } },
+    orderBy: { ticketNumber: "desc" },
+    select: { ticketNumber: true },
+  });
 
-  while (attempts < 5) {
-    attempts += 1;
+  let candidateTicketNumber = nextTicketNumber(latest?.ticketNumber ?? null);
 
-    const latest = await prisma.watchdogFeedbackTicket.findFirst({
-      orderBy: { createdAt: "desc" },
-      select: { ticketNumber: true },
-    });
-
+  for (let attempts = 0; attempts < 50; attempts += 1) {
     try {
       return await prisma.watchdogFeedbackTicket.create({
         data: {
           ...data,
-          ticketNumber: nextTicketNumber(latest?.ticketNumber ?? null),
+          ticketNumber: candidateTicketNumber,
         },
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        candidateTicketNumber = nextTicketNumber(candidateTicketNumber);
         continue;
       }
       throw error;

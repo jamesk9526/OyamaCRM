@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 92" role="img" aria-labelledby="title desc">
-<title id="title">Oyama Donor CRM Sidebar Logo</title><desc id="desc">Compact sidebar version of the Oyama Donor CRM logo.</desc>
-<defs><linearGradient id="bg" x1="8" y1="7" x2="77" y2="83" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#12895a"/><stop offset=".6" stop-color="#0a5940"/><stop offset="1" stop-color="#073428"/></linearGradient></defs>
-<rect x="8" y="10" width="72" height="72" rx="18" fill="url(#bg)"/>
-<g transform="translate(-20 -8) scale(.72)"><path d="M64 25 C58 36 49 45 38 52 C47 53 54 51 60 47 C53 61 42 70 28 77 C42 78 53 75 61 68 C55 80 45 89 33 96 C45 95 55 91 61 84 L61 101 C54 102 47 104 41 108 H87 C81 104 74 102 67 101 L67 84 C73 91 83 95 95 96 C83 89 73 80 67 68 C75 75 86 78 100 77 C86 70 75 61 68 47 C74 51 81 53 90 52 C79 45 70 36 64 25Z" fill="#fff"/><path d="M50 109 C56 105 72 105 78 109" fill="none" stroke="#a7f3d0" stroke-width="3" stroke-linecap="round" opacity=".8"/></g>
-<text x="96" y="39" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="27" font-weight="800" letter-spacing="5" fill="#fff">OYAMA</text>
-<text x="98" y="63" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="700" letter-spacing="3.2" fill="#a7f3d0">DONOR CRM</text>
-</svg>

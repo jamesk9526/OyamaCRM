@@ -1,4 +1,5 @@
 /** Visual workflow editor modal for fully editing one existing Steward Path automation. */
+// NOTE: Keep this modal custom; it is a full workflow sequence editor and should not be removed.
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

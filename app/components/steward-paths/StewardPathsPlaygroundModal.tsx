@@ -2,6 +2,7 @@
  * Steward Paths Playground surface (modal + full-page modes).
  * Uses sandbox-only API endpoints that never write enrollments/timeline or send real emails.
  */
+// NOTE: Keep this modal custom; sandbox run controls and live simulation states should not be removed.
 "use client";
 
 import Link from "next/link";

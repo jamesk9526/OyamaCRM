@@ -1,0 +1,214 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.5 [39m[90mC:/Users/James/Documents/GitHub/OyamaCRM[39m
+
+[90mstdout[2m | tests/smoke/donations-crud.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/critical-hardening.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê secrets for agents [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/feedback-ticketing-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ override existing { override: true }
+
+[90mstdout[2m | tests/api/events-tablelink-public.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/smoke/hrm-api-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/api/steward-paths.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/watchdog-ops-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/events-data-isolation.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/site-embeds-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/compassion-appointments-workspace.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/api/email-campaign-workflow.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/constituents-import-safety.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/routes-workflow.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/api/steward-signals.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ multiple files { path: ['.env.local', '.env'] }
+
+[90mstdout[2m | tests/smoke/reports-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîü auth for agents [www.vestauth.com]
+
+[90mstdout[2m | tests/smoke/grants-crud.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/api-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/compassion-public-scheduling-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ custom filepath { path: '/custom/path/.env' }
+
+[90mstdout[2m | tests/api/steward-tools.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/api/steward-ai-memory-context.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîü auth for agents [www.vestauth.com]
+
+[90mstdout[2m | tests/api/email-provider-graph.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+
+[90mstdout[2m | tests/smoke/livecom-workflow.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ enable debugging { debug: true }
+
+[90mstdout[2m | tests/smoke/events-crud.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γùê secrets for agents [www.dotenvx.com]
+
+ [32mΓ£ô[39m tests/smoke/critical-hardening.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 5155[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/steward-tools.api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 5186[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/steward-ai-memory-context.api.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5252[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/grants-crud.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 5310[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/hrm-api-smoke.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 5586[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/steward-paths.api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 5621[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/email-provider-graph.api.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 5630[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m completes oauth callback flow, uses graph for provider and campaign test sends, and disconnects [33m 686[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/events-tablelink-public.api.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 5552[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/livecom-workflow.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5683[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/events-data-isolation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 5722[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates a table in Event A and a separate table in Event B [33m 325[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/feedback-ticketing-smoke.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 5810[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/compassion-public-scheduling-smoke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 6034[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates an appointment from a valid slot and enforces capacity [33m 361[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/donation-utils.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/auth-client.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/constituent-utils.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/reporting-utils.test.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/compassion-client-import-validator.test.ts [2m([22m[2m40 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/compassion-appointments-workspace.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 6358[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m lists appointments with filter and search support [33m 395[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m syncs public widget bookings into admin appointment list [33m 405[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/help-content.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 136[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/event-reporting-service.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 368[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/compassion-appointment-widget-slots.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/letters-printables-generate-source.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/crm-visual-refresh-source.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/email-builder-utils.extra.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/steward-paths-workflow-builder.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+[90mstdout[2m | tests/api/watchdog.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+ [32mΓ£ô[39m tests/unit/steward-ai-runtime-pill.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/steward-paths-status-change.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/steward-action-executor.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+[90mstdout[2m | tests/api/auth.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+ [32mΓ£ô[39m tests/unit/steward-intelligence-engine.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/letter-builder-ui-source.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+[90mstdout[2m | tests/api/steward-ai-status.api.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîÿ suppress logs { quiet: true }
+
+[90mstdout[2m | tests/smoke/webmaster-publishing-smoke.test.ts
+[22m[39mΓùç injected env (0) from .env // tip: Γîü auth for agents [www.vestauth.com]
+
+ [32mΓ£ô[39m tests/smoke/oyama-email-workspace-source.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/crm-sidebar-navigation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/engagement-orchestration.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/letters-merge.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/steward-paths-playground.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/engagement-status.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/email-compliance.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/webmaster-publish-readiness.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/steward-paths-adapters.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/email-builder-utils.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/navigation-boundaries.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m tests/regression/e2e-contracts.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/compassion-appointments-utils.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/steward-ai-status.api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2052[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/letters-print-layout.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/webmaster-editor-utils.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/webmaster-publishing-smoke.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 2047[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/steward-ai-runtime-status.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/routes-workflow.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 7961[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m authenticates seeded admin user [33m 556[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m reads core list endpoints [33m 842[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/feedback-context.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/system-status.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/email-campaign-workflow.api.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 7954[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns blockers on validate and blocks scheduling when campaign is not ready [33m 887[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns unscheduled draft campaigns in calendar workspace payload [33m 1631[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/workspace-control-rail-presets.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/auth.api.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2317[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m rejects invalid credentials [33m 507[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns an access token for valid admin credentials [33m 469[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/reset-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/data-tools-name-fix-source.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+ [31mΓ¥»[39m tests/smoke/constituents-import-safety.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 8169[2mms[22m[39m
+[31m     [31m├ù[31m records import runs and supports guarded rollback[39m[33m 1676[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m requires typed rollback confirmation text [33m 969[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m imports explicit communication preference flags and country [33m 522[2mms[22m[39m
+ [32mΓ£ô[39m tests/unit/letters-branding-rendering.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/donations-crud.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 8219[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m lists donations with pagination shape [33m 476[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates a new donation and returns 201 [33m 1377[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m filters donations by status [33m 867[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/watchdog.api.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2717[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/events-crud.test.ts [2m([22m[2m44 tests[22m[2m)[22m[33m 9902[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates a manual event order [33m 680[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m updates order status to CONFIRMED [33m 357[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns events reports summary with correct shape [33m 827[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/site-embeds-smoke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 10201[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns widget data payloads for implemented inline embeds [33m 959[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m accepts public LiveCom messages and exposes them in LiveCom interactions [33m 1068[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m supports two-way LiveCom refresh without exposing archive/resolve events publicly [33m 3099[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/api-smoke.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 10547[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns event reports summary endpoint (requires auth) [33m 2620[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates and processes a steward path sequence [33m 315[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m processes GENERATE_LETTER step and creates linked task [33m 347[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m runs batch generation and processes print/mail queue actions [33m 1965[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/reports-smoke.test.ts [2m([22m[2m37 tests[22m[2m)[22m[33m 11593[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns 200 with the expected shape [33m 730[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m ytdAmount is a finite number >= 0 [33m 682[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m momTrend is null or an integer [33m 876[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns exactly 12 months for the current year [33m 414[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m each month object has numeric month (1ΓÇô12) and amount >= 0 [33m 342[2mms[22m[39m
+ [32mΓ£ô[39m tests/smoke/watchdog-ops-smoke.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 13468[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m creates a backup, verifies it, and runs restore dry-run with pre-restore warning [33m 7842[2mms[22m[39m
+ [32mΓ£ô[39m tests/api/steward-signals.api.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 56990[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns index state and supports manual rebuild [33m 26471[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns summary and bounded growth ideas payloads [33m 23488[2mms[22m[39m
+     [33m[2mΓ£ô[22m[39m returns dashboard focus, research output, and lapse radar groups [33m 1974[2mms[22m[39m
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 1 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  tests/smoke/constituents-import-safety.test.ts > constituent import safety > records import runs and supports guarded rollback
+AssertionError: expected 409 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 409
+
+ Γ¥» tests/smoke/constituents-import-safety.test.ts:91:34
+     89|         });
+     90|
+     91|       expect(rollbackRes.status).toBe(200);
+       |                                  ^
+     92|       expect(rollbackRes.body.runId).toBe(runId);
+     93|       expect(rollbackRes.body.deletedCreated).toBeGreaterThanOrEqual(1ΓÇª
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/1]ΓÄ»
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m65 passed[39m[22m[90m (66)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m569 passed[39m[22m[90m (570)[39m
+[2m   Start at [22m 10:15:24
+[2m   Duration [22m 58.02s[2m (transform 32.77s, setup 0ms, import 15.17s, tests 228.10s, environment 10ms)[22m
+

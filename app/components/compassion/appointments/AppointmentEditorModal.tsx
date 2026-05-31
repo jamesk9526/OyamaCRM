@@ -1,4 +1,5 @@
 // Modal for creating and editing Compassion appointments with conflict handling.
+// NOTE: Keep this modal custom; it includes conflict resolution and destructive confirmation flows.
 "use client";
 
 import { useMemo, useState } from "react";

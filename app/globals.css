@@ -14,7 +14,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans, "Segoe UI");
+  --font-sans: var(--font-crm-sans, "Segoe UI");
 }
 
 html,
@@ -25,13 +25,26 @@ body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans, "Segoe UI"), Arial, Helvetica, sans-serif;
+  font-family: var(--font-crm-sans, "Segoe UI"), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: contain;
+}
+
+.crm-fonts {
+  font-family: var(--font-crm-sans, "Segoe UI"), Arial, Helvetica, sans-serif;
+}
+
+.crm-fonts h1,
+.crm-fonts h2,
+.crm-fonts h3,
+.crm-fonts h4,
+.crm-fonts [data-crm-heading="true"] {
+  font-family: var(--font-crm-heading, "Segoe UI"), var(--font-crm-sans, "Segoe UI"), Arial, Helvetica, sans-serif;
+  letter-spacing: -0.01em;
 }
 
 /* Shared CRM visual language primitives for calm, consistent page surfaces. */

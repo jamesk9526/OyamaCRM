@@ -2,6 +2,7 @@
  * NewAutomationModal — modal form to create a new Steward Path workflow.
  * Sends POST /api/automations with trigger + 1 initial action.
  */
+// NOTE: Keep this modal custom; it has workflow-specific trigger/action logic that should not be removed.
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";

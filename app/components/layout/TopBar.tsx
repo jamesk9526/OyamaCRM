@@ -908,6 +908,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             ? "bg-cyan-600"
             : donorAccentTheme.topBarAccentLine;
   const isDonorEnterpriseChrome = moduleKey === "donor";
+  const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
   const moduleChromePalette = moduleKey === "compassion"
     ? {
       scoopStart: "#1e3a8a",
@@ -1584,8 +1585,8 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             </div>
 
             {/* ── Module switcher (left anchor) ── */}
-            {workspaceSettings.showModuleSwitcher && (
-              <div className="hidden min-[560px]:flex min-w-0 items-center gap-1.5 sm:gap-2">
+            {showModuleSwitcher && (
+              <div className="hidden min-[420px]:flex min-w-0 items-center gap-1.5 sm:gap-2">
                 <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled />
               </div>
             )}
@@ -1744,7 +1745,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? "pl-5 pr-5" : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? "pl-5 pr-5" : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
           <div className={`mx-auto flex min-w-0 w-full items-center gap-3 ${isDonorEnterpriseChrome ? "max-w-[1260px]" : ""}`}>
           <div className={`flex min-w-0 flex-1 items-center gap-3 ${isDonorEnterpriseChrome ? "justify-start" : "justify-end"}`}>
-            {workspaceSettings.showModuleSwitcher && !isDonorEnterpriseChrome && (
+            {showModuleSwitcher && (
               <div className="shrink-0">
                 <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
               </div>
@@ -2181,7 +2182,7 @@ function ModuleSwitcher({
   const [open, setOpen] = useState(false);
   const canViewHrm = user?.permissions?.includes("hrm.view") ?? user?.role !== "report_viewer";
 
-  const modules = [
+  const modules = useMemo(() => [
     {
       key: "donor",
       label: "DonorCRM",
@@ -2235,14 +2236,45 @@ function ModuleSwitcher({
     if (module.key === "compassion") return settings.compassionEnabled;
     if (module.key === "hrm") return canViewHrm;
     return true;
-  });
+  }), [moduleKey, pathname, settings.compassionEnabled, settings.donorEnabled, canViewHrm]);
 
   if (modules.length === 0) return null;
 
-  const current = modules.find((m) => m.active) ?? modules[0];
-  const switcherButtonTone = scrolled
-    ? "border-slate-200/95 bg-white text-slate-800 shadow-[0_3px_10px_rgba(15,23,42,0.06)]"
-    : "border-slate-200/95 bg-white text-slate-800 shadow-[0_4px_12px_rgba(15,23,42,0.065)]";
+  const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  const switcherTone = current.key === "compassion"
+    ? {
+      glow: "from-slate-200/50 via-slate-100/40 to-transparent",
+      button: scrolled
+        ? "border-slate-300/90 bg-white text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)]"
+        : "border-slate-300/90 bg-white text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.1)]",
+      activeItem: "border-slate-300 bg-slate-50",
+      activeIcon: "border-blue-200 bg-blue-50 text-blue-700",
+      activePill: "bg-blue-100 text-blue-700",
+    }
+    : current.key === "events"
+      ? {
+        glow: "from-slate-200/50 via-slate-100/40 to-transparent",
+        button: scrolled
+          ? "border-slate-300/90 bg-white text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)]"
+          : "border-slate-300/90 bg-white text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.1)]",
+        activeItem: "border-slate-300 bg-slate-50",
+        activeIcon: "border-amber-200 bg-amber-50 text-amber-700",
+        activePill: "bg-amber-100 text-amber-700",
+      }
+      : {
+        glow: "from-slate-200/50 via-slate-100/40 to-transparent",
+        button: scrolled
+          ? "border-slate-300/90 bg-white text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)]"
+          : "border-slate-300/90 bg-white text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.1)]",
+        activeItem: "border-slate-300 bg-slate-50",
+        activeIcon: "border-emerald-200 bg-emerald-50 text-emerald-700",
+        activePill: "bg-emerald-100 text-emerald-700",
+      };
 
   function switchTo(href: string) {
     setOpen(false);
@@ -2255,20 +2287,20 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group relative overflow-hidden flex items-center rounded-2xl border ${switcherButtonTone} backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-slate-300 hover:bg-white ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[140px] xl:gap-1.5 xl:px-2 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[168px] xl:gap-2 xl:px-3 xl:py-1"}`}
+        className={`group relative flex items-center overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-200 ease-out hover:border-slate-400 ${switcherTone.button} ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[150px] xl:gap-1.5 xl:px-2.5 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[182px] xl:gap-2 xl:px-3.5 xl:py-1"}`}
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-2 right-2 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-transparent via-slate-300 to-transparent transition-all duration-500 ${open ? "opacity-90" : "opacity-45 group-hover:opacity-75"}`}
+          className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${switcherTone.glow} transition-opacity duration-200 ${open ? "opacity-90" : "opacity-40 group-hover:opacity-60"}`}
         />
-        <span className={`flex items-center justify-center rounded-xl border transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "border-slate-200 bg-slate-50 text-slate-700 h-5 w-5 xl:h-5 xl:w-5" : "border-slate-200 bg-slate-50 text-slate-700 h-6 w-6 xl:h-6 xl:w-6"}`}>
+        <span className={`relative flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-all duration-300 ${scrolled ? "h-5 w-5 xl:h-5 xl:w-5" : "h-6 w-6 xl:h-6 xl:w-6"}`}>
           {current.icon}
         </span>
-        <div className="hidden min-[1180px]:block text-left leading-tight min-w-0 lg:block">
-          <p className="max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.14em] text-slate-500">Workspace</p>
-          <p className={`truncate font-semibold transition-[font-size,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${scrolled ? "text-[10px] text-slate-700" : "text-[12px] text-slate-800"}`}>{current.label}</p>
+        <div className="relative hidden min-w-0 text-left leading-tight min-[1180px]:block lg:block">
+          <p className="max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.16em] text-slate-500">Workspace</p>
+          <p className={`truncate font-semibold transition-[font-size,color] duration-300 ${scrolled ? "text-[10px] text-slate-700" : "text-[12px] text-slate-800"}`}>{current.label}</p>
         </div>
-        <svg className={`h-3 w-3 transition-[transform,color] ${scrolled ? "text-slate-500 group-hover:text-emerald-700" : "text-slate-500 group-hover:text-emerald-700"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`relative h-3 w-3 text-slate-500 transition-[transform,color] group-hover:text-slate-700 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -2276,29 +2308,38 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed inset-x-2 bottom-2 z-50 mt-0 max-h-[82dvh] w-auto max-w-none overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_18px_52px_rgba(2,6,23,0.18)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:max-h-[min(66vh,29rem)] lg:w-[296px] lg:max-w-[calc(100vw-1rem)] lg:pb-0">
-            <div className="px-3.5 pt-2.5 pb-2 border-b border-slate-200 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.12),transparent_44%),linear-gradient(90deg,#ffffff,#f8fafc)]">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Switch Workspace</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Open another module without leaving your current session.</p>
+          <div className="fixed inset-x-2 bottom-2 z-50 mt-0 w-auto max-w-none overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_20px_54px_rgba(2,6,23,0.2)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:w-[330px] lg:max-w-[calc(100vw-1rem)] lg:pb-0">
+            <div className="border-b border-slate-200 bg-slate-50 px-4 pt-3 pb-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Switch Workspace</p>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <p className="text-[11px] text-slate-500">Move between modules without leaving your session.</p>
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                  {modules.length} active
+                </span>
+              </div>
             </div>
-            <div className="p-2 space-y-1.5">
+            <div className="max-h-[min(66vh,30rem)] space-y-1.5 overflow-y-auto p-2.5">
               {modules.map((m) => (
                 <button
                   key={m.key}
                   onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${m.active ? "border-emerald-300 bg-emerald-50" : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${m.active ? switcherTone.activeItem : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
                 >
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${m.active ? "border-emerald-200 bg-emerald-100 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.active ? switcherTone.activeIcon : "border-slate-200 bg-white text-slate-600"}`}>
                       {m.icon}
                     </span>
-                    <div className="min-w-0 flex-1 px-1.5">
-                      <p className="text-[12px] font-semibold text-slate-900 truncate">{m.label}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5 truncate">{m.helper}</p>
+                    <div className="min-w-0 flex-1 px-0.5">
+                      <p className="truncate text-[12px] font-semibold text-slate-900">{m.label}</p>
+                      <p className="mt-0.5 truncate text-[10px] text-slate-500">{m.helper}</p>
                     </div>
-                    {m.active && (
-                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    {m.active ? (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${switcherTone.activePill}`}>
+                        Current
+                      </span>
+                    ) : (
+                      <svg className="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 6l6 6-6 6" />
                       </svg>
                     )}
                   </div>
@@ -2417,23 +2458,38 @@ function UserMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div role="menu" className="fixed inset-x-2 bottom-2 z-50 max-h-[calc(100dvh-1rem)] w-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl xl:absolute xl:inset-x-auto xl:right-0 xl:bottom-auto xl:top-full xl:mt-2 xl:max-h-[min(80vh,44rem)] xl:w-[min(23rem,calc(100vw-1rem))] xl:pb-0">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
-              <span className="inline-block mt-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full capitalize">{user?.role}</span>
+          <div role="menu" className="fixed inset-x-2 bottom-2 z-50 max-h-[calc(100dvh-1rem)] w-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_24px_72px_rgba(2,6,23,0.22)] xl:absolute xl:inset-x-auto xl:right-0 xl:bottom-auto xl:top-full xl:mt-2 xl:max-h-[min(80vh,44rem)] xl:w-[min(25rem,calc(100vw-1rem))] xl:pb-0">
+            <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.12),transparent_42%),linear-gradient(90deg,#ffffff,#f8fafc)] px-4 py-3.5">
+              <div className="flex items-start gap-3">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] ${avatarCls}`}>
+                  {initials}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
+                  <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                      {user?.role}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      Profile
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="border-b border-slate-100 px-3 py-3">
+
+            <div className="border-b border-slate-200 px-3.5 py-3">
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">More Tools</p>
                 <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-100">Workspace</span>
               </div>
-              <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                 {showApps ? (
                   <button
                     type="button"
                     onClick={() => runProfileAction(onOpenApps)}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                   >
                     <AppsGridIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     <span className="min-w-0 truncate">Apps</span>
@@ -2442,7 +2498,7 @@ function UserMenu({
                 <button
                   type="button"
                   onClick={() => runProfileAction(onOpenFeedback)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
@@ -2452,7 +2508,7 @@ function UserMenu({
                 <button
                   type="button"
                   onClick={() => runProfileAction(onToggleMessages)}
-                  className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                  className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
@@ -2469,7 +2525,7 @@ function UserMenu({
                 <Link
                   href="/steward-ai-workspace"
                   onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />
                   <span className="min-w-0 truncate">Steward</span>
@@ -2477,7 +2533,7 @@ function UserMenu({
                 <Link
                   href={helpHref}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   <HelpCircleIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="min-w-0 truncate">Help</span>
@@ -2501,7 +2557,7 @@ function UserMenu({
                   <button
                     type="button"
                     onClick={() => runProfileAction(() => switchDonorNavigationLayout("mega"))}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-100 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                   >
                     <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16M8 6v12" />
@@ -2511,13 +2567,17 @@ function UserMenu({
                 ) : null}
               </div>
             </div>
+
             {canSeeAdminMenu ? (
-              <div className="border-b border-slate-100 bg-slate-50/70 px-3 py-3">
-                <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Admin Controls</p>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Admin</span>
+              <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-3.5 py-3.5">
+                <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Admin Controls</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">Organization configuration and governance tools</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">Admin</span>
                 </div>
-                <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
                   {adminLinks.map((link) => (
                     <Link
                       key={link.href}
@@ -2525,7 +2585,7 @@ function UserMenu({
                       target={link.openInNewTab ? "_blank" : undefined}
                       rel={link.openInNewTab ? "noopener noreferrer" : undefined}
                       onClick={() => setOpen(false)}
-                      className="flex min-h-11 items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 xl:min-h-10 xl:px-2.5"
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                     >
                       <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" d={link.icon} />
@@ -2536,10 +2596,10 @@ function UserMenu({
                 </div>
               </div>
             ) : null}
-            <div className="py-1">
+            <div className="bg-slate-50/60 px-2.5 py-2">
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

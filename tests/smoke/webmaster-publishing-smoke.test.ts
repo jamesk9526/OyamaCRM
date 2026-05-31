@@ -15,6 +15,26 @@ beforeAll(async () => {
   });
 
   accessToken = login.body.data?.accessToken ?? "";
+
+  const existingSites = await request(app)
+    .get("/api/webmaster/sites")
+    .set("Authorization", `Bearer ${accessToken}`);
+
+  const firstSiteId = String(existingSites.body?.items?.[0]?.id ?? "");
+  if (existingSites.status === 200 && firstSiteId) {
+    siteId = firstSiteId;
+    return;
+  }
+
+  const created = await request(app)
+    .post("/api/webmaster/sites")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({
+      name: "Webmaster Smoke Site",
+      slug: `webmaster-smoke-${Date.now()}`,
+    });
+
+  siteId = String(created.body?.item?.id ?? "");
 });
 
 describe("webmaster publishing readiness smoke", () => {
@@ -25,7 +45,9 @@ describe("webmaster publishing readiness smoke", () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body?.items)).toBe(true);
-    siteId = String(res.body?.items?.[0]?.id ?? "");
+    if (!siteId) {
+      siteId = String(res.body?.items?.[0]?.id ?? "");
+    }
     expect(siteId).toBeTruthy();
   });
 

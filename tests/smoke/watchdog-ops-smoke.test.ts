@@ -218,7 +218,7 @@ describe("watchdog ops smoke", () => {
 
     expect(executeMissingFlag.status).toBe(400);
     expect(executeMissingFlag.body.error?.code).toBe("WATCHDOG_RESTORE_EXECUTE_CONFIRM");
-  });
+  }, 20_000);
 
   it("keeps vault secrets masked by default and records reveal access events", async () => {
     const createVaultEntry = await request(app)

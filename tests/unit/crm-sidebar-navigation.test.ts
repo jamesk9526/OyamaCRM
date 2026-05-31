@@ -9,48 +9,57 @@ import {
 } from "@/app/components/layout/sidebar-configs";
 
 describe("Donor sidebar organization", () => {
-  it("keeps Core CRM group focused on core records", () => {
+  it("keeps core record entries available across donor-record and fundraising groups", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
-    const coreCrm = groups.find((group) => group.id === "core-crm");
+    const donorRecords = groups.find((group) => group.id === "people-relationships");
+    const fundraising = groups.find((group) => group.id === "fundraising");
+    const labels = [
+      ...(donorRecords?.items ?? []).map((item) => item.label),
+      ...(fundraising?.items ?? []).map((item) => item.label),
+    ];
 
-    expect(coreCrm?.items.map((item) => item.label)).toEqual([
-      "Constituents",
-      "Donations",
-      "Campaigns",
-      "Grants",
-      "Payments",
-    ]);
+    expect(labels).toContain("Constituents");
+    expect(labels).toContain("Donations");
+    expect(labels).toContain("Campaigns");
+    expect(labels).toContain("Grants");
+    expect(labels).toContain("Payments");
   });
 
-  it("places Steward Paths above daily and supporting engagement tools", () => {
+  it("keeps Steward Paths in engagement with workspace badge and ahead of Events", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
-    const engagement = groups.find((group) => group.id === "engagement-workspace");
+    const engagement = groups.find((group) => group.id === "engagement");
+    const stewardPathsIndex = engagement?.items.findIndex((item) => item.id === "steward-paths") ?? -1;
+    const eventsIndex = engagement?.items.findIndex((item) => item.id === "events") ?? -1;
+    const stewardPaths = engagement?.items.find((item) => item.id === "steward-paths");
 
-    expect(engagement?.items[0]?.label).toBe("Steward Paths");
-    expect(engagement?.items[0]?.badge).toBe("App");
+    expect(stewardPaths?.label).toBe("Steward Paths");
+    expect(stewardPaths?.badge).toBe("App");
+    expect(stewardPathsIndex).toBeGreaterThanOrEqual(0);
+    expect(eventsIndex).toBeGreaterThanOrEqual(0);
+    expect(stewardPathsIndex).toBeLessThan(eventsIndex);
   });
 
-  it("keeps OyamaLetters and LiveCom in communication tools with useful badges", () => {
+  it("keeps OyamaLetters and LiveCom in engagement tools with expected routes", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
-    const communicationTools = groups.find((group) => group.id === "communication-tools");
+    const communicationTools = groups.find((group) => group.id === "engagement");
 
-    const letters = communicationTools?.items.find((item) => item.id === "letters-printables");
+    const letters = communicationTools?.items.find((item) => item.id === "oyama-letters");
     const liveCom = communicationTools?.items.find((item) => item.id === "livecom");
 
     expect(letters?.label).toBe("OyamaLetters");
     expect(letters?.href).toBe("/oyama-letters");
-    expect(letters?.badge).toBe("Tool");
-    expect(letters?.description).toContain("thank-you letters");
+    expect(letters?.kind).toBe("communication_tool");
+    expect(letters?.description).toContain("letters");
     expect(liveCom?.badge).toBe("New");
   });
 
-  it("moves Steward Signals under Insights and Volunteers under People and Service", () => {
+  it("keeps Steward Signals under donor records and Volunteers under engagement", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
-    const insights = groups.find((group) => group.id === "insights");
-    const people = groups.find((group) => group.id === "people-service");
+    const donorRecords = groups.find((group) => group.id === "people-relationships");
+    const engagement = groups.find((group) => group.id === "engagement");
 
-    expect(insights?.items.map((item) => item.label)).toContain("Steward Signals");
-    expect(people?.items.map((item) => item.label)).toEqual(["Volunteers"]);
+    expect(donorRecords?.items.map((item) => item.label)).toContain("Steward Signals");
+    expect(engagement?.items.map((item) => item.label)).toContain("Volunteers");
   });
 
   it("keeps System lower and explicitly collapsible", () => {

@@ -9,8 +9,40 @@ interface DonorSidebarOptions {
   qbEnabled: boolean;
 }
 
+const DONOR_TO_ADVANCED_ICON: Record<string, string> = {
+  "donor-dashboard": "dashboard",
+  constituents: "donors",
+  donations: "donation",
+  campaigns: "campaign",
+  grants: "files",
+  "fund-designation": "notes",
+  "quickbooks-queue": "billing",
+  reports: "reports",
+  tasks: "tasks",
+  calendar: "notes",
+  communications: "chat",
+  "contacts-manager": "contacts",
+  letters: "notes",
+  "steward-signals": "analytics",
+  "steward-ai": "chat",
+  volunteer: "users",
+  "event-fundraising": "campaign",
+  "workflow-automation": "integrations",
+  database: "files",
+  "field-mapping": "files",
+  settings: "settings",
+  help: "help",
+  "system-status": "security",
+  documentation: "files",
+  integrations: "integrations",
+};
+
 const DonorPackIcon = ({ slug }: { slug: string }) => (
-  <OyamaDonorPackIcon slug={slug} size={18} className="h-[18px] w-[18px] shrink-0 rounded-full" alt="" />
+  <OyamaAdvancedIcon
+    name={DONOR_TO_ADVANCED_ICON[slug] ?? "dashboard"}
+    size={18}
+    className="h-[18px] w-[18px] shrink-0"
+  />
 );
 
 const AdvancedPackIcon = ({ name }: { name: string }) => (

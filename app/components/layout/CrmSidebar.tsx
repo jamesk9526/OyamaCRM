@@ -71,6 +71,57 @@ interface SidebarVariantStyles {
   accent: string;
 }
 
+const DONOR_ITEM_ALIAS_TERMS: Record<string, string[]> = {
+  "oyama-email": ["email", "emails", "newsletter", "campaign email", "broadcast", "mail"],
+  "oyama-letters": ["letters", "mail merge", "print letters", "snail mail"],
+  "steward-paths": ["automation", "workflow", "journey", "drip", "sequence"],
+  communications: ["email", "messages", "outreach"],
+  "steward-signals": ["ai", "insights", "scores", "engagement"],
+  constituents: ["donor", "supporter", "contact", "person", "people"],
+  donations: ["gifts", "gift", "revenue", "contributions"],
+  campaigns: ["appeals", "fundraiser", "fundraising", "drive"],
+  reports: ["analytics", "dashboards", "kpis", "metrics"],
+  settings: ["config", "configuration", "preferences"],
+};
+
+/** Normalizes a searchable value into lowercase plain text. */
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().trim();
+}
+
+/** Builds search terms for a sidebar item with donor alias support. */
+function buildSidebarSearchTerms(item: CrmSidebarItem, group: CrmSidebarGroup, variant: CrmSidebarVariant): string[] {
+  const hrefText = item.href.replace(/[\/_?#=&-]+/g, " ");
+  const baseTerms = [
+    item.label,
+    item.secondaryLabel,
+    item.id,
+    item.description,
+    group.label,
+    hrefText,
+  ]
+    .filter(Boolean)
+    .map((term) => normalizeSearchText(String(term)));
+
+  if (variant !== "donor") return baseTerms;
+
+  const aliasTerms = DONOR_ITEM_ALIAS_TERMS[item.id] ?? [];
+  return [...baseTerms, ...aliasTerms.map((term) => normalizeSearchText(term))];
+}
+
+/** Matches an item against the current sidebar search query. */
+function matchesSidebarSearch(item: CrmSidebarItem, group: CrmSidebarGroup, variant: CrmSidebarVariant, query: string): boolean {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) return true;
+
+  const terms = buildSidebarSearchTerms(item, group, variant);
+  if (terms.some((term) => term.includes(normalized))) return true;
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return false;
+  return parts.every((part) => terms.some((term) => term.includes(part)));
+}
+
 interface CrmSidebarProps {
   groups: CrmSidebarGroup[];
   variant: CrmSidebarVariant;
@@ -120,18 +171,18 @@ const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; acce
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-[linear-gradient(180deg,#063229_0%,#042a23_36%,#03231d_100%)] border-r border-[#0a2318] shadow-[4px_0_12px_rgba(2,18,14,0.35)]",
+    aside: "bg-[linear-gradient(180deg,#041f1a_0%,#031813_36%,#02120f_100%)] border-r border-[#06130f]",
     navSurface: "",
-    heading: "text-emerald-100/58",
+    heading: "text-emerald-100/68",
     headingMuted: "hover:text-emerald-50",
-    itemActive: "text-emerald-50 bg-emerald-500/18 font-semibold ring-1 ring-emerald-300/18 shadow-[0_4px_10px_rgba(0,0,0,0.16)]",
-    itemInactive: "text-emerald-100/86 hover:bg-emerald-500/10 hover:text-white",
+    itemActive: "text-emerald-50 bg-emerald-500/22 font-semibold ring-1 ring-emerald-300/22",
+    itemInactive: "text-emerald-50/92 hover:bg-emerald-500/12 hover:text-white",
     iconActive: "text-emerald-200",
-    iconInactive: "text-emerald-200/64 group-hover:text-emerald-100",
+    iconInactive: "text-emerald-100/82 group-hover:text-emerald-50",
     badge: "bg-emerald-200/14 text-emerald-100 ring-1 ring-emerald-200/18",
     sectionBorder: "border-transparent",
-    sectionHover: "hover:bg-emerald-900/16",
-    footer: "border-t border-emerald-900/60 bg-[#0b281d]",
+    sectionHover: "hover:bg-emerald-900/18",
+    footer: "border-t border-emerald-900/60 bg-[#081b15]",
     footerText: "text-emerald-200/80",
     collapseButton: "border-emerald-800/70 bg-emerald-950/30 text-emerald-200 hover:bg-emerald-900/55 hover:text-white",
     tooltip: "border-emerald-800/60 bg-emerald-950 text-emerald-50 shadow-xl",
@@ -305,6 +356,7 @@ export default function CrmSidebar({
   const [collapsed, setCollapsed] = useState(false);
   const [compactDesktop, setCompactDesktop] = useState(false);
   const [compactExpanded, setCompactExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isHydrated, setIsHydrated] = useState(false);
   const [groupOpenState, setGroupOpenState] = useState<Record<string, boolean>>(() => getInitialGroupOpenState(groups));
   const groupStorageKey = `${storageKey}.groups`;
@@ -408,7 +460,7 @@ export default function CrmSidebar({
     setCollapsed((current) => !current);
   };
 
-  const visibleGroups = useMemo(() => {
+  const roleVisibleGroups = useMemo(() => {
     return groups
       .map((group) => ({
         ...group,
@@ -416,6 +468,18 @@ export default function CrmSidebar({
       }))
       .filter((group) => group.items.length > 0);
   }, [groups, userRole]);
+
+  const visibleGroups = useMemo(() => {
+    if (variant !== "donor") return roleVisibleGroups;
+    if (!searchQuery.trim()) return roleVisibleGroups;
+
+    return roleVisibleGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => matchesSidebarSearch(item, group, variant, searchQuery)),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [roleVisibleGroups, searchQuery, variant]);
 
   const activeGroupIds = useMemo(() => {
     return visibleGroups
@@ -475,7 +539,49 @@ export default function CrmSidebar({
           </div>
         </div>
       ) : null}
-      <div className={`flex-1 overflow-y-auto ${donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+      <div className={`flex-1 overflow-y-auto ${isDonorChrome ? "px-3 py-4" : donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+        {variant === "donor" ? (
+          <div className="mb-3">
+            {isCollapsed ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!forceExpanded) {
+                    if (compactDesktop) {
+                      setCompactExpanded(true);
+                    } else {
+                      setCollapsed(false);
+                    }
+                  }
+                }}
+                className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-800/70 bg-emerald-950/35 text-emerald-100/90 hover:bg-emerald-900/55"
+                aria-label="Expand sidebar to search CRM tools"
+                title="Search CRM tools"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+              </button>
+            ) : (
+              <div className="rounded-xl border border-emerald-800/65 bg-[#08231b] px-2 py-2">
+                <div className="relative">
+                  <svg className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-emerald-200/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search CRM tools (email, donor, reports...)"
+                    className="h-9 w-full rounded-lg border border-emerald-800/70 bg-[#0b2b21] pl-9 pr-2 text-sm text-emerald-50 placeholder:text-emerald-200/55 outline-none focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/20"
+                    aria-label="Search donor CRM sidebar tools"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {!forceExpanded && !hasBrandHeader ? (
           <div className={`mb-2 flex ${donorCompact ? "h-8" : "h-9"} items-center ${isCollapsed ? "justify-center" : "justify-end"}`}>
             <button
@@ -505,7 +611,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`mb-1.5 rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
+              className={`${isDonorChrome ? "mb-2.5" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="group/section relative px-2 py-1.5" aria-hidden="true">
@@ -515,7 +621,7 @@ export default function CrmSidebar({
                   </span>
                 </div>
               ) : (
-                  <div className="px-1.5 py-0.5">
+                  <div className={isDonorChrome ? "px-2 py-1" : "px-1.5 py-0.5"}>
                   {group.collapsible ? (
                     <button
                       type="button"
@@ -547,7 +653,10 @@ export default function CrmSidebar({
               )}
 
               {groupIsOpen && (
-                <nav className="space-y-0 pb-0.5" aria-label={group.label}>
+                <nav
+                  className={`space-y-0 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-3 border-l border-emerald-900/60 pl-2.5" : ""}`}
+                  aria-label={group.label}
+                >
                   {group.items.map((item) => {
                     const active = isSidebarItemActive(item, pathname, hash);
 
@@ -557,11 +666,18 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-8 justify-center rounded-xl px-1.5 py-1" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive} ${isCollapsed ? "hover:shadow-sm" : ""}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-8 justify-center rounded-xl px-1.5 py-1" : isDonorChrome ? "min-h-9 justify-start rounded-lg px-2.5 py-2" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive}`}
                         title={isCollapsed ? item.label : undefined}
                       >
+                        {!isCollapsed && isDonorChrome ? (
+                          <span
+                            aria-hidden="true"
+                            className={`absolute -left-[0.62rem] top-1/2 h-px w-2.5 -translate-y-1/2 ${active ? "bg-emerald-400/85" : "bg-emerald-900/65"}`}
+                          />
+                        ) : null}
+
                         <span
-                          className={`shrink-0 rounded-lg p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
+                          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
                           aria-hidden="true"
                         >
                           {item.icon}
@@ -621,6 +737,13 @@ export default function CrmSidebar({
             </div>
           );
         })}
+
+        {variant === "donor" && searchQuery.trim() && visibleGroups.length === 0 ? (
+          <div className="mx-1 mt-2 rounded-xl border border-emerald-800/65 bg-[#08231b] px-3 py-3 text-sm text-emerald-100/88">
+            <p className="font-semibold">No matching tools</p>
+            <p className="mt-1 text-xs text-emerald-200/70">Try terms like: email, donor, campaign, reports, settings.</p>
+          </div>
+        ) : null}
       </div>
 
       <div className={`${donorCompact ? "px-3 py-2.5" : "px-4 py-3"} ${styles.footer}`}>

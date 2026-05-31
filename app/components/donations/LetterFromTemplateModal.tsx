@@ -1,4 +1,5 @@
 "use client";
+// NOTE: Keep this modal custom; it launches letters generation with route-prefill handoff.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";

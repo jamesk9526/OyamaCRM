@@ -312,7 +312,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      className="crm-fonts flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
       style={shellStyle}
     >
       <TopBar

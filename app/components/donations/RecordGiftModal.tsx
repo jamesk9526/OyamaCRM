@@ -2,6 +2,7 @@
  * RecordGiftModal keeps donation entry inside the Donations ledger while reusing
  * the canonical DonationForm create workflow.
  */
+// NOTE: Keep this modal custom; it wraps canonical DonationForm behavior and source-aware handoff states.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

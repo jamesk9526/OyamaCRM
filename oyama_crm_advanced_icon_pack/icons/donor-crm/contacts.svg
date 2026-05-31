@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
-  <title id="title">Contacts</title>
-  <desc id="desc">Contacts icon in the Oyama CRM advanced icon pack</desc>
-  
-  <g fill="none" stroke="#52C58A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-<rect x="10" y="8" width="28" height="32" rx="5"/><path d="M17 16h14M17 24h14M17 32h8"/><path d="M38 16h4M38 24h4M38 32h4"/>
-  </g>
-</svg>

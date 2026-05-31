@@ -4,6 +4,7 @@
  * Right panel: rich "what would happen" preview cards from the server dry-run API.
  * Default mode is pure simulation; optional test sends can target one explicit staff email.
  */
+// NOTE: Keep this modal custom; dry-run simulation UX is specialized and should not be removed.
 "use client";
 
 import { useEffect, useRef, useState } from "react";

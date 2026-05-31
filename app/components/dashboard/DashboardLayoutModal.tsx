@@ -1,5 +1,6 @@
 ﻿"use client";
 /** DashboardLayoutModal manages widget order, visibility, size, and revenue settings. */
+// NOTE: Keep this modal custom; drag-and-drop and tabbed dashboard controls should not be removed.
 
 import { useRef, useState } from "react";
 import type { DashboardWidgetSize } from "@/app/components/dashboard/DashboardWidget";

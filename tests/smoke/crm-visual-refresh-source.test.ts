@@ -41,13 +41,13 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(dashboardState).toContain("/api/reports/summary");
     expect(dashboardState).toContain("/api/reports/donor-retention");
     expect(naturalDashboard).toContain("loadDonorDashboardData");
-    expect(naturalDashboard).toContain("StewardSuggestions");
-    expect(naturalDashboard).toContain("DonorMovementFeed");
-    expect(naturalDashboard).toContain("GivingDesignationChart");
-    expect(naturalDashboard).toContain("GiftAcknowledgmentQueue");
-    expect(naturalDashboard).toContain("GivingSourceMixCard");
-    expect(naturalDashboard).toContain("DonorHealthSnapshot");
-    expect(naturalDashboard).toContain("ThisMonthsDonorsCard");
+    expect(naturalDashboard).toContain("setSuggestions(data.stewardshipAlerts)");
+    expect(naturalDashboard).toContain("Recent Gifts");
+    expect(naturalDashboard).toContain("Giving Overview");
+    expect(naturalDashboard).toContain("Giving Trends");
+    expect(naturalDashboard).toContain("Top Campaigns");
+    expect(naturalDashboard).toContain("Upcoming Events");
+    expect(naturalDashboard).toContain("My Tasks");
     expect(dashboardService).toContain("/api/reports/giving-trend");
     expect(dashboardService).toContain("/api/reports/designations-summary");
     expect(dashboardService).toContain("/api/settings/dashboard-appearance");
@@ -68,7 +68,7 @@ describe("Donor CRM visual refresh foundation", () => {
     const ribbonButton = read("app/components/workspace-ribbon/WorkspaceRibbonButton.tsx");
     const globals = read("app/globals.css");
 
-    expect(topBar).toContain("bg-white/95");
+    expect(topBar).toContain("bg-white/98");
     expect(topBar).toContain("resolveTopBarModuleKey");
     expect(topBar).toContain("getDonorAccentTheme");
     expect(topBar).toContain("Switch Workspace");
@@ -90,8 +90,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
-    expect(sidebar).toContain('label: "Core CRM"');
-    expect(sidebar).toContain('label: "Home"');
+    expect(sidebar).toContain('label: "Overview"');
+    expect(sidebar).toContain('label: "Donor Records"');
     expect(sidebar).toContain('label: "Constituents"');
     expect(sidebar).toContain('label: "Donations"');
   });
@@ -161,6 +161,7 @@ describe("Donor CRM visual refresh foundation", () => {
 
     expect(plan).toContain("First-Pass Checklist");
     expect(plan).toContain("Not Done");
-    expect(agents).toContain("Donor CRM Visual Refresh Rules");
+    expect(agents).toContain("OyamaCRM Working Rules");
+    expect(agents).toContain("Workspace-first doctrine");
   });
 });

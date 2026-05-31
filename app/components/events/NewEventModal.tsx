@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 /**
  * NewEventModal creates a foundational event record using the current backend schema.
@@ -47,85 +48,110 @@ export default function NewEventModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Create Event</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Start the event record, then continue in setup.</p>
-          </div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
-        </div>
-
-        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+    <WorkspaceSetupModal
+      title="Create Event"
+      subtitle="Start the event record, then continue setup for tickets, guests, tables, and sponsors."
+      checklist={["Event basics", "Dates and goals", "Create and continue setup"]}
+      onClose={onClose}
+      maxWidthClassName="max-w-6xl"
+      closeOnBackdropClick
+    >
+      <form onSubmit={submit} className="space-y-4 px-5 py-5 sm:px-6">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Event name</label>
-            <input required placeholder="Love at First Beat Gala"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Event name</label>
+            <input
+              required
+              placeholder="Love at First Beat Gala"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Event type</label>
-            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Event type</label>
+            <select
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+            >
               {["GALA", "AUCTION", "RUN_WALK", "CONFERENCE", "WORKSHOP", "CULTIVATION", "STEWARDSHIP", "VOLUNTEER", "ONLINE", "OTHER"].map((t) => <option key={t}>{t}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Location</label>
-            <input placeholder="Aurora Event Center"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Location</label>
+            <input
+              placeholder="Aurora Event Center"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.location}
+              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Start date</label>
-            <input required type="datetime-local"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Start date</label>
+            <input
+              required
+              type="datetime-local"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.startDate}
+              onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">End date</label>
-            <input type="datetime-local"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">End date</label>
+            <input
+              type="datetime-local"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.endDate}
+              onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Guest capacity goal</label>
-            <input placeholder="250"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.registrationGoal} onChange={(e) => setForm((f) => ({ ...f, registrationGoal: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Guest capacity goal</label>
+            <input
+              placeholder="250"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.registrationGoal}
+              onChange={(e) => setForm((f) => ({ ...f, registrationGoal: e.target.value }))}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Revenue goal</label>
-            <input placeholder="50000"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.revenueGoal} onChange={(e) => setForm((f) => ({ ...f, revenueGoal: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Revenue goal</label>
+            <input
+              placeholder="50000"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.revenueGoal}
+              onChange={(e) => setForm((f) => ({ ...f, revenueGoal: e.target.value }))}
+            />
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-            <textarea placeholder="Summarize the fundraiser, audience, and purpose."
-              className="w-full min-h-[100px] border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+            <label className="mb-1 block text-xs font-medium text-gray-600">Description</label>
+            <textarea
+              placeholder="Summarize the fundraiser, audience, and purpose."
+              className="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            />
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+        <div className="flex items-center justify-between border-t border-gray-200 pt-4">
           <p className="text-xs text-gray-500">Next step after creation: tickets, orders, guests, tables, sponsors, and check-in.</p>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg">Cancel</button>
-            <button disabled={saving} className="px-4 py-2 text-sm text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-60">
+            <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button>
+            <button disabled={saving} className="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-60">
               {saving ? "Creating..." : "Create Event"}
             </button>
           </div>
         </div>
       </form>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

@@ -18,6 +18,8 @@ interface StewardNavItem {
   icon: React.ReactNode;
 }
 
+const STEWARD_SIDEBAR_COLLAPSED_STORAGE_KEY = "oyamacrm.sidebar.steward-paths.collapsed";
+
 const STEWARD_NAV_ITEMS: StewardNavItem[] = [
   {
     id: "library",
@@ -47,7 +49,7 @@ const STEWARD_NAV_ITEMS: StewardNavItem[] = [
     id: "livecom",
     label: "LiveCom",
     href: "/steward-paths/livecom",
-    icon: <OyamaDonorPackIcon slug="communications" size={16} className="h-4 w-4 rounded-full" alt="" />,
+    icon: <OyamaDonorPackIcon slug="communications" size={16} className="h-4 w-4" alt="" />,
   },
   {
     id: "analytics",
@@ -86,55 +88,123 @@ function isPathActive(pathname: string, item: StewardNavItem): boolean {
 export default function StewardPathsAppShell({ children }: StewardPathsAppShellProps) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [desktopNavCollapsed, setDesktopNavCollapsed] = useState(false);
+  const [desktopNavHydrated, setDesktopNavHydrated] = useState(false);
 
   useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const persisted = window.localStorage.getItem(STEWARD_SIDEBAR_COLLAPSED_STORAGE_KEY);
+    if (persisted === "1" || persisted === "0") {
+      setDesktopNavCollapsed(persisted === "1");
+    }
+    setDesktopNavHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!desktopNavHydrated || typeof window === "undefined") return;
+    window.localStorage.setItem(STEWARD_SIDEBAR_COLLAPSED_STORAGE_KEY, desktopNavCollapsed ? "1" : "0");
+  }, [desktopNavCollapsed, desktopNavHydrated]);
+
   return (
     <div className="flex h-[100dvh] min-h-[100svh] overflow-hidden bg-[#f4f6f8]">
-      <aside className="hidden h-full w-72 shrink-0 flex-col bg-gradient-to-b from-[#024637] via-[#033b31] to-[#042d27] text-emerald-50 lg:flex">
-        <div className="border-b border-emerald-200/15 px-5 py-5">
-          <CrmBrandLockup moduleLabel="Steward Paths CRM" tone="light" className="w-full" />
+      <aside
+        className={`hidden h-full shrink-0 flex-col bg-gradient-to-b from-[#024637] via-[#033b31] to-[#042d27] text-emerald-50 transition-[width] duration-200 ease-out lg:flex ${desktopNavCollapsed ? "w-20" : "w-72"}`}
+        data-sidebar-collapsed={desktopNavCollapsed ? "true" : "false"}
+      >
+        <div className={`border-b border-emerald-200/15 ${desktopNavCollapsed ? "px-2 py-4" : "px-5 py-5"}`}>
+          <div className={`flex ${desktopNavCollapsed ? "flex-col items-center gap-2" : "items-start justify-between gap-3"}`}>
+            <CrmBrandLockup
+              moduleLabel={desktopNavCollapsed ? "Steward Paths" : "Steward Paths CRM"}
+              tone="light"
+              compact={desktopNavCollapsed}
+              className={desktopNavCollapsed ? "w-full" : "w-full"}
+            />
+            <button
+              type="button"
+              aria-label={desktopNavCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!desktopNavCollapsed}
+              onClick={() => setDesktopNavCollapsed((prev) => !prev)}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200/35 bg-emerald-950/30 text-emerald-100 transition hover:bg-emerald-900/45 hover:text-white"
+            >
+              {desktopNavCollapsed ? (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m9 6 6 6-6 6" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m15 6-6 6 6 6" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="px-5 pb-2 pt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">Steward Paths</p>
-        </div>
+        {!desktopNavCollapsed ? (
+          <div className="px-5 pb-2 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">Steward Paths</p>
+          </div>
+        ) : null}
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+        <nav className={`flex-1 space-y-1 overflow-y-auto ${desktopNavCollapsed ? "px-2" : "px-3"}`}>
           {STEWARD_NAV_ITEMS.map((item) => {
             const active = isPathActive(pathname, item);
             return (
               <Link
                 key={item.id}
                 href={item.href}
-                className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                title={desktopNavCollapsed ? item.label : undefined}
+                aria-label={desktopNavCollapsed ? item.label : undefined}
+                className={`flex items-center rounded-xl text-sm font-medium transition ${
+                  desktopNavCollapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2.5"
+                } ${
                   active
                     ? "bg-emerald-400/20 text-white"
                     : "text-emerald-100/85 hover:bg-emerald-300/10 hover:text-white"
                 }`}
               >
                 <span className="shrink-0">{item.icon}</span>
-                <span>{item.label}</span>
+                {!desktopNavCollapsed ? <span>{item.label}</span> : null}
               </Link>
             );
           })}
         </nav>
 
-        <div className="space-y-2 border-t border-emerald-200/15 p-3">
+        <div className={`space-y-2 border-t border-emerald-200/15 ${desktopNavCollapsed ? "p-2" : "p-3"}`}>
           <Link
             href="/help?scope=donor&scopePath=/steward-paths"
-            className="block rounded-xl border border-emerald-200/20 bg-emerald-200/10 px-3 py-2.5 text-sm text-emerald-50 hover:bg-emerald-200/15"
+            title={desktopNavCollapsed ? "Steward Paths Guide" : undefined}
+            aria-label={desktopNavCollapsed ? "Steward Paths Guide" : undefined}
+            className={`block rounded-xl border border-emerald-200/20 bg-emerald-200/10 text-emerald-50 hover:bg-emerald-200/15 ${desktopNavCollapsed ? "px-2 py-2 text-center" : "px-3 py-2.5 text-sm"}`}
           >
-            <span className="block font-semibold">Need Help?</span>
-            <span className="block text-xs text-emerald-100/85">Steward Paths Guide</span>
+            {!desktopNavCollapsed ? (
+              <>
+                <span className="block font-semibold">Need Help?</span>
+                <span className="block text-xs text-emerald-100/85">Steward Paths Guide</span>
+              </>
+            ) : (
+              <svg className="mx-auto h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 3-3 3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 17h.01" />
+              </svg>
+            )}
           </Link>
           <Link
             href="/"
-            className="block rounded-xl border border-emerald-200/20 px-3 py-2.5 text-sm font-semibold text-emerald-50 hover:bg-emerald-200/10"
+            title={desktopNavCollapsed ? "Back to CRM" : undefined}
+            aria-label={desktopNavCollapsed ? "Back to CRM" : undefined}
+            className={`block rounded-xl border border-emerald-200/20 font-semibold text-emerald-50 hover:bg-emerald-200/10 ${desktopNavCollapsed ? "px-2 py-2 text-center" : "px-3 py-2.5 text-sm"}`}
           >
-            Back to CRM
+            {!desktopNavCollapsed ? (
+              "Back to CRM"
+            ) : (
+              <svg className="mx-auto h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            )}
           </Link>
         </div>
       </aside>

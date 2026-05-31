@@ -1,4 +1,5 @@
 // Guided cross-CRM feedback modal that creates Watchdog triage tickets from any module.
+// NOTE: Keep this modal custom; multi-step feedback ticket flow should not be removed.
 
 "use client";
 
