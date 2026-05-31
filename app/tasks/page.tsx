@@ -15,7 +15,6 @@ import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 
 /** Task as returned from the API */
@@ -264,27 +263,38 @@ export default function TasksPage() {
         }
       />
 
-      <CRMActionBar>
-        <WorkspaceRibbonGroup label="Queues">
-          <WorkspaceRibbonButton label={`My Work (${assignedToMe})`} onClick={() => setFocusMode("my")} active={focusMode === "my"} />
-          <WorkspaceRibbonButton label="Team Queue" onClick={() => setFocusMode(isAdmin ? "team" : "my")} active={focusMode === "team"} disabled={!isAdmin} />
-          <WorkspaceRibbonButton label={`Follow-Ups (${followUpCount})`} onClick={() => setFocusMode("followups")} active={focusMode === "followups"} />
-          <WorkspaceRibbonButton label="Completed" onClick={() => { setFocusMode("my"); setStatusFilter("COMPLETED"); }} />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="New Task" onClick={() => setShowModal(true)} variant="primary" />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="Assignment">
-          <WorkspaceRibbonButton label="Assigned To Me" onClick={() => setFocusMode("my")} />
-          <WorkspaceRibbonButton label="Assigned By Me" onClick={() => setFocusMode("my")} />
-          <WorkspaceRibbonButton label="Bulk Assign" onClick={handleBulkAssignVisible} disabled={bulkAssigning || !bulkAssigneeId} />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton label="Reset Filters" onClick={() => { setStatusFilter(""); setTypeFilter(""); }} />
-          <WorkspaceRibbonButton label="Refresh Tasks" onClick={() => void loadTasks()} />
-          <WorkspaceRibbonButton label="Refresh Notifications" onClick={() => void loadNotifications()} />
-        </WorkspaceRibbonGroup>
-      </CRMActionBar>
+      <CRMActionBar
+        context={{
+          selectionCount: 0,
+          flags: {
+            focusMode,
+          },
+        }}
+        commandHandlers={{
+          "task-queue-my": () => {
+            setFocusMode("my");
+          },
+          "task-queue-team": () => {
+            setFocusMode(isAdmin ? "team" : "my");
+          },
+          "task-queue-followups": () => {
+            setFocusMode("followups");
+          },
+          "task-new": () => {
+            setShowModal(true);
+          },
+          "task-refresh": () => {
+            void loadTasks();
+          },
+          "task-refresh-notifications": () => {
+            void loadNotifications();
+          },
+          "task-reset-filters": () => {
+            setStatusFilter("");
+            setTypeFilter("");
+          },
+        }}
+      />
 
       {/* Notification-integrated task feed */}
       <div className="rounded-xl border border-gray-200 bg-white p-4">

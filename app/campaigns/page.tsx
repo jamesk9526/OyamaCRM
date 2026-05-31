@@ -15,9 +15,8 @@ import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
 import ActionButton from "@/app/components/ui/ActionButton";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Campaign as returned from the API */
@@ -134,23 +133,26 @@ export default function CampaignsPage() {
             primaryAction={<WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />}
           />
 
-          <WorkspaceRibbon>
-            <WorkspaceRibbonGroup label="Create">
-              <WorkspaceRibbonButton label="New Campaign" onClick={() => setShowModal(true)} variant="primary" />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="View">
-              <WorkspaceRibbonButton label="All" onClick={() => setFilter("all")} active={filter === "all"} />
-              <WorkspaceRibbonButton label="Active" onClick={() => setFilter("active")} active={filter === "active"} />
-              <WorkspaceRibbonButton label="Inactive" onClick={() => setFilter("inactive")} active={filter === "inactive"} />
-            </WorkspaceRibbonGroup>
-
-            <WorkspaceRibbonGroup label="Scope">
-              <WorkspaceRibbonButton label="This Year" onClick={() => setAllYears(false)} active={!allYears} />
-              <WorkspaceRibbonButton label="All Years" onClick={() => setAllYears(true)} active={allYears} />
-              <WorkspaceRibbonButton label="Refresh" onClick={() => void loadCampaigns()} />
-            </WorkspaceRibbonGroup>
-          </WorkspaceRibbon>
+          <CRMActionBar
+            context={{
+              flags: {
+                campaignFilter: filter,
+                campaignAllYears: allYears,
+              },
+            }}
+            commandHandlers={{
+              "new-campaign": () => setShowModal(true),
+              "open-campaign": () => router.push("/campaigns"),
+              "all-campaigns": () => setFilter("all"),
+              "active-campaigns": () => setFilter("active"),
+              "inactive-campaigns": () => setFilter("inactive"),
+              "this-year-campaigns": () => setAllYears(false),
+              "all-years-campaigns": () => setAllYears(true),
+              "refresh-campaigns": () => {
+                void loadCampaigns();
+              },
+            }}
+          />
         </div>
       )}
     >

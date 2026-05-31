@@ -1751,6 +1751,25 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               </div>
             )}
 
+            {showTopBarAppLauncher ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAppsOpen(true);
+                  setNotificationsOpen(false);
+                  setMessengerOpen(false);
+                  setMobileQuickOpen(false);
+                  setMobileSearchOpen(false);
+                  setCompactActionsOpen(false);
+                }}
+                title="Open app launcher"
+                aria-label="Open app launcher"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-[0_1px_4px_rgba(15,23,42,0.05)] transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+              >
+                <AppsGridIcon className="h-4 w-4" />
+              </button>
+            ) : null}
+
             <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "max-w-[960px] flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? (scrolled ? "h-11 px-2 border-slate-200 bg-white shadow-[0_1px_4px_rgba(15,23,42,0.04)]" : "h-11.5 px-2 border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.05)]") : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
               <div className={`min-w-0 flex-1 ${isDonorEnterpriseChrome ? "px-1" : "px-1.5"}`}>
                 <GlobalSearch moduleKey={moduleKey} pathname={pathname} onNavigate={() => setNotificationsOpen(false)} />

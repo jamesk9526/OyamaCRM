@@ -13,9 +13,9 @@ interface WorkspaceRibbonGroupProps {
  */
 export default function WorkspaceRibbonGroup({ label, children }: WorkspaceRibbonGroupProps) {
   return (
-    <div className="workspace-ribbon-group flex min-w-fit flex-col justify-between gap-2 border-r border-slate-200 px-3 pb-1 last:border-r-0 min-[1360px]:px-4">
-      <div className="workspace-ribbon-group-actions flex flex-wrap items-start justify-center gap-1.5">{children}</div>
-      <p className="workspace-ribbon-group-label block text-center text-xs font-medium text-slate-600 select-none">
+    <div className="workspace-ribbon-group flex min-w-fit flex-col justify-between border-r border-slate-200 px-2 pb-0.5 last:border-r-0 min-[1360px]:px-2.5">
+      <div className="workspace-ribbon-group-actions flex flex-wrap items-start justify-center gap-0.5">{children}</div>
+      <p className="workspace-ribbon-group-label block pt-1 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 select-none">
         {label}
       </p>
     </div>

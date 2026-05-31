@@ -11,7 +11,6 @@ import {
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
@@ -136,41 +135,41 @@ export default function ConstituentsPage() {
       )}
     >
       <div className="space-y-5">
-      <CRMActionBar>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="Add Constituent" href="/constituents/new" variant="primary" />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton
-            label="All Constituents"
-            onClick={() => {
-              setTypeFilter("");
-              setStatusFilter("");
-              setPage(1);
-            }}
-            variant={!typeFilter && !statusFilter ? "primary" : "secondary"}
-          />
-          <WorkspaceRibbonButton
-            label="Active Donors"
-            onClick={() => {
-              setTypeFilter("");
-              setStatusFilter("ACTIVE");
-              setPage(1);
-            }}
-            variant={statusFilter === "ACTIVE" ? "primary" : "secondary"}
-          />
-          <WorkspaceRibbonButton
-            label="Prospects"
-            onClick={() => {
-              setTypeFilter("PROSPECT");
-              setStatusFilter("");
-              setPage(1);
-            }}
-            variant={typeFilter === "PROSPECT" ? "primary" : "secondary"}
-          />
-          <WorkspaceRibbonButton label="Clear Filters" onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }} disabled={!search && !typeFilter && !statusFilter} />
-        </WorkspaceRibbonGroup>
-      </CRMActionBar>
+      <CRMActionBar
+        context={{
+          selectionCount: 0,
+          flags: {
+            hasFilters,
+          },
+        }}
+        commandHandlers={{
+          "view-all-constituents": () => {
+            setTypeFilter("");
+            setStatusFilter("");
+            setPage(1);
+          },
+          "view-active-donors": () => {
+            setTypeFilter("");
+            setStatusFilter("ACTIVE");
+            setPage(1);
+          },
+          "view-prospects": () => {
+            setTypeFilter("PROSPECT");
+            setStatusFilter("");
+            setPage(1);
+          },
+          "clear-filters": () => {
+            setSearch("");
+            setTypeFilter("");
+            setStatusFilter("");
+            setPage(1);
+          },
+          "advanced-filter": () => {
+            const filterInput = document.querySelector<HTMLInputElement>('input[type="search"]');
+            filterInput?.focus();
+          },
+        }}
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <CRMMetricCard label="Total Constituents" value={loading ? "—" : stats.total.toLocaleString()} tone="green" icon={<PeopleIcon />} helper="All constituent records" />

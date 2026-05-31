@@ -6,9 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MergeWorkflow from "./merge/MergeWorkflow";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import GuidedImportWizard from "@/app/components/data-tools/GuidedImportWizard";
 
 interface Constituent {
@@ -418,26 +416,37 @@ export default function DataToolsPage() {
         metadata={`${constituents.length} constituents · ${donations.length} donations loaded`}
       />
 
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Import">
-          <WorkspaceRibbonButton label="Guided Import" href="/data-tools/import" variant="primary" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Export">
-          <WorkspaceRibbonButton label={exporting === "constituents" ? "Exporting Constituents..." : "Export Constituents"} onClick={() => void exportConstituents()} disabled={loading || exporting !== null} />
-          <WorkspaceRibbonButton label={exporting === "donations" ? "Exporting Donations..." : "Export Donations"} onClick={() => void exportDonations()} disabled={loading || exporting !== null} />
-          <WorkspaceRibbonButton label={exporting === "campaigns" ? "Exporting Campaigns..." : "Export Campaigns"} onClick={() => void exportCampaigns()} disabled={loading || exporting !== null} />
-          <WorkspaceRibbonButton label={exporting === "designations" ? "Exporting Designations..." : "Export Designations"} onClick={() => void exportDesignations()} disabled={loading || exporting !== null} />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Quality">
-          <WorkspaceRibbonButton label="Import Area" onClick={() => scrollToSection("data-tools-import")} />
-          <WorkspaceRibbonButton label="Import History" onClick={() => scrollToSection("data-tools-history")} />
-          <WorkspaceRibbonButton label="Quality Metrics" onClick={() => scrollToSection("data-tools-quality")} />
-          <WorkspaceRibbonButton label="Merge Records" onClick={() => scrollToSection("data-tools-merge")} />
-          <WorkspaceRibbonButton label="Steward Paths" onClick={() => scrollToSection("data-tools-steward-paths")} />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+      <CRMActionBar
+        context={{
+          flags: {
+            loading,
+            exporting,
+          },
+        }}
+        commandHandlers={{
+          "open-import-area": () => scrollToSection("data-tools-import"),
+          "open-import-history": () => scrollToSection("data-tools-history"),
+          "export-constituents-data-tools": () => {
+            if (loading || exporting !== null) return;
+            void exportConstituents();
+          },
+          "export-donations-data-tools": () => {
+            if (loading || exporting !== null) return;
+            void exportDonations();
+          },
+          "export-campaigns-data-tools": () => {
+            if (loading || exporting !== null) return;
+            void exportCampaigns();
+          },
+          "export-designations-data-tools": () => {
+            if (loading || exporting !== null) return;
+            void exportDesignations();
+          },
+          "open-quality-metrics": () => scrollToSection("data-tools-quality"),
+          "open-merge-records": () => scrollToSection("data-tools-merge"),
+          "open-steward-paths-data-tools": () => scrollToSection("data-tools-steward-paths"),
+        }}
+      />
 
       <GuidedImportWizard />
 

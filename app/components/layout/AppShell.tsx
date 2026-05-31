@@ -138,7 +138,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [dockInsetPx, setDockInsetPx] = useState(0);
   const [compactDesktop, setCompactDesktop] = useState(false);
   const [shellScrolled, setShellScrolled] = useState(false);
+  const [routeTransitioning, setRouteTransitioning] = useState(false);
+  const [displayedRoutePath, setDisplayedRoutePath] = useState(pathname);
+  const [displayedRouteContent, setDisplayedRouteContent] = useState<React.ReactNode>(children);
+  const [incomingRouteContent, setIncomingRouteContent] = useState<React.ReactNode | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
+  const routeTransitionTimeoutRef = useRef<number | null>(null);
   const dashboardChromeTint = useDashboardChromeTint(user?.id);
 
   useEffect(() => {
@@ -271,6 +276,50 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => mediaQuery.removeListener(updateCompactDesktop);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReducedMotion) {
+        setDisplayedRouteContent(children);
+        setDisplayedRoutePath(pathname);
+        setIncomingRouteContent(null);
+        setRouteTransitioning(false);
+        return;
+      }
+    }
+
+    if (pathname !== displayedRoutePath) {
+      if (routeTransitionTimeoutRef.current !== null) {
+        window.clearTimeout(routeTransitionTimeoutRef.current);
+        routeTransitionTimeoutRef.current = null;
+      }
+
+      setIncomingRouteContent(children);
+      setRouteTransitioning(true);
+
+      routeTransitionTimeoutRef.current = window.setTimeout(() => {
+        setDisplayedRouteContent(children);
+        setDisplayedRoutePath(pathname);
+        setIncomingRouteContent(null);
+        setRouteTransitioning(false);
+        routeTransitionTimeoutRef.current = null;
+      }, 240);
+      return;
+    }
+
+    if (!routeTransitioning) {
+      setDisplayedRouteContent(children);
+    }
+  }, [children, displayedRoutePath, pathname, routeTransitioning]);
+
+  useEffect(() => {
+    return () => {
+      if (routeTransitionTimeoutRef.current !== null) {
+        window.clearTimeout(routeTransitionTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Public pages — no shell
   if (isPublic) return <>{children}</>;
 
@@ -346,7 +395,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <main data-crm-scroll-root="true" className="h-full min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] xl:p-7 xl:pb-7 min-[1440px]:p-8 2xl:p-9">
 
             <ErrorBoundary>
-              <div className="min-w-0 max-w-full">{children}</div>
+              <div className="min-w-0 max-w-full">
+                {routeTransitioning && incomingRouteContent ? (
+                  <div className="crm-route-transition-stack">
+                    <div className="crm-route-transition-pane crm-route-transition-pane-out">
+                      {displayedRouteContent}
+                    </div>
+                    <div className="crm-route-transition-pane crm-route-transition-pane-in">
+                      {incomingRouteContent}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="crm-route-transition-pane">
+                    {displayedRouteContent}
+                  </div>
+                )}
+              </div>
             </ErrorBoundary>
           </main>
         </div>

@@ -316,22 +316,22 @@ export default function WorkspaceRibbonButton({
 }: WorkspaceRibbonButtonProps) {
   const primaryTone =
     accentTone === "blue"
-      ? "border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-100 active:bg-blue-100"
+      ? "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 active:bg-blue-100"
       : accentTone === "purple"
-        ? "border-violet-100 bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-100"
+        ? "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100 active:bg-violet-100"
       : accentTone === "amber"
-        ? "border-amber-100 bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-100"
-        : "border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:bg-emerald-100";
+        ? "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 active:bg-amber-100"
+        : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 active:bg-emerald-100";
 
   // Active (selected/current) secondary styling — used for filter toggles and view tabs.
   const activeTone =
     accentTone === "blue"
-      ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+      ? "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100"
       : accentTone === "purple"
-        ? "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
+        ? "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
       : accentTone === "amber"
-        ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-        : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100";
+        ? "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+        : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100";
 
   const tone =
     variant === "primary"
@@ -341,16 +341,16 @@ export default function WorkspaceRibbonButton({
       : active
         ? activeTone
         : variant === "ghost"
-          ? "border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-          : "border-transparent bg-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-950";
+          ? "border-transparent bg-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-800"
+          : "border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-100 hover:text-slate-950";
 
   const iconNode = icon ?? <AutoRibbonIcon label={label} />;
   const tip = title ?? label;
 
   const className = [
-    "workspace-ribbon-command inline-flex min-h-[4.75rem] w-[5.75rem] max-w-full shrink-0 touch-manipulation flex-col items-center justify-start gap-1 rounded-md border px-1.5 py-2",
-    "text-center text-xs font-medium leading-tight transition-all touch-manipulation",
-    "[&_.workspace-ribbon-command-icon>svg]:h-6 [&_.workspace-ribbon-command-icon>svg]:w-6",
+    "workspace-ribbon-command inline-flex min-h-14 w-[5.1rem] max-w-full shrink-0 touch-manipulation flex-col items-center justify-start gap-1 rounded-md border px-1.5 py-1.5",
+    "text-center text-[11px] font-medium leading-tight transition-colors touch-manipulation",
+    "[&_.workspace-ribbon-command-icon>svg]:h-[14px] [&_.workspace-ribbon-command-icon>svg]:w-[14px]",
     tone,
     disabled ? "cursor-not-allowed opacity-50" : "",
   ]
@@ -360,7 +360,7 @@ export default function WorkspaceRibbonButton({
   if (href && !disabled) {
     return (
       <Link href={href} className={className} title={tip} data-mobile-touch="true">
-        <span className="workspace-ribbon-command-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/65 shadow-[0_1px_6px_rgba(15,23,42,0.06)]">{iconNode}</span>
+        <span className="workspace-ribbon-command-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">{iconNode}</span>
         <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
       </Link>
     );
@@ -368,7 +368,7 @@ export default function WorkspaceRibbonButton({
 
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={className} title={tip} data-mobile-touch="true">
-      <span className="workspace-ribbon-command-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/65 shadow-[0_1px_6px_rgba(15,23,42,0.06)]">{iconNode}</span>
+      <span className="workspace-ribbon-command-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">{iconNode}</span>
       <span className="workspace-ribbon-command-label block max-w-full whitespace-normal text-balance">{label}</span>
     </button>
   );

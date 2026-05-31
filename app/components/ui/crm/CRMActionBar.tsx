@@ -3,43 +3,37 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import WorkspaceRibbon, { type WorkspaceRibbonTab } from "@/app/components/workspace-ribbon/WorkspaceRibbon";
+import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
+import type {
+  CrmRibbonCommandHandlers,
+  CrmRibbonContext,
+} from "@/app/components/ui/crm/ribbon/types";
 
 interface CRMActionBarProps {
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
+  context?: CrmRibbonContext;
+  commandHandlers?: CrmRibbonCommandHandlers;
 }
 
-const DONOR_RIBBON_TABS: WorkspaceRibbonTab[] = [
-  { label: "Home", href: "/" },
-  { label: "Constituents", href: "/constituents" },
-  { label: "Giving", href: "/donations" },
-  { label: "Outreach", href: "/communications" },
-  { label: "Reports", href: "/reports" },
-  { label: "Data", href: "/data-tools" },
-  { label: "Tools", href: "/settings" },
-  { label: "View" },
-];
-
-function resolveActiveDonorRibbonTab(pathname: string): string {
-  if (pathname.startsWith("/constituents") || pathname.startsWith("/contacts-manager")) return "Constituents";
-  if (pathname.startsWith("/donations") || pathname.startsWith("/campaigns") || pathname.startsWith("/grants") || pathname.startsWith("/payments") || pathname.startsWith("/designations")) return "Giving";
-  if (pathname.startsWith("/communications") || pathname.startsWith("/oyama-letters") || pathname.startsWith("/email-builder") || pathname.startsWith("/livecom")) return "Outreach";
-  if (pathname.startsWith("/reports") || pathname.startsWith("/steward-signals")) return "Reports";
-  if (pathname.startsWith("/data-tools") || pathname.startsWith("/custom-fields")) return "Data";
-  if (pathname.startsWith("/settings") || pathname.startsWith("/quickbooks-sync") || pathname.startsWith("/steward-paths") || pathname.startsWith("/tasks") || pathname.startsWith("/meetings")) return "Tools";
-  return "Home";
-}
-
-/** CRMActionBar gives refreshed DonorCRM pages a compact Explorer-style ribbon surface. */
-export default function CRMActionBar({ children, className = "" }: CRMActionBarProps) {
+/** CRMActionBar renders the new shared Microsoft-style contextual ribbon surface. */
+export default function CRMActionBar({ className = "", context, commandHandlers, children }: CRMActionBarProps) {
   const pathname = usePathname();
-  const activeTab = resolveActiveDonorRibbonTab(pathname);
-  const tabs = DONOR_RIBBON_TABS.map((tab) => ({ ...tab, active: tab.label === activeTab }));
+  const hasLegacyChildren = Boolean(children);
 
   return (
-    <WorkspaceRibbon tabs={tabs} className={className}>
-      {children}
-    </WorkspaceRibbon>
+    <div className="space-y-2">
+      <ContextualRibbon
+        pathname={pathname}
+        context={context}
+        handlers={commandHandlers}
+        className={className}
+      />
+      {hasLegacyChildren ? (
+        <div className="hidden" aria-hidden="true">
+          {children as ReactNode}
+        </div>
+      ) : null}
+    </div>
   );
 }
