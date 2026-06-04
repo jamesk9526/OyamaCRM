@@ -321,6 +321,7 @@ const LETTERS_SIDEBAR_ITEMS = [
 export default function OyamaLettersWorkspace({ view = "library", templateId }: OyamaLettersWorkspaceProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const showWorkspaceRibbon = view !== "builder";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("oyamaLettersSidebarCollapsed") === "1";
@@ -340,29 +341,31 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
         <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
           <LettersTopBar view={view} templateId={templateId} />
-          <ContextualRibbon
-            pathname={pathname}
-            className="top-12 z-20 mx-4 mt-3 xl:mx-6"
-            context={{
-              flags: {
-                hasTemplate: Boolean(templateId),
-              },
-            }}
-            handlers={{
-              "new-letter": () => {
-                router.push("/oyama-letters/templates/new");
-              },
-              "open-template": () => {
-                router.push("/oyama-letters");
-              },
-              "print-queue": () => {
-                router.push("/oyama-letters/queue");
-              },
-              "generate-pdf": () => {
-                router.push("/oyama-letters/generate");
-              },
-            }}
-          />
+          {showWorkspaceRibbon ? (
+            <ContextualRibbon
+              pathname={pathname}
+              className="top-12 z-20 mx-4 mt-3 xl:mx-6"
+              context={{
+                flags: {
+                  hasTemplate: Boolean(templateId),
+                },
+              }}
+              handlers={{
+                "new-letter": () => {
+                  router.push("/oyama-letters/templates/new");
+                },
+                "open-template": () => {
+                  router.push("/oyama-letters");
+                },
+                "print-queue": () => {
+                  router.push("/oyama-letters/queue");
+                },
+                "generate-pdf": () => {
+                  router.push("/oyama-letters/generate");
+                },
+              }}
+            />
+          ) : null}
           {view === "library" ? <TemplateLibrary /> : null}
           {view === "builder" ? <TemplateBuilder templateId={templateId} /> : null}
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}

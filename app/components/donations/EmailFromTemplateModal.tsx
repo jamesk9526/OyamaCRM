@@ -388,7 +388,13 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
       // Parse block structure for the visual editor
       if (data.resolvedTemplateJson) {
         try {
-          setEmailTemplate(JSON.parse(data.resolvedTemplateJson) as EmailBuilderTemplate);
+          const parsed = JSON.parse(data.resolvedTemplateJson) as EmailBuilderTemplate;
+          // Guard against malformed templateJson missing the blocks array
+          if (parsed && Array.isArray(parsed.blocks)) {
+            setEmailTemplate(parsed);
+          } else {
+            setEmailTemplate(null);
+          }
         } catch {
           setEmailTemplate(null);
         }

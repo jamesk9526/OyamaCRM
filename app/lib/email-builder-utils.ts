@@ -659,8 +659,9 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
 </tr>`;
 
     case 'impactGrid': {
-      const cells = block.items.slice(0, 4).map((item) => `
-        <td style="width:${Math.round(100 / Math.max(block.items.length, 1))}%;padding:12px 10px;text-align:center;border-right:1px solid ${block.accentColor}33;">
+      const safeItems = Array.isArray(block.items) ? block.items : [];
+      const cells = safeItems.slice(0, 4).map((item) => `
+        <td style="width:${Math.round(100 / Math.max(safeItems.length, 1))}%;padding:12px 10px;text-align:center;border-right:1px solid ${block.accentColor}33;">
           <div style="font-family:${fontFamily};font-size:24px;font-weight:700;line-height:1.2;color:${block.textColor};">${item.value}</div>
           <div style="font-family:${fontFamily};font-size:12px;line-height:1.4;color:${block.textColor};opacity:.9;margin-top:4px;">${item.label}</div>
         </td>`).join('');
@@ -689,7 +690,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     }
 
     case 'timeline': {
-      const rows = block.items.slice(0, 6).map((item) => `<tr>
+      const rows = (Array.isArray(block.items) ? block.items : []).slice(0, 6).map((item) => `<tr>
         <td style="width:18px;vertical-align:top;padding:2px 10px 12px 0;">
           <div style="width:10px;height:10px;border-radius:999px;background:${block.accentColor};margin-top:4px;"></div>
         </td>
@@ -721,7 +722,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
 </tr>`;
 
     case 'featureList': {
-      const items = block.items.slice(0, 8).map((item) => `<tr>
+      const items = (Array.isArray(block.items) ? block.items : []).slice(0, 8).map((item) => `<tr>
         <td style="font-family:${fontFamily};font-size:14px;line-height:1.5;color:${block.textColor};padding:0 0 8px;">
           <span style="color:${block.bulletColor};font-weight:700;">•</span> ${item}
         </td>
@@ -973,7 +974,7 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
       const borderColor = block.borderColor ?? '#e6e9f2';
       const backgroundColor = block.backgroundColor ?? '#ffffff';
       const accentColor = block.accentColor ?? '#2563ff';
-      const links = block.links.map(
+      const links = (Array.isArray(block.links) ? block.links : []).map(
         (l) => {
           const brandColor = platformColors[l.platform] ?? accentColor;
           const badgeColor = colorMode === 'brand' ? brandColor : colorMode === 'accent' ? accentColor : textColor;
@@ -1019,10 +1020,11 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     }
 
     case 'columns': {
-      const requestedCount = block.columnCount ?? block.columns.length;
+      const safeColumns = Array.isArray(block.columns) ? block.columns : [];
+      const requestedCount = block.columnCount ?? safeColumns.length;
       const totalColumns = requestedCount >= 3 ? 3 : 2;
       const cols = Array.from({ length: totalColumns }, (_, index) => {
-        const content = block.columns[index]?.map((child) => renderBlockHtml(child, fontFamily)).join('') ?? '';
+        const content = safeColumns[index]?.map((child) => renderBlockHtml(child, fontFamily)).join('') ?? '';
         const width = Math.floor(100 / totalColumns);
         return `<td width="${width}%" valign="top" style="vertical-align:top;${index === 0 ? '' : 'padding-left:8px;'}">
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
