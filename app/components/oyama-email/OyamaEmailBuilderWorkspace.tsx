@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch } from "@/app/lib/auth-client";
+import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { DEFAULT_BRANDING_SETTINGS, fetchBrandingSettings, formatBrandingAddress, type BrandingSettings } from "@/app/lib/branding-settings";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,6 +104,32 @@ interface BuilderTemplateResponse {
   renderedHtml: string;
   renderedText: string;
   mergeFieldsUsed: string[];
+}
+
+interface SaveConflictPayload {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+  conflict?: {
+    id?: string;
+    name?: string;
+    updatedAt?: string;
+  };
+}
+
+interface SaveConflictState {
+  code: "TEMPLATE_STALE_VERSION" | "TEMPLATE_NAME_CONFLICT";
+  message: string;
+  templateId: string;
+  templateName: string;
+  updatedAt: string | null;
+}
+
+interface SaveTemplateOptions {
+  forceOverwrite?: boolean;
+  confirmOverwrite?: boolean;
+  overwriteTemplateId?: string;
 }
 
 interface MergeFieldGroup {
@@ -534,6 +560,54 @@ function formatLastSaved(value: string | null): string {
   return `Last saved ${date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
 }
 
+function buildCopyTemplateName(name: string): string {
+  const trimmed = name.trim() || "Untitled Email Template";
+  if (/\(copy\)$/i.test(trimmed)) {
+    return `${trimmed} ${new Date().getHours()}${new Date().getMinutes().toString().padStart(2, "0")}`;
+  }
+  return `${trimmed} (Copy)`;
+}
+
+async function saveTemplateRequest(endpoint: string, method: "POST" | "PUT", payload: Record<string, unknown>): Promise<BuilderTemplateResponse> {
+  const response = await apiFetchResponse(endpoint, {
+    method,
+    body: JSON.stringify(payload),
+  });
+
+  const raw = await response.text();
+  let parsed: unknown = {};
+  if (raw.trim()) {
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      parsed = {};
+    }
+  }
+
+  if (!response.ok) {
+    const body = (parsed && typeof parsed === "object" ? parsed : {}) as SaveConflictPayload;
+    const code = String(body.error?.code || "");
+    const message = body.error?.message || `API error ${response.status}`;
+    if (response.status === 409 && (code === "TEMPLATE_STALE_VERSION" || code === "TEMPLATE_NAME_CONFLICT")) {
+      const conflict = body.conflict || {};
+      const error = new Error(message) as Error & {
+        conflict?: SaveConflictState;
+      };
+      error.conflict = {
+        code,
+        message,
+        templateId: String(conflict.id || ""),
+        templateName: String(conflict.name || ""),
+        updatedAt: typeof conflict.updatedAt === "string" ? conflict.updatedAt : null,
+      } as SaveConflictState;
+      throw error;
+    }
+    throw new Error(message);
+  }
+
+  return parsed as BuilderTemplateResponse;
+}
+
 function appendToken(current: string, token: string): string {
   if (!current.trim()) return token;
   const join = /[\s>}]$/.test(current) ? "" : " ";
@@ -745,6 +819,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [plainTextModalOpen, setPlainTextModalOpen] = useState(false);
   const [testEmailDialogOpen, setTestEmailDialogOpen] = useState(false);
+  const [saveConflictModal, setSaveConflictModal] = useState<SaveConflictState | null>(null);
   const [blockInspectorModalOpen, setBlockInspectorModalOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<"content" | "style" | "advanced">("content");
   const [zoom, setZoom] = useState(100);
@@ -952,6 +1027,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       settings: draftRef.current.settings,
     };
 
+    const requestPayload: Record<string, unknown> = { ...payload };
+    if (activeTemplateId && lastSavedAt) {
+      requestPayload.lastKnownUpdatedAt = lastSavedAt;
+    }
+
     setError(null);
     if (!auto) setNotice(null);
 
@@ -967,10 +1047,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         : "/api/oyama-email/templates";
       const method = activeTemplateId ? "PUT" : "POST";
 
-      const saved = await apiFetch<BuilderTemplateResponse>(endpoint, {
-        method,
-        body: JSON.stringify(payload),
-      });
+      const saved = await saveTemplateRequest(endpoint, method, requestPayload);
+
+      if (saveConflictModal) {
+        setSaveConflictModal(null);
+      }
 
       setActiveTemplateId(saved.id);
       setDraft({
@@ -999,12 +1080,100 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         setNotice("Draft saved.");
       }
     } catch (requestError) {
+      const conflict = requestError instanceof Error && "conflict" in requestError
+        ? (requestError as Error & { conflict?: SaveConflictState }).conflict
+        : undefined;
+
+      if (conflict) {
+        if (!auto) {
+          setSaveConflictModal(conflict);
+        }
+        if (auto) {
+          setNotice("Autosave paused because this template changed. Click Save Draft to resolve the overwrite conflict.");
+        }
+        setError(conflict.message);
+      } else {
+        setError(requestError instanceof Error ? requestError.message : "Failed to save template.");
+      }
+    } finally {
+      setSaving(false);
+      setAutosaving(false);
+    }
+  }, [activeTemplateId, lastSavedAt, router, saveConflictModal, saving, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
+
+  const resolveSaveConflict = useCallback(async (options: SaveTemplateOptions) => {
+    if (saving || autosaving || !saveConflictModal) return;
+
+    const payload: Record<string, unknown> = {
+      name: draftRef.current.name,
+      subject: draftRef.current.subject,
+      previewText: draftRef.current.previewText,
+      fromName: draftRef.current.fromName,
+      fromEmail: smtpDefaults.fromEmail || draftRef.current.fromEmail,
+      replyToEmail: smtpDefaults.replyToEmail || draftRef.current.replyToEmail,
+      purpose: draftRef.current.purpose,
+      preferenceCategory: draftRef.current.preferenceCategory,
+      template: draftRef.current.template,
+      settings: draftRef.current.settings,
+    };
+
+    const endpoint = activeTemplateId
+      ? `/api/oyama-email/templates/${activeTemplateId}`
+      : "/api/oyama-email/templates";
+    const method = activeTemplateId ? "PUT" : "POST";
+
+    if (activeTemplateId) {
+      if (lastSavedAt) {
+        payload.lastKnownUpdatedAt = lastSavedAt;
+      }
+      if (options.forceOverwrite) {
+        payload.forceOverwrite = true;
+      }
+    } else {
+      if (options.confirmOverwrite && options.overwriteTemplateId) {
+        payload.confirmOverwrite = true;
+        payload.overwriteTemplateId = options.overwriteTemplateId;
+      }
+    }
+
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const saved = await saveTemplateRequest(endpoint, method, payload);
+      setSaveConflictModal(null);
+      setActiveTemplateId(saved.id);
+      setDraft({
+        name: saved.name,
+        subject: saved.subject,
+        previewText: saved.previewText,
+        fromName: saved.fromName,
+        fromEmail: saved.fromEmail,
+        replyToEmail: saved.replyToEmail,
+        purpose: saved.purpose,
+        preferenceCategory: saved.preferenceCategory,
+        template: normalizeTemplateForUi(saved.template),
+        settings: saved.settings,
+      });
+      setStatus(saved.status || "DRAFT");
+      setLastSavedAt(saved.updatedAt || null);
+      setServerPreviewHtml(saved.renderedHtml || "");
+      setServerPreviewText(saved.renderedText || "");
+      setDirty(false);
+
+      if (!templateId || templateId !== saved.id) {
+        router.replace(`/oyama-email/templates/${saved.id}/builder`);
+      }
+
+      setNotice("Draft saved.");
+    } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to save template.");
     } finally {
       setSaving(false);
       setAutosaving(false);
     }
-  }, [activeTemplateId, router, saving, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
+  }, [activeTemplateId, autosaving, lastSavedAt, router, saveConflictModal, saving, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
 
   useEffect(() => {
     if (!dirty || loading) return;
@@ -2565,6 +2734,74 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 className="h-8 rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
               >
                 Send
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Save Conflict Modal */}
+      {saveConflictModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-md"
+          onClick={() => setSaveConflictModal(null)}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-slate-200 bg-slate-50/90 px-5 py-4">
+              <p className="text-sm font-semibold text-slate-800">Confirm Template Overwrite</p>
+              <p className="mt-0.5 text-xs text-slate-500">A save conflict was detected to prevent an accidental overwrite.</p>
+            </div>
+            <div className="space-y-2 px-5 py-4 text-sm text-slate-700">
+              <p>{saveConflictModal.message}</p>
+              <p className="text-xs text-slate-500">
+                Template: {saveConflictModal.templateName || "Unknown template"}
+                {saveConflictModal.updatedAt ? ` • Updated ${formatLastSaved(saveConflictModal.updatedAt)}` : ""}
+              </p>
+              {saveConflictModal.code === "TEMPLATE_STALE_VERSION" ? (
+                <p className="text-xs text-amber-700">Another session changed this template after you opened it.</p>
+              ) : null}
+              {saveConflictModal.code === "TEMPLATE_NAME_CONFLICT" ? (
+                <p className="text-xs text-amber-700">A template with this name already exists.</p>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setSaveConflictModal(null)}
+                className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              {saveConflictModal.code === "TEMPLATE_NAME_CONFLICT" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft((prev) => ({ ...prev, name: buildCopyTemplateName(prev.name) }));
+                    setDirty(true);
+                    setError(null);
+                    setSaveConflictModal(null);
+                    setNotice("Template renamed as a copy. Click Save Draft again to create a new template.");
+                  }}
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Save as Copy
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  const options: SaveTemplateOptions = saveConflictModal.code === "TEMPLATE_STALE_VERSION"
+                    ? { forceOverwrite: true }
+                    : { confirmOverwrite: true, overwriteTemplateId: saveConflictModal.templateId };
+                  void resolveSaveConflict(options);
+                }}
+                disabled={saving || autosaving}
+                className="h-8 rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+              >
+                Overwrite
               </button>
             </div>
           </div>

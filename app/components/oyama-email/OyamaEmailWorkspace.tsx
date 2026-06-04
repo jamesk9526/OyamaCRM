@@ -2463,10 +2463,16 @@ function NewCampaignWizardPanel({
   const [segmentType, setSegmentType] = useState("active");
   const [audienceReviewConfirmed, setAudienceReviewConfirmed] = useState(false);
   const [audiencePreview, setAudiencePreview] = useState<CampaignAudiencePreviewResponse["audience"] | null>(null);
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
 
   const [scheduleAt, setScheduleAt] = useState("");
 
   const selectedTemplate = templates.find((row) => row.id === templateId) ?? null;
+  const selectedListRecipientCount = useMemo(() => {
+    if (selectedListIds.length === 0) return 0;
+    const selected = new Set(selectedListIds);
+    return lists.reduce((total, list) => (selected.has(list.id) ? total + (list.recipientsCount || 0) : total), 0);
+  }, [lists, selectedListIds]);
   const selectedConstituentEmails = constituents
     .filter((row) => selectedConstituentIds.includes(row.id))
     .map((row) => (row.email || "").trim().toLowerCase())
@@ -2517,16 +2523,16 @@ function NewCampaignWizardPanel({
     if (audienceSource === "Saved Lists") {
       return {
         totalSelected: selectedListIds.length,
-        validRecipients: selectedListIds.length > 0 ? "Waiting for validation" : "0",
-        missingEmail: "Not tracked yet",
-        invalidEmail: "Not tracked yet",
-        duplicateEmail: "Not tracked yet",
-        unsubscribed: "Not tracked yet",
-        suppressed: "Not tracked yet",
-        doNotEmail: "Not tracked yet",
-        hardBounced: "Not tracked yet",
-        softBounced: "Not tracked yet",
-        missingMerge: "Not tracked yet",
+        validRecipients: selectedListRecipientCount,
+        missingEmail: "Validated at send time",
+        invalidEmail: "Validated at send time",
+        duplicateEmail: "Validated at send time",
+        unsubscribed: "Validated at send time",
+        suppressed: "Validated at send time",
+        doNotEmail: "Validated at send time",
+        hardBounced: "Validated at send time",
+        softBounced: "Validated at send time",
+        missingMerge: "Validated at send time",
       };
     }
 
@@ -2543,16 +2549,49 @@ function NewCampaignWizardPanel({
       softBounced: "Not tracked yet",
       missingMerge: "Not tracked yet",
     };
-  }, [audiencePreview, audienceSource, manualEmails, selectedConstituentEmails, selectedListIds.length]);
+  }, [audiencePreview, audienceSource, manualEmails, selectedConstituentEmails, selectedListIds.length, selectedListRecipientCount]);
+
+  const sendPayloadPreview = useMemo(
+    () => buildSendPayload(audienceSource, selectedListIds, manualEmails, selectedConstituentEmails, segmentType),
+    [audienceSource, manualEmails, segmentType, selectedConstituentEmails, selectedListIds],
+  );
+
+  const sendModeSummary = useMemo(
+    () => summarizeSendPayload(sendPayloadPreview, {
+      selectedListRecipientCount,
+      segmentPreviewCount: audiencePreview?.finalSendCount ?? 0,
+    }),
+    [audiencePreview?.finalSendCount, selectedListRecipientCount, sendPayloadPreview],
+  );
+
+  const validRecipientCount = useMemo(
+    () => normalizeMetricCount(localAudienceSummary.validRecipients),
+    [localAudienceSummary.validRecipients],
+  );
 
   const canContinueFromSetup = Boolean(campaignName.trim() && subjectLine.trim() && fromName.trim() && isEmailLike(fromEmail) && isEmailLike(replyToEmail));
-  const canContinueFromAudience = Number(localAudienceSummary.validRecipients) > 0 && audienceReviewConfirmed;
+  const canContinueFromAudience = validRecipientCount > 0 && audienceReviewConfirmed;
 
   async function createOrSend(action: "save" | "queue" | "send" | "schedule" | "test") {
     setSaving(true);
     setError(null);
     setNotice(null);
     try {
+      const sendPayload = buildSendPayload(audienceSource, selectedListIds, manualEmails, selectedConstituentEmails, segmentType);
+      const sendSummary = summarizeSendPayload(sendPayload, {
+        selectedListRecipientCount,
+        segmentPreviewCount: audiencePreview?.finalSendCount ?? 0,
+      });
+
+      if (action === "send") {
+        if (sendSummary.recipientCount <= 0) {
+          throw new Error("Select at least one valid recipient before sending.");
+        }
+        if (sendSummary.sendMode === "INDIVIDUAL" && sendSummary.recipientCount !== 1) {
+          throw new Error("Single-recipient mode requires exactly one recipient.");
+        }
+      }
+
       const created = await apiFetch<OyamaEmailCampaign>("/api/email-campaigns", {
         method: "POST",
         body: JSON.stringify({
@@ -2601,7 +2640,7 @@ function NewCampaignWizardPanel({
       if (action === "send") {
         await apiFetch(`/api/email-campaigns/${created.id}/send`, {
           method: "POST",
-          body: JSON.stringify(buildSendPayload(audienceSource, selectedListIds, manualEmails, selectedConstituentEmails, segmentType)),
+          body: JSON.stringify(sendPayload),
         });
       }
 
@@ -2756,6 +2795,15 @@ function NewCampaignWizardPanel({
             </div>
             <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={audienceReviewConfirmed} onChange={(event) => setAudienceReviewConfirmed(event.target.checked)} /> I understand who will and will not receive this campaign.</label>
           </div>
+
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs">
+            <p className="font-semibold text-emerald-900">Send Mode Preview</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <MetricChip label="Mode" value={sendModeSummary.label} />
+              <MetricChip label="Recipients" value={String(sendModeSummary.recipientCount)} />
+            </div>
+            <p className="mt-2 text-[11px] text-emerald-800">{sendModeSummary.detail}</p>
+          </div>
         </div>
       ) : null}
 
@@ -2787,6 +2835,9 @@ function NewCampaignWizardPanel({
 
       {step === 5 ? (
         <div className="mt-4 space-y-3">
+          <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900">
+            <span className="font-semibold">Send mode:</span> {sendModeSummary.label} • <span className="font-semibold">Recipients:</span> {sendModeSummary.recipientCount}
+          </div>
           <label className="block text-xs font-semibold text-slate-700">Schedule Send (optional)
             <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </label>
@@ -2795,8 +2846,46 @@ function NewCampaignWizardPanel({
             <button type="button" onClick={() => void createOrSend("save")} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Save draft</button>
             <button type="button" onClick={() => void createOrSend("schedule")} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Schedule send</button>
             <button type="button" onClick={() => void createOrSend("queue")} disabled={saving} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60">Queue for review</button>
-            <button type="button" onClick={() => void createOrSend("send")} disabled={saving} className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60">Send now</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (sendModeSummary.recipientCount <= 0) {
+                  setError("Select at least one valid recipient before sending.");
+                  return;
+                }
+                setSendConfirmOpen(true);
+              }}
+              disabled={saving}
+              className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+            >
+              Send now
+            </button>
           </div>
+
+          {sendConfirmOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4" onClick={() => setSendConfirmOpen(false)}>
+              <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                <p className="text-sm font-semibold text-slate-900">Confirm Send</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  You are about to send using <span className="font-semibold text-slate-900">{sendModeSummary.label}</span> to <span className="font-semibold text-slate-900">{sendModeSummary.recipientCount}</span> recipient{sendModeSummary.recipientCount === 1 ? "" : "s"}.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{sendModeSummary.detail}</p>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button type="button" onClick={() => setSendConfirmOpen(false)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSendConfirmOpen(false);
+                      void createOrSend("send");
+                    }}
+                    className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600"
+                  >
+                    Confirm send
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -2884,6 +2973,56 @@ function buildSendPayload(
     return { sendMode: "SEGMENT", audienceFilter: { type: filterType } };
   }
   return { sendMode: "CAMPAIGN_AUDIENCE" };
+}
+
+function normalizeMetricCount(value: string | number): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number.parseInt(String(value || "0"), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function summarizeSendPayload(
+  payload: Record<string, unknown>,
+  context: {
+    selectedListRecipientCount: number;
+    segmentPreviewCount: number;
+  },
+): {
+  sendMode: string;
+  label: string;
+  recipientCount: number;
+  detail: string;
+} {
+  const sendMode = typeof payload.sendMode === "string" ? payload.sendMode : "CAMPAIGN_AUDIENCE";
+  const recipientEmails = Array.isArray(payload.recipientEmails)
+    ? payload.recipientEmails.map((value) => String(value)).filter(Boolean)
+    : [];
+
+  const recipientCount = (() => {
+    if (sendMode === "INDIVIDUAL" || sendMode === "LIST") {
+      return recipientEmails.length;
+    }
+    if (sendMode === "SAVED_LIST" || sendMode === "MULTI_LIST") {
+      return context.selectedListRecipientCount;
+    }
+    return context.segmentPreviewCount;
+  })();
+
+  if (sendMode === "INDIVIDUAL") {
+    return {
+      sendMode,
+      label: "Single Recipient",
+      recipientCount,
+      detail: "This send targets exactly one recipient address.",
+    };
+  }
+
+  return {
+    sendMode,
+    label: "Batch Recipients",
+    recipientCount,
+    detail: "This send uses a batch audience source (lists, segments, or multiple recipients).",
+  };
 }
 
 function normalizeManualEmails(value: string): string[] {

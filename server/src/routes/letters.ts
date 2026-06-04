@@ -1241,16 +1241,16 @@ function stripLeadingRecipientAddressBlocks(blocks: PdfContentBlock[], recipient
     .map((line) => normalizeAddressCompare(line))
     .filter((line) => line.length > 0);
   if (normalizedRecipientLines.length === 0) return blocks;
+  const recipientLineSet = new Set(normalizedRecipientLines);
 
   const matchesRecipientLine = (line: string): boolean => {
-    const normalized = normalizeAddressCompare(line);
-    if (!normalized) return false;
-    return normalizedRecipientLines.some((recipientLine) => {
-      if (!recipientLine) return false;
-      return normalized === recipientLine
-        || normalized.includes(recipientLine)
-        || recipientLine.includes(normalized);
-    });
+    const segments = line
+      .split(/\n+/g)
+      .map((segment) => normalizeAddressCompare(segment))
+      .filter((segment) => segment.length > 0);
+
+    if (segments.length === 0) return false;
+    return segments.every((segment) => recipientLineSet.has(segment));
   };
 
   let index = 0;

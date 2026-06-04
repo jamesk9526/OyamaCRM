@@ -61,6 +61,16 @@ function asString(value: unknown, fallback = ""): string {
   return value;
 }
 
+function asBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return fallback;
+}
+
 function formatDate(value: Date | null | undefined): string {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
@@ -651,7 +661,23 @@ router.post("/templates", async (req, res) => {
     settings: normalizeEmailTemplateSettings({ includeUnsubscribeLink: true, includePhysicalAddress: true, enablePlainTextVersion: true }),
   };
 
-  const payload = normalizeTemplatePayload(req.body, fallback);
+  const body = asObject(req.body);
+  const payload = normalizeTemplatePayload(body, fallback);
+  const requestedOverwriteTemplateId = asString(body.overwriteTemplateId).trim();
+  const confirmOverwrite = asBoolean(body.confirmOverwrite, false);
+
+  const conflictingByName = await prisma.emailCampaign.findFirst({
+    where: {
+      organizationId,
+      name: payload.name,
+      ...(requestedOverwriteTemplateId ? { id: { not: requestedOverwriteTemplateId } } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      updatedAt: true,
+    },
+  });
 
   const rendered = renderEmailTemplateDocument(payload.template, payload.settings);
   const templateJson = serializeStoredTemplateJson({
@@ -659,6 +685,56 @@ router.post("/templates", async (req, res) => {
     settings: payload.settings,
     preferenceCategory: payload.preferenceCategory,
   });
+
+  const overwriteTemplateId = requestedOverwriteTemplateId || conflictingByName?.id || "";
+  if (confirmOverwrite && overwriteTemplateId) {
+    const existing = await prisma.emailCampaign.findFirst({
+      where: {
+        id: overwriteTemplateId,
+        organizationId,
+      },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Template selected for overwrite was not found." } });
+      return;
+    }
+
+    const overwritten = await prisma.emailCampaign.update({
+      where: { id: existing.id },
+      data: {
+        name: payload.name,
+        subject: payload.subject,
+        previewText: payload.previewText,
+        fromName: payload.fromName,
+        fromEmail: payload.fromEmail,
+        replyToEmail: payload.replyToEmail,
+        purpose: payload.purpose,
+        bodyHtml: rendered.html,
+        bodyText: rendered.text,
+        templateJson,
+        status: "DRAFT",
+      },
+    });
+
+    res.json(mapTemplateResponse(overwritten));
+    return;
+  }
+
+  if (conflictingByName) {
+    res.status(409).json({
+      error: {
+        code: "TEMPLATE_NAME_CONFLICT",
+        message: "A template with this name already exists. Confirm overwrite or rename this template.",
+      },
+      conflict: {
+        id: conflictingByName.id,
+        name: conflictingByName.name,
+        updatedAt: conflictingByName.updatedAt,
+      },
+    });
+    return;
+  }
 
   const created = await prisma.emailCampaign.create({
     data: {
@@ -721,6 +797,28 @@ router.put("/templates/:id", async (req, res) => {
     return;
   }
 
+  const body = asObject(req.body);
+  const forceOverwrite = asBoolean(body.forceOverwrite, false);
+  const lastKnownUpdatedAt = asString(body.lastKnownUpdatedAt).trim();
+
+  if (!forceOverwrite && lastKnownUpdatedAt) {
+    const parsed = new Date(lastKnownUpdatedAt);
+    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() !== existing.updatedAt.getTime()) {
+      res.status(409).json({
+        error: {
+          code: "TEMPLATE_STALE_VERSION",
+          message: "This template was updated by another session. Confirm overwrite to save anyway.",
+        },
+        conflict: {
+          id: existing.id,
+          name: existing.name,
+          updatedAt: existing.updatedAt,
+        },
+      });
+      return;
+    }
+  }
+
   const stored = parseStoredTemplateJson(existing.templateJson);
 
   const smtpSettings = await prisma.organizationSettings.findUnique({
@@ -738,7 +836,7 @@ router.put("/templates/:id", async (req, res) => {
     return;
   }
 
-  const payload = normalizeTemplatePayload(req.body, {
+  const payload = normalizeTemplatePayload(body, {
     name: existing.name,
     subject: existing.subject,
     previewText: existing.previewText || "",
@@ -750,6 +848,34 @@ router.put("/templates/:id", async (req, res) => {
     template: stored.template,
     settings: stored.settings,
   });
+
+  const conflictingByName = await prisma.emailCampaign.findFirst({
+    where: {
+      organizationId,
+      name: payload.name,
+      id: { not: existing.id },
+    },
+    select: {
+      id: true,
+      name: true,
+      updatedAt: true,
+    },
+  });
+
+  if (conflictingByName) {
+    res.status(409).json({
+      error: {
+        code: "TEMPLATE_NAME_CONFLICT",
+        message: "Another template already uses this name. Rename this template or confirm overwrite from the create flow.",
+      },
+      conflict: {
+        id: conflictingByName.id,
+        name: conflictingByName.name,
+        updatedAt: conflictingByName.updatedAt,
+      },
+    });
+    return;
+  }
 
   const rendered = renderEmailTemplateDocument(payload.template, payload.settings);
   const templateJson = serializeStoredTemplateJson({

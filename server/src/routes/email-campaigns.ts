@@ -1270,6 +1270,15 @@ async function resolveRecipientPlan(
 
   if (sendMode === "LIST" || sendMode === "INDIVIDUAL") {
     const recipients = normalizeRecipientEmails(options?.recipientEmails);
+
+    if (sendMode === "INDIVIDUAL" && recipients.length !== 1) {
+      throw new CampaignSendError("INDIVIDUAL send mode requires exactly one recipient email.", 400);
+    }
+
+    if (sendMode === "LIST" && recipients.length <= 1) {
+      throw new CampaignSendError("LIST send mode requires at least two recipient emails.", 400);
+    }
+
     const evaluation = await evaluateRecipientEligibility({
       organizationId: campaign.organizationId,
       purpose: campaign.purpose,
