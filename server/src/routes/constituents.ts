@@ -22,6 +22,12 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import {
+  ensureConstituentGroup,
+  normalizeConstituentGroupType,
+  normalizeMembershipInputs,
+  syncConstituentGroupMemberships,
+} from "../lib/constituent-groups.js";
 import { getConstituentDisplayName, getConstituentSortName, isOrganizationConstituent } from "../lib/constituent-identity.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { prisma } from "../lib/prisma.js";
@@ -107,6 +113,18 @@ const MEMBER_SELECT = {
   isPrimaryContact: true,
   totalLifetimeGiving: true,
 };
+
+const CONSTITUENT_GROUP_SELECT = {
+  id: true,
+  name: true,
+  groupType: true,
+  primaryConstituentId: true,
+  _count: {
+    select: {
+      members: true,
+    },
+  },
+} as const;
 
 const normalizeTagNames = (values: unknown, limit = 30): string[] => {
   if (!Array.isArray(values)) return [];
@@ -933,6 +951,85 @@ router.post("/tags/bulk-actions", async (req, res) => {
   res.json({ success: true, action, tagNames, updatedCount: safeConstituentIds.length });
 });
 
+router.get("/groups", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json([]);
+    return;
+  }
+
+  const groupTypeFilter = String(req.query.groupType ?? "").trim().toUpperCase();
+  const groups = await prisma.constituentGroup.findMany({
+    where: {
+      organizationId,
+      ...(groupTypeFilter ? { groupType: groupTypeFilter } : {}),
+    },
+    orderBy: [{ name: "asc" }],
+    select: CONSTITUENT_GROUP_SELECT,
+  });
+
+  res.json(groups);
+});
+
+router.post("/groups", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const name = String(req.body?.name ?? "").trim();
+  if (!name) {
+    res.status(400).json({ error: { code: "GROUP_NAME_REQUIRED", message: "Group name is required." } });
+    return;
+  }
+
+  const primaryConstituentId = String(req.body?.primaryConstituentId ?? "").trim() || null;
+  if (primaryConstituentId) {
+    const primaryConstituent = await prisma.constituent.findFirst({
+      where: { id: primaryConstituentId, organizationId },
+      select: { id: true },
+    });
+    if (!primaryConstituent) {
+      res.status(400).json({ error: { code: "INVALID_PRIMARY_CONSTITUENT", message: "Primary constituent was not found in this organization." } });
+      return;
+    }
+  }
+
+  const group = await ensureConstituentGroup({
+    organizationId,
+    name,
+    groupType: normalizeConstituentGroupType(req.body?.groupType),
+    primaryConstituentId,
+    description: typeof req.body?.description === "string" ? req.body.description.trim() : null,
+  });
+
+  if (!group) {
+    res.status(400).json({ error: { code: "GROUP_NAME_REQUIRED", message: "Group name is required." } });
+    return;
+  }
+
+  await logAudit({
+    action: "CONSTITUENT_GROUP_CREATED",
+    entity: "ConstituentGroup",
+    entityId: group.id,
+    organizationId,
+    userId: req.user?.sub,
+    metadata: {
+      name: group.name,
+      groupType: group.groupType,
+      primaryConstituentId: group.primaryConstituentId,
+    },
+  });
+
+  const response = await prisma.constituentGroup.findUnique({
+    where: { id: group.id },
+    select: CONSTITUENT_GROUP_SELECT,
+  });
+
+  res.status(201).json(response);
+});
+
 /** PUT /api/constituents/:id/tags — Replaces one constituent's tag list, creating missing tags by name. */
 router.put("/:id/tags", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -1011,6 +1108,21 @@ router.get("/:id", async (req, res) => {
         include: { user: { select: { firstName: true, lastName: true } } },
       },
       tags: { include: { tag: { select: { name: true, color: true } } } },
+      groupMemberships: {
+        orderBy: [{ isPrimary: "desc" }, { group: { name: "asc" } }],
+        select: {
+          id: true,
+          relationshipLabel: true,
+          isPrimary: true,
+          group: {
+            select: CONSTITUENT_GROUP_SELECT,
+          },
+        },
+      },
+      primaryForGroups: {
+        orderBy: [{ name: "asc" }],
+        select: CONSTITUENT_GROUP_SELECT,
+      },
       // Household where this constituent is the head
       headOf: {
         include: {
@@ -1043,7 +1155,7 @@ router.post("/", async (req, res) => {
     displayName, organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
     addressLine1, addressLine2, city, state, zip, country,
     type, donorStatus, employer, occupation, notes,
-    doNotEmail, doNotCall, doNotMail, organizationId,
+    doNotEmail, doNotCall, doNotMail, organizationId, groupMemberships,
   } = req.body;
 
   const resolvedOrganizationId = await resolveOrganizationId({
@@ -1089,6 +1201,12 @@ router.post("/", async (req, res) => {
     });
   }
 
+  await syncConstituentGroupMemberships({
+    organizationId: resolvedOrganizationId,
+    constituentId: constituent.id,
+    memberships: normalizeMembershipInputs(groupMemberships),
+  });
+
   await prisma.activity.create({
     data: {
       constituentId: constituent.id,
@@ -1129,7 +1247,7 @@ router.put("/:id", async (req, res) => {
     displayName, organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
     addressLine1, addressLine2, city, state, zip, country,
     type, donorStatus, employer, occupation, notes,
-    doNotEmail, doNotCall, doNotMail,
+    doNotEmail, doNotCall, doNotMail, groupMemberships,
   } = req.body;
 
   const organizationId = await resolveOrganizationId({ req });
@@ -1178,6 +1296,12 @@ router.put("/:id", async (req, res) => {
       });
     }
   }
+
+  await syncConstituentGroupMemberships({
+    organizationId,
+    constituentId: constituent.id,
+    memberships: normalizeMembershipInputs(groupMemberships),
+  });
 
   await prisma.activity.create({
     data: {

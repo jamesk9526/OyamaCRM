@@ -19,6 +19,7 @@ type PreviewCandidate = {
     displayName: string;
     type: "ORGANIZATION" | "FOUNDATION" | "SPONSOR";
     organizationCategory: string;
+    groupType: "CHURCH" | "BUSINESS" | "ORGANIZATION";
     firstName: "";
     lastName: string;
     tags: string[];
@@ -36,6 +37,14 @@ export default function OrganizationConversionPage() {
   const [applying, setApplying] = useState(false);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [drafts, setDrafts] = useState<Record<string, {
+    organizationName: string;
+    displayName: string;
+    organizationCategory: string;
+    groupType: "CHURCH" | "BUSINESS" | "ORGANIZATION";
+    createConstituentGroup: boolean;
+    constituentGroupName: string;
+  }>>({});
   const [message, setMessage] = useState<string>("");
 
   const selectedIds = useMemo(() => Object.entries(selected).filter(([, checked]) => checked).map(([id]) => id), [selected]);
@@ -47,8 +56,20 @@ export default function OrganizationConversionPage() {
       const result = await apiFetch<PreviewResponse>("/api/data-tools/organization-conversion/preview?limit=1000");
       setPreview(result);
       const nextSelected: Record<string, boolean> = {};
+      const nextDrafts: typeof drafts = {};
       for (const candidate of result.candidates) nextSelected[candidate.constituentId] = true;
+      for (const candidate of result.candidates) {
+        nextDrafts[candidate.constituentId] = {
+          organizationName: candidate.suggested.organizationName,
+          displayName: candidate.suggested.displayName,
+          organizationCategory: candidate.suggested.organizationCategory,
+          groupType: candidate.suggested.groupType,
+          createConstituentGroup: false,
+          constituentGroupName: candidate.suggested.organizationName,
+        };
+      }
       setSelected(nextSelected);
+      setDrafts(nextDrafts);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to scan constituents.");
     } finally {
@@ -66,12 +87,15 @@ export default function OrganizationConversionPage() {
         .filter((candidate) => selected[candidate.constituentId])
         .map((candidate) => ({
           constituentId: candidate.constituentId,
-          organizationName: candidate.suggested.organizationName,
-          displayName: candidate.suggested.displayName,
+          organizationName: drafts[candidate.constituentId]?.organizationName ?? candidate.suggested.organizationName,
+          displayName: drafts[candidate.constituentId]?.displayName ?? candidate.suggested.displayName,
           type: candidate.suggested.type,
-          organizationCategory: candidate.suggested.organizationCategory,
+          organizationCategory: drafts[candidate.constituentId]?.organizationCategory ?? candidate.suggested.organizationCategory,
+          groupType: drafts[candidate.constituentId]?.groupType ?? candidate.suggested.groupType,
           keepOriginalNameInNotes: true,
           addTags: true,
+          createConstituentGroup: drafts[candidate.constituentId]?.createConstituentGroup === true,
+          constituentGroupName: drafts[candidate.constituentId]?.constituentGroupName ?? candidate.suggested.organizationName,
         }));
 
       const response = await apiFetch<{ appliedCount: number; skippedCount: number }>("/api/data-tools/organization-conversion/apply", {
@@ -123,7 +147,7 @@ export default function OrganizationConversionPage() {
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Workflow: Scan -> Review candidates -> Select rows -> Apply -> Audit log retained in server audit trail.
+          Workflow: Scan, review candidates, select rows, apply, then verify the audit trail.
         </p>
         {message ? <p className="mt-2 text-sm text-slate-700">{message}</p> : null}
       </section>
@@ -141,7 +165,7 @@ export default function OrganizationConversionPage() {
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Apply</th>
                   <th className="px-3 py-2">Current</th>
-                  <th className="px-3 py-2">Suggested</th>
+                  <th className="px-3 py-2">Conversion</th>
                   <th className="px-3 py-2">Reasons</th>
                 </tr>
               </thead>
@@ -163,12 +187,81 @@ export default function OrganizationConversionPage() {
                       <p><span className="font-medium">Tags:</span> {candidate.current.tags.join(", ") || "(none)"}</p>
                     </td>
                     <td className="px-3 py-2">
-                      <p><span className="font-medium">Entity Kind:</span> {candidate.suggested.entityKind}</p>
-                      <p><span className="font-medium">Org Name:</span> {candidate.suggested.organizationName}</p>
-                      <p><span className="font-medium">Display:</span> {candidate.suggested.displayName}</p>
-                      <p><span className="font-medium">Type:</span> {candidate.suggested.type}</p>
-                      <p><span className="font-medium">Category:</span> {candidate.suggested.organizationCategory}</p>
-                      <p><span className="font-medium">Legacy Last:</span> {candidate.suggested.lastName}</p>
+                      <div className="space-y-2">
+                        <label className="block text-xs font-medium text-slate-600">
+                          Organization Name
+                          <input
+                            value={drafts[candidate.constituentId]?.organizationName ?? candidate.suggested.organizationName}
+                            onChange={(event) => setDrafts((current) => ({
+                              ...current,
+                              [candidate.constituentId]: {
+                                ...current[candidate.constituentId],
+                                organizationName: event.target.value,
+                                displayName: event.target.value,
+                                constituentGroupName: current[candidate.constituentId]?.constituentGroupName || event.target.value,
+                              },
+                            }))}
+                            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                          />
+                        </label>
+                        <label className="block text-xs font-medium text-slate-600">
+                          Organization Kind
+                          <select
+                            value={drafts[candidate.constituentId]?.groupType ?? candidate.suggested.groupType}
+                            onChange={(event) => {
+                              const groupType = event.target.value as "CHURCH" | "BUSINESS" | "ORGANIZATION";
+                              const organizationCategory = groupType === "CHURCH" ? "CHURCH" : groupType === "BUSINESS" ? "BUSINESS" : "ORGANIZATION";
+                              setDrafts((current) => ({
+                                ...current,
+                                [candidate.constituentId]: {
+                                  ...current[candidate.constituentId],
+                                  groupType,
+                                  organizationCategory,
+                                },
+                              }));
+                            }}
+                            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                          >
+                            <option value="ORGANIZATION">Organization</option>
+                            <option value="CHURCH">Church</option>
+                            <option value="BUSINESS">Business</option>
+                          </select>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={drafts[candidate.constituentId]?.createConstituentGroup === true}
+                            onChange={(event) => setDrafts((current) => ({
+                              ...current,
+                              [candidate.constituentId]: {
+                                ...current[candidate.constituentId],
+                                createConstituentGroup: event.target.checked,
+                              },
+                            }))}
+                          />
+                          Create constituent group
+                        </label>
+                        {(drafts[candidate.constituentId]?.createConstituentGroup ?? false) ? (
+                          <label className="block text-xs font-medium text-slate-600">
+                            Group Name
+                            <input
+                              value={drafts[candidate.constituentId]?.constituentGroupName ?? candidate.suggested.organizationName}
+                              onChange={(event) => setDrafts((current) => ({
+                                ...current,
+                                [candidate.constituentId]: {
+                                  ...current[candidate.constituentId],
+                                  constituentGroupName: event.target.value,
+                                },
+                              }))}
+                              className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                            />
+                          </label>
+                        ) : null}
+                        <div className="text-xs text-slate-500">
+                          <p><span className="font-medium text-slate-700">Entity Kind:</span> {candidate.suggested.entityKind}</p>
+                          <p><span className="font-medium text-slate-700">Legacy Last:</span> {candidate.suggested.lastName}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <ul className="list-disc pl-5 text-slate-700">

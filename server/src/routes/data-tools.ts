@@ -3,6 +3,11 @@ import type { ConstituentType } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import {
+  ensureConstituentGroup,
+  normalizeConstituentGroupType,
+  type ConstituentGroupType,
+} from "../lib/constituent-groups.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 
@@ -62,6 +67,7 @@ type ConversionPreviewCandidate = {
     displayName: string;
     type: "ORGANIZATION" | "FOUNDATION" | "SPONSOR";
     organizationCategory: string;
+    groupType: ConstituentGroupType;
     firstName: "";
     lastName: string;
     tags: string[];
@@ -74,8 +80,11 @@ type ApplyConversionInput = {
   displayName: string;
   type: "ORGANIZATION" | "FOUNDATION" | "SPONSOR";
   organizationCategory: string;
+  groupType: ConstituentGroupType;
   keepOriginalNameInNotes: boolean;
   addTags: boolean;
+  createConstituentGroup: boolean;
+  constituentGroupName: string;
 };
 
 function clean(value: string | null | undefined): string {
@@ -87,6 +96,12 @@ function inferCategory(haystack: string): string {
     if (entry.patterns.some((pattern) => pattern.test(haystack))) return entry.category;
   }
   return "OTHER";
+}
+
+function categoryToGroupType(category: string): ConstituentGroupType {
+  if (category === "CHURCH" || category === "MINISTRY") return "CHURCH";
+  if (category === "BUSINESS") return "BUSINESS";
+  return "ORGANIZATION";
 }
 
 function normalizeSuggestedType(type: ConstituentType): "ORGANIZATION" | "FOUNDATION" | "SPONSOR" {
@@ -149,6 +164,7 @@ function buildPreviewCandidate(row: {
   if (!inferredName) return null;
 
   const category = row.organizationCategory || inferCategory(haystack);
+  const groupType = categoryToGroupType(category);
   const suggestedTags = Array.from(new Set([
     ...tagNames,
     "Organization",
@@ -173,6 +189,7 @@ function buildPreviewCandidate(row: {
       displayName: inferredName,
       type: normalizeSuggestedType(row.type),
       organizationCategory: category,
+      groupType,
       firstName: "",
       lastName: inferredName,
       tags: suggestedTags,
@@ -242,8 +259,11 @@ router.post("/organization-conversion/apply", requirePermission("edit:constituen
         displayName: String(source.displayName ?? "").trim(),
         type: suggestedType,
         organizationCategory: String(source.organizationCategory ?? "OTHER").trim().toUpperCase(),
+        groupType: normalizeConstituentGroupType(source.groupType ?? source.organizationCategory),
         keepOriginalNameInNotes: source.keepOriginalNameInNotes !== false,
         addTags: source.addTags !== false,
+        createConstituentGroup: source.createConstituentGroup === true,
+        constituentGroupName: String(source.constituentGroupName ?? source.organizationName ?? "").trim(),
       };
     })
     .filter((item) => Boolean(item.constituentId && item.organizationName));
@@ -274,7 +294,12 @@ router.post("/organization-conversion/apply", requirePermission("edit:constituen
   });
 
   const byId = new Map(rows.map((row) => [row.id, row]));
-  const applied: Array<{ constituentId: string; before: Record<string, unknown>; after: Record<string, unknown> }> = [];
+  const applied: Array<{
+    constituentId: string;
+    before: Record<string, unknown>;
+    after: Record<string, unknown>;
+    constituentGroupId?: string | null;
+  }> = [];
   const skipped: Array<{ constituentId: string; reason: string }> = [];
 
   for (const conversion of validConversions) {
@@ -346,7 +371,39 @@ router.post("/organization-conversion/apply", requirePermission("edit:constituen
       type: conversion.type,
     };
 
-    applied.push({ constituentId: row.id, before, after });
+    let constituentGroupId: string | null = null;
+    if (conversion.createConstituentGroup) {
+      const group = await ensureConstituentGroup({
+        organizationId,
+        name: conversion.constituentGroupName || conversion.organizationName,
+        groupType: conversion.groupType,
+        primaryConstituentId: row.id,
+        description: `Created by organization conversion for ${conversion.organizationName}.`,
+      });
+      if (group) {
+        constituentGroupId = group.id;
+        await prisma.constituentGroupMember.upsert({
+          where: {
+            groupId_constituentId: {
+              groupId: group.id,
+              constituentId: row.id,
+            },
+          },
+          update: {
+            relationshipLabel: "Primary organization record",
+            isPrimary: true,
+          },
+          create: {
+            groupId: group.id,
+            constituentId: row.id,
+            relationshipLabel: "Primary organization record",
+            isPrimary: true,
+          },
+        });
+      }
+    }
+
+    applied.push({ constituentId: row.id, before, after, constituentGroupId });
 
     await logAudit({
       action: "CONSTITUENT_ORGANIZATION_CONVERSION_APPLIED",
@@ -357,6 +414,10 @@ router.post("/organization-conversion/apply", requirePermission("edit:constituen
       metadata: {
         keepOriginalNameInNotes: conversion.keepOriginalNameInNotes,
         addTags: conversion.addTags,
+        createConstituentGroup: conversion.createConstituentGroup,
+        constituentGroupName: conversion.constituentGroupName || null,
+        groupType: conversion.groupType,
+        constituentGroupId,
         before,
         after,
       },

@@ -44,6 +44,7 @@ describe("organization conversion data-tools api", () => {
     expect(candidate).toBeTruthy();
 
     const orgName = `Church of Aurora ${suffix}`;
+    const groupName = `${orgName} Members`;
     const apply = await request(app)
       .post("/api/data-tools/organization-conversion/apply")
       .set(auth())
@@ -55,8 +56,11 @@ describe("organization conversion data-tools api", () => {
             displayName: orgName,
             type: "ORGANIZATION",
             organizationCategory: "CHURCH",
+            groupType: "CHURCH",
             keepOriginalNameInNotes: true,
             addTags: true,
+            createConstituentGroup: true,
+            constituentGroupName: groupName,
           },
         ],
       });
@@ -75,6 +79,8 @@ describe("organization conversion data-tools api", () => {
     expect(detail.body.displayName).toBe(orgName);
     expect(detail.body.entityKind).toBe("ORGANIZATION");
     expect(detail.body.organizationCategory).toBe("CHURCH");
+    expect(Array.isArray(detail.body.groupMemberships)).toBe(true);
+    expect(detail.body.groupMemberships.some((membership: { group?: { name?: string } }) => membership.group?.name === groupName)).toBe(true);
 
     const remove = await request(app)
       .delete(`/api/constituents/${constituentId}`)

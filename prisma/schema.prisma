@@ -447,6 +447,7 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   constituents   Constituent[]
+  constituentGroups ConstituentGroup[]
   campaigns      Campaign[]
   events         Event[]
   users          User[]
@@ -746,6 +747,8 @@ model Constituent {
   organization     Organization      @relation(fields: [organizationId], references: [id])
   household        Household?        @relation("HouseholdMembers", fields: [householdId], references: [id])
   headOf           Household?        @relation("HouseholdHead")
+  primaryForGroups ConstituentGroup[] @relation("PrimaryConstituentGroup")
+  groupMemberships ConstituentGroupMember[]
   donations        Donation[]
   tasks            Task[]
   meetings         Meeting[]
@@ -771,6 +774,40 @@ model Constituent {
   emailConsentEvents EmailConsentEvent[]
   emailSuppressions EmailSuppression[]
   emailSendRecipients EmailSendRecipient[]
+}
+
+model ConstituentGroup {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  name                 String
+  groupType            String   @default("ORGANIZATION")
+  description          String?  @db.Text
+  primaryConstituentId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization      Organization             @relation(fields: [organizationId], references: [id])
+  primaryConstituent Constituent?            @relation("PrimaryConstituentGroup", fields: [primaryConstituentId], references: [id], onDelete: SetNull)
+  members           ConstituentGroupMember[]
+
+  @@index([organizationId, groupType])
+  @@index([primaryConstituentId])
+}
+
+model ConstituentGroupMember {
+  id                String   @id @default(cuid())
+  groupId           String
+  constituentId     String
+  relationshipLabel String?
+  isPrimary         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  group       ConstituentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  constituent Constituent      @relation(fields: [constituentId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, constituentId])
+  @@index([constituentId])
 }
 
 model Household {

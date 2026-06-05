@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   formatCurrency,
   formatDate,
+  getConstituentDisplayName,
   statusColor,
   statusLabel,
   typeLabel,
@@ -49,6 +50,13 @@ interface ConstituentDetail {
   id: string;
   firstName: string;
   lastName: string;
+  displayName?: string | null;
+  organizationName?: string | null;
+  contactFirstName?: string | null;
+  contactLastName?: string | null;
+  contactTitle?: string | null;
+  entityKind?: string | null;
+  organizationCategory?: string | null;
   prefix?: string;
   email?: string;
   email2?: string;
@@ -106,6 +114,25 @@ interface ConstituentDetail {
     description: string;
     createdAt: string;
     user?: { id: string; firstName: string; lastName: string };
+  }>;
+  groupMemberships: Array<{
+    id: string;
+    relationshipLabel?: string | null;
+    isPrimary: boolean;
+    group: {
+      id: string;
+      name: string;
+      groupType: string;
+      primaryConstituentId?: string | null;
+      _count?: { members: number };
+    };
+  }>;
+  primaryForGroups: Array<{
+    id: string;
+    name: string;
+    groupType: string;
+    primaryConstituentId?: string | null;
+    _count?: { members: number };
   }>;
   headOf?: HouseholdData;
   household?: HouseholdData;
@@ -184,12 +211,16 @@ export default function ConstituentDetailPage() {
   const c = constituent;
 
   // Derived identity
-  const fullName = `${c.prefix ? c.prefix + " " : ""}${c.firstName ?? ""}${c.lastName ? " " + c.lastName : ""}`.trim();
+  const displayName = getConstituentDisplayName(c);
+  const fullName = c.entityKind === "ORGANIZATION"
+    ? displayName
+    : `${c.prefix ? c.prefix + " " : ""}${c.firstName ?? ""}${c.lastName ? " " + c.lastName : ""}`.trim() || displayName;
   const initials = isHousehold
     ? ""
-    : `${c.firstName?.[0] ?? ""}${c.lastName?.[0] ?? ""}`.toUpperCase() || "?";
+    : (c.entityKind === "ORGANIZATION" ? `${displayName[0] ?? "?"}` : `${c.firstName?.[0] ?? ""}${c.lastName?.[0] ?? ""}`).toUpperCase() || "?";
   const locationSummary = [c.city, c.state, c.zip].filter(Boolean).join(", ");
   const primaryPhone = c.phone ?? c.mobile ?? c.phone2;
+  const organizationContact = [c.contactFirstName, c.contactLastName].filter(Boolean).join(" ").trim();
 
   // Giving analytics
   const avgGift = c.giftCount > 0 ? Number(c.totalLifetimeGiving) / c.giftCount : 0;
@@ -343,6 +374,11 @@ export default function ConstituentDetailPage() {
                   {(c.employer || c.occupation) && (
                     <p className="mt-1 text-sm text-gray-500">{[c.employer, c.occupation].filter(Boolean).join(" · ")}</p>
                   )}
+                  {c.entityKind === "ORGANIZATION" && (organizationContact || c.contactTitle) ? (
+                    <p className="mt-1 text-sm text-gray-500">
+                      {[organizationContact || null, c.contactTitle || null].filter(Boolean).join(" · ")}
+                    </p>
+                  ) : null}
                   {c.household && !isHousehold && (
                     <p className="mt-0.5 text-xs text-gray-400">
                       Member of{" "}
@@ -525,6 +561,38 @@ export default function ConstituentDetailPage() {
           <aside className="space-y-4">
             <DonorStewardSignalsWidget constituentId={id} />
 
+            {(c.groupMemberships.length > 0 || c.primaryForGroups.length > 0) ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                    <svg className="h-3.5 w-3.5 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5V4H2v16h5m10 0v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6m10 0H7"/></svg>
+                  </div>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Church & Organization Links</h3>
+                </div>
+                <div className="space-y-2">
+                  {c.groupMemberships.map((membership) => (
+                    <div key={membership.id} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <p className="text-sm font-semibold text-gray-900">{membership.group.name}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {[membership.group.groupType.toLowerCase(), membership.relationshipLabel || null, membership.isPrimary ? "primary" : null]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  ))}
+                  {c.primaryForGroups.map((group) => (
+                    <div key={group.id} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                      <p className="text-sm font-semibold text-emerald-950">{group.name}</p>
+                      <p className="mt-0.5 text-xs text-emerald-800">
+                        Leads this {group.groupType.toLowerCase()} group
+                        {group._count?.members ? ` · ${group._count.members} linked` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {/* Next Best Action */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -580,7 +648,7 @@ export default function ConstituentDetailPage() {
         {showGiftModal && (
           <QuickGiftModal
             constituentId={id}
-            constituentName={`${c.firstName} ${c.lastName}`}
+            constituentName={fullName}
             onClose={() => setShowGiftModal(false)}
             onSaved={(donation) => {
               setConstituent((prev) => {

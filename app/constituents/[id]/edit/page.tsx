@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ConstituentForm from "@/app/components/constituents/ConstituentForm";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -46,13 +47,15 @@ export default function EditConstituentPage() {
     return null;
   }
 
+  const displayName = getConstituentDisplayName(constituent);
+
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       <nav className="flex items-center gap-2 text-sm text-gray-500">
         <Link href="/constituents" className="hover:text-green-600 transition-colors">Constituents</Link>
         <span>/</span>
         <Link href={`/constituents/${id}`} className="hover:text-green-600 transition-colors">
-          {constituent.firstName as string} {constituent.lastName as string}
+          {displayName}
         </Link>
         <span>/</span>
         <span className="text-gray-900 font-medium">Edit</span>
@@ -61,7 +64,7 @@ export default function EditConstituentPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Edit Constituent</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Update profile information for {constituent.firstName as string} {constituent.lastName as string}.
+          Update profile information for {displayName}.
         </p>
       </div>
 
