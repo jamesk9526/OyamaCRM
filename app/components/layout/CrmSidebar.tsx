@@ -518,7 +518,7 @@ export default function CrmSidebar({
       style={donorTintStyle}
     >
       {hasBrandHeader ? (
-        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-900/65 bg-[#0b281d]" : "border-slate-200 bg-white"} ${donorCompact ? "px-3 py-2.5" : "px-3 py-3"}`}>
+        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-900/65 bg-[#0b281d]" : "border-slate-200 bg-white"} ${donorCompact ? "px-2.5 py-2" : "px-2.5 py-2.5"}`}>
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               {isCollapsed ? brandHeaderCollapsed : brandHeader}
@@ -529,7 +529,7 @@ export default function CrmSidebar({
                 aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 aria-expanded={!isCollapsed}
                 onClick={toggleSidebar}
-                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-all hover:-translate-y-px ${styles.collapseButton}`}
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-all hover:-translate-y-px ${styles.collapseButton}`}
               >
                 {isCollapsed ? (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -545,7 +545,7 @@ export default function CrmSidebar({
           </div>
         </div>
       ) : null}
-      <div className={`flex-1 overflow-y-auto ${isDonorChrome ? "px-3 py-4" : donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+      <div className={`flex-1 overflow-y-auto ${isDonorChrome ? "px-2.5 py-3" : donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
         {variant === "donor" ? (
           <div className="mb-3">
             {isCollapsed ? (
@@ -569,7 +569,7 @@ export default function CrmSidebar({
                 </svg>
               </button>
             ) : (
-              <div className="rounded-xl border border-emerald-800/65 bg-[#08231b] px-2 py-2">
+              <div className="rounded-xl border border-emerald-800/65 bg-[#08231b] px-2 py-1.5">
                 <div className="relative">
                   <svg className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-emerald-200/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -579,7 +579,7 @@ export default function CrmSidebar({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search CRM tools (email, donor, reports...)"
-                    className="h-9 w-full rounded-lg border border-emerald-800/70 bg-[#0b2b21] pl-9 pr-2 text-sm text-emerald-50 placeholder:text-emerald-200/55 outline-none focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/20"
+                    className="h-8 w-full rounded-lg border border-emerald-800/70 bg-[#0b2b21] pl-9 pr-2 text-[13px] text-emerald-50 placeholder:text-emerald-200/55 outline-none focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/20"
                     aria-label="Search donor CRM sidebar tools"
                   />
                 </div>
@@ -617,7 +617,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`${isDonorChrome ? "mb-2.5" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
+              className={`${isDonorChrome ? "mb-2" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="group/section relative px-2 py-1.5" aria-hidden="true">
@@ -627,7 +627,7 @@ export default function CrmSidebar({
                   </span>
                 </div>
               ) : (
-                  <div className={isDonorChrome ? "px-2 py-1" : "px-1.5 py-0.5"}>
+                  <div className={isDonorChrome ? "px-1.5 py-0.5" : "px-1.5 py-0.5"}>
                   {group.collapsible ? (
                     <button
                       type="button"
@@ -637,7 +637,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`w-full flex items-center justify-between px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
+                      className={`w-full flex items-center justify-between px-1 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] transition-colors ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg
@@ -660,7 +660,7 @@ export default function CrmSidebar({
 
               {groupIsOpen && (
                 <nav
-                  className={`space-y-0 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-3 border-l border-emerald-900/60 pl-2.5" : ""}`}
+                  className={`space-y-0 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-2.5 border-l border-emerald-900/60 pl-2" : ""}`}
                   aria-label={group.label}
                 >
                   {group.items.map((item) => {
@@ -672,7 +672,7 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-8 justify-center rounded-xl px-1.5 py-1" : isDonorChrome ? "min-h-9 justify-start rounded-lg px-2.5 py-2" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-8 justify-center rounded-xl px-1 py-1" : isDonorChrome ? "min-h-8 justify-start rounded-lg px-2 py-1.5" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive}`}
                         title={isCollapsed ? item.label : undefined}
                       >
                         {!isCollapsed && isDonorChrome ? (
@@ -683,7 +683,7 @@ export default function CrmSidebar({
                         ) : null}
 
                         <span
-                          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
+                          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
                           aria-hidden="true"
                         >
                           {item.icon}

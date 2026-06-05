@@ -55,6 +55,7 @@ const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
 const LETTER_PUBLISH_HISTORY_PLUGIN_KEY = "letters-template-publish-history";
 const LETTER_BRANDING_PLUGIN_KEY = "organization-branding";
 const STEWARD_AI_PLUGIN_KEY = "steward_ai";
+const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
 const LETTER_PUBLISH_HISTORY_LIMIT = 200;
 const PDF_FALLBACK_MODES = ["BROWSER_PRINT", "SERVER_RENDER"] as const;
 const LETTER_MEDIA_EXTENSIONS: Record<string, string> = {
@@ -110,6 +111,7 @@ interface LetterPdfPresetContext {
     signerName: string;
     signerTitle?: string | null;
     closingPhrase?: string | null;
+    signatureImageUrl?: string | null;
     typedSignature?: string | null;
     email?: string | null;
     phone?: string | null;
@@ -896,7 +898,7 @@ function buildMetadataWithPdfExport(
 }
 
 /** Converts merged HTML into plain text for deterministic server-side PDF rendering. */
-function htmlToPlainText(value: string): string {
+export function htmlToPlainText(value: string): string {
   const withoutTags = value
     .replace(/\r\n/g, "\n")
     .replace(/<\s*br\s*\/?\s*>/gi, "\n")
@@ -926,7 +928,7 @@ function htmlToPlainText(value: string): string {
   return decoded
     .replace(/[\t\f\v]+/g, " ")
     .replace(/[ ]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n{9,}/g, "\n\n\n\n\n\n\n\n")
     .trim();
 }
 
@@ -956,32 +958,127 @@ function stripHtmlInline(value: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/[ \t\f\v]+/g, " ")
     .replace(/ ?\n ?/g, "\n"))
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n{9,}/g, "\n\n\n\n\n\n\n\n")
     .trim();
 }
 
 type PdfContentBlock =
-  | { kind: "heading"; text: string; level: number }
-  | { kind: "paragraph"; text: string }
-  | { kind: "list"; text: string }
+  | { kind: "heading"; text: string; level: number; lineHeight?: number }
+  | { kind: "paragraph"; text: string; lineHeight?: number }
+  | { kind: "list"; text: string; lineHeight?: number }
   | { kind: "tableRow"; cells: string[]; header: boolean }
-  | { kind: "divider" };
+  | { kind: "divider" }
+  | { kind: "spacer"; height: number; fill?: boolean }
+  | {
+      kind: "image";
+      src: string;
+      alt: string;
+      widthPercent: number;
+      dataUrl?: string;
+      format?: "PNG" | "JPEG" | "WEBP";
+      aspectRatio?: number;
+    };
+
+function readHtmlAttribute(attributes: string, name: string): string {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = attributes.match(new RegExp(`${escapedName}\\s*=\\s*["']([^"']*)["']`, "i"));
+  return match?.[1]?.trim() ?? "";
+}
+
+function parsePdfImageWidth(attributes: string): number {
+  const marker = Number.parseFloat(readHtmlAttribute(attributes, "data-letter-width"));
+  if (Number.isFinite(marker)) return Math.min(100, Math.max(10, marker));
+
+  const percent = attributes.match(/(?:width|max-width)\s*:\s*([0-9]+(?:\.[0-9]+)?)%/i);
+  if (percent) return Math.min(100, Math.max(10, Number.parseFloat(percent[1])));
+  return 100;
+}
+
+function parsePdfImageBlock(attributes: string): PdfContentBlock | null {
+  const src = readHtmlAttribute(attributes, "src");
+  if (!src) return null;
+  return {
+    kind: "image",
+    src,
+    alt: readHtmlAttribute(attributes, "alt"),
+    widthPercent: parsePdfImageWidth(attributes),
+  };
+}
+
+function parsePdfLineHeight(attributes: string, innerHtml = ""): number | undefined {
+  const match = `${attributes} ${innerHtml}`.match(/line-height\s*:\s*([0-9]+(?:\.[0-9]+)?)/i);
+  if (!match) return undefined;
+  const value = Number.parseFloat(match[1]);
+  return Number.isFinite(value) ? Math.min(2.5, Math.max(1, value)) : undefined;
+}
+
+function parsePdfSpacer(attributes: string, innerHtml: string): PdfContentBlock | null {
+  const marker = attributes.match(/data-letter-spacer\s*=\s*["']([^"']+)["']/i)?.[1]?.trim().toLowerCase();
+  if (marker === "fill") return { kind: "spacer", height: 0, fill: true };
+
+  const markerHeight = marker ? Number.parseFloat(marker) : Number.NaN;
+  const styleHeight = attributes.match(/(?:height|min-height)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(px|pt|in)?/i);
+  const styleValue = styleHeight ? Number.parseFloat(styleHeight[1]) : Number.NaN;
+  const styleUnit = styleHeight?.[2]?.toLowerCase();
+  const stylePoints = Number.isFinite(styleValue)
+    ? styleUnit === "in" ? styleValue * 72 : styleUnit === "px" ? styleValue * 0.75 : styleValue
+    : Number.NaN;
+  const explicitHeight = Number.isFinite(markerHeight) ? markerHeight : stylePoints;
+  if (Number.isFinite(explicitHeight) && explicitHeight > 0) {
+    return { kind: "spacer", height: Math.min(540, Math.max(8, explicitHeight)) };
+  }
+
+  const text = stripHtmlInline(innerHtml);
+  if (text) return null;
+  const breakCount = Array.from(innerHtml.matchAll(/<\s*br\s*\/?\s*>/gi)).length;
+  return { kind: "spacer", height: Math.max(16, breakCount * 16) };
+}
+
+function plainTextToPdfBlocks(value: string): PdfContentBlock[] {
+  const blocks: PdfContentBlock[] = [];
+  const lines = value.replace(/\r\n/g, "\n").split("\n");
+  let blankLines = 0;
+
+  const flushBlankLines = () => {
+    if (blankLines > 0) {
+      blocks.push({ kind: "spacer", height: Math.min(540, blankLines * 16) });
+      blankLines = 0;
+    }
+  };
+
+  for (const line of lines) {
+    const text = line.trim();
+    if (!text) {
+      blankLines += 1;
+      continue;
+    }
+    flushBlankLines();
+    if (/^[-=_]{5,}$/.test(text)) blocks.push({ kind: "divider" });
+    else blocks.push({ kind: "paragraph", text });
+  }
+  flushBlankLines();
+  return blocks;
+}
 
 /** Converts simple template HTML into PDF layout blocks while preserving common editor formatting. */
-function htmlToPdfBlocks(html: string): PdfContentBlock[] {
+export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   const blocks: PdfContentBlock[] = [];
   const normalized = html
     .replace(/\r\n/g, "\n")
     .replace(/<\s*\/\s*(div|section|article|blockquote)\s*>/gi, "</p>")
-    .replace(/<\s*(div|section|article|blockquote)\b[^>]*>/gi, "<p>");
+    .replace(/<\s*(div|section|article|blockquote)\b([^>]*)>/gi, "<p$2>");
 
-  const pattern = /<\s*(h[1-3]|p|li|tr)\b[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*hr\b[^>]*>/gi;
+  const pattern = /<\s*(h[1-3]|p|li|tr)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*img\b([^>]*)>|<\s*hr\b[^>]*>/gi;
   let match: RegExpExecArray | null = pattern.exec(normalized);
   while (match) {
-    const tag = (match[1] ?? "hr").toLowerCase();
-    const inner = match[2] ?? "";
+    const tag = (match[1] ?? (match[4] !== undefined ? "img" : "hr")).toLowerCase();
+    const attributes = match[2] ?? match[4] ?? "";
+    const inner = match[3] ?? "";
     if (tag === "hr") {
       blocks.push({ kind: "divider" });
+    } else if (tag === "img") {
+      const image = parsePdfImageBlock(attributes);
+      if (image) blocks.push(image);
     } else if (tag === "tr") {
       const cells = Array.from(inner.matchAll(/<\s*(td|th)\b[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>/gi))
         .map((cell) => stripHtmlInline(cell[2] ?? ""))
@@ -991,10 +1088,20 @@ function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       }
     } else {
       const text = stripHtmlInline(inner);
+      const lineHeight = parsePdfLineHeight(attributes, inner);
       if (text) {
-        if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2 });
-        else if (tag === "li") blocks.push({ kind: "list", text });
-        else blocks.push({ kind: "paragraph", text });
+        if (/^[-=_]{5,}$/.test(text)) blocks.push({ kind: "divider" });
+        else if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2, lineHeight });
+        else if (tag === "li") blocks.push({ kind: "list", text, lineHeight });
+        else blocks.push({ kind: "paragraph", text, lineHeight });
+      } else {
+        const nestedImageAttributes = inner.match(/<\s*img\b([^>]*)>/i)?.[1];
+        const nestedImage = nestedImageAttributes ? parsePdfImageBlock(nestedImageAttributes) : null;
+        if (nestedImage) blocks.push(nestedImage);
+        else {
+          const spacer = parsePdfSpacer(attributes, inner);
+          if (spacer) blocks.push(spacer);
+        }
       }
     }
     match = pattern.exec(normalized);
@@ -1002,10 +1109,18 @@ function htmlToPdfBlocks(html: string): PdfContentBlock[] {
 
   if (blocks.length === 0) {
     const plain = htmlToPlainText(html);
-    return plain ? plain.split(/\n{2,}/g).map((text) => ({ kind: "paragraph", text } as PdfContentBlock)) : [];
+    return plain ? plainTextToPdfBlocks(plain) : [];
   }
 
   return blocks;
+}
+
+async function hydratePdfImageBlocks(blocks: PdfContentBlock[]): Promise<PdfContentBlock[]> {
+  return Promise.all(blocks.map(async (block) => {
+    if (block.kind !== "image") return block;
+    const image = await loadBrandingLogoDataUrl(block.src);
+    return image ? { ...block, dataUrl: image.dataUrl, format: image.format } : block;
+  }));
 }
 
 function readTextConfig(config: unknown, key: string): string {
@@ -1389,14 +1504,27 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   if (!signature) return blocks;
   const next = [...blocks];
   if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
-  next.push({ kind: "paragraph", text: signature.typedSignature || signature.signerName });
+  if (signature.signatureImageUrl) {
+    next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 34 });
+  } else {
+    next.push({ kind: "paragraph", text: signature.typedSignature || signature.signerName });
+  }
   if (signature.signerName && signature.typedSignature && signature.typedSignature !== signature.signerName) {
+    next.push({ kind: "paragraph", text: signature.signerName });
+  } else if (signature.signatureImageUrl && signature.signerName) {
     next.push({ kind: "paragraph", text: signature.signerName });
   }
   if (signature.signerTitle) next.push({ kind: "paragraph", text: signature.signerTitle });
   const contact = [signature.email, signature.phone].filter(Boolean).join(" | ");
   if (contact) next.push({ kind: "paragraph", text: contact });
   return next;
+}
+
+function bodyContainsSignature(html: string, signature?: LetterPdfPresetContext["signatureBlock"]): boolean {
+  if (!signature) return false;
+  if (signature.signatureImageUrl && html.includes(signature.signatureImageUrl)) return true;
+  const plain = htmlToPlainText(html).toLowerCase();
+  return Boolean(signature.signerName && plain.includes(signature.signerName.trim().toLowerCase()));
 }
 
 function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number }): void {
@@ -1414,7 +1542,50 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     cursorY = contentTop;
   };
 
-  const writeText = (text: string, fontSize: number, fontStyle: "normal" | "bold" = "normal", marginAfter = 8, indent = 0) => {
+  const textHeight = (text: string, fontSize: number, lineHeightMultiplier = 1.38, indent = 0) => {
+    const trimmed = text.trim();
+    if (!trimmed) return 0;
+    doc.setFontSize(fontSize);
+    const width = maxTextWidth - indent;
+    const lines = doc.splitTextToSize(trimmed, width) as string[];
+    const lineHeight = Math.max(fontSize, Math.round(fontSize * lineHeightMultiplier));
+    return Math.max(1, lines.length) * lineHeight;
+  };
+
+  const estimatedBlockHeight = (block: PdfContentBlock): number => {
+    if (block.kind === "heading") {
+      const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
+      return textHeight(block.text, size, block.lineHeight) + 10;
+    }
+    if (block.kind === "list") return textHeight(`• ${block.text}`, 10.5, block.lineHeight, 10) + 6;
+    if (block.kind === "divider") return 18;
+    if (block.kind === "spacer") return block.fill ? 0 : block.height;
+    if (block.kind === "image") {
+      const width = maxTextWidth * (block.widthPercent / 100);
+      if (block.dataUrl) {
+        try {
+          const properties = doc.getImageProperties(block.dataUrl) as { width?: number; height?: number };
+          const sourceWidth = Number(properties.width ?? 0);
+          const sourceHeight = Number(properties.height ?? 0);
+          if (sourceWidth > 0 && sourceHeight > 0) return width * (sourceHeight / sourceWidth) + 8;
+        } catch {
+          // Fall through to the conservative image-height estimate.
+        }
+      }
+      return block.aspectRatio ? width / block.aspectRatio + 8 : width * 0.35 + 8;
+    }
+    if (block.kind === "tableRow") return 24;
+    return textHeight(block.text, 11, block.lineHeight) + 8;
+  };
+
+  const writeText = (
+    text: string,
+    fontSize: number,
+    fontStyle: "normal" | "bold" = "normal",
+    marginAfter = 8,
+    indent = 0,
+    lineHeightMultiplier = 1.38,
+  ) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     doc.setFont("helvetica", fontStyle);
@@ -1422,7 +1593,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     doc.setTextColor(15, 23, 42);
     const width = maxTextWidth - indent;
     const lines = doc.splitTextToSize(trimmed, width) as string[];
-    const lineHeight = Math.max(13, Math.round(fontSize * 1.38));
+    const lineHeight = Math.max(fontSize, Math.round(fontSize * lineHeightMultiplier));
     for (const line of lines) {
       ensurePageSpace(lineHeight);
       doc.text(line, marginX + indent, cursorY);
@@ -1431,17 +1602,38 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     cursorY += marginAfter;
   };
 
-  for (const block of blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock]) {
+  const renderedBlocks = blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock];
+  renderedBlocks.forEach((block, index) => {
     if (block.kind === "heading") {
       const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
-      writeText(block.text, size, "bold", 10);
+      writeText(block.text, size, "bold", 10, 0, block.lineHeight);
     } else if (block.kind === "list") {
-      writeText(`• ${block.text}`, 10.5, "normal", 6, 10);
+      writeText(`• ${block.text}`, 10.5, "normal", 6, 10, block.lineHeight);
     } else if (block.kind === "divider") {
       ensurePageSpace(18);
       doc.setDrawColor(203, 213, 225);
       doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
       cursorY += 18;
+    } else if (block.kind === "spacer") {
+      if (block.fill) {
+        const remainingHeight = renderedBlocks.slice(index + 1).reduce((total, nextBlock) => total + estimatedBlockHeight(nextBlock), 0);
+        const bottomAlignedY = pageHeight - marginBottom - remainingHeight;
+        if (bottomAlignedY > cursorY) cursorY = bottomAlignedY;
+      } else {
+        ensurePageSpace(block.height);
+        cursorY += block.height;
+      }
+    } else if (block.kind === "image") {
+      if (!block.dataUrl || !block.format) return;
+      const properties = doc.getImageProperties(block.dataUrl) as { width?: number; height?: number };
+      const sourceWidth = Number(properties.width ?? 0);
+      const sourceHeight = Number(properties.height ?? 0);
+      if (sourceWidth <= 0 || sourceHeight <= 0) return;
+      const imageWidth = maxTextWidth * (block.widthPercent / 100);
+      const imageHeight = imageWidth * (sourceHeight / sourceWidth);
+      ensurePageSpace(imageHeight + 8);
+      doc.addImage(block.dataUrl, block.format, marginX, cursorY, imageWidth, imageHeight);
+      cursorY += imageHeight + 8;
     } else if (block.kind === "tableRow") {
       const rowHeight = 24;
       ensurePageSpace(rowHeight);
@@ -1457,13 +1649,13 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       });
       cursorY += rowHeight;
     } else {
-      writeText(block.text, 11, "normal", 8);
+      writeText(block.text, 11, "normal", 8, 0, block.lineHeight);
     }
-  }
+  });
 }
 
 /** Renders one generated letter into PDF bytes using jsPDF server-side. */
-async function renderGeneratedLetterPdf(params: {
+export async function renderGeneratedLetterPdf(params: {
   templateName: string;
   subject: string;
   constituentName: string;
@@ -1476,10 +1668,10 @@ async function renderGeneratedLetterPdf(params: {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
 
-  const blocks = appendSignatureBlocks(
-    stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.recipient),
-    params.presets.signatureBlock,
-  );
+  const bodyBlocks = stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.recipient);
+  const blocks = await hydratePdfImageBlocks(bodyContainsSignature(params.mergedPrintBody || "", params.presets.signatureBlock)
+    ? bodyBlocks
+    : appendSignatureBlocks(bodyBlocks, params.presets.signatureBlock));
   renderPdfContentBlocks(doc, blocks, {
     startY: 150,
   });
@@ -1503,15 +1695,15 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
 
-  items.forEach((item, index) => {
+  for (const [index, item] of items.entries()) {
     if (index > 0) {
       doc.addPage();
     }
     const startPage = doc.getNumberOfPages();
-    const blocks = appendSignatureBlocks(
-      stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.recipient),
-      item.presets.signatureBlock,
-    );
+    const bodyBlocks = stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.recipient);
+    const blocks = await hydratePdfImageBlocks(bodyContainsSignature(item.mergedPrintBody || "", item.presets.signatureBlock)
+      ? bodyBlocks
+      : appendSignatureBlocks(bodyBlocks, item.presets.signatureBlock));
     renderPdfContentBlocks(doc, blocks, {
       startY: 150,
     });
@@ -1520,7 +1712,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
       startPage,
       endPage,
     });
-  });
+  }
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -2029,6 +2221,10 @@ router.post("/media", requirePermission("letters.edit"), async (req, res) => {
     res.status(400).json({ error: { code: "INVALID_MEDIA_TYPE", message: "Only image uploads are supported for printables." } });
     return;
   }
+  if ((purpose === "signature" || purpose === "editor") && !["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(mimeType)) {
+    res.status(400).json({ error: { code: "UNSUPPORTED_PDF_IMAGE_TYPE", message: "Letter and signature images must be PNG, JPG, or WEBP so they render in generated PDFs." } });
+    return;
+  }
 
   const normalizedData = dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64;
   const buffer = Buffer.from(normalizedData, "base64");
@@ -2095,7 +2291,13 @@ router.get("/templates", requirePermission("letters.view"), async (req, res) => 
       orderBy: { updatedAt: "desc" },
     });
 
-    res.json(templates);
+    res.json(templates.map((template) => ({
+      ...template,
+      aiAssisted: Boolean(
+        template.printBody?.includes(LETTER_TEMPLATE_AI_ASSISTED_MARKER)
+        || template.emailBody?.includes(LETTER_TEMPLATE_AI_ASSISTED_MARKER),
+      ),
+    })));
   } catch (error) {
     if (isSchemaDriftError(error)) {
       res.status(503).json({
@@ -2169,11 +2371,11 @@ router.post("/templates/apply-default-branding", requirePermission("letters.edit
     prisma.letterSignatureBlock.findFirst({ where: { organizationId, isDefault: true, isActive: true }, select: { id: true } }),
   ]);
 
-  if (!defaultHeader || !defaultFooter || !defaultSignature) {
+  if (!defaultHeader || !defaultFooter) {
     res.status(400).json({
       error: {
         code: "DEFAULT_BRANDING_INCOMPLETE",
-        message: "Set an active default header, footer, and signature before applying defaults to templates.",
+        message: "Set an active default header and footer before applying defaults to templates.",
       },
     });
     return;
@@ -2187,7 +2389,7 @@ router.post("/templates/apply-default-branding", requirePermission("letters.edit
     data: {
       headerPresetId: defaultHeader.id,
       footerPresetId: defaultFooter.id,
-      signatureBlockId: defaultSignature.id,
+      ...(defaultSignature ? { signatureBlockId: defaultSignature.id } : {}),
       updatedByUserId: userId,
     },
   });
@@ -2201,7 +2403,7 @@ router.post("/templates/apply-default-branding", requirePermission("letters.edit
       updatedCount: result.count,
       headerPresetId: defaultHeader.id,
       footerPresetId: defaultFooter.id,
-      signatureBlockId: defaultSignature.id,
+      signatureBlockId: defaultSignature?.id ?? null,
     },
   });
 
@@ -2211,7 +2413,7 @@ router.post("/templates/apply-default-branding", requirePermission("letters.edit
     applied: {
       headerPresetId: defaultHeader.id,
       footerPresetId: defaultFooter.id,
-      signatureBlockId: defaultSignature.id,
+      signatureBlockId: defaultSignature?.id ?? null,
     },
   });
 });
@@ -2504,7 +2706,6 @@ router.post("/templates/:id/publish", requirePermission("letters.edit"), async (
 
   if (!template.headerPresetId) blockers.push("Select a header preset before publishing.");
   if (!template.footerPresetId) blockers.push("Select a footer preset before publishing.");
-  if (!template.signatureBlockId) blockers.push("Select a signature block before publishing.");
 
   if (template.headerPresetId && (!template.headerPreset || !template.headerPreset.isActive)) {
     blockers.push("Selected header preset is missing or inactive.");
@@ -2734,6 +2935,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
   const draftHeaderPresetId = typeof draftInput?.headerPresetId === "string" ? draftInput.headerPresetId.trim() : "";
   const draftFooterPresetId = typeof draftInput?.footerPresetId === "string" ? draftInput.footerPresetId.trim() : "";
   const draftSignatureBlockId = typeof draftInput?.signatureBlockId === "string" ? draftInput.signatureBlockId.trim() : "";
+  const hasDraftSignatureOverride = Boolean(draftInput && Object.prototype.hasOwnProperty.call(draftInput, "signatureBlockId"));
   const previewTemplate = {
     id: template.id,
     name: typeof draftInput?.name === "string" && draftInput.name.trim() ? draftInput.name.trim() : template.name,
@@ -2779,8 +2981,10 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       draftFooterPresetId
         ? prisma.letterFooterPreset.findFirst({ where: { id: draftFooterPresetId, organizationId } })
         : Promise.resolve(template.footerPreset),
-      draftSignatureBlockId
-        ? prisma.letterSignatureBlock.findFirst({ where: { id: draftSignatureBlockId, organizationId } })
+      hasDraftSignatureOverride
+        ? draftSignatureBlockId
+          ? prisma.letterSignatureBlock.findFirst({ where: { id: draftSignatureBlockId, organizationId } })
+          : Promise.resolve(null)
         : Promise.resolve(template.signatureBlock),
     ]);
 

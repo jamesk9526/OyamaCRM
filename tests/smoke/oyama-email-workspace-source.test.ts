@@ -41,6 +41,7 @@ describe("OyamaEmail workspace source contract", () => {
 
   it("keeps the workspace API-backed and includes core sidebar navigation actions", () => {
     const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
+    const builder = read("app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx");
 
     expect(workspace).toContain("/api/email-campaigns?limit=100");
     expect(workspace).toContain("/api/email-campaigns/stats");
@@ -63,6 +64,17 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Analytics");
     expect(workspace).toContain("Activity Log");
     expect(workspace).toContain("Campaign Command Center");
+    expect(workspace).toContain("About This Flow");
+    expect(workspace).toContain("Templates are reusable content. Campaigns are one send instance");
+    expect(workspace).toContain("Choose Audience Source");
+    expect(workspace).toContain("Test Recipient Email");
+    expect(workspace).toContain("Schedule Campaign");
+    expect(workspace).toContain("Send Test Email");
+    expect(workspace).toContain("My Templates");
+    expect(workspace).toContain("Shared Templates");
+    expect(workspace).toContain("AI-assisted");
+    expect(builder).toContain("Inline Editing");
+    expect(builder).toContain("Open Advanced Editor");
   });
 
   it("keeps legacy communications routes redirected into OyamaEmail", () => {
@@ -75,6 +87,19 @@ describe("OyamaEmail workspace source contract", () => {
     expect(communicationsNew).toContain('redirect("/oyama-email/campaigns/new")');
     expect(communicationsTemplateLibrary).toContain('redirect("/oyama-email/templates")');
     expect(communicationsCampaign).toContain("/oyama-email/campaigns/");
+  });
+
+  it("supports donation multi-select temporary segments for email templates", () => {
+    const donationsPage = read("app/donations/page.tsx");
+    const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
+
+    expect(donationsPage).toContain("Create Email for Selected Donors");
+    expect(donationsPage).toContain("oyama-email:temporary-recipient-segment:");
+    expect(donationsPage).toContain("/oyama-email/campaigns/new?temporarySegmentId=");
+    expect(workspace).toContain("readTemporaryEmailSegment");
+    expect(workspace).toContain("Temporary segment from selected donations");
+    expect(workspace).toContain("not stored on the campaign for queueing or scheduling yet");
+    expect(workspace).toContain("recipientEmails");
   });
 
   it("does not include fake/demo markers in the production OyamaEmail workspace source", () => {

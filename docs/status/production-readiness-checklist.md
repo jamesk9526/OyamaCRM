@@ -42,7 +42,9 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 | `/oyama-letters` opens a dedicated Letter & Document Studio shell outside the DonorCRM page chrome | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/layout/AppShell.tsx` |
 | Template Library, Canvas Builder, Publish Workspace, Generate Letters, queue, and settings routes use live letters APIs | Working | `app/oyama-letters/page.tsx`, `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx` |
 | Generate Letters multi-recipient batch flow validates, generates, opens PDFs, and routes print queue metadata with workflow policy | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/e2e/oyama-letters-batch.e2e.mjs` |
-| Canvas Builder block, format, and layout controls update real template content | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Canvas Builder block, format, and layout controls update real template content, including line height, dividers, preserved white space, and push-to-bottom layout | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/unit/letters-pdf-layout.test.ts` |
+| Uploaded letter images resize and uploaded signature images render in server PDFs | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterSignaturesManager.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` |
+| Selected donations hand off to OyamaLetters as a temporary unique-donor list | Working | `app/donations/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
 | Letters settings imports global organization/branding values into Letters-only header/footer presets | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts` |
 | Existing live letters backend is bound into the refreshed shell UI | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` |
 | Workspace switcher exposes OyamaLetters as its own entry | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts` |
@@ -61,7 +63,13 @@ Notes:
 | Legacy communications email entry routes redirect into OyamaEmail routes | Working | `app/communications/page.tsx`, `app/communications/new/page.tsx`, `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/log/page.tsx`, `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/library/campaigns/page.tsx`, `app/communications/[campaignId]/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` |
 | Campaigns workspace supports board + calendar planning, drag/reschedule, and status-driven command-center actions backed by API endpoints | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/email-campaigns.ts`, `tests/api/email-campaign-workflow.api.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` |
 | Send lifecycle uses provider-accepted events (no simulated bounce fallback), exposes failed-recipient truth in queue/progress summaries, and has webhook idempotency coverage | Working | `server/src/routes/email-campaigns.ts`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/api/email-campaign-workflow.api.test.ts` |
+| Donation multi-select temporary email segment handoff | Partially Working | `app/donations/page.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
 | Sidebar navigation enters OyamaEmail as the primary donor email tool | Working | `app/components/layout/sidebar-configs.tsx` |
+
+Notes:
+
+- Temporary donation email segments support template selection, audience validation, and confirmed immediate send from the campaign wizard.
+- Queue/schedule is intentionally disabled for explicit temporary/manual/list audiences because those recipient selections are not yet persisted on the campaign record. Persisted segment audiences remain the scheduled-send path.
 
 ## Status Definitions
 

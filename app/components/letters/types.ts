@@ -20,6 +20,19 @@ export interface LetterTemplateSummary {
   status: string;
   description?: string | null;
   updatedAt: string;
+  aiAssisted?: boolean;
+  createdBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  updatedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
   _count?: {
     generatedLetters?: number;
   };

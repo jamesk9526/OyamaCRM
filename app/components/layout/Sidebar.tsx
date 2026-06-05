@@ -41,8 +41,8 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
       } : undefined}
       brandHeader={<CrmBrandLockup moduleLabel="Donor CRM" tone="light" className="w-full" />}
       brandHeaderCollapsed={<CrmBrandLockup moduleLabel="Donor CRM" tone="light" compact />}
-      expandedWidthClass="w-[296px]"
-      collapsedWidthClass="w-[96px]"
+      expandedWidthClass="w-[272px]"
+      collapsedWidthClass="w-[84px]"
       organizationLabel="Oyama Organization"
       onCollapsedChange={onCollapsedChange}
     />

@@ -1,6 +1,6 @@
 # How To Use Letters & Printables
 
-Date: May 19, 2026
+Date: June 4, 2026
 
 ## Primary Journey
 
@@ -38,6 +38,29 @@ Use the left insert panel for content blocks:
 - Organization Info
 - Campaign Info
 - Event Info
+
+After inserting an image, click it in the canvas and open `Block Settings`. Use `Selected Image Size` to choose a preset width or adjust the width slider. PNG, JPG, and WEBP files are uploaded to Letters media storage and render in generated PDFs.
+
+## Signature Blocks
+
+Open Branding Signatures and choose `New` or an existing signature. The signature visual builder opens in a modal with:
+
+- Draw and Upload modes.
+- A live rendered preview.
+- Closing phrase, signer details, and typed fallback.
+- Default and Active controls.
+
+Use PNG, JPG, or WEBP for uploaded signatures. Selecting a signature in a letter template attaches it as an optional end-of-letter block.
+
+## Send A Letter To Selected Donation Donors
+
+1. Open Donations.
+2. Select multiple donation rows, or choose `Select Visible Monthly Donors`.
+3. Choose `Create Letters for Selected Donors`.
+4. OyamaLetters opens with a temporary list of the unique selected donors.
+5. Choose a template, review recipients and donation context, then generate.
+
+The temporary list lasts for the current browser tab session and does not create a permanent CRM segment or send anything automatically.
 
 ## Format Text
 

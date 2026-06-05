@@ -31,6 +31,13 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("insertTable");
     expect(workspace).toContain("insertSignature");
     expect(workspace).toContain("applyDefaultHeader");
+    expect(workspace).toContain("applyLineHeight");
+    expect(workspace).toContain("insertFillSpace");
+    expect(workspace).toContain("Push to Bottom");
+    expect(workspace).toContain("Signature (optional)");
+    expect(workspace).toContain("resizeSelectedImage");
+    expect(workspace).toContain("Selected Image Size");
+    expect(workspace).toContain('purpose: "editor"');
     expect(workspace).not.toContain("<WorkspaceRibbon");
     expect(workspace).not.toContain("RibbonTab");
   });
@@ -41,7 +48,43 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("/api/letters/templates");
     expect(workspace).toContain("/api/letters/merge-fields");
     expect(workspace).toContain("/api/letters/workflow-settings");
+    expect(workspace).toContain("Generate Letters");
+    expect(workspace).toContain("Print & Mail Queue");
+    expect(workspace).toContain("Letters How To");
+    expect(workspace).toContain("My Templates");
+    expect(workspace).toContain("Team Templates");
+    expect(workspace).toContain("AI-assisted");
     expect(workspace).not.toContain("mockDonor");
     expect(workspace).not.toContain("fake");
+  });
+
+  it("keeps signature blocks optional across publishing and donation handoff", () => {
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersRoute = read("server/src/routes/letters.ts");
+    const donationModal = read("app/components/donations/LetterFromTemplateModal.tsx");
+
+    expect(workspace).toContain("Signature (optional)");
+    expect(lettersRoute).not.toContain('blockers.push("Select a signature block before publishing.")');
+    expect(lettersRoute).toContain("hasDraftSignatureOverride");
+    expect(donationModal).not.toContain("Boolean(template.signatureBlockId)");
+  });
+
+  it("uses a modal signature visual builder and donation temporary-list handoff", () => {
+    const signatureManager = read("app/components/letters/LetterSignaturesManager.tsx");
+    const donationsPage = read("app/donations/page.tsx");
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersRoute = read("server/src/routes/letters.ts");
+
+    expect(signatureManager).toContain("Signature Visual Builder");
+    expect(signatureManager).toContain("Rendered Preview");
+    expect(signatureManager).toContain('purpose: "signature"');
+    expect(donationsPage).toContain("Create Letters for Selected Donors");
+    expect(donationsPage).toContain("Select Visible Monthly Donors");
+    expect(donationsPage).toContain("oyama-letters:temporary-recipient-list:");
+    expect(workspace).toContain("readTemporaryRecipientList");
+    expect(workspace).toContain("How to use this step");
+    expect(workspace).toContain("Search recipients by name, email, or address");
+    expect(lettersRoute).toContain("signature.signatureImageUrl");
+    expect(lettersRoute).toContain("UNSUPPORTED_PDF_IMAGE_TYPE");
   });
 });

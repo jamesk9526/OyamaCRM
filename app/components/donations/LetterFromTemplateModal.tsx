@@ -57,7 +57,7 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
       try {
         const rows = await apiFetch<LetterTemplateOption[]>("/api/letters/templates?status=ACTIVE");
         const ready = (rows ?? []).filter((template) => {
-          return template.status === "ACTIVE" && Boolean(template.headerPresetId) && Boolean(template.footerPresetId) && Boolean(template.signatureBlockId);
+          return template.status === "ACTIVE" && Boolean(template.headerPresetId) && Boolean(template.footerPresetId);
         });
         if (!cancelled) setTemplates(ready);
       } catch (requestError) {
@@ -177,7 +177,7 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-10 text-center text-sm text-gray-500">
                   {search
                     ? "No letter templates match your search."
-                    : "No published and generation-ready templates found. Publish a template with header, footer, and signature in Letters & Printables first."}
+                    : "No published and generation-ready templates found. Publish a template with a header and footer in Letters & Printables first."}
                 </div>
               ) : (
                 <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">

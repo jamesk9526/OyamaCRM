@@ -1186,6 +1186,16 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     };
   }, [dirty, loading, saveTemplate, draft]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty && !saving && !autosaving) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [autosaving, dirty, saving]);
+
   const setDraftField = useCallback(<K extends keyof BuilderDraft>(field: K, value: BuilderDraft[K]) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
     setDirty(true);
@@ -1801,7 +1811,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             {status === "SENT" ? "Published" : "Draft"}
           </span>
           <span className="hidden flex-none text-xs text-slate-400 xl:block">
-            {autosaving ? "Saving…" : dirty ? "Unsaved changes" : formatLastSaved(lastSavedAt)}
+            {autosaving ? "Saving draft…" : dirty ? "Unsaved changes - autosave active" : formatLastSaved(lastSavedAt)}
           </span>
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -2084,7 +2094,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           ) : null}
                         </div>
                         <article
-                          draggable
+                          draggable={!isSelected}
                           onClick={() => setSelectedBlockId(block.id)}
                           onDoubleClick={() => {
                             setSelectedBlockId(block.id);
@@ -2131,7 +2141,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                                   setSelectedBlockId(block.id);
                                   setBlockInspectorModalOpen(true);
                                 }}
-                                title="Edit block"
+                                title="Open advanced editor"
                                 className="flex h-8 w-8 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50"
                               >
                                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
@@ -2164,6 +2174,38 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           ) : null}
                           <div className="px-6 py-4" style={templateTextStyle}>
                             <CanvasBlockPreview block={block} />
+                            {isSelected ? (
+                              <div className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Inline Editing</p>
+                                    <p className="text-xs text-slate-500">Compose and adjust this block directly here. Use the advanced editor only for deeper controls.</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setBlockInspectorModalOpen(true);
+                                    }}
+                                    className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Advanced Editor
+                                  </button>
+                                </div>
+                                <BlockInspector
+                                  block={block}
+                                  template={draft.template}
+                                  branding={globalBranding}
+                                  mergeFieldGroups={mergeFieldGroups}
+                                  onChange={(patch) => updateBlock(block.id, (current) => ({ ...current, ...patch }))}
+                                  onSetInsertTarget={(field) => setInsertTarget({ scope: "block", blockId: block.id, field })}
+                                  onUploadImage={(file) => void uploadImage(block.id, file)}
+                                  uploadingImage={uploadingImage}
+                                  canUpload={Boolean(activeTemplateId)}
+                                  className="mt-0 border-emerald-100 bg-emerald-50/40"
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         </article>
                       </div>
@@ -2343,12 +2385,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2" style={templateTextStyle}>
                     <CanvasBlockPreview block={selectedBlock} />
                   </div>
+                  <p className="mt-3 text-[11px] text-slate-500">Most content editing now happens inline on the canvas after you click a block.</p>
                   <button
                     type="button"
                     onClick={() => setBlockInspectorModalOpen(true)}
                     className="mt-3 inline-flex h-8 items-center rounded-md border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-500"
                   >
-                    Open Block Inspector
+                    Open Advanced Editor
                   </button>
                 </div>
               </div>

@@ -51,11 +51,24 @@ interface BackupItem {
 interface PinStatus {
   hasPin: boolean;
   lastVerifiedAt: string | null;
+  lockedUntil?: string | null;
+  remainingAttempts?: number;
 }
 
 interface PinSession {
   sessionToken: string;
   expiresAt: string;
+}
+
+interface VaultEditFormState {
+  title: string;
+  username: string;
+  website: string;
+  password: string;
+  notes: string;
+  hasMfa: boolean;
+  mfaMethod: string;
+  mfaConnectedTo: string;
 }
 
 const PIN_SESSION_STORAGE_KEY = "oyama.password.pin.session";
@@ -66,7 +79,6 @@ export default function OyamaPasswordWorkspace() {
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [shares, setShares] = useState<ShareItem[]>([]);
-  const [backups, setBackups] = useState<BackupItem[]>([]);
 
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [revealedPassword, setRevealedPassword] = useState("");
@@ -100,18 +112,30 @@ export default function OyamaPasswordWorkspace() {
   const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
 
   const [pinChecking, setPinChecking] = useState(true);
-  const [hasPin, setHasPin] = useState(false);
+  const [pinStatus, setPinStatus] = useState<PinStatus | null>(null);
+  const hasPin = Boolean(pinStatus?.hasPin);
   const [pinInput, setPinInput] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
   const [pinSessionToken, setPinSessionToken] = useState("");
   const [resetPinMode, setResetPinMode] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [securityInfoOpen, setSecurityInfoOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletePinInput, setDeletePinInput] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<VaultEditFormState>({
+    title: "",
+    username: "",
+    website: "",
+    password: "",
+    notes: "",
+    hasMfa: false,
+    mfaMethod: "Authenticator app",
+    mfaConnectedTo: "",
+  });
 
   const selectedEntry = useMemo(
     () => entries.find((entry) => entry.id === selectedEntryId) ?? null,
@@ -122,18 +146,6 @@ export default function OyamaPasswordWorkspace() {
     [selectedEntry?.ownerUserId, users],
   );
   const allShareUsersSelected = availableShareUsers.length > 0 && selectedShareUserIds.length === availableShareUsers.length;
-  const filteredEntries = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const rows = query
-      ? entries.filter((entry) => (
-          entry.title.toLowerCase().includes(query) ||
-          (entry.username ?? "").toLowerCase().includes(query) ||
-          (entry.website ?? "").toLowerCase().includes(query)
-        ))
-      : entries;
-    return [...rows].sort((a, b) => a.title.localeCompare(b.title));
-  }, [entries, search]);
-
   const recentCount = useMemo(
     () => entries.filter((entry) => entry.lastAccessedAt).length,
     [entries],
@@ -186,7 +198,7 @@ export default function OyamaPasswordWorkspace() {
   });
 
   // Nav filter state: which sidebar item is active.
-  type NavFilter = "all" | "favorites" | "recent" | "shared" | "trash";
+  type NavFilter = "all" | "favorites" | "recent" | "shared";
   const [navFilter, setNavFilter] = useState<NavFilter>("all");
   const [newTagInput, setNewTagInput] = useState("");
 
@@ -269,10 +281,9 @@ export default function OyamaPasswordWorkspace() {
       }
 
       try {
-        const backupPayload = await vaultFetch<{ items: BackupItem[] }>("/api/oyama-password/backups");
-        setBackups(backupPayload.items ?? []);
+        await vaultFetch<{ items: BackupItem[] }>("/api/oyama-password/backups");
       } catch {
-        setBackups([]);
+        // Backup access is checked opportunistically so the settings drawer can stay lightweight.
       }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load password vault workspace.");
@@ -304,7 +315,7 @@ export default function OyamaPasswordWorkspace() {
       try {
         const status = await apiFetch<PinStatus>("/api/oyama-password/pin/status");
         if (cancelled) return;
-        setHasPin(Boolean(status.hasPin));
+        setPinStatus(status);
 
         const stored = sessionStorage.getItem(PIN_SESSION_STORAGE_KEY) ?? "";
         if (stored) {
@@ -344,8 +355,8 @@ export default function OyamaPasswordWorkspace() {
     setBusy(true);
     setError(null);
     try {
-      if (!/^\d{4,10}$/.test(pinInput)) {
-        throw new Error("PIN must be 4-10 digits.");
+      if (!/^\d{6,10}$/.test(pinInput)) {
+        throw new Error("PIN must be 6-10 digits.");
       }
       if (pinInput !== pinConfirm) {
         throw new Error("PIN confirmation does not match.");
@@ -358,7 +369,12 @@ export default function OyamaPasswordWorkspace() {
 
       sessionStorage.setItem(PIN_SESSION_STORAGE_KEY, session.sessionToken);
       setPinSessionToken(session.sessionToken);
-      setHasPin(true);
+      setPinStatus((current) => ({
+        hasPin: true,
+        lastVerifiedAt: new Date().toISOString(),
+        lockedUntil: null,
+        remainingAttempts: current?.remainingAttempts ?? 5,
+      }));
       setPinInput("");
       setPinConfirm("");
       setMessage("PIN configured. Vault unlocked.");
@@ -384,10 +400,27 @@ export default function OyamaPasswordWorkspace() {
 
       sessionStorage.setItem(PIN_SESSION_STORAGE_KEY, session.sessionToken);
       setPinSessionToken(session.sessionToken);
+      setPinStatus((current) => current ? {
+        ...current,
+        lastVerifiedAt: new Date().toISOString(),
+        lockedUntil: null,
+        remainingAttempts: 5,
+      } : {
+        hasPin: true,
+        lastVerifiedAt: new Date().toISOString(),
+        lockedUntil: null,
+        remainingAttempts: 5,
+      });
       setPinInput("");
       setMessage("Vault unlocked.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Invalid PIN.");
+      try {
+        const status = await apiFetch<PinStatus>("/api/oyama-password/pin/status");
+        setPinStatus(status);
+      } catch {
+        // Ignore follow-up status refresh failures; preserve the original verify error.
+      }
     } finally {
       setBusy(false);
     }
@@ -397,8 +430,8 @@ export default function OyamaPasswordWorkspace() {
     setBusy(true);
     setError(null);
     try {
-      if (!/^\d{4,10}$/.test(pinInput)) {
-        throw new Error("PIN must be 4-10 digits.");
+      if (!/^\d{6,10}$/.test(pinInput)) {
+        throw new Error("PIN must be 6-10 digits.");
       }
       if (pinInput !== pinConfirm) {
         throw new Error("PIN confirmation does not match.");
@@ -411,7 +444,12 @@ export default function OyamaPasswordWorkspace() {
 
       sessionStorage.setItem(PIN_SESSION_STORAGE_KEY, session.sessionToken);
       setPinSessionToken(session.sessionToken);
-      setHasPin(true);
+      setPinStatus({
+        hasPin: true,
+        lastVerifiedAt: new Date().toISOString(),
+        lockedUntil: null,
+        remainingAttempts: 5,
+      });
       setResetPinMode(false);
       setPinInput("");
       setPinConfirm("");
@@ -500,6 +538,97 @@ export default function OyamaPasswordWorkspace() {
 
   function toggleAllShareUsers() {
     setSelectedShareUserIds(allShareUsersSelected ? [] : availableShareUsers.map((item) => item.id));
+  }
+
+  function resetEditForm() {
+    setEditForm({
+      title: "",
+      username: "",
+      website: "",
+      password: "",
+      notes: "",
+      hasMfa: false,
+      mfaMethod: "Authenticator app",
+      mfaConnectedTo: "",
+    });
+  }
+
+  async function openEditModal() {
+    if (!selectedEntryId || !selectedEntry?.canEdit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = await vaultFetch<{ item: PasswordEntry }>(`/api/oyama-password/entries/${selectedEntryId}/reveal`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      const item = payload.item;
+      setRevealedPassword(item.password ?? "");
+      setRevealedNotes(item.notes ?? "");
+      setRevealedMfa({
+        hasMfa: Boolean(item.hasMfa),
+        method: item.mfaMethod ?? "",
+        connectedTo: item.mfaConnectedTo ?? "",
+      });
+      setEditForm({
+        title: item.title ?? "",
+        username: item.username ?? "",
+        website: item.website ?? "",
+        password: item.password ?? "",
+        notes: item.notes ?? "",
+        hasMfa: Boolean(item.hasMfa),
+        mfaMethod: item.mfaMethod ?? "Authenticator app",
+        mfaConnectedTo: item.mfaConnectedTo ?? "",
+      });
+      setEditOpen(true);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to load vault entry for editing.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveEntryEdits() {
+    if (!selectedEntryId) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (!editForm.title.trim() || !editForm.password.trim()) {
+        throw new Error("Title and password are required.");
+      }
+
+      const payload = await vaultFetch<{ item: PasswordEntry }>(`/api/oyama-password/entries/${selectedEntryId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: editForm.title,
+          username: editForm.username || null,
+          website: editForm.website || null,
+          password: editForm.password,
+          notes: editForm.notes,
+          hasMfa: editForm.hasMfa,
+          mfaMethod: editForm.hasMfa ? editForm.mfaMethod : "",
+          mfaConnectedTo: editForm.hasMfa ? editForm.mfaConnectedTo : "",
+        }),
+      });
+
+      setRevealedPassword(payload.item.password ?? editForm.password);
+      setRevealedNotes(payload.item.notes ?? editForm.notes);
+      setRevealedMfa({
+        hasMfa: Boolean(payload.item.hasMfa ?? editForm.hasMfa),
+        method: payload.item.mfaMethod ?? editForm.mfaMethod,
+        connectedTo: payload.item.mfaConnectedTo ?? editForm.mfaConnectedTo,
+      });
+      setEditOpen(false);
+      resetEditForm();
+      setMessage("Entry updated.");
+      await loadWorkspace();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to save entry changes.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleShareEntry() {
@@ -683,6 +812,22 @@ export default function OyamaPasswordWorkspace() {
             >
               {busy ? "Working..." : hasPin ? (resetPinMode ? "Reset PIN & Unlock" : "Unlock Vault") : "Set PIN & Unlock"}
             </button>
+            {pinStatus?.lockedUntil && new Date(pinStatus.lockedUntil).getTime() > Date.now() ? (
+              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                PIN unlock is temporarily locked. Try again after {new Date(pinStatus.lockedUntil).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+              </div>
+            ) : null}
+            {hasPin ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-300">
+                {resetPinMode
+                  ? "Use a 6-10 digit PIN. Avoid repeated digits and year-style PINs."
+                  : `Vault sessions now expire after 30 minutes. ${typeof pinStatus?.remainingAttempts === "number" ? `${pinStatus.remainingAttempts} unlock attempts remain before a temporary lock.` : ""}`}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-300">
+                Choose a 6-10 digit PIN. Avoid repeated digits and year-style PINs.
+              </div>
+            )}
             {hasPin ? (
               <button
                 type="button"
@@ -709,7 +854,6 @@ export default function OyamaPasswordWorkspace() {
     { key: "favorites", label: "Favorites", count: favorites.size },
     { key: "recent", label: "Recent", count: recentCount },
     { key: "shared", label: "Shared", count: sharedCount },
-    { key: "trash", label: "Trash", count: 0 },
   ];
 
   const NAV_ICONS: Record<NavFilter, string> = {
@@ -717,17 +861,13 @@ export default function OyamaPasswordWorkspace() {
     favorites: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z",
     recent: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
     shared: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
-    trash: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
   };
 
-  const CAT_ICONS: Record<string, string> = {
-    Logins: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
-    "Credit Cards": "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
-    "Secure Notes": "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-    Identities: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-    "Wi-Fi": "M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0",
-    Documents: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z",
-  };
+  const categories: Array<{ label: string; iconPath: string; count: number }> = [
+    { label: "Logins", iconPath: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z", count: entries.length },
+    { label: "Secure Notes", iconPath: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", count: entries.filter((e) => Boolean(e.notes)).length },
+    { label: "Shared Access", iconPath: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z", count: sharedCount },
+  ];
 
   const scoreLabel = securityScore >= 90 ? "Excellent" : securityScore >= 70 ? "Good" : securityScore >= 50 ? "Fair" : "Weak";
   const scoreColor = securityScore >= 90 ? "text-emerald-400" : securityScore >= 70 ? "text-yellow-300" : securityScore >= 50 ? "text-amber-400" : "text-rose-400";
@@ -774,21 +914,10 @@ export default function OyamaPasswordWorkspace() {
 
           {/* Categories */}
           <div className="mt-5 border-t border-white/[0.07] px-3 pt-4">
-            <div className="mb-1.5 flex items-center justify-between px-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Categories</p>
-              <button type="button" className="text-slate-500 hover:text-slate-300" aria-label="Add category">
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              </button>
+            <div className="mb-1.5 px-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Working Views</p>
             </div>
-            {Object.entries(CAT_ICONS).map(([label, iconPath]) => {
-              const count = label === "Logins" ? entries.length
-                : label === "Secure Notes" ? entries.filter((e) => Boolean(e.notes)).length
-                : label === "Shared Access" ? sharedCount
-                : label === "Wi-Fi" ? 0
-                : label === "Documents" ? 0
-                : label === "Credit Cards" ? 0
-                : label === "Identities" ? 0
-                : 0;
+            {categories.map(({ label, iconPath, count }) => {
               return (
                 <div key={label} className="mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] text-slate-400 hover:bg-white/[0.04] hover:text-slate-200">
                   <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
@@ -873,22 +1002,12 @@ export default function OyamaPasswordWorkspace() {
               <button
                 type="button"
                 onClick={() => setCreateOpen(true)}
-                className="flex h-9 items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-500 pl-3.5 pr-3 text-sm font-semibold text-white hover:from-violet-500 hover:to-indigo-400"
+                className="flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-500 px-3.5 text-sm font-semibold text-white hover:from-violet-500 hover:to-indigo-400"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                <span>Add New</span>
-              </button>
-              <button type="button" className="flex h-9 w-8 items-center justify-center border-l border-white/20 bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400" aria-label="More add options">
-                <svg className="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" /></svg>
+                <span>Add Entry</span>
               </button>
             </div>
-
-            {/* Bell */}
-            <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.06] hover:text-slate-200" aria-label="Notifications">
-              <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-              </svg>
-            </button>
 
             {/* Settings */}
             <button
@@ -923,18 +1042,9 @@ export default function OyamaPasswordWorkspace() {
                     {navFilter === "all" ? "All Items"
                       : navFilter === "favorites" ? "Favorites"
                       : navFilter === "recent" ? "Recent"
-                      : navFilter === "shared" ? "Shared"
-                      : "Trash"}
+                      : "Shared"}
                   </p>
                   <p className="text-[11px] text-slate-500">{displayedEntries.length} Items</p>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-white/[0.07] hover:text-slate-300" aria-label="Filter">
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                  </button>
-                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-white/[0.07] hover:text-slate-300" aria-label="Toggle view">
-                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
-                  </button>
                 </div>
               </div>
 
@@ -969,7 +1079,6 @@ export default function OyamaPasswordWorkspace() {
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setSelectedEntryId(entry.id); setRevealedPassword(""); setRevealedNotes(""); setRevealedMfa({ hasMfa: false, method: "", connectedTo: "" }); } }}
-                      aria-selected={isSelected}
                     >
                       {/* Icon */}
                       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#1c1f32]">
@@ -999,16 +1108,6 @@ export default function OyamaPasswordWorkspace() {
                           stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="More options"
-                        onClick={(e) => e.stopPropagation()}
-                        className="shrink-0 text-slate-600 hover:text-slate-300"
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
                         </svg>
                       </button>
                     </div>
@@ -1067,10 +1166,13 @@ export default function OyamaPasswordWorkspace() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.06] hover:text-slate-300" aria-label="More options">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
-                        </svg>
+                      <button
+                        type="button"
+                        onClick={() => void openEditModal()}
+                        disabled={busy || !selectedEntry.canEdit}
+                        className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-400/15 disabled:opacity-40"
+                      >
+                        Edit
                       </button>
                       <button
                         type="button"
@@ -1403,6 +1505,75 @@ export default function OyamaPasswordWorkspace() {
               <div className="mt-5 flex justify-end gap-2">
                 <button type="button" onClick={() => setCreateOpen(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.08]">Cancel</button>
                 <button type="button" onClick={() => void handleCreateEntry()} disabled={busy} className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:from-violet-500 hover:to-indigo-400 disabled:opacity-60">{busy ? "Saving..." : "Save Entry"}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editOpen && selectedEntry ? (
+          <div className="fixed inset-0 z-[56] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Edit vault record">
+            <button
+              type="button"
+              className="absolute inset-0"
+              aria-label="Close edit dialog"
+              onClick={() => {
+                if (busy) return;
+                setEditOpen(false);
+                resetEditForm();
+              }}
+            />
+            <div className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-[#081327] p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">Edit Record</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-white">Update {selectedEntry.title}</h2>
+                  <p className="mt-1 text-sm text-slate-400">Edit the working vault fields directly instead of using placeholder actions.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (busy) return;
+                    setEditOpen(false);
+                    resetEditForm();
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                  aria-label="Close"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <input value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} placeholder="Title (required)" className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70" />
+                <input value={editForm.username} onChange={(event) => setEditForm((current) => ({ ...current, username: event.target.value }))} placeholder="Username / email" className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70" />
+                <input value={editForm.website} onChange={(event) => setEditForm((current) => ({ ...current, website: event.target.value }))} placeholder="Website" className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70" />
+                <input value={editForm.password} onChange={(event) => setEditForm((current) => ({ ...current, password: event.target.value }))} placeholder="Password (required)" className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70" />
+              </div>
+
+              <textarea value={editForm.notes} onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Notes" className="mt-3 h-24 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70" />
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-200">
+                  <input type="checkbox" checked={editForm.hasMfa} onChange={(event) => setEditForm((current) => ({ ...current, hasMfa: event.target.checked }))} className="rounded border-slate-600 bg-slate-900 text-cyan-400" />
+                  MFA enabled
+                </label>
+                <input value={editForm.mfaMethod} onChange={(event) => setEditForm((current) => ({ ...current, mfaMethod: event.target.value }))} placeholder="MFA method" disabled={!editForm.hasMfa} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70 disabled:opacity-50" />
+              </div>
+              <input value={editForm.mfaConnectedTo} onChange={(event) => setEditForm((current) => ({ ...current, mfaConnectedTo: event.target.value }))} placeholder="MFA connected to" disabled={!editForm.hasMfa} className="mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/70 disabled:opacity-50" />
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (busy) return;
+                    setEditOpen(false);
+                    resetEditForm();
+                  }}
+                  className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.08]"
+                >
+                  Cancel
+                </button>
+                <button type="button" onClick={() => void handleSaveEntryEdits()} disabled={busy} className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:opacity-60">{busy ? "Saving..." : "Save Changes"}</button>
               </div>
             </div>
           </div>

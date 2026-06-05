@@ -93,12 +93,21 @@ interface AccessRow {
 interface PinRow {
   pin_hash: string;
   last_verified_at: Date | null;
+  failed_attempt_count?: number | null;
+  locked_until?: Date | null;
 }
 
 interface SessionRow {
   id: string;
   expires_at: Date;
 }
+
+const PIN_MIN_LENGTH = 6;
+const PIN_MAX_LENGTH = 10;
+const PIN_VERIFY_MIN_LENGTH = 4;
+const MAX_PIN_ATTEMPTS = 5;
+const PIN_LOCKOUT_MS = 15 * 60 * 1000;
+const PIN_SESSION_TTL_MS = 30 * 60 * 1000;
 
 export interface OyamaPasswordEntryListItem {
   id: string;
@@ -333,12 +342,22 @@ async function ensurePasswordSchema(): Promise<void> {
       user_id VARCHAR(64) NOT NULL,
       pin_hash VARCHAR(128) NOT NULL,
       last_verified_at DATETIME NULL,
+      failed_attempt_count INT NOT NULL DEFAULT 0,
+      locked_until DATETIME NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (organization_id, user_id),
       INDEX idx_oyama_password_pin_verified (organization_id, last_verified_at)
     )
   `);
+
+  try {
+    await prisma.$executeRawUnsafe("ALTER TABLE oyama_password_user_pins ADD COLUMN failed_attempt_count INT NOT NULL DEFAULT 0");
+  } catch {}
+
+  try {
+    await prisma.$executeRawUnsafe("ALTER TABLE oyama_password_user_pins ADD COLUMN locked_until DATETIME NULL");
+  } catch {}
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS oyama_password_pin_sessions (
@@ -526,10 +545,10 @@ export async function getOyamaPasswordHealth(): Promise<{
 export async function getOyamaPasswordPinStatus(params: {
   organizationId: string;
   userId: string;
-}): Promise<{ hasPin: boolean; lastVerifiedAt: string | null }> {
+}): Promise<{ hasPin: boolean; lastVerifiedAt: string | null; lockedUntil: string | null; remainingAttempts: number }> {
   await ensurePasswordSchema();
   const rows = await prisma.$queryRaw<PinRow[]>`
-    SELECT pin_hash, last_verified_at
+    SELECT pin_hash, last_verified_at, failed_attempt_count, locked_until
     FROM oyama_password_user_pins
     WHERE organization_id = ${params.organizationId}
       AND user_id = ${params.userId}
@@ -537,12 +556,14 @@ export async function getOyamaPasswordPinStatus(params: {
   `;
 
   if (rows.length === 0) {
-    return { hasPin: false, lastVerifiedAt: null };
+    return { hasPin: false, lastVerifiedAt: null, lockedUntil: null, remainingAttempts: MAX_PIN_ATTEMPTS };
   }
 
   return {
     hasPin: true,
     lastVerifiedAt: rows[0].last_verified_at ? new Date(rows[0].last_verified_at).toISOString() : null,
+    lockedUntil: rows[0].locked_until ? new Date(rows[0].locked_until).toISOString() : null,
+    remainingAttempts: Math.max(0, MAX_PIN_ATTEMPTS - Number(rows[0].failed_attempt_count ?? 0)),
   };
 }
 
@@ -553,8 +574,8 @@ export async function setupOyamaPasswordPin(params: {
 }): Promise<{ sessionToken: string; expiresAt: string }> {
   await ensurePasswordSchema();
   const normalizedPin = String(params.pin ?? "").trim();
-  if (!/^\d{4,10}$/.test(normalizedPin)) {
-    throw new Error("PIN must be 4-10 digits.");
+  if (!new RegExp(`^\\d{${PIN_MIN_LENGTH},${PIN_MAX_LENGTH}}$`).test(normalizedPin)) {
+    throw new Error(`PIN must be ${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH} digits.`);
   }
 
   const pinHash = await hashUserPin({
@@ -565,11 +586,13 @@ export async function setupOyamaPasswordPin(params: {
 
   await prisma.$executeRaw`
     INSERT INTO oyama_password_user_pins
-    (organization_id, user_id, pin_hash, last_verified_at)
-    VALUES (${params.organizationId}, ${params.userId}, ${pinHash}, CURRENT_TIMESTAMP)
+    (organization_id, user_id, pin_hash, last_verified_at, failed_attempt_count, locked_until)
+    VALUES (${params.organizationId}, ${params.userId}, ${pinHash}, CURRENT_TIMESTAMP, 0, NULL)
     ON DUPLICATE KEY UPDATE
       pin_hash = VALUES(pin_hash),
-      last_verified_at = CURRENT_TIMESTAMP
+      last_verified_at = CURRENT_TIMESTAMP,
+      failed_attempt_count = 0,
+      locked_until = NULL
   `;
 
   return verifyOyamaPasswordPin(params);
@@ -583,7 +606,7 @@ export async function verifyOyamaPasswordPin(params: {
   await ensurePasswordSchema();
 
   const rows = await prisma.$queryRaw<PinRow[]>`
-    SELECT pin_hash, last_verified_at
+    SELECT pin_hash, last_verified_at, failed_attempt_count, locked_until
     FROM oyama_password_user_pins
     WHERE organization_id = ${params.organizationId}
       AND user_id = ${params.userId}
@@ -594,6 +617,15 @@ export async function verifyOyamaPasswordPin(params: {
   }
 
   const normalizedPin = String(params.pin ?? "").trim();
+  if (!new RegExp(`^\\d{${PIN_VERIFY_MIN_LENGTH},${PIN_MAX_LENGTH}}$`).test(normalizedPin)) {
+    throw new Error(`Enter your ${PIN_VERIFY_MIN_LENGTH}-${PIN_MAX_LENGTH} digit PIN.`);
+  }
+
+  const lockedUntil = rows[0].locked_until ? new Date(rows[0].locked_until) : null;
+  if (lockedUntil && lockedUntil.getTime() > Date.now()) {
+    throw new Error(`Vault PIN locked until ${lockedUntil.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`);
+  }
+
   const keyCandidates = await getCipherKeyCandidates();
   const supportedHashes: string[] = [];
   const seenHashes = new Set<string>();
@@ -626,7 +658,25 @@ export async function verifyOyamaPasswordPin(params: {
   const matched = supportedHashes.includes(storedHash);
 
   if (!matched) {
-    throw new Error("Invalid PIN.");
+    const nextFailedAttempts = Number(rows[0].failed_attempt_count ?? 0) + 1;
+    const nextLockedUntil = nextFailedAttempts >= MAX_PIN_ATTEMPTS
+      ? new Date(Date.now() + PIN_LOCKOUT_MS)
+      : null;
+
+    await prisma.$executeRaw`
+      UPDATE oyama_password_user_pins
+      SET failed_attempt_count = ${nextFailedAttempts >= MAX_PIN_ATTEMPTS ? 0 : nextFailedAttempts},
+          locked_until = ${nextLockedUntil}
+      WHERE organization_id = ${params.organizationId}
+        AND user_id = ${params.userId}
+    `;
+
+    if (nextLockedUntil) {
+      throw new Error(`Too many invalid PIN attempts. Vault locked until ${nextLockedUntil.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`);
+    }
+
+    const remainingAttempts = Math.max(0, MAX_PIN_ATTEMPTS - nextFailedAttempts);
+    throw new Error(`Invalid PIN. ${remainingAttempts} attempt${remainingAttempts === 1 ? "" : "s"} remaining.`);
   }
 
   // Self-heal: after successful verify, persist current canonical hash for future checks.
@@ -645,7 +695,7 @@ export async function verifyOyamaPasswordPin(params: {
   }
 
   const sessionToken = randomUUID();
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12);
+  const expiresAt = new Date(Date.now() + PIN_SESSION_TTL_MS);
 
   await prisma.$executeRaw`
     INSERT INTO oyama_password_pin_sessions
@@ -655,7 +705,9 @@ export async function verifyOyamaPasswordPin(params: {
 
   await prisma.$executeRaw`
     UPDATE oyama_password_user_pins
-    SET last_verified_at = CURRENT_TIMESTAMP
+    SET last_verified_at = CURRENT_TIMESTAMP,
+        failed_attempt_count = 0,
+        locked_until = NULL
     WHERE organization_id = ${params.organizationId}
       AND user_id = ${params.userId}
   `;

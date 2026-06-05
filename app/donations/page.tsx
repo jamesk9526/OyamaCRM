@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
@@ -18,6 +18,14 @@ import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
 
 const PAGE_SIZE = 100;
+
+function normalizeEmail(value: string | null | undefined): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isEmailLike(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 interface DonationStats {
   totalRaised: number;
@@ -165,6 +173,20 @@ export default function DonationsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PAGE_SIZE, total);
+  const selectedDonationRows = useMemo(
+    () => donations.filter((donation) => selectedIds.includes(donation.id)),
+    [donations, selectedIds],
+  );
+  const selectedDonationEmailRecipients = useMemo(
+    () => Array.from(new Set(selectedDonationRows
+      .map((donation) => normalizeEmail(donation.constituent.email))
+      .filter((email) => email && isEmailLike(email)))),
+    [selectedDonationRows],
+  );
+  const selectedDonationConstituentIds = useMemo(
+    () => Array.from(new Set(selectedDonationRows.map((donation) => donation.constituent.id).filter(Boolean))),
+    [selectedDonationRows],
+  );
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
@@ -283,6 +305,35 @@ export default function DonationsPage() {
   function handleOpenLetterFromTemplate(id: string) {
     const d = donations.find((x) => x.id === id) ?? null;
     setLetterTemplateDonation(d);
+  }
+
+  /** Opens the canonical batch letter workspace with a temporary donor list from selected gifts. */
+  function handleSendSelectedDonationsToLetters() {
+    if (selectedDonationConstituentIds.length === 0) return;
+
+    const temporaryListId = `selected-donations-${Date.now()}`;
+    window.sessionStorage.setItem(`oyama-letters:temporary-recipient-list:${temporaryListId}`, JSON.stringify({
+      name: `Selected donation donors (${selectedDonationConstituentIds.length})`,
+      constituentIds: selectedDonationConstituentIds,
+      donationIds: selectedDonationRows.map((donation) => donation.id),
+      createdAt: new Date().toISOString(),
+    }));
+    router.push(`/oyama-letters/generate?mode=batch&temporaryListId=${encodeURIComponent(temporaryListId)}&source=donations`);
+  }
+
+  /** Opens the canonical email campaign wizard with a temporary recipient segment from selected gifts. */
+  function handleSendSelectedDonationsToEmail() {
+    if (selectedDonationEmailRecipients.length === 0) return;
+
+    const temporarySegmentId = `selected-donations-${Date.now()}`;
+    window.sessionStorage.setItem(`oyama-email:temporary-recipient-segment:${temporarySegmentId}`, JSON.stringify({
+      name: `Selected donation emails (${selectedDonationEmailRecipients.length})`,
+      recipientEmails: selectedDonationEmailRecipients,
+      donationIds: selectedDonationRows.map((donation) => donation.id),
+      createdAt: new Date().toISOString(),
+      source: "donations",
+    }));
+    router.push(`/oyama-email/campaigns/new?temporarySegmentId=${encodeURIComponent(temporarySegmentId)}&source=donations`);
   }
 
   /** Closes the Record Gift modal while preserving ledger filters such as campaign scope. */
@@ -420,6 +471,41 @@ export default function DonationsPage() {
           )}
         </div>
       </CRMFilterBar>
+
+      {donations.some((donation) => donation.isRecurring && String(donation.frequency ?? "MONTHLY").toUpperCase() === "MONTHLY") ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setSelectedIds(Array.from(new Set([...selectedIds, ...donations.filter((donation) => donation.isRecurring && String(donation.frequency ?? "MONTHLY").toUpperCase() === "MONTHLY").map((donation) => donation.id)])))}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Select Visible Monthly Donors
+          </button>
+        </div>
+      ) : null}
+
+      {selectedIds.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-emerald-950">{selectedIds.length} donation{selectedIds.length === 1 ? "" : "s"} selected</p>
+            <p className="text-xs text-emerald-800">
+              Create a temporary list for letters or email templates. Email-ready recipients: {selectedDonationEmailRecipients.length}.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Clear</button>
+            <button
+              type="button"
+              onClick={handleSendSelectedDonationsToEmail}
+              disabled={selectedDonationEmailRecipients.length === 0}
+              className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Create Email for Selected Donors
+            </button>
+            <button type="button" onClick={handleSendSelectedDonationsToLetters} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800">Create Letters for Selected Donors</button>
+          </div>
+        </div>
+      ) : null}
 
       <CRMDataTable>
         {loading ? (

@@ -28,6 +28,7 @@ export interface OyamaEmailCampaign {
   replyToEmail?: string | null;
   bodyHtml?: string | null;
   bodyText?: string | null;
+  templateJson?: string | null;
   status: string;
   totalRecipients: number;
   delivered: number;

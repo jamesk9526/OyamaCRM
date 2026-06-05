@@ -39,6 +39,7 @@ export default function LetterSignaturesManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
   const [drawHasInk, setDrawHasInk] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +122,7 @@ export default function LetterSignaturesManager() {
     setDrawHasInk(false);
     setMessage(null);
     setError(null);
+    setEditorOpen(true);
   }
 
   function pointerToCanvas(event: ReactPointerEvent<HTMLCanvasElement>): { x: number; y: number } | null {
@@ -290,7 +292,7 @@ export default function LetterSignaturesManager() {
   }
 
   return (
-    <div className="grid gap-4 pt-2 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="pt-2">
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-gray-900">Saved Signatures</h2>
@@ -298,16 +300,31 @@ export default function LetterSignaturesManager() {
         </div>
         <div className="space-y-2">
           {loading ? <p className="text-sm text-gray-500">Loading...</p> : items.length === 0 ? <p className="text-sm text-gray-500">No signatures yet.</p> : items.map((item) => (
-            <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className={`w-full rounded-lg border px-3 py-2 text-left ${selectedId === item.id ? "border-green-300 bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}>
-              <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-              <p className="mt-0.5 text-xs text-gray-500">{item.signerName}{item.signerTitle ? ` · ${item.signerTitle}` : ""}</p>
-              <p className="mt-0.5 text-xs text-gray-400">{item.isDefault ? "Default" : "Custom"} · {item.isActive ? "Active" : "Inactive"}</p>
+            <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setEditorOpen(true); }} className={`grid w-full gap-3 rounded-lg border px-3 py-3 text-left sm:grid-cols-[minmax(0,1fr)_220px] ${selectedId === item.id ? "border-green-300 bg-green-50" : "border-gray-200 hover:bg-gray-50"}`}>
+              <span>
+                <span className="block truncate text-sm font-semibold text-gray-900">{item.name}</span>
+                <span className="mt-0.5 block text-xs text-gray-500">{item.signerName}{item.signerTitle ? ` · ${item.signerTitle}` : ""}</span>
+                <span className="mt-0.5 block text-xs text-gray-400">{item.isDefault ? "Default" : "Custom"} · {item.isActive ? "Active" : "Inactive"}</span>
+              </span>
+              <span className="flex min-h-16 items-center justify-center rounded border border-gray-200 bg-white px-3">
+                {item.signatureImageUrl ? <img src={item.signatureImageUrl} alt={`${item.signerName} signature`} className="max-h-14 max-w-full object-contain" /> : <span className="font-serif text-xl text-gray-800">{item.typedSignature || item.signerName}</span>}
+              </span>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
+      {editorOpen ? (
+      <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-8">
+        <button type="button" aria-label="Close signature builder" className="fixed inset-0 bg-slate-950/60" onClick={() => setEditorOpen(false)} />
+      <section className="relative z-10 w-full max-w-6xl rounded-xl border border-gray-200 bg-white p-4 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200 pb-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">{selected ? "Edit Signature Visual Builder" : "New Signature Visual Builder"}</h2>
+            <p className="text-xs text-gray-500">Draw or upload a signature, then review exactly how the reusable block will appear.</p>
+          </div>
+          <button type="button" onClick={() => setEditorOpen(false)} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Close</button>
+        </div>
         {error && <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{error}</div>}
         {message && <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>}
 
@@ -356,11 +373,11 @@ export default function LetterSignaturesManager() {
                       <input value={form.signatureImageUrl} onChange={(event) => setForm({ ...form, signatureImageUrl: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="/uploads/letter-media/..." />
                       <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">{uploading ? "Uploading..." : "Upload"}</button>
                     </div>
-                    <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="sr-only" onChange={(event) => void uploadSignature(event.target.files?.[0])} />
+                    <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => void uploadSignature(event.target.files?.[0])} />
                   </div>
                 )}
 
-                <p className="text-xs text-gray-500">Use a transparent PNG or clean white-background scan for the most professional rendered letter.</p>
+                <p className="text-xs text-gray-500">Use a PNG, JPG, or WEBP image. Transparent PNG files usually produce the cleanest generated PDF.</p>
               </div>
             </Field>
             <div className="flex flex-wrap gap-3">
@@ -374,6 +391,8 @@ export default function LetterSignaturesManager() {
           <SignaturePreview form={form} />
         </div>
       </section>
+      </div>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # OyamaCRM Office How-To Guide (Current Reality)
 
-Last updated: 2026-05-13
+Last updated: 2026-06-05
 
 ## Purpose
 
@@ -76,8 +76,11 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 	- Create Call Task
 	- Start Path
 	- Mark Thanked
-6. Open Communications for campaign and draft review/scheduling.
-7. Open Tasks for assignment and completion tracking.
+6. For batch acknowledgments, select multiple donations or use `Select Visible Monthly Donors`, then choose:
+	- `Create Letters for Selected Donors` to open OyamaLetters with a temporary donor list for template selection and review.
+	- `Create Email for Selected Donors` to open OyamaEmail with a temporary email segment for template selection, audience review, and send confirmation.
+7. Open OyamaEmail for campaign and draft review/scheduling.
+8. Open Tasks for assignment and completion tracking.
 
 ### Campaign operations
 
@@ -104,9 +107,10 @@ Use OyamaEmail as the donor email command center:
 2. Follow the one-direction route pattern:
 	- Templates -> Builder -> Publish
 	- Campaigns -> Send -> Queue -> Analytics
-3. Use Audience lists from canonical audience/list flows before scheduling sends.
-4. Use Queue and Analytics to verify delivery outcomes and failed-recipient truth.
-5. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
+3. To email a selected donation group, select donations on the Donations page and choose `Create Email for Selected Donors`. The campaign wizard loads those emails as a temporary segment and still requires the normal audience review checkbox before sending.
+4. Use persisted segment audiences before scheduling or queueing sends. Temporary/manual/list recipient selections are reviewable and sendable immediately, but are not stored on the campaign record for later scheduled sends yet.
+5. Use Queue and Analytics to verify delivery outcomes and failed-recipient truth.
+6. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
 
 ### Steward Paths builder workflow
 
@@ -195,7 +199,7 @@ Use this section as an operations safety list.
 | Grants research workspace paths | Partially Working | Use grants for research, requirements, reminders, tasks, writing, and resources. Record received grant money separately in Donations. |
 | Compassion full-name search | Partially Working | If full-name search misses records, search by last name or first name separately. |
 | Compassion appointment matcher queue | Not Implemented | Public bookings sync to the staff calendar now, but manual triage is still required until matcher/review queue ships. |
-| Letters PDF export | Partially Working | Use browser print/PDF fallback until server-side PDF rendering ships. |
+| OyamaEmail queued/scheduled explicit audiences | Partially Working | Temporary donation email segments, manual emails, and saved-list recipient selections can be reviewed and sent now, but queue/schedule is disabled until explicit audiences persist on campaign records. Use persisted segments for scheduled sends. |
 | Steward Paths branch persistence from visual builder | Working | Branch visuals, editing, branch-aware persistence, activation checks, and runtime branch execution are supported in the canonical `/steward-paths/builder` workflow. |
 | Some module tabs and tools | Not Implemented | Follow in-app in-development warnings and do not rely on those tabs for live operations. |
 
@@ -243,3 +247,8 @@ Donor references for staff and implementers:
 ## Source Of Truth For Readiness
 
 Use `docs/status/production-readiness-checklist.md` for the release-gate source of truth and current status labels.
+## OyamaLetters Donation Group Handoff
+
+From the Donations ledger, staff can select multiple gifts or select the visible monthly donors, then choose `Create Letters for Selected Donors`. OyamaLetters receives the unique donors as a temporary session list. Staff must still choose a template, review recipients, and generate the letters; the handoff does not publish, queue, or send automatically.
+
+Signature presets are optional and are created or edited through the Branding Signatures modal visual builder. Uploaded PNG, JPG, and WEBP signatures render in generated PDFs.

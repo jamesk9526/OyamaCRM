@@ -178,7 +178,9 @@ router.post("/pin/verify", async (req, res) => {
     const session = await verifyOyamaPasswordPin({ organizationId, userId, pin: body.pin.trim() });
     res.json(session);
   } catch (error) {
-    res.status(401).json({ error: { code: "PIN_VERIFY_FAILED", message: error instanceof Error ? error.message : "Invalid PIN." } });
+    const message = error instanceof Error ? error.message : "Invalid PIN.";
+    const statusCode = /locked until/i.test(message) ? 423 : 401;
+    res.status(statusCode).json({ error: { code: "PIN_VERIFY_FAILED", message } });
   }
 });
 

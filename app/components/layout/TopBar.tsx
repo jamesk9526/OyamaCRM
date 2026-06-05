@@ -904,18 +904,18 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
   const isStewardSignalsWorkspace = moduleKey === "donor" && pathname.startsWith("/steward-signals");
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
-  const chromeButtonBase = "flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/96 text-slate-600 shadow-[0_5px_14px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-9 max-[380px]:w-9";
+  const chromeButtonBase = "flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/96 text-slate-600 shadow-[0_4px_10px_rgba(15,23,42,0.045)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-8 max-[380px]:w-8";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const moduleAccentClass = resolveTopBarModuleAccentClass(moduleKey, donorAccentTheme.topBarAccentLine);
   const isDonorEnterpriseChrome = moduleKey === "donor";
   const donorDesktopInsetClass = donorSidebarOffset && isDonorEnterpriseChrome
     ? donorSidebarCollapsed
-      ? "xl:pl-[108px]"
-      : "xl:pl-[308px]"
+      ? "xl:pl-[96px]"
+      : "xl:pl-[284px]"
     : "";
   const darkIconButtonBase = isDonorEnterpriseChrome
-    ? "flex h-6 w-6 shrink-0 touch-manipulation items-center justify-center rounded-md border border-transparent bg-transparent text-emerald-50/80 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:scale-95"
+    ? "flex h-5.5 w-5.5 shrink-0 touch-manipulation items-center justify-center rounded-md border border-transparent bg-transparent text-emerald-50/80 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:scale-95"
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
   const moduleChromePalette = resolveTopBarModuleChromePalette(moduleKey, donorChromeTint);

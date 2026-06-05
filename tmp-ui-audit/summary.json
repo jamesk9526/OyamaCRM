@@ -1,0 +1,30 @@
+[
+  {
+    "name": "letters-library",
+    "route": "/oyama-letters",
+    "url": "http://127.0.0.1:3000/oyama-letters",
+    "title": "OyamaCRM",
+    "text": ""
+  },
+  {
+    "name": "letters-generate",
+    "route": "/oyama-letters/generate",
+    "url": "http://127.0.0.1:3000/oyama-letters/generate",
+    "title": "OyamaCRM",
+    "text": ""
+  },
+  {
+    "name": "email-home",
+    "route": "/oyama-email",
+    "url": "http://127.0.0.1:3000/oyama-email",
+    "title": "OyamaCRM",
+    "text": ""
+  },
+  {
+    "name": "email-new-campaign",
+    "route": "/oyama-email/campaigns/new",
+    "url": "http://127.0.0.1:3000/oyama-email/campaigns/new",
+    "title": "OyamaCRM",
+    "text": ""
+  }
+]

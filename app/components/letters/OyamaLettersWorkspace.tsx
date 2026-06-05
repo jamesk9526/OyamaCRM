@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
@@ -27,6 +27,9 @@ import type {
 
 type WorkspaceView = "library" | "builder" | "publish" | "generate" | "queue" | "settings" | "howto";
 type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+type TemplateOwnershipScope = "MINE" | "TEAM" | "ALL";
+type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
+const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
 
 interface OyamaLettersWorkspaceProps {
   view?: WorkspaceView;
@@ -76,6 +79,13 @@ interface RecipientListDetail {
   id: string;
   name: string;
   recipients: Array<{ email: string; firstName?: string | null; lastName?: string | null }>;
+}
+
+interface TemporaryRecipientList {
+  name: string;
+  constituentIds: string[];
+  donationIds?: string[];
+  createdAt: string;
 }
 
 interface ConstituentTagCatalog {
@@ -670,12 +680,16 @@ function LettersHowToWorkspace() {
 }
 
 function TemplateLibrary() {
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<LetterTemplateSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [category, setCategory] = useState("ALL");
+  const [ownership, setOwnership] = useState<TemplateOwnershipScope>("MINE");
+  const [provenance, setProvenance] = useState<TemplateProvenanceScope>("ALL");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [setupHintOpen, setSetupHintOpen] = useState(false);
   const [setupHintStep, setSetupHintStep] = useState<0 | 1 | 2>(0);
@@ -713,9 +727,21 @@ function TemplateLibrary() {
     void load();
   }, [load]);
 
-  const activeCount = templates.filter((item) => item.status === "ACTIVE").length;
-  const draftCount = templates.filter((item) => item.status === "DRAFT").length;
-  const archivedCount = templates.filter((item) => item.status === "ARCHIVED").length;
+  const visibleTemplates = useMemo(() => templates.filter((item) => {
+    const isMine = Boolean(user?.id) && item.createdBy?.id === user?.id;
+    if (ownership === "MINE" && !isMine) return false;
+    if (ownership === "TEAM" && isMine) return false;
+    if (provenance === "AI" && !item.aiAssisted) return false;
+    if (provenance === "HUMAN" && item.aiAssisted) return false;
+    return true;
+  }), [ownership, provenance, templates, user?.id]);
+
+  const activeCount = visibleTemplates.filter((item) => item.status === "ACTIVE").length;
+  const draftCount = visibleTemplates.filter((item) => item.status === "DRAFT").length;
+  const archivedCount = visibleTemplates.filter((item) => item.status === "ARCHIVED").length;
+  const myCount = templates.filter((item) => item.createdBy?.id === user?.id).length;
+  const teamCount = templates.filter((item) => item.createdBy?.id && item.createdBy.id !== user?.id).length;
+  const aiCount = templates.filter((item) => item.aiAssisted).length;
 
   function dismissSetupHint() {
     try {
@@ -744,8 +770,8 @@ function TemplateLibrary() {
       });
       completeSetupHint();
       setError(null);
+      setNotice(`Applied default header/footer/signature to ${result.updatedCount} template${result.updatedCount === 1 ? "" : "s"}.`);
       void load();
-      alert(`Applied default header/footer/signature to ${result.updatedCount} template${result.updatedCount === 1 ? "" : "s"}.`);
     } catch (requestError) {
       setSetupHintError(errorMessage(requestError, "Could not apply defaults to templates yet."));
     } finally {
@@ -765,16 +791,55 @@ function TemplateLibrary() {
           <Select value={category} onChange={setCategory} options={["ALL", ...CATEGORIES]} />
           <Select value={status} onChange={setStatus} options={["ALL", "DRAFT", "ACTIVE", "ARCHIVED"]} />
           <Button onClick={() => void load()}>Apply Filters</Button>
-          <Button onClick={() => { setSearch(""); setCategory("ALL"); setStatus("ALL"); }}>Reset</Button>
+          <Button onClick={() => { setSearch(""); setCategory("ALL"); setStatus("ALL"); setOwnership("MINE"); setProvenance("ALL"); }}>Reset</Button>
           <div className="ml-auto flex gap-2">
             <IconToggle active={layout === "grid"} onClick={() => setLayout("grid")} label="Grid">▦</IconToggle>
             <IconToggle active={layout === "list"} onClick={() => setLayout("list")} label="List">☷</IconToggle>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {([
+            { value: "MINE", label: "My Templates", count: myCount },
+            { value: "TEAM", label: "Team Templates", count: teamCount },
+            { value: "ALL", label: "All Templates", count: templates.length },
+          ] as const).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setOwnership(option.value)}
+              className={[
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                ownership === option.value ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+            >
+              <span>{option.label}</span>
+              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-slate-600">{option.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {([
+            { value: "ALL", label: "All Provenance" },
+            { value: "HUMAN", label: "User Created" },
+            { value: "AI", label: `AI-assisted (${aiCount})` },
+          ] as const).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setProvenance(option.value)}
+              className={[
+                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold",
+                provenance === option.value ? "border-sky-700 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{templates.length}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{visibleTemplates.length}</p>
           </div>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Published</p>
@@ -789,24 +854,62 @@ function TemplateLibrary() {
             <p className="mt-1 text-2xl font-semibold text-slate-700">{archivedCount}</p>
           </div>
         </div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-3">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
+            Library opens on <span className="font-semibold">your templates</span> first so staff starts from owned drafts before shared content.
+          </div>
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900">
+            <span className="font-semibold">AI-assisted</span> appears only when the builder stored a real provenance marker.
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+            Unsaved letter edits keep a <span className="font-semibold">local recovery copy</span> so save failures do not drop work.
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-4">
+          <WorkflowShortcutCard
+            title="Create Template"
+            body="Start a new reusable letter template before choosing recipients."
+            href="/oyama-letters/templates/new"
+            actionLabel="New Template"
+          />
+          <WorkflowShortcutCard
+            title="Generate Letters"
+            body="Run the step-by-step recipient, donation, preview, and PDF workflow."
+            href="/oyama-letters/generate"
+            actionLabel="Open Generator"
+          />
+          <WorkflowShortcutCard
+            title="Print & Mail Queue"
+            body="Review output already queued for print approval or mail handling."
+            href="/oyama-letters/queue"
+            actionLabel="Open Queue"
+          />
+          <WorkflowShortcutCard
+            title="Letters How To"
+            body="See the canonical path for template setup, generation, and delivery."
+            href="/oyama-letters/how-to"
+            actionLabel="View Guide"
+          />
+        </div>
       </div>
       <CategoryTabs category={category} setCategory={setCategory} />
+      {notice ? <Alert tone="green">{notice}</Alert> : null}
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {loading ? (
         <LoadingGrid />
-      ) : templates.length === 0 ? (
+      ) : visibleTemplates.length === 0 ? (
         <EmptyState title="No templates found" body="No live templates match the current filters. Create a template to begin the OyamaLetters workflow." actionHref="/oyama-letters/templates/new" actionLabel="Create Template" />
       ) : layout === "grid" ? (
         <div className="grid gap-5 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 xl:p-6">
-          {templates.map((template) => <TemplateCard key={template.id} template={template} />)}
+          {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} />)}
         </div>
       ) : (
         <div className="space-y-3 p-4 xl:p-6">
-          {templates.map((template) => <TemplateRow key={template.id} template={template} />)}
+          {visibleTemplates.map((template) => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} />)}
         </div>
       )}
       <div className="px-4 pb-4 text-xs text-slate-600 xl:px-7 xl:pb-6">
-        Showing {templates.length} template{templates.length === 1 ? "" : "s"}
+        Showing {visibleTemplates.length} of {templates.length} template{templates.length === 1 ? "" : "s"}
       </div>
 
       {setupHintOpen ? (
@@ -877,6 +980,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const savedEditorRangeRef = useRef<Range | null>(null);
   const lastInlineSuggestionRequestRef = useRef("");
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedEditorImageRef = useRef<HTMLImageElement | null>(null);
   const [draft, setDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
   const [mergeSections, setMergeSections] = useState<MergeFieldSection[]>([]);
   const [headers, setHeaders] = useState<HeaderPreset[]>([]);
@@ -889,6 +993,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [pageSize, setPageSize] = useState("Letter (8.5 x 11 in)");
   const [fontFamily, setFontFamily] = useState("Calibri");
   const [fontSize, setFontSize] = useState("11");
+  const [lineHeight, setLineHeight] = useState("1.5");
+  const [selectedImageWidth, setSelectedImageWidth] = useState<number | null>(null);
   const [zoom, setZoom] = useState(100);
   const [previewMode, setPreviewMode] = useState(false);
   const [showMarginGuides, setShowMarginGuides] = useState(true);
@@ -1348,6 +1454,40 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     replaceSelection(`<div style="text-align: ${align};">${selectedText("Aligned text")}</div>`, true);
   }
 
+  function applyLineHeight(value: string) {
+    setLineHeight(value);
+    const editor = editorRef.current;
+    const range = savedEditorRangeRef.current;
+    if (editor && range && editor.contains(range.commonAncestorContainer)) {
+      const element = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+        ? range.commonAncestorContainer as HTMLElement
+        : range.commonAncestorContainer.parentElement;
+      const block = element?.closest<HTMLElement>("p, div, h1, h2, h3, li, blockquote");
+      if (block && block !== editor && editor.contains(block)) {
+        block.style.lineHeight = value;
+        commitBody(editor.innerHTML);
+        editor.focus();
+        return;
+      }
+    }
+
+    const content = selectedText("");
+    if (content) {
+      replaceSelection(`<span style="line-height:${escapeHtml(value)};">${content}</span>`, true);
+      return;
+    }
+    setNotice("Place the cursor in a paragraph before changing line height.");
+  }
+
+  function insertWhiteSpace(points: number) {
+    const pixels = Math.round(points / 0.75);
+    insertBlock(`<div data-letter-spacer="${points}" style="height:${pixels}px;" aria-label="${points / 72} inch white space"></div>`);
+  }
+
+  function insertFillSpace() {
+    insertBlock('<div data-letter-spacer="fill" style="min-height:240px;" aria-label="Push following content to bottom"></div>');
+  }
+
   function insertList(ordered = false) {
     const lines = selectedText("List item").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const items = lines.map((line) => `<li>${line}</li>`).join("");
@@ -1370,13 +1510,13 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     imageInputRef.current?.click();
   }
 
-  function handleImageFileSelected(event: ChangeEvent<HTMLInputElement>) {
+  async function handleImageFileSelected(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setNotice("Choose an image file (PNG, JPG, WEBP, GIF, or SVG).");
+      setNotice("Choose a PNG, JPG, or WEBP image.");
       return;
     }
 
@@ -1386,20 +1526,53 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onerror = () => {
-      setNotice("Image upload failed. Try another file.");
-    };
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : "";
-      if (!dataUrl) {
-        setNotice("Image upload failed. Try another file.");
-        return;
-      }
-      insertBlock(`<img src="${dataUrl}" alt="${escapeHtml(file.name)}" style="max-width: 100%; height: auto;" />`);
+    try {
+      const dataBase64 = await readFileAsDataUrl(file);
+      const uploaded = await apiFetch<{ url: string }>("/api/letters/media", {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || "image/png",
+          dataBase64,
+          purpose: "editor",
+        }),
+      });
+      insertBlock(`<img src="${escapeHtml(uploaded.url)}" alt="${escapeHtml(file.name)}" data-letter-width="50" style="width:50%; max-width:100%; height:auto;" />`);
       setNotice(`Image inserted: ${file.name}`);
-    };
-    reader.readAsDataURL(file);
+    } catch (requestError) {
+      setNotice(errorMessage(requestError, "Image upload failed. Try another file."));
+    }
+  }
+
+  function handleEditorClick(event: ReactMouseEvent<HTMLDivElement>) {
+    const target = event.target;
+    if (!(target instanceof HTMLImageElement)) {
+      selectedEditorImageRef.current = null;
+      setSelectedImageWidth(null);
+      return;
+    }
+    selectedEditorImageRef.current = target;
+    const marker = Number.parseFloat(target.dataset.letterWidth ?? "");
+    const width = Number.isFinite(marker) ? marker : Math.round((target.getBoundingClientRect().width / Math.max(1, editorRef.current?.getBoundingClientRect().width ?? 1)) * 100);
+    setSelectedImageWidth(Math.min(100, Math.max(10, width)));
+    setInspectorTab("Block Settings");
+  }
+
+  function resizeSelectedImage(widthPercent: number) {
+    const image = selectedEditorImageRef.current;
+    const editor = editorRef.current;
+    if (!image || !editor || !editor.contains(image)) {
+      setNotice("Select an image in the letter before resizing it.");
+      return;
+    }
+    const normalized = Math.min(100, Math.max(10, Math.round(widthPercent)));
+    image.dataset.letterWidth = String(normalized);
+    image.style.width = `${normalized}%`;
+    image.style.maxWidth = "100%";
+    image.style.height = "auto";
+    setSelectedImageWidth(normalized);
+    commitBody(editor.innerHTML);
+    setNotice(`Image width set to ${normalized}%.`);
   }
 
   function insertSignature(signature?: SignatureBlock | null) {
@@ -1409,11 +1582,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       return;
     }
     setDraft((current) => ({ ...current, signatureBlockId: selected.id }));
-    insertBlock([
-      selected.closingPhrase ? `<p>${escapeHtml(selected.closingPhrase)}</p>` : "",
-      selected.signatureImageUrl ? `<p><img src="${escapeHtml(selected.signatureImageUrl)}" alt="${escapeHtml(selected.signerName)} signature" style="max-width: 180px; height: auto;" /></p>` : `<p><em>${escapeHtml(selected.typedSignature || selected.signerName)}</em></p>`,
-      `<p>${escapeHtml(selected.signerName)}${selected.signerTitle ? `<br />${escapeHtml(selected.signerTitle)}` : ""}</p>`,
-    ].filter(Boolean).join(""));
+    setNotice(`${selected.name} selected. It will render once at the end of the generated letter.`);
   }
 
   function applyDefaultHeader() {
@@ -1585,7 +1754,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setAiError("Generate content before inserting.");
       return;
     }
-    replaceSelection(aiOutput.bodyHtml, true);
+    replaceSelection(markLetterHtmlAsAiAssisted(aiOutput.bodyHtml), true);
     setAiComposerOpen(false);
     setNotice("AI draft inserted at the cursor.");
   }
@@ -1663,6 +1832,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     return () => window.clearTimeout(timer);
   }, [draft.printBody, inlineSuggestEnabled, loading, previewMode]);
 
+  const dirty = draftDiffers(draft, savedDraft);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty && !saving) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty, saving]);
+
   const allFields = mergeSections.flatMap((section) => section.fields);
   const mergeRegistry = useMemo(() => new Set(allFields.map(normalizeToken)), [allFields]);
   const detectedTokens = useMemo(
@@ -1678,18 +1859,16 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     { key: "printBody", label: "Print body content", ok: Boolean(draft.printBody.replace(/<[^>]+>/g, " ").trim()), missingHint: "Add printable body content." },
     { key: "header", label: "Header preset selected", ok: Boolean(draft.headerPresetId), missingHint: "Select a letterhead preset." },
     { key: "footer", label: "Footer preset selected", ok: Boolean(draft.footerPresetId), missingHint: "Select a footer preset." },
-    { key: "signature", label: "Signature block selected", ok: Boolean(draft.signatureBlockId), missingHint: "Select a signature block." },
     {
       key: "fields",
       label: unknownTokens.length === 0 ? "All detected merge fields are known" : `Unknown merge fields: ${unknownTokens.join(", ")}`,
       ok: unknownTokens.length === 0,
       missingHint: "Use supported merge field tokens or fix typos.",
     },
-  ], [draft.footerPresetId, draft.headerPresetId, draft.name, draft.printBody, draft.signatureBlockId, unknownTokens]);
+  ], [draft.footerPresetId, draft.headerPresetId, draft.name, draft.printBody, unknownTokens]);
   const localChecklistReady = localChecklist.every((item) => item.ok);
   const selectedHeader = headers.find((item) => item.id === draft.headerPresetId) ?? headers.find((item) => item.isDefault) ?? null;
   const selectedFooter = footers.find((item) => item.id === draft.footerPresetId) ?? footers.find((item) => item.isDefault) ?? null;
-  const dirty = draftDiffers(draft, savedDraft);
   const wordCount = countWords(draft.printBody);
   const pageSizeShort = pageSize.includes("Letter") ? "8.5 x 11 in" : pageSize.includes("Legal") ? "8.5 x 14 in" : "A4";
   const pageMetrics = pageSizeToMetrics(pageSize);
@@ -1712,7 +1891,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       <input
         ref={imageInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/svg+xml"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
         className="hidden"
         onChange={handleImageFileSelected}
       />
@@ -1766,6 +1945,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               <select value={fontSize} onChange={(event) => { setFontSize(event.target.value); replaceSelection(`<span style="font-size:${escapeHtml(event.target.value)}pt;">${selectedText("Text")}</span>`, true); }} className="h-9 w-16 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["9", "10", "11", "12", "14", "16", "18", "24"].map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
+              <select aria-label="Line height" value={lineHeight} onChange={(event) => applyLineHeight(event.target.value)} className="h-9 w-24 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+                {["1", "1.15", "1.25", "1.5", "1.75", "2"].map((value) => <option key={value} value={value}>{value} lines</option>)}
+              </select>
               <RibbonButton onClick={() => formatInline("strong")}>B</RibbonButton>
               <RibbonButton onClick={() => formatInline("em")}>I</RibbonButton>
               <RibbonButton onClick={() => formatInline("u")}>U</RibbonButton>
@@ -1796,6 +1978,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               <select value={fontSize} onChange={(event) => { setFontSize(event.target.value); replaceSelection(`<span style="font-size:${escapeHtml(event.target.value)}pt;">${selectedText("Text")}</span>`, true); }} className="h-9 w-16 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["9", "10", "11", "12", "14", "16", "18", "24"].map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
+              <select aria-label="Line height" value={lineHeight} onChange={(event) => applyLineHeight(event.target.value)} className="h-9 w-24 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
+                {["1", "1.15", "1.25", "1.5", "1.75", "2"].map((value) => <option key={value} value={value}>{value} lines</option>)}
+              </select>
               <RibbonButton onClick={() => formatInline("strong")}>B</RibbonButton>
               <RibbonButton onClick={() => formatInline("em")}>I</RibbonButton>
               <RibbonButton onClick={() => formatInline("u")}>U</RibbonButton>
@@ -1814,7 +1999,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         {activeRibbon === "Layout" ? (
           <RibbonGroup label="Tools">
             <RibbonButton onClick={() => insertBlock('<hr />')}>Divider</RibbonButton>
-            <RibbonButton onClick={() => insertBlock('<div style="height: 24px;"></div>')}>Spacer</RibbonButton>
+            <RibbonButton onClick={() => insertWhiteSpace(18)}>Blank Line</RibbonButton>
+            <RibbonButton onClick={() => insertWhiteSpace(36)}>1/2 Inch</RibbonButton>
+            <RibbonButton onClick={() => insertWhiteSpace(72)}>1 Inch</RibbonButton>
+            <RibbonButton onClick={insertFillSpace}>Push to Bottom</RibbonButton>
             <RibbonButton onClick={() => insertBlock('<section style="margin: 24px 0;"></section>')}>Section</RibbonButton>
             <RibbonButton onClick={() => setShowMarginGuides((value) => !value)}>{showMarginGuides ? "Hide Guides" : "Show Guides"}</RibbonButton>
           </RibbonGroup>
@@ -1943,9 +2131,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 onFocus={rememberEditorSelection}
                 onBlur={rememberEditorSelection}
                 onMouseUp={rememberEditorSelection}
+                onClick={handleEditorClick}
                 onKeyUp={rememberEditorSelection}
                 onKeyDown={handleEditorKeyDown}
-                className="min-h-[650px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                className="min-h-[650px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
                 spellCheck
               />
               <LetterPreviewFooter branding={branding} footer={renderedFooter} />
@@ -1989,7 +2178,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 <InspectorCard title="Branding Blocks">
                   <LabeledSelect label="Letterhead" value={draft.headerPresetId} onChange={(value) => setDraft((current) => ({ ...current, headerPresetId: value }))} options={["", ...headers.map((item) => item.id)]} labels={Object.fromEntries(headers.map((item) => [item.id, item.name]))} />
                   <LabeledSelect label="Footer" value={draft.footerPresetId} onChange={(value) => setDraft((current) => ({ ...current, footerPresetId: value }))} options={["", ...footers.map((item) => item.id)]} labels={Object.fromEntries(footers.map((item) => [item.id, item.name]))} />
-                  <LabeledSelect label="Signature" value={draft.signatureBlockId} onChange={(value) => setDraft((current) => ({ ...current, signatureBlockId: value }))} options={["", ...signatures.map((item) => item.id)]} labels={Object.fromEntries(signatures.map((item) => [item.id, item.name]))} />
+                  <LabeledSelect label="Signature (optional)" value={draft.signatureBlockId} onChange={(value) => setDraft((current) => ({ ...current, signatureBlockId: value }))} options={["", ...signatures.map((item) => item.id)]} labels={Object.fromEntries(signatures.map((item) => [item.id, item.name]))} />
                 </InspectorCard>
                 <InspectorCard title="Template Status">
                   <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
@@ -2060,10 +2249,32 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   <div className="grid gap-2">
                     <Button onClick={() => formatBlock("h1")}>Insert Heading</Button>
                     <Button onClick={() => insertBlock("<hr />")}>Insert Divider</Button>
+                    <Button onClick={insertFillSpace}>Push Content to Bottom</Button>
                     <Button onClick={insertTable}>Insert Table</Button>
                     <Button onClick={() => insertBlock('<div style="page-break-after: always;"></div>')}>Insert Page Break</Button>
                     <Button onClick={() => insertSignature()}>Insert Signature</Button>
                   </div>
+                </InspectorCard>
+                <InspectorCard title="Selected Image Size">
+                  {selectedImageWidth === null ? (
+                    <p className="text-xs text-slate-500">Select an image in the letter to resize it.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <input
+                        aria-label="Selected image width"
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        value={selectedImageWidth}
+                        onChange={(event) => resizeSelectedImage(Number(event.target.value))}
+                        className="w-full"
+                      />
+                      <div className="grid grid-cols-4 gap-2">
+                        {[25, 50, 75, 100].map((width) => <Button key={width} onClick={() => resizeSelectedImage(width)}>{width}%</Button>)}
+                      </div>
+                    </div>
+                  )}
                 </InspectorCard>
               </>
             ) : null}
@@ -2503,6 +2714,8 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
 
 function GenerateWorkspace() {
   const searchParams = useSearchParams();
+  const temporaryListId = searchParams.get("temporaryListId") ?? "";
+  const [temporaryRecipientList, setTemporaryRecipientList] = useState<TemporaryRecipientList | null>(null);
   const [templates, setTemplates] = useState<LetterTemplateSummary[]>([]);
   const [generated, setGenerated] = useState<GeneratedLetterSummary[]>([]);
   const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
@@ -2554,6 +2767,16 @@ function GenerateWorkspace() {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const list = readTemporaryRecipientList(temporaryListId);
+    if (!list) return;
+    setTemporaryRecipientList(list);
+    setSelectedRecipientIds(list.constituentIds);
+    setSelectedIndividualIds(list.constituentIds);
+    setGenerateMode("batch");
+    setRecipientStepTab("individuals");
+  }, [temporaryListId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3253,6 +3476,14 @@ function GenerateWorkspace() {
               <h2 className="text-2xl font-semibold text-slate-900">Select Your Options</h2>
               <p className="text-sm text-slate-600">Choose the template, recipients, and context for your letters.</p>
             </div>
+            {temporaryRecipientList ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-950">{temporaryRecipientList.name}</p>
+                <p className="mt-1 text-xs text-emerald-800">
+                  Temporary list loaded from selected donations with {temporaryRecipientList.constituentIds.length} unique donor{temporaryRecipientList.constituentIds.length === 1 ? "" : "s"}. Choose a template, then continue to review recipients.
+                </p>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
@@ -3353,7 +3584,11 @@ function GenerateWorkspace() {
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">Select Recipients</h2>
-              <p className="text-sm text-slate-600">Choose the audience you would like to send letters to.</p>
+              <p className="text-sm text-slate-600">Choose the audience you would like to send letters to. Lists and segments are best for batches. Individuals are best for one-off letters and spot checks.</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">How to use this step</p>
+              <p className="mt-1">Start with the source that already matches your real workflow. If you came from selected donations, the temporary list is already loaded. If not, choose a list, segment, donor-status filter, or individual recipients below.</p>
             </div>
             <div className="flex gap-5 border-b border-slate-200">
               {([
@@ -3375,9 +3610,19 @@ function GenerateWorkspace() {
                 </button>
               ))}
             </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-900">
+              <span className="font-semibold">{recipientStepTab === "lists" ? "Lists" : recipientStepTab === "segments" ? "Segments" : recipientStepTab === "filters" ? "Filters" : "Individuals"}:</span>{" "}
+              {recipientStepTab === "lists"
+                ? "Use a saved audience when this batch should be repeatable."
+                : recipientStepTab === "segments"
+                  ? "Use tags when staff already curates donor groups in CRM."
+                  : recipientStepTab === "filters"
+                    ? "Use donor status when you need a broad operational filter."
+                    : "Search and check specific constituents for one-off or temporary sends."}
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <SearchBox value={query} onChange={setQuery} placeholder="Search recipients..." />
+              <SearchBox value={query} onChange={setQuery} placeholder={recipientStepTab === "individuals" ? "Search recipients by name, email, or address..." : "Search recipients..."} />
               <Button onClick={() => void load()}>Refresh</Button>
             </div>
 
@@ -5195,7 +5440,8 @@ function CheckField({ label, checked, onChange }: { label: string; checked: bool
   );
 }
 
-function TemplateCard({ template }: { template: LetterTemplateSummary }) {
+function TemplateCard({ template, currentUserId }: { template: LetterTemplateSummary; currentUserId: string | null }) {
+  const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md">
       <Link href={`/oyama-letters/templates/${template.id}`} className="block">
@@ -5205,6 +5451,12 @@ function TemplateCard({ template }: { template: LetterTemplateSummary }) {
         <div>
           <Link href={`/oyama-letters/templates/${template.id}`} className="text-[17px] font-semibold text-slate-950 hover:text-emerald-800">{template.name}</Link>
           <p className="mt-1 text-sm text-slate-600">{template.category.replaceAll("_", " ")}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{ownershipLabel}</span>
+          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${template.aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+            {template.aiAssisted ? "AI-assisted" : "User created"}
+          </span>
         </div>
         <div className="flex items-center justify-between gap-2">
           <StatusPill label={template.status === "ACTIVE" ? "Published" : titleCase(template.status)} tone={template.status === "ACTIVE" ? "green" : template.status === "DRAFT" ? "orange" : "slate"} />
@@ -5231,13 +5483,20 @@ function TemplateCard({ template }: { template: LetterTemplateSummary }) {
   );
 }
 
-function TemplateRow({ template }: { template: LetterTemplateSummary }) {
+function TemplateRow({ template, currentUserId }: { template: LetterTemplateSummary; currentUserId: string | null }) {
+  const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
     <article className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
       <div className="w-24 shrink-0"><DocumentThumb template={template} small /></div>
       <div className="min-w-0 flex-1">
         <Link href={`/oyama-letters/templates/${template.id}`} className="font-semibold text-slate-950 hover:text-emerald-800">{template.name}</Link>
         <p className="mt-1 text-sm text-slate-600">{template.category.replaceAll("_", " ")} · {template.status}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{ownershipLabel}</span>
+          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${template.aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+            {template.aiAssisted ? "AI-assisted" : "User created"}
+          </span>
+        </div>
       </div>
       <p className="hidden text-sm text-slate-500 md:block">Updated {formatDate(template.updatedAt)}</p>
       <p className="hidden text-sm text-slate-500 lg:block">Used {template._count?.generatedLetters ?? 0} times</p>
@@ -5604,6 +5863,18 @@ function EmptyState({ title, body, actionHref, actionLabel }: { title: string; b
   return <div className="m-6 rounded-md border border-dashed border-slate-300 bg-white p-10 text-center"><p className="font-semibold">{title}</p><p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">{body}</p><Button href={actionHref} tone="primary">{actionLabel}</Button></div>;
 }
 
+function WorkflowShortcutCard({ title, body, href, actionLabel }: { title: string; body: string; href: string; actionLabel: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <p className="text-sm font-semibold text-slate-900">{title}</p>
+      <p className="mt-2 text-sm text-slate-600">{body}</p>
+      <div className="mt-4">
+        <Button href={href}>{actionLabel}</Button>
+      </div>
+    </div>
+  );
+}
+
 function LoadingPage({ label }: { label: string }) {
   return <div className="flex min-h-[420px] items-center justify-center text-sm font-semibold text-slate-500">{label}</div>;
 }
@@ -5660,6 +5931,11 @@ function draftDiffers(a: TemplateDraft, b: TemplateDraft): boolean {
   return JSON.stringify(a) !== JSON.stringify(b);
 }
 
+function markLetterHtmlAsAiAssisted(value: string): string {
+  if (value.includes(LETTER_TEMPLATE_AI_ASSISTED_MARKER)) return value;
+  return `<!-- ${LETTER_TEMPLATE_AI_ASSISTED_MARKER} -->${value}`;
+}
+
 function readRecoveryStorage(): Record<string, TemplateRecoverySnapshot> {
   if (typeof window === "undefined") return {};
   try {
@@ -5714,6 +5990,36 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function readTemporaryRecipientList(id: string): TemporaryRecipientList | null {
+  if (!id || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(`oyama-letters:temporary-recipient-list:${id}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TemporaryRecipientList>;
+    const constituentIds = Array.isArray(parsed.constituentIds)
+      ? Array.from(new Set(parsed.constituentIds.map((value) => String(value).trim()).filter(Boolean)))
+      : [];
+    if (constituentIds.length === 0) return null;
+    return {
+      name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : `Temporary recipient list (${constituentIds.length})`,
+      constituentIds,
+      donationIds: Array.isArray(parsed.donationIds) ? parsed.donationIds.map((value) => String(value)).filter(Boolean) : [],
+      createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function htmlToPlainTextClient(value: string): string {

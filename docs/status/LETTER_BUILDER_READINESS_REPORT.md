@@ -1,6 +1,6 @@
 # Letter Builder Readiness Report
 
-Date: May 27, 2026
+Date: June 4, 2026
 
 ## Completed
 
@@ -20,6 +20,14 @@ Date: May 27, 2026
 - Renamed the staff-facing workspace to OyamaLetters and deprecated the old `/letters-printables` home route.
 - Added inline PDF streaming support through `?preview=1` on single and batch PDF export endpoints.
 - Added missing merge-field highlighting and fallback/filter parsing to the server merge engine.
+- Added single through double line-height formatting options to the canonical canvas builder and preserved line-height metadata in server PDF rendering.
+- Added explicit blank-line, half-inch, one-inch, and push-to-bottom layout controls.
+- Preserved intentional blank paragraphs and spacer blocks in PDF output, rendered dividers consistently, and reduced aggressive blank-line cleanup.
+- Made signature blocks optional for publish preflight and donation-to-letter template handoff.
+- Added a modal signature visual builder with draw/upload modes, saved-signature thumbnails, and live rendered preview.
+- Added uploaded signature-image rendering to server-generated PDFs and prevented duplicate signature output.
+- Added server-backed letter image uploads plus canvas selection and width controls that persist into PDFs.
+- Added Donations multi-select handoff to OyamaLetters as a temporary unique-donor list, including a visible monthly-donor selection shortcut.
 
 ## Partially Ready
 
@@ -27,6 +35,7 @@ Date: May 27, 2026
 - Duplicate Template and Archive Template are present in More Options, but need backend persistence workflows before being marked complete.
 - Typography controls serialize inline styles for selected text. A future migration should add document-level typography defaults to the template schema.
 - OyamaLetters Generate Center uses the existing jsPDF server renderer. Chromium/PDF.js fidelity is still a follow-up.
+- The server PDF renderer preserves supported spacing and line height, but arbitrary browser-only CSS is still outside its fidelity contract.
 - Label presets and ZIP exports are not production-complete.
 
 ## Not Ready For Removal Of Warnings
@@ -39,14 +48,15 @@ Date: May 27, 2026
 Passed locally:
 
 ```bash
-pnpm typecheck:web
+pnpm typecheck
+pnpm exec vitest run tests/unit/letters-pdf-layout.test.ts tests/unit/letters-print-layout.test.ts tests/unit/letters-merge.test.ts tests/smoke/letter-builder-ui-source.test.ts
 ```
 
 Targeted tests to run:
 
 ```bash
 pnpm exec vitest run tests/smoke/letter-builder-ui-source.test.ts
-pnpm exec vitest run tests/unit/letters-merge.test.ts tests/unit/letters-print-layout.test.ts tests/smoke/letters-printables-generate-source.test.ts
+pnpm exec vitest run tests/unit/letters-merge.test.ts tests/unit/letters-print-layout.test.ts tests/unit/letters-pdf-layout.test.ts tests/smoke/letters-printables-generate-source.test.ts
 pnpm test:e2e
 npm run build
 ```

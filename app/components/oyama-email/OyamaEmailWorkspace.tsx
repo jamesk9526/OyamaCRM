@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
@@ -81,6 +82,32 @@ const CAMPAIGN_AUDIENCE_SOURCES = [
   "Individual Search",
 ] as const;
 
+const PRIMARY_CAMPAIGN_AUDIENCE_SOURCES: Array<(typeof CAMPAIGN_AUDIENCE_SOURCES)[number]> = [
+  "Saved Lists",
+  "Individual Search",
+  "Monthly Donors",
+  "Lapsed Donors",
+];
+
+const ADVANCED_CAMPAIGN_AUDIENCE_SOURCES: Array<(typeof CAMPAIGN_AUDIENCE_SOURCES)[number]> = CAMPAIGN_AUDIENCE_SOURCES.filter(
+  (source) => !PRIMARY_CAMPAIGN_AUDIENCE_SOURCES.includes(source),
+);
+
+const CAMPAIGN_AUDIENCE_SOURCE_HELP: Record<(typeof CAMPAIGN_AUDIENCE_SOURCES)[number], string> = {
+  "Saved Lists": "Use a reusable list when this audience should stay consistent across future sends.",
+  "Segments": "Use CRM-defined segment logic when the send should follow a live donor grouping.",
+  "Tags": "Use constituent tags when staff already curates the group with tags.",
+  "Donor Status": "Target donors by CRM lifecycle or status buckets.",
+  "Campaign Donors": "Use donors linked to prior campaign activity.",
+  "Event Attendees": "Use event-linked recipients.",
+  "Monthly Donors": "Fast path for recurring monthly donors.",
+  "Lapsed Donors": "Fast path for re-engagement outreach.",
+  "Major Donors": "Fast path for high-touch giving audiences.",
+  "Steward Path Enrollment": "Use a stewardship-program audience rather than one-off picks.",
+  "Manual Recipients": "Paste exact email addresses when you already know the send list.",
+  "Individual Search": "Search and check specific constituents when this is a one-off or temporary audience.",
+};
+
 interface DeliveryEventRow {
   id: string;
   recipientEmail: string;
@@ -118,6 +145,16 @@ interface DeliveryEventsPayload {
   };
   events: DeliveryEventRow[];
 }
+
+interface TemporaryEmailSegment {
+  name: string;
+  recipientEmails: string[];
+  donationIds?: string[];
+  createdAt?: string;
+  source?: string;
+}
+
+type WorkflowHelpTopic = "email-workflow" | "email-audience" | "letters-recipients";
 
 interface CampaignQueueRow {
   recipientLabel: string;
@@ -183,6 +220,20 @@ interface CampaignValidationResponse {
   }>;
   blockers: string[];
   audience: CampaignAudiencePreviewResponse["audience"];
+}
+
+type CampaignActionDialogKind =
+  | "schedule"
+  | "unschedule"
+  | "sendNow"
+  | "sendTest"
+  | "archive"
+  | "cancelRemaining";
+
+interface CampaignActionDialogState {
+  kind: CampaignActionDialogKind;
+  email: string;
+  scheduledAt: string;
 }
 
 interface CampaignCalendarEvent {
@@ -308,6 +359,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const wizardPageMode = pathname.startsWith("/oyama-email/campaigns/new");
   const openCampaignWizard = wizardPageMode || searchParams.get("mode") === "new" || view === "send";
   const preferredTemplateId = searchParams.get("templateId") || null;
+  const temporarySegmentId = searchParams.get("temporarySegmentId") || null;
 
   const targetCampaignId = templateId || campaignId || searchParams.get("templateId") || null;
 
@@ -613,6 +665,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
               openWizard={openCampaignWizard}
               wizardPageMode={wizardPageMode}
               preferredTemplateId={preferredTemplateId}
+              temporarySegmentId={temporarySegmentId}
               constituents={constituents}
               lists={lists}
               onRefresh={load}
@@ -735,12 +788,18 @@ function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targ
 }
 
 function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCampaign[]; onUseTemplate: (template: OyamaEmailCampaign) => void }) {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Templates");
+  const [ownership, setOwnership] = useState<"MINE" | "SHARED" | "ALL">("MINE");
+  const [provenance, setProvenance] = useState<"ALL" | "HUMAN" | "AI">("ALL");
   const [categorySort, setCategorySort] = useState<"default" | "count">("default");
   const [sortBy, setSortBy] = useState<"updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc">("updatedDesc");
   const [page, setPage] = useState(1);
   const pageSize = 8;
+  const myCount = useMemo(() => campaigns.filter((row) => row.ownerId === user?.id).length, [campaigns, user?.id]);
+  const sharedCount = useMemo(() => campaigns.filter((row) => row.ownerId !== user?.id).length, [campaigns, user?.id]);
+  const aiCount = useMemo(() => campaigns.filter((row) => isAiAssistedEmailTemplate(row)).length, [campaigns]);
 
   const categoryMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -774,11 +833,16 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
 
   const rows = useMemo(() => campaigns.filter((row) => {
     const needle = search.trim().toLowerCase();
+    const isMine = row.ownerId === user?.id;
     if (needle && !`${row.name} ${row.subject || ""}`.toLowerCase().includes(needle)) return false;
+    if (ownership === "MINE" && !isMine) return false;
+    if (ownership === "SHARED" && isMine) return false;
+    if (provenance === "AI" && !isAiAssistedEmailTemplate(row)) return false;
+    if (provenance === "HUMAN" && isAiAssistedEmailTemplate(row)) return false;
     if (category === "All Templates") return true;
     const purpose = purposeLabel(row.purpose || "GENERAL");
     return purpose === category;
-  }), [campaigns, category, search]);
+  }), [campaigns, category, ownership, provenance, search, user?.id]);
 
   const sortedRows = useMemo(() => {
     const next = [...rows];
@@ -799,7 +863,7 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
 
   useEffect(() => {
     setPage(1);
-  }, [search, category, sortBy]);
+  }, [search, category, ownership, provenance, sortBy]);
 
   const pageRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
 
@@ -854,6 +918,46 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
+          {([
+            { value: "MINE", label: "My Templates", count: myCount },
+            { value: "SHARED", label: "Shared Templates", count: sharedCount },
+            { value: "ALL", label: "All Templates", count: campaigns.length },
+          ] as const).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setOwnership(option.value)}
+              className={[
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                ownership === option.value ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+            >
+              <span>{option.label}</span>
+              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-slate-600">{option.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {([
+            { value: "ALL", label: "All Provenance" },
+            { value: "HUMAN", label: "User Created" },
+            { value: "AI", label: `AI-assisted (${aiCount})` },
+          ] as const).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setProvenance(option.value)}
+              className={[
+                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold",
+                provenance === option.value ? "border-sky-700 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
           {visibleCategories.map((label) => (
             <button
               key={label}
@@ -870,6 +974,17 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{label === "All Templates" ? campaigns.length : categoryMap.get(label) ?? 0}</span>
             </button>
           ))}
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
+            Library opens on <span className="font-semibold">your templates</span> first so drafting starts from owned work instead of team noise.
+          </div>
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900">
+            <span className="font-semibold">AI-assisted</span> badges come from saved builder JSON, not guesswork from names or categories.
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+            Builder autosave stays active, and unsaved templates warn before browser close to reduce lost work.
+          </div>
         </div>
       </div>
 
@@ -899,12 +1014,22 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
             {pageRows.map((row) => {
               const categoryLabel = purposeLabel(row.purpose || "GENERAL");
               const usedCount = row.totalRecipients || 0;
+              const isMine = row.ownerId === user?.id;
+              const aiAssisted = isAiAssistedEmailTemplate(row);
               return (
                 <article key={row.id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between px-4 pb-2 pt-4">
                     <div>
                       <p className="line-clamp-1 text-[21px] font-semibold leading-snug tracking-tight text-slate-900">{row.name}</p>
                       <span className="mt-1 inline-flex rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{categoryLabel}</span>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                          {isMine ? "Created by you" : row.sharedWithOrganization ? "Shared template" : "Team template"}
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+                          {aiAssisted ? "AI-assisted" : "User created"}
+                        </span>
+                      </div>
                     </div>
                     <button type="button" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`More actions for ${row.name}`}>
                       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -990,6 +1115,12 @@ function templatePreviewClass(value: string): string {
   if (upper.includes("APPEAL") || upper.includes("FUNDRAIS")) return "bg-[linear-gradient(135deg,#6a7f91,#2f4d66)]";
   if (upper.includes("STEWARD")) return "bg-[linear-gradient(135deg,#89a8b7,#3a5f6b)]";
   return "bg-[linear-gradient(135deg,#7da575,#2d6040)]";
+}
+
+function isAiAssistedEmailTemplate(campaign: OyamaEmailCampaign): boolean {
+  const templateJson = campaign.templateJson ?? "";
+  if (/"type":"ai(Text|Button)"/.test(templateJson)) return true;
+  return /data-ai-|ai-generated|ai-assisted/i.test(campaign.bodyHtml ?? "");
 }
 
 function BuilderView({ templateId }: { templateId?: string }) {
@@ -1220,6 +1351,7 @@ function CampaignsView({
   openWizard,
   wizardPageMode,
   preferredTemplateId,
+  temporarySegmentId,
   constituents,
   lists,
   onRefresh,
@@ -1233,6 +1365,7 @@ function CampaignsView({
   openWizard: boolean;
   wizardPageMode: boolean;
   preferredTemplateId: string | null;
+  temporarySegmentId: string | null;
   constituents: OyamaEmailConstituent[];
   lists: OyamaEmailRecipientList[];
   onRefresh: () => Promise<void>;
@@ -1522,6 +1655,7 @@ function CampaignsView({
                   lists={lists}
                   constituents={constituents}
                   preferredTemplateId={preferredTemplateId}
+                  temporarySegmentId={temporarySegmentId}
                   onCancel={() => {
                     setWizardVisible(false);
                     if (wizardPageMode) router.push("/oyama-email/campaigns");
@@ -1935,6 +2069,7 @@ function CampaignDetailWorkspace({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [validation, setValidation] = useState<CampaignValidationResponse | null>(null);
+  const [actionDialog, setActionDialog] = useState<CampaignActionDialogState | null>(null);
 
   const summary = deliveryData?.summary;
   const queueStatusCounts = useMemo(() => buildQueueStatusCounts(queueRows), [queueRows]);
@@ -1983,11 +2118,8 @@ function CampaignDetailWorkspace({
     }, "Campaign moved into review queue.");
   }, [campaign.id, runCampaignAction]);
 
-  const runSchedule = useCallback(async () => {
-    const defaultDate = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 16);
-    const value = window.prompt("Schedule send datetime (YYYY-MM-DDTHH:mm)", defaultDate);
-    if (!value) return;
-    const scheduledAt = new Date(value);
+  const runSchedule = useCallback(async (scheduledAtInput: string) => {
+    const scheduledAt = new Date(scheduledAtInput);
     if (Number.isNaN(scheduledAt.getTime())) {
       setActionError("Enter a valid date/time value.");
       return;
@@ -2001,14 +2133,12 @@ function CampaignDetailWorkspace({
   }, [campaign.id, runCampaignAction]);
 
   const runUnschedule = useCallback(async () => {
-    if (!window.confirm("Unschedule this campaign?")) return;
     await runCampaignAction("unschedule", async () => {
       await apiFetch(`/api/email-campaigns/${campaign.id}/unschedule`, { method: "POST" });
     }, "Campaign unscheduled.");
   }, [campaign.id, runCampaignAction]);
 
   const runQueueControl = useCallback(async (action: "PAUSE" | "RESUME" | "CANCEL_REMAINING") => {
-    if (action === "CANCEL_REMAINING" && !window.confirm("Cancel remaining unsent recipients? This cannot be undone.")) return;
     await runCampaignAction(`queue-${action.toLowerCase()}`, async () => {
       await apiFetch(`/api/email-campaigns/${campaign.id}/queue-control`, {
         method: "POST",
@@ -2018,7 +2148,6 @@ function CampaignDetailWorkspace({
   }, [campaign.id, runCampaignAction]);
 
   const runSendNow = useCallback(async () => {
-    if (!window.confirm("Send this campaign now?")) return;
     await runCampaignAction("send", async () => {
       await apiFetch(`/api/email-campaigns/${campaign.id}/send`, {
         method: "POST",
@@ -2027,9 +2156,11 @@ function CampaignDetailWorkspace({
     }, "Campaign send initiated.");
   }, [campaign.id, runCampaignAction]);
 
-  const runSendTest = useCallback(async () => {
-    const email = window.prompt("Test recipient email", campaign.replyToEmail || campaign.fromEmail || "");
-    if (!email) return;
+  const runSendTest = useCallback(async (email: string) => {
+    if (!isEmailLike(email)) {
+      setActionError("Enter a valid test recipient email.");
+      return;
+    }
     await runCampaignAction("send-test", async () => {
       await apiFetch(`/api/email-campaigns/${campaign.id}/send-test`, {
         method: "POST",
@@ -2039,7 +2170,6 @@ function CampaignDetailWorkspace({
   }, [campaign.fromEmail, campaign.id, campaign.replyToEmail, runCampaignAction]);
 
   const runArchive = useCallback(async () => {
-    if (!window.confirm("Archive this campaign?")) return;
     await runCampaignAction("archive", async () => {
       await apiFetch(`/api/email-campaigns/${campaign.id}/archive`, { method: "POST" });
     }, "Campaign archived.");
@@ -2050,6 +2180,45 @@ function CampaignDetailWorkspace({
       await apiFetch(`/api/email-campaigns/${campaign.id}/duplicate`, { method: "POST" });
     }, "Campaign duplicated.");
   }, [campaign.id, runCampaignAction]);
+
+  function openActionDialog(kind: CampaignActionDialogKind) {
+    setActionError(null);
+    setActionDialog({
+      kind,
+      email: campaign.replyToEmail || campaign.fromEmail || "",
+      scheduledAt: new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 16),
+    });
+  }
+
+  async function submitActionDialog() {
+    if (!actionDialog) return;
+    const current = actionDialog;
+    if (current.kind === "schedule") {
+      const scheduledAt = new Date(current.scheduledAt);
+      if (Number.isNaN(scheduledAt.getTime())) {
+        setActionError("Enter a valid date/time value.");
+        return;
+      }
+    }
+    if (current.kind === "sendTest" && !isEmailLike(current.email)) {
+      setActionError("Enter a valid test recipient email.");
+      return;
+    }
+    if (current.kind === "schedule") {
+      await runSchedule(current.scheduledAt);
+    } else if (current.kind === "unschedule") {
+      await runUnschedule();
+    } else if (current.kind === "sendNow") {
+      await runSendNow();
+    } else if (current.kind === "sendTest") {
+      await runSendTest(current.email);
+    } else if (current.kind === "archive") {
+      await runArchive();
+    } else if (current.kind === "cancelRemaining") {
+      await runQueueControl("CANCEL_REMAINING");
+    }
+    setActionDialog(null);
+  }
 
   const mergedActivity = useMemo(() => {
     const readableAction = (action: string) => action.replaceAll("_", " ");
@@ -2103,11 +2272,15 @@ function CampaignDetailWorkspace({
           ))}
         </div>
 
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+          Overview is the campaign status view. Audience explains who is eligible. Queue shows recipient-by-recipient progress. Analytics summarizes delivery outcomes.
+        </div>
+
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Campaign Command Center</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runValidation()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "validate" ? "Validating..." : "Validate"}</button>
-            <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runSendTest()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "send-test" ? "Sending Test..." : "Send Test"}</button>
+            <button type="button" disabled={Boolean(actionBusy)} onClick={() => openActionDialog("sendTest")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "send-test" ? "Sending Test..." : "Send Test"}</button>
             <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runDuplicate()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "duplicate" ? "Duplicating..." : "Duplicate"}</button>
 
             {["DRAFT", "NEEDS_REVIEW", "CANCELLED"].includes(workspaceStatus) ? (
@@ -2119,15 +2292,15 @@ function CampaignDetailWorkspace({
             ) : null}
 
             {["DRAFT", "READY", "NEEDS_REVIEW"].includes(workspaceStatus) ? (
-              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runSchedule()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "schedule" ? "Scheduling..." : "Schedule"}</button>
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => openActionDialog("schedule")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "schedule" ? "Scheduling..." : "Schedule"}</button>
             ) : null}
 
             {workspaceStatus === "SCHEDULED" ? (
-              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runUnschedule()} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "unschedule" ? "Unscheduling..." : "Unschedule"}</button>
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => openActionDialog("unschedule")} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "unschedule" ? "Unscheduling..." : "Unschedule"}</button>
             ) : null}
 
             {["READY", "SCHEDULED", "QUEUED", "NEEDS_REVIEW"].includes(workspaceStatus) ? (
-              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runSendNow()} className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "send" ? "Sending..." : "Send Now"}</button>
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => openActionDialog("sendNow")} className="rounded-md border border-emerald-700 bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "send" ? "Sending..." : "Send Now"}</button>
             ) : null}
 
             {workspaceStatus === "SENDING" || workspaceStatus === "QUEUED" ? (
@@ -2137,12 +2310,12 @@ function CampaignDetailWorkspace({
                 ) : (
                   <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runQueueControl("PAUSE")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue-pause" ? "Pausing..." : "Pause Queue"}</button>
                 )}
-                <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runQueueControl("CANCEL_REMAINING")} className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue-cancel_remaining" ? "Cancelling..." : "Cancel Remaining"}</button>
+                <button type="button" disabled={Boolean(actionBusy)} onClick={() => openActionDialog("cancelRemaining")} className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "queue-cancel_remaining" ? "Cancelling..." : "Cancel Remaining"}</button>
               </>
             ) : null}
 
             {workspaceStatus !== "ARCHIVED" ? (
-              <button type="button" disabled={Boolean(actionBusy)} onClick={() => void runArchive()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "archive" ? "Archiving..." : "Archive"}</button>
+              <button type="button" disabled={Boolean(actionBusy)} onClick={() => openActionDialog("archive")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">{actionBusy === "archive" ? "Archiving..." : "Archive"}</button>
             ) : null}
           </div>
 
@@ -2419,6 +2592,50 @@ function CampaignDetailWorkspace({
           </article>
         </div>
       ) : null}
+
+      {actionDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <p className="text-base font-semibold text-slate-900">{campaignActionDialogTitle(actionDialog.kind)}</p>
+              <p className="mt-1 text-sm text-slate-600">{campaignActionDialogDescription(actionDialog.kind)}</p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              {actionDialog.kind === "schedule" ? (
+                <label className="block text-xs font-semibold text-slate-700">
+                  Scheduled send time
+                  <input
+                    type="datetime-local"
+                    value={actionDialog.scheduledAt}
+                    onChange={(event) => setActionDialog((current) => current ? { ...current, scheduledAt: event.target.value } : current)}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              ) : null}
+              {actionDialog.kind === "sendTest" ? (
+                <label className="block text-xs font-semibold text-slate-700">
+                  Test recipient email
+                  <input
+                    type="email"
+                    value={actionDialog.email}
+                    onChange={(event) => setActionDialog((current) => current ? { ...current, email: event.target.value } : current)}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              ) : null}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {campaignActionDialogImpact(actionDialog.kind)}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+              <button type="button" onClick={() => setActionDialog(null)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={() => void submitActionDialog()} disabled={Boolean(actionBusy)} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60">
+                {actionBusy ? "Working..." : campaignActionDialogConfirmLabel(actionDialog.kind)}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2428,6 +2645,7 @@ function NewCampaignWizardPanel({
   lists,
   constituents,
   preferredTemplateId,
+  temporarySegmentId,
   onCancel,
   pageMode,
   onCreated,
@@ -2436,6 +2654,7 @@ function NewCampaignWizardPanel({
   lists: OyamaEmailRecipientList[];
   constituents: OyamaEmailConstituent[];
   preferredTemplateId: string | null;
+  temporarySegmentId: string | null;
   onCancel: () => void;
   pageMode?: boolean;
   onCreated: (campaign: OyamaEmailCampaign) => Promise<void>;
@@ -2460,12 +2679,18 @@ function NewCampaignWizardPanel({
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [manualRecipientsText, setManualRecipientsText] = useState("");
   const [selectedConstituentIds, setSelectedConstituentIds] = useState<string[]>([]);
+  const [temporarySegment, setTemporarySegment] = useState<TemporaryEmailSegment | null>(null);
+  const [loadedTemporarySegmentId, setLoadedTemporarySegmentId] = useState<string | null>(null);
+  const [showAdvancedAudienceSources, setShowAdvancedAudienceSources] = useState(false);
+  const [individualSearch, setIndividualSearch] = useState("");
+  const [helpTopic, setHelpTopic] = useState<WorkflowHelpTopic | null>(null);
   const [segmentType, setSegmentType] = useState("active");
   const [audienceReviewConfirmed, setAudienceReviewConfirmed] = useState(false);
   const [audiencePreview, setAudiencePreview] = useState<CampaignAudiencePreviewResponse["audience"] | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
 
   const [scheduleAt, setScheduleAt] = useState("");
+  const [testRecipientEmail, setTestRecipientEmail] = useState("");
 
   const selectedTemplate = templates.find((row) => row.id === templateId) ?? null;
   const selectedListRecipientCount = useMemo(() => {
@@ -2473,11 +2698,22 @@ function NewCampaignWizardPanel({
     const selected = new Set(selectedListIds);
     return lists.reduce((total, list) => (selected.has(list.id) ? total + (list.recipientsCount || 0) : total), 0);
   }, [lists, selectedListIds]);
-  const selectedConstituentEmails = constituents
+  const manuallySelectedConstituentEmails = constituents
     .filter((row) => selectedConstituentIds.includes(row.id))
     .map((row) => (row.email || "").trim().toLowerCase())
     .filter(Boolean);
+  const selectedConstituentEmails = Array.from(new Set([
+    ...(temporarySegment?.recipientEmails ?? []),
+    ...manuallySelectedConstituentEmails,
+  ].map((email) => email.trim().toLowerCase()).filter(Boolean)));
   const manualEmails = normalizeManualEmails(manualRecipientsText);
+  const filteredIndividuals = constituents
+    .filter((row) => {
+      const needle = individualSearch.trim().toLowerCase();
+      if (!needle) return true;
+      return [row.firstName, row.lastName, row.email].join(" ").toLowerCase().includes(needle);
+    })
+    .slice(0, 200);
 
   useEffect(() => {
     if (preferredTemplateId) {
@@ -2490,6 +2726,27 @@ function NewCampaignWizardPanel({
     setPurpose(mappedPurpose);
     setPreferenceCategory(requiresMarketingPreference(mappedPurpose) ? "MARKETING" : "TRANSACTIONAL");
   }, [emailType]);
+
+  useEffect(() => {
+    setTestRecipientEmail((current) => current || replyToEmail || fromEmail || "");
+  }, [fromEmail, replyToEmail]);
+
+  useEffect(() => {
+    if (!temporarySegmentId || loadedTemporarySegmentId === temporarySegmentId) return;
+
+    setLoadedTemporarySegmentId(temporarySegmentId);
+    const segment = readTemporaryEmailSegment(temporarySegmentId);
+    if (!segment) {
+      setNotice("The temporary donation email segment was not found. Re-select donations to rebuild it.");
+      return;
+    }
+
+    setTemporarySegment(segment);
+    setAudienceSource("Individual Search");
+    setAudienceReviewConfirmed(false);
+    setCampaignName((current) => current || segment.name);
+    setNotice(`Loaded temporary donation email segment with ${segment.recipientEmails.length} recipient${segment.recipientEmails.length === 1 ? "" : "s"}.`);
+  }, [loadedTemporarySegmentId, temporarySegmentId]);
 
   useEffect(() => {
     const shouldUseSegmentPreview = audienceSource !== "Saved Lists" && audienceSource !== "Manual Recipients" && audienceSource !== "Individual Search";
@@ -2563,6 +2820,8 @@ function NewCampaignWizardPanel({
     }),
     [audiencePreview?.finalSendCount, selectedListRecipientCount, sendPayloadPreview],
   );
+  const audiencePersistsWithCampaign = Boolean(buildAudienceFilter(audienceSource, segmentType));
+  const explicitAudienceRequiresImmediateSend = !audiencePersistsWithCampaign;
 
   const validRecipientCount = useMemo(
     () => normalizeMetricCount(localAudienceSummary.validRecipients),
@@ -2592,6 +2851,10 @@ function NewCampaignWizardPanel({
         }
       }
 
+      if ((action === "queue" || action === "schedule") && explicitAudienceRequiresImmediateSend) {
+        throw new Error("This explicit audience is temporary. Use Send now after review, or switch to a persisted segment before queueing or scheduling.");
+      }
+
       const created = await apiFetch<OyamaEmailCampaign>("/api/email-campaigns", {
         method: "POST",
         body: JSON.stringify({
@@ -2612,14 +2875,14 @@ function NewCampaignWizardPanel({
       });
 
       if (action === "test") {
-        const toEmail = window.prompt("Send test to email address:", replyToEmail || fromEmail || "");
-        if (toEmail) {
-          await apiFetch(`/api/email-campaigns/${created.id}/send-test`, {
-            method: "POST",
-            body: JSON.stringify({ toEmail }),
-          });
-          setNotice(`Test email sent to ${toEmail}.`);
+        if (!isEmailLike(testRecipientEmail)) {
+          throw new Error("Enter a valid test recipient email before sending a test.");
         }
+        await apiFetch(`/api/email-campaigns/${created.id}/send-test`, {
+          method: "POST",
+          body: JSON.stringify({ toEmail: testRecipientEmail }),
+        });
+        setNotice(`Test email sent to ${testRecipientEmail}.`);
       }
 
       if (action === "queue") {
@@ -2657,9 +2920,12 @@ function NewCampaignWizardPanel({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
         <div>
           <p className="text-lg font-semibold text-slate-900">New Campaign Wizard</p>
-          <p className="text-sm text-slate-600">Setup → Choose Template → Audience → Review & Compliance → Queue/Schedule/Send</p>
+          <p className="text-sm text-slate-600">One flow: define the send, choose reusable content, confirm the audience, review compliance, then send.</p>
         </div>
-        <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setHelpTopic("email-workflow")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">About This Flow</button>
+          <button type="button" onClick={onCancel} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+        </div>
       </div>
 
       <div className="mt-4 rounded-xl border border-emerald-100 bg-[linear-gradient(135deg,#f3fbf6,#ecf8ff)] p-4">
@@ -2689,6 +2955,11 @@ function NewCampaignWizardPanel({
       {error ? <Alert tone="error">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <p className="font-semibold text-slate-900">How this workspace is organized</p>
+        <p className="mt-1">Templates are reusable content. Campaigns are one send instance that records audience, review status, queue history, and results.</p>
+      </div>
+
       {step === 1 ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <label className="text-xs font-semibold text-slate-700">Campaign Name<input value={campaignName} onChange={(event) => setCampaignName(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" /></label>
@@ -2705,7 +2976,10 @@ function NewCampaignWizardPanel({
 
       {step === 2 ? (
         <div className="mt-4 space-y-3">
-          <p className="text-sm text-slate-600">Choose the template snapshot for this campaign.</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-600">Choose the reusable template content for this campaign send.</p>
+            <button type="button" onClick={() => setHelpTopic("email-workflow")} className="text-xs font-semibold text-emerald-700 hover:text-emerald-600">Why templates and campaigns are separate</button>
+          </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {templates.slice(0, 18).map((template) => (
               <button key={template.id} type="button" onClick={() => setTemplateId(template.id)} className={["rounded-xl border px-3 py-3 text-left", template.id === templateId ? "border-emerald-700 bg-emerald-50" : "border-slate-200 bg-white hover:bg-slate-50"].join(" ")}>
@@ -2720,10 +2994,35 @@ function NewCampaignWizardPanel({
 
       {step === 3 ? (
         <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {CAMPAIGN_AUDIENCE_SOURCES.map((source) => (
-              <button key={source} type="button" onClick={() => setAudienceSource(source)} className={["rounded-full border px-3 py-1 text-xs font-semibold", source === audienceSource ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"].join(" ")}>{source}</button>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Choose Audience Source</p>
+              <p className="text-xs text-slate-600">Pick the simplest source that matches this send. Use saved lists or direct constituent search for most one-off sends.</p>
+            </div>
+            <button type="button" onClick={() => setHelpTopic("email-audience")} className="text-xs font-semibold text-emerald-700 hover:text-emerald-600">Audience Help</button>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Recommended</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PRIMARY_CAMPAIGN_AUDIENCE_SOURCES.map((source) => (
+                <button key={source} type="button" onClick={() => setAudienceSource(source)} className={["rounded-full border px-3 py-1 text-xs font-semibold", source === audienceSource ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"].join(" ")}>{source}</button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setShowAdvancedAudienceSources((current) => !current)} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-900">
+              {showAdvancedAudienceSources ? "Hide advanced audience sources" : "Show advanced audience sources"}
+            </button>
+            {showAdvancedAudienceSources ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {ADVANCED_CAMPAIGN_AUDIENCE_SOURCES.map((source) => (
+                  <button key={source} type="button" onClick={() => setAudienceSource(source)} className={["rounded-full border px-3 py-1 text-xs font-semibold", source === audienceSource ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"].join(" ")}>{source}</button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900">
+            <span className="font-semibold">{audienceSource}:</span> {CAMPAIGN_AUDIENCE_SOURCE_HELP[audienceSource]}
           </div>
 
           {audienceSource === "Saved Lists" ? (
@@ -2747,22 +3046,57 @@ function NewCampaignWizardPanel({
           ) : null}
 
           {audienceSource === "Individual Search" ? (
-            <div className="max-h-[260px] overflow-auto rounded-lg border border-slate-200">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 uppercase tracking-wide text-slate-600"><tr><th className="px-2 py-2" /><th className="px-2 py-2">Name</th><th className="px-2 py-2">Email</th></tr></thead>
-                <tbody className="divide-y divide-slate-200">
-                  {constituents.slice(0, 160).map((person) => {
-                    const selected = selectedConstituentIds.includes(person.id);
-                    return (
-                      <tr key={person.id}>
-                        <td className="px-2 py-2"><input type="checkbox" checked={selected} onChange={() => setSelectedConstituentIds((prev) => selected ? prev.filter((id) => id !== person.id) : [...prev, person.id])} /></td>
-                        <td className="px-2 py-2">{[person.firstName, person.lastName].filter(Boolean).join(" ") || person.id}</td>
-                        <td className="px-2 py-2">{person.email || "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="block flex-1 text-xs font-semibold text-slate-700">
+                  Search Constituents
+                  <input value={individualSearch} onChange={(event) => setIndividualSearch(event.target.value)} placeholder="Search by name or email..." className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+                </label>
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                  Showing <span className="font-semibold text-slate-900">{filteredIndividuals.length}</span> of {constituents.length}
+                </div>
+              </div>
+              {temporarySegment ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{temporarySegment.name}</p>
+                      <p className="mt-1">
+                        Temporary segment from selected donations. {temporarySegment.recipientEmails.length} email recipient{temporarySegment.recipientEmails.length === 1 ? "" : "s"} will be included with any checked individuals below.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTemporarySegment(null);
+                        setAudienceReviewConfirmed(false);
+                      }}
+                      className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100"
+                    >
+                      Remove Segment
+                    </button>
+                  </div>
+                  <p className="mt-2 truncate text-[11px] text-blue-800">{temporarySegment.recipientEmails.slice(0, 6).join(", ")}{temporarySegment.recipientEmails.length > 6 ? "..." : ""}</p>
+                </div>
+              ) : null}
+              <div className="max-h-[320px] overflow-auto rounded-lg border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 uppercase tracking-wide text-slate-600"><tr><th className="px-2 py-2" /><th className="px-2 py-2">Name</th><th className="px-2 py-2">Email</th></tr></thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredIndividuals.map((person) => {
+                      const selected = selectedConstituentIds.includes(person.id);
+                      return (
+                        <tr key={person.id}>
+                          <td className="px-2 py-2"><input type="checkbox" checked={selected} onChange={() => setSelectedConstituentIds((prev) => selected ? prev.filter((id) => id !== person.id) : [...prev, person.id])} /></td>
+                          <td className="px-2 py-2">{[person.firstName, person.lastName].filter(Boolean).join(" ") || person.id}</td>
+                          <td className="px-2 py-2">{person.email || "-"}</td>
+                        </tr>
+                      );
+                    })}
+                    {filteredIndividuals.length === 0 ? <tr><td colSpan={3} className="px-3 py-8 text-center text-slate-500">No constituents match this search.</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : null}
 
@@ -2838,14 +3172,25 @@ function NewCampaignWizardPanel({
           <div className="rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900">
             <span className="font-semibold">Send mode:</span> {sendModeSummary.label} • <span className="font-semibold">Recipients:</span> {sendModeSummary.recipientCount}
           </div>
+          {explicitAudienceRequiresImmediateSend ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              This audience is an explicit selection or temporary segment. It is reviewable here and can be sent now, but it is not stored on the campaign for queueing or scheduling yet.
+            </div>
+          ) : null}
           <label className="block text-xs font-semibold text-slate-700">Schedule Send (optional)
-            <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} disabled={explicitAudienceRequiresImmediateSend} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
           </label>
+          <label className="block text-xs font-semibold text-slate-700">Test Recipient Email
+            <input value={testRecipientEmail} onChange={(event) => setTestRecipientEmail(event.target.value)} placeholder="reviewer@organization.org" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </label>
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            Send a test first to verify sender details, footer links, and merge content before queueing or sending.
+          </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void createOrSend("test")} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Send test email</button>
             <button type="button" onClick={() => void createOrSend("save")} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Save draft</button>
-            <button type="button" onClick={() => void createOrSend("schedule")} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Schedule send</button>
-            <button type="button" onClick={() => void createOrSend("queue")} disabled={saving} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60">Queue for review</button>
+            <button type="button" onClick={() => void createOrSend("schedule")} disabled={saving || explicitAudienceRequiresImmediateSend} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Schedule send</button>
+            <button type="button" onClick={() => void createOrSend("queue")} disabled={saving || explicitAudienceRequiresImmediateSend} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60">Queue for review</button>
             <button
               type="button"
               onClick={() => {
@@ -2900,6 +3245,8 @@ function NewCampaignWizardPanel({
           Next
         </button>
       </div>
+
+      <WorkflowHelpModal topic={helpTopic} onClose={() => setHelpTopic(null)} />
     </div>
   );
 }
@@ -2917,6 +3264,39 @@ function parseAudienceFilterForPreview(value: string | null | undefined): Record
   } catch {
     return null;
   }
+}
+
+function WorkflowHelpModal({ topic, onClose }: { topic: WorkflowHelpTopic | null; onClose: () => void }) {
+  if (!topic) return null;
+
+  const content = topic === "email-workflow"
+    ? {
+        title: "Email Workflow",
+        body: "Templates hold reusable content. Campaigns are the send record. The intended path is: create campaign details, choose a template snapshot, confirm the audience, review compliance, then send or schedule.",
+      }
+    : topic === "email-audience"
+      ? {
+          title: "Audience Sources",
+          body: "Use Saved Lists for repeatable groups, Individual Search for one-off constituent picks, and segment-based sources when the audience should stay live with CRM data. Temporary donation audiences are reviewed here and can be sent immediately, but they are not yet stored for later queue or schedule runs.",
+        }
+      : {
+          title: "Recipient Selection",
+          body: "Letters work best when you first choose a template, then choose recipients, then optionally layer donation context. Lists and segments are best for batches. Individuals are best for one-off letters or spot checks.",
+        };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-lg font-semibold text-slate-900">{content.title}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">{content.body}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function mapEmailTypeToPurpose(value: (typeof CAMPAIGN_EMAIL_TYPE_OPTIONS)[number]): string {
@@ -3030,6 +3410,31 @@ function normalizeManualEmails(value: string): string[] {
     .split(/[\n,;]+/)
     .map((row) => row.trim().toLowerCase())
     .filter(Boolean)));
+}
+
+function readTemporaryEmailSegment(id: string): TemporaryEmailSegment | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(`oyama-email:temporary-recipient-segment:${id}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<TemporaryEmailSegment>;
+    const recipientEmails = Array.from(new Set((Array.isArray(parsed.recipientEmails) ? parsed.recipientEmails : [])
+      .map((email) => String(email || "").trim().toLowerCase())
+      .filter((email) => email && isEmailLike(email))));
+
+    if (recipientEmails.length === 0) return null;
+
+    return {
+      name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : `Temporary email segment (${recipientEmails.length})`,
+      recipientEmails,
+      donationIds: Array.isArray(parsed.donationIds) ? parsed.donationIds.map((donationId) => String(donationId)).filter(Boolean) : [],
+      createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : undefined,
+      source: typeof parsed.source === "string" ? parsed.source : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function summarizeEmails(emails: string[]) {
@@ -3699,6 +4104,42 @@ function statusTone(status: string): "green" | "amber" | "red" | "slate" {
   if (normalized === "SCHEDULED" || normalized === "SENDING" || normalized === "DRAFT" || normalized === "READY" || normalized === "NEEDS_REVIEW" || normalized === "QUEUED") return "amber";
   if (normalized === "CANCELLED" || normalized === "FAILED") return "red";
   return "slate";
+}
+
+function campaignActionDialogTitle(kind: CampaignActionDialogKind): string {
+  if (kind === "schedule") return "Schedule Campaign";
+  if (kind === "unschedule") return "Unschedule Campaign";
+  if (kind === "sendNow") return "Send Campaign Now";
+  if (kind === "sendTest") return "Send Test Email";
+  if (kind === "archive") return "Archive Campaign";
+  return "Cancel Remaining Recipients";
+}
+
+function campaignActionDialogDescription(kind: CampaignActionDialogKind): string {
+  if (kind === "schedule") return "Choose when this campaign should move into the scheduled send queue.";
+  if (kind === "unschedule") return "Remove the scheduled send time and return the campaign to manual control.";
+  if (kind === "sendNow") return "Start sending to the campaign audience immediately after server-side validation runs.";
+  if (kind === "sendTest") return "Send a proof copy to one inbox before you queue or send the live campaign.";
+  if (kind === "archive") return "Hide this campaign from the active command center while keeping its history.";
+  return "Stop any remaining unsent recipients in the current queue run.";
+}
+
+function campaignActionDialogImpact(kind: CampaignActionDialogKind): string {
+  if (kind === "schedule") return "Scheduling preserves the draft and lets staff review the exact send time before delivery starts.";
+  if (kind === "unschedule") return "Unscheduling removes the pending send time but keeps the campaign record and audience intact.";
+  if (kind === "sendNow") return "The server will re-check audience eligibility, unsubscribe rules, and deliverability before sending.";
+  if (kind === "sendTest") return "Test sends go only to the address entered here and do not deliver to the full campaign audience.";
+  if (kind === "archive") return "Archived campaigns stay in history and analytics but are removed from active day-to-day workflow lists.";
+  return "Already processed recipients are preserved. Only the remaining unsent audience will be cancelled.";
+}
+
+function campaignActionDialogConfirmLabel(kind: CampaignActionDialogKind): string {
+  if (kind === "schedule") return "Schedule Campaign";
+  if (kind === "unschedule") return "Unschedule Campaign";
+  if (kind === "sendNow") return "Send Now";
+  if (kind === "sendTest") return "Send Test";
+  if (kind === "archive") return "Archive Campaign";
+  return "Cancel Remaining";
 }
 
 function complianceChecks(draft: BuilderDraft): Array<{ key: string; label: string; detail: string; passed: boolean; required: boolean }> {
