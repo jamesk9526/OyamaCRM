@@ -156,6 +156,7 @@ Important:
 		pnpm prisma migrate deploy
 		pnpm prisma generate
 		pnpm build
+		pnpm build:letters
 		pnpm build:server
 		set -a
 		source .env.production
@@ -172,6 +173,7 @@ Recommended safer variant (stop on first failure):
 		pnpm prisma migrate deploy
 		pnpm prisma generate
 		pnpm build
+		pnpm build:letters
 		pnpm build:server
 		set -a
 		source .env.production
@@ -184,6 +186,7 @@ Recommended safer variant (stop on first failure):
 
 		pnpm pm2:status
 		curl -I http://127.0.0.1:3650
+		curl -I http://127.0.0.1:3001
 		curl -I http://127.0.0.1:4000/api/health
 		curl -I https://<APP_DOMAIN>
 		curl -I https://<APP_DOMAIN>/api/health
@@ -191,6 +194,7 @@ Recommended safer variant (stop on first failure):
 Expected:
 
 - Web process online and listening on 3650
+- Letters process online and listening on 3001
 - API process online and listening on 4000
 - Nginx domain routes return 200/3xx, not 502
 
@@ -373,6 +377,40 @@ If PM2 shows unstable restarts, ensure ecosystem config is current, then hard re
 		pnpm pm2:delete
 		pnpm pm2:start -- --env production --update-env
 		pnpm pm2:save
+
+### 6.9 oyama-letters `Could not find a production build in the '.next' directory`
+
+Symptoms:
+
+		/home/.../oyama-letters-error-2.log
+		Error: Could not find a production build in the '.next' directory.
+		pm2 list -> oyama-letters errored / unstable restarts
+
+Cause:
+
+- `oyama-letters` runs from `apps/letters` (`ecosystem.config.cjs` sets `cwd: './apps/letters'`).
+- Root `pnpm build` only builds the main app, not `apps/letters`.
+
+Production-safe fix:
+
+		cd ~/htdocs/<APP_DIRECTORY>
+		git fetch origin
+		git checkout main
+		git pull --ff-only
+		pnpm install --frozen-lockfile
+		pnpm build
+		pnpm build:letters
+		pnpm build:server
+		set -a
+		source .env.production
+		set +a
+		pnpm pm2:restart -- --env production --update-env
+		pnpm pm2:status
+
+Notes:
+
+- On this VPS, use `pnpm pm2 ...` commands. Plain `pm2 ...` may fail if pm2 is not globally installed on PATH.
+- If needed, restart only letters: `pnpm pm2 restart oyama-letters --update-env`.
 
 ## 7) Security Notes
 
