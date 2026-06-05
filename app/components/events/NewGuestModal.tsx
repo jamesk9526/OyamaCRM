@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 
 interface Constituent {
   id: string;
@@ -67,7 +68,7 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
 
   /** Filter constituents by search term */
   const filteredConstituents = constituents.filter((c) =>
-    `${c.firstName} ${c.lastName} ${c.email || ""}`.toLowerCase().includes(constituentSearch.toLowerCase())
+    `${getConstituentDisplayName(c)} ${c.email || ""}`.toLowerCase().includes(constituentSearch.toLowerCase())
   );
 
   /** Handle constituent selection and auto-fill form */
@@ -153,7 +154,7 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
             {selectedConstituent ? (
               <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{selectedConstituent.firstName} {selectedConstituent.lastName}</p>
+                  <p className="text-sm font-medium text-gray-900">{getConstituentDisplayName(selectedConstituent)}</p>
                   {selectedConstituent.email && <p className="text-xs text-gray-500">{selectedConstituent.email}</p>}
                 </div>
                 <button
@@ -182,7 +183,7 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
                         onClick={() => handleConstituentSelect(c)}
                         className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                       >
-                        <p className="text-sm font-medium text-gray-900">{c.firstName} {c.lastName}</p>
+                        <p className="text-sm font-medium text-gray-900">{getConstituentDisplayName(c)}</p>
                         {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
                       </button>
                     ))}

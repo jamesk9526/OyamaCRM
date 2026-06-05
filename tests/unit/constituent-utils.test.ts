@@ -10,6 +10,10 @@ import {
   engagementColor,
   formatCurrency,
   formatDate,
+  getConstituentDisplayName,
+  getConstituentSalutation,
+  getConstituentSortName,
+  isOrganizationConstituent,
   statusColor,
   statusLabel,
   typeLabel,
@@ -110,6 +114,31 @@ describe("constituent-utils", () => {
       for (const s of ["NEW", "ACTIVE", "LAPSED", "MAJOR_DONOR"]) {
         expect(DONOR_STATUSES).toContain(s);
       }
+    });
+  });
+
+  describe("organization identity helpers", () => {
+    it("detects organization records from type/entityKind", () => {
+      expect(isOrganizationConstituent({ type: "ORGANIZATION" })).toBe(true);
+      expect(isOrganizationConstituent({ entityKind: "organization" })).toBe(true);
+      expect(isOrganizationConstituent({ type: "DONOR", entityKind: "PERSON" })).toBe(false);
+    });
+
+    it("prefers organizationName/displayName for org display", () => {
+      expect(getConstituentDisplayName({ type: "ORGANIZATION", organizationName: "Church of Aurora" })).toBe("Church of Aurora");
+      expect(getConstituentDisplayName({ type: "FOUNDATION", displayName: "Hope Foundation" })).toBe("Hope Foundation");
+    });
+
+    it("keeps person sort and salutation behavior", () => {
+      expect(getConstituentSortName({ type: "DONOR", firstName: "Ava", lastName: "Taylor" })).toBe("taylor ava");
+      expect(getConstituentSalutation({ type: "DONOR", firstName: "Ava" })).toBe("Dear Ava,");
+      expect(getConstituentSalutation({ type: "DONOR" })).toBe("Dear Friend,");
+    });
+
+    it("uses organization display for sort and salutation", () => {
+      const org = { type: "ORGANIZATION", organizationName: "Grace Fellowship" };
+      expect(getConstituentSortName(org)).toBe("grace fellowship");
+      expect(getConstituentSalutation(org)).toBe("Dear Grace Fellowship,");
     });
   });
 });

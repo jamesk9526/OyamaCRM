@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
-import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -57,6 +57,12 @@ interface ConstituentLookup {
   id: string;
   firstName: string;
   lastName: string;
+  displayName?: string | null;
+  organizationName?: string | null;
+  contactFirstName?: string | null;
+  contactLastName?: string | null;
+  entityKind?: string | null;
+  type?: string | null;
   email?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
@@ -100,7 +106,16 @@ interface DonationLookup {
   amount: number | string;
   date: string;
   constituentId?: string | null;
-  constituent?: { firstName?: string | null; lastName?: string | null } | null;
+  constituent?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    displayName?: string | null;
+    organizationName?: string | null;
+    contactFirstName?: string | null;
+    contactLastName?: string | null;
+    entityKind?: string | null;
+    type?: string | null;
+  } | null;
 }
 
 interface PreviewResult {
@@ -322,16 +337,11 @@ const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
   { label: "Generate Letters", href: "/oyama-letters/generate" },
   { label: "Print & Mail Queue", href: "/oyama-letters/queue" },
-  { label: "Batches", href: "/oyama-letters/batches" },
-  { label: "Letters How To", href: "/oyama-letters/how-to" },
   { label: "Settings", href: "/oyama-letters/settings" },
 ];
 
 /** Top-level dedicated workspace shell. */
 export default function OyamaLettersWorkspace({ view = "library", templateId }: OyamaLettersWorkspaceProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const showWorkspaceRibbon = view !== "builder";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("oyamaLettersSidebarCollapsed") === "1";
@@ -351,31 +361,6 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
         <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
           <LettersTopBar view={view} templateId={templateId} />
-          {showWorkspaceRibbon ? (
-            <ContextualRibbon
-              pathname={pathname}
-              className="top-12 z-20 mx-4 mt-3 xl:mx-6"
-              context={{
-                flags: {
-                  hasTemplate: Boolean(templateId),
-                },
-              }}
-              handlers={{
-                "new-letter": () => {
-                  router.push("/oyama-letters/templates/new");
-                },
-                "open-template": () => {
-                  router.push("/oyama-letters");
-                },
-                "print-queue": () => {
-                  router.push("/oyama-letters/queue");
-                },
-                "generate-pdf": () => {
-                  router.push("/oyama-letters/generate");
-                },
-              }}
-            />
-          ) : null}
           {view === "library" ? <TemplateLibrary /> : null}
           {view === "builder" ? <TemplateBuilder templateId={templateId} /> : null}
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
@@ -511,7 +496,7 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   const { user, signOut } = useAuth();
   const initials = user ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U" : "U";
   const templateLabel = templateId ? titleFromId(templateId) : "New Template";
-  const showProcessStepper = view === "library" || view === "builder" || view === "publish";
+  const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate" || view === "queue";
 
   return (
     <header className="sticky top-0 z-30 flex h-12 items-center gap-4 border-b border-[#0a4f2e] bg-[radial-gradient(circle_at_18%_0%,#0d6b3b_0,#01402c_42%,#022b24_100%)] px-5 xl:px-8">
@@ -543,8 +528,9 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
   const steps = [
     { key: "library", label: "Template Library", href: "/oyama-letters" },
     { key: "builder", label: "Canvas Builder", href: templateId ? `/oyama-letters/templates/${templateId}` : "/oyama-letters/templates/new" },
-    { key: "publish", label: "Publish Workspace", href: templateId ? `/oyama-letters/templates/${templateId}/publish` : "/oyama-letters/templates/new" },
-    { key: "generate", label: "Generate Canvas", href: "/oyama-letters/generate" },
+    { key: "publish", label: "Publish Review", href: templateId ? `/oyama-letters/templates/${templateId}/publish` : "/oyama-letters/templates/new" },
+    { key: "generate", label: "Generate Letters", href: "/oyama-letters/generate" },
+    { key: "queue", label: "Print & Mail Queue", href: "/oyama-letters/queue" },
   ] as const;
   const activeIndex = steps.findIndex((step) => step.key === view);
 
@@ -565,6 +551,41 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function WorkflowActionBar({
+  backLabel,
+  onBack,
+  nextLabel,
+  onNext,
+  nextDisabled = false,
+  secondaryAction,
+}: {
+  backLabel: string;
+  onBack: () => void;
+  nextLabel: string;
+  onNext: () => void;
+  nextDisabled?: boolean;
+  secondaryAction?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
+      <button type="button" onClick={onBack} className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        {backLabel}
+      </button>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+        {secondaryAction}
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="inline-flex items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {nextLabel}
+        </button>
+      </div>
     </div>
   );
 }
@@ -601,16 +622,16 @@ function LettersHowToWorkspace() {
     },
     {
       title: "3. Process Queue and Batches",
-      summary: "Move generated letters through print and mail workflows.",
+      summary: "Move generated letters through the print and mail queue workflow.",
       steps: [
         "Use Print & Mail Queue to review statuses and priority.",
         "Open Preview or PDF for quality checks before final delivery.",
         "Use queue controls to approve, print, or move mail-ready items.",
-        "Use Batches to rerun large export sets when needed.",
+        "Return to Generate Letters when you need to run another batch.",
       ],
       actions: [
         { href: "/oyama-letters/queue", label: "Open Queue" },
-        { href: "/oyama-letters/batches", label: "Open Batches" },
+        { href: "/oyama-letters/generate", label: "Back to Generate" },
       ],
     },
     {
@@ -865,31 +886,26 @@ function TemplateLibrary() {
             Unsaved letter edits keep a <span className="font-semibold">local recovery copy</span> so save failures do not drop work.
           </div>
         </div>
-        <div className="mt-4 grid gap-3 lg:grid-cols-4">
-          <WorkflowShortcutCard
-            title="Create Template"
-            body="Start a new reusable letter template before choosing recipients."
-            href="/oyama-letters/templates/new"
-            actionLabel="New Template"
-          />
-          <WorkflowShortcutCard
-            title="Generate Letters"
-            body="Run the step-by-step recipient, donation, preview, and PDF workflow."
-            href="/oyama-letters/generate"
-            actionLabel="Open Generator"
-          />
-          <WorkflowShortcutCard
-            title="Print & Mail Queue"
-            body="Review output already queued for print approval or mail handling."
-            href="/oyama-letters/queue"
-            actionLabel="Open Queue"
-          />
-          <WorkflowShortcutCard
-            title="Letters How To"
-            body="See the canonical path for template setup, generation, and delivery."
-            href="/oyama-letters/how-to"
-            actionLabel="View Guide"
-          />
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Canonical Workflow</p>
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-lg border border-emerald-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">1. Build Template</p>
+              <p className="mt-1 text-xs text-slate-600">Create or revise reusable content in the builder first.</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">2. Generate Letters</p>
+              <p className="mt-1 text-xs text-slate-600">Choose recipients, donation context, and preview output in one guided run.</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">3. Process Queue</p>
+              <p className="mt-1 text-xs text-slate-600">Move completed output through print approval and mail handling.</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button href="/oyama-letters/templates/new" tone="primary">Start Step 1: New Template</Button>
+            <Button href="/oyama-letters/generate">Continue Step 2: Generate</Button>
+          </div>
         </div>
       </div>
       <CategoryTabs category={category} setCategory={setCategory} />
@@ -1879,7 +1895,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const testConstituentResults = useMemo(() => {
     const needle = testConstituentSearch.trim().toLowerCase();
     const rows = needle
-      ? constituents.filter((row) => [row.firstName, row.lastName, row.email, row.addressLine1, row.city, row.state, row.zip].join(" ").toLowerCase().includes(needle))
+      ? constituents.filter((row) => recipientSearchText(row).includes(needle))
       : constituents;
     return rows.slice(0, 80);
   }, [constituents, testConstituentSearch]);
@@ -2922,7 +2938,7 @@ function GenerateWorkspace() {
   const pickerIndividuals = useMemo(() => {
     const needle = pickerSearch.trim().toLowerCase();
     if (!needle) return constituents;
-    return constituents.filter((row) => [row.firstName, row.lastName, row.email].join(" ").toLowerCase().includes(needle));
+    return constituents.filter((row) => recipientSearchText(row).includes(needle));
   }, [constituents, pickerSearch]);
 
   async function toggleListSelection(listId: string) {
@@ -3262,24 +3278,24 @@ function GenerateWorkspace() {
   const searchedRecipients = sourceRecipients.filter((row) => {
     if (!query.trim()) return true;
     const needle = query.trim().toLowerCase();
-    return [row.firstName, row.lastName, row.email, formatAddress(row)].join(" ").toLowerCase().includes(needle);
+    return recipientSearchText(row, formatAddress(row)).includes(needle);
   });
-  const missingRequired = sourceRecipients.filter((row) => !row.firstName || !row.lastName).length;
+  const missingRequired = sourceRecipients.filter((row) => !hasRecipientName(row)).length;
   const totalRecipients = sourceRecipients.length;
   const missingAddress = sourceRecipients.filter((row) => !hasAddress(row)).length;
   const suppressed = sourceRecipients.filter((row) => row.doNotMail).length;
-  const validRecipients = sourceRecipients.filter((row) => hasAddress(row) && !row.doNotMail && row.firstName && row.lastName).length;
+  const validRecipients = sourceRecipients.filter((row) => hasAddress(row) && !row.doNotMail && hasRecipientName(row)).length;
   const donorStatusOptions = ["ACTIVE", "LAPSED", "NEW", "MAJOR_DONOR", "MONTHLY_DONOR"];
   const filteredRecipients = searchedRecipients.filter((row) => {
     if (recipientTab === "missingAddress") return !hasAddress(row) && !row.doNotMail;
-    if (recipientTab === "missingRequired") return !row.firstName || !row.lastName;
+    if (recipientTab === "missingRequired") return !hasRecipientName(row);
     if (recipientTab === "suppressed") return Boolean(row.doNotMail);
     return true;
   });
   const recipientSearch = query.trim().toLowerCase();
   const recipientStepListRows = recipientLists.filter((row) => !recipientSearch || row.name.toLowerCase().includes(recipientSearch));
   const recipientStepSegmentRows = tagCatalog.filter((row) => !recipientSearch || row.name.toLowerCase().includes(recipientSearch));
-  const recipientStepIndividualRows = constituents.filter((row) => !recipientSearch || [row.firstName, row.lastName, row.email].join(" ").toLowerCase().includes(recipientSearch));
+  const recipientStepIndividualRows = constituents.filter((row) => !recipientSearch || recipientSearchText(row).includes(recipientSearch));
   const recipientStepFilterRows = donorStatusOptions
     .map((status) => ({
       status,
@@ -3386,6 +3402,32 @@ function GenerateWorkspace() {
           : generateMode === "single"
             ? "Generate One"
             : "Generate Batch";
+  const backLabel = wizardStep === 1
+    ? "Back to Template Library"
+    : wizardStep === 2
+      ? "Back: Select"
+      : wizardStep === 3
+        ? "Back: Recipients"
+        : wizardStep === 4
+          ? "Back: Donation Context"
+          : "Back: Preview";
+  const topNextDisabled = wizardStep === 1
+    ? !canOpenRecipientsStep
+    : wizardStep === 2
+      ? !canAdvanceFromSelection
+      : wizardStep === 3
+        ? !canAdvanceFromSelection
+        : wizardStep === 4
+          ? !canOpenFinalStep
+          : working || !canAdvanceFromSelection || generationBlockedByTemplate || (deliveryTarget === "MAIL_QUEUE" && mailQueueUnavailable);
+
+  function handleWorkflowBack() {
+    if (wizardStep === 1) {
+      window.location.assign("/oyama-letters");
+      return;
+    }
+    setWizardStep((wizardStep - 1) as 1 | 2 | 3 | 4 | 5);
+  }
 
   function handleTopNext() {
     if (wizardStep === 1) {
@@ -3420,8 +3462,16 @@ function GenerateWorkspace() {
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
       <PageHero title="Generate Letters" subtitle="Create and deliver personalized letters in a few simple steps.">
-        <Button onClick={() => setNotice("Generation setup saved as draft for this session.")}>Save as Draft</Button>
-        <Button onClick={handleTopNext} tone="primary">{topNextLabel}</Button>
+        <div className="w-full max-w-4xl">
+          <WorkflowActionBar
+            backLabel={backLabel}
+            onBack={handleWorkflowBack}
+            nextLabel={topNextLabel}
+            onNext={handleTopNext}
+            nextDisabled={topNextDisabled}
+            secondaryAction={<Button onClick={() => setNotice("Generation setup saved as draft for this session.")}>Save session draft</Button>}
+          />
+        </div>
       </PageHero>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {notice ? <Alert tone="green">{notice}</Alert> : null}
@@ -4014,7 +4064,7 @@ function GenerateWorkspace() {
                 <Button onClick={() => void openBatchPdf(batchPdfIds)} disabled={pdfLoading || batchPdfIds.length === 0}>View Batch PDF</Button>
                 <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>View Individual PDF</Button>
                 <Button onClick={() => void load()}>Refresh Generated</Button>
-                <Button href="/oyama-letters/queue">Open Queue</Button>
+                <Button href="/oyama-letters/queue">Continue to Queue</Button>
                 <Button onClick={() => setWizardStep(1)}>Start New Run</Button>
               </div>
               {batch ? (
@@ -4051,10 +4101,6 @@ function GenerateWorkspace() {
                 {pdfViewerUrl ? <Button onClick={() => setPdfViewerOpen(true)}>Reopen Last PDF</Button> : null}
               </div>
             </div>
-            <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-              <Button onClick={() => setWizardStep(4)}>Back: Preview</Button>
-              <Button onClick={() => setWizardStep(1)}>Start New Run</Button>
-            </div>
           </div>
           <aside className="rounded-md border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-4 py-3">
@@ -4073,7 +4119,7 @@ function GenerateWorkspace() {
                     {generatedForTemplate.map((row) => (
                       <tr key={row.id}>
                         <td className="px-3 py-2">
-                          <p className="font-semibold text-slate-900">{row.constituent ? `${row.constituent.firstName} ${row.constituent.lastName}` : "Unknown recipient"}</p>
+                          <p className="font-semibold text-slate-900">{row.constituent ? personName(row.constituent) : "Unknown recipient"}</p>
                           <p className="text-xs text-slate-600">{row.constituent?.email || "No email"}</p>
                         </td>
                         <td className="px-3 py-2 text-xs text-slate-600">{formatDate(row.generatedAt)}</td>
@@ -4317,6 +4363,17 @@ function GenerateWorkspace() {
           </div>
         </div>
       ) : null}
+
+      <div className="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-3 py-3 backdrop-blur xl:px-5">
+        <WorkflowActionBar
+          backLabel={backLabel}
+          onBack={handleWorkflowBack}
+          nextLabel={topNextLabel}
+          onNext={handleTopNext}
+          nextDisabled={topNextDisabled}
+          secondaryAction={wizardStep === 5 ? <Button onClick={() => setWizardStep(1)}>Start New Run</Button> : undefined}
+        />
+      </div>
     </main>
   );
 }
@@ -5474,9 +5531,14 @@ function TemplateCard({ template, currentUserId }: { template: LetterTemplateSum
         </div>
         <div className="flex items-center gap-3">
           <Link href={`/oyama-letters/templates/${template.id}`} className="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50">
-            {template.status === "DRAFT" ? "Edit" : "Use Template"}
+            Open Template
           </Link>
-          <Link href={`/oyama-letters/templates/${template.id}/publish`} className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800">Publish</Link>
+          <Link
+            href={template.status === "ACTIVE" ? `/oyama-letters/generate?templateId=${encodeURIComponent(template.id)}` : `/oyama-letters/templates/${template.id}/publish`}
+            className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+          >
+            {template.status === "ACTIVE" ? "Continue Workflow" : "Continue to Publish"}
+          </Link>
         </div>
       </div>
     </article>
@@ -6139,8 +6201,63 @@ function formatDate(value?: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function personName(row: { firstName?: string | null; lastName?: string | null; id?: string }): string {
-  return [row.firstName, row.lastName].filter(Boolean).join(" ").trim() || row.id || "Unknown";
+function personName(row: {
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
+  organizationName?: string | null;
+  contactFirstName?: string | null;
+  contactLastName?: string | null;
+  entityKind?: string | null;
+  type?: string | null;
+  id?: string;
+}): string {
+  const name = getConstituentDisplayName(row);
+  if (name !== "Unnamed Constituent" && name !== "Unnamed Organization") return name;
+  return row.id || "Unknown";
+}
+
+function hasRecipientName(row: {
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
+  organizationName?: string | null;
+  contactFirstName?: string | null;
+  contactLastName?: string | null;
+  entityKind?: string | null;
+  type?: string | null;
+}): boolean {
+  const name = getConstituentDisplayName(row);
+  return name !== "Unnamed Constituent" && name !== "Unnamed Organization";
+}
+
+function recipientSearchText(
+  row: {
+    firstName?: string | null;
+    lastName?: string | null;
+    displayName?: string | null;
+    organizationName?: string | null;
+    contactFirstName?: string | null;
+    contactLastName?: string | null;
+    email?: string | null;
+    addressLine1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+  },
+  addressText?: string,
+): string {
+  return [
+    personName(row),
+    row.contactFirstName,
+    row.contactLastName,
+    row.email,
+    row.addressLine1,
+    row.city,
+    row.state,
+    row.zip,
+    addressText,
+  ].join(" ").toLowerCase();
 }
 
 function formatAddress(row: { addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; zip?: string | null }): string {

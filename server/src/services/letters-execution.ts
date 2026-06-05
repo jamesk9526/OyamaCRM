@@ -2,6 +2,12 @@
 import { type LetterCategory, type LetterTemplateStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { collectMergeFieldKeys, renderMergeFields, unsupportedMergeFieldKeys } from "./letters-merge.js";
+import {
+  getConstituentContactFullName,
+  getConstituentDisplayName,
+  getConstituentSalutation,
+  isOrganizationConstituent,
+} from "../lib/constituent-identity.js";
 
 interface TemplateForMerge {
   id: string;
@@ -206,6 +212,14 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
           id: true,
           firstName: true,
           lastName: true,
+          displayName: true,
+          organizationName: true,
+          contactFirstName: true,
+          contactLastName: true,
+          contactTitle: true,
+          entityKind: true,
+          organizationCategory: true,
+          type: true,
           email: true,
           phone: true,
           addressLine1: true,
@@ -254,7 +268,9 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   const firstGift = yearDonations[0]?.date ?? null;
   const lastGift = yearDonations[yearDonations.length - 1]?.date ?? null;
 
-  const donorFullName = constituent ? `${constituent.firstName} ${constituent.lastName}`.trim() : "";
+  const donorDisplayName = constituent ? getConstituentDisplayName(constituent) : "";
+  const isOrganization = constituent ? isOrganizationConstituent(constituent) : false;
+  const contactFullName = constituent ? getConstituentContactFullName(constituent) : "";
   const donorAddressBlock = [
     constituent?.addressLine1,
     constituent?.addressLine2,
@@ -264,10 +280,18 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   const eventName = event?.name ?? donation?.event?.name ?? "";
 
   const values: Record<string, string> = {
-    "donor.firstName": constituent?.firstName ?? "",
-    "donor.lastName": constituent?.lastName ?? "",
-    "donor.fullName": donorFullName,
-    "donor.preferredName": constituent?.firstName ?? "",
+    "donor.firstName": isOrganization ? donorDisplayName : (constituent?.firstName ?? ""),
+    "donor.lastName": isOrganization ? "" : (constituent?.lastName ?? ""),
+    "donor.fullName": donorDisplayName,
+    "donor.preferredName": isOrganization ? donorDisplayName : (constituent?.firstName ?? ""),
+    "donor.displayName": constituent?.displayName ?? donorDisplayName,
+    "donor.organizationName": constituent?.organizationName ?? "",
+    "donor.entityKind": constituent?.entityKind ?? "",
+    "donor.organizationCategory": constituent?.organizationCategory ?? "",
+    "donor.contactFirstName": constituent?.contactFirstName ?? "",
+    "donor.contactLastName": constituent?.contactLastName ?? "",
+    "donor.contactFullName": contactFullName,
+    "donor.contactTitle": constituent?.contactTitle ?? "",
     "donor.email": constituent?.email ?? "",
     "donor.phone": constituent?.phone ?? "",
     "donor.addressLine1": constituent?.addressLine1 ?? "",
@@ -276,7 +300,20 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "donor.state": constituent?.state ?? "",
     "donor.zip": constituent?.zip ?? "",
     "donor.addressBlock": donorAddressBlock,
-    "donor.salutation": constituent?.firstName ? `Dear ${constituent.firstName},` : "Dear Friend,",
+    "donor.salutation": constituent ? getConstituentSalutation(constituent) : "Dear Friend,",
+    "constituent.firstName": isOrganization ? donorDisplayName : (constituent?.firstName ?? ""),
+    "constituent.lastName": isOrganization ? "" : (constituent?.lastName ?? ""),
+    "constituent.fullName": donorDisplayName,
+    "constituent.preferredName": isOrganization ? donorDisplayName : (constituent?.firstName ?? ""),
+    "constituent.displayName": constituent?.displayName ?? donorDisplayName,
+    "constituent.organizationName": constituent?.organizationName ?? "",
+    "constituent.entityKind": constituent?.entityKind ?? "",
+    "constituent.organizationCategory": constituent?.organizationCategory ?? "",
+    "constituent.contactFirstName": constituent?.contactFirstName ?? "",
+    "constituent.contactLastName": constituent?.contactLastName ?? "",
+    "constituent.contactFullName": contactFullName,
+    "constituent.contactTitle": constituent?.contactTitle ?? "",
+    "constituent.salutation": constituent ? getConstituentSalutation(constituent) : "Dear Friend,",
     "gift.amount": formatCurrency(donation?.amount ?? 0),
     "gift.date": formatDate(donation?.date),
     "gift.fund": donation?.designation?.name ?? "",

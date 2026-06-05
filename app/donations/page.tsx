@@ -187,6 +187,12 @@ export default function DonationsPage() {
     () => Array.from(new Set(selectedDonationRows.map((donation) => donation.constituent.id).filter(Boolean))),
     [selectedDonationRows],
   );
+  const awaitingAcknowledgmentCount = useMemo(
+    () => donations.filter((donation) => !donation.acknowledgmentSentAt).length,
+    [donations],
+  );
+  const filteredCountLabel = `${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} of ${total.toLocaleString()}`;
+  const hasActiveFilters = Boolean(search || status || allYears || from !== defaultRange.from || to !== defaultRange.to || campaignIdFilter);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
@@ -394,9 +400,52 @@ export default function DonationsPage() {
         />
       )}
     >
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f6fbf8_0%,#ffffff_58%,#eef6ff_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
+        <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)] lg:px-6">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
+                Donation Ledger
+              </span>
+              <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+                {allYears ? "All years" : "Current reporting window"}
+              </span>
+              {campaignIdFilter ? (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-200">
+                  Campaign scoped
+                </span>
+              ) : null}
+            </div>
+            <div>
+              <h1 className="text-[30px] font-semibold tracking-tight text-slate-950 sm:text-[34px]">Donations</h1>
+              <p className="mt-1 max-w-3xl text-sm text-slate-600">
+                Compact gift operations for receipts, stewardship handoff, and campaign-scoped review.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href={recordGiftHref} className="inline-flex h-9 items-center rounded-lg bg-emerald-700 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800">
+                Record Gift
+              </Link>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Refresh Ledger
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+            <CompactSummaryTile label="Records In View" value={loading ? "—" : total.toLocaleString()} detail={hasActiveFilters ? "Filtered ledger scope" : "Current working set"} />
+            <CompactSummaryTile label="Needs Receipt" value={loading ? "—" : awaitingAcknowledgmentCount.toLocaleString()} detail="Acknowledgment still pending" tone="amber" />
+            <CompactSummaryTile label="Selected" value={selectedIds.length.toLocaleString()} detail={selectedIds.length > 0 ? "Ready for batch handoff" : "No rows selected"} tone="blue" />
+          </div>
+        </div>
+      </section>
+
       {campaignIdFilter && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
           <p>
             Campaign filter active: <span className="font-semibold">{campaignNameFilter || campaignIdFilter}</span>
           </p>
@@ -415,7 +464,7 @@ export default function DonationsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         <CRMMetricCard label="Total Raised" value={formatCurrency(stats.totalRaised)} tone="green" icon={<DollarIcon />} helper={allYears ? "All years" : "Current year scope"} loading={loading} />
         <CRMMetricCard label="Total Gifts" value={stats.totalGifts.toLocaleString()} tone="slate" icon={<ReceiptIcon />} helper={`${total.toLocaleString()} records in view`} loading={loading} />
         <CRMMetricCard label="Completed" value={stats.completed.toLocaleString()} tone="green" icon={<CheckIcon />} helper="Completed gifts" loading={loading} />
@@ -423,86 +472,119 @@ export default function DonationsPage() {
       </div>
 
       <section className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Donation Acknowledgment Workflow</p>
             <p className="mt-1 text-sm text-slate-700">
               Use Complete Loop for one-click stewardship orchestration, or use the row three-dot menu for individual quick actions.
             </p>
           </div>
-          <CRMStatusBadge tone="green">Stewardship loop ready</CRMStatusBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            <CRMStatusBadge tone="green">Stewardship loop ready</CRMStatusBadge>
+            <span className="text-xs text-slate-500">{awaitingAcknowledgmentCount.toLocaleString()} gifts still need receipt follow-up</span>
+          </div>
         </div>
       </section>
 
       <CRMFilterBar>
-        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_180px_260px]">
-          <input type="text" placeholder="Search donor name or email…" value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-          <select value={status} onChange={e => setStatus(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-            <option value="">All Statuses</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="PENDING">Pending</option>
-            <option value="FAILED">Failed</option>
-            <option value="REFUNDED">Refunded</option>
-          </select>
-          <div className="flex gap-2">
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From date"
-              disabled={allYears}
-              className="flex-1 rounded-xl border border-slate-200 px-2 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-            <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To date"
-              disabled={allYears}
-              className="flex-1 rounded-xl border border-slate-200 px-2 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Filter And Working Scope</p>
+              <p className="text-xs text-slate-500">Search the ledger, narrow the time window, and keep batch actions in one place.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                Showing {filteredCountLabel}
+              </span>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setStatus("");
+                    setAllYears(false);
+                    setFrom(defaultRange.from);
+                    setTo(defaultRange.to);
+                  }}
+                  className="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Clear Filters
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
-        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={allYears}
-              onChange={(e) => setAllYears(e.target.checked)}
-              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            Include all years
-          </label>
-          {!allYears && (
-            <span>Default scope: Jan 1 to today (YTD)</span>
-          )}
+          <div className="grid min-w-0 gap-2.5 xl:grid-cols-[minmax(0,1.2fr)_180px_260px_auto]">
+            <input type="text" placeholder="Search donor name or email…" value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            <select value={status} onChange={e => setStatus(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+              <option value="">All Statuses</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="PENDING">Pending</option>
+              <option value="FAILED">Failed</option>
+              <option value="REFUNDED">Refunded</option>
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)} title="From date"
+                disabled={allYears}
+                className="rounded-xl border border-slate-200 px-2.5 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <input type="date" value={to} onChange={e => setTo(e.target.value)} title="To date"
+                disabled={allYears}
+                className="rounded-xl border border-slate-200 px-2.5 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={allYears}
+                  onChange={(e) => setAllYears(e.target.checked)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Include all years
+              </label>
+              {!allYears ? (
+                <span className="text-xs text-slate-500">Default scope: Jan 1 to today</span>
+              ) : null}
+            </div>
+          </div>
         </div>
       </CRMFilterBar>
 
       {donations.some((donation) => donation.isRecurring && String(donation.frequency ?? "MONTHLY").toUpperCase() === "MONTHLY") ? (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-xs text-slate-600">
+          <p>Recurring gifts are in this page view. Use the shortcut below to start one selection path for recurring donor follow-up.</p>
           <button
             type="button"
             onClick={() => setSelectedIds(Array.from(new Set([...selectedIds, ...donations.filter((donation) => donation.isRecurring && String(donation.frequency ?? "MONTHLY").toUpperCase() === "MONTHLY").map((donation) => donation.id)])))}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
-            Select Visible Monthly Donors
+            Select Monthly Donors In View
           </button>
         </div>
       ) : null}
 
       {selectedIds.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
           <div>
-            <p className="text-sm font-semibold text-emerald-950">{selectedIds.length} donation{selectedIds.length === 1 ? "" : "s"} selected</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">Selected Donor Handoff</p>
+            <p className="mt-1 text-sm font-semibold text-emerald-950">{selectedIds.length} donation{selectedIds.length === 1 ? "" : "s"} selected</p>
             <p className="text-xs text-emerald-800">
-              Create a temporary list for letters or email templates. Email-ready recipients: {selectedDonationEmailRecipients.length}.
+              Route this selection into one of the canonical outreach workspaces. Email-ready recipients: {selectedDonationEmailRecipients.length}.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Clear</button>
+            <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Clear Selection</button>
             <button
               type="button"
               onClick={handleSendSelectedDonationsToEmail}
               disabled={selectedDonationEmailRecipients.length === 0}
               className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Create Email for Selected Donors
+              Send To Email Workspace
             </button>
-            <button type="button" onClick={handleSendSelectedDonationsToLetters} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800">Create Letters for Selected Donors</button>
+            <button type="button" onClick={handleSendSelectedDonationsToLetters} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800">Send To Letters Workspace</button>
           </div>
         </div>
       ) : null}
@@ -529,16 +611,16 @@ export default function DonationsPage() {
         )}
       </CRMDataTable>
 
-      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between">
         <p>
           Showing {rangeStart.toLocaleString()}-{rangeEnd.toLocaleString()} of {total.toLocaleString()} donations
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <button
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1 || loading}
-            className="px-3 py-1.5 border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+            className="rounded-md border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
           >
             Previous
           </button>
@@ -549,7 +631,7 @@ export default function DonationsPage() {
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || loading}
-            className="px-3 py-1.5 border border-gray-200 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+            className="rounded-md border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
           >
             Next
           </button>
@@ -598,6 +680,32 @@ export default function DonationsPage() {
       />
     ) : null}
     </>
+  );
+}
+
+function CompactSummaryTile({
+  label,
+  value,
+  detail,
+  tone = "emerald",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "emerald" | "amber" | "blue";
+}) {
+  const toneClass = tone === "amber"
+    ? "border-amber-200 bg-amber-50/80 text-amber-900"
+    : tone === "blue"
+      ? "border-blue-200 bg-blue-50/80 text-blue-900"
+      : "border-emerald-200 bg-white/85 text-slate-900";
+
+  return (
+    <div className={`rounded-2xl border px-3.5 py-3 ${toneClass}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-slate-600">{detail}</p>
+    </div>
   );
 }
 

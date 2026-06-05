@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Task } from "@/app/tasks/page";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMEmptyState from "@/app/components/ui/crm/CRMEmptyState";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 
 /** Format a date string as a short locale date */
 function fmt(d?: string) {
@@ -108,7 +109,7 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
                   {task.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>}
                   {task.constituent ? (
                     <Link href={`/constituents/${task.constituent.id}`} className="text-xs text-green-700 hover:underline">
-                      {task.constituent.firstName} {task.constituent.lastName}
+                      {getConstituentDisplayName(task.constituent)}
                     </Link>
                   ) : null}
                 </div>
@@ -208,7 +209,7 @@ export default function TaskTable({ tasks, loading, highlightTaskId, onComplete,
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                   {task.constituent ? (
                     <Link href={`/constituents/${task.constituent.id}`} className="text-green-700 hover:underline">
-                      {task.constituent.firstName} {task.constituent.lastName}
+                      {getConstituentDisplayName(task.constituent)}
                     </Link>
                   ) : <span className="text-gray-400">—</span>}
                 </td>

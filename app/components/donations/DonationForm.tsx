@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PAYMENT_METHODS, DONATION_STATUSES, methodLabel } from "./donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 
 type Props = {
   mode?: "create" | "edit";
@@ -24,7 +25,7 @@ function normalizeText(value: string | undefined): string {
 }
 
 function buildDisplayName(option: ConstituentOption): string {
-  return `${option.firstName} ${option.lastName}`.trim();
+  return getConstituentDisplayName(option);
 }
 
 function rankConstituent(option: ConstituentOption, query: string): number {
@@ -124,7 +125,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
   useEffect(() => {
     const selected = constituents.find((c) => c.id === form.constituentId);
     if (selected) {
-      setConstituentQuery(`${selected.firstName} ${selected.lastName}`.trim());
+      setConstituentQuery(buildDisplayName(selected));
       setConstituentResults([selected, ...constituents.filter((c) => c.id !== selected.id)].slice(0, 12));
       return;
     }
@@ -178,7 +179,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
 
   function pickConstituent(option: ConstituentOption) {
     update("constituentId", option.id);
-    setConstituentQuery(`${option.firstName} ${option.lastName}`.trim());
+    setConstituentQuery(buildDisplayName(option));
     setConstituentSearchOpen(false);
     setConstituentSearchError(null);
     setConstituentResults([option, ...constituentResults.filter((row) => row.id !== option.id)].slice(0, 12));
@@ -283,7 +284,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
                       onClick={() => pickConstituent(option)}
                       className={`block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 ${selected ? "bg-green-50" : "hover:bg-gray-50"}`}
                     >
-                      <p className="text-sm font-medium text-gray-900">{option.firstName} {option.lastName}</p>
+                        <p className="text-sm font-medium text-gray-900">{buildDisplayName(option)}</p>
                       <p className="text-xs text-gray-500">{option.email || "No email"}</p>
                     </button>
                   );

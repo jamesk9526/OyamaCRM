@@ -454,6 +454,13 @@ export default function DataToolsPage() {
         Use Guided Import for contacts, audience lists, donations, and Compassion client files. The wizard routes each file to the correct importer and keeps client data out of Donor CRM.
       </div>
 
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        Need to clean up churches or businesses split across person names?
+        <Link href="/data-tools/organization-conversion" className="ml-1 font-semibold text-blue-800 underline-offset-2 hover:underline">
+          Open Convert People-Split Organizations
+        </Link>
+      </div>
+
       <div id="data-tools-history" className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>

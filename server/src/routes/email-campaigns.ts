@@ -30,6 +30,12 @@ import {
   requiresPreferenceCompliance,
 } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
+import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
+import {
+  buildEmailMergePreviewWarnings,
+  canonicalizeEmailMergeToken,
+  findUnsupportedEmailMergeTokens,
+} from "../services/oyama-email/merge-field-catalog.js";
 import {
   normalizeEmailTemplateDocument,
   normalizeEmailTemplateSettings,
@@ -676,17 +682,6 @@ function buildCampaignDeliveryBodies(
 
 const CAMPAIGN_MERGE_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
 
-const CAMPAIGN_MERGE_TOKEN_ALIASES: Record<string, string> = {
-  "gift.taxDeductibleAmount": "taxDeductibleAmount",
-  "donation.taxDeductibleAmount": "taxDeductibleAmount",
-  "gift.amount": "donationAmount",
-  "donation.amount": "donationAmount",
-  "gift.receiptNumber": "receiptNumber",
-  "donation.receiptNumber": "receiptNumber",
-  "organization.address": "addressBlock",
-  "organization.taxId": "organizationTaxId",
-};
-
 type CampaignPreviewMode = "audience-sample" | "manual-email" | "template-only";
 
 type CampaignPreviewRecipient = {
@@ -701,14 +696,9 @@ type CampaignMergeContext = {
   vars: Record<string, string>;
 };
 
-function canonicalizeCampaignMergeToken(token: string): string {
-  const normalized = token.trim();
-  return CAMPAIGN_MERGE_TOKEN_ALIASES[normalized] ?? normalized;
-}
-
 function renderCampaignMergeTokens(content: string, vars: Record<string, string>): string {
   return content.replace(CAMPAIGN_MERGE_TOKEN_PATTERN, (_match, rawToken: string) => {
-    const token = canonicalizeCampaignMergeToken(rawToken);
+    const token = canonicalizeEmailMergeToken(rawToken);
     if (Object.prototype.hasOwnProperty.call(vars, token)) {
       return vars[token] ?? "";
     }
@@ -786,6 +776,7 @@ async function buildCampaignMergeContext(params: {
       },
     }),
   ]);
+  const branding = await loadOrganizationBrandingContext(params.organizationId, organization?.name?.trim() || "");
 
   const latestDonation = constituent
     ? await prisma.donation.findFirst({
@@ -806,6 +797,15 @@ async function buildCampaignMergeContext(params: {
               goal: true,
             },
           },
+          event: {
+            select: {
+              name: true,
+              startDate: true,
+              location: true,
+              city: true,
+              state: true,
+            },
+          },
         },
       })
     : null;
@@ -816,11 +816,26 @@ async function buildCampaignMergeContext(params: {
         _sum: { amount: true },
       })
     : null;
+  const stewardEnrollment = constituent?.id
+    ? await prisma.stewardPathEnrollment.findFirst({
+        where: {
+          organizationId: params.organizationId,
+          constituentId: constituent.id,
+        },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          status: true,
+          nextStepDueAt: true,
+          path: { select: { name: true } },
+          currentStep: { select: { name: true } },
+        },
+      })
+    : null;
 
   const firstName = constituent?.firstName?.trim() || "";
   const lastName = constituent?.lastName?.trim() || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
-  const organizationName = organization?.name?.trim() || params.campaign.fromName.trim() || "Your organization";
+  const organizationName = branding.organizationName || organization?.name?.trim() || params.campaign.fromName.trim() || "Your organization";
   const staffName = params.campaign.fromName.trim() || organizationSettings?.smtpFromName?.trim() || organizationName;
   const staffEmail = params.campaign.fromEmail.trim() || organizationSettings?.smtpFromEmail?.trim() || "";
   const donationCampaignName = latestDonation?.campaign?.name?.trim() || "";
@@ -831,7 +846,7 @@ async function buildCampaignMergeContext(params: {
   const progressPercent = Number.isFinite(campaignGoalAmount) && campaignGoalAmount > 0 && Number.isFinite(campaignRaisedAmount)
     ? `${Math.round((campaignRaisedAmount / campaignGoalAmount) * 100)}%`
     : "";
-  const addressBlock = buildCampaignAddressBlock([]);
+  const addressBlock = branding.addressLine || buildCampaignAddressBlock([]);
   const donationAmount = formatCampaignCurrency(latestDonation?.amount ?? constituent?.lastGiftAmount ?? null);
   const taxDeductibleAmount = latestDonation?.taxDeductible ? donationAmount : donationAmount ? "$0.00" : "";
   const previewRecipient = recipientEmail
@@ -852,35 +867,68 @@ async function buildCampaignMergeContext(params: {
       preferredName: firstName || fullName || "Friend",
       householdGreeting: fullName || firstName || "Friend",
       email: constituent?.email?.trim() || recipientEmail,
+      "donor.firstName": firstName,
+      "donor.lastName": lastName,
+      "donor.fullName": fullName,
+      "donor.email": constituent?.email?.trim() || recipientEmail,
+      "donor.totalYtdGiving": formatCampaignCurrency(constituent?.totalYtdGiving ?? null),
+      "donor.totalLifetimeGiving": formatCampaignCurrency(constituent?.totalLifetimeGiving ?? null),
+      "donor.giftCount": constituent?.giftCount != null ? String(constituent.giftCount) : "",
+      "donor.firstGiftDate": formatCampaignDate(constituent?.firstGiftDate ?? null),
+      "donor.lastGiftDate": formatCampaignDate(constituent?.lastGiftDate ?? null),
+      "donor.lastGiftAmount": formatCampaignCurrency(constituent?.lastGiftAmount ?? null),
       lastGiftAmount: formatCampaignCurrency(constituent?.lastGiftAmount ?? null),
       lastGiftDate: formatCampaignDate(constituent?.lastGiftDate ?? null),
       totalYtdGiving: formatCampaignCurrency(constituent?.totalYtdGiving ?? null),
       totalLifetimeGiving: formatCampaignCurrency(constituent?.totalLifetimeGiving ?? null),
       giftCount: constituent?.giftCount != null ? String(constituent.giftCount) : "",
       firstGiftDate: formatCampaignDate(constituent?.firstGiftDate ?? null),
+      "gift.amount": donationAmount,
+      "gift.date": formatCampaignDate(latestDonation?.date ?? null),
+      "gift.receiptNumber": latestDonation?.receiptNumber?.trim() || "",
+      "gift.taxDeductibleAmount": taxDeductibleAmount,
       campaignName: donationCampaignName || params.campaign.name,
       campaignGoal: donationCampaignGoal,
       campaignRaised: donationCampaignRaised,
       campaignProgressPercent: progressPercent,
       campaignsSupported: donationCampaignName,
+      "campaign.name": donationCampaignName || params.campaign.name,
+      "campaign.goal": donationCampaignGoal,
+      "campaign.raised": donationCampaignRaised,
+      "campaign.progressPercent": progressPercent,
       organizationName,
-      organizationPhone: "",
-      organizationWebsite: "",
+      organizationPhone: branding.contactPhone,
+      organizationWebsite: branding.websiteUrl,
       addressBlock,
-      organizationTaxId: "",
+      organizationTaxId: branding.taxId,
+      "organization.name": organizationName,
+      "organization.address": addressBlock,
+      "organization.taxId": branding.taxId,
       staffName,
-      staffTitle: "",
+      staffTitle: branding.defaultSignerTitle,
       staffEmail,
       signatureName: staffName,
+      "staff.name": staffName,
+      "staff.email": staffEmail,
       unsubscribeUrl: "{{unsubscribeUrl}}",
+      unsubscribe_url: "{{unsubscribeUrl}}",
       managePreferencesUrl: "{{managePreferencesUrl}}",
+      preferencesUrl: "{{managePreferencesUrl}}",
+      preferences_url: "{{managePreferencesUrl}}",
       receiptNumber: latestDonation?.receiptNumber?.trim() || "",
       currentYear: String(new Date().getFullYear()),
       currentDate: formatCampaignDate(new Date()),
-      donationUrl: "",
+      donationUrl: branding.websiteUrl,
       donationAmount,
       taxDeductibleAmount,
       organizationAddress: addressBlock,
+      "event.name": latestDonation?.event?.name?.trim() || "",
+      "event.startDate": formatCampaignDate(latestDonation?.event?.startDate ?? null),
+      "event.location": [latestDonation?.event?.location, latestDonation?.event?.city, latestDonation?.event?.state].filter(Boolean).join(", "),
+      "stewardPath.name": stewardEnrollment?.path?.name?.trim() || "",
+      "stewardPath.status": stewardEnrollment?.status || "",
+      "stewardPath.currentStep": stewardEnrollment?.currentStep?.name?.trim() || "",
+      "stewardPath.nextStepDueAt": formatCampaignDate(stewardEnrollment?.nextStepDueAt ?? null),
     },
   };
 }
@@ -2403,6 +2451,27 @@ async function validateCampaignSendReadiness(params: {
         blocking: true,
       } satisfies CampaignValidationCheck));
 
+  const unsupportedMergeTokens = findUnsupportedEmailMergeTokens([
+    params.campaign.subject,
+    deliveryBodies.html,
+    deliveryBodies.text,
+  ]);
+  const mergeFieldCheck: CampaignValidationCheck = unsupportedMergeTokens.length === 0
+    ? {
+        key: "merge-fields",
+        label: "Merge Fields",
+        passed: true,
+        detail: "All merge fields are supported by campaign preview and send.",
+        blocking: true,
+      }
+    : {
+        key: "merge-fields",
+        label: "Merge Fields",
+        passed: false,
+        detail: `Unsupported merge fields: ${unsupportedMergeTokens.map((token) => `{{${token}}}`).join(", ")}.`,
+        blocking: true,
+      };
+
   let smtpCheck: CampaignValidationCheck;
   try {
     await createOrganizationEmailSender(params.campaign.organizationId);
@@ -2442,7 +2511,7 @@ async function validateCampaignSendReadiness(params: {
     },
   ];
 
-  const checks = [...requiredFieldsChecks, ...complianceChecks, smtpCheck, ...audienceChecks];
+  const checks = [...requiredFieldsChecks, mergeFieldCheck, ...complianceChecks, smtpCheck, ...audienceChecks];
   const blockers = checks.filter((check) => check.blocking && !check.passed).map((check) => check.detail);
 
   return {
@@ -4069,8 +4138,28 @@ router.post("/:id/preview", async (req, res) => {
   let bodyHtml = deliveryBodies.html;
   let bodyText = deliveryBodies.text;
   let previewRecipient: CampaignPreviewRecipient | null = null;
+  const unsupportedPreviewTokens = findUnsupportedEmailMergeTokens([
+    campaign.subject,
+    campaign.previewText,
+    deliveryBodies.html,
+    deliveryBodies.text,
+  ]);
+  let warnings = unsupportedPreviewTokens.length > 0
+    ? [`Unsupported merge fields: ${unsupportedPreviewTokens.map((token) => `{{${token}}}`).join(", ")}.`]
+    : [];
 
   if (previewTarget.recipientEmail) {
+    const mergeContext = await buildCampaignMergeContext({
+      organizationId,
+      recipientEmail: previewTarget.recipientEmail,
+      constituentId: previewTarget.constituentId,
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+      },
+    });
     const personalizedContent = await personalizeCampaignContent({
       organizationId,
       category: categoryForPurpose(purpose),
@@ -4092,6 +4181,12 @@ router.post("/:id/preview", async (req, res) => {
     bodyHtml = personalizedContent.html;
     bodyText = personalizedContent.text;
     previewRecipient = personalizedContent.recipient;
+    warnings = buildEmailMergePreviewWarnings([
+      campaign.subject,
+      campaign.previewText,
+      deliveryBodies.html,
+      deliveryBodies.text,
+    ], mergeContext.vars);
   }
 
   res.json({
@@ -4106,6 +4201,7 @@ router.post("/:id/preview", async (req, res) => {
     scheduledAt: campaign.scheduledAt,
     previewMode: previewTarget.mode,
     previewRecipient,
+    warnings,
   });
 });
 
@@ -4602,6 +4698,21 @@ router.post("/:id/send-test", async (req, res) => {
     const sender = await createOrganizationEmailSender(campaign.organizationId);
     const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
     const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
+    const unsupportedTokens = findUnsupportedEmailMergeTokens([
+      campaign.subject,
+      campaign.previewText,
+      deliveryBodies.html,
+      deliveryBodies.text,
+    ]);
+    if (unsupportedTokens.length > 0) {
+      res.status(400).json({
+        error: {
+          code: "UNSUPPORTED_MERGE_FIELDS",
+          message: `Unsupported merge fields: ${unsupportedTokens.map((token) => `{{${token}}}`).join(", ")}.`,
+        },
+      });
+      return;
+    }
     let previewTarget: Awaited<ReturnType<typeof resolveCampaignPreviewTarget>>;
     try {
       previewTarget = await resolveCampaignPreviewTarget({

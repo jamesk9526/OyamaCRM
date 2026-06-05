@@ -53,7 +53,7 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("/api/constituents?limit=all");
 
     expect(workspace).toContain("Templates");
-    expect(workspace).toContain("Campaigns");
+    expect(workspace).toContain("Campaign Workflow");
     expect(workspace).toContain("Calendar");
     expect(workspace).toContain("Settings");
     expect(workspace).toContain("Back to CRM");
@@ -63,7 +63,8 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Queue");
     expect(workspace).toContain("Analytics");
     expect(workspace).toContain("Activity Log");
-    expect(workspace).toContain("Campaign Command Center");
+    expect(workspace).toContain("Campaign Workflow");
+    expect(workspace).toContain("Primary Next Step");
     expect(workspace).toContain("About This Flow");
     expect(workspace).toContain("Templates are reusable content. Campaigns are one send instance");
     expect(workspace).toContain("Choose Audience Source");

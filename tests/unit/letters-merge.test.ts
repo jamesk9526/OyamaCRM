@@ -73,6 +73,9 @@ describe("letters-merge", () => {
   it("contains core donor and gift merge tokens", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donor.firstName}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.firstName}}");
+    expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.organizationName}}");
+    expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.contactFullName}}");
+    expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donor.displayName}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{gift.amount}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donation.amount}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{organization.name}}");

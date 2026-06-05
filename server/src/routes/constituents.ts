@@ -22,6 +22,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
+import { getConstituentDisplayName, getConstituentSortName, isOrganizationConstituent } from "../lib/constituent-identity.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -58,6 +59,13 @@ const CONSTITUENT_SELECT = {
   id: true,
   firstName: true,
   lastName: true,
+  displayName: true,
+  organizationName: true,
+  contactFirstName: true,
+  contactLastName: true,
+  contactTitle: true,
+  entityKind: true,
+  organizationCategory: true,
   email: true,
   phone: true,
   employer: true,
@@ -88,6 +96,9 @@ const MEMBER_SELECT = {
   id: true,
   firstName: true,
   lastName: true,
+  displayName: true,
+  organizationName: true,
+  entityKind: true,
   prefix: true,
   email: true,
   phone: true,
@@ -116,6 +127,12 @@ const normalizeTagColor = (value: unknown, fallback = "#16a34a"): string => {
 type ConstituentSearchSortable = {
   firstName: string | null;
   lastName: string | null;
+  displayName: string | null;
+  organizationName: string | null;
+  contactFirstName: string | null;
+  contactLastName: string | null;
+  type: string | null;
+  entityKind: string | null;
   email: string | null;
   phone: string | null;
 };
@@ -128,20 +145,33 @@ function constituentSearchRank(row: ConstituentSearchSortable, query: string): n
   const q = normalizeSearchText(query);
   const first = normalizeSearchText(row.firstName);
   const last = normalizeSearchText(row.lastName);
+  const displayName = normalizeSearchText(row.displayName);
+  const organizationName = normalizeSearchText(row.organizationName);
+  const contactFirst = normalizeSearchText(row.contactFirstName);
+  const contactLast = normalizeSearchText(row.contactLastName);
+  const contactFull = `${contactFirst} ${contactLast}`.trim();
   const full = `${first} ${last}`.trim();
+  const isOrg = isOrganizationConstituent({ type: row.type, entityKind: row.entityKind });
   const email = normalizeSearchText(row.email);
   const phone = normalizeSearchText(row.phone);
 
   if (!q) return 999;
+  if (organizationName.startsWith(q)) return 0;
+  if (displayName.startsWith(q)) return 1;
+  if (isOrg && full.startsWith(q)) return 2;
   if (first.startsWith(q)) return 0;
   if (last.startsWith(q)) return 1;
   if (full.startsWith(q)) return 2;
-  if (first.includes(q)) return 3;
-  if (last.includes(q)) return 4;
-  if (email.startsWith(q)) return 5;
-  if (phone.startsWith(q)) return 6;
-  if (email.includes(q)) return 7;
-  if (phone.includes(q)) return 8;
+  if (contactFull.startsWith(q)) return 3;
+  if (organizationName.includes(q)) return 4;
+  if (displayName.includes(q)) return 5;
+  if (first.includes(q)) return 6;
+  if (last.includes(q)) return 7;
+  if (contactFirst.includes(q) || contactLast.includes(q) || contactFull.includes(q)) return 8;
+  if (email.startsWith(q)) return 9;
+  if (phone.startsWith(q)) return 10;
+  if (email.includes(q)) return 11;
+  if (phone.includes(q)) return 12;
   return 999;
 }
 
@@ -152,11 +182,11 @@ function sortConstituentsBySearchRelevance<T extends ConstituentSearchSortable>(
   const withRank = rows.map((row) => ({
     row,
     rank: constituentSearchRank(row, q),
-    name: `${normalizeSearchText(row.firstName)} ${normalizeSearchText(row.lastName)}`.trim(),
+    name: getConstituentSortName(row),
   }));
 
-  const nameMatched = withRank.filter((entry) => entry.rank <= 4);
-  const otherMatched = withRank.filter((entry) => entry.rank > 4);
+  const nameMatched = withRank.filter((entry) => entry.rank <= 8);
+  const otherMatched = withRank.filter((entry) => entry.rank > 8);
   const rankThenName = (a: (typeof withRank)[number], b: (typeof withRank)[number]) => {
     if (a.rank !== b.rank) return a.rank - b.rank;
     return a.name.localeCompare(b.name);
@@ -182,6 +212,13 @@ const CONSTITUENT_IMPORT_ROLLBACK_SELECT = {
   id: true,
   firstName: true,
   lastName: true,
+  displayName: true,
+  organizationName: true,
+  contactFirstName: true,
+  contactLastName: true,
+  contactTitle: true,
+  entityKind: true,
+  organizationCategory: true,
   prefix: true,
   email: true,
   email2: true,
@@ -250,6 +287,13 @@ type ConstituentImportMode = "create_only" | "upsert" | "update_only";
 interface ConstituentRollbackScalarSnapshot {
   firstName: string;
   lastName: string;
+  displayName: string | null;
+  organizationName: string | null;
+  contactFirstName: string | null;
+  contactLastName: string | null;
+  contactTitle: string | null;
+  entityKind: string;
+  organizationCategory: string | null;
   prefix: string | null;
   email: string | null;
   email2: string | null;
@@ -349,6 +393,13 @@ function toConstituentRollbackSnapshot(record: ConstituentImportRollbackRecord):
   return {
     firstName: record.firstName,
     lastName: record.lastName,
+    displayName: record.displayName,
+    organizationName: record.organizationName,
+    contactFirstName: record.contactFirstName,
+    contactLastName: record.contactLastName,
+    contactTitle: record.contactTitle,
+    entityKind: record.entityKind,
+    organizationCategory: record.organizationCategory,
     prefix: record.prefix,
     email: record.email,
     email2: record.email2,
@@ -380,6 +431,13 @@ function snapshotToConstituentUpdateData(snapshot: ConstituentRollbackScalarSnap
   return {
     firstName: snapshot.firstName,
     lastName: snapshot.lastName,
+    displayName: snapshot.displayName,
+    organizationName: snapshot.organizationName,
+    contactFirstName: snapshot.contactFirstName,
+    contactLastName: snapshot.contactLastName,
+    contactTitle: snapshot.contactTitle,
+    entityKind: snapshot.entityKind,
+    organizationCategory: snapshot.organizationCategory,
     prefix: snapshot.prefix,
     email: snapshot.email,
     email2: snapshot.email2,
@@ -583,6 +641,10 @@ router.get("/", async (req, res) => {
       OR: [
         { firstName: { contains: search } },
         { lastName: { contains: search } },
+        { displayName: { contains: search } },
+        { organizationName: { contains: search } },
+        { contactFirstName: { contains: search } },
+        { contactLastName: { contains: search } },
         { email: { contains: search } },
         { phone: { contains: search } },
       ],
@@ -978,6 +1040,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   const {
     firstName, lastName, prefix, email, email2, phone, phone2, mobile,
+    displayName, organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
     addressLine1, addressLine2, city, state, zip, country,
     type, donorStatus, employer, occupation, notes,
     doNotEmail, doNotCall, doNotMail, organizationId,
@@ -995,6 +1058,9 @@ router.post("/", async (req, res) => {
   const constituent = await prisma.constituent.create({
     data: {
       firstName, lastName, prefix, email, email2, phone, phone2, mobile,
+      displayName, organizationName, contactFirstName, contactLastName, contactTitle,
+      entityKind: entityKind ?? "PERSON",
+      organizationCategory,
       addressLine1, addressLine2, city, state, zip,
       country: country ?? "US",
       type: type ?? "DONOR",
@@ -1039,7 +1105,7 @@ router.post("/", async (req, res) => {
     entityId: constituent.id,
     userId: req.user?.sub,
     organizationId: resolvedOrganizationId,
-    metadata: { type: constituent.type, name: `${constituent.firstName} ${constituent.lastName}` },
+    metadata: { type: constituent.type, name: getConstituentDisplayName(constituent) },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
@@ -1060,6 +1126,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const {
     firstName, lastName, prefix, email, email2, phone, phone2, mobile,
+    displayName, organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
     addressLine1, addressLine2, city, state, zip, country,
     type, donorStatus, employer, occupation, notes,
     doNotEmail, doNotCall, doNotMail,
@@ -1084,6 +1151,7 @@ router.put("/:id", async (req, res) => {
     where: { id: req.params.id },
     data: {
       firstName, lastName, prefix, email, email2, phone, phone2, mobile,
+      displayName, organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
       addressLine1, addressLine2, city, state, zip, country,
       type, donorStatus, employer, occupation, notes,
       doNotEmail, doNotCall, doNotMail,
@@ -1271,7 +1339,11 @@ router.post("/import", async (req, res) => {
   /** Map import contact-type labels into ConstituentType, using PROSPECT for generic non-donor contacts. */
   const normalizeConstituentType = (raw: string | undefined, isOrg: boolean): ConstituentType => {
     const v = (raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-    if (isOrg) return "ORGANIZATION";
+    if (isOrg) {
+      if (v === "foundation") return "FOUNDATION";
+      if (v === "sponsor") return "SPONSOR";
+      return "ORGANIZATION";
+    }
     if (!v) return "DONOR";
     if (["non_donor", "nondonor", "contact", "newsletter", "prospect"].includes(v)) return "PROSPECT";
     if (v === "volunteer") return "VOLUNTEER";
@@ -1363,10 +1435,23 @@ router.post("/import", async (req, res) => {
       const birthDate = parseDateOrUndefined(rec.birthDate);
       const importNotes = buildImportNotes(rec);
       const deceasedFlag = parseBool(rec.deceased) === true;
+      const inferredOrganizationName = (rec.organizationName || rec.displayName || rec.lastName || "").trim();
+      const effectiveOrganizationName = isOrg ? inferredOrganizationName : (rec.organizationName || "").trim();
+      const effectiveDisplayName = (rec.displayName || (isOrg ? inferredOrganizationName : "")).trim();
+      const effectiveEntityKind = (rec.entityKind || (isOrg ? "ORGANIZATION" : "PERSON")).trim().toUpperCase();
+      const effectiveFirstName = isOrg ? "" : (rec.firstName || "");
+      const effectiveLastName = isOrg ? inferredOrganizationName : (rec.lastName || "");
 
       const data = {
-        firstName:    rec.firstName    || "",
-        lastName:     rec.lastName     || "",
+        firstName:    effectiveFirstName,
+        lastName:     effectiveLastName,
+        displayName:  effectiveDisplayName || undefined,
+        organizationName: effectiveOrganizationName || undefined,
+        contactFirstName: rec.contactFirstName || undefined,
+        contactLastName: rec.contactLastName || undefined,
+        contactTitle: rec.contactTitle || undefined,
+        entityKind: effectiveEntityKind,
+        organizationCategory: rec.organizationCategory || undefined,
         prefix:       rec.prefix       || undefined,
         email:        rec.email        || undefined,
         email2:       rec.spouseEmail  || undefined,
@@ -1380,7 +1465,7 @@ router.post("/import", async (req, res) => {
         zip:          rec.zip          || undefined,
         country:      normalizeCountry(rec.country),
         birthDate,
-        employer:     rec.organizationName || undefined,
+        employer:     rec.organizationName || rec.employer || undefined,
         occupation:   rec.occupation   || undefined,
         doNotMail,
         doNotEmail,
@@ -1401,6 +1486,13 @@ router.post("/import", async (req, res) => {
       const scalars = {
         firstName:    data.firstName,
         lastName:     data.lastName,
+        displayName:  data.displayName,
+        organizationName: data.organizationName,
+        contactFirstName: data.contactFirstName,
+        contactLastName: data.contactLastName,
+        contactTitle: data.contactTitle,
+        entityKind: data.entityKind,
+        organizationCategory: data.organizationCategory,
         prefix:       data.prefix,
         email:        data.email,
         email2:       data.email2,

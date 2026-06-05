@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 
 interface EnrollmentRecord {
   id: string;
@@ -60,10 +61,8 @@ function statusClass(status: EnrollmentRecord["status"]): string {
 }
 
 function formatPersonLabel(record: EnrollmentRecord): string {
-  const first = record.constituent?.firstName?.trim() || "";
-  const last = record.constituent?.lastName?.trim() || "";
-  const name = `${first} ${last}`.trim();
-  if (name) return name;
+  const name = getConstituentDisplayName(record.constituent ?? {});
+  if (name !== "Unnamed Constituent" && name !== "Unnamed Organization") return name;
   return record.constituent?.email?.trim() || "Unassigned constituent";
 }
 
@@ -76,8 +75,8 @@ function formatOwnerLabel(record: EnrollmentRecord): string {
 }
 
 function formatConstituentLabel(row: ConstituentSearchResult): string {
-  const name = `${row.firstName?.trim() || ""} ${row.lastName?.trim() || ""}`.trim();
-  if (name) return name;
+  const name = getConstituentDisplayName(row);
+  if (name !== "Unnamed Constituent" && name !== "Unnamed Organization") return name;
   return row.email?.trim() || row.id;
 }
 

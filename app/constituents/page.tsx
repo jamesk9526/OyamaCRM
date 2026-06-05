@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import ConstituentTable from "@/app/components/constituents/ConstituentTable";
 import {
@@ -120,6 +121,7 @@ export default function ConstituentsPage() {
   const hasFilters = Boolean(search || typeFilter || statusFilter);
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = total === 0 ? 0 : Math.min(page * pageSize, total);
+  const filteredCountLabel = `${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} of ${total.toLocaleString()}`;
 
   return (
     <EnterprisePageShell
@@ -161,8 +163,42 @@ export default function ConstituentsPage() {
         />
       )}
     >
-      <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="space-y-4">
+      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f7fbf8_0%,#ffffff_58%,#eef6f2_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
+        <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:px-6">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
+                Constituent Directory
+              </span>
+              <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+                {selectedIds.length > 0 ? `${selectedIds.length} selected` : "Compact table view"}
+              </span>
+            </div>
+            <div>
+              <h1 className="text-[30px] font-semibold tracking-tight text-slate-950 sm:text-[34px]">Constituents</h1>
+              <p className="mt-1 max-w-3xl text-sm text-slate-600">
+                One organized donor directory for portfolio review, segmentation, and fast record cleanup.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/constituents/new" className="inline-flex h-9 items-center rounded-lg bg-emerald-700 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800">
+                Add Constituent
+              </Link>
+              <Link href="/data-tools/import" className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Import Donors
+              </Link>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+            <CompactConstituentTile label="Records In View" value={loading ? "—" : stats.total.toLocaleString()} detail={hasFilters ? "Filtered directory scope" : "Current directory scope"} />
+            <CompactConstituentTile label="Active Donors" value={loading ? "—" : stats.active.toLocaleString()} detail="Currently engaged supporters" tone="green" />
+            <CompactConstituentTile label="Prospects + Lapsed" value={loading ? "—" : `${stats.prospects + stats.lapsed}`} detail="Reactivation and cultivation focus" tone="blue" />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         <CRMMetricCard label="Total Constituents" value={loading ? "—" : stats.total.toLocaleString()} tone="green" icon={<PeopleIcon />} helper="All constituent records" />
         <CRMMetricCard label="Active Donors" value={loading ? "—" : stats.active.toLocaleString()} tone="blue" icon={<PersonIcon />} helper="Currently engaged donors" />
         <CRMMetricCard label="Lapsed" value={loading ? "—" : stats.lapsed.toLocaleString()} tone="orange" icon={<ClockIcon />} helper="Needs reactivation" />
@@ -170,7 +206,27 @@ export default function ConstituentsPage() {
       </div>
 
       <CRMFilterBar>
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_170px_auto] lg:items-center">
+        <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Directory Filters</p>
+            <p className="text-xs text-slate-500">Narrow the directory, then use the table for quick edits and donor review.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+              Showing {filteredCountLabel}
+            </span>
+            {hasFilters ? (
+              <button
+                onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }}
+                className="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Clear Filters
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1.2fr)_180px_180px_170px] lg:items-center">
         <input
           type="search"
           placeholder="Search name, email, phone..."
@@ -220,14 +276,7 @@ export default function ConstituentsPage() {
             <option key={size} value={size}>{size} / page</option>
           ))}
         </select>
-        {hasFilters && (
-          <button
-            onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-          >
-            Clear filters
-          </button>
-        )}
+        </div>
         </div>
       </CRMFilterBar>
 
@@ -236,6 +285,23 @@ export default function ConstituentsPage() {
           Could not connect to API — start it with <code className="bg-amber-100 px-1 rounded">pnpm start:server</code>
         </div>
       )}
+
+      {selectedIds.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">Selected Constituent Scope</p>
+            <p className="mt-1 text-sm font-semibold text-emerald-950">{selectedIds.length} constituent{selectedIds.length === 1 ? "" : "s"} selected</p>
+            <p className="text-xs text-emerald-800">Use the donor ribbon commands for the selected records, or clear this scope before changing filters.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedIds([])}
+            className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+          >
+            Clear Selection
+          </button>
+        </div>
+      ) : null}
 
       <CRMDataTable>
         <ConstituentTable
@@ -248,7 +314,7 @@ export default function ConstituentsPage() {
       </CRMDataTable>
 
       {!loading && !error && total > 0 && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between">
           <p>
             Showing <span className="font-semibold text-gray-900">{rangeStart.toLocaleString()}-{rangeEnd.toLocaleString()}</span> of <span className="font-semibold text-gray-900">{total.toLocaleString()}</span>
             {hasFilters ? <CRMStatusBadge tone="green" className="ml-2">Filtered</CRMStatusBadge> : null}
@@ -278,6 +344,32 @@ export default function ConstituentsPage() {
       )}
       </div>
     </EnterprisePageShell>
+  );
+}
+
+function CompactConstituentTile({
+  label,
+  value,
+  detail,
+  tone = "emerald",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "emerald" | "green" | "blue";
+}) {
+  const toneClass = tone === "blue"
+    ? "border-blue-200 bg-blue-50/80 text-blue-950"
+    : tone === "green"
+      ? "border-emerald-200 bg-emerald-50/80 text-emerald-950"
+      : "border-emerald-200 bg-white/85 text-slate-950";
+
+  return (
+    <div className={`rounded-2xl border px-3.5 py-3 ${toneClass}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-slate-600">{detail}</p>
+    </div>
   );
 }
 

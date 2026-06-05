@@ -13,6 +13,29 @@ Feature claims in this file should follow the workspace-first governance baselin
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
 
+## 2026-06-05 Constituent Identity Rollout Phase 2
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor-facing name rendering expansion | Working | `app/components/tasks/TaskTable.tsx`, `app/components/tasks/NewTaskModal.tsx`, `app/components/meetings/MeetingCard.tsx`, `app/components/donations/DonationTable.tsx`, `app/components/donations/DonationForm.tsx`, `app/components/events/NewGuestModal.tsx`, `app/components/events/NewOrderModal.tsx`, `app/steward-paths/enrollments/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` | Expanded constituent identity display usage beyond the constituents table so donor-facing task, meeting, donation, event, steward enrollment, and letters recipient views/search now resolve through shared display-name rules that support person and organization records. |
+| Letters recipient validation parity for organization records | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Letters recipient filtering and required-name checks now use identity-aware logic so organizations are not incorrectly treated as missing required first/last person-name fields. |
+| Server/client identity helper parity tests | Working | `tests/unit/server-constituent-identity.test.ts`, `tests/unit/constituent-utils.test.ts` | Added dedicated parity assertions to keep server merge/API helper behavior aligned with client display/sort/salutation logic for person and organization constituent cases. |
+
+## 2026-06-05 Letters + Email Singular Workflow UX Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| OyamaLetters canonical workflow chrome cleanup | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Removed shortcut-heavy ribbon actions from the dedicated letters workspace, reduced sidebar navigation to the canonical production path, extended the stepper through queue, and unified generate-step back/next controls into the same workflow bar at the top and bottom of the page. |
+| OyamaEmail campaign workflow cleanup | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx` | Removed shortcut-heavy ribbon actions, renamed navigation toward campaign-workflow language, locked the template builder back action to the canonical templates route, and reduced the new-campaign final step to one primary finish action with matching top/bottom workflow controls. |
+
+## 2026-06-05 Donor Workspace Dead-Control Cleanup
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor dashboard dead button removal | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx` | Removed non-functional dashboard chrome such as `Export Snapshot` and non-clicking header action labels, replacing them with truthful status text or real deep links only where a canonical donor workspace exists. |
+| Donations selection handoff consolidation | Working | `app/donations/page.tsx` | Donations selection now reads as one donor handoff rail with canonical send-to-email or send-to-letters actions, and recurring-donor selection is framed as one shortcut into that same path instead of another floating one-off button. |
+| Constituents selection-state clarity | Working | `app/constituents/page.tsx` | Constituents now show a truthful selected-scope rail with clear reset behavior so row selection is visible and tied back to the shared donor ribbon instead of feeling like an invisible or partial workflow. |
+
 ## 2026-05-31 Context-Aware Ribbon Visual Pass
 
 | Area | Status | Evidence | Notes |
@@ -779,3 +802,11 @@ Completed in this pass:
 Source-of-truth organization map:
 
 - `docs/status/crm-organization-map.md`
+
+## 2026-06-05 Email Merge + Send Path Audit Follow-up
+
+- Email campaign preview/send merge context now reads canonical organization branding for address, phone, website, tax ID, donation URL, and default signer title instead of silently resolving those advertised fields to blank strings.
+- Email campaign validation now blocks unsupported merge tokens before queue/schedule/send, so unknown fields no longer disappear silently at delivery time.
+- OyamaEmail campaign detail now presents one primary next-step action with grouped review/send/queue utilities instead of a flat command-center button wall.
+- Builder compliance review now accepts address merge tokens as valid physical-address coverage, reducing false blockers in the email send path.
+- OyamaEmail template preview/send-test, campaign preview, and merge-field picker now share a broader audited merge catalog, including compatibility aliases, missing-data preview warnings, and live preview parity for donor/gift/event/steward dotted tokens.

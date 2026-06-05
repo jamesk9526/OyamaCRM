@@ -125,6 +125,78 @@ describe("email campaign workflow api", () => {
     expect(duplicate.body?.status).toBe("DRAFT");
   });
 
+  it("renders branding-backed organization merge fields in preview and blocks unsupported merge tokens", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+
+    const branding = await request(app)
+      .put("/api/settings/branding")
+      .set(auth)
+      .send({
+        organizationDisplayName: "Hope Foundation",
+        contactPhone: "312-555-0100",
+        websiteUrl: "https://hope.example.org/give",
+        streetAddress1: "123 Main St",
+        city: "Chicago",
+        stateProvince: "IL",
+        postalCode: "60601",
+        taxId: "12-3456789",
+        defaultLetterSignerTitle: "Development Director",
+      });
+
+    expect(branding.status).toBe(200);
+
+    const created = await request(app)
+      .post("/api/email-campaigns")
+      .set(auth)
+      .send({
+        name: `Merge Coverage Campaign ${Date.now()}`,
+        subject: "Hello {{firstName}}",
+        fromName: "Jamie Sender",
+        fromEmail: "admin@hopefoundation.org",
+        replyToEmail: "reply@hopefoundation.org",
+        bodyHtml: "<p>{{organization.address}}</p><p>{{organizationWebsite}}</p><p>{{organizationPhone}}</p><p>{{organizationTaxId}}</p><p>{{staffTitle}}</p>",
+        bodyText: "{{organization.address}} | {{organizationWebsite}} | {{organizationPhone}} | {{organizationTaxId}} | {{staffTitle}}",
+      });
+
+    expect(created.status).toBe(201);
+
+    const preview = await request(app)
+      .post(`/api/email-campaigns/${created.body.id}/preview`)
+      .set(auth)
+      .send({ recipientEmail: "preview@example.org" });
+
+    expect(preview.status).toBe(200);
+    expect(preview.body?.bodyHtml).toContain("123 Main St, Chicago, IL, 60601");
+    expect(preview.body?.bodyHtml).toContain("https://hope.example.org/give");
+    expect(preview.body?.bodyHtml).toContain("312-555-0100");
+    expect(preview.body?.bodyHtml).toContain("12-3456789");
+    expect(preview.body?.bodyHtml).toContain("Development Director");
+
+    const invalid = await request(app)
+      .post("/api/email-campaigns")
+      .set(auth)
+      .send({
+        name: `Unsupported Merge Campaign ${Date.now()}`,
+        subject: "Unsupported {{organization.foobar}}",
+        fromName: "Jamie Sender",
+        fromEmail: "admin@hopefoundation.org",
+        replyToEmail: "reply@hopefoundation.org",
+        bodyHtml: "<p>Hello {{organization.foobar}}</p>",
+        bodyText: "Hello {{organization.foobar}}",
+      });
+
+    expect(invalid.status).toBe(201);
+
+    const validation = await request(app)
+      .post(`/api/email-campaigns/${invalid.body.id}/validate`)
+      .set(auth)
+      .send({});
+
+    expect(validation.status).toBe(200);
+    expect(validation.body?.valid).toBe(false);
+    expect(validation.body?.blockers).toContain("Unsupported merge fields: {{organization.foobar}}.");
+  });
+
   it("returns unscheduled draft campaigns in calendar workspace payload", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
 

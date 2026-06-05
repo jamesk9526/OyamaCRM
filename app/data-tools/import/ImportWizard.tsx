@@ -272,13 +272,17 @@ function validateAndTransform(
       if (value !== "") mapped[crmKey] = value;
     }
 
-    // Organisation-fallback: if no firstName/lastName but allowOrgImport is on,
-    // try to derive a name from organizationName or displayName and tag as org.
+    // Organization fallback: if no person name but org/display is present, map
+    // canonical organization identity fields and keep lastName compatibility.
     if (allowOrgImport && !mapped["firstName"] && !mapped["lastName"]) {
       const orgName = mapped["organizationName"] || mapped["displayName"] || "";
       if (orgName) {
-        // Use the org/display name as the record's lastName (how the CRM stores orgs)
-        // and mark it so the API can set ConstituentType = ORGANIZATION.
+        mapped["organizationName"] = orgName;
+        mapped["displayName"] = orgName;
+        mapped["entityKind"] = "ORGANIZATION";
+        mapped["type"] = mapped["type"] || "ORGANIZATION";
+        mapped["firstName"] = "";
+        // Keep compatibility while firstName/lastName are still required in schema.
         mapped["lastName"] = orgName;
         mapped["_isOrg"] = "true";
       } else {
@@ -302,7 +306,7 @@ function validateAndTransform(
   const warnings: string[] = [];
   const orgRows = valid.filter((r) => r["_isOrg"] === "true").length;
   if (orgRows > 0) {
-    warnings.push(`${orgRows} record(s) have no first/last name and will be imported as Organizations.`);
+    warnings.push(`${orgRows} record(s) will be imported as organizations using organizationName/displayName (not split person names).`);
   }
   if (errors.length > 0) {
     warnings.push(`${errors.length} row(s) have missing required fields and will be skipped.`);
@@ -1092,10 +1096,17 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
         {/* Required field warning — softened when allowOrgImport is on since orgs skip first/last name */}
         {statusCounts.required > 0 && (
           <div className={`rounded-lg border px-4 py-2 text-xs ${allowOrgImport ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-            {allowOrgImport
-              ? `ℹ ${statusCounts.required} required field(s) are set to skip. Records without First/Last Name will be imported as Organizations if an Organization Name is mapped.`
-              : `⚠ ${statusCounts.required} required field(s) are currently set to skip. Map First Name and Last Name before continuing.`
-            }
+            <p>
+              {allowOrgImport
+                ? `ℹ ${statusCounts.required} required field(s) are set to skip. Records without First/Last Name will be imported as organizations when Organization Name or Display Name is mapped.`
+                : `⚠ ${statusCounts.required} required field(s) are currently set to skip. Map First Name and Last Name before continuing.`
+              }
+            </p>
+            {allowOrgImport ? (
+              <p className="mt-1 text-[11px] text-amber-700">
+                Organization fallback sets Organization Name, Display Name, Entity Kind, and keeps Last Name only for legacy compatibility.
+              </p>
+            ) : null}
           </div>
         )}
 

@@ -652,7 +652,7 @@ export function extractMergeFieldsFromContent(value: string): string[] {
 
 export function applyMergeTokens(value: string, vars: Record<string, string>): string {
   return value.replace(MERGE_FIELD_PATTERN, (_token, rawKey: string) => {
-    const key = String(rawKey || "").trim();
+    const key = canonicalizeEmailMergeToken(String(rawKey || "").trim());
     if (!key) return "";
     if (Object.prototype.hasOwnProperty.call(vars, key)) {
       return vars[key] ?? "";
@@ -754,3 +754,4 @@ export function renderEmailTemplateDocumentWithMerge(
     mergeFieldsUsed: rendered.mergeFieldsUsed,
   };
 }
+import { canonicalizeEmailMergeToken } from "./merge-field-catalog.js";

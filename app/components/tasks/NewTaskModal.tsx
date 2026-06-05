@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 
 const TASK_TYPES = ["CALL", "EMAIL", "MAIL", "MEETING", "THANK_YOU", "FOLLOW_UP", "OTHER"];
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -234,7 +235,7 @@ export default function NewTaskModal({ onClose, onCreated, defaultAssigneeId, de
             >
               <option value="">No constituent linked</option>
               {constituents.map((constituent) => (
-                <option key={constituent.id} value={constituent.id}>{constituent.firstName} {constituent.lastName}</option>
+                <option key={constituent.id} value={constituent.id}>{getConstituentDisplayName(constituent)}</option>
               ))}
             </select>
           </div>

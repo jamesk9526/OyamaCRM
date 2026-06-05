@@ -11,6 +11,12 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { categoryForPurpose, evaluateRecipientEligibility, hashPublicEmailToken, parseEmailPurpose } from "../services/email-compliance.js";
+import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
+import {
+  buildEmailMergePreviewWarnings,
+  EMAIL_MERGE_FIELD_GROUPS,
+  findUnsupportedEmailMergeTokens,
+} from "../services/oyama-email/merge-field-catalog.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import {
   applyMergeTokens,
@@ -257,6 +263,7 @@ async function buildTemplateMergeVars(params: {
           },
         }),
   ]);
+  const branding = await loadOrganizationBrandingContext(params.organizationId, organization?.name?.trim() || "");
 
   const donation = recipient?.id
     ? await prisma.donation.findFirst({
@@ -300,7 +307,7 @@ async function buildTemplateMergeVars(params: {
   const firstName = recipient?.firstName?.trim() || "";
   const lastName = recipient?.lastName?.trim() || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
-  const organizationName = organization?.name?.trim() || "Your organization";
+  const organizationName = branding.organizationName || organization?.name?.trim() || "Your organization";
   const senderName = params.fromName.trim() || orgSettings?.smtpFromName?.trim() || organizationName;
   const senderEmail = orgSettings?.smtpFromEmail?.trim() || params.fromEmail.trim() || "";
 
@@ -313,7 +320,7 @@ async function buildTemplateMergeVars(params: {
     ? `${Math.round((raisedNumeric / goalNumeric) * 100)}%`
     : "";
 
-  const physicalAddress = "";
+  const physicalAddress = branding.addressLine;
   const currentDate = formatDate(new Date());
   const effectiveRecipient = normalizedRecipient || recipient?.email?.trim().toLowerCase() || "";
   let unsubscribeUrl = "{{unsubscribeUrl}}";
@@ -357,7 +364,7 @@ async function buildTemplateMergeVars(params: {
 
       "organization.name": organizationName,
       "organization.address": physicalAddress,
-      "organization.taxId": "",
+      "organization.taxId": branding.taxId,
 
       "event.name": donation?.event?.name?.trim() || "",
       "event.startDate": formatDate(donation?.event?.startDate ?? null),
@@ -392,23 +399,26 @@ async function buildTemplateMergeVars(params: {
       campaignRaised: campaignRaisedLabel,
       campaignProgressPercent: progressPercent,
       organizationName,
-      organizationPhone: "",
-      organizationWebsite: "",
+      organizationPhone: branding.contactPhone,
+      organizationWebsite: branding.websiteUrl,
       addressBlock: physicalAddress,
-      organizationTaxId: "",
+      organizationTaxId: branding.taxId,
       staffName: senderName,
-      staffTitle: "",
+      staffTitle: branding.defaultSignerTitle,
       staffEmail: senderEmail,
       signatureName: senderName,
       receiptNumber: donation?.receiptNumber?.trim() || "",
       currentYear: String(new Date().getFullYear()),
       currentDate,
-      donationUrl: "",
+      donationUrl: branding.websiteUrl,
       donationAmount: formatCurrency(donation?.amount ?? null),
       taxDeductibleAmount: donation?.taxDeductible ? formatCurrency(donation?.amount ?? null) : "$0.00",
       organizationAddress: physicalAddress,
       unsubscribeUrl,
+      unsubscribe_url: unsubscribeUrl,
       managePreferencesUrl,
+      preferencesUrl: managePreferencesUrl,
+      preferences_url: managePreferencesUrl,
     },
   };
 }
@@ -512,79 +522,21 @@ router.get("/merge-fields", async (req, res) => {
     prisma.stewardPathEnrollment.count({ where: { organizationId } }),
   ]);
 
+  const availabilityByKind = {
+    always: true,
+    donor: donorCount > 0,
+    gift: donationCount > 0,
+    event: eventCount > 0,
+    steward: stewardCount > 0,
+  } as const;
+
   res.json({
-    groups: [
-      {
-        key: "donor",
-        label: "Donor Fields",
-        available: donorCount > 0,
-        fields: [
-          { token: "{{ donor.firstName }}", description: "Donor first name" },
-          { token: "{{ donor.lastName }}", description: "Donor last name" },
-          { token: "{{ donor.fullName }}", description: "Donor full name" },
-          { token: "{{ donor.email }}", description: "Donor email" },
-        ],
-      },
-      {
-        key: "gift",
-        label: "Gift Fields",
-        available: donationCount > 0,
-        fields: [
-          { token: "{{ gift.amount }}", description: "Most recent gift amount" },
-          { token: "{{ gift.date }}", description: "Most recent gift date" },
-          { token: "{{ gift.receiptNumber }}", description: "Gift receipt number" },
-        ],
-      },
-      {
-        key: "organization",
-        label: "Organization Fields",
-        available: true,
-        fields: [
-          { token: "{{ organization.name }}", description: "Organization name" },
-          { token: "{{ organization.address }}", description: "Organization address" },
-          { token: "{{ unsubscribeUrl }}", description: "Generated unsubscribe URL" },
-        ],
-      },
-      {
-        key: "event",
-        label: "Event Fields",
-        available: eventCount > 0,
-        fields: [
-          { token: "{{ event.name }}", description: "Related event name" },
-          { token: "{{ event.startDate }}", description: "Related event start date" },
-          { token: "{{ event.location }}", description: "Related event location" },
-        ],
-      },
-      {
-        key: "campaign",
-        label: "Campaign Fields",
-        available: true,
-        fields: [
-          { token: "{{ campaign.name }}", description: "Campaign name" },
-          { token: "{{ campaign.goal }}", description: "Campaign goal" },
-          { token: "{{ campaign.raised }}", description: "Campaign raised amount" },
-        ],
-      },
-      {
-        key: "staff",
-        label: "Staff Fields",
-        available: true,
-        fields: [
-          { token: "{{ staff.name }}", description: "From-name sender" },
-          { token: "{{ staff.email }}", description: "From-email sender" },
-        ],
-      },
-      {
-        key: "steward",
-        label: "Steward Path Fields",
-        available: stewardCount > 0,
-        fields: [
-          { token: "{{ stewardPath.name }}", description: "Steward path name" },
-          { token: "{{ stewardPath.currentStep }}", description: "Current steward step" },
-          { token: "{{ stewardPath.nextStepDueAt }}", description: "Next step due date" },
-        ],
-      },
-    ],
+    groups: EMAIL_MERGE_FIELD_GROUPS.map((group) => ({
+      key: group.key,
+      label: group.label,
+      available: availabilityByKind[group.availability],
+      fields: group.fields,
+    })),
   });
 });
 
@@ -943,6 +895,12 @@ router.post("/templates/:id/preview", async (req, res) => {
   const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars);
   const subject = applyMergeTokens(campaign.subject || campaign.name, mergeContext.vars);
   const previewText = applyMergeTokens(campaign.previewText || "", mergeContext.vars);
+  const warnings = buildEmailMergePreviewWarnings([
+    campaign.subject,
+    campaign.previewText,
+    campaign.bodyHtml,
+    campaign.bodyText,
+  ], mergeContext.vars);
 
   res.json({
     id: campaign.id,
@@ -952,6 +910,7 @@ router.post("/templates/:id/preview", async (req, res) => {
     text: rendered.text,
     mergeFieldsUsed: rendered.mergeFieldsUsed,
     recipient: mergeContext.recipient,
+    warnings,
   });
 });
 
@@ -989,6 +948,21 @@ router.post("/templates/:id/send-test", async (req, res) => {
   }
 
   const stored = parseStoredTemplateJson(campaign.templateJson);
+  const unsupportedMergeTokens = findUnsupportedEmailMergeTokens([
+    campaign.subject,
+    campaign.previewText,
+    campaign.bodyHtml,
+    campaign.bodyText,
+  ]);
+  if (unsupportedMergeTokens.length > 0) {
+    res.status(400).json({
+      error: {
+        code: "UNSUPPORTED_MERGE_FIELDS",
+        message: `Unsupported merge fields: ${unsupportedMergeTokens.map((token) => `{{${token}}}`).join(", ")}.`,
+      },
+    });
+    return;
+  }
   const mergeContext = await buildTemplateMergeVars({
     organizationId,
     campaignId: campaign.id,

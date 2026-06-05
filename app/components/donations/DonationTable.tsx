@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { DonationRow, formatCurrency, formatDate, formatDonationDate, methodLabel, statusColor } from "./donation-utils";
+import { getConstituentDisplayName, getConstituentSortName } from "@/app/components/constituents/constituent-utils";
 
 type SortKey = "date" | "amount" | "constituent" | "status";
 
@@ -84,7 +85,7 @@ function RowQuickActionsMenu({
     onMarkThanked(donation.id);
   }
 
-  const itemClass = "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50";
+  const itemClass = "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11px] font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="relative" ref={menuRef}>
@@ -231,7 +232,7 @@ export default function DonationTable({
     let cmp = 0;
     if (sortKey === "date") cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
     else if (sortKey === "amount") cmp = parseFloat(a.amount) - parseFloat(b.amount);
-    else if (sortKey === "constituent") cmp = `${a.constituent.lastName}${a.constituent.firstName}`.localeCompare(`${b.constituent.lastName}${b.constituent.firstName}`);
+    else if (sortKey === "constituent") cmp = getConstituentSortName(a.constituent).localeCompare(getConstituentSortName(b.constituent));
     else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -267,11 +268,11 @@ export default function DonationTable({
     <div>
       <div className="space-y-3 md:hidden">
         {sorted.map((d) => (
-          <article key={d.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
+          <article key={d.id} className="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Link href={`/constituents/${d.constituent.id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
-                  {d.constituent.firstName} {d.constituent.lastName}
+                  {getConstituentDisplayName(d.constituent)}
                 </Link>
                 {d.constituent.email && <p className="truncate text-xs text-slate-500">{d.constituent.email}</p>}
                 <p className={`mt-1 text-[11px] ${d.acknowledgmentSentAt ? "text-green-700" : "text-amber-700"}`}>
@@ -291,11 +292,11 @@ export default function DonationTable({
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+              <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
                 <p className="text-slate-500">Method</p>
                 <p className="font-semibold text-slate-800">{methodLabel(d.paymentMethod)}</p>
               </div>
-              <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+              <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
                 <p className="text-slate-500">Recurring</p>
                 <p className="font-semibold text-slate-800">{d.isRecurring ? "Yes" : "No"}</p>
               </div>
@@ -343,12 +344,12 @@ export default function DonationTable({
         ))}
       </div>
 
-      <div className="hidden md:block overflow-x-auto overflow-y-visible">
+      <div className="hidden overflow-x-auto overflow-y-visible md:block">
       <table className="w-full text-sm">
         <thead className="border-b border-slate-100 bg-slate-50/80">
           <tr>
             {selectable ? (
-              <th className="w-10 px-3 py-3">
+              <th className="w-10 px-3 py-2.5">
                 <input
                   type="checkbox"
                   checked={allVisibleSelected}
@@ -361,30 +362,30 @@ export default function DonationTable({
             <SortHeader label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <SortHeader label="Donor" col="constituent" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
             <SortHeader label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-            <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Fund / Campaign</th>
-            <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Method</th>
+            <th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Fund / Campaign</th>
+            <th className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Method</th>
             <SortHeader label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggle} />
-            <th className="w-72 px-4 py-3 text-right text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Actions</th>
+            <th className="w-72 px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {sorted.map(d => (
             <tr key={d.id} className="transition-colors hover:bg-emerald-50/35">
               {selectable ? (
-                <td className="px-3 py-3 align-top">
+                <td className="px-3 py-2.5 align-top">
                   <input
                     type="checkbox"
                     checked={selectedSet.has(d.id)}
                     onChange={() => toggleRow(d.id)}
-                    aria-label={`Select gift from ${d.constituent.firstName} ${d.constituent.lastName}`}
+                    aria-label={`Select gift from ${getConstituentDisplayName(d.constituent)}`}
                     className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
                 </td>
               ) : null}
-              <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDonationDate(d.date)}</td>
-              <td className="px-4 py-3">
+              <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{formatDonationDate(d.date)}</td>
+              <td className="px-4 py-2.5">
                 <Link href={`/constituents/${d.constituent.id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
-                  {d.constituent.firstName} {d.constituent.lastName}
+                  {getConstituentDisplayName(d.constituent)}
                 </Link>
                 {d.constituent.email && (
                   <div className="text-xs text-slate-400">{d.constituent.email}</div>
@@ -401,24 +402,24 @@ export default function DonationTable({
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3">
-                <span className="font-bold text-slate-950">{formatCurrency(d.amount)}</span>
+              <td className="px-4 py-2.5">
+                <span className="font-semibold tabular-nums text-slate-950">{formatCurrency(d.amount)}</span>
                 {d.isRecurring && (
                   <span className="ml-1.5 inline-block text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">Recurring</span>
                 )}
               </td>
-              <td className="px-4 py-3 text-gray-600">
-                {d.designation?.name && <div className="font-medium">{d.designation.name}</div>}
+              <td className="px-4 py-2.5 text-gray-600">
+                {d.designation?.name && <div className="font-medium text-slate-700">{d.designation.name}</div>}
                 {d.campaign?.name && <div className="text-xs text-gray-400">{d.campaign.name}</div>}
                 {!d.designation && !d.campaign && <span className="text-gray-300">—</span>}
               </td>
-              <td className="px-4 py-3 text-gray-600">{methodLabel(d.paymentMethod)}</td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-2.5 text-gray-600">{methodLabel(d.paymentMethod)}</td>
+              <td className="px-4 py-2.5">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(d.status)}`}>
                   {d.status.charAt(0) + d.status.slice(1).toLowerCase()}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-2.5 text-right">
                 <div className="flex items-center gap-1 justify-end flex-wrap">
                   <Link
                     href={`/donations/${d.id}/edit`}

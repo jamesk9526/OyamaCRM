@@ -24,12 +24,15 @@ export default function DashboardPage() {
   const name = user ? `${user.firstName} ${user.lastName}` : "…";
 
   const widgetArea = (
-    <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white/60 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)] sm:p-4">
+    <section className="mt-3 rounded-2xl border border-slate-200/90 bg-white/70 p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)] sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-2 px-1">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Dashboard Widgets</h2>
           <p className="text-xs text-slate-500">Organize, enable, and configure your personal dashboard layout.</p>
         </div>
+        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+          {dashboardState.visibleWidgetOrder.length} active
+        </span>
       </div>
 
       <div className={dashboardState.sectionLayoutClassName}>
@@ -109,7 +112,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={dashboardState.openCustomizeModal}
-            className="inline-flex h-11 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-100"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-100"
             aria-label="Customize dashboard"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">

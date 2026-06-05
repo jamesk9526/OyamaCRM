@@ -150,6 +150,7 @@ interface PreviewResponse {
   html: string;
   text: string;
   mergeFieldsUsed: string[];
+  warnings?: string[];
   recipient: {
     email: string;
     firstName: string;
@@ -806,6 +807,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [serverPreviewHtml, setServerPreviewHtml] = useState("");
   const [serverPreviewText, setServerPreviewText] = useState("");
+  const [serverPreviewWarnings, setServerPreviewWarnings] = useState<string[]>([]);
   const [globalBranding, setGlobalBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState("");
   const [smtpDefaults, setSmtpDefaults] = useState<{ fromEmail: string; replyToEmail: string }>({
@@ -1272,8 +1274,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       });
       setServerPreviewHtml(preview.html || "");
       setServerPreviewText(preview.text || "");
+      setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
       setPreviewRecipientLabel(preview.recipient ? preview.recipient.email : null);
-      setNotice("Server preview refreshed.");
+      setNotice(Array.isArray(preview.warnings) && preview.warnings.length > 0 ? "Server preview refreshed with warnings." : "Server preview refreshed.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to refresh preview.");
     }
@@ -1749,6 +1752,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         });
         setServerPreviewHtml(preview.html || "");
         setServerPreviewText(preview.text || "");
+        setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
         setPreviewRecipientLabel(preview.recipient ? preview.recipient.email : null);
       } catch {
         // show whatever we have
@@ -1779,14 +1783,17 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         <div className="flex h-16 items-center gap-3 px-6">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push("/oyama-email/templates")}
             className="flex-none rounded-lg p-1.5 text-slate-700 hover:bg-slate-100"
-            title="Back"
+            title="Back to template library"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
               <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
             </svg>
           </button>
+          <div className="hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 lg:block">
+            Templates / Builder
+          </div>
           {editingName ? (
             <input
               ref={nameInputRef}
@@ -2687,6 +2694,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               </div>
             </div>
             <div className="flex-1 overflow-auto p-4">
+              {serverPreviewWarnings.length > 0 ? (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Preview Warnings</p>
+                  <ul className="mt-2 space-y-1 text-xs text-amber-900">
+                    {serverPreviewWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                </div>
+              ) : null}
               {serverPreviewHtml ? (
                 <iframe
                   srcDoc={serverPreviewHtml}

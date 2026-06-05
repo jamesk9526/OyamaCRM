@@ -257,4 +257,82 @@ describe("constituent import safety", () => {
 
     expect([200, 409]).toContain(cleanup.status);
   });
+
+  it("imports organization fallback fields and supports organization/contact search", async () => {
+    const suffix = `${Date.now()}`;
+    const externalId = `safe-import-org-${suffix}`;
+    const email = `safe-import-org-${suffix}@example.com`;
+    const orgName = `Church of Aurora ${suffix}`;
+
+    const importRes = await request(app)
+      .post("/api/constituents/import")
+      .set(auth())
+      .send({
+        records: [
+          {
+            firstName: "",
+            lastName: "",
+            displayName: orgName,
+            organizationName: orgName,
+            entityKind: "ORGANIZATION",
+            contactFirstName: "Rachel",
+            contactLastName: "Moore",
+            contactTitle: "Director",
+            email,
+            externalId,
+            _isOrg: "true",
+          },
+        ],
+        mode: "create_only",
+        dryRun: false,
+        matchExtId: true,
+        matchEmail: true,
+        matchPhone: true,
+        allowOrgImport: true,
+      });
+
+    expect(importRes.status).toBe(200);
+    const runId = importRes.body.importRunId as string;
+
+    const byOrgName = await request(app)
+      .get(`/api/constituents?search=${encodeURIComponent(orgName)}&limit=50`)
+      .set(auth());
+    expect(byOrgName.status).toBe(200);
+    const orgRows = Array.isArray(byOrgName.body)
+      ? byOrgName.body as Array<{ id: string; email?: string | null }>
+      : ((byOrgName.body?.items ?? []) as Array<{ id: string; email?: string | null }>);
+    const imported = orgRows.find((row) => (row.email ?? "").toLowerCase() === email.toLowerCase());
+    expect(imported).toBeTruthy();
+
+    const detailRes = await request(app)
+      .get(`/api/constituents/${imported!.id}`)
+      .set(auth());
+    expect(detailRes.status).toBe(200);
+    expect(detailRes.body.firstName).toBe("");
+    expect(detailRes.body.lastName).toBe(orgName);
+    expect(detailRes.body.organizationName).toBe(orgName);
+    expect(detailRes.body.displayName).toBe(orgName);
+    expect(detailRes.body.entityKind).toBe("ORGANIZATION");
+    expect(detailRes.body.contactFirstName).toBe("Rachel");
+    expect(detailRes.body.contactLastName).toBe("Moore");
+
+    const byContactName = await request(app)
+      .get(`/api/constituents?search=${encodeURIComponent("Rachel")}&limit=50`)
+      .set(auth());
+    expect(byContactName.status).toBe(200);
+    const contactRows = Array.isArray(byContactName.body)
+      ? byContactName.body as Array<{ id: string; email?: string | null }>
+      : ((byContactName.body?.items ?? []) as Array<{ id: string; email?: string | null }>);
+    expect(contactRows.some((row) => row.id === imported!.id)).toBe(true);
+
+    const cleanup = await request(app)
+      .post(`/api/constituents/import/${runId}/rollback`)
+      .set(auth())
+      .send({
+        confirm: true,
+        confirmationText: `ROLLBACK-CONSTITUENT-IMPORT:${runId}`,
+      });
+
+    expect([200, 409]).toContain(cleanup.status);
+  });
 });

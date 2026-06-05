@@ -691,6 +691,13 @@ model Constituent {
   prefix    String?
   firstName String
   lastName  String
+  displayName String?
+  organizationName String?
+  contactFirstName String?
+  contactLastName String?
+  contactTitle String?
+  entityKind String @default("PERSON")
+  organizationCategory String?
   email     String?
   email2    String?
   phone     String?
