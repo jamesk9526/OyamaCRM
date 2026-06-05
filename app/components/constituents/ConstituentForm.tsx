@@ -66,6 +66,12 @@ interface Props {
   constituentId?: string;
 }
 
+type InitialGroupMembership = Array<{
+  relationshipLabel?: string | null;
+  isPrimary?: boolean;
+  group?: { id: string };
+}> | undefined;
+
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
   "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
@@ -107,7 +113,7 @@ const DEFAULTS: ConstituentFormData = {
 };
 
 function normalizeGroupMemberships(
-  memberships?: Props["initialData"]["groupMemberships"],
+  memberships?: InitialGroupMembership,
 ): GroupMembershipDraft[] {
   if (!Array.isArray(memberships)) return [];
   return memberships
