@@ -16,7 +16,8 @@ const apiProxyTarget =
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: path.resolve(__dirname),
+    // In pnpm workspace deployments, `next` is resolved from the repo root.
+    root: path.resolve(__dirname, "../.."),
   },
   async headers() {
     return [

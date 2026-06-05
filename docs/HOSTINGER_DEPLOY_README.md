@@ -1,6 +1,6 @@
 # Hostinger Deploy Template
 
-Last updated: 2026-05-14
+Last updated: 2026-06-04
 
 This guide is a reusable deployment template for a Next.js web app + Express API running behind Nginx on Hostinger VPS.
 
@@ -217,6 +217,33 @@ If errors mention missing models/enums such as `letterTemplate`, `generatedLette
 		pnpm prisma generate
 		pnpm build
 		pnpm build:server
+
+### 6.3 Turbopack cannot resolve `next/package.json` in `apps/letters`
+
+Symptom:
+
+		Error: Next.js inferred your workspace root, but it may not be correct.
+		We couldn't find the Next.js package (next/package.json)
+		from the project directory: .../apps/letters/app
+
+Cause:
+
+- `apps/letters/next.config.ts` set `turbopack.root` to the app directory.
+- In pnpm workspace deployments, the `next` package resolves from the monorepo root.
+- Turbopack blocks files outside the configured root, so build fails.
+
+Required fix in repo:
+
+- Set `turbopack.root` in `apps/letters/next.config.ts` to the monorepo root:
+  `path.resolve(__dirname, "../..")`
+
+Verification:
+
+		pnpm --filter @oyama/letters build
+
+Expected result:
+
+- `@oyama/letters` build completes and prints route output without the Turbopack root error.
 
 ### 6.6 Prisma P3009 failed migration (`20260513144533_add_email_campaign_purpose_and_compliance_models`)
 
