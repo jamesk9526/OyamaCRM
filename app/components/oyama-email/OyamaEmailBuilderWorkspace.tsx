@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { DEFAULT_BRANDING_SETTINGS, fetchBrandingSettings, formatBrandingAddress, type BrandingSettings } from "@/app/lib/branding-settings";
+import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -152,11 +153,21 @@ interface PreviewResponse {
   mergeFieldsUsed: string[];
   warnings?: string[];
   recipient: {
+    id?: string;
     email: string;
     firstName: string;
     lastName: string;
     fullName: string;
   } | null;
+}
+
+interface PreviewRecipientOption {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
+  organizationName?: string | null;
+  email?: string | null;
 }
 
 interface AuthMeResponse {
@@ -170,6 +181,8 @@ interface GlobalSettingsResponse {
   smtpFromName?: string;
   smtpFromEmail?: string;
 }
+
+type WritingTarget = "subject" | "previewText" | "selectedBlock" | "newBlock";
 
 type ActiveTab = "edit" | "mobilePreview";
 
@@ -429,6 +442,22 @@ function createId(): string {
     return crypto.randomUUID();
   }
   return `block_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+}
+
+function stripHtml(value: string): string {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeWriterOutputHtml(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "<p></p>";
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) return trimmed;
+  return trimmed
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `<p>${part.replace(/\n/g, "<br/>")}</p>`)
+    .join("");
 }
 
 function createHeaderBlock(branding?: BrandingSettings): BuilderBlock {
@@ -808,6 +837,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [serverPreviewHtml, setServerPreviewHtml] = useState("");
   const [serverPreviewText, setServerPreviewText] = useState("");
   const [serverPreviewWarnings, setServerPreviewWarnings] = useState<string[]>([]);
+  const [previewRecipients, setPreviewRecipients] = useState<PreviewRecipientOption[]>([]);
+  const [previewMode, setPreviewMode] = useState<"random" | "selected" | "email">("random");
+  const [selectedPreviewRecipientId, setSelectedPreviewRecipientId] = useState("");
   const [globalBranding, setGlobalBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState("");
   const [smtpDefaults, setSmtpDefaults] = useState<{ fromEmail: string; replyToEmail: string }>({
@@ -846,6 +878,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [testRecipientEmail, setTestRecipientEmail] = useState("");
   const [previewRecipientLabel, setPreviewRecipientLabel] = useState<string | null>(null);
   const [insertTarget, setInsertTarget] = useState<InsertTarget>(null);
+  const [writingTarget, setWritingTarget] = useState<WritingTarget>("selectedBlock");
+  const [writingPrompt, setWritingPrompt] = useState("");
+  const [writingTone, setWritingTone] = useState<"warm" | "urgent" | "celebratory" | "informative">("warm");
+  const [writingBusy, setWritingBusy] = useState(false);
+  const [writingOutput, setWritingOutput] = useState("");
+  const [writingModelUsed, setWritingModelUsed] = useState<string | null>(null);
+  const [writingError, setWritingError] = useState<string | null>(null);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const draftRef = useRef(draft);
@@ -873,6 +912,17 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         if (!cancelled) {
           setMergeFieldGroups([]);
           setError(requestError instanceof Error ? requestError.message : "Failed to load merge fields.");
+        }
+      }
+
+      try {
+        const recipients = await apiFetch<PreviewRecipientOption[]>("/api/constituents?limit=250");
+        if (!cancelled) {
+          setPreviewRecipients(Array.isArray(recipients) ? recipients.filter((row) => Boolean(row.email)) : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewRecipients([]);
         }
       }
 
@@ -996,6 +1046,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     if (!selectedBlockId) return -1;
     return draft.template.blocks.findIndex((block) => block.id === selectedBlockId);
   }, [draft.template.blocks, selectedBlockId]);
+
+  const selectedPreviewRecipient = useMemo(
+    () => previewRecipients.find((row) => row.id === selectedPreviewRecipientId) ?? null,
+    [previewRecipients, selectedPreviewRecipientId],
+  );
 
   const templateTextStyle = useMemo<React.CSSProperties>(() => ({
     fontFamily: draft.template.fontFamily || DEFAULT_TEMPLATE.fontFamily,
@@ -1218,6 +1273,24 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     });
   }, [setTemplateDocument]);
 
+  const buildPreviewRequestBody = useCallback(() => {
+    if (previewMode === "selected" && selectedPreviewRecipientId) {
+      return {
+        previewMode: "selected",
+        recipientConstituentId: selectedPreviewRecipientId,
+      };
+    }
+    if (previewMode === "email" && testRecipientEmail.trim()) {
+      return {
+        previewMode: "email",
+        recipientEmail: testRecipientEmail.trim(),
+      };
+    }
+    return {
+      previewMode: "random",
+    };
+  }, [previewMode, selectedPreviewRecipientId, testRecipientEmail]);
+
   const addBlock = useCallback((type: BuilderBlockType) => {
     const block = createBlock(type);
     setTemplateDocument({
@@ -1270,17 +1343,17 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     try {
       const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${activeTemplateId}/preview`, {
         method: "POST",
-        body: JSON.stringify({ recipientEmail: testRecipientEmail.trim() || undefined }),
+        body: JSON.stringify(buildPreviewRequestBody()),
       });
       setServerPreviewHtml(preview.html || "");
       setServerPreviewText(preview.text || "");
       setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
-      setPreviewRecipientLabel(preview.recipient ? preview.recipient.email : null);
+      setPreviewRecipientLabel(preview.recipient ? (preview.recipient.fullName || preview.recipient.email) : null);
       setNotice(Array.isArray(preview.warnings) && preview.warnings.length > 0 ? "Server preview refreshed with warnings." : "Server preview refreshed.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to refresh preview.");
     }
-  }, [activeTemplateId, testRecipientEmail]);
+  }, [activeTemplateId, buildPreviewRequestBody]);
 
   const sendTestEmail = useCallback(async () => {
     if (!activeTemplateId) {
@@ -1748,12 +1821,12 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       try {
         const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${activeTemplateId}/preview`, {
           method: "POST",
-          body: JSON.stringify({ recipientEmail: testRecipientEmail.trim() || undefined }),
+          body: JSON.stringify(buildPreviewRequestBody()),
         });
         setServerPreviewHtml(preview.html || "");
         setServerPreviewText(preview.text || "");
         setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
-        setPreviewRecipientLabel(preview.recipient ? preview.recipient.email : null);
+        setPreviewRecipientLabel(preview.recipient ? (preview.recipient.fullName || preview.recipient.email) : null);
       } catch {
         // show whatever we have
       } finally {
@@ -1761,7 +1834,115 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       }
     }
     setPreviewModalOpen(true);
-  }, [activeTemplateId, testRecipientEmail]);
+  }, [activeTemplateId, buildPreviewRequestBody]);
+
+  const applyWritingOutput = useCallback(() => {
+    const trimmed = writingOutput.trim();
+    if (!trimmed) return;
+
+    if (writingTarget === "subject") {
+      setDraftField("subject", stripHtml(trimmed).replace(/\s+/g, " ").trim());
+      return;
+    }
+
+    if (writingTarget === "previewText") {
+      setDraftField("previewText", stripHtml(trimmed).replace(/\s+/g, " ").trim());
+      return;
+    }
+
+    const html = normalizeWriterOutputHtml(trimmed);
+    if (writingTarget === "selectedBlock" && selectedBlock?.type === "text") {
+      updateBlock(selectedBlock.id, (current) => ({ ...current, content: html }));
+      return;
+    }
+
+    const insertedBlock = createBlock("text");
+    insertedBlock.content = html;
+    const blocks = [...draftRef.current.template.blocks];
+    if (selectedBlockIndex >= 0) {
+      blocks.splice(selectedBlockIndex + 1, 0, insertedBlock);
+    } else {
+      blocks.push(insertedBlock);
+    }
+    setTemplateDocument({ ...draftRef.current.template, blocks });
+    setSelectedBlockId(insertedBlock.id);
+  }, [selectedBlock, selectedBlockIndex, setDraftField, setTemplateDocument, updateBlock, writingOutput, writingTarget]);
+
+  const runWritingStream = useCallback(async () => {
+    if (writingBusy) return;
+    if (!writingPrompt.trim()) {
+      setWritingError("Add a writing brief before generating copy.");
+      return;
+    }
+
+    setWritingBusy(true);
+    setWritingError(null);
+    setWritingOutput("");
+    setWritingModelUsed(null);
+
+    try {
+      const response = await apiFetchResponse("/api/communications-ai/email-builder/write-stream", {
+        method: "POST",
+        headers: {
+          Accept: "text/event-stream",
+        },
+        body: JSON.stringify({
+          target: writingTarget === "newBlock" ? "bodyHtml" : writingTarget === "selectedBlock" ? "bodyHtml" : writingTarget,
+          prompt: writingPrompt,
+          tone: writingTone,
+          campaignName: draft.name,
+          audience: draft.purpose,
+          currentContent: writingTarget === "subject"
+            ? draft.subject
+            : writingTarget === "previewText"
+              ? draft.previewText
+              : selectedBlock?.type === "text"
+                ? stripHtml(selectedBlock.content || "")
+                : "",
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("Writing stream is unavailable.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary >= 0) {
+          const rawEvent = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          boundary = buffer.indexOf("\n\n");
+          const eventName = rawEvent.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
+          const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
+          if (!dataLine) continue;
+          const payload = JSON.parse(dataLine) as { delta?: string; reply?: string; sourceModel?: string; message?: string };
+          if (eventName === "delta" && payload.delta) {
+            setWritingOutput((current) => current + payload.delta);
+          } else if (eventName === "done") {
+            if (typeof payload.reply === "string" && payload.reply.trim()) {
+              setWritingOutput(payload.reply);
+            }
+            if (payload.sourceModel) {
+              setWritingModelUsed(payload.sourceModel);
+            }
+          } else if (eventName === "error") {
+            throw new Error(payload.message || "Writing stream failed.");
+          }
+        }
+      }
+    } catch (error) {
+      setWritingError(error instanceof Error ? error.message : "Writing stream failed.");
+    } finally {
+      setWritingBusy(false);
+    }
+  }, [draft.name, draft.previewText, draft.purpose, draft.subject, selectedBlock, writingBusy, writingPrompt, writingTarget, writingTone]);
 
   const canvasWidth = activeTab === "mobilePreview" ? 375 : Math.min(620, Math.max(420, draft.template.contentWidth));
   const scaledStyle: React.CSSProperties | undefined = zoom !== 100 ? { transform: `scale(${zoom / 100})`, transformOrigin: "top center" } : undefined;
@@ -2256,6 +2437,76 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 No active validation warnings.
               </div>
             )}
+            <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/70 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-sky-950">AI Writing Studio</p>
+                    <InfoTooltip label="About AI Writing Studio" align="left">
+                      Stream longer draft copy into the builder, then apply it only after review. Use subject and preview targets for inbox copy, or body targets for richer donor-facing content.
+                    </InfoTooltip>
+                  </div>
+                  <p className="mt-1 text-[11px] text-sky-900/80">Stream longer copy for subject lines, preview text, or body content.</p>
+                </div>
+                {writingModelUsed ? <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700">{writingModelUsed}</span> : null}
+              </div>
+              <div className="mt-3">
+                <WorkspaceHint title="Review Before Apply" tone="sky">
+                  Streamed copy stays separate from the live template until you apply it. Generate first, inspect the output, then decide whether it belongs in the subject, preview text, or body.
+                </WorkspaceHint>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="block text-[11px] font-semibold text-slate-700">
+                  Target
+                  <select value={writingTarget} onChange={(event) => setWritingTarget((event.target.value as WritingTarget) || "selectedBlock")} className="mt-1 h-9 w-full rounded-md border border-slate-300 px-2 text-xs text-slate-800">
+                    <option value="selectedBlock">Replace selected text block</option>
+                    <option value="newBlock">Insert new text block</option>
+                    <option value="subject">Rewrite subject line</option>
+                    <option value="previewText">Rewrite preview text</option>
+                  </select>
+                </label>
+                <label className="block text-[11px] font-semibold text-slate-700">
+                  Tone
+                  <select value={writingTone} onChange={(event) => setWritingTone((event.target.value as "warm" | "urgent" | "celebratory" | "informative") || "warm")} className="mt-1 h-9 w-full rounded-md border border-slate-300 px-2 text-xs text-slate-800">
+                    <option value="warm">Warm</option>
+                    <option value="informative">Informative</option>
+                    <option value="celebratory">Celebratory</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+              </div>
+              <label className="mt-2 block text-[11px] font-semibold text-slate-700">
+                Writing Brief
+                <textarea
+                  value={writingPrompt}
+                  onChange={(event) => setWritingPrompt(event.target.value)}
+                  rows={4}
+                  placeholder="Example: Write a longer donor thank-you paragraph that references monthly impact, keeps the tone human, and ends by inviting prayer."
+                  className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-xs text-slate-800"
+                />
+              </label>
+              {selectedBlock?.type === "text" && writingTarget === "selectedBlock" ? (
+                <p className="mt-2 text-[11px] text-slate-600">Selected block content will be replaced with the streamed draft.</p>
+              ) : null}
+              {writingTarget === "selectedBlock" && selectedBlock?.type !== "text" ? (
+                <p className="mt-2 text-[11px] text-amber-800">Selected block is not a text block. Switch target to “Insert new text block” or select a text block.</p>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={() => void runWritingStream()} disabled={writingBusy} className="rounded-md border border-sky-700 bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-600 disabled:opacity-60">
+                  {writingBusy ? "Streaming..." : "Stream Draft"}
+                </button>
+                <button type="button" onClick={applyWritingOutput} disabled={!writingOutput.trim() || writingBusy} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+                  Apply Output
+                </button>
+              </div>
+              {writingError ? <p className="mt-2 text-[11px] text-red-700">{writingError}</p> : null}
+              <div className="mt-3 rounded-lg border border-sky-100 bg-white p-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">Stream Output</p>
+                <div className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap text-xs leading-5 text-slate-700">
+                  {writingOutput || "Streamed copy will appear here."}
+                </div>
+              </div>
+            </div>
             <label className="mt-3 block">
               <span className="text-xs font-semibold text-slate-700">Subject Line <span className="text-red-500">*</span></span>
               <input
@@ -2683,8 +2934,52 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-5 py-3">
-              <p className="text-sm font-semibold text-slate-800">Email Preview</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-slate-800">Email Preview</p>
+                <InfoTooltip label="About preview recipients">
+                  Random preview helps catch merge-field problems fast. Selected donor preview is best for validating one known record. Email mode checks against a specific address match when one exists.
+                </InfoTooltip>
+              </div>
               <div className="flex items-center gap-3">
+                <select
+                  value={previewMode}
+                  onChange={(event) => setPreviewMode((event.target.value as "random" | "selected" | "email") || "random")}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                >
+                  <option value="random">Random donor preview</option>
+                  <option value="selected">Selected donor preview</option>
+                  <option value="email">Use recipient email</option>
+                </select>
+                {previewMode === "selected" ? (
+                  <select
+                    value={selectedPreviewRecipientId}
+                    onChange={(event) => setSelectedPreviewRecipientId(event.target.value)}
+                    className="max-w-[240px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                  >
+                    <option value="">Choose a donor</option>
+                    {previewRecipients.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.displayName || row.organizationName || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || row.id}
+                        {row.email ? ` (${row.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {previewMode === "email" ? (
+                  <input
+                    value={testRecipientEmail}
+                    onChange={(event) => setTestRecipientEmail(event.target.value)}
+                    placeholder="recipient@example.org"
+                    className="w-52 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void refreshServerPreview()}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Refresh
+                </button>
                 {previewRecipientLabel ? <span className="text-xs text-slate-500">Recipient: {previewRecipientLabel}</span> : null}
                 <button type="button" onClick={() => setPreviewModalOpen(false)} className="rounded p-1 text-slate-500 hover:bg-slate-100">
                   <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">

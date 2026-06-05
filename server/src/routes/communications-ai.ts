@@ -9,6 +9,7 @@ import {
   defaultStewardAiConfig,
   parseStewardAiConfig,
   runStewardAiChat,
+  runStewardAiChatStream,
   type StewardAiChatMessage,
 } from "../services/steward-ai-ollama.js";
 
@@ -57,6 +58,15 @@ interface BuilderBlockGenerationPayload {
   blockKind?: "aiText" | "aiButton";
   prompt?: string;
   tone?: "warm" | "urgent" | "celebratory" | "informative";
+}
+
+interface BuilderWritingStreamPayload {
+  target?: "subject" | "previewText" | "bodyHtml" | "cta";
+  prompt?: string;
+  tone?: "warm" | "urgent" | "celebratory" | "informative";
+  audience?: string;
+  campaignName?: string;
+  currentContent?: string;
 }
 
 interface BuilderTemplateDraft {
@@ -937,10 +947,11 @@ router.post("/email-builder/generate-template", async (req, res) => {
   const context = await loadOrganizationPromptContext(organizationId);
 
   const systemPrompt = [
-    "You generate nonprofit fundraising email templates as strict JSON.",
-    "Return JSON only. Do not include markdown code fences.",
+    "You generate nonprofit fundraising email templates as one JSON object.",
+    "Return one valid JSON object only. Do not include markdown code fences.",
     "Use block types only from: heading, text, quote, impactStat, impactStory, impactGrid, timeline, callout, progress, featureList, donorThankYou, donationReceipt, givingSummary, donationCta, monthlyDonorInvitation, lapsedDonorReengagement, firstTimeDonorWelcome, staffSignature, footerCompliance, image, video, social, button, aiText, aiButton, divider, spacer, columns, customHtml.",
     "Create a complete draft that is ready for a human to edit, usually 7-12 blocks.",
+    "Content fields may be longer and richer when the brief calls for it; do not default to shallow copy.",
     "Include footerCompliance and at least one clear CTA button.",
     "Ensure content is donor-safe, factual in tone, and action-oriented.",
     "Follow the user's goal, audience, and tone exactly.",
@@ -1017,7 +1028,7 @@ router.post("/email-builder/generate-template", async (req, res) => {
     messages,
     preferredModel: modelToUse,
     temperature: Math.max(runtime.config.temperature, 0.2),
-    maxTokens: Math.max(runtime.config.maxTokens, 900),
+    maxTokens: Math.max(runtime.config.maxTokens, 1600),
   });
 
   let fallbackReason: string | null = null;
@@ -1129,10 +1140,11 @@ router.post("/email-builder/generate-block", async (req, res) => {
   const tone = payload.tone ?? "warm";
 
   const systemPrompt = [
-    "You generate one email-builder block as strict JSON.",
-    "Return JSON only. Do not include markdown fences.",
+    "You generate one email-builder block as one JSON object.",
+    "Return one valid JSON object only. Do not include markdown fences.",
     `Block kind: ${payload.blockKind}`,
     "Follow the user's prompt closely and output user-facing copy only.",
+    "Prefer stronger, more complete copy over terse placeholder language.",
     "Do not include donor record dumps, internal notes, or tool-style analysis text.",
   ].join(" ");
 
@@ -1178,7 +1190,7 @@ router.post("/email-builder/generate-block", async (req, res) => {
     messages,
     preferredModel: modelToUse,
     temperature: Math.max(runtime.config.temperature, 0.2),
-    maxTokens: Math.max(runtime.config.maxTokens, 500),
+    maxTokens: Math.max(runtime.config.maxTokens, 900),
   });
 
   const parsed = aiOutcome.content ? parseJsonFromModelReply(aiOutcome.content) : null;
@@ -1211,6 +1223,127 @@ router.post("/email-builder/generate-block", async (req, res) => {
       sourceModel: fallbackReason ? `${aiOutcome.model} (fallback)` : aiOutcome.model,
     },
   });
+});
+
+router.post("/email-builder/write-stream", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const payload = (req.body ?? {}) as BuilderWritingStreamPayload;
+  const prompt = String(payload.prompt ?? "").trim();
+  if (!prompt) {
+    res.status(400).json({ error: { code: "PROMPT_REQUIRED", message: "prompt is required." } });
+    return;
+  }
+
+  const runtime = await loadCommunicationsAiRuntime(organizationId);
+  if (!runtime.enabled) {
+    res.status(400).json({ error: { code: "AI_DISABLED", message: "Steward AI is disabled in settings." } });
+    return;
+  }
+
+  const context = await loadOrganizationPromptContext(organizationId);
+  const target = payload.target === "subject" || payload.target === "previewText" || payload.target === "cta"
+    ? payload.target
+    : "bodyHtml";
+  const tone = payload.tone ?? "warm";
+  const audience = String(payload.audience ?? "").trim() || "General donor audience";
+  const campaignName = String(payload.campaignName ?? "").trim();
+  const currentContent = String(payload.currentContent ?? "").trim();
+
+  const targetInstructions = target === "subject"
+    ? "Write exactly one compelling email subject line. Plain text only. No quotation marks."
+    : target === "previewText"
+      ? "Write concise inbox preview text in plain text. Aim for one to two sentences and keep it under 140 characters."
+      : target === "cta"
+        ? "Write one strong call-to-action line in plain text. Keep it short and actionable."
+        : "Write polished donor-facing HTML suitable for an email text block. Use <p>, <ul>, <ol>, <strong>, and <em> when useful. Do not wrap the result in markdown fences or include explanations.";
+
+  const systemPrompt = [
+    "You are a nonprofit email writing assistant.",
+    "Produce only the requested final copy, with no preamble, no analysis, and no JSON.",
+    "Use the brief, audience, and campaign context exactly.",
+    "Prefer complete and persuasive copy over placeholder text.",
+    "Do not mention internal tooling or unavailable data.",
+    targetInstructions,
+  ].join(" ");
+
+  const messages: StewardAiChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    {
+      role: "user",
+      content: [
+        `Organization: ${context.organizationName}`,
+        campaignName ? `Campaign: ${campaignName}` : "",
+        `Audience: ${audience}`,
+        `Tone: ${tone}`,
+        currentContent ? `Current content to improve or continue:\n${currentContent}` : "",
+        `Writing brief:\n${prompt}`,
+      ].filter(Boolean).join("\n\n"),
+    },
+  ];
+
+  const modelToUse = runtime.config.reasoningMode === "thinking"
+    ? (runtime.config.thinkingModel || runtime.config.model)
+    : runtime.config.model;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  const sendEvent = (event: string, data: Record<string, unknown>) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  let streamedReply = "";
+  let modelUsed = modelToUse;
+
+  try {
+    const result = await runStewardAiChatStream(runtime.config, messages, {
+      model: modelToUse,
+      temperature: Math.max(runtime.config.temperature, 0.35),
+      maxTokens: Math.max(runtime.config.maxTokens, target === "bodyHtml" ? 1800 : 600),
+      timeoutMs: Math.max(runtime.config.timeoutMs, 180_000),
+      onDelta(delta) {
+        streamedReply += delta;
+        sendEvent("delta", { delta });
+      },
+    });
+
+    modelUsed = result.model || modelToUse;
+    const reply = String(result.content ?? streamedReply).trim();
+
+    await logAudit({
+      action: "COMMUNICATIONS_AI_WRITING_STREAM_COMPLETED",
+      organizationId,
+      userId: req.user?.sub,
+      metadata: {
+        target,
+        promptLength: prompt.length,
+        responseLength: reply.length,
+        audience,
+        tone,
+        model: modelUsed,
+      },
+    });
+
+    sendEvent("done", {
+      reply,
+      sourceModel: modelUsed,
+      target,
+    });
+    res.end();
+  } catch (error) {
+    sendEvent("error", {
+      message: error instanceof Error ? error.message : "AI writing stream failed.",
+    });
+    res.end();
+  }
 });
 
 export default router;

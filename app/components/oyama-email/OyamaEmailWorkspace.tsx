@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNo
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
+import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import type {
   OyamaEmailCampaign,
   OyamaEmailConstituent,
@@ -330,7 +331,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const [focusedCampaign, setFocusedCampaign] = useState<OyamaEmailCampaign | null>(null);
 
   const [builderDraft, setBuilderDraft] = useState<BuilderDraft>(EMPTY_DRAFT);
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [sourceOption, setSourceOption] = useState<(typeof SOURCE_OPTIONS)[number]>("Individual Recipients");
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
   const [recipientSearch, setRecipientSearch] = useState("");
@@ -849,7 +850,12 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-2xl font-semibold tracking-tight text-slate-900">Email Template Library</p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-semibold tracking-tight text-slate-900">Email Template Library</p>
+              <InfoTooltip label="About email templates">
+                Templates hold reusable content. Campaigns are separate send records so audience, compliance, queue history, and delivery results stay attached to one outbound run.
+              </InfoTooltip>
+            </div>
             <p className="mt-1 text-sm text-slate-600">Choose a template to get started or create a new email from scratch.</p>
           </div>
 
@@ -892,6 +898,12 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
 
             <WorkspaceAction href="/oyama-email/templates/new" tone="primary">Start New Template</WorkspaceAction>
           </div>
+        </div>
+
+        <div className="mt-4">
+          <WorkspaceHint title="Recommended Flow" tone="slate">
+            Start in templates when the content should be reused later. Start in campaign workflow when you already know the audience and need one governed send record.
+          </WorkspaceHint>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -3051,8 +3063,13 @@ function NewCampaignWizardPanel({
     <div className={["rounded-xl border border-emerald-200 bg-white p-4 shadow-sm", pageMode ? "xl:p-6" : ""].join(" ")}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
         <div>
-          <p className="text-lg font-semibold text-slate-900">New Campaign Wizard</p>
-          <p className="text-sm text-slate-600">One flow: define the send, choose reusable content, confirm the audience, review compliance, then send.</p>
+          <div className="flex items-center gap-2">
+            <p className="text-lg font-semibold text-slate-900">New Campaign Workflow</p>
+            <InfoTooltip label="About campaign workflow">
+              This flow creates one send record. The template snapshot, audience review, validation state, schedule, and delivery history stay tied to the campaign after it is created.
+            </InfoTooltip>
+          </div>
+          <p className="text-sm text-slate-600">Set the send details, choose the reusable content, confirm the audience, review the compliance snapshot, then deliver.</p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setHelpTopic("email-workflow")} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">About This Flow</button>
@@ -3063,24 +3080,25 @@ function NewCampaignWizardPanel({
       <div className="mt-4 rounded-xl border border-emerald-100 bg-[linear-gradient(135deg,#f3fbf6,#ecf8ff)] p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Workflow</p>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <FlowNode label="Campaign Setup" active={step >= 1} />
+          <FlowNode label="Brief" active={step >= 1} />
           <FlowArrow />
-          <FlowNode label="Choose Template" active={step >= 2} />
+          <FlowNode label="Content" active={step >= 2} />
           <FlowArrow />
           <FlowNode label="Audience" active={step >= 3} />
           <FlowArrow />
           <FlowNode label="Review" active={step >= 4} />
           <FlowArrow />
-          <FlowNode label="Queue / Send" active={step >= 5} />
+          <FlowNode label="Deliver" active={step >= 5} />
         </div>
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-        <p className="font-semibold text-slate-900">How this workspace is organized</p>
-        <p className="mt-1">Templates are reusable content. Campaigns are one send instance that records audience, review status, queue history, and results.</p>
+      <div className="mt-4">
+        <WorkspaceHint title="Workspace Structure" tone="slate">
+          Templates are reusable content. Campaigns are send records that lock the audience, review state, queue history, and delivery results for one outbound run.
+        </WorkspaceHint>
       </div>
 
       <div className="mt-4">
@@ -3096,6 +3114,9 @@ function NewCampaignWizardPanel({
 
       {step === 1 ? (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900 md:col-span-2">
+            Start with the campaign brief and sender details. The next step chooses which reusable template snapshot this campaign will send.
+          </div>
           <label className="text-xs font-semibold text-slate-700">Campaign Name<input value={campaignName} onChange={(event) => setCampaignName(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" /></label>
           <label className="text-xs font-semibold text-slate-700">Purpose<select value={purpose} onChange={(event) => setPurpose(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="MARKETING">MARKETING</option><option value="FUNDRAISING">FUNDRAISING</option><option value="NEWSLETTER">NEWSLETTER</option><option value="EVENT_PROMOTION">EVENT_PROMOTION</option><option value="THANK_YOU">THANK_YOU</option><option value="RECEIPT">RECEIPT</option><option value="TRANSACTIONAL">TRANSACTIONAL</option><option value="ADMINISTRATIVE">ADMINISTRATIVE</option><option value="PERSONAL">PERSONAL</option></select></label>
           <label className="text-xs font-semibold text-slate-700">Email Type<select value={emailType} onChange={(event) => setEmailType(event.target.value as (typeof CAMPAIGN_EMAIL_TYPE_OPTIONS)[number])} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">{CAMPAIGN_EMAIL_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
@@ -3114,6 +3135,21 @@ function NewCampaignWizardPanel({
             <p className="text-sm text-slate-600">Choose the reusable template content for this campaign send.</p>
             <button type="button" onClick={() => setHelpTopic("email-workflow")} className="text-xs font-semibold text-emerald-700 hover:text-emerald-600">Why templates and campaigns are separate</button>
           </div>
+          {selectedTemplate ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Template</p>
+                  <p className="mt-1 text-base font-semibold text-slate-900">{selectedTemplate.name || "Untitled Template"}</p>
+                  <p className="mt-1 text-sm text-slate-600">{selectedTemplate.subject || "No subject saved on this template yet."}</p>
+                  <p className="mt-2 text-xs text-slate-500">{selectedTemplate.preparationStatus === "READY" ? "Ready template" : "Draft template"} • {selectedTemplate.purpose || "GENERAL"}</p>
+                </div>
+                <Link href={`/oyama-email/templates/${selectedTemplate.id}/builder`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                  Open Template Builder
+                </Link>
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {templates.slice(0, 18).map((template) => (
               <button key={template.id} type="button" onClick={() => setTemplateId(template.id)} className={["rounded-xl border px-3 py-3 text-left", template.id === templateId ? "border-emerald-700 bg-emerald-50" : "border-slate-200 bg-white hover:bg-slate-50"].join(" ")}>
@@ -3130,7 +3166,12 @@ function NewCampaignWizardPanel({
         <div className="mt-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold text-slate-900">Choose Audience Source</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-slate-900">Choose Audience Source</p>
+                <InfoTooltip label="Audience source guidance">
+                  Saved lists are best for repeatable sends. Individual search and temporary segments are best for one-off outreach that staff should review before sending.
+                </InfoTooltip>
+              </div>
               <p className="text-xs text-slate-600">Pick the simplest source that matches this send. Use saved lists or direct constituent search for most one-off sends.</p>
             </div>
             <button type="button" onClick={() => setHelpTopic("email-audience")} className="text-xs font-semibold text-emerald-700 hover:text-emerald-600">Audience Help</button>
@@ -3399,7 +3440,7 @@ function WorkflowHelpModal({ topic, onClose }: { topic: WorkflowHelpTopic | null
   const content = topic === "email-workflow"
     ? {
         title: "Email Workflow",
-        body: "Templates hold reusable content. Campaigns are the send record. The intended path is: create campaign details, choose a template snapshot, confirm the audience, review compliance, then send or schedule.",
+        body: "Templates hold reusable content. Campaigns are the delivery record. The intended path is: define the campaign brief, choose the template snapshot, confirm the audience, review compliance, then queue, schedule, or send.",
       }
     : topic === "email-audience"
       ? {
@@ -4028,7 +4069,12 @@ function SettingsView() {
   return (
     <section className="grid gap-4 p-4 xl:grid-cols-2 xl:p-6">
       <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-lg font-semibold text-slate-900">Email Delivery Settings</p>
+        <div className="flex items-center gap-2">
+          <p className="text-lg font-semibold text-slate-900">Email Delivery Settings</p>
+          <InfoTooltip label="About delivery settings">
+            Sender identity, reply handling, and delivery infrastructure are managed globally so every template and campaign uses the same trusted defaults.
+          </InfoTooltip>
+        </div>
         <p className="mt-2 text-sm text-slate-600">Manage sender details, SMTP setup, and organization-level communications defaults.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <WorkspaceAction href="/settings">Open CRM Settings</WorkspaceAction>
@@ -4037,7 +4083,12 @@ function SettingsView() {
       </article>
 
       <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-lg font-semibold text-slate-900">Compliance and Domain Health</p>
+        <div className="flex items-center gap-2">
+          <p className="text-lg font-semibold text-slate-900">Compliance and Domain Health</p>
+          <InfoTooltip label="About compliance checks">
+            Publish and send validation runs before live delivery. These checks are meant to catch opt-out, footer, and sender problems before staff queue a campaign.
+          </InfoTooltip>
+        </div>
         <p className="mt-2 text-sm text-slate-600">Configure policy defaults used by Publish and Send validation checks.</p>
         <ul className="mt-4 space-y-2 text-sm text-slate-700">
           <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Default preference category required for marketing sends</li>

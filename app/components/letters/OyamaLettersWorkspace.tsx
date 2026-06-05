@@ -8,6 +8,7 @@ import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
+import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -802,11 +803,18 @@ function TemplateLibrary() {
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
-      <PageHero title="Template Library" subtitle="Create, edit, and manage your letter templates.">
+      <PageHero
+        title="Template Library"
+        subtitle="Create, edit, and manage your letter templates."
+        tooltip="Templates stay reusable here. Generation creates letter batches later so recipients, queue state, and print/mail actions do not mutate the template itself."
+      >
         <Button onClick={() => void load()}>Refresh</Button>
         <Button href="/oyama-letters/templates/new" tone="primary">Create New Template</Button>
       </PageHero>
       <div className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
+        <WorkspaceHint title="Recommended Flow" tone="slate">
+          Edit and publish the reusable template here first. Move into Generate Letters only when staff is ready to create a live recipient-specific batch.
+        </WorkspaceHint>
         <div className="flex flex-wrap items-center gap-4">
           <SearchBox value={search} onChange={setSearch} placeholder="Search templates..." />
           <Select value={category} onChange={setCategory} options={["ALL", ...CATEGORIES]} />
@@ -2180,7 +2188,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   <LabeledSelect label="Category" value={draft.category} onChange={(value) => setDraft((current) => ({ ...current, category: value }))} options={CATEGORIES} />
                   <TextArea label="Description" value={draft.description} onChange={(value) => setDraft((current) => ({ ...current, description: value }))} />
                 </InspectorCard>
-                <InspectorCard title="Page Setup">
+                <InspectorCard title="Page Setup" tooltip="Page size and margin guides control the printable canvas used for preview and server-rendered PDF output.">
                   <LabeledSelect label="Page Size" value={pageSize} onChange={setPageSize} options={["Letter (8.5 x 11 in)", "Legal (8.5 x 14 in)", "A4 (8.27 x 11.69 in)"]} />
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margins (inches)</p>
                   <div className="grid grid-cols-2 gap-3">
@@ -2191,7 +2199,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   </div>
                   <CheckField label="Show Margin Guides" checked={showMarginGuides} onChange={setShowMarginGuides} />
                 </InspectorCard>
-                <InspectorCard title="Branding Blocks">
+                <InspectorCard title="Branding Blocks" tooltip="Header, footer, and signature presets are shared assets. Changing the selected preset changes which reusable branding blocks this template references.">
                   <LabeledSelect label="Letterhead" value={draft.headerPresetId} onChange={(value) => setDraft((current) => ({ ...current, headerPresetId: value }))} options={["", ...headers.map((item) => item.id)]} labels={Object.fromEntries(headers.map((item) => [item.id, item.name]))} />
                   <LabeledSelect label="Footer" value={draft.footerPresetId} onChange={(value) => setDraft((current) => ({ ...current, footerPresetId: value }))} options={["", ...footers.map((item) => item.id)]} labels={Object.fromEntries(footers.map((item) => [item.id, item.name]))} />
                   <LabeledSelect label="Signature (optional)" value={draft.signatureBlockId} onChange={(value) => setDraft((current) => ({ ...current, signatureBlockId: value }))} options={["", ...signatures.map((item) => item.id)]} labels={Object.fromEntries(signatures.map((item) => [item.id, item.name]))} />
@@ -2207,7 +2215,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <p className="mt-1">Current working draft in canvas builder</p>
                   </div>
                 </InspectorCard>
-                <InspectorCard title="Preflight Checklist">
+                <InspectorCard title="Preflight Checklist" tooltip="These checks run locally while you edit so staff can catch missing merge data, unknown tokens, and unsaved changes before publish review.">
                   <p className="text-xs text-slate-600">Live readiness checks while you edit in canvas.</p>
                   <div className="mt-3 space-y-2">
                     {localChecklist.map((item) => (
@@ -3461,7 +3469,11 @@ function GenerateWorkspace() {
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
-      <PageHero title="Generate Letters" subtitle="Create and deliver personalized letters in a few simple steps.">
+      <PageHero
+        title="Generate Letters"
+        subtitle="Create and deliver personalized letters in a few simple steps."
+        tooltip="Generation creates a live batch from one reusable template plus one recipient selection. Preview and queue actions in this workspace do not rewrite the underlying template."
+      >
         <div className="w-full max-w-4xl">
           <WorkflowActionBar
             backLabel={backLabel}
@@ -3522,6 +3534,9 @@ function GenerateWorkspace() {
       {wizardStep === 1 ? (
         <section className="grid gap-4 p-3 xl:grid-cols-[minmax(0,1fr)_500px] xl:p-5">
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <WorkspaceHint title="Step 1 Guidance" tone="slate">
+              Pick the reusable template first, then decide whether this run is for one recipient, a temporary donation list, or a broader batch. Donation context is optional and only needed when the letter references gift details.
+            </WorkspaceHint>
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">Select Your Options</h2>
               <p className="text-sm text-slate-600">Choose the template, recipients, and context for your letters.</p>
@@ -4935,7 +4950,11 @@ function SettingsWorkspace() {
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
-      <PageHero title="OyamaLetters Settings" subtitle="Letter branding now uses the global Branding Settings source of truth. Workflow policy remains here.">
+      <PageHero
+        title="OyamaLetters Settings"
+        subtitle="Letter branding now uses the global Branding Settings source of truth. Workflow policy remains here."
+        tooltip="Branding is shared infrastructure for every letter. This workspace keeps only letters-specific workflow policy, queue defaults, and operational guidance."
+      >
         <Button href="/settings/branding" tone="primary">Global Branding</Button>
       </PageHero>
       <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
@@ -5584,14 +5603,17 @@ function DocumentThumb({ template, small = false }: { template: LetterTemplateSu
   );
 }
 
-function PageHero({ title, subtitle, children }: { title: string; subtitle: string; children?: ReactNode }) {
+function PageHero({ title, subtitle, tooltip, children }: { title: string; subtitle: string; tooltip?: ReactNode; children?: ReactNode }) {
   return (
     <section className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-800"><BookIcon /></div>
           <div className="min-w-0">
-            <h1 className="truncate text-[32px] font-semibold leading-9 tracking-normal text-slate-950">{title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-[32px] font-semibold leading-9 tracking-normal text-slate-950">{title}</h1>
+              {tooltip ? <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip> : null}
+            </div>
             <p className="mt-1 text-[13px] text-slate-600">{subtitle}</p>
           </div>
         </div>
@@ -5805,10 +5827,13 @@ function EditorVerticalRuler({ pageHeight }: { pageHeight: number }) {
   );
 }
 
-function InspectorCard({ title, children }: { title: string; children: ReactNode }) {
+function InspectorCard({ title, tooltip, children }: { title: string; tooltip?: ReactNode; children: ReactNode }) {
   return (
     <section className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+        {tooltip ? <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip> : null}
+      </div>
       <div className="space-y-3">{children}</div>
     </section>
   );

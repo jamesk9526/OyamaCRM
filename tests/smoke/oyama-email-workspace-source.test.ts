@@ -66,7 +66,7 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Campaign Workflow");
     expect(workspace).toContain("Primary Next Step");
     expect(workspace).toContain("About This Flow");
-    expect(workspace).toContain("Templates are reusable content. Campaigns are one send instance");
+    expect(workspace).toContain("Templates are reusable content. Campaigns are send records that lock the audience, review state, queue history, and delivery results for one outbound run.");
     expect(workspace).toContain("Choose Audience Source");
     expect(workspace).toContain("Test Recipient Email");
     expect(workspace).toContain("Schedule Campaign");
@@ -94,7 +94,7 @@ describe("OyamaEmail workspace source contract", () => {
     const donationsPage = read("app/donations/page.tsx");
     const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
 
-    expect(donationsPage).toContain("Create Email for Selected Donors");
+    expect(donationsPage).toContain("Send To Email Workspace");
     expect(donationsPage).toContain("oyama-email:temporary-recipient-segment:");
     expect(donationsPage).toContain("/oyama-email/campaigns/new?temporarySegmentId=");
     expect(workspace).toContain("readTemporaryEmailSegment");

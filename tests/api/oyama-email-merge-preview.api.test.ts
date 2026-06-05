@@ -281,5 +281,14 @@ describe("oyama email merge field audit", () => {
     expect(preview.body?.bodyHtml).toContain("ACTIVE");
     expect(preview.body?.bodyHtml).toContain("/preferences/");
     expect(preview.body?.warnings ?? []).toHaveLength(0);
+
+    const templatePreviewByConstituent = await request(app)
+      .post(`/api/oyama-email/templates/${created.body.id}/preview`)
+      .set(auth)
+      .send({ previewMode: "selected", recipientConstituentId: constituent.id });
+
+    expect(templatePreviewByConstituent.status).toBe(200);
+    expect(templatePreviewByConstituent.body?.recipient?.id).toBe(constituent.id);
+    expect(templatePreviewByConstituent.body?.recipient?.fullName).toContain("Jordan Lee");
   });
 });

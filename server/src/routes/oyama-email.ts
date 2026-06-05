@@ -216,8 +216,11 @@ async function buildTemplateMergeVars(params: {
   fromName: string;
   fromEmail: string;
   recipientEmail?: string | null;
+  recipientConstituentId?: string | null;
+  previewMode?: "random" | "selected" | "email";
 }) {
   const normalizedRecipient = params.recipientEmail?.trim().toLowerCase() || null;
+  const normalizedConstituentId = params.recipientConstituentId?.trim() || null;
 
   const [organization, orgSettings, recipient] = await Promise.all([
     prisma.organization.findUnique({
@@ -231,7 +234,23 @@ async function buildTemplateMergeVars(params: {
         smtpFromEmail: true,
       },
     }),
-    normalizedRecipient
+    normalizedConstituentId
+      ? prisma.constituent.findFirst({
+          where: { organizationId: params.organizationId, id: normalizedConstituentId },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            totalLifetimeGiving: true,
+            totalYtdGiving: true,
+            giftCount: true,
+            firstGiftDate: true,
+            lastGiftDate: true,
+            lastGiftAmount: true,
+          },
+        })
+      : normalizedRecipient
       ? prisma.constituent.findFirst({
           where: { organizationId: params.organizationId, email: normalizedRecipient },
           select: {
@@ -247,8 +266,10 @@ async function buildTemplateMergeVars(params: {
             lastGiftAmount: true,
           },
         })
-      : prisma.constituent.findFirst({
+      : prisma.constituent.findMany({
           where: { organizationId: params.organizationId, email: { not: null } },
+          take: params.previewMode === "random" ? 50 : 1,
+          orderBy: params.previewMode === "random" ? { updatedAt: "desc" } : { id: "asc" },
           select: {
             id: true,
             firstName: true,
@@ -261,6 +282,12 @@ async function buildTemplateMergeVars(params: {
             lastGiftDate: true,
             lastGiftAmount: true,
           },
+        }).then((rows) => {
+          if (rows.length === 0) return null;
+          if (params.previewMode === "random") {
+            return rows[Math.floor(Math.random() * rows.length)] ?? rows[0];
+          }
+          return rows[0];
         }),
   ]);
   const branding = await loadOrganizationBrandingContext(params.organizationId, organization?.name?.trim() || "");
@@ -339,6 +366,7 @@ async function buildTemplateMergeVars(params: {
   return {
     recipient: recipient
       ? {
+          id: recipient.id,
           email: recipient.email?.trim() || effectiveRecipient,
           firstName,
           lastName,
@@ -875,7 +903,12 @@ router.post("/templates/:id/preview", async (req, res) => {
     return;
   }
 
-  const recipientEmail = asString(asObject(req.body).recipientEmail).trim().toLowerCase();
+  const body = asObject(req.body);
+  const recipientEmail = asString(body.recipientEmail).trim().toLowerCase();
+  const recipientConstituentId = asString(body.recipientConstituentId).trim();
+  const previewMode = body.previewMode === "random" || body.previewMode === "selected" || body.previewMode === "email"
+    ? body.previewMode
+    : undefined;
   if (recipientEmail && !isValidEmail(recipientEmail)) {
     res.status(400).json({ error: { code: "INVALID_EMAIL", message: "recipientEmail must be valid." } });
     return;
@@ -890,6 +923,8 @@ router.post("/templates/:id/preview", async (req, res) => {
     fromName: campaign.fromName,
     fromEmail: campaign.fromEmail,
     recipientEmail: recipientEmail || null,
+    recipientConstituentId: recipientConstituentId || null,
+    previewMode,
   });
 
   const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars);
