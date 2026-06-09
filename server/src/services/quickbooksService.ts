@@ -9,7 +9,6 @@
  * Business logic (queue management, sync orchestration) lives in the route handler.
  */
 
-import OAuthClient from "intuit-oauth";
 import { prisma } from "../lib/prisma.js";
 import type { Prisma } from "@prisma/client";
 
@@ -121,7 +120,8 @@ async function resolveCredentials(organizationId: string): Promise<QBCredentials
  * Creates a new OAuthClient configured from environment variables.
  * The client is stateless — tokens are stored externally in the DB.
  */
-function createOAuthClient(credentials: QBCredentials): InstanceType<typeof OAuthClient> {
+async function createOAuthClient(credentials: QBCredentials) {
+  const { default: OAuthClient } = await import("intuit-oauth");
   return new OAuthClient({
     clientId: credentials.clientId,
     clientSecret: credentials.clientSecret,
@@ -212,7 +212,8 @@ export async function buildAuthUri(organizationId: string): Promise<string> {
   if (!credentials) {
     throw new Error("QuickBooks runtime credentials are missing.");
   }
-  const client = createOAuthClient(credentials);
+  const { default: OAuthClient } = await import("intuit-oauth");
+  const client = await createOAuthClient(credentials);
   return client.authorizeUri({
     scope: [OAuthClient.scopes.Accounting],
     state: organizationId,
@@ -234,7 +235,7 @@ export async function handleOAuthCallback(
     throw new Error("QuickBooks runtime credentials are missing.");
   }
 
-  const client = createOAuthClient(credentials);
+  const client = await createOAuthClient(credentials);
 
   // Exchange the auth code for tokens
   const authResponse = await client.createToken(callbackUrl);
@@ -280,7 +281,7 @@ export async function handleOAuthCallback(
  */
 export async function getAuthorizedClient(
   organizationId: string
-): Promise<InstanceType<typeof OAuthClient>> {
+): Promise<any> {
   const plugin = await prisma.pluginSetting.findUnique({
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
   });
@@ -299,7 +300,7 @@ export async function getAuthorizedClient(
     throw new Error("QuickBooks runtime credentials are missing.");
   }
 
-  const client = createOAuthClient(credentials);
+  const client = await createOAuthClient(credentials);
 
   // Restore stored tokens into the client
   client.setToken({

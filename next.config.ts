@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["www.crm.partnertpcc.com"],
   turbopack: {
     root: path.resolve(__dirname),
+    resolveAlias: {
+      scheduler: "./node_modules/scheduler/index.js",
+    },
   },
   async headers() {
     return [

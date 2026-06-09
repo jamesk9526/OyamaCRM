@@ -3,7 +3,6 @@
 
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 interface StewardMessageRendererProps {
   content: string;
@@ -64,7 +63,6 @@ export default function StewardMessageRenderer({ content, tone = "dark", renderM
   return (
     <div className={`max-w-none text-sm leading-7 tracking-[0.01em] ${textClass} ${isLight ? "space-y-0.5" : ""}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => <h1 className={`text-lg font-semibold mt-4 mb-2 ${headingClass}`}>{children}</h1>,
           h2: ({ children }) => <h2 className={`text-base font-semibold mt-4 mb-2 ${headingClass}`}>{children}</h2>,

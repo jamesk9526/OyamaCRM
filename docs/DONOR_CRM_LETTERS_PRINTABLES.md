@@ -1,6 +1,6 @@
 # DonorCRM Letters And Printables
 
-Last updated: 2026-05-27
+Last updated: 2026-06-09
 
 ## Purpose
 
@@ -41,6 +41,7 @@ Reason:
 - Core printable project/template and generation flows are persisted and integrated.
 - `/letters-printables` now opens a project manager with large cards, small cards, and list views.
 - The editor route now opens a document-studio layout with a paper canvas, compact ribbon, left project/tools panel, right preview context, inline merge suggestions, and publish controls.
+- The document studio supports active-block left/center/right/justify alignment, saved-section alignment before insertion, and an inspector table builder for rows, columns, header rows, width, padding, border style, and cell alignment.
 - Header and footer preset creation is available from the editor, while organization branding remains sourced from Branding Settings.
 - Editor images can be uploaded to `/api/letters/media` and inserted into the printable canvas.
 - The editor can be opened in a full-screen new tab with `?fullscreen=1`.
@@ -48,7 +49,7 @@ Reason:
 - Constituent and donation preview context uses searchable API lookups.
 - Single-letter and batch generation now share `/letters-printables/generate`, with document type selection, template cards, real constituent search, saved audience list matching, report-result handoff IDs, campaign donors, date-range donors, segment search, dry-run checks, merged HTML preview, actual PDF blob preview, PDF download/open, and mark-printed actions.
 - Letter-to-email draft bridge is persisted and linked.
-- PDF export and batch generation are working through the existing `GeneratedLetter` model, but Chromium-grade PDF fidelity, Avery label grids, ZIP export, cover pages, and TOC generation are still partial/in-development.
+- PDF export and batch generation are working through the existing `GeneratedLetter` model. Server-rendered PDFs preserve common editor formatting including line height, white-space blocks, images, active-block alignment, table header rows, multiline table cells, and basic cell alignment. Chromium-grade PDF fidelity, Avery label grids, ZIP export, cover pages, and TOC generation are still partial/in-development.
 
 ## Implemented Routes
 
@@ -125,12 +126,12 @@ Use this sequence for donor thank-you fulfillment:
 
 ## Known Limits
 
-- True server-side PDF pipeline is not complete.
-- Batch generation/fulfillment queues are not fully complete.
+- Chromium-grade PDF fidelity is not complete, though the server-side PDF path is active for generated letters and preserves current builder formatting controls.
+- Batch generation/fulfillment queue depth still needs operational expansion beyond the current production workflow.
 - Full queue analytics in dashboard/report views are still partial.
 
 ## Next Improvements
 
-1. Complete PDF export pipeline.
-2. Add batch generate/print/mail queue controls.
+1. Expand PDF fidelity for complex page layouts beyond the current supported editor controls.
+2. Expand batch print/mail queue operations and vendor handoff depth.
 3. Expand dashboard/report cards for print/mail backlog and SLA tracking.

@@ -4,7 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2020"],
-    "outDir": "../../dist/server",
+    "outDir": "../dist/server",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,

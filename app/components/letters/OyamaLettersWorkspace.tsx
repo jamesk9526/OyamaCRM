@@ -30,6 +30,8 @@ type WorkspaceView = "library" | "builder" | "publish" | "generate" | "queue" | 
 type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 type TemplateOwnershipScope = "MINE" | "TEAM" | "ALL";
 type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
+type LetterTextAlign = "left" | "center" | "right" | "justify";
+type LetterTableBorderStyle = "solid" | "dashed" | "none";
 const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
 
 interface OyamaLettersWorkspaceProps {
@@ -263,6 +265,16 @@ interface TemplateDraft {
   customLogoUrl: string;
 }
 
+interface TableBuilderDraft {
+  rows: number;
+  columns: number;
+  headerRow: boolean;
+  widthPercent: number;
+  cellPadding: number;
+  borderStyle: LetterTableBorderStyle;
+  textAlign: LetterTextAlign;
+}
+
 interface TemplateRecoverySnapshot {
   templateId: string | null;
   draft: TemplateDraft;
@@ -297,6 +309,16 @@ const EMPTY_DRAFT: TemplateDraft = {
   signatureBlockId: "",
   logoMode: "ORGANIZATION_DEFAULT",
   customLogoUrl: "",
+};
+
+const DEFAULT_TABLE_BUILDER: TableBuilderDraft = {
+  rows: 3,
+  columns: 3,
+  headerRow: true,
+  widthPercent: 100,
+  cellPadding: 8,
+  borderStyle: "solid",
+  textAlign: "left",
 };
 
 const EMPTY_HEADER_PRESET: HeaderPresetDraft = {
@@ -1018,6 +1040,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [fontFamily, setFontFamily] = useState("Calibri");
   const [fontSize, setFontSize] = useState("11");
   const [lineHeight, setLineHeight] = useState("1.5");
+  const [snippetAlign, setSnippetAlign] = useState<LetterTextAlign>("left");
+  const [tableBuilder, setTableBuilder] = useState<TableBuilderDraft>(DEFAULT_TABLE_BUILDER);
   const [selectedImageWidth, setSelectedImageWidth] = useState<number | null>(null);
   const [zoom, setZoom] = useState(100);
   const [previewMode, setPreviewMode] = useState(false);
@@ -1422,6 +1446,47 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     return value || savedEditorRangeRef.current?.toString() || fallback;
   }
 
+  function restoreEditorRange(): Range | null {
+    const editor = editorRef.current;
+    if (!editor || typeof window === "undefined") return null;
+    const selection = window.getSelection();
+    if (!selection) return null;
+    if (savedEditorRangeRef.current && editor.contains(savedEditorRangeRef.current.commonAncestorContainer)) {
+      selection.removeAllRanges();
+      selection.addRange(savedEditorRangeRef.current);
+      return savedEditorRangeRef.current;
+    }
+    if (selection.rangeCount > 0 && editor.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+      return selection.getRangeAt(0);
+    }
+    return null;
+  }
+
+  function closestEditableBlock(node: Node | null): HTMLElement | null {
+    const editor = editorRef.current;
+    if (!editor || !node) return null;
+    const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
+    const block = element?.closest<HTMLElement>("p, div, h1, h2, h3, li, blockquote, td, th");
+    if (!block || block === editor || !editor.contains(block)) return null;
+    return block;
+  }
+
+  function selectedEditableBlocks(range: Range): HTMLElement[] {
+    const editor = editorRef.current;
+    if (!editor) return [];
+    const blocks = Array.from(editor.querySelectorAll<HTMLElement>("p, div, h1, h2, h3, li, blockquote, td, th"))
+      .filter((block) => {
+        try {
+          return range.intersectsNode(block);
+        } catch {
+          return false;
+        }
+      });
+    if (blocks.length > 0 && !range.collapsed) return blocks;
+    const current = closestEditableBlock(range.commonAncestorContainer);
+    return current ? [current] : [];
+  }
+
   function commitBody(nextBody: string) {
     setHistory((current) => [...current.slice(-24), draft.printBody]);
     setFuture([]);
@@ -1474,8 +1539,24 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     replaceSelection(`<${kind}>${content}</${kind}>`, true);
   }
 
-  function applyAlignment(align: "left" | "center" | "right") {
-    replaceSelection(`<div style="text-align: ${align};">${selectedText("Aligned text")}</div>`, true);
+  function applyAlignment(align: LetterTextAlign) {
+    if (!ensureEditableDocument()) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    const range = restoreEditorRange();
+    if (range) {
+      const blocks = selectedEditableBlocks(range);
+      if (blocks.length > 0) {
+        blocks.forEach((block) => {
+          block.style.textAlign = align;
+        });
+        commitBody(editor.innerHTML);
+        setNotice(`Text alignment set to ${align}.`);
+        return;
+      }
+    }
+    replaceSelection(`<p style="text-align:${align};">${selectedText("Aligned text")}</p>`, true);
   }
 
   function applyLineHeight(value: string) {
@@ -1518,15 +1599,84 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     replaceSelection(ordered ? `<ol>${items}</ol>` : `<ul>${items}</ul>`, true);
   }
 
-  function insertTable() {
+  function buildLetterTableHtml(options: TableBuilderDraft): string {
+    const rows = Math.min(12, Math.max(1, Math.round(options.rows)));
+    const columns = Math.min(8, Math.max(1, Math.round(options.columns)));
+    const widthPercent = Math.min(100, Math.max(35, Math.round(options.widthPercent)));
+    const padding = Math.min(24, Math.max(2, Math.round(options.cellPadding)));
+    const borderColor = options.borderStyle === "none" ? "transparent" : "#cbd5e1";
+    const border = options.borderStyle === "none" ? "0" : `1px ${options.borderStyle} ${borderColor}`;
+    const tableStyle = [
+      `width:${widthPercent}%`,
+      "border-collapse:collapse",
+      "margin:12px 0",
+      `text-align:${options.textAlign}`,
+    ].join("; ");
+    const cellStyle = [
+      `border:${border}`,
+      `padding:${padding}px`,
+      `text-align:${options.textAlign}`,
+      "vertical-align:top",
+    ].join("; ");
+    const headerStyle = [
+      cellStyle,
+      "background:#f8fafc",
+      "font-weight:700",
+    ].join("; ");
+
+    return `<table data-letter-table="true" style="${tableStyle};"><tbody>${Array.from({ length: rows }).map((_, rowIndex) => {
+      const isHeader = options.headerRow && rowIndex === 0;
+      const tag = isHeader ? "th" : "td";
+      const style = isHeader ? headerStyle : cellStyle;
+      const cells = Array.from({ length: columns }).map((__, columnIndex) => {
+        const label = isHeader ? `Column ${columnIndex + 1}` : "Cell text";
+        return `<${tag} style="${style};">${label}</${tag}>`;
+      }).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("")}</tbody></table>`;
+  }
+
+  function insertTable(options: TableBuilderDraft = tableBuilder) {
     if (!ensureEditableDocument()) return;
-    const rawRows = window.prompt("Rows", "3");
-    const rawCols = window.prompt("Columns", "3");
-    if (rawRows === null || rawCols === null) return;
-    const rows = Math.min(8, Math.max(1, Number(rawRows) || 3));
-    const cols = Math.min(6, Math.max(1, Number(rawCols) || 3));
-    const cells = Array.from({ length: cols }).map(() => "<td>&nbsp;</td>").join("");
-    insertBlock(`<table style="width:100%; border-collapse: collapse;" border="1">${Array.from({ length: rows }).map(() => `<tr>${cells}</tr>`).join("")}</table>`);
+    insertBlock(buildLetterTableHtml(options));
+    setNotice("Table inserted. Click any cell to edit its text.");
+  }
+
+  function insertTablePreset(preset: "donationSummary" | "impactGrid" | "signatureContact") {
+    if (!ensureEditableDocument()) return;
+    if (preset === "donationSummary") {
+      insertBlock([
+        '<table data-letter-table="donation-summary" style="width:100%; border-collapse:collapse; margin:12px 0; text-align:left;">',
+        '<tbody>',
+        '<tr><th style="border:1px solid #cbd5e1; padding:8px; background:#f8fafc; text-align:left;">Gift Detail</th><th style="border:1px solid #cbd5e1; padding:8px; background:#f8fafc; text-align:right;">Value</th></tr>',
+        '<tr><td style="border:1px solid #cbd5e1; padding:8px;">Donation Amount</td><td style="border:1px solid #cbd5e1; padding:8px; text-align:right;">{{donation.amount}}</td></tr>',
+        '<tr><td style="border:1px solid #cbd5e1; padding:8px;">Donation Date</td><td style="border:1px solid #cbd5e1; padding:8px; text-align:right;">{{donation.date}}</td></tr>',
+        '</tbody></table>',
+      ].join(""));
+      return;
+    }
+    if (preset === "impactGrid") {
+      insertBlock([
+        '<table data-letter-table="impact-grid" style="width:100%; border-collapse:collapse; margin:12px 0; text-align:center;">',
+        '<tbody><tr>',
+        '<th style="border:1px solid #cbd5e1; padding:10px; background:#f8fafc; text-align:center;">Your Gift</th>',
+        '<th style="border:1px solid #cbd5e1; padding:10px; background:#f8fafc; text-align:center;">Impact</th>',
+        '<th style="border:1px solid #cbd5e1; padding:10px; background:#f8fafc; text-align:center;">Next Step</th>',
+        '</tr><tr>',
+        '<td style="border:1px solid #cbd5e1; padding:10px; text-align:center;">{{donation.amount}}</td>',
+        '<td style="border:1px solid #cbd5e1; padding:10px; text-align:center;">{{organization.mission}}</td>',
+        '<td style="border:1px solid #cbd5e1; padding:10px; text-align:center;">Thank you for standing with us.</td>',
+        '</tr></tbody></table>',
+      ].join(""));
+      return;
+    }
+    insertBlock([
+      '<table data-letter-table="signature-contact" style="width:100%; border-collapse:collapse; margin:12px 0; text-align:left;">',
+      '<tbody><tr>',
+      '<td style="border:0; padding:8px; text-align:left;">{{staff.name}}<br>{{staff.title}}</td>',
+      '<td style="border:0; padding:8px; text-align:right;">{{organization.phone}}<br>{{organization.website}}</td>',
+      '</tr></tbody></table>',
+    ].join(""));
   }
 
   function insertImage() {
@@ -1732,14 +1882,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     }
   }
 
-  function insertCommonSection(kind: "thankYou" | "closing" | "ps" | "impact") {
+  function insertCommonSection(kind: "thankYou" | "closing" | "ps" | "impact", align: LetterTextAlign = snippetAlign) {
     const blocks = {
       thankYou: "<p>Thank you for your generous support of {{organization.name}}.</p>",
       closing: "<p>With gratitude,</p>",
       ps: "<p>P.S. {{snippets.psLine}}</p>",
       impact: "<p>Because of friends like you, we can continue our mission of {{organization.mission}}.</p>",
     };
-    insertBlock(blocks[kind]);
+    const aligned = blocks[kind].replace("<p>", `<p style="text-align:${align};">`);
+    insertBlock(aligned);
   }
 
   async function generateAiLetterContent() {
@@ -1980,6 +2131,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               <RibbonButton onClick={() => applyAlignment("left")}>L</RibbonButton>
               <RibbonButton onClick={() => applyAlignment("center")}>C</RibbonButton>
               <RibbonButton onClick={() => applyAlignment("right")}>R</RibbonButton>
+              <RibbonButton onClick={() => applyAlignment("justify")}>J</RibbonButton>
               <RibbonButton onClick={() => insertList(false)}>Bullets</RibbonButton>
               <RibbonButton onClick={() => insertList(true)}>Numbered</RibbonButton>
               <RibbonButton onClick={() => formatBlock("h1")}>H1</RibbonButton>
@@ -2013,6 +2165,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               <RibbonButton onClick={() => applyAlignment("left")}>L</RibbonButton>
               <RibbonButton onClick={() => applyAlignment("center")}>C</RibbonButton>
               <RibbonButton onClick={() => applyAlignment("right")}>R</RibbonButton>
+              <RibbonButton onClick={() => applyAlignment("justify")}>J</RibbonButton>
               <RibbonButton onClick={() => insertList(false)}>Bullets</RibbonButton>
               <RibbonButton onClick={() => insertList(true)}>Numbered</RibbonButton>
               <RibbonButton onClick={() => formatBlock("h1")}>H1</RibbonButton>
@@ -2112,6 +2265,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Blocks & Snippets</p>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Saved Sections</p>
               <div className="rounded-md border border-slate-200 bg-white p-3">
+                <div className="mb-3 grid grid-cols-4 gap-1" aria-label="Saved section justification settings">
+                  {(["left", "center", "right", "justify"] as const).map((align) => (
+                    <button
+                      key={align}
+                      type="button"
+                      onClick={() => setSnippetAlign(align)}
+                      className={["h-8 rounded border text-[10px] font-semibold uppercase", snippetAlign === align ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"].join(" ")}
+                    >
+                      {align === "justify" ? "Just" : align.charAt(0)}
+                    </button>
+                  ))}
+                </div>
                 <div className="space-y-2">
                   <SnippetButton onClick={() => insertCommonSection("thankYou")}>Thank You - General</SnippetButton>
                   <SnippetButton onClick={() => insertCommonSection("closing")}>Closing - With Gratitude</SnippetButton>
@@ -2274,9 +2439,46 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <Button onClick={() => formatBlock("h1")}>Insert Heading</Button>
                     <Button onClick={() => insertBlock("<hr />")}>Insert Divider</Button>
                     <Button onClick={insertFillSpace}>Push Content to Bottom</Button>
-                    <Button onClick={insertTable}>Insert Table</Button>
                     <Button onClick={() => insertBlock('<div style="page-break-after: always;"></div>')}>Insert Page Break</Button>
                     <Button onClick={() => insertSignature()}>Insert Signature</Button>
+                  </div>
+                </InspectorCard>
+                <InspectorCard title="Table Builder" tooltip="Create editable tables that preserve basic structure and alignment in server-rendered PDFs.">
+                  <div className="grid grid-cols-2 gap-2">
+                    <TableNumberField label="Rows" value={tableBuilder.rows} min={1} max={12} onChange={(value) => setTableBuilder((current) => ({ ...current, rows: value }))} />
+                    <TableNumberField label="Columns" value={tableBuilder.columns} min={1} max={8} onChange={(value) => setTableBuilder((current) => ({ ...current, columns: value }))} />
+                    <TableNumberField label="Width %" value={tableBuilder.widthPercent} min={35} max={100} onChange={(value) => setTableBuilder((current) => ({ ...current, widthPercent: value }))} />
+                    <TableNumberField label="Cell Padding" value={tableBuilder.cellPadding} min={2} max={24} onChange={(value) => setTableBuilder((current) => ({ ...current, cellPadding: value }))} />
+                  </div>
+                  <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={tableBuilder.headerRow}
+                      onChange={(event) => setTableBuilder((current) => ({ ...current, headerRow: event.target.checked }))}
+                    />
+                    Include header row
+                  </label>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <LabeledSelect
+                      label="Border"
+                      value={tableBuilder.borderStyle}
+                      onChange={(value) => setTableBuilder((current) => ({ ...current, borderStyle: value as LetterTableBorderStyle }))}
+                      options={["solid", "dashed", "none"]}
+                      labels={{ solid: "Solid", dashed: "Dashed", none: "None" }}
+                    />
+                    <LabeledSelect
+                      label="Text Align"
+                      value={tableBuilder.textAlign}
+                      onChange={(value) => setTableBuilder((current) => ({ ...current, textAlign: value as LetterTextAlign }))}
+                      options={["left", "center", "right", "justify"]}
+                      labels={{ left: "Left", center: "Center", right: "Right", justify: "Justify" }}
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    <Button onClick={() => insertTable(tableBuilder)} tone="primary">Insert Custom Table</Button>
+                    <Button onClick={() => insertTablePreset("donationSummary")}>Donation Summary Table</Button>
+                    <Button onClick={() => insertTablePreset("impactGrid")}>Impact Grid Table</Button>
+                    <Button onClick={() => insertTablePreset("signatureContact")}>Signature Contact Table</Button>
                   </div>
                 </InspectorCard>
                 <InspectorCard title="Selected Image Size">
@@ -5895,6 +6097,26 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
     <label className="block text-xs font-semibold text-slate-700">
       {label}
       <input type="number" min={0.25} max={2.5} step={0.25} value={value} onChange={(event) => onChange(Number(event.target.value) || 1)} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-normal" />
+    </label>
+  );
+}
+
+function TableNumberField({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
+  return (
+    <label className="block text-xs font-semibold text-slate-700">
+      {label}
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(event) => {
+          const parsed = Number(event.target.value);
+          onChange(Math.min(max, Math.max(min, Number.isFinite(parsed) ? Math.round(parsed) : min)));
+        }}
+        className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-normal"
+      />
     </label>
   );
 }

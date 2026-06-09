@@ -963,10 +963,10 @@ function stripHtmlInline(value: string): string {
 }
 
 type PdfContentBlock =
-  | { kind: "heading"; text: string; level: number; lineHeight?: number }
-  | { kind: "paragraph"; text: string; lineHeight?: number }
-  | { kind: "list"; text: string; lineHeight?: number }
-  | { kind: "tableRow"; cells: string[]; header: boolean }
+  | { kind: "heading"; text: string; level: number; lineHeight?: number; align?: PdfTextAlign }
+  | { kind: "paragraph"; text: string; lineHeight?: number; align?: PdfTextAlign }
+  | { kind: "list"; text: string; lineHeight?: number; align?: PdfTextAlign }
+  | { kind: "tableRow"; cells: PdfTableCell[]; header: boolean }
   | { kind: "divider" }
   | { kind: "spacer"; height: number; fill?: boolean }
   | {
@@ -978,6 +978,14 @@ type PdfContentBlock =
       format?: "PNG" | "JPEG" | "WEBP";
       aspectRatio?: number;
     };
+
+type PdfTextAlign = "left" | "center" | "right" | "justify";
+
+interface PdfTableCell {
+  text: string;
+  header: boolean;
+  align: PdfTextAlign;
+}
 
 function readHtmlAttribute(attributes: string, name: string): string {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1010,6 +1018,14 @@ function parsePdfLineHeight(attributes: string, innerHtml = ""): number | undefi
   if (!match) return undefined;
   const value = Number.parseFloat(match[1]);
   return Number.isFinite(value) ? Math.min(2.5, Math.max(1, value)) : undefined;
+}
+
+function parsePdfTextAlign(attributes: string, innerHtml = ""): PdfTextAlign | undefined {
+  const explicit = readHtmlAttribute(attributes, "align").toLowerCase();
+  if (explicit === "left" || explicit === "center" || explicit === "right" || explicit === "justify") return explicit;
+  const match = `${attributes} ${innerHtml}`.match(/text-align\s*:\s*(left|center|right|justify)/i);
+  const value = match?.[1]?.toLowerCase();
+  return value === "left" || value === "center" || value === "right" || value === "justify" ? value : undefined;
 }
 
 function parsePdfSpacer(attributes: string, innerHtml: string): PdfContentBlock | null {
@@ -1080,20 +1096,31 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       const image = parsePdfImageBlock(attributes);
       if (image) blocks.push(image);
     } else if (tag === "tr") {
-      const cells = Array.from(inner.matchAll(/<\s*(td|th)\b[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>/gi))
-        .map((cell) => stripHtmlInline(cell[2] ?? ""))
-        .filter(Boolean);
+      const cells = Array.from(inner.matchAll(/<\s*(td|th)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi))
+        .map((cell) => {
+          const cellTag = (cell[1] ?? "td").toLowerCase();
+          const cellAttributes = cell[2] ?? "";
+          const cellInner = cell[3] ?? "";
+          const text = stripHtmlInline(cellInner);
+          return {
+            text,
+            header: cellTag === "th",
+            align: parsePdfTextAlign(cellAttributes, cellInner) ?? parsePdfTextAlign(attributes, inner) ?? "left",
+          } satisfies PdfTableCell;
+        })
+        .filter((cell) => cell.text);
       if (cells.length > 0) {
-        blocks.push({ kind: "tableRow", cells, header: /<\s*th\b/i.test(inner) });
+        blocks.push({ kind: "tableRow", cells, header: cells.some((cell) => cell.header) });
       }
     } else {
       const text = stripHtmlInline(inner);
       const lineHeight = parsePdfLineHeight(attributes, inner);
+      const align = parsePdfTextAlign(attributes, inner);
       if (text) {
         if (/^[-=_]{5,}$/.test(text)) blocks.push({ kind: "divider" });
-        else if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2, lineHeight });
-        else if (tag === "li") blocks.push({ kind: "list", text, lineHeight });
-        else blocks.push({ kind: "paragraph", text, lineHeight });
+        else if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2, lineHeight, align });
+        else if (tag === "li") blocks.push({ kind: "list", text, lineHeight, align });
+        else blocks.push({ kind: "paragraph", text, lineHeight, align });
       } else {
         const nestedImageAttributes = inner.match(/<\s*img\b([^>]*)>/i)?.[1];
         const nestedImage = nestedImageAttributes ? parsePdfImageBlock(nestedImageAttributes) : null;
@@ -1542,14 +1569,34 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     cursorY = contentTop;
   };
 
-  const textHeight = (text: string, fontSize: number, lineHeightMultiplier = 1.38, indent = 0) => {
+  type PdfTextOptions = { align?: PdfTextAlign; maxWidth?: number };
+  const drawText = (text: string | string[], x: number, y: number, options?: PdfTextOptions) => {
+    if (!options) {
+      doc.text(text, x, y);
+      return;
+    }
+    // Keep jsPDF method context bound to the document instance.
+    const textWithOptions = doc.text as unknown as (value: string | string[], textX: number, textY: number, textOptions: PdfTextOptions) => JsPdfDocument;
+    textWithOptions.call(doc, text, x, y, options);
+  };
+
+  const textHeight = (text: string, fontSize: number, lineHeightMultiplier = 1.38, indent = 0, widthOverride?: number) => {
     const trimmed = text.trim();
     if (!trimmed) return 0;
     doc.setFontSize(fontSize);
-    const width = maxTextWidth - indent;
+    const width = widthOverride ?? (maxTextWidth - indent);
     const lines = doc.splitTextToSize(trimmed, width) as string[];
     const lineHeight = Math.max(fontSize, Math.round(fontSize * lineHeightMultiplier));
     return Math.max(1, lines.length) * lineHeight;
+  };
+
+  const tableRowHeight = (block: Extract<PdfContentBlock, { kind: "tableRow" }>) => {
+    const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
+    const lineCounts = block.cells.map((cell) => {
+      doc.setFontSize(9);
+      return (doc.splitTextToSize(cell.text, Math.max(12, cellWidth - 10)) as string[]).length;
+    });
+    return Math.max(24, Math.max(1, ...lineCounts) * 11 + 14);
   };
 
   const estimatedBlockHeight = (block: PdfContentBlock): number => {
@@ -1574,7 +1621,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       }
       return block.aspectRatio ? width / block.aspectRatio + 8 : width * 0.35 + 8;
     }
-    if (block.kind === "tableRow") return 24;
+    if (block.kind === "tableRow") return tableRowHeight(block);
     return textHeight(block.text, 11, block.lineHeight) + 8;
   };
 
@@ -1585,6 +1632,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     marginAfter = 8,
     indent = 0,
     lineHeightMultiplier = 1.38,
+    align: PdfTextAlign = "left",
   ) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -1596,7 +1644,15 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     const lineHeight = Math.max(fontSize, Math.round(fontSize * lineHeightMultiplier));
     for (const line of lines) {
       ensurePageSpace(lineHeight);
-      doc.text(line, marginX + indent, cursorY);
+      const x = align === "center"
+        ? marginX + indent + width / 2
+        : align === "right"
+          ? marginX + indent + width
+          : marginX + indent;
+      const options = align === "left"
+        ? undefined
+        : { align, maxWidth: width };
+      drawText(line, x, cursorY, options);
       cursorY += lineHeight;
     }
     cursorY += marginAfter;
@@ -1606,9 +1662,9 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   renderedBlocks.forEach((block, index) => {
     if (block.kind === "heading") {
       const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
-      writeText(block.text, size, "bold", 10, 0, block.lineHeight);
+      writeText(block.text, size, "bold", 10, 0, block.lineHeight, block.align);
     } else if (block.kind === "list") {
-      writeText(`• ${block.text}`, 10.5, "normal", 6, 10, block.lineHeight);
+      writeText(`• ${block.text}`, 10.5, "normal", 6, 10, block.lineHeight, block.align);
     } else if (block.kind === "divider") {
       ensurePageSpace(18);
       doc.setDrawColor(203, 213, 225);
@@ -1635,21 +1691,37 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       doc.addImage(block.dataUrl, block.format, marginX, cursorY, imageWidth, imageHeight);
       cursorY += imageHeight + 8;
     } else if (block.kind === "tableRow") {
-      const rowHeight = 24;
+      const rowHeight = tableRowHeight(block);
       ensurePageSpace(rowHeight);
       const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
-      doc.setFont("helvetica", block.header ? "bold" : "normal");
       doc.setFontSize(9);
       doc.setDrawColor(203, 213, 225);
       block.cells.forEach((cell, index) => {
         const x = marginX + index * cellWidth;
-        doc.rect(x, cursorY - 12, cellWidth, rowHeight);
-        const clipped = doc.splitTextToSize(cell, cellWidth - 10) as string[];
-        doc.text(clipped.slice(0, 1), x + 5, cursorY + 2);
+        if (block.header || cell.header) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(x, cursorY - 12, cellWidth, rowHeight, "FD");
+        } else {
+          doc.rect(x, cursorY - 12, cellWidth, rowHeight);
+        }
+        doc.setFont("helvetica", cell.header ? "bold" : "normal");
+        doc.setTextColor(15, 23, 42);
+        const lines = doc.splitTextToSize(cell.text, Math.max(12, cellWidth - 10)) as string[];
+        const textX = cell.align === "center"
+          ? x + cellWidth / 2
+          : cell.align === "right"
+            ? x + cellWidth - 5
+            : x + 5;
+        const options = cell.align === "left"
+          ? undefined
+          : { align: cell.align, maxWidth: cellWidth - 10 };
+        lines.slice(0, Math.max(1, Math.floor((rowHeight - 10) / 11))).forEach((line, lineIndex) => {
+          drawText(line, textX, cursorY + 2 + lineIndex * 11, options);
+        });
       });
       cursorY += rowHeight;
     } else {
-      writeText(block.text, 11, "normal", 8, 0, block.lineHeight);
+      writeText(block.text, 11, "normal", 8, 0, block.lineHeight, block.align);
     }
   });
 }

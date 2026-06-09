@@ -46,11 +46,30 @@ function startProc(label, color, scriptName) {
   return proc;
 }
 
-const procs = [
-  startProc("api",     C.cyan,   "dev:api"),
-  startProc("web",     C.green,  "dev:web"),
-  startProc("letters", C.yellow, "dev:letters"),
-];
+function waitForLine(proc, needle, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      proc.stdout.off("data", onData);
+      proc.stderr.off("data", onData);
+      resolve(value);
+    };
+
+    const onData = (d) => {
+      if (String(d).includes(needle)) finish(true);
+    };
+
+    const timeout = setTimeout(() => finish(false), timeoutMs);
+    proc.stdout.on("data", onData);
+    proc.stderr.on("data", onData);
+  });
+}
+
+const procs = [];
 
 // Forward SIGINT/SIGTERM so Ctrl-C cleanly kills children
 ["SIGINT", "SIGTERM"].forEach((sig) => {
@@ -59,3 +78,10 @@ const procs = [
     process.exit(0);
   });
 });
+
+const apiProc = startProc("api", C.cyan, "dev:api");
+procs.push(apiProc);
+await waitForLine(apiProc, "OyamaCRM API server running on http://localhost:4000");
+
+procs.push(startProc("web", C.green, "dev:web"));
+procs.push(startProc("letters", C.yellow, "dev:letters"));

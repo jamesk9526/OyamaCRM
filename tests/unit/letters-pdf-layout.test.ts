@@ -28,6 +28,46 @@ describe("letters PDF layout parsing", () => {
     expect(blocks[2]).toMatchObject({ kind: "spacer", fill: true });
   });
 
+  it("preserves paragraph and heading alignment for PDF rendering", () => {
+    const blocks = htmlToPdfBlocks([
+      '<p style="text-align: justify;">This paragraph should be justified in the generated PDF.</p>',
+      '<h2 style="text-align:center;">Centered heading</h2>',
+      '<div style="text-align:right;">Right aligned wrapper text</div>',
+    ].join(""));
+
+    expect(blocks[0]).toMatchObject({ kind: "paragraph", align: "justify" });
+    expect(blocks[1]).toMatchObject({ kind: "heading", align: "center" });
+    expect(blocks[2]).toMatchObject({ kind: "paragraph", align: "right" });
+  });
+
+  it("preserves table header cells, multiline text, and cell alignment", () => {
+    const blocks = htmlToPdfBlocks([
+      '<table data-letter-table="true" style="width:100%; border-collapse:collapse;">',
+      '<tbody>',
+      '<tr><th style="text-align:left;">Gift Detail</th><th style="text-align:right;">Value</th></tr>',
+      '<tr><td style="text-align:left;">Donation<br>Amount</td><td style="text-align:right;">{{donation.amount}}</td></tr>',
+      '</tbody></table>',
+    ].join(""));
+
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({
+      kind: "tableRow",
+      header: true,
+      cells: [
+        { text: "Gift Detail", header: true, align: "left" },
+        { text: "Value", header: true, align: "right" },
+      ],
+    });
+    expect(blocks[1]).toMatchObject({
+      kind: "tableRow",
+      header: false,
+      cells: [
+        { text: "Donation\nAmount", header: false, align: "left" },
+        { text: "{{donation.amount}}", header: false, align: "right" },
+      ],
+    });
+  });
+
   it("preserves uploaded and resized images for PDF rendering", () => {
     const blocks = htmlToPdfBlocks([
       '<img src="/uploads/letter-media/org/photo.png" alt="Impact photo" data-letter-width="75" style="width:75%;height:auto;" />',
@@ -77,6 +117,38 @@ describe("letters PDF layout parsing", () => {
           signatureImageUrl: signatureImage,
         },
       },
+    });
+
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect(pdf.byteLength).toBeGreaterThan(500);
+  });
+
+  it("renders justified text and multiline table cells into a valid server PDF", async () => {
+    const pdf = await renderGeneratedLetterPdf({
+      templateName: "Formatted Table Test",
+      subject: "Formatted Table Test",
+      constituentName: "Test Donor",
+      generatedAt: new Date("2026-06-09T12:00:00.000Z"),
+      mergedPrintBody: [
+        '<p style="text-align:justify;">Thank you for your generous support of this mission and the practical care it makes possible.</p>',
+        '<table data-letter-table="true" style="width:100%; border-collapse:collapse;">',
+        '<tbody>',
+        '<tr><th style="text-align:left;">Gift Detail</th><th style="text-align:right;">Value</th></tr>',
+        '<tr><td style="text-align:left;">Donation<br>Amount</td><td style="text-align:right;">$100.00</td></tr>',
+        '</tbody></table>',
+      ].join(""),
+      branding: {
+        organizationName: "Test Organization",
+        tagline: "",
+        addressLine: "",
+        contactLine: "",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#0f766e",
+      },
+      presets: {},
     });
 
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");

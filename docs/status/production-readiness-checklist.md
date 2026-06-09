@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-05-18 (v1.1.0 — help search engine improvements, EventSTUDIO polish, 35+ new help articles, full feature inventory, route-context expansions)
+Last updated: 2026-06-09 (DonorCRM Phase 2 audit refresh and stale-status reconciliation)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -35,6 +35,16 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 | Campaign follow-up shortcut points to canonical Steward Paths builder flow | Working | `app/campaigns/[id]/page.tsx` |
 | Legacy `/automations` route remains compatibility-only redirect | Working | `app/automations/page.tsx` |
 
+## DonorCRM Audit Refresh Snapshot (2026-06-09)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Fresh donor route/API audit artifact recorded and linked | Working | `docs/status/audit-artifacts/2026-06-09-donor-crm-phase2-audit.md`, `docs/DONOR_CRM_AUDIT.md` |
+| Donor audit status for Letters and Printables matches current live behavior | Working | `docs/DONOR_CRM_AUDIT.md`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Volunteers workspace no longer carries fetch-helper drift risk | Working | `app/volunteers/page.tsx` uses shared `apiFetch` for `/api/constituents?type=VOLUNTEER` |
+| Donations temporary handoff still includes one browser confirm flow | Partially Working | `app/donations/page.tsx` (`window.confirm` in temporary handoff path) |
+| Donor settings route remains placeholder-backed | Partially Working | `app/settings/donor/page.tsx`, `app/components/settings/SettingsPlaceholderPage.tsx` |
+
 ## OyamaLetters Standalone Workspace Snapshot (2026-05-28)
 
 | Item | Status | Evidence |
@@ -42,7 +52,7 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 | `/oyama-letters` opens a dedicated Letter & Document Studio shell outside the DonorCRM page chrome | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/layout/AppShell.tsx` |
 | Template Library, Canvas Builder, Publish Workspace, Generate Letters, queue, and settings routes use live letters APIs | Working | `app/oyama-letters/page.tsx`, `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx` |
 | Generate Letters multi-recipient batch flow validates, generates, opens PDFs, and routes print queue metadata with workflow policy | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/e2e/oyama-letters-batch.e2e.mjs` |
-| Canvas Builder block, format, and layout controls update real template content, including line height, dividers, preserved white space, and push-to-bottom layout | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/unit/letters-pdf-layout.test.ts` |
+| Canvas Builder block, format, and layout controls update real template content, including line height, dividers, preserved white space, push-to-bottom layout, active-block justification, and inspector-built tables | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/unit/letters-pdf-layout.test.ts` |
 | Uploaded letter images resize and uploaded signature images render in server PDFs | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterSignaturesManager.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` |
 | Selected donations hand off to OyamaLetters as a temporary unique-donor list | Working | `app/donations/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
 | Letters settings imports global organization/branding values into Letters-only header/footer presets | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts` |
@@ -52,6 +62,7 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 Notes:
 
 - This pass prioritizes the new workspace requested from `Oyamaletters-uiplan.md` while using only live CRM/letters API data and explicit empty states.
+- 2026-06-09 formatting update: paragraph alignment now includes full justification and applies to selected/current blocks; saved sections carry chosen justification; table insertion uses an in-app builder and server PDFs preserve header rows, multiline cells, and basic cell alignment.
 - Validation evidence on 2026-05-28: `pnpm typecheck`, `pnpm typecheck:letters`, targeted ESLint for touched letters routes/components, focused Vitest source contracts, HTTP route sweep, and escalated `npm run build`. A later build rerun was declined after additional builder/settings changes; targeted typecheck, ESLint, Vitest, and route checks passed for those changes.
 
 ## OyamaEmail Standalone Workspace Snapshot (2026-05-29)

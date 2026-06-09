@@ -29,6 +29,13 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Generate Letters");
     expect(workspace).toContain("formatInline");
     expect(workspace).toContain("insertTable");
+    expect(workspace).toContain("Table Builder");
+    expect(workspace).toContain("insertTablePreset");
+    expect(workspace).toContain("Donation Summary Table");
+    expect(workspace).toContain("Impact Grid Table");
+    expect(workspace).toContain("Signature Contact Table");
+    expect(workspace).toContain("snippetAlign");
+    expect(workspace).toContain('applyAlignment("justify")');
     expect(workspace).toContain("insertSignature");
     expect(workspace).toContain("applyDefaultHeader");
     expect(workspace).toContain("applyLineHeight");
@@ -38,6 +45,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("resizeSelectedImage");
     expect(workspace).toContain("Selected Image Size");
     expect(workspace).toContain('purpose: "editor"');
+    expect(workspace).not.toContain('window.prompt("Rows"');
+    expect(workspace).not.toContain('window.prompt("Columns"');
     expect(workspace).not.toContain("<WorkspaceRibbon");
     expect(workspace).not.toContain("RibbonTab");
   });
@@ -78,8 +87,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(signatureManager).toContain("Signature Visual Builder");
     expect(signatureManager).toContain("Rendered Preview");
     expect(signatureManager).toContain('purpose: "signature"');
-    expect(donationsPage).toContain("Create Letters for Selected Donors");
-    expect(donationsPage).toContain("Select Visible Monthly Donors");
+    expect(donationsPage).toContain("Send To Letters Workspace");
+    expect(donationsPage).toContain("Select Monthly Donors In View");
     expect(donationsPage).toContain("oyama-letters:temporary-recipient-list:");
     expect(workspace).toContain("readTemporaryRecipientList");
     expect(workspace).toContain("How to use this step");

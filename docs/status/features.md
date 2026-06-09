@@ -29,6 +29,21 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 | OyamaLetters canonical workflow chrome cleanup | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Removed shortcut-heavy ribbon actions from the dedicated letters workspace, reduced sidebar navigation to the canonical production path, extended the stepper through queue, and unified generate-step back/next controls into the same workflow bar at the top and bottom of the page. |
 | OyamaEmail campaign workflow cleanup | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx` | Removed shortcut-heavy ribbon actions, renamed navigation toward campaign-workflow language, locked the template builder back action to the canonical templates route, and reduced the new-campaign final step to one primary finish action with matching top/bottom workflow controls. |
 
+## 2026-06-09 OyamaLetters Formatting Tools Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| OyamaLetters paragraph justification and reusable sections | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/unit/letters-pdf-layout.test.ts` | Builder alignment now applies to the active paragraph/selected blocks and includes left, center, right, and justify. Saved section snippets expose alignment settings before insertion. |
+| OyamaLetters table builder and PDF table parity | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` | Replaced prompt-only table insertion with an inspector table builder for rows, columns, header row, width, cell padding, border style, and alignment. Server PDF parsing preserves header cells, multiline cell text, and basic cell alignment. |
+
+## 2026-06-09 DonorCRM Audit Reconciliation Pass (Phase 2)
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| DonorCRM audit baseline refresh artifact | Working | `docs/status/audit-artifacts/2026-06-09-donor-crm-phase2-audit.md`, `docs/DONOR_CRM_AUDIT.md` | Captured fresh donor route/API evidence, current placeholder/dead-control signals, and explicit stale-claim reconciliation updates in the canonical donor audit docs. |
+| Letters and Printables donor status reconciliation | Working | `docs/DONOR_CRM_AUDIT.md`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `tests/smoke/letter-builder-ui-source.test.ts` | Updated donor audit status from partial to working to match current live PDF export + batch generation behavior and existing test evidence. |
+| Donor-phase partial risks kept truthful | Partially Working | `app/donations/page.tsx`, `app/settings/donor/page.tsx`, `app/settings/tasks/page.tsx`, `app/settings/events/page.tsx`, `app/settings/email/page.tsx`, `docs/status/audit-artifacts/2026-06-09-donor-crm-phase2-audit.md` | Documented one remaining route-level browser confirm in donations temporary handoff and donor/settings placeholder or TODO-wired surfaces that should remain explicitly partial until completed. |
+
 ## 2026-06-05 Donor Workspace Dead-Control Cleanup
 
 | Area | Status | Evidence | Notes |
