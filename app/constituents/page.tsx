@@ -107,6 +107,74 @@ export default function ConstituentsPage() {
     prospects: summary?.prospects ?? constituents.filter((c) => c.type === "PROSPECT").length,
   };
 
+  function getSelectionByIds(ids: string[]) {
+    const idSet = new Set(ids);
+    return constituents.filter((row) => idSet.has(row.id));
+  }
+
+  function createTemporaryEmailSegment(ids: string[]) {
+    const selected = getSelectionByIds(ids);
+    const recipients = Array.from(new Set(selected.map((row) => (row.email || "").trim().toLowerCase()).filter(Boolean)));
+    if (recipients.length === 0) {
+      setError("Selected constituents do not have an email address. Add at least one email before starting an email template.");
+      return;
+    }
+
+    const segmentId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `segment-${Date.now()}`;
+
+    const payload = {
+      name: `Constituent selection (${recipients.length})`,
+      recipients,
+      createdAt: new Date().toISOString(),
+    };
+
+    window.sessionStorage.setItem(`oyama-email:temporary-recipient-segment:${segmentId}`, JSON.stringify(payload));
+    window.location.href = `/oyama-email/campaigns/new?temporarySegmentId=${encodeURIComponent(segmentId)}`;
+  }
+
+  function createTemporaryLettersList(ids: string[]) {
+    const selected = getSelectionByIds(ids);
+    const constituentIds = Array.from(new Set(selected.map((row) => row.id).filter(Boolean)));
+    if (constituentIds.length === 0) {
+      setError("Select at least one constituent before launching a letters template.");
+      return;
+    }
+
+    const listId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `list-${Date.now()}`;
+
+    const payload = {
+      name: `Constituent selection (${constituentIds.length})`,
+      constituentIds,
+      donationIds: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    window.sessionStorage.setItem(`oyama-letters:temporary-recipient-list:${listId}`, JSON.stringify(payload));
+    window.location.href = `/oyama-letters/generate?mode=batch&temporaryListId=${encodeURIComponent(listId)}`;
+  }
+
+  function handleEmailTemplate(ids: string[]) {
+    if (ids.length === 0) {
+      setError("Select at least one constituent before starting an email template.");
+      return;
+    }
+    setError(null);
+    createTemporaryEmailSegment(ids);
+  }
+
+  function handleLetterTemplate(ids: string[]) {
+    if (ids.length === 0) {
+      setError("Select at least one constituent before starting a letter template.");
+      return;
+    }
+    setError(null);
+    createTemporaryLettersList(ids);
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("Delete this constituent? This cannot be undone.")) return;
     try {
@@ -159,6 +227,8 @@ export default function ConstituentsPage() {
               const filterInput = document.querySelector<HTMLInputElement>('input[type="search"]');
               filterInput?.focus();
             },
+            "send-email": () => handleEmailTemplate(selectedIds),
+            "generate-letter": () => handleLetterTemplate(selectedIds),
           }}
         />
       )}
@@ -293,13 +363,29 @@ export default function ConstituentsPage() {
             <p className="mt-1 text-sm font-semibold text-emerald-950">{selectedIds.length} constituent{selectedIds.length === 1 ? "" : "s"} selected</p>
             <p className="text-xs text-emerald-800">Use the donor ribbon commands for the selected records, or clear this scope before changing filters.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedIds([])}
-            className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-          >
-            Clear Selection
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleEmailTemplate(selectedIds)}
+              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Email Template
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLetterTemplate(selectedIds)}
+              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Letter Template
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Clear Selection
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -308,6 +394,8 @@ export default function ConstituentsPage() {
           constituents={constituents}
           loading={loading && !error}
           onDelete={handleDelete}
+          onEmailTemplate={(id) => handleEmailTemplate([id])}
+          onLetterTemplate={(id) => handleLetterTemplate([id])}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
         />

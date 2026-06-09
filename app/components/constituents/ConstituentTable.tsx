@@ -4,23 +4,25 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   ConstituentRow,
+  engagementColor,
   formatCurrency,
   formatDate,
   getConstituentDisplayName,
   getConstituentSortName,
   statusLabel,
   typeLabel,
-  engagementColor,
 } from "@/app/components/constituents/constituent-utils";
-import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
-import ActionButton from "@/app/components/ui/ActionButton";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
+import ActionButton from "@/app/components/ui/ActionButton";
+import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
 import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 
 interface Props {
   constituents: ConstituentRow[];
   loading?: boolean;
   onDelete?: (id: string) => void;
+  onEmailTemplate?: (id: string) => void;
+  onLetterTemplate?: (id: string) => void;
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
 }
@@ -35,13 +37,22 @@ const COLUMNS = [
   { key: "engagement", label: "Engagement", sortable: true },
   { key: "tags", label: "Tags", sortable: false },
   { key: "actions", label: "", sortable: false },
-];
+] as const;
 
 type SortKey = "name" | "type" | "status" | "ytd" | "lifetime" | "lastGift" | "engagement";
-
 type ConstituentTag = ConstituentRow["tags"][number];
 
-function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: ConstituentRow; onDelete?: (id: string) => void }) {
+function ConstituentRowMoreMenu({
+  constituent,
+  onDelete,
+  onEmailTemplate,
+  onLetterTemplate,
+}: {
+  constituent: ConstituentRow;
+  onDelete?: (id: string) => void;
+  onEmailTemplate?: (id: string) => void;
+  onLetterTemplate?: (id: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -81,17 +92,38 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-44 rounded-xl border border-slate-100 bg-white p-1.5 text-xs shadow-xl shadow-slate-200/70">
+        <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-slate-100 bg-white p-1.5 text-xs shadow-xl shadow-slate-200/70">
           <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             View Details
           </Link>
           <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
             Edit
           </Link>
-          <Link href={`/oyama-letters/generate?constituentId=${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
-            Draft Letter
-          </Link>
-          {onDelete && (
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              if (onEmailTemplate) {
+                onEmailTemplate(constituent.id);
+              }
+            }}
+            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            Email from Template
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              if (onLetterTemplate) {
+                onLetterTemplate(constituent.id);
+              }
+            }}
+            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            Letter from Template
+          </button>
+          {onDelete ? (
             <button
               type="button"
               onClick={() => {
@@ -102,14 +134,22 @@ function ConstituentRowMoreMenu({ constituent, onDelete }: { constituent: Consti
             >
               Delete
             </button>
-          )}
+          ) : null}
         </div>
       )}
     </div>
   );
 }
 
-export default function ConstituentTable({ constituents, loading, onDelete, selectedIds = [], onSelectionChange }: Props) {
+export default function ConstituentTable({
+  constituents,
+  loading,
+  onDelete,
+  onEmailTemplate,
+  onLetterTemplate,
+  selectedIds = [],
+  onSelectionChange,
+}: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -126,13 +166,34 @@ export default function ConstituentTable({ constituents, loading, onDelete, sele
     let aVal: string | number = "";
     let bVal: string | number = "";
     switch (sortKey) {
-      case "name":       aVal = getConstituentSortName(a); bVal = getConstituentSortName(b); break;
-      case "type":       aVal = a.type; bVal = b.type; break;
-      case "status":     aVal = a.donorStatus; bVal = b.donorStatus; break;
-      case "ytd":        aVal = parseFloat(a.totalYtdGiving || "0"); bVal = parseFloat(b.totalYtdGiving || "0"); break;
-      case "lifetime":   aVal = parseFloat(a.totalLifetimeGiving || "0"); bVal = parseFloat(b.totalLifetimeGiving || "0"); break;
-      case "lastGift":   aVal = a.lastGiftDate ?? ""; bVal = b.lastGiftDate ?? ""; break;
-      case "engagement": aVal = a.engagementScore; bVal = b.engagementScore; break;
+      case "name":
+        aVal = getConstituentSortName(a);
+        bVal = getConstituentSortName(b);
+        break;
+      case "type":
+        aVal = a.type;
+        bVal = b.type;
+        break;
+      case "status":
+        aVal = a.donorStatus;
+        bVal = b.donorStatus;
+        break;
+      case "ytd":
+        aVal = parseFloat(a.totalYtdGiving || "0");
+        bVal = parseFloat(b.totalYtdGiving || "0");
+        break;
+      case "lifetime":
+        aVal = parseFloat(a.totalLifetimeGiving || "0");
+        bVal = parseFloat(b.totalLifetimeGiving || "0");
+        break;
+      case "lastGift":
+        aVal = a.lastGiftDate ?? "";
+        bVal = b.lastGiftDate ?? "";
+        break;
+      case "engagement":
+        aVal = a.engagementScore;
+        bVal = b.engagementScore;
+        break;
     }
     if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
     if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
@@ -158,11 +219,7 @@ export default function ConstituentTable({ constituents, loading, onDelete, sele
   }
 
   if (loading) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
-        <div className="p-7 text-center text-sm font-medium text-slate-400">Loading constituents...</div>
-      </div>
-    );
+    return <div className="rounded-2xl border border-slate-100 bg-white p-7 text-center text-sm font-medium text-slate-400">Loading constituents...</div>;
   }
 
   if (sorted.length === 0) {
@@ -202,10 +259,10 @@ export default function ConstituentTable({ constituents, loading, onDelete, sele
           <article key={c.id} className="p-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 hover:text-green-600 transition-colors">
+                <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 transition-colors hover:text-green-600">
                   {getConstituentDisplayName(c)}
                 </Link>
-                {c.email && <p className="mt-0.5 truncate text-xs text-slate-500">{c.email}</p>}
+                {c.email ? <p className="mt-0.5 truncate text-xs text-slate-500">{c.email}</p> : null}
               </div>
               <ConstituentStatusBadge status={c.donorStatus} />
             </div>
@@ -219,176 +276,76 @@ export default function ConstituentTable({ constituents, loading, onDelete, sele
                 <p className="text-slate-500">YTD</p>
                 <p className="font-semibold text-slate-950">{formatCurrency(c.totalYtdGiving)}</p>
               </div>
-              <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
-                <p className="text-slate-500">Lifetime</p>
-                <p className="font-semibold text-slate-800">{formatCurrency(c.totalLifetimeGiving)}</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
-                <p className="text-slate-500">Last Gift</p>
-                <p className="font-semibold text-slate-800">{c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "No gifts"}</p>
-              </div>
             </div>
 
-            <div className="mt-2 flex items-center gap-2">
-              <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 rounded-full" style={{ width: `${c.engagementScore}%` }} />
-              </div>
-              <span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>Engagement {c.engagementScore}</span>
-            </div>
-
-            {c.tags.length > 0 && (
+            {c.tags.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1">
                 <ConstituentTags tags={c.tags} />
               </div>
-            )}
+            ) : null}
 
             <div className="mt-3 flex items-center justify-between gap-2">
-              <Link
-                href={`/constituents/${c.id}/edit`}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
-              >
+              <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
                 Edit
               </Link>
-              <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} />
+              <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
             </div>
           </article>
         ))}
       </div>
 
       <div className="hidden md:block overflow-x-auto">
-      <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
-        <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/80">
-            {selectable ? (
-              <th className="sticky left-0 top-0 z-20 w-10 border-b border-slate-100 bg-slate-50/95 px-3 py-2.5">
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleAllVisible}
-                  aria-label="Select all visible constituents"
-                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-              </th>
-            ) : null}
-            {COLUMNS.map((col) => (
-              <th
-                key={col.key}
-                className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-100 bg-slate-50/95 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 ${
-                  col.sortable ? "cursor-pointer select-none hover:text-emerald-700" : ""
-                }`}
-                onClick={() => col.sortable && handleSort(col.key)}
-              >
-                <span className="flex items-center gap-1">
-                  {col.label}
-                  {col.sortable && sortKey === col.key && (
-                    <span className="text-green-600">{sortDir === "asc" ? "↑" : "↓"}</span>
-                  )}
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((c) => (
-            <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-emerald-50/35">
+        <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/80">
               {selectable ? (
-                <td className="sticky left-0 z-[2] bg-inherit px-3 py-2.5 align-top">
-                  <input
-                    type="checkbox"
-                    checked={selectedSet.has(c.id)}
-                    onChange={() => toggleRow(c.id)}
-                    aria-label={`Select ${getConstituentDisplayName(c)}`}
-                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                </td>
+                <th className="sticky left-0 top-0 z-20 w-10 border-b border-slate-100 bg-slate-50/95 px-3 py-2.5">
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible constituents" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                </th>
               ) : null}
-              {/* Name */}
-              <td className={`${selectable ? "" : "sticky left-0 z-[1]"} bg-inherit px-4 py-2.5 align-top`}>
-                <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-emerald-700">
-                  {getConstituentDisplayName(c)}
-                </Link>
-                {c.email && <p className="mt-0.5 text-xs text-slate-400">{c.email}</p>}
-              </td>
-              {/* Type */}
-              <td className="px-4 py-2.5 whitespace-nowrap align-top text-gray-600">
-                {typeLabel(c.type)}
-              </td>
-              {/* Status */}
-              <td className="px-4 py-2.5 align-top">
-                <ConstituentStatusBadge status={c.donorStatus} />
-              </td>
-              {/* YTD */}
-              <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">
-                {formatCurrency(c.totalYtdGiving)}
-              </td>
-              {/* Lifetime */}
-              <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
-                {formatCurrency(c.totalLifetimeGiving)}
-                {c.giftCount > 0 && (
-                  <span className="text-xs text-gray-400 ml-1">({c.giftCount} gifts)</span>
-                )}
-              </td>
-              {/* Last Gift */}
-              <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">
-                {c.lastGiftAmount ? (
-                  <>
-                    <span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span>
-                    <p className="text-xs text-gray-400">{formatDate(c.lastGiftDate)}</p>
-                  </>
-                ) : (
-                  <span className="text-gray-400">No gifts</span>
-                )}
-              </td>
-              {/* Engagement */}
-              <td className="px-4 py-2.5 align-top">
-                <div className="flex items-center justify-end gap-2">
-                  <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-500 rounded-full"
-                      style={{ width: `${c.engagementScore}%` }}
-                    />
-                  </div>
-                  <span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>
-                    {c.engagementScore}
-                  </span>
-                </div>
-              </td>
-              {/* Tags */}
-              <td className="px-4 py-2.5 align-top">
-                <ConstituentTags tags={c.tags} align="end" />
-              </td>
-              {/* Actions */}
-              <td className="px-4 py-2.5 align-top">
-                <div className="flex items-center gap-1 justify-end">
-                  <Link
-                    href={`/constituents/${c.id}/edit`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                  </Link>
-                  <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} />
-                </div>
-              </td>
+              {COLUMNS.map((col) => (
+                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-100 bg-slate-50/95 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 ${col.sortable ? "cursor-pointer select-none hover:text-emerald-700" : ""}`} onClick={() => col.sortable && handleSort(col.key)}>
+                  <span className="flex items-center gap-1">{col.label}{col.sortable && sortKey === col.key ? <span className="text-green-600">{sortDir === "asc" ? "↑" : "↓"}</span> : null}</span>
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.map((c) => (
+              <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-emerald-50/35">
+                {selectable ? (
+                  <td className="sticky left-0 z-[2] bg-inherit px-3 py-2.5 align-top">
+                    <input type="checkbox" checked={selectedSet.has(c.id)} onChange={() => toggleRow(c.id)} aria-label={`Select ${getConstituentDisplayName(c)}`} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                  </td>
+                ) : null}
+                <td className={`${selectable ? "" : "sticky left-0 z-[1]"} bg-inherit px-4 py-2.5 align-top`}>
+                  <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-emerald-700">{getConstituentDisplayName(c)}</Link>
+                  {c.email ? <p className="mt-0.5 text-xs text-slate-400">{c.email}</p> : null}
+                </td>
+                <td className="px-4 py-2.5 whitespace-nowrap align-top text-gray-600">{typeLabel(c.type)}</td>
+                <td className="px-4 py-2.5 align-top"><ConstituentStatusBadge status={c.donorStatus} /></td>
+                <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">{formatCurrency(c.totalYtdGiving)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{formatCurrency(c.totalLifetimeGiving)}{c.giftCount > 0 ? <span className="ml-1 text-xs text-gray-400">({c.giftCount} gifts)</span> : null}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{c.lastGiftAmount ? <><span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span><p className="text-xs text-gray-400">{formatDate(c.lastGiftDate)}</p></> : <span className="text-gray-400">No gifts</span>}</td>
+                <td className="px-4 py-2.5 align-top"><div className="flex items-center justify-end gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-green-500" style={{ width: `${c.engagementScore}%` }} /></div><span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>{c.engagementScore}</span></div></td>
+                <td className="px-4 py-2.5 align-top"><ConstituentTags tags={c.tags} align="end" /></td>
+                <td className="px-4 py-2.5 align-top">
+                  <div className="flex items-center justify-end gap-1">
+                    <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50">Edit</Link>
+                    <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
 function ConstituentStatusBadge({ status }: { status: string }) {
-  const tone = status === "MAJOR_DONOR" || status === "ACTIVE"
-    ? "green"
-    : status === "LAPSED"
-      ? "orange"
-      : status === "NEW"
-        ? "purple"
-        : "gray";
+  const tone = status === "MAJOR_DONOR" || status === "ACTIVE" ? "green" : status === "LAPSED" ? "orange" : status === "NEW" ? "purple" : "gray";
   return <CRMStatusBadge tone={tone}>{statusLabel(status)}</CRMStatusBadge>;
 }
 

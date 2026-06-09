@@ -19,6 +19,19 @@ type GroupMembershipDraft = {
   isPrimary: boolean;
 };
 
+type SegmentTagOption = {
+  id: string;
+  name: string;
+  color?: string | null;
+};
+
+type EmailRecipientListOption = {
+  id: string;
+  name: string;
+  description?: string | null;
+  recipientsCount?: number;
+};
+
 interface ConstituentFormData {
   firstName: string;
   lastName: string;
@@ -178,6 +191,12 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
   const [groupCreateType, setGroupCreateType] = useState<ConstituentGroupOption["groupType"]>("ORGANIZATION");
   const [groupCreateError, setGroupCreateError] = useState<string | null>(null);
   const [groupCreatePending, setGroupCreatePending] = useState(false);
+  const [segmentOptions, setSegmentOptions] = useState<SegmentTagOption[]>([]);
+  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
+  const [segmentLoading, setSegmentLoading] = useState(true);
+  const [emailLists, setEmailLists] = useState<EmailRecipientListOption[]>([]);
+  const [selectedEmailLists, setSelectedEmailLists] = useState<string[]>([]);
+  const [emailListsLoading, setEmailListsLoading] = useState(true);
 
   const isOrganizationRecord = form.entityKind === "ORGANIZATION";
 
@@ -199,6 +218,36 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
       }
     }
     void loadGroups();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOutreachOptions() {
+      setSegmentLoading(true);
+      setEmailListsLoading(true);
+      try {
+        const [tags, lists] = await Promise.all([
+          apiFetch<Array<{ id: string; name: string; color?: string | null }>>("/api/constituents/tags/catalog").catch(() => []),
+          apiFetch<EmailRecipientListOption[]>("/api/email-campaigns/lists").catch(() => []),
+        ]);
+
+        if (!cancelled) {
+          setSegmentOptions(Array.isArray(tags) ? tags : []);
+          setEmailLists(Array.isArray(lists) ? lists : []);
+        }
+      } finally {
+        if (!cancelled) {
+          setSegmentLoading(false);
+          setEmailListsLoading(false);
+        }
+      }
+    }
+
+    void loadOutreachOptions();
     return () => {
       cancelled = true;
     };
@@ -298,6 +347,38 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
       return;
     }
 
+    if (selectedEmailLists.length > 0 && !form.email.trim()) {
+      setError("Primary email is required when assigning this constituent to saved email lists.");
+      return;
+    }
+
+    async function assignToSavedEmailLists(primaryEmail: string) {
+      const normalizedEmail = primaryEmail.trim().toLowerCase();
+      if (!normalizedEmail || selectedEmailLists.length === 0) return;
+
+      for (const listId of selectedEmailLists) {
+        const list = await apiFetch<{
+          id: string;
+          name: string;
+          description?: string | null;
+          recipients?: Array<{ email?: string | null }>;
+        }>(`/api/email-campaigns/lists/${listId}`);
+        const recipientEmails = Array.from(new Set([
+          ...(Array.isArray(list.recipients) ? list.recipients.map((member) => String(member.email ?? "").trim().toLowerCase()) : []),
+          normalizedEmail,
+        ].filter(Boolean)));
+
+        await apiFetch(`/api/email-campaigns/lists/${listId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: list.name,
+            description: list.description ?? "",
+            recipientEmails,
+          }),
+        });
+      }
+    }
+
     startTransition(async () => {
       try {
         const path = mode === "create" ? "/api/constituents" : `/api/constituents/${constituentId}`;
@@ -305,6 +386,16 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
           method: mode === "create" ? "POST" : "PUT",
           body: JSON.stringify(payload),
         });
+
+        if (selectedSegments.length > 0) {
+          await apiFetch(`/api/constituents/${saved.id}/tags`, {
+            method: "PUT",
+            body: JSON.stringify({ tagNames: selectedSegments }),
+          });
+        }
+
+        await assignToSavedEmailLists(form.email);
+
         router.push(`/constituents/${saved.id}`);
         router.refresh();
       } catch (err) {
@@ -412,6 +503,66 @@ export default function ConstituentForm({ mode, initialData, constituentId }: Pr
             </Field>
           </div>
         )}
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <h2 className="mb-4 text-sm font-semibold text-gray-900">Segments and Lists</h2>
+        <p className="mb-4 text-xs text-gray-500">Assign this constituent to outreach segments and saved email lists during intake.</p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Segment Tags</p>
+            <div className="mt-2 max-h-44 space-y-2 overflow-auto pr-1">
+              {segmentLoading ? (
+                <p className="text-xs text-gray-500">Loading segments...</p>
+              ) : segmentOptions.length === 0 ? (
+                <p className="text-xs text-gray-500">No segments available yet.</p>
+              ) : segmentOptions.map((tag) => (
+                <label key={tag.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedSegments.includes(tag.name)}
+                    onChange={(e) => {
+                      setSelectedSegments((current) => e.target.checked
+                        ? Array.from(new Set([...current, tag.name]))
+                        : current.filter((name) => name !== tag.name));
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span>{tag.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Saved Email Lists</p>
+            <p className="mt-1 text-xs text-gray-500">Requires a primary email address on this form.</p>
+            <div className="mt-2 max-h-44 space-y-2 overflow-auto pr-1">
+              {emailListsLoading ? (
+                <p className="text-xs text-gray-500">Loading email lists...</p>
+              ) : emailLists.length === 0 ? (
+                <p className="text-xs text-gray-500">No saved lists available yet.</p>
+              ) : emailLists.map((list) => (
+                <label key={list.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedEmailLists.includes(list.id)}
+                    onChange={(e) => {
+                      setSelectedEmailLists((current) => e.target.checked
+                        ? Array.from(new Set([...current, list.id]))
+                        : current.filter((id) => id !== list.id));
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span>
+                    {list.name}
+                    {typeof list.recipientsCount === "number" ? ` (${list.recipientsCount})` : ""}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
