@@ -77,12 +77,41 @@ function asBoolean(value: unknown, fallback = false): boolean {
   return fallback;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function stripHtml(value: string): string {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function textToParagraphHtml(value: string): string {
+  return value
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `<p>${escapeHtml(part).replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+}
+
 function formatDate(value: Date | null | undefined): string {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+  }).format(value);
+}
+
+function formatTime(value: Date | null | undefined): string {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
   }).format(value);
 }
 
@@ -97,10 +126,58 @@ function formatCurrency(value: unknown): string {
   }).format(numeric);
 }
 
-function parseStoredTemplateJson(raw: string | null): StoredTemplateJson {
+function hasUsableTemplateBlocks(value: unknown): boolean {
+  const input = asObject(value);
+  return Array.isArray(input.blocks) && input.blocks.length > 0;
+}
+
+function createFallbackTemplateFromBody(input: { bodyHtml?: string | null; bodyText?: string | null } = {}): OyamaEmailTemplateDocument {
+  const bodyHtml = asString(input.bodyHtml).trim();
+  const bodyText = asString(input.bodyText).trim();
+  const content = bodyHtml || textToParagraphHtml(bodyText);
+
+  if (!content) {
+    return createDefaultEmailTemplateDocument();
+  }
+
+  return {
+    ...createDefaultEmailTemplateDocument(),
+    blocks: [
+      {
+        id: "recovered_body",
+        type: "text",
+        content,
+      },
+    ],
+  };
+}
+
+function isStarterTemplateDocument(template: OyamaEmailTemplateDocument): boolean {
+  const firstBlock = template.blocks[0];
+  if (!firstBlock || firstBlock.type !== "text") return false;
+  const content = stripHtml(firstBlock.content || "").toLowerCase();
+  return content.includes("thank you") && content.includes("your generosity makes practical care possible every day");
+}
+
+function hasNonStarterExistingContent(
+  existing: { bodyHtml?: string | null; bodyText?: string | null },
+  stored: StoredTemplateJson,
+): boolean {
+  if (!isStarterTemplateDocument(stored.template)) return true;
+  const body = `${stripHtml(existing.bodyHtml || "")}\n${existing.bodyText || ""}`.trim().toLowerCase();
+  if (!body) return false;
+  return !body.includes("your generosity makes practical care possible every day");
+}
+
+function parseStoredTemplateJson(
+  raw: string | null,
+  fallbackContent: { bodyHtml?: string | null; bodyText?: string | null } = {},
+): StoredTemplateJson {
+  const fallbackTemplate = createFallbackTemplateFromBody(fallbackContent);
+
   if (!raw?.trim()) {
     return {
-      template: createDefaultEmailTemplateDocument(),
+      template: fallbackTemplate,
       settings: normalizeEmailTemplateSettings({}),
       preferenceCategory: "GENERAL_UPDATES",
     };
@@ -117,6 +194,14 @@ function parseStoredTemplateJson(raw: string | null): StoredTemplateJson {
       ? asString(obj.preferenceCategory, "GENERAL_UPDATES").trim() || "GENERAL_UPDATES"
       : "GENERAL_UPDATES";
 
+    if (!hasUsableTemplateBlocks(template)) {
+      return {
+        template: fallbackTemplate,
+        settings: normalizeEmailTemplateSettings(settings),
+        preferenceCategory,
+      };
+    }
+
     return {
       template: normalizeEmailTemplateDocument(template),
       settings: normalizeEmailTemplateSettings(settings),
@@ -124,7 +209,7 @@ function parseStoredTemplateJson(raw: string | null): StoredTemplateJson {
     };
   } catch {
     return {
-      template: createDefaultEmailTemplateDocument(),
+      template: fallbackTemplate,
       settings: normalizeEmailTemplateSettings({}),
       preferenceCategory: "GENERAL_UPDATES",
     };
@@ -346,6 +431,10 @@ async function buildTemplateMergeVars(params: {
   const progressPercent = Number.isFinite(goalNumeric) && goalNumeric > 0 && Number.isFinite(raisedNumeric)
     ? `${Math.round((raisedNumeric / goalNumeric) * 100)}%`
     : "";
+  const eventDate = formatDate(donation?.event?.startDate ?? null);
+  const eventTime = formatTime(donation?.event?.startDate ?? null);
+  const eventLocation = [donation?.event?.location, donation?.event?.city, donation?.event?.state].filter(Boolean).join(", ");
+  const eventName = donation?.event?.name?.trim() || "";
 
   const physicalAddress = branding.addressLine;
   const currentDate = formatDate(new Date());
@@ -394,9 +483,10 @@ async function buildTemplateMergeVars(params: {
       "organization.address": physicalAddress,
       "organization.taxId": branding.taxId,
 
-      "event.name": donation?.event?.name?.trim() || "",
-      "event.startDate": formatDate(donation?.event?.startDate ?? null),
-      "event.location": [donation?.event?.location, donation?.event?.city, donation?.event?.state].filter(Boolean).join(", "),
+      "event.name": eventName,
+      "event.startDate": eventDate,
+      "event.time": eventTime,
+      "event.location": eventLocation,
 
       "campaign.name": donationCampaignName,
       "campaign.goal": campaignGoal,
@@ -415,6 +505,7 @@ async function buildTemplateMergeVars(params: {
       lastName,
       fullName,
       preferredName: firstName || fullName || "Friend",
+      householdGreeting: fullName || firstName || "Friend",
       email: recipient?.email?.trim() || effectiveRecipient,
       lastGiftAmount: formatCurrency(recipient?.lastGiftAmount ?? null),
       lastGiftDate: formatDate(recipient?.lastGiftDate ?? null),
@@ -426,6 +517,10 @@ async function buildTemplateMergeVars(params: {
       campaignGoal,
       campaignRaised: campaignRaisedLabel,
       campaignProgressPercent: progressPercent,
+      eventName,
+      eventDate,
+      eventTime,
+      eventLocation,
       organizationName,
       organizationPhone: branding.contactPhone,
       organizationWebsite: branding.websiteUrl,
@@ -499,9 +594,14 @@ function mapTemplateResponse(campaign: {
   createdAt: Date;
   updatedAt: Date;
   purpose: EmailPurpose;
+  bodyHtml?: string | null;
+  bodyText?: string | null;
   templateJson: string | null;
 }) {
-  const stored = parseStoredTemplateJson(campaign.templateJson);
+  const stored = parseStoredTemplateJson(campaign.templateJson, {
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+  });
   const rendered = renderEmailTemplateDocument(stored.template, stored.settings);
 
   return {
@@ -799,7 +899,10 @@ router.put("/templates/:id", async (req, res) => {
     }
   }
 
-  const stored = parseStoredTemplateJson(existing.templateJson);
+  const stored = parseStoredTemplateJson(existing.templateJson, {
+    bodyHtml: existing.bodyHtml,
+    bodyText: existing.bodyText,
+  });
 
   const smtpSettings = await prisma.organizationSettings.findUnique({
     where: { organizationId },
@@ -828,6 +931,21 @@ router.put("/templates/:id", async (req, res) => {
     template: stored.template,
     settings: stored.settings,
   });
+
+  if (isStarterTemplateDocument(payload.template) && hasNonStarterExistingContent(existing, stored)) {
+    res.status(409).json({
+      error: {
+        code: "TEMPLATE_DEFAULT_GUARD",
+        message: "Refusing to save the starter template over existing email content. Reload the builder to recover the saved template before saving again.",
+      },
+      conflict: {
+        id: existing.id,
+        name: existing.name,
+        updatedAt: existing.updatedAt,
+      },
+    });
+    return;
+  }
 
   const conflictingByName = await prisma.emailCampaign.findFirst({
     where: {
@@ -914,7 +1032,10 @@ router.post("/templates/:id/preview", async (req, res) => {
     return;
   }
 
-  const stored = parseStoredTemplateJson(campaign.templateJson);
+  const stored = parseStoredTemplateJson(campaign.templateJson, {
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+  });
   const mergeContext = await buildTemplateMergeVars({
     organizationId,
     campaignId: campaign.id,
@@ -982,7 +1103,10 @@ router.post("/templates/:id/send-test", async (req, res) => {
     return;
   }
 
-  const stored = parseStoredTemplateJson(campaign.templateJson);
+  const stored = parseStoredTemplateJson(campaign.templateJson, {
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+  });
   const unsupportedMergeTokens = findUnsupportedEmailMergeTokens([
     campaign.subject,
     campaign.previewText,

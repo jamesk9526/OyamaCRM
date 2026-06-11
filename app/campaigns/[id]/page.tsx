@@ -330,7 +330,7 @@ export default function CampaignDetailPage() {
             Start Follow-Up Path
           </Link>
           <Link
-            href={`/email-builder?campaign=${campaign.id}&returnTo=${encodeURIComponent(`/campaigns/${campaign.id}`)}`}
+            href={`/oyama-email/templates/${encodeURIComponent(campaign.id)}/builder`}
             className="px-3 py-1.5 text-xs font-semibold text-purple-700 bg-white border border-purple-200 rounded-md hover:bg-purple-50"
           >
             Open Campaign Email Builder

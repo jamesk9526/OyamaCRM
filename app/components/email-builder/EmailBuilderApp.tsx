@@ -100,6 +100,9 @@ const EMAIL_BUILDER_MERGE_TOKEN_CATALOG = new Set<string>([
   "{{donationAmount}}",
   "{{taxDeductibleAmount}}",
   "{{organizationAddress}}",
+  "{{eventDate}}",
+  "{{eventTime}}",
+  "{{eventLocation}}",
 ]);
 
 interface MergeTokenValidationResult {
@@ -298,6 +301,7 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
     "text",
     "quote",
     "impactStat",
+    "statistics",
     "impactStory",
     "impactGrid",
     "callout",
@@ -312,6 +316,9 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
     "firstTimeDonorWelcome",
     "staffSignature",
     "footerCompliance",
+    "eventDetails",
+    "partnerLogos",
+    "contactCard",
     "image",
     "video",
     "button",
@@ -360,6 +367,35 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
       sublabel: raw.sublabel ? String(raw.sublabel) : undefined,
       bgColor: String(raw.bgColor ?? "#ecfdf3"),
       textColor: String(raw.textColor ?? "#14532d"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "statistics") {
+    const items = Array.isArray(raw.items)
+      ? raw.items
+        .map((item) => {
+          const typed = item as { value?: unknown; label?: unknown; detail?: unknown };
+          return {
+            value: String(typed.value ?? "").trim(),
+            label: String(typed.label ?? "").trim(),
+            detail: typed.detail ? String(typed.detail).trim() : undefined,
+          };
+        })
+        .filter((item) => item.value && item.label)
+        .slice(0, 6)
+      : [];
+    return {
+      ...base,
+      type,
+      title: raw.title ? String(raw.title) : undefined,
+      intro: raw.intro ? String(raw.intro) : undefined,
+      items: items.length > 0 ? items : base.type === "statistics" ? base.items : [],
+      columnCount: raw.columnCount === 3 ? 3 : 2,
+      bgColor: String(raw.bgColor ?? "#f8fafc"),
+      cardColor: String(raw.cardColor ?? "#ffffff"),
+      textColor: String(raw.textColor ?? "#0f172a"),
+      accentColor: String(raw.accentColor ?? "#2563eb"),
       padding: toBoundedNumber(raw.padding, 16, 0, 100),
     } as EmailBlock;
   }
@@ -472,6 +508,67 @@ function hydrateGeneratedBlock(raw: Record<string, unknown>): EmailBlock {
       taxIdToken: raw.taxIdToken ? String(raw.taxIdToken) : undefined,
       bgColor: String(raw.bgColor ?? "#f9fafb"),
       textColor: String(raw.textColor ?? "#4b5563"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "eventDetails") {
+    return {
+      ...base,
+      type,
+      title: String(raw.title ?? "Upcoming Event"),
+      date: String(raw.date ?? "{{eventDate}}"),
+      time: String(raw.time ?? "{{eventTime}}"),
+      location: String(raw.location ?? "{{eventLocation}}"),
+      description: raw.description ? String(raw.description) : undefined,
+      ctaLabel: raw.ctaLabel ? String(raw.ctaLabel) : undefined,
+      ctaUrl: raw.ctaUrl ? String(raw.ctaUrl) : undefined,
+      bgColor: String(raw.bgColor ?? "#eff6ff"),
+      textColor: String(raw.textColor ?? "#1e3a8a"),
+      accentColor: String(raw.accentColor ?? "#2563eb"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "partnerLogos") {
+    const logos = Array.isArray(raw.logos)
+      ? raw.logos
+        .map((logo) => {
+          const typed = logo as { name?: unknown; imageUrl?: unknown; linkUrl?: unknown };
+          return {
+            name: String(typed.name ?? "Partner").trim() || "Partner",
+            imageUrl: String(typed.imageUrl ?? "").trim(),
+            linkUrl: typed.linkUrl ? String(typed.linkUrl).trim() : undefined,
+          };
+        })
+        .slice(0, 6)
+      : [];
+    return {
+      ...base,
+      type,
+      title: raw.title ? String(raw.title) : undefined,
+      logos: logos.length > 0 ? logos : base.type === "partnerLogos" ? base.logos : [],
+      bgColor: String(raw.bgColor ?? "#ffffff"),
+      textColor: String(raw.textColor ?? "#1f2937"),
+      borderColor: String(raw.borderColor ?? "#e5e7eb"),
+      padding: toBoundedNumber(raw.padding, 16, 0, 100),
+    } as EmailBlock;
+  }
+
+  if (type === "contactCard") {
+    return {
+      ...base,
+      type,
+      heading: String(raw.heading ?? "Questions? Contact us."),
+      name: String(raw.name ?? "{{staffName}}"),
+      role: raw.role ? String(raw.role) : undefined,
+      phone: raw.phone ? String(raw.phone) : undefined,
+      email: raw.email ? String(raw.email) : undefined,
+      note: raw.note ? String(raw.note) : undefined,
+      imageUrl: raw.imageUrl ? String(raw.imageUrl) : undefined,
+      bgColor: String(raw.bgColor ?? "#f8fafc"),
+      textColor: String(raw.textColor ?? "#1f2937"),
+      accentColor: String(raw.accentColor ?? "#2563eb"),
       padding: toBoundedNumber(raw.padding, 16, 0, 100),
     } as EmailBlock;
   }
@@ -630,6 +727,8 @@ function applyBrandingToBlock(block: EmailBlock, branding: BrandingSettings): Em
       return { ...block, accentColor: branding.primaryColor || block.accentColor };
     case 'impactGrid':
       return { ...block, accentColor: branding.primaryColor || block.accentColor };
+    case 'statistics':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
     case 'impactStory':
       return { ...block, ctaColor: branding.primaryColor || block.ctaColor };
     case 'progress':
@@ -649,6 +748,12 @@ function applyBrandingToBlock(block: EmailBlock, branding: BrandingSettings): Em
     case 'featureList':
       return { ...block, bulletColor: branding.primaryColor || block.bulletColor };
     case 'timeline':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
+    case 'eventDetails':
+      return { ...block, accentColor: branding.primaryColor || block.accentColor };
+    case 'partnerLogos':
+      return { ...block, borderColor: branding.accentColor || block.borderColor };
+    case 'contactCard':
       return { ...block, accentColor: branding.primaryColor || block.accentColor };
     case 'social': {
       const links = [...block.links];
@@ -1633,11 +1738,8 @@ export default function EmailBuilderApp({
   const scheduleRouteHref = campaignId ? `/communications/${campaignId}/schedule` : safeReturnHref;
   const activityRouteHref = campaignId ? `/communications/${campaignId}?mode=activity` : safeReturnHref;
   const fullScreenBuilderHref = useMemo(() => {
-    const params = new URLSearchParams();
-    if (campaignId) params.set('campaign', campaignId);
-    params.set('returnTo', safeReturnHref);
-    return `/email-builder?${params.toString()}`;
-  }, [campaignId, safeReturnHref]);
+    return campaignId ? `/oyama-email/templates/${encodeURIComponent(campaignId)}/builder` : '/oyama-email/templates/new';
+  }, [campaignId]);
   const currentJourneyStep: BuilderJourneyStep =
     activeSidebarTab === 'personalize'
       ? 'personalize'

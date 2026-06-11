@@ -16,6 +16,7 @@ import type {
   TextBlock,
   QuoteBlock,
   ImpactStatBlock,
+  StatisticsBlock,
   ImpactStoryBlock,
   ImpactGridBlock,
   ProgressBlock,
@@ -31,6 +32,9 @@ import type {
   FirstTimeDonorWelcomeBlock,
   StaffSignatureBlock,
   FooterComplianceBlock,
+  EventDetailsBlock,
+  PartnerLogosBlock,
+  ContactCardBlock,
   ImageBlock,
   VideoBlock,
   ButtonBlock,
@@ -119,7 +123,7 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
       return {
         id,
         type: 'text',
-        content: '<p>Edit this text block.</p>',
+        content: '',
         htmlEditingEnabled: false,
         fontSize: 16,
         color: '#333333',
@@ -151,6 +155,26 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         textColor: '#14532d',
         padding: 16,
       } satisfies ImpactStatBlock;
+
+    case 'statistics':
+      return {
+        id,
+        type: 'statistics',
+        title: 'By the Numbers',
+        intro: 'A quick look at what your support made possible.',
+        items: [
+          { value: '327', label: 'Families served', detail: 'Across local programs' },
+          { value: '1,240', label: 'Meals provided', detail: 'For neighbors in crisis' },
+          { value: '86%', label: 'Goal reached', detail: 'Toward this campaign' },
+          { value: '54', label: 'New volunteers', detail: 'Trained this month' },
+        ],
+        columnCount: 2,
+        bgColor: '#f8fafc',
+        cardColor: '#ffffff',
+        textColor: '#0f172a',
+        accentColor: '#2563eb',
+        padding: 16,
+      } satisfies StatisticsBlock;
 
     case 'impactStory':
       return {
@@ -388,6 +412,56 @@ export function createDefaultBlock(type: BlockType): EmailBlock {
         textColor: '#4b5563',
         padding: 16,
       } satisfies FooterComplianceBlock;
+
+    case 'eventDetails':
+      return {
+        id,
+        type: 'eventDetails',
+        title: 'Join Us for an Upcoming Event',
+        date: '{{eventDate}}',
+        time: '{{eventTime}}',
+        location: '{{eventLocation}}',
+        description: 'Gather with the community, hear ministry updates, and learn how to stay involved.',
+        ctaLabel: 'RSVP Today',
+        ctaUrl: 'https://',
+        bgColor: '#eff6ff',
+        textColor: '#1e3a8a',
+        accentColor: '#2563eb',
+        padding: 16,
+      } satisfies EventDetailsBlock;
+
+    case 'partnerLogos':
+      return {
+        id,
+        type: 'partnerLogos',
+        title: 'With Thanks to Our Partners',
+        logos: [
+          { name: 'Community Partner', imageUrl: '' },
+          { name: 'Local Sponsor', imageUrl: '' },
+          { name: 'Mission Ally', imageUrl: '' },
+        ],
+        bgColor: '#ffffff',
+        textColor: '#1f2937',
+        borderColor: '#e5e7eb',
+        padding: 16,
+      } satisfies PartnerLogosBlock;
+
+    case 'contactCard':
+      return {
+        id,
+        type: 'contactCard',
+        heading: 'Questions? Reply or contact us directly.',
+        name: '{{staffName}}',
+        role: '{{staffTitle}}',
+        phone: '{{organizationPhone}}',
+        email: '{{staffEmail}}',
+        note: 'We would be glad to help with giving, event details, or prayer requests.',
+        imageUrl: '',
+        bgColor: '#f8fafc',
+        textColor: '#1f2937',
+        accentColor: '#2563eb',
+        padding: 16,
+      } satisfies ContactCardBlock;
 
     case 'image':
       return {
@@ -675,6 +749,37 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
 </tr>`;
     }
 
+    case 'statistics': {
+      const safeItems = Array.isArray(block.items) ? block.items.slice(0, 6) : [];
+      const columnCount = block.columnCount === 3 ? 3 : 2;
+      const rows: string[] = [];
+      for (let i = 0; i < safeItems.length; i += columnCount) {
+        const rowItems = safeItems.slice(i, i + columnCount);
+        const cells = rowItems.map((item) => `<td width="${Math.floor(100 / columnCount)}%" valign="top" style="padding:4px;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${block.cardColor};border:1px solid ${block.accentColor}33;border-radius:8px;">
+            <tr><td style="padding:12px 10px;font-family:${fontFamily};color:${block.textColor};">
+              <div style="font-size:25px;line-height:1.1;font-weight:800;color:${block.accentColor};">${item.value}</div>
+              <div style="font-size:13px;line-height:1.35;font-weight:700;margin-top:5px;">${item.label}</div>
+              ${item.detail ? `<div style="font-size:12px;line-height:1.4;margin-top:4px;opacity:.78;">${item.detail}</div>` : ''}
+            </td></tr>
+          </table>
+        </td>`).join('');
+        const fillers = Array.from({ length: columnCount - rowItems.length }, () => `<td width="${Math.floor(100 / columnCount)}%" style="padding:4px;">&nbsp;</td>`).join('');
+        rows.push(`<tr>${cells}${fillers}</tr>`);
+      }
+      return `<tr>
+  <td style="padding:${block.padding}px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${block.bgColor};border:1px solid ${block.accentColor};border-radius:8px;">
+      <tr><td style="padding:14px 14px 10px;font-family:${fontFamily};color:${block.textColor};">
+        ${block.title ? `<div style="font-size:18px;line-height:1.3;font-weight:700;">${block.title}</div>` : ''}
+        ${block.intro ? `<div style="font-size:13px;line-height:1.5;margin-top:${block.title ? 6 : 0}px;opacity:.86;">${block.intro}</div>` : ''}
+      </td></tr>
+      <tr><td style="padding:0 10px 10px;"><table width="100%" cellpadding="0" cellspacing="0" border="0">${rows.join('')}</table></td></tr>
+    </table>
+  </td>
+</tr>`;
+    }
+
     case 'progress': {
       const safeGoal = block.goal <= 0 ? 1 : block.goal;
       const pct = Math.max(0, Math.min(100, Math.round((block.current / safeGoal) * 100)));
@@ -880,6 +985,85 @@ function renderBlockHtml(block: EmailBlock, fontFamily: string): string {
     <div>${block.phoneToken} • <a href="${block.websiteToken}" style="color:${block.textColor};text-decoration:underline;">${block.websiteToken}</a></div>
     ${block.taxIdToken ? `<div>Tax ID: ${block.taxIdToken}</div>` : ''}
     <div style="margin-top:6px;"><a href="${block.unsubscribeToken}" style="color:${block.textColor};text-decoration:underline;">Unsubscribe</a> · <a href="${block.managePreferencesToken}" style="color:${block.textColor};text-decoration:underline;">Manage Preferences</a></div>
+  </td>
+</tr>`;
+
+    case 'eventDetails': {
+      const detailRows = [
+        ['Date', block.date],
+        ['Time', block.time],
+        ['Location', block.location],
+      ].map(([label, value]) => `<tr>
+        <td width="86" style="padding:8px 10px 8px 0;border-top:1px solid ${block.accentColor}26;font-family:${fontFamily};font-size:12px;line-height:1.4;font-weight:700;color:${block.accentColor};text-transform:uppercase;">${label}</td>
+        <td style="padding:8px 0;border-top:1px solid ${block.accentColor}26;font-family:${fontFamily};font-size:14px;line-height:1.45;color:${block.textColor};">${value}</td>
+      </tr>`).join('');
+      return `<tr>
+  <td style="padding:${block.padding}px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${block.bgColor};border:1px solid ${block.accentColor};border-radius:8px;">
+      <tr><td style="padding:16px;font-family:${fontFamily};color:${block.textColor};">
+        <div style="font-size:20px;line-height:1.3;font-weight:700;">${block.title}</div>
+        ${block.description ? `<div style="font-size:14px;line-height:1.55;margin-top:7px;">${block.description}</div>` : ''}
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">${detailRows}</table>
+        ${block.ctaLabel && block.ctaUrl ? `<div style="margin-top:12px;"><a href="${block.ctaUrl}" style="display:inline-block;background:${block.accentColor};color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:10px 16px;border-radius:6px;">${block.ctaLabel}</a></div>` : ''}
+      </td></tr>
+    </table>
+  </td>
+</tr>`;
+    }
+
+    case 'partnerLogos': {
+      const logos = (Array.isArray(block.logos) ? block.logos : []).slice(0, 6);
+      const rows: string[] = [];
+      for (let i = 0; i < logos.length; i += 3) {
+        const rowLogos = logos.slice(i, i + 3);
+        const cells = rowLogos.map((logo) => {
+          const image = logo.imageUrl
+            ? `<img src="${logo.imageUrl}" alt="${logo.name}" style="display:block;max-width:100%;max-height:44px;height:auto;border:0;margin:0 auto;" />`
+            : `<span style="font-family:${fontFamily};font-size:12px;font-weight:700;color:${block.textColor};">${logo.name}</span>`;
+          const inner = logo.linkUrl ? `<a href="${logo.linkUrl}" style="text-decoration:none;">${image}</a>` : image;
+          return `<td width="33%" style="padding:4px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid ${block.borderColor};border-radius:7px;">
+              <tr><td align="center" valign="middle" style="height:70px;padding:10px;text-align:center;">${inner}</td></tr>
+            </table>
+          </td>`;
+        }).join('');
+        const fillers = Array.from({ length: 3 - rowLogos.length }, () => '<td width="33%" style="padding:4px;">&nbsp;</td>').join('');
+        rows.push(`<tr>${cells}${fillers}</tr>`);
+      }
+      return `<tr>
+  <td style="padding:${block.padding}px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${block.bgColor};border:1px solid ${block.borderColor};border-radius:8px;">
+      <tr><td style="padding:14px;font-family:${fontFamily};color:${block.textColor};">
+        ${block.title ? `<div style="font-size:14px;line-height:1.4;font-weight:700;margin-bottom:8px;">${block.title}</div>` : ''}
+        ${logos.length > 0 ? `<table width="100%" cellpadding="0" cellspacing="0" border="0">${rows.join('')}</table>` : '<div style="font-size:13px;line-height:1.5;opacity:.75;">Add partner logo URLs in the editor.</div>'}
+      </td></tr>
+    </table>
+  </td>
+</tr>`;
+    }
+
+    case 'contactCard':
+      return `<tr>
+  <td style="padding:${block.padding}px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${block.bgColor};border:1px solid ${block.accentColor};border-radius:8px;">
+      <tr><td style="padding:14px;font-family:${fontFamily};color:${block.textColor};">
+        <div style="font-size:15px;line-height:1.4;font-weight:700;margin-bottom:10px;">${block.heading}</div>
+        <table cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="68" valign="top" style="padding-right:12px;">
+              ${block.imageUrl ? `<img src="${block.imageUrl}" alt="${block.name}" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:28px;object-fit:cover;border:0;" />` : `<div style="width:56px;height:56px;line-height:56px;border-radius:28px;background:${block.accentColor};color:#fff;text-align:center;font-size:18px;font-weight:800;">${block.name.trim().slice(0, 1) || 'O'}</div>`}
+            </td>
+            <td valign="top">
+              <div style="font-size:16px;line-height:1.35;font-weight:700;">${block.name}</div>
+              ${block.role ? `<div style="font-size:13px;line-height:1.4;margin-top:2px;">${block.role}</div>` : ''}
+              ${block.phone ? `<div style="font-size:12px;line-height:1.4;margin-top:5px;">${block.phone}</div>` : ''}
+              ${block.email ? `<div style="font-size:12px;line-height:1.4;margin-top:2px;"><a href="mailto:${block.email}" style="color:${block.accentColor};text-decoration:underline;">${block.email}</a></div>` : ''}
+            </td>
+          </tr>
+        </table>
+        ${block.note ? `<div style="font-size:13px;line-height:1.5;margin-top:10px;">${block.note}</div>` : ''}
+      </td></tr>
+    </table>
   </td>
 </tr>`;
 
@@ -1130,6 +1314,7 @@ export function generatePlainText(template: EmailTemplate): string {
         case 'text':    return stripHtml(block.content);
         case 'quote':   return `"${block.quote}"${block.attribution ? ` - ${block.attribution}` : ''}`;
         case 'impactStat': return `${block.value} - ${block.label}${block.sublabel ? ` - ${block.sublabel}` : ''}`;
+        case 'statistics': return [block.title, block.intro, ...block.items.map((i) => `${i.value} - ${i.label}${i.detail ? ` - ${i.detail}` : ''}`)].filter(Boolean).join(' | ');
         case 'impactStory': return `${block.headline} - ${block.story} - Outcome: ${block.outcome}`;
         case 'impactGrid': return [block.title, ...block.items.map((i) => `${i.value} - ${i.label}`)].filter(Boolean).join(' | ');
         case 'progress': {
@@ -1149,6 +1334,9 @@ export function generatePlainText(template: EmailTemplate): string {
         case 'firstTimeDonorWelcome': return [block.headline, block.missionIntro, block.whatToExpect, block.contactPerson, `[${block.ctaLabel}] → ${block.ctaUrl}`].join(' | ');
         case 'staffSignature': return `${block.nameToken} | ${block.titleToken} | ${block.phoneToken} | ${block.emailToken}`;
         case 'footerCompliance': return `${block.organizationNameToken} | ${block.addressToken} | Unsubscribe: ${block.unsubscribeToken}`;
+        case 'eventDetails': return [block.title, block.description, `Date: ${block.date}`, `Time: ${block.time}`, `Location: ${block.location}`, block.ctaLabel && block.ctaUrl ? `[${block.ctaLabel}] -> ${block.ctaUrl}` : ''].filter(Boolean).join(' | ');
+        case 'partnerLogos': return [block.title, ...block.logos.map((logo) => logo.name)].filter(Boolean).join(' | ');
+        case 'contactCard': return [block.heading, block.name, block.role, block.phone, block.email, block.note].filter(Boolean).join(' | ');
         case 'image':   return `[Image: ${block.alt}]${block.link ? ` (${block.link})` : ''}`;
         case 'video':   return `[Video: ${block.url}]${block.caption ? ` — ${block.caption}` : ''}`;
         case 'button':  return `[${block.label}] → ${block.href}`;
@@ -1230,7 +1418,7 @@ export function createTemplateFromPreset(preset: TemplatePreset): EmailTemplate 
   };
 }
 
-/** Returns a fresh EmailTemplate with one example TextBlock. */
+/** Returns a fresh EmailTemplate with one blank TextBlock. */
 export function createDefaultTemplate(): EmailTemplate {
   return {
     backgroundColor: '#f5f5f5',

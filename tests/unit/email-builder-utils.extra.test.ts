@@ -208,4 +208,30 @@ describe("generateEmailHtml / generatePlainText", () => {
     expect(html).toContain("Thank You for Your Generosity");
     expect(html).toContain("Unsubscribe");
   });
+
+  it("renders new useful email blocks in HTML and plain text", () => {
+    const tpl = {
+      backgroundColor: "#fff",
+      contentWidth: 600,
+      fontFamily: "Arial",
+      blocks: [
+        createDefaultBlock("statistics"),
+        createDefaultBlock("eventDetails"),
+        createDefaultBlock("partnerLogos"),
+        createDefaultBlock("contactCard"),
+      ],
+    };
+
+    const html = generateEmailHtml(tpl);
+    const text = generatePlainText(tpl);
+
+    expect(html).toContain("By the Numbers");
+    expect(html).toContain("RSVP Today");
+    expect(html).toContain("With Thanks to Our Partners");
+    expect(html).toContain("Questions? Reply or contact us directly.");
+    expect(text).toContain("Families served");
+    expect(text).toContain("Location:");
+    expect(text).toContain("Community Partner");
+    expect(text).toContain("{{staffName}}");
+  });
 });

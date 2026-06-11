@@ -2107,6 +2107,15 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
       return true;
     }
 
+    const oyamaEmailBuilderMatch = pathname.match(/^\/oyama-email\/templates\/([^/]+)\/builder$/);
+    if (oyamaEmailBuilderMatch?.[1]) {
+      setEmailWorkspace({
+        campaignId: decodeURIComponent(oyamaEmailBuilderMatch[1]),
+        returnTo: params.get("returnTo") ?? undefined,
+      });
+      return true;
+    }
+
     const letterMatch = pathname.match(/^\/oyama-letters\/templates\/([^/]+)$/);
     if (letterMatch?.[1] && params.get("embedded") === "1") {
       const panelRaw = params.get("panel");
@@ -3602,14 +3611,14 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           onClose={() => setEmailWorkspace(null)}
           maxWidthClassName="max-w-[96vw]"
           appearance="light"
-          openInNewTabHref={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
+          openInNewTabHref={`/oyama-email/templates/${encodeURIComponent(emailWorkspace.campaignId)}/builder`}
           openInNewTabLabel="Open full screen"
         >
           <div className="px-4 pb-4 pt-12">
             <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <span>Use Preview in the builder header, then ask Steward for edits and run the next build action.</span>
               <a
-                href={`/email-builder?campaign=${encodeURIComponent(emailWorkspace.campaignId)}${emailWorkspace.returnTo ? `&returnTo=${encodeURIComponent(emailWorkspace.returnTo)}` : ""}`}
+                href={`/oyama-email/templates/${encodeURIComponent(emailWorkspace.campaignId)}/builder`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"

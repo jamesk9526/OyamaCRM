@@ -2700,7 +2700,7 @@ export async function executeStewardTool(
           ageDays: Math.max(0, Math.floor((Date.now() - d.updatedAt.getTime()) / (1000 * 60 * 60 * 24))),
           audienceFilter: d.audienceFilter,
           deepLink: `/communications/${d.id}`,
-          builderLink: `/email-builder?campaign=${encodeURIComponent(d.id)}&returnTo=${encodeURIComponent(`/communications/${d.id}`)}`,
+          builderLink: `/oyama-email/templates/${encodeURIComponent(d.id)}/builder`,
         })),
       };
       break;

@@ -43,6 +43,10 @@ describe("oyama email merge field audit", () => {
     expect(tokens.has("{{preferencesUrl}}")).toBe(true);
     expect(tokens.has("{{stewardPath.status}}")).toBe(true);
     expect(tokens.has("{{gift.taxDeductibleAmount}}")).toBe(true);
+    expect(tokens.has("{{event.time}}")).toBe(true);
+    expect(tokens.has("{{eventDate}}")).toBe(true);
+    expect(tokens.has("{{eventTime}}")).toBe(true);
+    expect(tokens.has("{{eventLocation}}")).toBe(true);
   });
 
   it("shows template preview warnings for unsupported or empty merge data and blocks unsupported test sends", async () => {
@@ -125,6 +129,133 @@ describe("oyama email merge field audit", () => {
 
     expect(sendTest.status).toBe(400);
     expect(sendTest.body?.error?.code).toBe("UNSUPPORTED_MERGE_FIELDS");
+  });
+
+  it("does not recover malformed saved template JSON as the starter template or overwrite existing content with it", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const unique = Date.now();
+    const recoveredBody = "<p>Saved custom appeal body that must not be replaced.</p>";
+
+    const campaign = await prisma.emailCampaign.create({
+      data: {
+        organizationId,
+        name: `Malformed Stored Template ${unique}`,
+        subject: "Do not overwrite",
+        fromName: "Hope Foundation",
+        fromEmail: "noreply@hopefoundation.org",
+        replyToEmail: "noreply@hopefoundation.org",
+        bodyHtml: recoveredBody,
+        bodyText: "Saved custom appeal body that must not be replaced.",
+        templateJson: "{ malformed-json",
+        status: "DRAFT",
+      },
+    });
+
+    const loaded = await request(app)
+      .get(`/api/oyama-email/templates/${campaign.id}`)
+      .set(auth);
+
+    expect(loaded.status).toBe(200);
+    expect(JSON.stringify(loaded.body?.template)).toContain("Saved custom appeal body");
+    expect(JSON.stringify(loaded.body?.template)).not.toContain("Your generosity makes practical care possible every day");
+
+    const overwrite = await request(app)
+      .put(`/api/oyama-email/templates/${campaign.id}`)
+      .set(auth)
+      .send({
+        name: campaign.name,
+        subject: campaign.subject,
+        previewText: "",
+        fromName: campaign.fromName,
+        fromEmail: campaign.fromEmail,
+        replyToEmail: campaign.replyToEmail,
+        purpose: "MARKETING",
+        preferenceCategory: "GENERAL_UPDATES",
+        template: {
+          version: 1,
+          contentWidth: 600,
+          backgroundColor: "#f3f7f5",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          baseFontSize: 16,
+          lineHeight: 1.6,
+          textColor: "#1f2937",
+          linkColor: "#0f5c3c",
+          blocks: [
+            {
+              id: "block_1",
+              type: "text",
+              content: "<h2>Thank you, {{ donor.firstName }}!</h2><p>Your generosity makes practical care possible every day.</p>",
+            },
+          ],
+        },
+        settings: {
+          includeUnsubscribeLink: true,
+          includePhysicalAddress: true,
+          enablePlainTextVersion: true,
+          physicalAddress: "",
+          footerBrandingText: "",
+        },
+      });
+
+    expect(overwrite.status).toBe(409);
+    expect(overwrite.body?.error?.code).toBe("TEMPLATE_DEFAULT_GUARD");
+
+    const unchanged = await prisma.emailCampaign.findUnique({
+      where: { id: campaign.id },
+      select: { bodyHtml: true, templateJson: true },
+    });
+    expect(unchanged?.bodyHtml).toBe(recoveredBody);
+    expect(unchanged?.templateJson).toBe("{ malformed-json");
+  });
+
+  it("preserves blank template drafts without injecting starter thank-you copy", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const unique = Date.now();
+
+    const created = await request(app)
+      .post("/api/oyama-email/templates")
+      .set(auth)
+      .send({
+        name: `Blank Template ${unique}`,
+        subject: "",
+        previewText: "",
+        fromName: "Hope Foundation",
+        fromEmail: "noreply@hopefoundation.org",
+        replyToEmail: "noreply@hopefoundation.org",
+        purpose: "MARKETING",
+        preferenceCategory: "GENERAL_UPDATES",
+        template: {
+          version: 1,
+          contentWidth: 600,
+          backgroundColor: "#f3f7f5",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          baseFontSize: 16,
+          lineHeight: 1.6,
+          textColor: "#1f2937",
+          linkColor: "#0f5c3c",
+          blocks: [],
+        },
+        settings: {
+          includeUnsubscribeLink: true,
+          includePhysicalAddress: true,
+          enablePlainTextVersion: true,
+          physicalAddress: "",
+          footerBrandingText: "",
+        },
+      });
+
+    expect(created.status).toBe(201);
+    expect(JSON.stringify(created.body?.template)).not.toContain("Your generosity makes practical care possible every day");
+    expect(created.body?.template?.blocks).toEqual([{ id: "block_1", type: "text", content: "" }]);
+
+    const loaded = await request(app)
+      .get(`/api/oyama-email/templates/${created.body.id}`)
+      .set(auth);
+
+    expect(loaded.status).toBe(200);
+    expect(JSON.stringify(loaded.body?.template)).not.toContain("Your generosity makes practical care possible every day");
+    expect(loaded.body?.template?.blocks).toEqual([{ id: "block_1", type: "text", content: "" }]);
+    expect(loaded.body?.renderedHtml).not.toContain("Your generosity makes practical care possible every day");
   });
 
   it("keeps live campaign preview aligned with donor, gift, event, organization, compliance, and steward merge fields", async () => {

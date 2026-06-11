@@ -763,7 +763,7 @@ router.post("/:id/quick-actions/email-draft", requirePermission("edit:communicat
 
   res.status(201).json({
     campaignId: campaign.id,
-    redirectTo: `/email-builder?campaign=${encodeURIComponent(campaign.id)}&returnTo=${encodeURIComponent(`/communications/${campaign.id}`)}`,
+    redirectTo: `/oyama-email/templates/${encodeURIComponent(campaign.id)}/builder`,
   });
 });
 
@@ -1221,7 +1221,7 @@ router.post(
 
     let redirectTo = `/constituents/${encodeURIComponent(donation.constituent.id)}`;
     if (emailDraft.id) {
-      redirectTo = `/email-builder?campaign=${encodeURIComponent(emailDraft.id)}&returnTo=${encodeURIComponent(`/communications/${emailDraft.id}`)}`;
+      redirectTo = `/oyama-email/templates/${encodeURIComponent(emailDraft.id)}/builder`;
     } else if (followUpTask.id) {
       redirectTo = `/tasks?focus=my&taskId=${encodeURIComponent(followUpTask.id)}`;
     } else if (pathEnrollment.id) {

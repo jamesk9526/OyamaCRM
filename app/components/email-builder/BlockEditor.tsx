@@ -18,6 +18,7 @@ import type {
   TextBlock,
   QuoteBlock,
   ImpactStatBlock,
+  StatisticsBlock,
   ImpactStoryBlock,
   ImpactGridBlock,
   ProgressBlock,
@@ -33,6 +34,9 @@ import type {
   FirstTimeDonorWelcomeBlock,
   StaffSignatureBlock,
   FooterComplianceBlock,
+  EventDetailsBlock,
+  PartnerLogosBlock,
+  ContactCardBlock,
   ImageBlock,
   VideoBlock,
   ButtonBlock,
@@ -713,6 +717,63 @@ function ImpactStatEditor({
           value={block.padding}
           onChange={(e) => onUpdate({ padding: Number(e.target.value) })}
         />
+      </Field>
+    </>
+  );
+}
+
+function StatisticsEditor({
+  block,
+  onUpdate,
+}: {
+  block: StatisticsBlock;
+  onUpdate: (partial: Partial<StatisticsBlock>) => void;
+}) {
+  const serializedItems = block.items.map((item) => `${item.value}|${item.label}|${item.detail ?? ''}`).join('\n');
+
+  return (
+    <>
+      <Field label="Title">
+        <input className={inputCls} value={block.title ?? ''} onChange={(e) => onUpdate({ title: e.target.value || undefined })} />
+      </Field>
+      <Field label="Intro">
+        <textarea className={inputCls} rows={3} value={block.intro ?? ''} onChange={(e) => onUpdate({ intro: e.target.value || undefined })} />
+      </Field>
+      <Field label="Statistics" hint="One per line: value|label|detail">
+        <textarea
+          className={`${inputCls} font-mono text-xs`}
+          rows={7}
+          value={serializedItems}
+          onChange={(e) => {
+            const items = e.target.value
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                const [value, label, ...detailParts] = line.split('|');
+                return {
+                  value: value?.trim() ?? '',
+                  label: label?.trim() || 'Statistic',
+                  detail: detailParts.join('|').trim() || undefined,
+                };
+              })
+              .slice(0, 6);
+            onUpdate({ items });
+          }}
+        />
+      </Field>
+      <Field label="Grid Columns">
+        <select className={selectCls} value={block.columnCount} onChange={(e) => onUpdate({ columnCount: e.target.value === '3' ? 3 : 2 })}>
+          <option value={2}>2 columns</option>
+          <option value={3}>3 columns</option>
+        </select>
+      </Field>
+      <QuickColorField label="Background Color" value={block.bgColor} onChange={(bgColor) => onUpdate({ bgColor })} />
+      <QuickColorField label="Card Color" value={block.cardColor} onChange={(cardColor) => onUpdate({ cardColor })} />
+      <QuickColorField label="Accent Color" value={block.accentColor} onChange={(accentColor) => onUpdate({ accentColor })} />
+      <QuickColorField label="Text Color" value={block.textColor} onChange={(textColor) => onUpdate({ textColor })} />
+      <Field label="Padding (px)">
+        <input type="number" className={inputCls} min={0} max={100} value={block.padding} onChange={(e) => onUpdate({ padding: Number(e.target.value) })} />
       </Field>
     </>
   );
@@ -1404,6 +1465,139 @@ function FooterComplianceEditor({
       <Field label="Unsubscribe Link"><input type="text" className={inputCls} value={block.unsubscribeToken} onChange={(e) => onUpdate({ unsubscribeToken: e.target.value })} /></Field>
       <Field label="Manage Preferences Link"><input type="text" className={inputCls} value={block.managePreferencesToken} onChange={(e) => onUpdate({ managePreferencesToken: e.target.value })} /></Field>
       <Field label="Tax ID (optional)"><input type="text" className={inputCls} value={block.taxIdToken ?? ''} onChange={(e) => onUpdate({ taxIdToken: e.target.value || undefined })} /></Field>
+    </>
+  );
+}
+
+function EventDetailsEditor({
+  block,
+  onUpdate,
+}: {
+  block: EventDetailsBlock;
+  onUpdate: (partial: Partial<EventDetailsBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Title">
+        <input className={inputCls} value={block.title} onChange={(e) => onUpdate({ title: e.target.value })} />
+      </Field>
+      <Field label="Description">
+        <textarea className={inputCls} rows={3} value={block.description ?? ''} onChange={(e) => onUpdate({ description: e.target.value || undefined })} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Date">
+          <input className={inputCls} value={block.date} onChange={(e) => onUpdate({ date: e.target.value })} />
+        </Field>
+        <Field label="Time">
+          <input className={inputCls} value={block.time} onChange={(e) => onUpdate({ time: e.target.value })} />
+        </Field>
+      </div>
+      <Field label="Location">
+        <input className={inputCls} value={block.location} onChange={(e) => onUpdate({ location: e.target.value })} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="CTA Label">
+          <input className={inputCls} value={block.ctaLabel ?? ''} onChange={(e) => onUpdate({ ctaLabel: e.target.value || undefined })} />
+        </Field>
+        <Field label="CTA URL">
+          <input type="url" className={inputCls} value={block.ctaUrl ?? ''} onChange={(e) => onUpdate({ ctaUrl: e.target.value || undefined })} />
+        </Field>
+      </div>
+      <QuickColorField label="Background Color" value={block.bgColor} onChange={(bgColor) => onUpdate({ bgColor })} />
+      <QuickColorField label="Accent Color" value={block.accentColor} onChange={(accentColor) => onUpdate({ accentColor })} />
+      <QuickColorField label="Text Color" value={block.textColor} onChange={(textColor) => onUpdate({ textColor })} />
+      <Field label="Padding (px)">
+        <input type="number" className={inputCls} min={0} max={100} value={block.padding} onChange={(e) => onUpdate({ padding: Number(e.target.value) })} />
+      </Field>
+    </>
+  );
+}
+
+function PartnerLogosEditor({
+  block,
+  onUpdate,
+}: {
+  block: PartnerLogosBlock;
+  onUpdate: (partial: Partial<PartnerLogosBlock>) => void;
+}) {
+  const serializedLogos = block.logos.map((logo) => `${logo.name}|${logo.imageUrl}|${logo.linkUrl ?? ''}`).join('\n');
+
+  return (
+    <>
+      <Field label="Title">
+        <input className={inputCls} value={block.title ?? ''} onChange={(e) => onUpdate({ title: e.target.value || undefined })} />
+      </Field>
+      <Field label="Logos" hint="One per line: name|imageUrl|linkUrl">
+        <textarea
+          className={`${inputCls} font-mono text-xs`}
+          rows={7}
+          value={serializedLogos}
+          onChange={(e) => {
+            const logos = e.target.value
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                const [name, imageUrl, ...linkParts] = line.split('|');
+                return {
+                  name: name?.trim() || 'Partner',
+                  imageUrl: imageUrl?.trim() ?? '',
+                  linkUrl: linkParts.join('|').trim() || undefined,
+                };
+              })
+              .slice(0, 6);
+            onUpdate({ logos });
+          }}
+        />
+      </Field>
+      <QuickColorField label="Background Color" value={block.bgColor} onChange={(bgColor) => onUpdate({ bgColor })} />
+      <QuickColorField label="Border Color" value={block.borderColor} onChange={(borderColor) => onUpdate({ borderColor })} />
+      <QuickColorField label="Text Color" value={block.textColor} onChange={(textColor) => onUpdate({ textColor })} />
+      <Field label="Padding (px)">
+        <input type="number" className={inputCls} min={0} max={100} value={block.padding} onChange={(e) => onUpdate({ padding: Number(e.target.value) })} />
+      </Field>
+    </>
+  );
+}
+
+function ContactCardEditor({
+  block,
+  onUpdate,
+}: {
+  block: ContactCardBlock;
+  onUpdate: (partial: Partial<ContactCardBlock>) => void;
+}) {
+  return (
+    <>
+      <Field label="Heading">
+        <input className={inputCls} value={block.heading} onChange={(e) => onUpdate({ heading: e.target.value })} />
+      </Field>
+      <Field label="Name">
+        <input className={inputCls} value={block.name} onChange={(e) => onUpdate({ name: e.target.value })} />
+      </Field>
+      <Field label="Role">
+        <input className={inputCls} value={block.role ?? ''} onChange={(e) => onUpdate({ role: e.target.value || undefined })} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Phone">
+          <input className={inputCls} value={block.phone ?? ''} onChange={(e) => onUpdate({ phone: e.target.value || undefined })} />
+        </Field>
+        <Field label="Email">
+          <input type="email" className={inputCls} value={block.email ?? ''} onChange={(e) => onUpdate({ email: e.target.value || undefined })} />
+        </Field>
+      </div>
+      <Field label="Image URL">
+        <input type="url" className={inputCls} value={block.imageUrl ?? ''} onChange={(e) => onUpdate({ imageUrl: e.target.value || undefined })} />
+      </Field>
+      <Field label="Note">
+        <textarea className={inputCls} rows={3} value={block.note ?? ''} onChange={(e) => onUpdate({ note: e.target.value || undefined })} />
+      </Field>
+      <QuickColorField label="Background Color" value={block.bgColor} onChange={(bgColor) => onUpdate({ bgColor })} />
+      <QuickColorField label="Accent Color" value={block.accentColor} onChange={(accentColor) => onUpdate({ accentColor })} />
+      <QuickColorField label="Text Color" value={block.textColor} onChange={(textColor) => onUpdate({ textColor })} />
+      <Field label="Padding (px)">
+        <input type="number" className={inputCls} min={0} max={100} value={block.padding} onChange={(e) => onUpdate({ padding: Number(e.target.value) })} />
+      </Field>
     </>
   );
 }
@@ -2465,6 +2659,12 @@ export default function BlockEditor({
                 onUpdate={update as (p: Partial<ImpactStatBlock>) => void}
               />
             )}
+            {selectedBlock.type === 'statistics' && (
+              <StatisticsEditor
+                block={selectedBlock as StatisticsBlock}
+                onUpdate={update as (p: Partial<StatisticsBlock>) => void}
+              />
+            )}
             {selectedBlock.type === 'impactStory' && (
               <ImpactStoryEditor
                 block={selectedBlock as ImpactStoryBlock}
@@ -2553,6 +2753,24 @@ export default function BlockEditor({
               <FooterComplianceEditor
                 block={selectedBlock as FooterComplianceBlock}
                 onUpdate={update as (p: Partial<FooterComplianceBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'eventDetails' && (
+              <EventDetailsEditor
+                block={selectedBlock as EventDetailsBlock}
+                onUpdate={update as (p: Partial<EventDetailsBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'partnerLogos' && (
+              <PartnerLogosEditor
+                block={selectedBlock as PartnerLogosBlock}
+                onUpdate={update as (p: Partial<PartnerLogosBlock>) => void}
+              />
+            )}
+            {selectedBlock.type === 'contactCard' && (
+              <ContactCardEditor
+                block={selectedBlock as ContactCardBlock}
+                onUpdate={update as (p: Partial<ContactCardBlock>) => void}
               />
             )}
             {selectedBlock.type === 'image' && (

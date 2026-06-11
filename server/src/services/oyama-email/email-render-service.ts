@@ -3,6 +3,8 @@
  * Converts template JSON into final HTML and plain-text output.
  */
 
+import { canonicalizeEmailMergeToken } from "./merge-field-catalog.js";
+
 export type OyamaEmailBlockType =
   | "header"
   | "text"
@@ -58,6 +60,9 @@ export interface OyamaEmailBlock {
   fileDescription?: string;
   fileTrackingLabel?: string;
   html?: string;
+  aiSmart?: boolean;
+  aiSmartPrompt?: string;
+  aiSmartTone?: "warm" | "urgent" | "celebratory" | "informative";
 }
 
 export interface OyamaEmailTemplateDocument {
@@ -78,6 +83,7 @@ export interface OyamaEmailTemplateSettings {
   enablePlainTextVersion: boolean;
   physicalAddress: string;
   footerBrandingText: string;
+  plainTextOverride?: string;
 }
 
 export interface RenderEmailTemplateResult {
@@ -162,10 +168,288 @@ function extractNestedText(value: unknown): string {
     .join("\n");
 }
 
+function normalizeLegacyAlign(value: unknown): "left" | "center" | "right" {
+  const align = asString(value).trim().toLowerCase();
+  if (align === "center" || align === "right") return align;
+  return "left";
+}
+
+function paragraphHtml(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed
+    .split(/\n{2,}/)
+    .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+}
+
+function legacyItems(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => asObject(item)).filter((item) => Object.keys(item).length > 0);
+}
+
+function legacyListHtml(items: string[]): string {
+  const rows = items.map((item) => item.trim()).filter(Boolean);
+  if (rows.length === 0) return "";
+  return `<ul style="margin:10px 0 0 20px;padding:0;">${rows.map((item) => `<li style="margin:0 0 6px;">${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function legacyStatsGridHtml(input: Record<string, unknown>, mode: "statistics" | "impactGrid"): string {
+  const items = legacyItems(input.items);
+  const title = escapeHtml(asString(input.title).trim());
+  const intro = escapeHtml(asString(input.intro).trim());
+  const bgColor = escapeHtml(asString(input.bgColor).trim() || "#f8fafc");
+  const cardColor = escapeHtml(asString(input.cardColor).trim() || "#ffffff");
+  const textColor = escapeHtml(asString(input.textColor).trim() || "#1f2937");
+  const accentColor = escapeHtml(asString(input.accentColor).trim() || "#0f5c3c");
+  const safeItems = items.length > 0 ? items : [
+    { value: asString(input.value).trim(), label: asString(input.label).trim(), detail: asString(input.detail).trim() },
+  ];
+
+  const cells = safeItems
+    .filter((item) => asString(item.value).trim() || asString(item.label).trim())
+    .slice(0, 6)
+    .map((item) => {
+      const value = escapeHtml(asString(item.value).trim());
+      const label = escapeHtml(asString(item.label).trim());
+      const detail = escapeHtml(asString(item.detail).trim());
+      return `
+        <td valign="top" width="${mode === "statistics" ? "33.33%" : "50%"}" style="padding:6px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${cardColor};border:1px solid #dbe5df;border-radius:10px;">
+            <tr>
+              <td style="padding:14px;text-align:center;color:${textColor};">
+                ${value ? `<div style="font-size:24px;line-height:1.15;font-weight:800;color:${accentColor};">${value}</div>` : ""}
+                ${label ? `<div style="margin-top:4px;font-size:13px;line-height:1.35;font-weight:700;">${label}</div>` : ""}
+                ${detail ? `<div style="margin-top:5px;font-size:12px;line-height:1.4;color:#64748b;">${detail}</div>` : ""}
+              </td>
+            </tr>
+          </table>
+        </td>`;
+    });
+
+  const rows: string[] = [];
+  const perRow = mode === "statistics" ? 3 : 2;
+  for (let index = 0; index < cells.length; index += perRow) {
+    rows.push(`<tr>${cells.slice(index, index + perRow).join("")}</tr>`);
+  }
+
+  return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border-radius:12px;">
+  <tr>
+    <td style="padding:16px;">
+      ${title ? `<div style="font-size:20px;line-height:1.25;font-weight:800;color:${textColor};">${title}</div>` : ""}
+      ${intro ? `<div style="margin-top:6px;font-size:14px;line-height:1.5;color:${textColor};">${intro}</div>` : ""}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:${title || intro ? "10px" : "0"};">
+        ${rows.join("")}
+      </table>
+    </td>
+  </tr>
+</table>`;
+}
+
+function legacyBlockToHtml(input: Record<string, unknown>, legacyType: string): string {
+  const textColor = escapeHtml(asString(input.textColor).trim() || "#1f2937");
+  const bgColor = escapeHtml(asString(input.bgColor).trim() || "#f8fafc");
+  const borderColor = escapeHtml(asString(input.borderColor).trim() || "#dbe5df");
+  const accentColor = escapeHtml(asString(input.accentColor).trim() || "#0f5c3c");
+  const align = normalizeLegacyAlign(input.align);
+
+  if (legacyType === "heading") {
+    const eyebrow = escapeHtml(asString(input.eyebrow).trim());
+    const title = escapeHtml(asString(input.title).trim());
+    const subtitle = escapeHtml(asString(input.subtitle).trim());
+    return `
+<div style="text-align:${align};color:${textColor};">
+  ${eyebrow ? `<div style="font-size:12px;line-height:1.4;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${accentColor};">${eyebrow}</div>` : ""}
+  ${title ? `<h2 style="margin:4px 0 0;font-size:26px;line-height:1.22;color:${textColor};">${title}</h2>` : ""}
+  ${subtitle ? `<p style="margin:8px 0 0;font-size:15px;line-height:1.55;color:${textColor};">${subtitle}</p>` : ""}
+</div>`;
+  }
+
+  if (legacyType === "quote") {
+    const quote = escapeHtml(asString(input.quote).trim());
+    const attribution = escapeHtml(asString(input.attribution).trim());
+    return `
+<blockquote style="margin:0;padding:12px 16px;border-left:4px solid ${accentColor};background:#f8fafc;color:${textColor};">
+  <p style="margin:0;font-size:18px;line-height:1.5;font-style:italic;">${quote || "Quote text"}</p>
+  ${attribution ? `<p style="margin:8px 0 0;font-size:13px;font-weight:700;">${attribution}</p>` : ""}
+</blockquote>`;
+  }
+
+  if (legacyType === "impactStat") {
+    const value = escapeHtml(asString(input.value).trim());
+    const label = escapeHtml(asString(input.label).trim());
+    const sublabel = escapeHtml(asString(input.sublabel).trim() || asString(input.timePeriod).trim());
+    return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border:1px solid ${borderColor};border-radius:12px;">
+  <tr>
+    <td style="padding:18px;text-align:center;color:${textColor};">
+      ${value ? `<div style="font-size:34px;line-height:1.1;font-weight:800;color:${accentColor};">${value}</div>` : ""}
+      ${label ? `<div style="margin-top:6px;font-size:15px;font-weight:700;">${label}</div>` : ""}
+      ${sublabel ? `<div style="margin-top:5px;font-size:12px;color:#64748b;">${sublabel}</div>` : ""}
+    </td>
+  </tr>
+</table>`;
+  }
+
+  if (legacyType === "statistics" || legacyType === "impactGrid") {
+    return legacyStatsGridHtml(input, legacyType);
+  }
+
+  if (legacyType === "callout") {
+    const title = escapeHtml(asString(input.title).trim());
+    const body = asString(input.body).trim();
+    return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border:1px solid ${borderColor};border-radius:12px;">
+  <tr>
+    <td style="padding:16px;color:${textColor};">
+      ${title ? `<div style="font-size:18px;line-height:1.3;font-weight:800;">${title}</div>` : ""}
+      <div style="${title ? "margin-top:8px;" : ""}font-size:14px;line-height:1.55;">${paragraphHtml(body) || "<p>Add callout text.</p>"}</div>
+    </td>
+  </tr>
+</table>`;
+  }
+
+  if (legacyType === "featureList") {
+    const title = escapeHtml(asString(input.title).trim());
+    const dollarFraming = escapeHtml(asString(input.dollarFraming).trim());
+    const items = Array.isArray(input.items) ? input.items.map((item) => asString(item)) : [];
+    return `
+<div style="color:${textColor};">
+  ${title ? `<h3 style="margin:0;font-size:20px;line-height:1.3;color:${textColor};">${title}</h3>` : ""}
+  ${dollarFraming ? `<div style="margin-top:6px;font-size:13px;font-weight:700;color:${accentColor};">${dollarFraming}</div>` : ""}
+  ${legacyListHtml(items) || "<p>Add list items.</p>"}
+</div>`;
+  }
+
+  if (legacyType === "timeline") {
+    const title = escapeHtml(asString(input.title).trim());
+    const items = legacyItems(input.items)
+      .map((item) => {
+        const itemTitle = escapeHtml(asString(item.title).trim());
+        const detail = escapeHtml(asString(item.detail).trim());
+        if (!itemTitle && !detail) return "";
+        return `<tr><td valign="top" style="width:18px;color:${accentColor};font-weight:800;">•</td><td style="padding:0 0 10px;color:${textColor};">${itemTitle ? `<strong>${itemTitle}</strong>` : ""}${detail ? `<div style="font-size:13px;line-height:1.45;color:#64748b;">${detail}</div>` : ""}</td></tr>`;
+      })
+      .filter(Boolean)
+      .join("");
+    return `
+<div style="color:${textColor};">
+  ${title ? `<h3 style="margin:0 0 10px;font-size:20px;line-height:1.3;color:${textColor};">${title}</h3>` : ""}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${items || "<tr><td>Add timeline items.</td></tr>"}</table>
+</div>`;
+  }
+
+  if (legacyType === "progress") {
+    const label = escapeHtml(asString(input.label).trim() || "Progress");
+    const current = asNumber(input.current, 0);
+    const goal = asNumber(input.goal, 0);
+    const percent = goal > 0 ? clamp(Math.round((current / goal) * 100), 0, 100) : 0;
+    const barColor = escapeHtml(asString(input.barColor).trim() || accentColor);
+    const trackColor = escapeHtml(asString(input.trackColor).trim() || "#e2e8f0");
+    return `
+<div style="color:${textColor};">
+  <div style="font-size:14px;font-weight:800;">${label}</div>
+  <div style="margin-top:8px;height:10px;background:${trackColor};border-radius:999px;overflow:hidden;"><div style="width:${percent}%;height:10px;background:${barColor};"></div></div>
+  <div style="margin-top:6px;font-size:12px;color:#64748b;">${escapeHtml(String(current))} of ${escapeHtml(String(goal))} (${percent}%)</div>
+</div>`;
+  }
+
+  if (legacyType === "donationCta") {
+    const headline = escapeHtml(asString(input.headline).trim());
+    const appealText = asString(input.appealText).trim();
+    const buttonLabel = asString(input.buttonLabel).trim() || "Donate Now";
+    const buttonUrl = asString(input.buttonUrl).trim();
+    return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border-radius:12px;">
+  <tr>
+    <td style="padding:18px;text-align:center;color:${textColor};">
+      ${headline ? `<h2 style="margin:0;font-size:24px;line-height:1.25;color:${textColor};">${headline}</h2>` : ""}
+      ${appealText ? `<div style="margin-top:8px;font-size:14px;line-height:1.55;">${paragraphHtml(appealText)}</div>` : ""}
+      <div style="margin-top:14px;"><a href="${escapeHtml(buttonUrl || "#")}" style="display:inline-block;background:${accentColor};color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:800;">${escapeHtml(buttonLabel)}</a></div>
+    </td>
+  </tr>
+</table>`;
+  }
+
+  if (legacyType === "eventDetails") {
+    const title = escapeHtml(asString(input.title).trim() || asString(input.eventName).trim() || "Event Details");
+    const date = escapeHtml(asString(input.date).trim() || asString(input.eventDate).trim() || "{{event.startDate}}");
+    const time = escapeHtml(asString(input.time).trim() || asString(input.eventTime).trim());
+    const location = escapeHtml(asString(input.location).trim() || asString(input.eventLocation).trim() || "{{event.location}}");
+    const body = asString(input.body).trim() || asString(input.description).trim();
+    return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border:1px solid ${borderColor};border-radius:12px;">
+  <tr>
+    <td style="padding:16px;color:${textColor};">
+      <div style="font-size:20px;font-weight:800;line-height:1.3;">${title}</div>
+      <div style="margin-top:8px;font-size:14px;line-height:1.55;">
+        <div><strong>Date:</strong> ${date}</div>
+        ${time ? `<div><strong>Time:</strong> ${time}</div>` : ""}
+        <div><strong>Location:</strong> ${location}</div>
+      </div>
+      ${body ? `<div style="margin-top:10px;font-size:14px;line-height:1.55;">${paragraphHtml(body)}</div>` : ""}
+    </td>
+  </tr>
+</table>`;
+  }
+
+  if (legacyType === "contactCard") {
+    const name = escapeHtml(asString(input.name).trim() || asString(input.contactName).trim() || "{{staffName}}");
+    const title = escapeHtml(asString(input.title).trim() || asString(input.contactTitle).trim() || "{{staffTitle}}");
+    const email = escapeHtml(asString(input.email).trim() || asString(input.contactEmail).trim() || "{{staffEmail}}");
+    const phone = escapeHtml(asString(input.phone).trim() || asString(input.contactPhone).trim());
+    return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${borderColor};border-radius:12px;background:#ffffff;">
+  <tr>
+    <td style="padding:16px;color:${textColor};">
+      <div style="font-size:16px;font-weight:800;">${name}</div>
+      ${title ? `<div style="margin-top:2px;font-size:13px;color:#64748b;">${title}</div>` : ""}
+      <div style="margin-top:10px;font-size:13px;line-height:1.5;">${email ? `<div><a href="mailto:${email}" style="color:${accentColor};">${email}</a></div>` : ""}${phone ? `<div>${phone}</div>` : ""}</div>
+    </td>
+  </tr>
+</table>`;
+  }
+
+  if (legacyType === "staffSignature") {
+    const name = escapeHtml(asString(input.name).trim() || asString(input.signatureName).trim() || "{{signatureName}}");
+    const title = escapeHtml(asString(input.title).trim() || asString(input.staffTitle).trim());
+    const message = asString(input.message).trim() || asString(input.signoff).trim();
+    return `<div style="color:${textColor};">${message ? paragraphHtml(message) : "<p>With gratitude,</p>"}<p style="margin-top:12px;"><strong>${name}</strong>${title ? `<br/>${title}` : ""}</p></div>`;
+  }
+
+  if (legacyType === "partnerLogos") {
+    const title = escapeHtml(asString(input.title).trim());
+    const logos = legacyItems(input.logos)
+      .map((logo) => {
+        const src = asString(logo.src).trim() || asString(logo.url).trim();
+        const alt = escapeHtml(asString(logo.alt).trim() || asString(logo.name).trim() || "Partner logo");
+        if (!src) return "";
+        return `<td style="padding:8px;text-align:center;"><img src="${escapeHtml(src)}" alt="${alt}" style="max-width:120px;max-height:54px;height:auto;width:auto;" /></td>`;
+      })
+      .filter(Boolean)
+      .join("");
+    return `<div style="text-align:center;color:${textColor};">${title ? `<div style="font-size:14px;font-weight:800;margin-bottom:8px;">${title}</div>` : ""}<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr>${logos || "<td>Add partner logos.</td>"}</tr></table></div>`;
+  }
+
+  if (legacyType === "footerCompliance") {
+    const text = asString(input.text).trim() || asString(input.body).trim() || "Manage communication settings: {{managePreferencesUrl}}. Unsubscribe: {{unsubscribeUrl}}.";
+    return `<div style="font-size:12px;line-height:1.5;color:#64748b;text-align:center;">${paragraphHtml(text)}</div>`;
+  }
+
+  return paragraphHtml(extractNestedText(input)) || "<p>Legacy content block</p>";
+}
+
 function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
   const input = asObject(raw);
   const legacyType = asString(input.type).trim();
-  const mappedType = legacyType === "customHtml" ? "html" : legacyType;
+  const mappedType = legacyType === "customHtml"
+    ? "html"
+    : legacyType === "aiText"
+      ? "text"
+      : legacyType === "aiButton"
+        ? "button"
+        : legacyType;
   const supported: OyamaEmailBlockType[] = [
     "header",
     "text",
@@ -188,6 +472,14 @@ function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
 
   const id = asString(input.id).trim() || nextId(index);
 
+  if (!supported.includes(mappedType as OyamaEmailBlockType)) {
+    return {
+      id,
+      type: "html",
+      html: legacyBlockToHtml(input, legacyType),
+    };
+  }
+
   if (type === "header") {
     const alignRaw = asString(input.align).trim().toLowerCase();
     const align = alignRaw === "left" || alignRaw === "right" ? alignRaw : "center";
@@ -205,9 +497,11 @@ function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
   }
 
   if (type === "text") {
-    const content = asString(input.content).trim();
-    const fallback = extractNestedText(input) || "Edit this text block.";
-    return { id, type, content: content || fallback };
+    if (Object.prototype.hasOwnProperty.call(input, "content")) {
+      return { id, type, content: asString(input.content) };
+    }
+    const fallback = extractNestedText(input);
+    return { id, type, content: fallback ? paragraphHtml(fallback) : "" };
   }
 
   if (type === "image") {
@@ -318,6 +612,15 @@ function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
     id,
     type: "html",
     html: asString(input.html).trim() || asString(input.content).trim() || "<p>Custom HTML block</p>",
+    aiSmart: asBoolean(input.aiSmart, false),
+    aiSmartPrompt: asString(input.aiSmartPrompt).trim(),
+    aiSmartTone: asString(input.aiSmartTone).trim().toLowerCase() === "urgent"
+      ? "urgent"
+      : asString(input.aiSmartTone).trim().toLowerCase() === "celebratory"
+        ? "celebratory"
+        : asString(input.aiSmartTone).trim().toLowerCase() === "informative"
+          ? "informative"
+          : "warm",
   };
 }
 
@@ -335,15 +638,7 @@ export function createDefaultEmailTemplateDocument(): OyamaEmailTemplateDocument
       {
         id: "block_1",
         type: "text",
-        content: "<h2>Thank you, {{ donor.firstName }}!</h2><p>Your generosity makes practical care possible every day.</p>",
-      },
-      {
-        id: "block_2",
-        type: "button",
-        label: "Learn More",
-        href: "https://",
-        color: "#0f5c3c",
-        textColor: "#ffffff",
+        content: "",
       },
     ],
   };
@@ -379,6 +674,7 @@ export function normalizeEmailTemplateSettings(raw: unknown): OyamaEmailTemplate
     enablePlainTextVersion: asBoolean(input.enablePlainTextVersion, true),
     physicalAddress: asString(input.physicalAddress).trim(),
     footerBrandingText: asString(input.footerBrandingText).trim(),
+    plainTextOverride: asString(input.plainTextOverride).trim(),
   };
 }
 
@@ -401,7 +697,7 @@ function themeFromTemplate(template: OyamaEmailTemplateDocument): RenderTheme {
 }
 
 function renderTextBlock(block: OyamaEmailBlock, theme: RenderTheme): string {
-  const html = sanitizeRichHtml(asString(block.content).trim() || "<p>Add text</p>");
+  const html = sanitizeRichHtml(asString(block.content));
   return `
 <tr>
   <td style="padding:14px 24px;font-family:${escapeHtml(theme.fontFamily)};font-size:${theme.baseFontSize}px;line-height:${theme.lineHeight};color:${escapeHtml(theme.textColor)};">
@@ -609,7 +905,7 @@ function renderFileLinkBlock(block: OyamaEmailBlock, theme: RenderTheme): string
 }
 
 function renderHtmlBlock(block: OyamaEmailBlock): string {
-  const html = sanitizeRichHtml(asString(block.html).trim() || "<p>Custom HTML block</p>");
+  const html = sanitizeRichHtml(asString(block.html));
   return `
 <tr>
   <td style="padding:14px 24px;">${html}</td>
@@ -732,7 +1028,8 @@ export function renderEmailTemplateDocument(
   </body>
 </html>`;
 
-  const text = settings.enablePlainTextVersion ? htmlToPlainText(html) : "";
+  const plainTextOverride = asString(settings.plainTextOverride).trim();
+  const text = settings.enablePlainTextVersion ? (plainTextOverride || htmlToPlainText(html)) : "";
   const mergeFieldsUsed = extractMergeFieldsFromContent(html);
 
   return {
@@ -754,4 +1051,3 @@ export function renderEmailTemplateDocumentWithMerge(
     mergeFieldsUsed: rendered.mergeFieldsUsed,
   };
 }
-import { canonicalizeEmailMergeToken } from "./merge-field-catalog.js";

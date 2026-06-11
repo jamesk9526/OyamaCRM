@@ -11,6 +11,7 @@ import HeadingBlock from './blocks/HeadingBlock';
 import TextBlock    from './blocks/TextBlock';
 import QuoteBlock   from './blocks/QuoteBlock';
 import ImpactStatBlock from './blocks/ImpactStatBlock';
+import StatisticsBlock from './blocks/StatisticsBlock';
 import ImpactStoryBlock from './blocks/ImpactStoryBlock';
 import ImpactGridBlock from './blocks/ImpactGridBlock';
 import ProgressBlock from './blocks/ProgressBlock';
@@ -26,6 +27,9 @@ import LapsedDonorReengagementBlock from './blocks/LapsedDonorReengagementBlock'
 import FirstTimeDonorWelcomeBlock from './blocks/FirstTimeDonorWelcomeBlock';
 import StaffSignatureBlock from './blocks/StaffSignatureBlock';
 import FooterComplianceBlock from './blocks/FooterComplianceBlock';
+import EventDetailsBlock from './blocks/EventDetailsBlock';
+import PartnerLogosBlock from './blocks/PartnerLogosBlock';
+import ContactCardBlock from './blocks/ContactCardBlock';
 import ImageBlock   from './blocks/ImageBlock';
 import VideoBlock   from './blocks/VideoBlock';
 import ButtonBlock  from './blocks/ButtonBlock';
@@ -51,6 +55,7 @@ export default function BlockRenderer({ block, templateFontFamily, editable = fa
     case 'text':    return <TextBlock    block={block} fontFamily={templateFontFamily} editable={editable} onChangeContent={(content) => onChangeContent?.(block.id, content)} />;
     case 'quote':   return <QuoteBlock   block={block} />;
     case 'impactStat': return <ImpactStatBlock block={block} />;
+    case 'statistics': return <StatisticsBlock block={block} />;
     case 'impactStory': return <ImpactStoryBlock block={block} />;
     case 'impactGrid': return <ImpactGridBlock block={block} />;
     case 'progress': return <ProgressBlock block={block} />;
@@ -66,6 +71,9 @@ export default function BlockRenderer({ block, templateFontFamily, editable = fa
     case 'firstTimeDonorWelcome': return <FirstTimeDonorWelcomeBlock block={block} />;
     case 'staffSignature': return <StaffSignatureBlock block={block} />;
     case 'footerCompliance': return <FooterComplianceBlock block={block} />;
+    case 'eventDetails': return <EventDetailsBlock block={block} />;
+    case 'partnerLogos': return <PartnerLogosBlock block={block} />;
+    case 'contactCard': return <ContactCardBlock block={block} />;
     case 'image':   return <ImageBlock   block={block} />;
     case 'video':   return <VideoBlock   block={block} />;
     case 'button':  return <ButtonBlock  block={block} />;

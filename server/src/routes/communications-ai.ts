@@ -62,11 +62,13 @@ interface BuilderBlockGenerationPayload {
 
 interface BuilderWritingStreamPayload {
   target?: "subject" | "previewText" | "bodyHtml" | "cta";
+  mode?: "standard" | "smartHtml";
   prompt?: string;
   tone?: "warm" | "urgent" | "celebratory" | "informative";
   audience?: string;
   campaignName?: string;
   currentContent?: string;
+  allowedMergeFields?: string[];
 }
 
 interface BuilderTemplateDraft {
@@ -1249,10 +1251,17 @@ router.post("/email-builder/write-stream", async (req, res) => {
   const target = payload.target === "subject" || payload.target === "previewText" || payload.target === "cta"
     ? payload.target
     : "bodyHtml";
+  const mode = payload.mode === "smartHtml" ? "smartHtml" : "standard";
   const tone = payload.tone ?? "warm";
   const audience = String(payload.audience ?? "").trim() || "General donor audience";
   const campaignName = String(payload.campaignName ?? "").trim();
   const currentContent = String(payload.currentContent ?? "").trim();
+  const allowedMergeFields = Array.isArray(payload.allowedMergeFields)
+    ? payload.allowedMergeFields
+      .map((token) => String(token || "").trim())
+      .filter((token) => /^\{\{\s*[a-zA-Z0-9_.]+\s*\}\}$/.test(token))
+      .slice(0, 120)
+    : [];
 
   const targetInstructions = target === "subject"
     ? "Write exactly one compelling email subject line. Plain text only. No quotation marks."
@@ -1269,6 +1278,19 @@ router.post("/email-builder/write-stream", async (req, res) => {
     "Prefer complete and persuasive copy over placeholder text.",
     "Do not mention internal tooling or unavailable data.",
     targetInstructions,
+    ...(mode === "smartHtml"
+      ? [
+        "SMART HTML MODE: Return only an email-safe HTML fragment.",
+        "Allowed tags: <p>, <br>, <ul>, <ol>, <li>, <strong>, <em>, <a>, <h2>, <h3>, <h4>, <blockquote>, <span>, <div>.",
+        "Do not output <html>, <head>, <body>, <script>, <style>, <iframe>, forms, or markdown fences.",
+        "Do not include event handlers, JS, or CSS classes.",
+        "Merge fields must remain exactly in double-curly format like {{donor.firstName}}.",
+        "Never invent merge fields.",
+        allowedMergeFields.length > 0
+          ? `Only use merge fields from this allow-list: ${allowedMergeFields.join(", ")}.`
+          : "If merge fields are used, keep them minimal and valid.",
+      ]
+      : []),
   ].join(" ");
 
   const messages: StewardAiChatMessage[] = [
@@ -1324,6 +1346,7 @@ router.post("/email-builder/write-stream", async (req, res) => {
       userId: req.user?.sub,
       metadata: {
         target,
+        mode,
         promptLength: prompt.length,
         responseLength: reply.length,
         audience,

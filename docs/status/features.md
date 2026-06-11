@@ -13,6 +13,15 @@ Feature claims in this file should follow the workspace-first governance baselin
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
 
+## 2026-06-11 OyamaEmail Builder Migration Guardrail Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| OyamaEmail template default-overwrite guard | Working | `server/src/routes/oyama-email.ts`, `tests/api/oyama-email-merge-preview.api.test.ts` | Existing templates with malformed or missing builder JSON now recover from saved `bodyHtml/bodyText` instead of silently loading the starter template; server PUT rejects starter-template overwrites of non-starter saved content. |
+| OyamaEmail Tiptap builder editor and plain-text override | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | Canonical builder rich text editing now uses Tiptap, keeps merge/slash insertion, and stores an optional text-only override used by preview/send rendering. |
+| Legacy email builder route consolidation | Partially Working | `app/email-builder/page.tsx`, `app/campaigns/[id]/page.tsx`, `server/src/routes/donations.ts`, `server/src/services/steward-tool-registry.ts`, `app/components/ai/steward-action-executor.ts`, `app/components/communications/CampaignWorkspace.tsx` | Direct links and `/email-builder` now redirect/open OyamaEmail, but embedded legacy `EmailBuilderApp` imports remain in Steward and Communications flows pending a dedicated parity pass. |
+| Legacy block conversion into OyamaEmail renderer | Working | `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | Legacy heading, quote, statistics, impact grid, event details, contact card, callout, timeline, progress, donation CTA, signature, partner logo, and footer-compliance blocks convert to structured email-safe HTML blocks. |
+
 ## 2026-06-05 Constituent Identity Rollout Phase 2
 
 | Area | Status | Evidence | Notes |

@@ -270,7 +270,7 @@ async function runBuildFullEmailWorkspace(input: ExecuteStewardActionInput): Pro
     return { status: "failed", message: "Email campaign was created without an id." };
   }
 
-  input.navigate(`/email-builder?campaign=${encodeURIComponent(created.id)}&returnTo=${encodeURIComponent(`/communications/${created.id}`)}`);
+  input.navigate(`/oyama-email/templates/${encodeURIComponent(created.id)}/builder`);
   return { status: "executed", message: "Full email campaign draft created and opened in Email Builder." };
 }
 

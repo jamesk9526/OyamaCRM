@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const entry = resolve("dist", "server", "index.js");
 const tscBin = resolve("node_modules", "typescript", "bin", "tsc");
+const prismaBin = resolve("node_modules", "prisma", "build", "index.js");
 
 let serverProcess = null;
 let startedServer = false;
@@ -39,29 +40,55 @@ function startServer() {
   });
 }
 
-const tscProcess = spawnChild(process.execPath, [tscBin, "-p", "server/tsconfig.json", "--watch", "--preserveWatchOutput"]);
+const prismaGenerateProcess = spawnChild(process.execPath, [prismaBin, "generate"]);
+let tscProcess = null;
 
-tscProcess.stdout.on("data", (chunk) => {
-  const text = String(chunk);
-  process.stdout.write(text);
-  if (text.includes("Watching for file changes.")) {
-    readyToStart = true;
-    startServer();
-  }
+function startTypeScriptWatcher() {
+  if (tscProcess) return;
+  tscProcess = spawnChild(process.execPath, [tscBin, "-p", "server/tsconfig.json", "--watch", "--preserveWatchOutput"]);
+
+  tscProcess.stdout.on("data", (chunk) => {
+    const text = String(chunk);
+    process.stdout.write(text);
+    if (text.includes("Watching for file changes.")) {
+      readyToStart = true;
+      startServer();
+    }
+  });
+
+  tscProcess.stderr.on("data", (chunk) => {
+    process.stderr.write(String(chunk));
+  });
+
+  tscProcess.on("exit", (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal);
+      return;
+    }
+    if (code && code !== 0) {
+      process.exit(code);
+    }
+  });
+}
+
+prismaGenerateProcess.stdout.on("data", (chunk) => {
+  process.stdout.write(String(chunk));
 });
 
-tscProcess.stderr.on("data", (chunk) => {
+prismaGenerateProcess.stderr.on("data", (chunk) => {
   process.stderr.write(String(chunk));
 });
 
-tscProcess.on("exit", (code, signal) => {
+prismaGenerateProcess.on("exit", (code, signal) => {
   if (signal) {
     process.kill(process.pid, signal);
     return;
   }
   if (code && code !== 0) {
     process.exit(code);
+    return;
   }
+  startTypeScriptWatcher();
 });
 
 const poll = setInterval(() => {
@@ -72,7 +99,10 @@ const poll = setInterval(() => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     try {
-      tscProcess.kill(signal);
+      prismaGenerateProcess.kill(signal);
+    } catch {}
+    try {
+      tscProcess?.kill(signal);
     } catch {}
     try {
       serverProcess?.kill(signal);

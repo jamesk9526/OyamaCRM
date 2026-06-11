@@ -4,6 +4,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Color from "@tiptap/extension-color";
+import TiptapLink from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
+import TextAlign from "@tiptap/extension-text-align";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Underline from "@tiptap/extension-underline";
+import StarterKit from "@tiptap/starter-kit";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { DEFAULT_BRANDING_SETTINGS, fetchBrandingSettings, formatBrandingAddress, type BrandingSettings } from "@/app/lib/branding-settings";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
@@ -23,6 +31,7 @@ type BuilderBlockType =
   | "fileLink"
   | "donationButton"
   | "eventButton"
+  | "aiSmart"
   | "html";
 
 interface BuilderBlock {
@@ -65,6 +74,9 @@ interface BuilderBlock {
   fileDescription?: string;
   fileTrackingLabel?: string;
   html?: string;
+  aiSmart?: boolean;
+  aiSmartPrompt?: string;
+  aiSmartTone?: "warm" | "urgent" | "celebratory" | "informative";
 }
 
 interface BuilderTemplateDocument {
@@ -85,6 +97,7 @@ interface BuilderTemplateSettings {
   enablePlainTextVersion: boolean;
   physicalAddress: string;
   footerBrandingText: string;
+  plainTextOverride?: string;
 }
 
 interface BuilderTemplateResponse {
@@ -183,6 +196,7 @@ interface GlobalSettingsResponse {
 }
 
 type WritingTarget = "subject" | "previewText" | "selectedBlock" | "newBlock";
+type WritingTone = "warm" | "urgent" | "celebratory" | "informative";
 
 type ActiveTab = "edit" | "mobilePreview";
 
@@ -217,15 +231,7 @@ const DEFAULT_TEMPLATE: BuilderTemplateDocument = {
     {
       id: "block_1",
       type: "text",
-      content: "<h2>Thank you, {{ donor.firstName }}!</h2><p>Your support helps us keep serving families with practical care and hope.</p>",
-    },
-    {
-      id: "block_2",
-      type: "button",
-      label: "Learn More",
-      href: "https://",
-      color: "#0f5c3c",
-      textColor: "#ffffff",
+      content: "",
     },
   ],
 };
@@ -236,6 +242,7 @@ const DEFAULT_SETTINGS: BuilderTemplateSettings = {
   enablePlainTextVersion: true,
   physicalAddress: "",
   footerBrandingText: "",
+  plainTextOverride: "",
 };
 
 const DEFAULT_DRAFT: BuilderDraft = {
@@ -294,6 +301,7 @@ const BLOCK_CHOICES: Array<{ type: BuilderBlockType; label: string }> = [
   { type: "fileLink", label: "File Link" },
   { type: "donationButton", label: "Donation Button" },
   { type: "eventButton", label: "Event Button" },
+  { type: "aiSmart", label: "AI Smart Block" },
   { type: "html", label: "HTML Block" },
 ];
 
@@ -448,6 +456,14 @@ function stripHtml(value: string): string {
   return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function escapeInlineHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function normalizeWriterOutputHtml(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "<p></p>";
@@ -484,7 +500,7 @@ function createBlock(type: BuilderBlockType): BuilderBlock {
     return {
       id: createId(),
       type,
-      content: "<p>Add your message here.</p>",
+      content: "",
     };
   }
 
@@ -576,11 +592,27 @@ function createBlock(type: BuilderBlockType): BuilderBlock {
     };
   }
 
+  if (type === "aiSmart") {
+    return {
+      id: createId(),
+      type: "html",
+      html: "<p>Describe what you want, then generate optimized HTML with Steward AI.</p>",
+      aiSmart: true,
+      aiSmartPrompt: "",
+      aiSmartTone: "warm",
+    };
+  }
+
   return {
     id: createId(),
     type: "html",
     html: "<p>Custom HTML block</p>",
   };
+}
+
+function blockDisplayLabel(block: BuilderBlock): string {
+  if (block.type === "html" && block.aiSmart) return "AI Smart Block";
+  return BLOCK_CHOICES.find((choice) => choice.type === block.type)?.label || "Block";
 }
 
 function formatLastSaved(value: string | null): string {
@@ -794,6 +826,11 @@ function BlockTypeIcon({ type }: { type: BuilderBlockType }) {
       <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
     </svg>
   );
+  if (type === "aiSmart") return (
+    <svg viewBox="0 0 20 20" className={cls} fill="currentColor">
+      <path fillRule="evenodd" d="M11 2a1 1 0 011 1v1.197a5.5 5.5 0 013.803 3.803H17a1 1 0 110 2h-1.197A5.5 5.5 0 0112 13.803V15a1 1 0 11-2 0v-1.197A5.5 5.5 0 016.197 10H5a1 1 0 110-2h1.197A5.5 5.5 0 0110 4.197V3a1 1 0 011-1zm0 4a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" clipRule="evenodd" />
+    </svg>
+  );
   // html
   return (
     <svg viewBox="0 0 20 20" className={cls} fill="currentColor">
@@ -856,6 +893,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [saveConflictModal, setSaveConflictModal] = useState<SaveConflictState | null>(null);
   const [blockInspectorModalOpen, setBlockInspectorModalOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<"content" | "style" | "advanced">("content");
+  const [blockActionMenuFor, setBlockActionMenuFor] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
   const [editingName, setEditingName] = useState(false);
   const [mergeSearch, setMergeSearch] = useState("");
@@ -880,11 +918,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [insertTarget, setInsertTarget] = useState<InsertTarget>(null);
   const [writingTarget, setWritingTarget] = useState<WritingTarget>("selectedBlock");
   const [writingPrompt, setWritingPrompt] = useState("");
-  const [writingTone, setWritingTone] = useState<"warm" | "urgent" | "celebratory" | "informative">("warm");
+  const [writingTone, setWritingTone] = useState<WritingTone>("warm");
   const [writingBusy, setWritingBusy] = useState(false);
   const [writingOutput, setWritingOutput] = useState("");
   const [writingModelUsed, setWritingModelUsed] = useState<string | null>(null);
   const [writingError, setWritingError] = useState<string | null>(null);
+  const [aiSmartBusyBlockId, setAiSmartBusyBlockId] = useState<string | null>(null);
+  const [aiSmartError, setAiSmartError] = useState<string | null>(null);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const draftRef = useRef(draft);
@@ -1062,8 +1102,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   useEffect(() => {
     if (!selectedBlock) {
       setBlockInspectorModalOpen(false);
+      setBlockActionMenuFor(null);
     }
   }, [selectedBlock]);
+
+  useEffect(() => {
+    setBlockActionMenuFor(null);
+  }, [selectedBlockId]);
 
   const canPublish = Boolean(activeTemplateId);
   const publishHref = activeTemplateId ? `/oyama-email/templates/${activeTemplateId}/publish` : "";
@@ -1512,6 +1557,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       draft.fromName,
       draft.settings.physicalAddress,
       draft.settings.footerBrandingText,
+      draft.settings.plainTextOverride || "",
     ];
     draft.template.blocks.forEach((block) => {
       [
@@ -1836,6 +1882,98 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setPreviewModalOpen(true);
   }, [activeTemplateId, buildPreviewRequestBody]);
 
+  const generateAiSmartHtml = useCallback(async (blockId: string, description: string, tone: WritingTone) => {
+    const brief = description.trim();
+    if (!brief) {
+      setAiSmartError("Add a Smart Block description before generating HTML.");
+      return;
+    }
+    if (aiSmartBusyBlockId) return;
+
+    const targetBlock = draftRef.current.template.blocks.find((block) => block.id === blockId);
+    if (!targetBlock || targetBlock.type !== "html") {
+      setAiSmartError("AI Smart generation only works on HTML blocks.");
+      return;
+    }
+
+    setAiSmartBusyBlockId(blockId);
+    setAiSmartError(null);
+
+    try {
+      const allowedMergeFields = mergeFieldGroups
+        .flatMap((group) => group.fields.map((field) => field.token))
+        .filter(Boolean);
+
+      const response = await apiFetchResponse("/api/communications-ai/email-builder/write-stream", {
+        method: "POST",
+        headers: {
+          Accept: "text/event-stream",
+        },
+        body: JSON.stringify({
+          target: "bodyHtml",
+          mode: "smartHtml",
+          prompt: brief,
+          tone,
+          campaignName: draftRef.current.name,
+          audience: draftRef.current.purpose,
+          currentContent: stripHtml(targetBlock.html || ""),
+          allowedMergeFields,
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("Steward AI Smart Block generation is unavailable.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let reply = "";
+
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        let boundary = buffer.indexOf("\n\n");
+        while (boundary >= 0) {
+          const rawEvent = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          boundary = buffer.indexOf("\n\n");
+
+          const eventName = rawEvent.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
+          const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
+          if (!dataLine) continue;
+          const payload = JSON.parse(dataLine) as { delta?: string; reply?: string; message?: string };
+
+          if (eventName === "delta" && payload.delta) {
+            reply += payload.delta;
+          } else if (eventName === "done") {
+            if (typeof payload.reply === "string" && payload.reply.trim()) {
+              reply = payload.reply;
+            }
+          } else if (eventName === "error") {
+            throw new Error(payload.message || "AI Smart generation failed.");
+          }
+        }
+      }
+
+      const html = normalizeWriterOutputHtml(reply.trim());
+      updateBlock(blockId, (current) => ({
+        ...current,
+        type: "html",
+        aiSmart: true,
+        aiSmartPrompt: brief,
+        aiSmartTone: tone,
+        html,
+      }));
+      setNotice("AI Smart Block generated with Steward AI.");
+    } catch (error) {
+      setAiSmartError(error instanceof Error ? error.message : "AI Smart generation failed.");
+    } finally {
+      setAiSmartBusyBlockId(null);
+    }
+  }, [aiSmartBusyBlockId, mergeFieldGroups, updateBlock]);
+
   const applyWritingOutput = useCallback(() => {
     const trimmed = writingOutput.trim();
     if (!trimmed) return;
@@ -2121,10 +2259,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       </header>
 
       {/* ── 3-col layout ─────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden bg-[#f6f8fb] p-3">
+      <div className="flex min-h-0 flex-1 gap-6 overflow-hidden bg-[radial-gradient(circle_at_top_left,_#e6f4ef_0%,_#f3f6fb_32%,_#f9fbff_100%)] p-6">
         {/* LEFT PANEL */}
-        <aside className="flex w-[304px] flex-none flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
-          <div className="flex-1 overflow-y-auto px-4 py-4">
+        <aside className="flex w-[320px] flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+          <div className="flex-1 overflow-y-auto px-5 py-5">
             {/* Add Content */}
             <div className="mb-4">
               <button
@@ -2237,20 +2375,20 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           {/* Footer */}
           <div className="border-t border-slate-200 px-3 py-3">
             <p className="text-[11px] font-semibold text-slate-500">Need help?</p>
-            <a href="/help" className="mt-1 block text-[11px] text-emerald-700 hover:underline">View Help Center</a>
+            <Link href="/help" className="mt-1 block text-[11px] text-emerald-700 hover:underline">View Help Center</Link>
             <Link href="/oyama-email" className="mt-0.5 block text-[11px] text-slate-500 hover:underline">← Back to Templates</Link>
           </div>
         </aside>
 
         {/* CANVAS */}
-        <main className="flex min-h-0 flex-1 flex-col overflow-auto rounded-xl border border-slate-200 bg-[#f8fafc]">
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto rounded-2xl border border-slate-200/90 bg-[linear-gradient(180deg,#f8fbff_0%,#f2f8f5_100%)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
           <div
-            className="mx-auto my-6 px-6"
-            style={{ maxWidth: activeTab === "mobilePreview" ? 430 : canvasWidth + 96 }}
+            className="mx-auto my-10 w-full px-10"
+            style={{ maxWidth: activeTab === "mobilePreview" ? 480 : canvasWidth + 160 }}
           >
             <div
               style={{ ...(scaledStyle || {}), width: canvasWidth, maxWidth: "100%", margin: "0 auto" }}
-              className="overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white shadow-sm"
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_50px_rgba(15,23,42,0.12)]"
             >
               {draft.template.blocks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-center">
@@ -2283,7 +2421,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                         </div>
                         <article
                           draggable={!isSelected}
-                          onClick={() => setSelectedBlockId(block.id)}
+                          onClick={() => {
+                            setSelectedBlockId(block.id);
+                            setBlockActionMenuFor(null);
+                          }}
                           onDoubleClick={() => {
                             setSelectedBlockId(block.id);
                             setBlockInspectorModalOpen(true);
@@ -2292,20 +2433,20 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           onDragOver={(event) => handleBlockDragOver(event, block.id)}
                           onDrop={(event) => handleBlockDrop(event, block.id)}
                           onDragEnd={handleBlockDragEnd}
-                          className={["relative cursor-pointer border-l-4 transition-all",
-                            isSelected ? "border-emerald-500 bg-emerald-50/40" : "border-transparent hover:bg-slate-50",
+                          className={["relative mx-5 my-4 cursor-pointer rounded-2xl border transition-all",
+                            isSelected ? "border-emerald-300 bg-emerald-50/30 shadow-[0_14px_26px_rgba(5,150,105,0.12)]" : "border-transparent bg-white hover:border-slate-200 hover:bg-slate-50/70",
                             dragOverBlockId === block.id ? "ring-2 ring-emerald-400 ring-inset" : "",
                             draggingBlockId === block.id ? "opacity-60" : "",
                           ].join(" ")}
                         >
                           {isSelected ? (
-                            <div className="absolute right-3 top-2 z-10 flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md">
+                            <div className="absolute right-4 top-3 z-10 flex items-center overflow-visible rounded-xl border border-slate-200 bg-white shadow-md">
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); moveBlock(block.id, -1); }}
                                 disabled={index === 0}
                                 title="Move up"
-                                className="flex h-8 w-8 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                                className="flex h-9 w-9 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
                               >
                                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
                                   <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -2316,7 +2457,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                                 onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 1); }}
                                 disabled={index === draft.template.blocks.length - 1}
                                 title="Move down"
-                                className="flex h-8 w-8 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                                className="flex h-9 w-9 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
                               >
                                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
                                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -2327,71 +2468,83 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedBlockId(block.id);
-                                  setBlockInspectorModalOpen(true);
+                                  setBlockActionMenuFor((current) => (current === block.id ? null : block.id));
                                 }}
-                                title="Open advanced editor"
-                                className="flex h-8 w-8 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50"
+                                title="Block settings"
+                                className="flex h-9 w-9 items-center justify-center text-slate-600 hover:bg-slate-50"
                               >
                                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-                                  <path d="M17.414 2.586a2 2 0 00-2.828 0L7.293 9.879a1 1 0 00-.263.464l-1 4a1 1 0 001.212 1.212l4-1a1 1 0 00.464-.263l7.293-7.293a2 2 0 000-2.828l-1.585-1.585z" />
-                                  <path d="M5 15a1 1 0 100 2h10a1 1 0 100-2H5z" />
+                                  <path fillRule="evenodd" d="M11.49 3.17a1 1 0 00-1.98 0l-.066.396a1 1 0 01-1.256.8l-.389-.118a1 1 0 00-1.22.7l-.14.39a1 1 0 01-1.205.624l-.4-.1a1 1 0 00-1.145.56l-.49.98a1 1 0 00.3 1.244l.328.241a1 1 0 010 1.62l-.328.24a1 1 0 00-.3 1.245l.49.98a1 1 0 001.145.56l.4-.1a1 1 0 011.204.623l.141.39a1 1 0 001.22.7l.39-.117a1 1 0 011.255.8l.066.396a1 1 0 001.98 0l.066-.396a1 1 0 011.256-.8l.389.118a1 1 0 001.22-.7l.14-.39a1 1 0 011.205-.624l.4.1a1 1 0 001.145-.56l.49-.98a1 1 0 00-.3-1.244l-.328-.241a1 1 0 010-1.62l.328-.24a1 1 0 00.3-1.245l-.49-.98a1 1 0 00-1.145-.56l-.4.1a1 1 0 01-1.204-.623l-.141-.39a1 1 0 00-1.22-.7l-.39.117a1 1 0 01-1.255-.8l-.066-.396zM10.5 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                                 </svg>
                               </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id); }}
-                                title="Duplicate"
-                                className="flex h-8 w-8 items-center justify-center border-r border-slate-100 text-slate-600 hover:bg-slate-50"
-                              >
-                                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-                                  <path d="M8 3a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); }}
-                                title="Delete block"
-                                className="flex h-8 w-8 items-center justify-center text-red-500 hover:bg-red-50"
-                              >
-                                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-                                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                              </button>
-                            </div>
-                          ) : null}
-                          <div className="px-6 py-4" style={templateTextStyle}>
-                            <CanvasBlockPreview block={block} />
-                            {isSelected ? (
-                              <div className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Inline Editing</p>
-                                    <p className="text-xs text-slate-500">Compose and adjust this block directly here. Use the advanced editor only for deeper controls.</p>
-                                  </div>
+                              {blockActionMenuFor === block.id ? (
+                                <div className="absolute right-0 top-11 z-20 min-w-[196px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                    {blockDisplayLabel(block)} Settings
+                                  </p>
                                   <button
                                     type="button"
                                     onClick={(event) => {
                                       event.stopPropagation();
+                                      setSelectedBlockId(block.id);
                                       setBlockInspectorModalOpen(true);
+                                      setBlockActionMenuFor(null);
                                     }}
-                                    className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50"
                                   >
+                                    <svg viewBox="0 0 20 20" className="h-4 w-4 text-emerald-700" fill="currentColor">
+                                      <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2H3V4zm0 5h14v7a1 1 0 01-1 1H4a1 1 0 01-1-1V9zm3 2a1 1 0 100 2h4a1 1 0 100-2H6z" />
+                                    </svg>
                                     Advanced Editor
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      duplicateBlock(block.id);
+                                      setBlockActionMenuFor(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    <svg viewBox="0 0 20 20" className="h-4 w-4 text-slate-600" fill="currentColor">
+                                      <path d="M7 2a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2V4a2 2 0 00-2-2H7z" />
+                                      <path d="M3 6a2 2 0 012-2v10a2 2 0 002 2h8a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
+                                    </svg>
+                                    Duplicate Block
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      deleteBlock(block.id);
+                                      setBlockActionMenuFor(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50"
+                                  >
+                                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+                                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    Delete Block
+                                  </button>
                                 </div>
-                                <BlockInspector
-                                  block={block}
-                                  template={draft.template}
-                                  branding={globalBranding}
-                                  mergeFieldGroups={mergeFieldGroups}
-                                  onChange={(patch) => updateBlock(block.id, (current) => ({ ...current, ...patch }))}
-                                  onSetInsertTarget={(field) => setInsertTarget({ scope: "block", blockId: block.id, field })}
-                                  onUploadImage={(file) => void uploadImage(block.id, file)}
-                                  uploadingImage={uploadingImage}
-                                  canUpload={Boolean(activeTemplateId)}
-                                  className="mt-0 border-emerald-100 bg-emerald-50/40"
-                                />
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="px-8 py-7" style={templateTextStyle}>
+                            <CanvasBlockPreview block={block} />
+                            {isSelected ? (
+                              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3 text-xs text-emerald-900">
+                                <p className="font-semibold">Final Preview Mode active for this block.</p>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setBlockInspectorModalOpen(true);
+                                  }}
+                                  className="inline-flex h-8 items-center rounded-md border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+                                >
+                                  Open Advanced Editor
+                                </button>
                               </div>
                             ) : null}
                           </div>
@@ -2417,8 +2570,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="flex w-[340px] flex-none flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.07)]">
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+        <aside className="flex w-[352px] flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+          <div className="flex-1 overflow-y-auto px-6 py-6">
             <p className="text-base font-semibold text-slate-950">Email Settings</p>
             {builderWarnings.length > 0 ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
@@ -2639,7 +2792,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               <div className="mt-4 border-t border-slate-100 pt-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected Block</p>
-                  <p className="mt-1 text-xs font-medium text-slate-700">{selectedBlock.type}</p>
+                  <p className="mt-1 text-xs font-medium text-slate-700">{blockDisplayLabel(selectedBlock)}</p>
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2" style={templateTextStyle}>
                     <CanvasBlockPreview block={selectedBlock} />
                   </div>
@@ -2672,11 +2825,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-700 px-5 py-4 text-white">
+            <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-700 px-6 py-5 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Block Inspector</p>
-                  <p className="text-xs text-emerald-100">Type: {selectedBlock.type} • Position {selectedBlockIndex + 1} of {draft.template.blocks.length}</p>
+                  <p className="text-sm font-semibold">Advanced Block Settings</p>
+                  <p className="text-xs text-emerald-100">Type: {blockDisplayLabel(selectedBlock)} • Position {selectedBlockIndex + 1} of {draft.template.blocks.length}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -2765,6 +2918,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     onChange={(patch) => updateBlock(selectedBlock.id, (current) => ({ ...current, ...patch }))}
                     onSetInsertTarget={(field) => setInsertTarget({ scope: "block", blockId: selectedBlock.id, field })}
                     onUploadImage={(file) => void uploadImage(selectedBlock.id, file)}
+                    onGenerateAiSmartHtml={(description, tone) => void generateAiSmartHtml(selectedBlock.id, description, tone)}
+                    aiSmartBusy={aiSmartBusyBlockId === selectedBlock.id}
+                    aiSmartError={aiSmartBusyBlockId === selectedBlock.id ? aiSmartError : null}
                     uploadingImage={uploadingImage}
                     canUpload={Boolean(activeTemplateId)}
                     className="mt-0"
@@ -2900,7 +3056,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Advanced Block Info</p>
                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
                       <p><strong>ID:</strong> {selectedBlock.id}</p>
-                      <p><strong>Type:</strong> {selectedBlock.type}</p>
+                      <p><strong>Type:</strong> {blockDisplayLabel(selectedBlock)}</p>
                     </div>
                     <p className="text-[11px] text-slate-500">For text blocks, use the Content tab rich editor. Raw HTML is intentionally hidden for non-technical users.</p>
                     {selectedBlock.type === "html" ? (
@@ -3032,11 +3188,35 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 </svg>
               </button>
             </div>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-700">Saved text-only override</p>
+                <p className="text-[11px] text-slate-500">Leave blank to use the generated plain-text version from the rendered email.</p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDraftField("settings", { ...draft.settings, plainTextOverride: serverPreviewText })}
+                  disabled={!serverPreviewText.trim()}
+                  className="h-8 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Use Generated
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDraftField("settings", { ...draft.settings, plainTextOverride: "" })}
+                  className="h-8 rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Clear Override
+                </button>
+              </div>
+            </div>
             <div className="flex-1 overflow-auto p-4">
               <textarea
-                value={serverPreviewText || "No plain text generated yet. Save and open Preview."}
-                readOnly
-                className="h-full w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 font-mono text-xs text-slate-700"
+                value={draft.settings.plainTextOverride ?? ""}
+                onChange={(event) => setDraftField("settings", { ...draft.settings, plainTextOverride: event.target.value })}
+                placeholder={serverPreviewText || "Save and open Preview to generate a fallback plain-text version."}
+                className="h-full w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-3 font-mono text-xs text-slate-700 focus:border-emerald-400 focus:outline-none"
               />
             </div>
           </div>
@@ -3182,149 +3362,73 @@ function RichTextEditor({
   minHeight?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const selectionRef = useRef<Range | null>(null);
-  const triggerRangeRef = useRef<{ start: number; end: number } | null>(null);
+  const [triggerRange, setTriggerRange] = useState<{ from: number; to: number } | null>(null);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 });
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeQuery, setMergeQuery] = useState("");
   const [textColor, setTextColor] = useState(linkColor || "#0f5c3c");
+  const minEditorHeight = Math.max(120, minHeight ?? 210);
 
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    if (editor.innerHTML !== value) {
-      editor.innerHTML = value || "";
-    }
-  }, [value]);
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      heading: { levels: [2, 3] },
+      link: false,
+      underline: false,
+    }),
+    Underline,
+    TextStyle,
+    Color.configure({ types: ["textStyle"] }),
+    TiptapLink.configure({
+      openOnClick: false,
+      autolink: true,
+      defaultProtocol: "https",
+    }),
+    TextAlign.configure({ types: ["heading", "paragraph"] }),
+    Placeholder.configure({ placeholder: placeholder || "Write your email content..." }),
+  ], [placeholder]);
 
-  const rememberSelection = useCallback(() => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    selectionRef.current = selection.getRangeAt(0).cloneRange();
+  const closeInlineMenus = useCallback(() => {
+    setTriggerRange(null);
+    setSlashOpen(false);
+    setMergeOpen(false);
   }, []);
 
-  const restoreSelection = useCallback(() => {
-    const selection = window.getSelection();
-    if (!selection || !selectionRef.current) return;
-    selection.removeAllRanges();
-    selection.addRange(selectionRef.current);
-  }, []);
-
-  const exec = useCallback((command: string, commandValue?: string) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.focus();
-    restoreSelection();
-    document.execCommand(command, false, commandValue);
-    onChange(editor.innerHTML);
-    rememberSelection();
-  }, [onChange, rememberSelection, restoreSelection]);
-
-  const formatHeading = useCallback((tag: "H2" | "H3" | "P") => {
-    exec("formatBlock", tag);
-  }, [exec]);
-
-  const getTextPointAtOffset = useCallback((root: HTMLElement, charOffset: number) => {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let remaining = Math.max(0, charOffset);
-    let current = walker.nextNode();
-    let lastTextNode: Text | null = null;
-
-    while (current) {
-      const textNode = current as Text;
-      lastTextNode = textNode;
-      const length = textNode.nodeValue?.length || 0;
-      if (remaining <= length) {
-        return { node: textNode, offset: remaining };
-      }
-      remaining -= length;
-      current = walker.nextNode();
-    }
-
-    if (lastTextNode) {
-      return { node: lastTextNode, offset: lastTextNode.nodeValue?.length || 0 };
-    }
-
-    return null;
-  }, []);
-
-  const replaceTriggerWithText = useCallback((replacement: string) => {
-    const editor = editorRef.current;
-    const triggerRange = triggerRangeRef.current;
-    if (!editor || !triggerRange) return;
-
-    const startPoint = getTextPointAtOffset(editor, triggerRange.start);
-    const endPoint = getTextPointAtOffset(editor, triggerRange.end);
-    if (!startPoint || !endPoint) return;
-
-    const selection = window.getSelection();
-    if (!selection) return;
-
-    const range = document.createRange();
-    range.setStart(startPoint.node, startPoint.offset);
-    range.setEnd(endPoint.node, endPoint.offset);
-    range.deleteContents();
-
-    const textNode = document.createTextNode(replacement);
-    range.insertNode(textNode);
-
-    const caret = document.createRange();
-    caret.setStart(textNode, textNode.nodeValue?.length || 0);
-    caret.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(caret);
-    selectionRef.current = caret.cloneRange();
-
-    onChange(editor.innerHTML);
-  }, [getTextPointAtOffset, onChange]);
-
-  const updateFloatingToolbar = useCallback(() => {
-    const editor = editorRef.current;
+  const updateFloatingToolbar = useCallback((nextEditor: Editor) => {
     const container = containerRef.current;
-    const selection = window.getSelection();
-    if (!editor || !container || !selection || selection.rangeCount === 0) {
+    const selection = nextEditor.state.selection;
+    if (!container || selection.empty) {
       setFloatingToolbar({ visible: false, x: 0, y: 0 });
       return;
     }
 
-    const range = selection.getRangeAt(0);
-    if (range.collapsed || !editor.contains(range.commonAncestorContainer)) {
+    try {
+      const start = nextEditor.view.coordsAtPos(selection.from);
+      const end = nextEditor.view.coordsAtPos(selection.to);
+      const containerRect = container.getBoundingClientRect();
+      const x = ((start.left + end.right) / 2) - containerRect.left;
+      const y = Math.min(start.top, end.top) - containerRect.top - 8;
+      setFloatingToolbar({ visible: true, x, y });
+    } catch {
       setFloatingToolbar({ visible: false, x: 0, y: 0 });
-      return;
     }
-
-    const rangeRect = range.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const x = rangeRect.left - containerRect.left + (rangeRect.width / 2);
-    const y = rangeRect.top - containerRect.top - 8;
-    setFloatingToolbar({ visible: true, x, y });
   }, []);
 
-  const detectInlineTriggers = useCallback(() => {
-    const editor = editorRef.current;
-    const selection = window.getSelection();
-    if (!editor || !selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    if (!range.collapsed || !editor.contains(range.commonAncestorContainer)) {
-      setSlashOpen(false);
-      setMergeOpen(false);
-      triggerRangeRef.current = null;
+  const detectInlineTriggers = useCallback((nextEditor: Editor) => {
+    const { selection, doc } = nextEditor.state;
+    if (!selection.empty) {
+      closeInlineMenus();
       return;
     }
 
-    const preRange = range.cloneRange();
-    preRange.selectNodeContents(editor);
-    preRange.setEnd(range.endContainer, range.endOffset);
-    const textBeforeCaret = preRange.toString();
+    const cursor = selection.from;
+    const windowStart = Math.max(0, cursor - 96);
+    const textBeforeCaret = doc.textBetween(windowStart, cursor, "\n", "\n");
 
     const mergeMatch = textBeforeCaret.match(/\{\{([a-zA-Z0-9_.]*)$/);
     if (mergeMatch) {
-      const start = textBeforeCaret.length - mergeMatch[0].length;
-      triggerRangeRef.current = { start, end: textBeforeCaret.length };
+      setTriggerRange({ from: cursor - mergeMatch[0].length, to: cursor });
       setMergeQuery((mergeMatch[1] || "").trim().toLowerCase());
       setMergeOpen(true);
       setSlashOpen(false);
@@ -3333,18 +3437,49 @@ function RichTextEditor({
 
     const slashMatch = textBeforeCaret.match(/(?:^|\s)\/([a-zA-Z]*)$/);
     if (slashMatch) {
-      const start = textBeforeCaret.length - slashMatch[0].length + (slashMatch[0].startsWith("/") ? 0 : 1);
-      triggerRangeRef.current = { start, end: textBeforeCaret.length };
+      const leadingSpace = slashMatch[0].startsWith("/") ? 0 : 1;
+      setTriggerRange({ from: cursor - slashMatch[0].length + leadingSpace, to: cursor });
       setSlashQuery((slashMatch[1] || "").trim().toLowerCase());
       setSlashOpen(true);
       setMergeOpen(false);
       return;
     }
 
-    triggerRangeRef.current = null;
-    setMergeOpen(false);
-    setSlashOpen(false);
-  }, []);
+    closeInlineMenus();
+  }, [closeInlineMenus]);
+
+  const handleEditorActivity = useCallback((nextEditor: Editor) => {
+    detectInlineTriggers(nextEditor);
+    updateFloatingToolbar(nextEditor);
+  }, [detectInlineTriggers, updateFloatingToolbar]);
+
+  const editor = useEditor({
+    extensions,
+    content: value || "",
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: "oyama-email-prosemirror",
+      },
+    },
+    onFocus: () => {
+      onFocus?.();
+    },
+    onUpdate: ({ editor: nextEditor }) => {
+      onChange(nextEditor.getHTML());
+      handleEditorActivity(nextEditor);
+    },
+    onSelectionUpdate: ({ editor: nextEditor }) => {
+      handleEditorActivity(nextEditor);
+    },
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    const nextValue = value || "";
+    if (nextValue === editor.getHTML()) return;
+    editor.commands.setContent(nextValue, { emitUpdate: false });
+  }, [editor, value]);
 
   const mergeOptions = useMemo(() => {
     const items = mergeFieldGroups.flatMap((group) => group.fields.map((field) => ({
@@ -3359,98 +3494,120 @@ function RichTextEditor({
       .slice(0, 30);
   }, [mergeFieldGroups, mergeQuery]);
 
+  const replaceTriggerWithText = useCallback((replacement: string) => {
+    if (!editor || !triggerRange) return;
+    editor.chain().focus().deleteRange(triggerRange).insertContent(replacement).run();
+    closeInlineMenus();
+  }, [closeInlineMenus, editor, triggerRange]);
+
+  const setLink = useCallback(() => {
+    if (!editor) return;
+    const previousHref = String(editor.getAttributes("link").href || "https://");
+    const href = window.prompt("Enter link URL", previousHref);
+    if (href === null) return;
+    const trimmed = href.trim();
+    if (!trimmed) {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+    if (!looksLikeSafeUrl(trimmed) && !trimmed.includes("{{")) {
+      window.alert("Use an https, mailto, tel, relative, or merge-field URL.");
+      return;
+    }
+    editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run();
+  }, [editor]);
+
+  const insertButtonLink = useCallback(() => {
+    if (!editor) return;
+    const href = window.prompt("Button URL", "https://");
+    if (!href) return;
+    const trimmedHref = href.trim();
+    if (!looksLikeSafeUrl(trimmedHref) && !trimmedHref.includes("{{")) {
+      window.alert("Use an https, mailto, tel, relative, or merge-field URL.");
+      return;
+    }
+    const selection = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(selection.from, selection.to, " ").trim() || "Learn more";
+    editor.chain().focus().insertContent(
+      `<a href="${escapeInlineHtml(trimmedHref)}" style="display:inline-block;background:#0f5c3c;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;">${escapeInlineHtml(selectedText)}</a>`
+    ).run();
+  }, [editor]);
+
   const slashCommands = useMemo(() => {
     const commands = [
-      { id: "p", label: "Paragraph", run: () => formatHeading("P") },
-      { id: "h2", label: "Heading 2", run: () => formatHeading("H2") },
-      { id: "h3", label: "Heading 3", run: () => formatHeading("H3") },
-      { id: "bold", label: "Bold", run: () => exec("bold") },
-      { id: "italic", label: "Italic", run: () => exec("italic") },
-      { id: "ul", label: "Bullet List", run: () => exec("insertUnorderedList") },
-      { id: "ol", label: "Numbered List", run: () => exec("insertOrderedList") },
-      { id: "left", label: "Align Left", run: () => exec("justifyLeft") },
-      { id: "center", label: "Align Center", run: () => exec("justifyCenter") },
-      { id: "right", label: "Align Right", run: () => exec("justifyRight") },
-      {
-        id: "button",
-        label: "Convert Selection to Button Link",
-        run: () => {
-          const url = window.prompt("Button URL");
-          if (!url) return;
-          const selectionText = window.getSelection()?.toString().trim() || "Learn more";
-          exec("insertHTML", `<a href=\"${url.replace(/\"/g, "&quot;")}\" style=\"display:inline-block;background:#0f5c3c;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;\">${selectionText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</a>`);
-        },
-      },
+      { id: "p", label: "Paragraph" },
+      { id: "h2", label: "Heading 2" },
+      { id: "h3", label: "Heading 3" },
+      { id: "bold", label: "Bold" },
+      { id: "italic", label: "Italic" },
+      { id: "ul", label: "Bullet List" },
+      { id: "ol", label: "Numbered List" },
+      { id: "left", label: "Align Left" },
+      { id: "center", label: "Align Center" },
+      { id: "right", label: "Align Right" },
+      { id: "button", label: "Insert Button Link" },
     ];
 
     if (!slashQuery) return commands;
     return commands.filter((command) => command.label.toLowerCase().includes(slashQuery));
-  }, [exec, formatHeading, slashQuery]);
+  }, [slashQuery]);
+
+  const executeSlashCommand = useCallback((commandId: string) => {
+    if (commandId === "p") editor?.chain().focus().setParagraph().run();
+    if (commandId === "h2") editor?.chain().focus().toggleHeading({ level: 2 }).run();
+    if (commandId === "h3") editor?.chain().focus().toggleHeading({ level: 3 }).run();
+    if (commandId === "bold") editor?.chain().focus().toggleBold().run();
+    if (commandId === "italic") editor?.chain().focus().toggleItalic().run();
+    if (commandId === "ul") editor?.chain().focus().toggleBulletList().run();
+    if (commandId === "ol") editor?.chain().focus().toggleOrderedList().run();
+    if (commandId === "left") editor?.chain().focus().setTextAlign("left").run();
+    if (commandId === "center") editor?.chain().focus().setTextAlign("center").run();
+    if (commandId === "right") editor?.chain().focus().setTextAlign("right").run();
+    if (commandId === "button") insertButtonLink();
+  }, [editor, insertButtonLink]);
+
+  const toolbarButtonClass = useCallback((active = false) => [
+    "rounded border px-2 py-1 text-[11px] font-semibold transition-colors",
+    active
+      ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+  ].join(" "), []);
 
   return (
-    <div ref={containerRef} className="relative rounded-xl border border-slate-300 bg-white shadow-sm">
+    <div ref={containerRef} className="oyama-email-tiptap relative rounded-xl border border-slate-300 bg-white shadow-sm">
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-2">
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("undo")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Undo</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("redo")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Redo</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">B</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("italic")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">I</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("underline")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">U</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatHeading("P")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">P</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatHeading("H2")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H2</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatHeading("H3")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H3</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertUnorderedList")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Bullets</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertOrderedList")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Numbers</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("justifyLeft")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Left</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("justifyCenter")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Center</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("justifyRight")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Right</button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("removeFormat")} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Clear</button>
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            const url = window.prompt("Enter link URL");
-            if (!url) return;
-            exec("createLink", url);
-          }}
-          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
-        >
-          Link
-        </button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().undo().run()} className={toolbarButtonClass()}>Undo</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().redo().run()} className={toolbarButtonClass()}>Redo</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleBold().run()} className={toolbarButtonClass(!!editor?.isActive("bold"))}>B</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleItalic().run()} className={toolbarButtonClass(!!editor?.isActive("italic"))}>I</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleUnderline().run()} className={toolbarButtonClass(!!editor?.isActive("underline"))}>U</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().setParagraph().run()} className={toolbarButtonClass(!!editor?.isActive("paragraph"))}>P</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className={toolbarButtonClass(!!editor?.isActive("heading", { level: 2 }))}>H2</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} className={toolbarButtonClass(!!editor?.isActive("heading", { level: 3 }))}>H3</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()} className={toolbarButtonClass(!!editor?.isActive("bulletList"))}>Bullets</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleOrderedList().run()} className={toolbarButtonClass(!!editor?.isActive("orderedList"))}>Numbers</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().setTextAlign("left").run()} className={toolbarButtonClass(!!editor?.isActive({ textAlign: "left" }))}>Left</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().setTextAlign("center").run()} className={toolbarButtonClass(!!editor?.isActive({ textAlign: "center" }))}>Center</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().setTextAlign("right").run()} className={toolbarButtonClass(!!editor?.isActive({ textAlign: "right" }))}>Right</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()} className={toolbarButtonClass()}>Clear</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={setLink} className={toolbarButtonClass(!!editor?.isActive("link"))}>Link</button>
         <input
           type="color"
           value={textColor}
           onChange={(event) => {
-            setTextColor(event.target.value);
-            exec("foreColor", event.target.value);
+            const nextColor = event.target.value;
+            setTextColor(nextColor);
+            editor?.chain().focus().setColor(nextColor).run();
           }}
           className="h-7 w-8 rounded border border-slate-200 bg-white p-0.5"
           title="Text color"
         />
       </div>
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
+      <EditorContent
+        editor={editor}
         spellCheck
-        onFocus={onFocus}
-        onKeyUp={() => {
-          rememberSelection();
-          detectInlineTriggers();
-          updateFloatingToolbar();
-        }}
-        onMouseUp={() => {
-          rememberSelection();
-          detectInlineTriggers();
-          updateFloatingToolbar();
-        }}
-        onBlur={rememberSelection}
-        onInput={(event) => {
-          onChange((event.currentTarget as HTMLDivElement).innerHTML);
-          detectInlineTriggers();
-        }}
-        className="px-3 py-3 text-sm text-slate-800 focus:outline-none"
-        style={{ color: "#1f2937", minHeight: `${Math.max(120, minHeight ?? 210)}px` }}
-        data-placeholder={placeholder || "Write your email content..."}
+        onKeyUp={() => editor && handleEditorActivity(editor)}
+        onMouseUp={() => editor && handleEditorActivity(editor)}
       />
 
       {floatingToolbar.visible ? (
@@ -3458,29 +3615,19 @@ function RichTextEditor({
           className="absolute z-20 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 shadow-lg"
           style={{ left: floatingToolbar.x, top: floatingToolbar.y }}
         >
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">B</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("italic")} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">I</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatHeading("H2")} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H2</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatHeading("H3")} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H3</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("insertUnorderedList")} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">•</button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              const url = window.prompt("Enter link URL");
-              if (!url) return;
-              exec("createLink", url);
-            }}
-            className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            Link
-          </button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleBold().run()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">B</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleItalic().run()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">I</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H2</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H3</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">•</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={setLink} className="rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Link</button>
           <input
             type="color"
             value={textColor}
             onChange={(event) => {
-              setTextColor(event.target.value);
-              exec("foreColor", event.target.value);
+              const nextColor = event.target.value;
+              setTextColor(nextColor);
+              editor?.chain().focus().setColor(nextColor).run();
             }}
             className="h-6 w-7 rounded border border-slate-200 bg-white p-0.5"
           />
@@ -3497,9 +3644,11 @@ function RichTextEditor({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  replaceTriggerWithText("");
-                  command.run();
-                  setSlashOpen(false);
+                  if (editor && triggerRange) {
+                    editor.chain().focus().deleteRange(triggerRange).run();
+                  }
+                  closeInlineMenus();
+                  executeSlashCommand(command.id);
                 }}
                 className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-emerald-50"
               >
@@ -3521,12 +3670,11 @@ function RichTextEditor({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  replaceTriggerWithText(`{{ ${option.token} }}`);
-                  setMergeOpen(false);
+                  replaceTriggerWithText(`{{${option.token}}}`);
                 }}
                 className="w-full rounded-md px-2 py-1.5 text-left hover:bg-emerald-50"
               >
-                <p className="truncate font-mono text-xs text-slate-700">{`{{ ${option.token} }}`}</p>
+                <p className="truncate font-mono text-xs text-slate-700">{`{{${option.token}}}`}</p>
                 <p className="truncate text-[10px] text-slate-500">{option.group} - {option.description}</p>
               </button>
             )) : <p className="px-2 py-2 text-xs text-slate-500">No merge fields matched.</p>}
@@ -3534,23 +3682,42 @@ function RichTextEditor({
         </div>
       ) : null}
 
-      <style jsx>{`
-        div[contenteditable="true"][data-placeholder]:empty:before {
+      <style jsx global>{`
+        .oyama-email-tiptap .oyama-email-prosemirror {
+          min-height: ${minEditorHeight}px;
+          padding: 12px;
+          color: #1f2937;
+          font-size: 14px;
+          line-height: 1.6;
+          outline: none;
+        }
+        .oyama-email-tiptap .oyama-email-prosemirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           color: #94a3b8;
+          float: left;
+          height: 0;
+          pointer-events: none;
         }
-        div[contenteditable="true"] a {
+        .oyama-email-tiptap .oyama-email-prosemirror a {
           color: ${linkColor || "#0f5c3c"};
         }
-        div[contenteditable="true"] h2 {
+        .oyama-email-tiptap .oyama-email-prosemirror p {
+          margin: 0 0 0.8em;
+        }
+        .oyama-email-tiptap .oyama-email-prosemirror h2 {
           margin: 0.4em 0;
           font-size: 1.7em;
           line-height: 1.2;
         }
-        div[contenteditable="true"] h3 {
+        .oyama-email-tiptap .oyama-email-prosemirror h3 {
           margin: 0.35em 0;
           font-size: 1.35em;
           line-height: 1.25;
+        }
+        .oyama-email-tiptap .oyama-email-prosemirror ul,
+        .oyama-email-tiptap .oyama-email-prosemirror ol {
+          margin: 0 0 0.85em 1.25em;
+          padding-left: 1.1em;
         }
       `}</style>
     </div>
@@ -3680,7 +3847,16 @@ function CanvasBlockPreview({ block }: { block: BuilderBlock }) {
     );
   }
 
-  return <div className="text-sm" dangerouslySetInnerHTML={{ __html: block.html || "<p>Custom HTML block</p>" }} />;
+  return (
+    <div>
+      {block.aiSmart ? (
+        <div className="mb-2 inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+          AI Smart HTML
+        </div>
+      ) : null}
+      <div className="text-sm" dangerouslySetInnerHTML={{ __html: block.html || "<p>Custom HTML block</p>" }} />
+    </div>
+  );
 }
 
 function BlockInspector({
@@ -3691,6 +3867,9 @@ function BlockInspector({
   onChange,
   onSetInsertTarget,
   onUploadImage,
+  onGenerateAiSmartHtml,
+  aiSmartBusy,
+  aiSmartError,
   uploadingImage,
   canUpload,
   className,
@@ -3702,6 +3881,9 @@ function BlockInspector({
   onChange: (patch: Partial<BuilderBlock>) => void;
   onSetInsertTarget: (field: string) => void;
   onUploadImage: (file: File) => void;
+  onGenerateAiSmartHtml: (description: string, tone: WritingTone) => void;
+  aiSmartBusy: boolean;
+  aiSmartError: string | null;
   uploadingImage: boolean;
   canUpload: boolean;
   className?: string;
@@ -4193,6 +4375,61 @@ function BlockInspector({
 
       {block.type === "html" ? (
         <>
+          {block.aiSmart ? (
+            <>
+              <div className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[11px] text-indigo-900">
+                <p className="font-semibold">AI Smart Block</p>
+                <p className="mt-0.5">Generate email-safe HTML from a natural-language brief using Steward AI and approved merge fields.</p>
+              </div>
+              <label className="block text-xs font-semibold text-slate-700">
+                Smart Description
+                <textarea
+                  value={block.aiSmartPrompt || ""}
+                  onChange={(event) => onChange({ aiSmart: true, aiSmartPrompt: event.target.value })}
+                  rows={4}
+                  placeholder="Example: Write a donor update section with a short heading, 2 paragraphs, and one bullet list using {{donor.firstName}} and {{campaign.name}} where relevant."
+                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-xs text-slate-800"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Tone
+                  <select
+                    value={block.aiSmartTone || "warm"}
+                    onChange={(event) => onChange({ aiSmart: true, aiSmartTone: (event.target.value as WritingTone) || "warm" })}
+                    className="mt-1 h-10 w-full rounded-md border border-slate-300 px-2 text-sm text-slate-800"
+                  >
+                    <option value="warm">Warm</option>
+                    <option value="informative">Informative</option>
+                    <option value="celebratory">Celebratory</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm")}
+                    disabled={aiSmartBusy}
+                    className="h-10 w-full rounded-md border border-indigo-700 bg-indigo-700 px-3 text-xs font-semibold text-white hover:bg-indigo-600 disabled:opacity-60"
+                  >
+                    {aiSmartBusy ? "Generating..." : "Generate HTML"}
+                  </button>
+                </div>
+              </div>
+              {aiSmartError ? <p className="text-[11px] text-red-700">{aiSmartError}</p> : null}
+            </>
+          ) : (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+              <p>Need AI-assisted HTML?</p>
+              <button
+                type="button"
+                onClick={() => onChange({ aiSmart: true, aiSmartTone: "warm", aiSmartPrompt: block.aiSmartPrompt || "" })}
+                className="mt-1 inline-flex h-7 items-center rounded-md border border-indigo-600 bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-500"
+              >
+                Enable AI Smart Mode
+              </button>
+            </div>
+          )}
           <label className="block text-xs font-semibold text-slate-700">
             HTML
             <textarea

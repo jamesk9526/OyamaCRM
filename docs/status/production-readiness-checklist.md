@@ -74,6 +74,9 @@ Notes:
 | Legacy communications email entry routes redirect into OyamaEmail routes | Working | `app/communications/page.tsx`, `app/communications/new/page.tsx`, `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/log/page.tsx`, `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/library/campaigns/page.tsx`, `app/communications/[campaignId]/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` |
 | Campaigns workspace supports board + calendar planning, drag/reschedule, and status-driven command-center actions backed by API endpoints | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/email-campaigns.ts`, `tests/api/email-campaign-workflow.api.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` |
 | Send lifecycle uses provider-accepted events (no simulated bounce fallback), exposes failed-recipient truth in queue/progress summaries, and has webhook idempotency coverage | Working | `server/src/routes/email-campaigns.ts`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/api/email-campaign-workflow.api.test.ts` |
+| Builder no longer silently loads/saves the starter template over malformed existing templates | Working | `server/src/routes/oyama-email.ts`, `tests/api/oyama-email-merge-preview.api.test.ts` |
+| Canonical builder uses Tiptap rich editing plus saved plain-text override | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` |
+| Legacy `/email-builder` direct route and high-traffic links point into OyamaEmail | Partially Working | `app/email-builder/page.tsx`, `app/campaigns/[id]/page.tsx`, `server/src/routes/donations.ts`, `server/src/services/steward-tool-registry.ts`, `app/components/communications/CampaignWorkspace.tsx` |
 | Donation multi-select temporary email segment handoff | Partially Working | `app/donations/page.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
 | Sidebar navigation enters OyamaEmail as the primary donor email tool | Working | `app/components/layout/sidebar-configs.tsx` |
 
@@ -81,6 +84,7 @@ Notes:
 
 - Temporary donation email segments support template selection, audience validation, and confirmed immediate send from the campaign wizard.
 - Queue/schedule is intentionally disabled for explicit temporary/manual/list audiences because those recipient selections are not yet persisted on the campaign record. Persisted segment audiences remain the scheduled-send path.
+- 2026-06-11 builder migration update: direct legacy route access redirects to `/oyama-email/templates/*/builder`; malformed or empty stored template JSON recovers from persisted body fields; starter-template overwrite attempts are blocked server-side. Remaining embedded legacy builder imports in Steward and Communications need a dedicated parity cleanup pass before claiming full legacy removal.
 
 ## Status Definitions
 

@@ -12,6 +12,7 @@ export type BlockType =
   | 'text'
   | 'quote'
   | 'impactStat'
+  | 'statistics'
   | 'impactStory'
   | 'impactGrid'
   | 'progress'
@@ -27,6 +28,9 @@ export type BlockType =
   | 'firstTimeDonorWelcome'
   | 'staffSignature'
   | 'footerCompliance'
+  | 'eventDetails'
+  | 'partnerLogos'
+  | 'contactCard'
   | 'image'
   | 'video'
   | 'button'
@@ -96,6 +100,25 @@ export interface ImpactStatBlock extends BaseBlock {
   sublabel?: string;
   bgColor: string;
   textColor: string;
+  padding: number;
+}
+
+export interface StatisticItem {
+  value: string;
+  label: string;
+  detail?: string;
+}
+
+export interface StatisticsBlock extends BaseBlock {
+  type: 'statistics';
+  title?: string;
+  intro?: string;
+  items: StatisticItem[];
+  columnCount: 2 | 3;
+  bgColor: string;
+  cardColor: string;
+  textColor: string;
+  accentColor: string;
   padding: number;
 }
 
@@ -301,6 +324,52 @@ export interface FooterComplianceBlock extends BaseBlock {
   padding: number;
 }
 
+export interface EventDetailsBlock extends BaseBlock {
+  type: 'eventDetails';
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  description?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  bgColor: string;
+  textColor: string;
+  accentColor: string;
+  padding: number;
+}
+
+export interface PartnerLogoItem {
+  name: string;
+  imageUrl: string;
+  linkUrl?: string;
+}
+
+export interface PartnerLogosBlock extends BaseBlock {
+  type: 'partnerLogos';
+  title?: string;
+  logos: PartnerLogoItem[];
+  bgColor: string;
+  textColor: string;
+  borderColor: string;
+  padding: number;
+}
+
+export interface ContactCardBlock extends BaseBlock {
+  type: 'contactCard';
+  heading: string;
+  name: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  note?: string;
+  imageUrl?: string;
+  bgColor: string;
+  textColor: string;
+  accentColor: string;
+  padding: number;
+}
+
 // ─── Image ────────────────────────────────────────────────────────────────────
 
 export interface ImageBlock extends BaseBlock {
@@ -443,6 +512,7 @@ export type EmailBlock =
   | TextBlock
   | QuoteBlock
   | ImpactStatBlock
+  | StatisticsBlock
   | ImpactStoryBlock
   | ImpactGridBlock
   | ProgressBlock
@@ -458,6 +528,9 @@ export type EmailBlock =
   | FirstTimeDonorWelcomeBlock
   | StaffSignatureBlock
   | FooterComplianceBlock
+  | EventDetailsBlock
+  | PartnerLogosBlock
+  | ContactCardBlock
   | ImageBlock
   | VideoBlock
   | ButtonBlock
@@ -511,9 +584,11 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   { blockType: 'button', label: 'Button', description: 'Call-to-action button', icon: '>', section: 'Basic' },
   { blockType: 'quote', label: 'Quote', description: 'Donor quote or testimonial', icon: '"', section: 'Basic' },
   { blockType: 'callout', label: 'Callout', description: 'Highlighted content panel', icon: '!', section: 'Basic' },
+  { blockType: 'contactCard', label: 'Contact Card', description: 'Staff contact details for replies', icon: 'CC', section: 'Basic' },
 
   // Impact and stories
   { blockType: 'impactStat', label: 'Impact Stat', description: 'Large ministry metric card', icon: '#', section: 'Impact' },
+  { blockType: 'statistics', label: 'Statistics', description: 'Formatted grid of key numbers', icon: '##', section: 'Impact' },
   { blockType: 'impactGrid', label: 'Impact Grid', description: 'Multi-stat donor update grid', icon: 'G', section: 'Impact' },
   { blockType: 'impactStory', label: 'Impact Story', description: 'Story + outcome with privacy-safe reminder', icon: 'S', section: 'Stories' },
   { blockType: 'timeline', label: 'Impact Timeline', description: 'Milestones and outcomes', icon: 'M', section: 'Impact' },
@@ -528,6 +603,8 @@ export const PALETTE_ITEMS: PaletteItem[] = [
   { blockType: 'progress', label: 'Campaign Progress', description: 'Show raised vs goal progress', icon: '%', section: 'Campaigns' },
   { blockType: 'lapsedDonorReengagement', label: 'Lapsed Donor Re-Engagement', description: 'Warm reconnect message with last-gift token', icon: 'RE', section: 'Stewardship' },
   { blockType: 'firstTimeDonorWelcome', label: 'First-Time Donor Welcome', description: 'Welcome and onboarding donor touchpoint', icon: 'W', section: 'Stewardship' },
+  { blockType: 'eventDetails', label: 'Event Details', description: 'Date, time, location, and RSVP CTA', icon: 'ED', section: 'Events' },
+  { blockType: 'partnerLogos', label: 'Partner Logos', description: 'Sponsor or community partner logo row', icon: 'PL', section: 'Ministry / Mission' },
 
   // Personalization and compliance
   { blockType: 'staffSignature', label: 'Staff Signature', description: 'Reusable relationship-owner signature block', icon: 'SG', section: 'Personalization' },
