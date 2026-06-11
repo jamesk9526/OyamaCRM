@@ -996,8 +996,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [serverPreviewText, setServerPreviewText] = useState("");
   const [serverPreviewWarnings, setServerPreviewWarnings] = useState<string[]>([]);
   const [previewRecipients, setPreviewRecipients] = useState<PreviewRecipientOption[]>([]);
-  const [previewMode, setPreviewMode] = useState<"random" | "selected" | "email">("random");
+  const [previewMode, setPreviewMode] = useState<"random" | "selected" | "email">("selected");
   const [selectedPreviewRecipientId, setSelectedPreviewRecipientId] = useState("");
+  const [previewRecipientSearch, setPreviewRecipientSearch] = useState("");
   const [previewPanelMode, setPreviewPanelMode] = useState<PreviewPanelMode>("split");
   const [previewViewport, setPreviewViewport] = useState<PreviewViewport>("desktop");
   const [previewAutoRefresh, setPreviewAutoRefresh] = useState(true);
@@ -1218,6 +1219,27 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     () => previewRecipients.find((row) => row.id === selectedPreviewRecipientId) ?? null,
     [previewRecipients, selectedPreviewRecipientId],
   );
+
+  const filteredPreviewRecipients = useMemo(() => {
+    const query = previewRecipientSearch.trim().toLowerCase();
+    if (!query) return previewRecipients;
+    return previewRecipients.filter((row) => {
+      const label = row.displayName
+        || row.organizationName
+        || [row.firstName, row.lastName].filter(Boolean).join(" ")
+        || "";
+      return [label, row.email || "", row.id]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [previewRecipientSearch, previewRecipients]);
+
+  useEffect(() => {
+    if (!selectedPreviewRecipientId && previewRecipients.length > 0) {
+      setSelectedPreviewRecipientId(previewRecipients[0].id);
+    }
+  }, [previewRecipients, selectedPreviewRecipientId]);
 
   const templateTextStyle = useMemo<React.CSSProperties>(() => ({
     fontFamily: draft.template.fontFamily || DEFAULT_TEMPLATE.fontFamily,
@@ -1446,11 +1468,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }, [setTemplateDocument]);
 
   const buildPreviewRequestBody = useCallback(() => {
-    if (previewMode === "selected" && selectedPreviewRecipientId) {
-      return {
-        previewMode: "selected",
-        recipientConstituentId: selectedPreviewRecipientId,
-      };
+    if (previewMode === "selected") {
+      const recipientConstituentId = selectedPreviewRecipientId || previewRecipients[0]?.id;
+      if (recipientConstituentId) {
+        return {
+          previewMode: "selected",
+          recipientConstituentId,
+        };
+      }
     }
     if (previewMode === "email" && testRecipientEmail.trim()) {
       return {
@@ -1461,7 +1486,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     return {
       previewMode: "random",
     };
-  }, [previewMode, selectedPreviewRecipientId, testRecipientEmail]);
+  }, [previewMode, previewRecipients, selectedPreviewRecipientId, testRecipientEmail]);
 
   const addBlock = useCallback((type: BuilderBlockType) => {
     const block = createBlock(type);
@@ -3312,7 +3337,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800">Email Preview</p>
                   <InfoTooltip label="About preview recipients">
-                    Random preview helps catch merge-field problems fast. Selected donor preview is best for validating one known record. Email mode checks against a specific address match when one exists.
+                    Select a recipient to lock preview output to one donor record. Use email mode to preview with a specific email address.
                   </InfoTooltip>
                 </div>
                 <div className="flex items-center gap-2">
@@ -3341,31 +3366,40 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <select
                   value={previewMode}
-                  onChange={(event) => setPreviewMode((event.target.value as "random" | "selected" | "email") || "random")}
+                  onChange={(event) => setPreviewMode((event.target.value as "random" | "selected" | "email") || "selected")}
                   title="Preview recipient mode"
                   aria-label="Preview recipient mode"
                   className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
                 >
-                  <option value="random">Random donor preview</option>
                   <option value="selected">Selected donor preview</option>
                   <option value="email">Use recipient email</option>
                 </select>
                 {previewMode === "selected" ? (
-                  <select
-                    value={selectedPreviewRecipientId}
-                    onChange={(event) => setSelectedPreviewRecipientId(event.target.value)}
-                    title="Select preview recipient"
-                    aria-label="Select preview recipient"
-                    className="max-w-[240px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-                  >
-                    <option value="">Choose a donor</option>
-                    {previewRecipients.map((row) => (
-                      <option key={row.id} value={row.id}>
-                        {row.displayName || row.organizationName || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || row.id}
-                        {row.email ? ` (${row.email})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <input
+                      value={previewRecipientSearch}
+                      onChange={(event) => setPreviewRecipientSearch(event.target.value)}
+                      placeholder="Search recipient"
+                      title="Search preview recipient"
+                      aria-label="Search preview recipient"
+                      className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                    />
+                    <select
+                      value={selectedPreviewRecipientId}
+                      onChange={(event) => setSelectedPreviewRecipientId(event.target.value)}
+                      title="Select preview recipient"
+                      aria-label="Select preview recipient"
+                      className="max-w-[280px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                    >
+                      <option value="">Choose a donor</option>
+                      {filteredPreviewRecipients.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.displayName || row.organizationName || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || row.id}
+                          {row.email ? ` (${row.email})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </>
                 ) : null}
                 {previewMode === "email" ? (
                   <input
