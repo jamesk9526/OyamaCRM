@@ -726,6 +726,16 @@ function formatCampaignDate(value: Date | null | undefined): string {
   }).format(value);
 }
 
+function formatRecurringFrequencyLabel(value: string | null | undefined): string {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized) return "";
+  if (normalized === "WEEKLY") return "Weekly";
+  if (normalized === "MONTHLY") return "Monthly";
+  if (normalized === "QUARTERLY") return "Quarterly";
+  if (normalized === "ANNUALLY") return "Annual";
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
 function buildCampaignAddressBlock(parts: Array<string | null | undefined>): string {
   return parts
     .map((part) => String(part ?? "").trim())
@@ -787,6 +797,8 @@ async function buildCampaignMergeContext(params: {
         select: {
           amount: true,
           date: true,
+          isRecurring: true,
+          frequency: true,
           receiptNumber: true,
           taxDeductible: true,
           campaignId: true,
@@ -847,8 +859,19 @@ async function buildCampaignMergeContext(params: {
     ? `${Math.round((campaignRaisedAmount / campaignGoalAmount) * 100)}%`
     : "";
   const addressBlock = branding.addressLine || buildCampaignAddressBlock([]);
+  const resolvedLastGiftAmount = formatCampaignCurrency(latestDonation?.amount ?? constituent?.lastGiftAmount ?? null);
+  const resolvedLastGiftDate = formatCampaignDate(latestDonation?.date ?? constituent?.lastGiftDate ?? null);
   const donationAmount = formatCampaignCurrency(latestDonation?.amount ?? constituent?.lastGiftAmount ?? null);
-  const taxDeductibleAmount = latestDonation?.taxDeductible ? donationAmount : donationAmount ? "$0.00" : "";
+  const taxDeductibleAmount = latestDonation?.taxDeductible
+    ? donationAmount
+    : latestDonation
+      ? "$0.00"
+      : "";
+  const giftAmountType = latestDonation
+    ? (latestDonation.isRecurring
+      ? `Recurring${latestDonation.frequency ? ` (${formatRecurringFrequencyLabel(latestDonation.frequency)})` : ""}`
+      : "One-time")
+    : "";
   const previewRecipient = recipientEmail
     ? {
         email: constituent?.email?.trim() || recipientEmail,
@@ -875,15 +898,17 @@ async function buildCampaignMergeContext(params: {
       "donor.totalLifetimeGiving": formatCampaignCurrency(constituent?.totalLifetimeGiving ?? null),
       "donor.giftCount": constituent?.giftCount != null ? String(constituent.giftCount) : "",
       "donor.firstGiftDate": formatCampaignDate(constituent?.firstGiftDate ?? null),
-      "donor.lastGiftDate": formatCampaignDate(constituent?.lastGiftDate ?? null),
-      "donor.lastGiftAmount": formatCampaignCurrency(constituent?.lastGiftAmount ?? null),
-      lastGiftAmount: formatCampaignCurrency(constituent?.lastGiftAmount ?? null),
-      lastGiftDate: formatCampaignDate(constituent?.lastGiftDate ?? null),
+      "donor.lastGiftDate": resolvedLastGiftDate,
+      "donor.lastGiftAmount": resolvedLastGiftAmount,
+      lastGiftAmount: resolvedLastGiftAmount,
+      lastGiftDate: resolvedLastGiftDate,
       totalYtdGiving: formatCampaignCurrency(constituent?.totalYtdGiving ?? null),
       totalLifetimeGiving: formatCampaignCurrency(constituent?.totalLifetimeGiving ?? null),
       giftCount: constituent?.giftCount != null ? String(constituent.giftCount) : "",
       firstGiftDate: formatCampaignDate(constituent?.firstGiftDate ?? null),
       "gift.amount": donationAmount,
+      "gift.amountType": giftAmountType,
+      "donation.amountType": giftAmountType,
       "gift.date": formatCampaignDate(latestDonation?.date ?? null),
       "gift.receiptNumber": latestDonation?.receiptNumber?.trim() || "",
       "gift.taxDeductibleAmount": taxDeductibleAmount,
@@ -920,6 +945,7 @@ async function buildCampaignMergeContext(params: {
       currentDate: formatCampaignDate(new Date()),
       donationUrl: branding.websiteUrl,
       donationAmount,
+      giftAmountType,
       taxDeductibleAmount,
       organizationAddress: addressBlock,
       "event.name": latestDonation?.event?.name?.trim() || "",

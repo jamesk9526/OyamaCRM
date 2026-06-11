@@ -115,6 +115,16 @@ function formatTime(value: Date | null | undefined): string {
   }).format(value);
 }
 
+function formatRecurringFrequency(value: string | null | undefined): string {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized) return "";
+  if (normalized === "WEEKLY") return "Weekly";
+  if (normalized === "MONTHLY") return "Monthly";
+  if (normalized === "QUARTERLY") return "Quarterly";
+  if (normalized === "ANNUALLY") return "Annual";
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
 function formatCurrency(value: unknown): string {
   const numeric = Number(value ?? Number.NaN);
   if (!Number.isFinite(numeric)) return "";
@@ -384,6 +394,8 @@ async function buildTemplateMergeVars(params: {
         select: {
           amount: true,
           date: true,
+          isRecurring: true,
+          frequency: true,
           receiptNumber: true,
           taxDeductible: true,
           campaignId: true,
@@ -435,6 +447,19 @@ async function buildTemplateMergeVars(params: {
   const eventTime = formatTime(donation?.event?.startDate ?? null);
   const eventLocation = [donation?.event?.location, donation?.event?.city, donation?.event?.state].filter(Boolean).join(", ");
   const eventName = donation?.event?.name?.trim() || "";
+  const resolvedLastGiftAmount = formatCurrency(donation?.amount ?? recipient?.lastGiftAmount ?? null);
+  const resolvedLastGiftDate = formatDate(donation?.date ?? recipient?.lastGiftDate ?? null);
+  const donationAmount = formatCurrency(donation?.amount ?? recipient?.lastGiftAmount ?? null);
+  const taxDeductibleAmount = donation?.taxDeductible
+    ? donationAmount
+    : donation
+      ? "$0.00"
+      : "";
+  const giftAmountType = donation
+    ? (donation.isRecurring
+      ? `Recurring${donation.frequency ? ` (${formatRecurringFrequency(donation.frequency)})` : ""}`
+      : "One-time")
+    : "";
 
   const physicalAddress = branding.addressLine;
   const currentDate = formatDate(new Date());
@@ -471,13 +496,15 @@ async function buildTemplateMergeVars(params: {
       "donor.totalLifetimeGiving": formatCurrency(recipient?.totalLifetimeGiving ?? null),
       "donor.giftCount": recipient?.giftCount != null ? String(recipient.giftCount) : "",
       "donor.firstGiftDate": formatDate(recipient?.firstGiftDate ?? null),
-      "donor.lastGiftDate": formatDate(recipient?.lastGiftDate ?? null),
-      "donor.lastGiftAmount": formatCurrency(recipient?.lastGiftAmount ?? null),
+      "donor.lastGiftDate": resolvedLastGiftDate,
+      "donor.lastGiftAmount": resolvedLastGiftAmount,
 
-      "gift.amount": formatCurrency(donation?.amount ?? null),
+      "gift.amount": donationAmount,
+      "gift.amountType": giftAmountType,
+      "donation.amountType": giftAmountType,
       "gift.date": formatDate(donation?.date ?? null),
       "gift.receiptNumber": donation?.receiptNumber?.trim() || "",
-      "gift.taxDeductibleAmount": donation?.taxDeductible ? formatCurrency(donation?.amount ?? null) : "$0.00",
+      "gift.taxDeductibleAmount": taxDeductibleAmount,
 
       "organization.name": organizationName,
       "organization.address": physicalAddress,
@@ -507,8 +534,8 @@ async function buildTemplateMergeVars(params: {
       preferredName: firstName || fullName || "Friend",
       householdGreeting: fullName || firstName || "Friend",
       email: recipient?.email?.trim() || effectiveRecipient,
-      lastGiftAmount: formatCurrency(recipient?.lastGiftAmount ?? null),
-      lastGiftDate: formatDate(recipient?.lastGiftDate ?? null),
+      lastGiftAmount: resolvedLastGiftAmount,
+      lastGiftDate: resolvedLastGiftDate,
       totalYtdGiving: formatCurrency(recipient?.totalYtdGiving ?? null),
       totalLifetimeGiving: formatCurrency(recipient?.totalLifetimeGiving ?? null),
       giftCount: recipient?.giftCount != null ? String(recipient.giftCount) : "",
@@ -534,8 +561,9 @@ async function buildTemplateMergeVars(params: {
       currentYear: String(new Date().getFullYear()),
       currentDate,
       donationUrl: branding.websiteUrl,
-      donationAmount: formatCurrency(donation?.amount ?? null),
-      taxDeductibleAmount: donation?.taxDeductible ? formatCurrency(donation?.amount ?? null) : "$0.00",
+      donationAmount,
+      giftAmountType,
+      taxDeductibleAmount,
       organizationAddress: physicalAddress,
       unsubscribeUrl,
       unsubscribe_url: unsubscribeUrl,

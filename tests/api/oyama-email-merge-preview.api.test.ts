@@ -43,6 +43,8 @@ describe("oyama email merge field audit", () => {
     expect(tokens.has("{{preferencesUrl}}")).toBe(true);
     expect(tokens.has("{{stewardPath.status}}")).toBe(true);
     expect(tokens.has("{{gift.taxDeductibleAmount}}")).toBe(true);
+    expect(tokens.has("{{giftAmountType}}")).toBe(true);
+    expect(tokens.has("{{gift.amountType}}")).toBe(true);
     expect(tokens.has("{{event.time}}")).toBe(true);
     expect(tokens.has("{{eventDate}}")).toBe(true);
     expect(tokens.has("{{eventTime}}")).toBe(true);
@@ -370,6 +372,7 @@ describe("oyama email merge field audit", () => {
         bodyHtml: [
           "<p>{{ donor.firstName }} {{ donor.lastName }}</p>",
           "<p>{{ gift.amount }} {{ gift.receiptNumber }}</p>",
+          "<p>{{ gift.amountType }} {{ giftAmountType }}</p>",
           "<p>{{ event.name }} {{ event.location }}</p>",
           "<p>{{ campaign.name }} {{ campaign.goal }} {{ campaign.raised }}</p>",
           "<p>{{ staff.name }} {{ staff.email }}</p>",
@@ -380,6 +383,7 @@ describe("oyama email merge field audit", () => {
         bodyText: [
           "{{ donor.firstName }} {{ donor.lastName }}",
           "{{ gift.amount }} {{ gift.receiptNumber }}",
+          "{{ gift.amountType }} {{ giftAmountType }}",
           "{{ event.name }} {{ event.location }}",
           "{{ campaign.name }} {{ campaign.goal }} {{ campaign.raised }}",
           "{{ staff.name }} {{ staff.email }}",
@@ -399,6 +403,7 @@ describe("oyama email merge field audit", () => {
     expect(preview.status).toBe(200);
     expect(preview.body?.bodyHtml).toContain("Jordan Lee");
     expect(preview.body?.bodyHtml).toContain("$125.00");
+    expect(preview.body?.bodyHtml).toContain("One-time");
     expect(preview.body?.bodyHtml).toContain(`RCPT-${unique}`);
     expect(preview.body?.bodyHtml).toContain(`Spring Gala ${unique}`);
     expect(preview.body?.bodyHtml).toContain("Main Hall, Chicago, IL");
@@ -421,5 +426,6 @@ describe("oyama email merge field audit", () => {
     expect(templatePreviewByConstituent.status).toBe(200);
     expect(templatePreviewByConstituent.body?.recipient?.id).toBe(constituent.id);
     expect(templatePreviewByConstituent.body?.recipient?.fullName).toContain("Jordan Lee");
+    expect(templatePreviewByConstituent.body?.html).toContain("One-time");
   });
 });
