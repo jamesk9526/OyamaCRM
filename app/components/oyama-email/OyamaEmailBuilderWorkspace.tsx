@@ -77,6 +77,7 @@ interface BuilderBlock {
   aiSmart?: boolean;
   aiSmartPrompt?: string;
   aiSmartTone?: "warm" | "urgent" | "celebratory" | "informative";
+  aiSmartObjective?: AiSmartObjective;
 }
 
 interface BuilderTemplateDocument {
@@ -197,6 +198,9 @@ interface GlobalSettingsResponse {
 
 type WritingTarget = "subject" | "previewText" | "selectedBlock" | "newBlock";
 type WritingTone = "warm" | "urgent" | "celebratory" | "informative";
+type PreviewPanelMode = "visual" | "split" | "text";
+type PreviewViewport = "desktop" | "tablet" | "mobile";
+type AiSmartObjective = "fundraising" | "update" | "event" | "volunteer";
 
 type ActiveTab = "edit" | "mobilePreview";
 
@@ -216,6 +220,7 @@ interface BuilderDraft {
   preferenceCategory: string;
   template: BuilderTemplateDocument;
   settings: BuilderTemplateSettings;
+  aiSmartObjective?: AiSmartObjective;
 }
 
 const DEFAULT_TEMPLATE: BuilderTemplateDocument = {
@@ -476,6 +481,121 @@ function normalizeWriterOutputHtml(value: string): string {
     .join("");
 }
 
+function normalizeSmartHref(raw: string): string {
+  let value = raw.trim();
+  if (!value) return "#";
+  try {
+    value = decodeURIComponent(value);
+  } catch {
+    // keep original when URI decoding fails
+  }
+
+  const mergeToken = value.match(/\{\{\s*[a-zA-Z0-9_.]+\s*\}\}/)?.[0];
+  if (mergeToken) {
+    return mergeToken.replace(/\s+/g, "");
+  }
+
+  if (/^(https?:\/\/|mailto:|tel:|#|\/)/i.test(value)) {
+    return value;
+  }
+
+  return "#";
+}
+
+function markdownInlineToHtml(raw: string): string {
+  let value = escapeInlineHtml(raw);
+  value = value.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, href: string) => {
+    const safeHref = normalizeSmartHref(href);
+    return `<a href="${escapeInlineHtml(safeHref)}">${label}</a>`;
+  });
+  value = value.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  value = value.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  return value;
+}
+
+function normalizeAiSmartOutputHtml(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "<p></p>";
+  const withoutFence = trimmed
+    .replace(/^```[a-zA-Z]*\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  if (/<[a-z][\s\S]*>/i.test(withoutFence)) {
+    return withoutFence;
+  }
+
+  const lines = withoutFence.replace(/\r\n/g, "\n").split("\n");
+  const htmlParts: string[] = [];
+  const listItems: string[] = [];
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    htmlParts.push(`<ul>${listItems.map((item) => `<li>${item}</li>`).join("")}</ul>`);
+    listItems.length = 0;
+  };
+
+  lines.forEach((line) => {
+    const text = line.trim();
+    if (!text) {
+      flushList();
+      return;
+    }
+
+    const bullet = text.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      listItems.push(markdownInlineToHtml(bullet[1]));
+      return;
+    }
+
+    flushList();
+    const heading = text.match(/^\*\*([^*]+)\*\*$/);
+    if (heading) {
+      htmlParts.push(`<h3>${markdownInlineToHtml(heading[1])}</h3>`);
+      return;
+    }
+
+    htmlParts.push(`<p>${markdownInlineToHtml(text)}</p>`);
+  });
+
+  flushList();
+  return htmlParts.join("") || "<p></p>";
+}
+
+function normalizeEditableSmartHtml(value: string): string {
+  const cleaned = value
+    .replace(/\u00a0/g, " ")
+    .replace(/<div><br\s*\/?><\/div>/gi, "<p></p>")
+    .replace(/<div>/gi, "<p>")
+    .replace(/<\/div>/gi, "</p>")
+    .trim();
+  return cleaned || "<p></p>";
+}
+
+function summarizePreviewDelta(previousText: string, nextText: string): string | null {
+  const prev = previousText.trim();
+  const next = nextText.trim();
+  if (!prev && !next) return null;
+  if (!prev && next) return "Preview created from latest template changes.";
+  if (prev && !next) return "Preview cleared.";
+  if (prev === next) return "No visible content changes since last refresh.";
+
+  const prevWords = prev.split(/\s+/).filter(Boolean).length;
+  const nextWords = next.split(/\s+/).filter(Boolean).length;
+  const deltaWords = nextWords - prevWords;
+  const prevLines = prev.split(/\n+/).filter(Boolean).length;
+  const nextLines = next.split(/\n+/).filter(Boolean).length;
+  const deltaLines = nextLines - prevLines;
+
+  const wordPart = deltaWords === 0
+    ? "word count unchanged"
+    : `${deltaWords > 0 ? "+" : ""}${deltaWords} words`;
+  const linePart = deltaLines === 0
+    ? "line count unchanged"
+    : `${deltaLines > 0 ? "+" : ""}${deltaLines} lines`;
+  return `Preview changed (${wordPart}, ${linePart}).`;
+}
+
 function createHeaderBlock(branding?: BrandingSettings): BuilderBlock {
   const safeBranding = branding || DEFAULT_BRANDING_SETTINGS;
   return {
@@ -600,6 +720,7 @@ function createBlock(type: BuilderBlockType): BuilderBlock {
       aiSmart: true,
       aiSmartPrompt: "",
       aiSmartTone: "warm",
+      aiSmartObjective: "fundraising",
     };
   }
 
@@ -877,6 +998,12 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [previewRecipients, setPreviewRecipients] = useState<PreviewRecipientOption[]>([]);
   const [previewMode, setPreviewMode] = useState<"random" | "selected" | "email">("random");
   const [selectedPreviewRecipientId, setSelectedPreviewRecipientId] = useState("");
+  const [previewPanelMode, setPreviewPanelMode] = useState<PreviewPanelMode>("split");
+  const [previewViewport, setPreviewViewport] = useState<PreviewViewport>("desktop");
+  const [previewAutoRefresh, setPreviewAutoRefresh] = useState(true);
+  const [previewLastUpdatedAt, setPreviewLastUpdatedAt] = useState<string | null>(null);
+  const [previewDeltaSummary, setPreviewDeltaSummary] = useState<string | null>(null);
+  const [sendingPreviewToSelf, setSendingPreviewToSelf] = useState(false);
   const [globalBranding, setGlobalBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState("");
   const [smtpDefaults, setSmtpDefaults] = useState<{ fromEmail: string; replyToEmail: string }>({
@@ -1378,27 +1505,61 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     }
   }, [selectedBlockId, setTemplateDocument]);
 
-  const refreshServerPreview = useCallback(async () => {
+  const refreshServerPreview = useCallback(async (options?: { silent?: boolean }) => {
     if (!activeTemplateId) {
-      setError("Save this template before requesting server preview.");
+      if (!options?.silent) {
+        setError("Save this template before requesting server preview.");
+      }
       return;
     }
 
-    setError(null);
+    if (!options?.silent) {
+      setError(null);
+    }
+    setPreviewRefreshing(true);
     try {
       const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${activeTemplateId}/preview`, {
         method: "POST",
         body: JSON.stringify(buildPreviewRequestBody()),
       });
+      const deltaSummary = summarizePreviewDelta(serverPreviewText, preview.text || "");
       setServerPreviewHtml(preview.html || "");
       setServerPreviewText(preview.text || "");
       setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
       setPreviewRecipientLabel(preview.recipient ? (preview.recipient.fullName || preview.recipient.email) : null);
-      setNotice(Array.isArray(preview.warnings) && preview.warnings.length > 0 ? "Server preview refreshed with warnings." : "Server preview refreshed.");
+      setPreviewDeltaSummary(deltaSummary);
+      setPreviewLastUpdatedAt(new Date().toISOString());
+      if (!options?.silent) {
+        setNotice(Array.isArray(preview.warnings) && preview.warnings.length > 0 ? "Server preview refreshed with warnings." : "Server preview refreshed.");
+      }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to refresh preview.");
+      if (!options?.silent) {
+        setError(requestError instanceof Error ? requestError.message : "Failed to refresh preview.");
+      }
+    } finally {
+      setPreviewRefreshing(false);
     }
-  }, [activeTemplateId, buildPreviewRequestBody]);
+  }, [activeTemplateId, buildPreviewRequestBody, serverPreviewText]);
+
+  useEffect(() => {
+    if (!previewModalOpen || !activeTemplateId) return;
+    const handle = window.setTimeout(() => {
+      void refreshServerPreview({ silent: true });
+    }, 280);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [activeTemplateId, previewModalOpen, previewMode, selectedPreviewRecipientId, testRecipientEmail, refreshServerPreview]);
+
+  useEffect(() => {
+    if (!previewModalOpen || !activeTemplateId || !previewAutoRefresh || !lastSavedAt) return;
+    const handle = window.setTimeout(() => {
+      void refreshServerPreview({ silent: true });
+    }, 420);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [activeTemplateId, lastSavedAt, previewAutoRefresh, previewModalOpen, refreshServerPreview]);
 
   const sendTestEmail = useCallback(async () => {
     if (!activeTemplateId) {
@@ -1421,7 +1582,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         method: "POST",
         body: JSON.stringify({
           toEmail,
-          recipientEmail: toEmail,
+          recipientEmail: previewMode === "email" && testRecipientEmail.trim()
+            ? testRecipientEmail.trim()
+            : toEmail,
         }),
       });
       setNotice(`Test email sent to ${toEmail}.`);
@@ -1430,7 +1593,42 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     } finally {
       setSaving(false);
     }
-  }, [activeTemplateId, testRecipientEmail]);
+  }, [activeTemplateId, previewMode, testRecipientEmail]);
+
+  const sendPreviewToMyself = useCallback(async () => {
+    if (!activeTemplateId) {
+      setError("Save this template before sending a test email.");
+      return;
+    }
+
+    const toEmail = (smtpDefaults.fromEmail || draft.fromEmail || draft.replyToEmail).trim();
+    if (!toEmail) {
+      setError("Add your sender email in branding/settings first, then use Send to Myself.");
+      return;
+    }
+
+    setError(null);
+    setSendingPreviewToSelf(true);
+    try {
+      const previewBody = buildPreviewRequestBody();
+      await apiFetch(`/api/oyama-email/templates/${activeTemplateId}/send-test`, {
+        method: "POST",
+        body: JSON.stringify({
+          toEmail,
+          recipientEmail: previewMode === "email" && testRecipientEmail.trim()
+            ? testRecipientEmail.trim()
+            : toEmail,
+          recipientConstituentId: "recipientConstituentId" in previewBody ? previewBody.recipientConstituentId : undefined,
+          previewMode: previewBody.previewMode,
+        }),
+      });
+      setNotice(`Preview sent to ${toEmail}.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to send preview to yourself.");
+    } finally {
+      setSendingPreviewToSelf(false);
+    }
+  }, [activeTemplateId, buildPreviewRequestBody, draft.fromEmail, draft.replyToEmail, previewMode, smtpDefaults.fromEmail, testRecipientEmail]);
 
   const uploadImage = useCallback(async (blockId: string, file: File) => {
     if (!activeTemplateId) {
@@ -1862,27 +2060,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }, []);
 
   const handlePreviewOpen = useCallback(async () => {
-    if (activeTemplateId) {
-      setPreviewRefreshing(true);
-      try {
-        const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${activeTemplateId}/preview`, {
-          method: "POST",
-          body: JSON.stringify(buildPreviewRequestBody()),
-        });
-        setServerPreviewHtml(preview.html || "");
-        setServerPreviewText(preview.text || "");
-        setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
-        setPreviewRecipientLabel(preview.recipient ? (preview.recipient.fullName || preview.recipient.email) : null);
-      } catch {
-        // show whatever we have
-      } finally {
-        setPreviewRefreshing(false);
-      }
-    }
     setPreviewModalOpen(true);
-  }, [activeTemplateId, buildPreviewRequestBody]);
+    if (activeTemplateId) {
+      void refreshServerPreview({ silent: true });
+    }
+  }, [activeTemplateId, refreshServerPreview]);
 
-  const generateAiSmartHtml = useCallback(async (blockId: string, description: string, tone: WritingTone) => {
+  const generateAiSmartHtml = useCallback(async (blockId: string, description: string, tone: WritingTone, instruction?: string, objective: AiSmartObjective = "fundraising") => {
     const brief = description.trim();
     if (!brief) {
       setAiSmartError("Add a Smart Block description before generating HTML.");
@@ -1912,7 +2096,27 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         body: JSON.stringify({
           target: "bodyHtml",
           mode: "smartHtml",
-          prompt: brief,
+          prompt: [
+            brief,
+            "",
+            `Campaign objective: ${objective}.`,
+            objective === "fundraising"
+              ? "Optimize for donor trust, impact clarity, and one donation call-to-action."
+              : objective === "event"
+                ? "Optimize for event registration clarity, date/location readability, and attendance action."
+                : objective === "volunteer"
+                  ? "Optimize for volunteer invitation clarity, role expectations, and response action."
+                  : "Optimize for mission update clarity, gratitude, and concise narrative flow.",
+            "",
+            instruction
+              ? `Advanced instruction:\n${instruction}`
+              : "Advanced instruction:\nKeep the section concise, mobile-scannable, and conversion-aware.",
+            "",
+            "Priorities:",
+            "1) Be conversion-focused and concise.",
+            "2) Keep paragraphs short for mobile scanning.",
+            "3) Include one clear CTA where relevant.",
+          ].join("\n"),
           tone,
           campaignName: draftRef.current.name,
           audience: draftRef.current.purpose,
@@ -1930,40 +2134,54 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       let buffer = "";
       let reply = "";
 
+      const processRawEvent = (rawEvent: string) => {
+        const eventName = rawEvent.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
+        const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
+        if (!dataLine) return;
+        const payload = JSON.parse(dataLine) as { delta?: string; reply?: string; message?: string };
+
+        if (eventName === "delta" && payload.delta) {
+          reply += payload.delta;
+        } else if (eventName === "done") {
+          if (typeof payload.reply === "string" && payload.reply.trim()) {
+            reply = payload.reply;
+          }
+        } else if (eventName === "error") {
+          throw new Error(payload.message || "AI Smart generation failed.");
+        }
+      };
+
       while (true) {
         const chunk = await reader.read();
         if (chunk.done) break;
-        buffer += decoder.decode(chunk.value, { stream: true });
+        buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, "\n");
         let boundary = buffer.indexOf("\n\n");
         while (boundary >= 0) {
           const rawEvent = buffer.slice(0, boundary);
           buffer = buffer.slice(boundary + 2);
           boundary = buffer.indexOf("\n\n");
-
-          const eventName = rawEvent.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
-          const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
-          if (!dataLine) continue;
-          const payload = JSON.parse(dataLine) as { delta?: string; reply?: string; message?: string };
-
-          if (eventName === "delta" && payload.delta) {
-            reply += payload.delta;
-          } else if (eventName === "done") {
-            if (typeof payload.reply === "string" && payload.reply.trim()) {
-              reply = payload.reply;
-            }
-          } else if (eventName === "error") {
-            throw new Error(payload.message || "AI Smart generation failed.");
-          }
+          processRawEvent(rawEvent);
         }
       }
 
-      const html = normalizeWriterOutputHtml(reply.trim());
+      buffer += decoder.decode();
+      const trailingEvent = buffer.trim();
+      if (trailingEvent) {
+        processRawEvent(trailingEvent);
+      }
+
+      if (!reply.trim()) {
+        throw new Error("AI Smart generation completed but returned no content.");
+      }
+
+      const html = normalizeAiSmartOutputHtml(reply.trim());
       updateBlock(blockId, (current) => ({
         ...current,
         type: "html",
         aiSmart: true,
         aiSmartPrompt: brief,
         aiSmartTone: tone,
+        aiSmartObjective: objective,
         html,
       }));
       setNotice("AI Smart Block generated with Steward AI.");
@@ -2918,7 +3136,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     onChange={(patch) => updateBlock(selectedBlock.id, (current) => ({ ...current, ...patch }))}
                     onSetInsertTarget={(field) => setInsertTarget({ scope: "block", blockId: selectedBlock.id, field })}
                     onUploadImage={(file) => void uploadImage(selectedBlock.id, file)}
-                    onGenerateAiSmartHtml={(description, tone) => void generateAiSmartHtml(selectedBlock.id, description, tone)}
+                    onGenerateAiSmartHtml={(description, tone, instruction, objective) => void generateAiSmartHtml(selectedBlock.id, description, tone, instruction, objective)}
                     aiSmartBusy={aiSmartBusyBlockId === selectedBlock.id}
                     aiSmartError={aiSmartBusyBlockId === selectedBlock.id ? aiSmartError : null}
                     uploadingImage={uploadingImage}
@@ -3089,17 +3307,43 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-5 py-3">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-semibold text-slate-800">Email Preview</p>
-                <InfoTooltip label="About preview recipients">
-                  Random preview helps catch merge-field problems fast. Selected donor preview is best for validating one known record. Email mode checks against a specific address match when one exists.
-                </InfoTooltip>
+            <div className="border-b border-slate-200 bg-slate-50/90 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-800">Email Preview</p>
+                  <InfoTooltip label="About preview recipients">
+                    Random preview helps catch merge-field problems fast. Selected donor preview is best for validating one known record. Email mode checks against a specific address match when one exists.
+                  </InfoTooltip>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void refreshServerPreview()}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    {previewRefreshing ? "Refreshing..." : "Refresh"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendPreviewToMyself()}
+                    disabled={sendingPreviewToSelf || previewRefreshing}
+                    className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+                  >
+                    {sendingPreviewToSelf ? "Sending..." : "Send to Myself"}
+                  </button>
+                  <button type="button" onClick={() => setPreviewModalOpen(false)} title="Close preview" className="rounded p-1 text-slate-500 hover:bg-slate-100">
+                    <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <select
                   value={previewMode}
                   onChange={(event) => setPreviewMode((event.target.value as "random" | "selected" | "email") || "random")}
+                  title="Preview recipient mode"
+                  aria-label="Preview recipient mode"
                   className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
                 >
                   <option value="random">Random donor preview</option>
@@ -3110,6 +3354,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   <select
                     value={selectedPreviewRecipientId}
                     onChange={(event) => setSelectedPreviewRecipientId(event.target.value)}
+                    title="Select preview recipient"
+                    aria-label="Select preview recipient"
                     className="max-w-[240px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
                   >
                     <option value="">Choose a donor</option>
@@ -3126,22 +3372,47 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     value={testRecipientEmail}
                     onChange={(event) => setTestRecipientEmail(event.target.value)}
                     placeholder="recipient@example.org"
+                    title="Preview email address"
+                    aria-label="Preview email address"
                     className="w-52 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
                   />
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => void refreshServerPreview()}
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                <select
+                  value={previewPanelMode}
+                  onChange={(event) => setPreviewPanelMode((event.target.value as PreviewPanelMode) || "split")}
+                  title="Preview panel mode"
+                  aria-label="Preview panel mode"
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
                 >
-                  Refresh
-                </button>
+                  <option value="visual">Visual only</option>
+                  <option value="split">Visual + text</option>
+                  <option value="text">Text only</option>
+                </select>
+                <select
+                  value={previewViewport}
+                  onChange={(event) => setPreviewViewport((event.target.value as PreviewViewport) || "desktop")}
+                  title="Preview viewport width"
+                  aria-label="Preview viewport width"
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                >
+                  <option value="desktop">Desktop width</option>
+                  <option value="tablet">Tablet width</option>
+                  <option value="mobile">Mobile width</option>
+                </select>
+                <label className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={previewAutoRefresh}
+                    onChange={(event) => setPreviewAutoRefresh(event.target.checked)}
+                  />
+                  Auto refresh
+                </label>
                 {previewRecipientLabel ? <span className="text-xs text-slate-500">Recipient: {previewRecipientLabel}</span> : null}
-                <button type="button" onClick={() => setPreviewModalOpen(false)} className="rounded p-1 text-slate-500 hover:bg-slate-100">
-                  <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                {previewMode === "selected" && selectedPreviewRecipientId && selectedPreviewRecipient ? (
+                  <span className="text-xs text-slate-500">Selected: {selectedPreviewRecipient.displayName || [selectedPreviewRecipient.firstName, selectedPreviewRecipient.lastName].filter(Boolean).join(" ") || selectedPreviewRecipient.email || selectedPreviewRecipient.id}</span>
+                ) : null}
+                {previewLastUpdatedAt ? <span className="text-xs text-slate-500">Updated {formatLastSaved(previewLastUpdatedAt)}</span> : null}
+                {previewDeltaSummary ? <span className="text-xs text-slate-500">{previewDeltaSummary}</span> : null}
               </div>
             </div>
             <div className="flex-1 overflow-auto p-4">
@@ -3153,16 +3424,40 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   </ul>
                 </div>
               ) : null}
-              {serverPreviewHtml ? (
-                <iframe
-                  srcDoc={serverPreviewHtml}
-                  sandbox="allow-same-origin"
-                  className="h-full min-h-[500px] w-full rounded-lg border border-slate-200"
-                  title="Email preview"
-                />
+              {serverPreviewHtml || serverPreviewText ? (
+                <div className={["grid gap-3", previewPanelMode === "split" ? "md:grid-cols-2" : "grid-cols-1"].join(" ")}>
+                  {previewPanelMode !== "text" ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Rendered HTML</p>
+                      <div
+                        className={[
+                          "mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white",
+                          previewViewport === "mobile"
+                            ? "max-w-[390px]"
+                            : previewViewport === "tablet"
+                              ? "max-w-[768px]"
+                              : "max-w-none",
+                        ].join(" ")}
+                      >
+                        <iframe
+                          srcDoc={serverPreviewHtml || "<p></p>"}
+                          sandbox="allow-same-origin"
+                          className="h-full min-h-[520px] w-full"
+                          title="Email preview"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                  {previewPanelMode !== "visual" ? (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Plain Text Output</p>
+                      <pre className="min-h-[520px] whitespace-pre-wrap break-words rounded border border-slate-100 bg-slate-50 p-3 font-mono text-xs text-slate-700">{serverPreviewText || "No plain-text output yet."}</pre>
+                    </div>
+                  ) : null}
+                </div>
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                  No server preview available. Save the template first.
+                <div className="flex h-full min-h-[420px] items-center justify-center text-sm text-slate-500">
+                  No server preview available yet. Save the template, then refresh preview.
                 </div>
               )}
             </div>
@@ -3881,13 +4176,65 @@ function BlockInspector({
   onChange: (patch: Partial<BuilderBlock>) => void;
   onSetInsertTarget: (field: string) => void;
   onUploadImage: (file: File) => void;
-  onGenerateAiSmartHtml: (description: string, tone: WritingTone) => void;
+  onGenerateAiSmartHtml: (description: string, tone: WritingTone, instruction?: string, objective?: AiSmartObjective) => void;
   aiSmartBusy: boolean;
   aiSmartError: string | null;
   uploadingImage: boolean;
   canUpload: boolean;
   className?: string;
 }) {
+  const visualEditorRef = useRef<HTMLDivElement>(null);
+  const [smartToolInstruction, setSmartToolInstruction] = useState("");
+  const [selectedMergeToken, setSelectedMergeToken] = useState("");
+
+  const quickMergeTokens = useMemo(
+    () => mergeFieldGroups.flatMap((group) => group.fields.map((field) => field.token)).slice(0, 120),
+    [mergeFieldGroups],
+  );
+
+  const commitVisualHtml = useCallback(() => {
+    const editor = visualEditorRef.current;
+    if (!editor) return;
+    onChange({ html: normalizeEditableSmartHtml(editor.innerHTML) });
+  }, [onChange]);
+
+  const runEditorCommand = useCallback((command: string, value?: string) => {
+    const editor = visualEditorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(command, false, value);
+    commitVisualHtml();
+  }, [commitVisualHtml]);
+
+  const insertSmartLink = useCallback(() => {
+    const raw = window.prompt("Enter URL or merge token (example: https://..., {{donationUrl}})", "https://");
+    if (!raw) return;
+    runEditorCommand("createLink", normalizeSmartHref(raw));
+  }, [runEditorCommand]);
+
+  const insertSelectedMergeToken = useCallback(() => {
+    const token = selectedMergeToken.trim();
+    if (!token) return;
+    runEditorCommand("insertText", `{{${token}}}`);
+  }, [runEditorCommand, selectedMergeToken]);
+
+  useEffect(() => {
+    if (block.type !== "html" || !block.aiSmart) return;
+    const editor = visualEditorRef.current;
+    if (!editor) return;
+    if (document.activeElement === editor) return;
+    const nextHtml = block.html || "<p></p>";
+    if (editor.innerHTML !== nextHtml) {
+      editor.innerHTML = nextHtml;
+    }
+  }, [block.type, block.aiSmart, block.html]);
+
+  useEffect(() => {
+    if (!selectedMergeToken && quickMergeTokens.length > 0) {
+      setSelectedMergeToken(quickMergeTokens[0]);
+    }
+  }, [quickMergeTokens, selectedMergeToken]);
+
   return (
     <div className={["space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3", className || ""].join(" ")}>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Block: {block.type}</p>
@@ -4408,7 +4755,7 @@ function BlockInspector({
                 <div className="flex items-end">
                   <button
                     type="button"
-                    onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm")}
+                    onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", undefined, block.aiSmartObjective || "fundraising")}
                     disabled={aiSmartBusy}
                     className="h-10 w-full rounded-md border border-indigo-700 bg-indigo-700 px-3 text-xs font-semibold text-white hover:bg-indigo-600 disabled:opacity-60"
                   >
@@ -4416,6 +4763,88 @@ function BlockInspector({
                   </button>
                 </div>
               </div>
+              <label className="block text-xs font-semibold text-slate-700">
+                Objective
+                <select
+                  value={block.aiSmartObjective || "fundraising"}
+                  onChange={(event) => onChange({ aiSmart: true, aiSmartObjective: (event.target.value as AiSmartObjective) || "fundraising" })}
+                  className="mt-1 h-9 w-full rounded-md border border-slate-300 px-2 text-sm text-slate-800"
+                >
+                  <option value="fundraising">Fundraising</option>
+                  <option value="update">Mission Update</option>
+                  <option value="event">Event Registration</option>
+                  <option value="volunteer">Volunteer Recruitment</option>
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", "Rewrite the existing block with sharper donor clarity and stronger narrative flow while keeping it concise.", block.aiSmartObjective || "fundraising")}
+                  disabled={aiSmartBusy}
+                  className="h-9 rounded-md border border-indigo-300 bg-white px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                >
+                  Rewrite Sharper
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", "Expand this into a richer section with one short headline, 2 brief paragraphs, and a compact bullet list.", block.aiSmartObjective || "fundraising")}
+                  disabled={aiSmartBusy}
+                  className="h-9 rounded-md border border-indigo-300 bg-white px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                >
+                  Expand Story
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", "Make this mobile-first: shorter sentences, scannable phrasing, and no heavy paragraph blocks.", block.aiSmartObjective || "fundraising")}
+                  disabled={aiSmartBusy}
+                  className="h-9 rounded-md border border-indigo-300 bg-white px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                >
+                  Mobile Tighten
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", "Add a single high-clarity CTA button sentence that points to {{donationUrl}} or {{eventRegistrationUrl}} when context fits.", block.aiSmartObjective || "fundraising")}
+                  disabled={aiSmartBusy}
+                  className="h-9 rounded-md border border-indigo-300 bg-white px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                >
+                  Add Strong CTA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", "Harden this section for inbox deliverability: keep markup simple, no visual tricks, and keep links explicit and trustworthy.", block.aiSmartObjective || "fundraising")}
+                  disabled={aiSmartBusy}
+                  className="h-9 rounded-md border border-indigo-300 bg-white px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                >
+                  Deliverability Pass
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", "Increase personalization depth using only valid merge fields and keep language relational, warm, and specific.", block.aiSmartObjective || "fundraising")}
+                  disabled={aiSmartBusy}
+                  className="h-9 rounded-md border border-indigo-300 bg-white px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+                >
+                  Personalize Deep
+                </button>
+              </div>
+              <label className="block text-xs font-semibold text-slate-700">
+                Custom AI Tool Instruction
+                <textarea
+                  value={smartToolInstruction}
+                  onChange={(event) => setSmartToolInstruction(event.target.value)}
+                  rows={2}
+                  placeholder="Example: produce an A/B variant with stronger urgency and one concise metric."
+                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-xs text-slate-800"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => onGenerateAiSmartHtml(block.aiSmartPrompt || "", block.aiSmartTone || "warm", smartToolInstruction.trim() || undefined, block.aiSmartObjective || "fundraising")}
+                disabled={aiSmartBusy}
+                className="h-9 w-full rounded-md border border-indigo-700 bg-white px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+              >
+                Run Custom Tool
+              </button>
+              <p className="text-[11px] text-slate-500">Power mode uses your current HTML as context, so regenerate to iteratively improve rather than starting from scratch.</p>
               {aiSmartError ? <p className="text-[11px] text-red-700">{aiSmartError}</p> : null}
             </>
           ) : (
@@ -4441,8 +4870,56 @@ function BlockInspector({
             />
           </label>
           <div className="rounded-md border border-slate-200 bg-white p-2">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Live Render Preview</p>
-            <div className="rounded border border-slate-100 bg-slate-50 p-2 text-sm" dangerouslySetInnerHTML={{ __html: block.html || "<p>Custom HTML block</p>" }} />
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sent-Style Visual Preview (Editable)</p>
+            <div
+              className="rounded border border-slate-100 p-2"
+              style={{ background: template.backgroundColor || "#f3f7f5" }}
+            >
+              <div
+                className="mx-auto rounded border border-slate-200 bg-white p-3"
+                style={{
+                  maxWidth: `${Math.min(640, Math.max(320, template.contentWidth || 600))}px`,
+                  fontFamily: template.fontFamily,
+                  fontSize: `${template.baseFontSize}px`,
+                  lineHeight: String(template.lineHeight),
+                  color: template.textColor,
+                }}
+              >
+                <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
+                  <button type="button" onClick={() => runEditorCommand("bold")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Bold</button>
+                  <button type="button" onClick={() => runEditorCommand("italic")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Italic</button>
+                  <button type="button" onClick={() => runEditorCommand("insertUnorderedList")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Bullets</button>
+                  <button type="button" onClick={() => runEditorCommand("insertOrderedList")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Numbers</button>
+                  <button type="button" onClick={() => runEditorCommand("formatBlock", "<h2>")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H2</button>
+                  <button type="button" onClick={() => runEditorCommand("formatBlock", "<h3>")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">H3</button>
+                  <button type="button" onClick={() => runEditorCommand("formatBlock", "<p>")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Paragraph</button>
+                  <button type="button" onClick={insertSmartLink} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Link</button>
+                  <button type="button" onClick={() => runEditorCommand("unlink")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Unlink</button>
+                  <button type="button" onClick={() => runEditorCommand("removeFormat")} className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100">Clear Format</button>
+                  <select
+                    value={selectedMergeToken}
+                    onChange={(event) => setSelectedMergeToken(event.target.value)}
+                    className="ml-auto h-7 max-w-[240px] rounded border border-slate-300 bg-white px-1.5 text-[11px] text-slate-700"
+                  >
+                    {quickMergeTokens.map((token) => (
+                      <option key={token} value={token}>{`{{${token}}}`}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={insertSelectedMergeToken} className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-500">Insert Merge</button>
+                </div>
+                <div
+                  ref={visualEditorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onFocus={() => onSetInsertTarget("html")}
+                  onInput={(event) => onChange({ html: normalizeEditableSmartHtml(event.currentTarget.innerHTML) })}
+                  className="min-h-[140px] rounded border border-transparent p-2 text-sm focus:border-emerald-300 focus:outline-none"
+                  style={{ wordBreak: "break-word" }}
+                  dangerouslySetInnerHTML={{ __html: block.html || "<p>Custom HTML block</p>" }}
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">Direct edits in this visual surface update the block HTML automatically.</p>
           </div>
         </>
       ) : null}

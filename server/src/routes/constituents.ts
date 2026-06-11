@@ -664,19 +664,55 @@ router.get("/", async (req, res) => {
     ...(status && { donorStatus: status as never }),
   };
 
+  const isOrganizationNameFieldError = (error: unknown): boolean => (
+    error instanceof Error && /Unknown field `organizationName` for select statement on model `Constituent`/i.test(error.message)
+  );
+
+  const stripOrganizationNameFromWhere = (input: Prisma.ConstituentWhereInput): Prisma.ConstituentWhereInput => {
+    if (!input || typeof input !== "object") return input;
+    const clone = { ...input } as Prisma.ConstituentWhereInput & { OR?: Array<Record<string, unknown>> };
+    if (Array.isArray(clone.OR)) {
+      clone.OR = clone.OR.filter((entry) => !("organizationName" in entry));
+    }
+    return clone;
+  };
+
+  const fallbackSelectWithoutOrganizationName = (() => {
+    const copy = { ...CONSTITUENT_SELECT } as Record<string, unknown>;
+    delete copy.organizationName;
+    return copy as Prisma.ConstituentSelect;
+  })();
+
+  const safeFindMany = async (args: Omit<Prisma.ConstituentFindManyArgs, "select">): Promise<unknown[]> => {
+    try {
+      return await prisma.constituent.findMany({
+        ...args,
+        select: CONSTITUENT_SELECT,
+      });
+    } catch (error) {
+      if (!isOrganizationNameFieldError(error)) {
+        throw error;
+      }
+      return prisma.constituent.findMany({
+        ...args,
+        where: stripOrganizationNameFromWhere((args.where || {}) as Prisma.ConstituentWhereInput),
+        select: fallbackSelectWithoutOrganizationName,
+      });
+    }
+  };
+
   if (hasPagination) {
     const normalizedPage = Math.max(Number.parseInt(page ?? "1", 10) || 1, 1);
     const normalizedPageSize = Math.min(Math.max(Number.parseInt(pageSize ?? "50", 10) || 50, 1), 500);
     const skip = (normalizedPage - 1) * normalizedPageSize;
 
     const [items, total, active, lapsed, prospects] = await Promise.all([
-      prisma.constituent.findMany({
+      safeFindMany({
         where,
         skip,
         take: normalizedPageSize,
         orderBy: { lastName: "asc" },
-        select: CONSTITUENT_SELECT,
-      }),
+      }) as Promise<any[]>,
       prisma.constituent.count({ where }),
       prisma.constituent.count({
         where: {
@@ -723,24 +759,22 @@ router.get("/", async (req, res) => {
     const effectiveLimit = normalizedLimit ?? 2000;
     const searchWindow = Math.min(Math.max(effectiveLimit * 6, 150), 1200);
 
-    const searchCandidates = await prisma.constituent.findMany({
+    const searchCandidates = await safeFindMany({
       where,
       take: searchWindow,
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      select: CONSTITUENT_SELECT,
-    });
+    }) as any[];
 
     const ranked = sortConstituentsBySearchRelevance(searchCandidates, search).slice(0, effectiveLimit);
     res.json(ranked);
     return;
   }
 
-  const items = await prisma.constituent.findMany({
+  const items = await safeFindMany({
     where,
     ...(normalizedLimit ? { take: normalizedLimit } : {}),
     orderBy: { lastName: "asc" },
-    select: CONSTITUENT_SELECT,
-  });
+  }) as any[];
 
   res.json(items);
 });
