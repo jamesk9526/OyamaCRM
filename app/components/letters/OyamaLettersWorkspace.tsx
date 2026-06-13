@@ -1247,7 +1247,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     } finally {
       setLoading(false);
     }
-  }, [templateId]);
+  }, [templateId, setTestConstituentId]);
 
   useEffect(() => {
     void load();
@@ -2153,7 +2153,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         className="hidden"
         onChange={handleImageFileSelected}
       />
-      <div className="sticky top-0 z-40 shrink-0 shadow-sm">
+      <div className="sticky top-[89px] z-30 shrink-0 shadow-sm lg:top-0 lg:z-40">
       <div className="border-b border-slate-200 bg-white px-3 sm:px-4 xl:px-7">
         <div className="flex min-h-12 flex-wrap items-end gap-3 py-1 sm:gap-7">
           {(["File", "Insert", "Format", "Layout", "Review", "View", "AI"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); if (tab === "AI") setAiComposerOpen(true); }} className={["h-10 border-b-2 px-1 text-sm font-medium", activeRibbon === tab ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-700"].join(" ")}>{tab}</button>)}

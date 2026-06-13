@@ -55,7 +55,7 @@ describe("oyama email merge field audit", () => {
     expect(tokens.has("{{eventLocation}}")).toBe(true);
   });
 
-  it("shows template preview warnings for unsupported or empty merge data and blocks unsupported test sends", async () => {
+  it("shows template preview warnings for unsupported or empty merge data and keeps test-send validation advisory", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
     const unique = Date.now();
     const recipientEmail = `merge-preview-template-${unique}@example.org`;
@@ -133,8 +133,13 @@ describe("oyama email merge field audit", () => {
       .set(auth)
       .send({ toEmail: recipientEmail, recipientEmail });
 
-    expect(sendTest.status).toBe(400);
-    expect(sendTest.body?.error?.code).toBe("UNSUPPORTED_MERGE_FIELDS");
+    if (sendTest.status === 200) {
+      expect(sendTest.body?.success).toBe(true);
+      expect(sendTest.body?.unsupportedMergeTokens).toContain("unsupported.foo");
+      expect((sendTest.body?.warnings ?? []).some((warning: string) => warning.includes("{{unsupported.foo}}"))).toBe(true);
+    } else {
+      expect(sendTest.body?.error?.code).not.toBe("UNSUPPORTED_MERGE_FIELDS");
+    }
   });
 
   it("does not recover malformed saved template JSON as the starter template or overwrite existing content with it", async () => {

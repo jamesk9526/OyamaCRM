@@ -1199,15 +1199,6 @@ router.post("/templates/:id/send-test", async (req, res) => {
     campaign.bodyHtml,
     campaign.bodyText,
   ]);
-  if (unsupportedMergeTokens.length > 0) {
-    res.status(400).json({
-      error: {
-        code: "UNSUPPORTED_MERGE_FIELDS",
-        message: `Unsupported merge fields: ${unsupportedMergeTokens.map((token) => `{{${token}}}`).join(", ")}.`,
-      },
-    });
-    return;
-  }
   const mergeContext = await buildTemplateMergeVars({
     organizationId,
     campaignId: campaign.id,
@@ -1221,6 +1212,15 @@ router.post("/templates/:id/send-test", async (req, res) => {
   const branding = await loadOrganizationBrandingContext(organizationId);
   const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars, branding);
   const subject = applyMergeTokens(campaign.subject || campaign.name, mergeContext.vars);
+  const warnings = buildEmailMergePreviewWarnings([
+    campaign.subject,
+    campaign.previewText,
+    campaign.bodyHtml,
+    campaign.bodyText,
+  ], mergeContext.vars);
+  if (unsupportedMergeTokens.length > 0) {
+    warnings.push(`Unsupported merge fields left as typed: ${unsupportedMergeTokens.map((token) => `{{${token}}}`).join(", ")}.`);
+  }
 
   const eligibility = await evaluateRecipientEligibility({
     organizationId,
@@ -1254,13 +1254,13 @@ router.post("/templates/:id/send-test", async (req, res) => {
       action: "OYAMA_EMAIL_TEMPLATE_TEST_SENT",
       entity: "EmailCampaign",
       entityId: campaign.id,
-      metadata: { toEmail },
+      metadata: { toEmail, warnings, unsupportedMergeTokens },
     },
   }).catch(() => {
     // Best-effort audit logging.
   });
 
-  res.json({ success: true, toEmail });
+  res.json({ success: true, toEmail, warnings, unsupportedMergeTokens });
 });
 
 export default router;

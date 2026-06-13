@@ -175,6 +175,13 @@ interface PreviewResponse {
   } | null;
 }
 
+interface SendTestResponse {
+  success: boolean;
+  toEmail: string;
+  warnings?: string[];
+  unsupportedMergeTokens?: string[];
+}
+
 interface PreviewRecipientOption {
   id: string;
   firstName?: string | null;
@@ -199,6 +206,7 @@ interface AuthMeResponse {
   data?: {
     firstName?: string;
     lastName?: string;
+    email?: string;
   };
 }
 
@@ -1192,6 +1200,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [writingOutput, setWritingOutput] = useState("");
   const [writingModelUsed, setWritingModelUsed] = useState<string | null>(null);
   const [writingError, setWritingError] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState("");
   const [aiSmartBusyBlockId, setAiSmartBusyBlockId] = useState<string | null>(null);
   const [aiSmartError, setAiSmartError] = useState<string | null>(null);
 
@@ -1253,11 +1262,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         userDisplayName = [me?.data?.firstName || "", me?.data?.lastName || ""].join(" ").trim();
         if (!cancelled) {
           setCurrentUserDisplayName(userDisplayName);
+          setCurrentUserEmail(me?.data?.email?.trim() || "");
         }
       } catch {
         userDisplayName = "";
         if (!cancelled) {
           setCurrentUserDisplayName("");
+          setCurrentUserEmail("");
         }
       }
 
@@ -1701,7 +1712,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       if (!options?.silent) {
         logBuilderPreviewDiagnostics("recipient-preview", {
           templateId: previewTemplateId,
-          draft,
+          draft: draftRef.current,
           preview,
           requestBody: buildPreviewRequestBody(),
           deltaSummary,
@@ -1756,7 +1767,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setSaving(true);
 
     try {
-      await apiFetch(`/api/oyama-email/templates/${activeTemplateId}/send-test`, {
+      const result = await apiFetch<SendTestResponse>(`/api/oyama-email/templates/${activeTemplateId}/send-test`, {
         method: "POST",
         body: JSON.stringify({
           toEmail,
@@ -1765,7 +1776,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             : toEmail,
         }),
       });
-      setNotice(`Test email sent to ${toEmail}.`);
+      setNotice(result.warnings?.length
+        ? `Test email sent to ${toEmail} with ${result.warnings.length} warning${result.warnings.length === 1 ? "" : "s"}.`
+        : `Test email sent to ${toEmail}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to send test email.");
     } finally {
@@ -1779,9 +1792,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       return;
     }
 
-    const toEmail = (smtpDefaults.fromEmail || draft.fromEmail || draft.replyToEmail).trim();
+    const currentDraft = draftRef.current;
+    const toEmail = (currentUserEmail || smtpDefaults.fromEmail || currentDraft.fromEmail || currentDraft.replyToEmail).trim();
     if (!toEmail) {
-      setError("Add your sender email in branding/settings first, then use Send to Myself.");
+      setError("Add your user email or sender email in settings first, then use Send to Myself.");
       return;
     }
 
@@ -1789,7 +1803,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setSendingPreviewToSelf(true);
     try {
       const previewBody = buildPreviewRequestBody();
-      await apiFetch(`/api/oyama-email/templates/${activeTemplateId}/send-test`, {
+      const result = await apiFetch<SendTestResponse>(`/api/oyama-email/templates/${activeTemplateId}/send-test`, {
         method: "POST",
         body: JSON.stringify({
           toEmail,
@@ -1800,17 +1814,21 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           previewMode: previewBody.previewMode,
         }),
       });
+      const diagnosticsWarnings = Array.from(new Set([
+        ...serverPreviewWarnings,
+        ...(result.warnings ?? []),
+      ]));
       logBuilderPreviewDiagnostics("send-preview-to-self", {
         templateId: activeTemplateId,
-        draft,
+        draft: currentDraft,
         preview: {
           id: activeTemplateId,
-          subject: draft.subject,
-          previewText: draft.previewText,
+          subject: currentDraft.subject,
+          previewText: currentDraft.previewText,
           html: serverPreviewHtml,
           text: serverPreviewText,
-          mergeFieldsUsed: extractTokensFromDocument(draft),
-          warnings: serverPreviewWarnings,
+          mergeFieldsUsed: extractTokensFromDocument(currentDraft),
+          warnings: diagnosticsWarnings,
           recipient: previewRecipientLabel ? {
             email: toEmail,
             firstName: "",
@@ -1821,13 +1839,15 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         requestBody: previewBody,
         toEmail,
       });
-      setNotice(`Preview sent to ${toEmail}.`);
+      setNotice(diagnosticsWarnings.length
+        ? `Preview sent to ${toEmail} with ${diagnosticsWarnings.length} warning${diagnosticsWarnings.length === 1 ? "" : "s"}.`
+        : `Preview sent to ${toEmail}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to send preview to yourself.");
     } finally {
       setSendingPreviewToSelf(false);
     }
-  }, [activeTemplateId, buildPreviewRequestBody, draft.fromEmail, draft.replyToEmail, previewMode, smtpDefaults.fromEmail, testRecipientEmail]);
+  }, [activeTemplateId, buildPreviewRequestBody, currentUserEmail, previewMode, serverPreviewHtml, serverPreviewText, serverPreviewWarnings, smtpDefaults.fromEmail, testRecipientEmail, previewRecipientLabel]);
 
   const uploadImage = useCallback(async (blockId: string, file: File) => {
     if (!activeTemplateId) {
