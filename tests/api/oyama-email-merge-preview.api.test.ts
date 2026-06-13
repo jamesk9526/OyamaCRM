@@ -38,6 +38,10 @@ describe("oyama email merge field audit", () => {
     );
 
     expect(tokens.has("{{preferredName}}")).toBe(true);
+    expect(tokens.has("{first}")).toBe(true);
+    expect(tokens.has("{last}")).toBe(true);
+    expect(tokens.has("{amount}")).toBe(true);
+    expect(tokens.has("//first")).toBe(true);
     expect(tokens.has("{{organizationWebsite}}")).toBe(true);
     expect(tokens.has("{{managePreferencesUrl}}")).toBe(true);
     expect(tokens.has("{{preferencesUrl}}")).toBe(true);

@@ -1,6 +1,6 @@
 # Printable Template Builder
 
-Last updated: May 27, 2026
+Last updated: June 13, 2026
 
 ## Canonical Journey
 
@@ -21,8 +21,8 @@ Generation route:
 - Divider lines
 - Spacer blocks
 - Merge fields
-- Header presets
-- Footer presets
+- Global communication header from Branding Settings
+- Global communication footer from Branding Settings
 - Signature blocks
 - Uploaded editor/signature images through `/api/letters/media`
 

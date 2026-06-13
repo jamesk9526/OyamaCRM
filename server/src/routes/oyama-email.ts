@@ -25,6 +25,7 @@ import {
   normalizeEmailTemplateSettings,
   renderEmailTemplateDocument,
   renderEmailTemplateDocumentWithMerge,
+  type OyamaEmailGlobalChrome,
   type OyamaEmailTemplateDocument,
   type OyamaEmailTemplateSettings,
 } from "../services/oyama-email/email-render-service.js";
@@ -313,6 +314,7 @@ async function buildTemplateMergeVars(params: {
   recipientEmail?: string | null;
   recipientConstituentId?: string | null;
   previewMode?: "random" | "selected" | "email";
+  issueComplianceLinks?: boolean;
 }) {
   const normalizedRecipient = params.recipientEmail?.trim().toLowerCase() || null;
   const normalizedConstituentId = params.recipientConstituentId?.trim() || null;
@@ -466,7 +468,7 @@ async function buildTemplateMergeVars(params: {
   const effectiveRecipient = normalizedRecipient || recipient?.email?.trim().toLowerCase() || "";
   let unsubscribeUrl = "{{unsubscribeUrl}}";
   let managePreferencesUrl = "{{managePreferencesUrl}}";
-  if (effectiveRecipient) {
+  if (effectiveRecipient && params.issueComplianceLinks !== false) {
     const links = await issueTemplateComplianceLinks({
       organizationId: params.organizationId,
       campaignId: params.campaignId,
@@ -625,12 +627,12 @@ function mapTemplateResponse(campaign: {
   bodyHtml?: string | null;
   bodyText?: string | null;
   templateJson: string | null;
-}) {
+}, chrome?: OyamaEmailGlobalChrome) {
   const stored = parseStoredTemplateJson(campaign.templateJson, {
     bodyHtml: campaign.bodyHtml,
     bodyText: campaign.bodyText,
   });
-  const rendered = renderEmailTemplateDocument(stored.template, stored.settings);
+  const rendered = renderEmailTemplateDocument(stored.template, stored.settings, chrome);
 
   return {
     id: campaign.id,
@@ -696,6 +698,50 @@ router.get("/merge-fields", async (req, res) => {
   });
 });
 
+router.post("/merge-fields/line-preview", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const line = asString(asObject(req.body).line).trim().slice(0, 2000);
+  const limit = Math.min(5, Math.max(1, Number.parseInt(String(asObject(req.body).limit ?? "5"), 10) || 5));
+  if (!line) {
+    res.json({ items: [] });
+    return;
+  }
+
+  const rows = await prisma.constituent.findMany({
+    where: { organizationId },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    take: limit,
+    select: { id: true },
+  });
+
+  const items = await Promise.all(rows.map(async (row) => {
+    const mergeContext = await buildTemplateMergeVars({
+      organizationId,
+      campaignId: "merge-field-line-preview",
+      campaignName: "Merge Field Preview",
+      purpose: parseEmailPurpose("ADMINISTRATIVE"),
+      fromName: "",
+      fromEmail: "",
+      recipientConstituentId: row.id,
+      previewMode: "selected",
+      issueComplianceLinks: false,
+    });
+    return {
+      constituentId: row.id,
+      recipientName: mergeContext.recipient?.fullName || mergeContext.recipient?.email || row.id,
+      renderedLine: applyMergeTokens(line, mergeContext.vars),
+      warnings: buildEmailMergePreviewWarnings([line], mergeContext.vars),
+    };
+  }));
+
+  res.json({ items });
+});
+
 router.get("/templates", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
@@ -705,12 +751,20 @@ router.get("/templates", async (req, res) => {
 
   const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit ?? "48"), 10) || 48));
   const rows = await prisma.emailCampaign.findMany({
-    where: { organizationId },
+    where: {
+      organizationId,
+      status: "DRAFT",
+      totalRecipients: 0,
+      scheduledAt: null,
+      sentAt: null,
+      audienceFilter: null,
+    },
     orderBy: { updatedAt: "desc" },
     take: limit,
   });
+  const branding = await loadOrganizationBrandingContext(organizationId);
 
-  res.json(rows.map((row) => mapTemplateResponse(row)));
+  res.json(rows.map((row) => mapTemplateResponse(row, branding)));
 });
 
 router.post("/templates", async (req, res) => {
@@ -749,6 +803,7 @@ router.post("/templates", async (req, res) => {
   }
 
   const organizationName = organization?.name?.trim() || orgSettings?.smtpFromName?.trim() || "Oyama Ministries";
+  const branding = await loadOrganizationBrandingContext(organizationId, organizationName);
   const defaultFromName = composeDefaultFromName({
     userFirstName: currentUser?.firstName,
     userLastName: currentUser?.lastName,
@@ -787,7 +842,7 @@ router.post("/templates", async (req, res) => {
     },
   });
 
-  const rendered = renderEmailTemplateDocument(payload.template, payload.settings);
+  const rendered = renderEmailTemplateDocument(payload.template, payload.settings, branding);
   const templateJson = serializeStoredTemplateJson({
     template: payload.template,
     settings: payload.settings,
@@ -825,7 +880,7 @@ router.post("/templates", async (req, res) => {
       },
     });
 
-    res.json(mapTemplateResponse(overwritten));
+    res.json(mapTemplateResponse(overwritten, branding));
     return;
   }
 
@@ -861,7 +916,7 @@ router.post("/templates", async (req, res) => {
     },
   });
 
-  res.status(201).json(mapTemplateResponse(created));
+  res.status(201).json(mapTemplateResponse(created, branding));
 });
 
 router.get("/templates/:id", async (req, res) => {
@@ -883,7 +938,8 @@ router.get("/templates/:id", async (req, res) => {
     return;
   }
 
-  res.json(mapTemplateResponse(campaign));
+  const branding = await loadOrganizationBrandingContext(organizationId);
+  res.json(mapTemplateResponse(campaign, branding));
 });
 
 router.put("/templates/:id", async (req, res) => {
@@ -1003,7 +1059,8 @@ router.put("/templates/:id", async (req, res) => {
     return;
   }
 
-  const rendered = renderEmailTemplateDocument(payload.template, payload.settings);
+  const branding = await loadOrganizationBrandingContext(organizationId);
+  const rendered = renderEmailTemplateDocument(payload.template, payload.settings, branding);
   const templateJson = serializeStoredTemplateJson({
     template: payload.template,
     settings: payload.settings,
@@ -1027,7 +1084,7 @@ router.put("/templates/:id", async (req, res) => {
     },
   });
 
-  res.json(mapTemplateResponse(updated));
+  res.json(mapTemplateResponse(updated, branding));
 });
 
 router.post("/templates/:id/preview", async (req, res) => {
@@ -1076,7 +1133,8 @@ router.post("/templates/:id/preview", async (req, res) => {
     previewMode,
   });
 
-  const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars);
+  const branding = await loadOrganizationBrandingContext(organizationId);
+  const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars, branding);
   const subject = applyMergeTokens(campaign.subject || campaign.name, mergeContext.vars);
   const previewText = applyMergeTokens(campaign.previewText || "", mergeContext.vars);
   const warnings = buildEmailMergePreviewWarnings([
@@ -1160,7 +1218,8 @@ router.post("/templates/:id/send-test", async (req, res) => {
     recipientEmail: recipientEmail || toEmail,
   });
 
-  const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars);
+  const branding = await loadOrganizationBrandingContext(organizationId);
+  const rendered = renderEmailTemplateDocumentWithMerge(stored.template, stored.settings, mergeContext.vars, branding);
   const subject = applyMergeTokens(campaign.subject || campaign.name, mergeContext.vars);
 
   const eligibility = await evaluateRecipientEligibility({

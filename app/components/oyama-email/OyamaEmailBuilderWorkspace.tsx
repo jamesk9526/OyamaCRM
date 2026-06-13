@@ -184,6 +184,17 @@ interface PreviewRecipientOption {
   email?: string | null;
 }
 
+interface MergeLinePreviewItem {
+  constituentId: string;
+  recipientName: string;
+  renderedLine: string;
+  warnings?: string[];
+}
+
+interface MergeLinePreviewResponse {
+  items: MergeLinePreviewItem[];
+}
+
 interface AuthMeResponse {
   data?: {
     firstName?: string;
@@ -798,16 +809,84 @@ function appendToken(current: string, token: string): string {
 }
 
 const MERGE_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+const SIMPLE_MERGE_TOKEN_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}(?!\})/g;
+const SLASH_MERGE_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_.]*)\b/g;
 
 function extractMergeTokenKeys(value: string): string[] {
   const set = new Set<string>();
-  MERGE_TOKEN_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
+
+  MERGE_TOKEN_PATTERN.lastIndex = 0;
   while ((match = MERGE_TOKEN_PATTERN.exec(value)) !== null) {
     const token = String(match[1] || "").trim();
     if (token) set.add(token);
   }
+
+  SIMPLE_MERGE_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = SIMPLE_MERGE_TOKEN_PATTERN.exec(value)) !== null) {
+    const token = String(match[2] || "").trim();
+    if (token) set.add(token);
+  }
+
+  SLASH_MERGE_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = SLASH_MERGE_TOKEN_PATTERN.exec(value)) !== null) {
+    const token = String(match[2] || "").trim();
+    if (token) set.add(token);
+  }
+
   return Array.from(set);
+}
+
+function extractTokensFromDocument(draft: BuilderDraft): string[] {
+  return extractMergeTokenKeys([
+    draft.subject,
+    draft.previewText,
+    JSON.stringify(draft.template.blocks),
+    draft.settings.footerBrandingText,
+    draft.settings.physicalAddress,
+  ].join("\n"));
+}
+
+function logBuilderPreviewDiagnostics(
+  stage: "recipient-preview" | "send-preview-to-self",
+  payload: {
+    templateId: string;
+    draft: BuilderDraft;
+    preview: PreviewResponse;
+    requestBody: unknown;
+    deltaSummary?: string | null;
+    toEmail?: string;
+  },
+) {
+  const diagnostics = {
+    stage,
+    loggedAt: new Date().toISOString(),
+    templateId: payload.templateId,
+    templateName: payload.draft.name,
+    subject: payload.preview.subject || payload.draft.subject,
+    previewText: payload.preview.previewText || payload.draft.previewText,
+    purpose: payload.draft.purpose,
+    preferenceCategory: payload.draft.preferenceCategory,
+    fromName: payload.draft.fromName,
+    fromEmail: payload.draft.fromEmail,
+    replyToEmail: payload.draft.replyToEmail,
+    recipient: payload.preview.recipient,
+    requestBody: payload.requestBody,
+    toEmail: payload.toEmail ?? null,
+    warnings: payload.preview.warnings ?? [],
+    mergeFieldsUsed: payload.preview.mergeFieldsUsed?.length ? payload.preview.mergeFieldsUsed : extractTokensFromDocument(payload.draft),
+    deltaSummary: payload.deltaSummary ?? null,
+    blockCount: payload.draft.template.blocks.length,
+    renderedHtmlLength: payload.preview.html?.length ?? 0,
+    renderedTextLength: payload.preview.text?.length ?? 0,
+  };
+
+  console.groupCollapsed(`[OyamaEmail Builder Diagnostics] ${stage}: ${payload.templateId}`);
+  console.info("Summary", diagnostics);
+  console.info("Entire email HTML output", payload.preview.html || "");
+  console.info("Plain-text output", payload.preview.text || "");
+  console.info("Builder document JSON", payload.draft.template);
+  console.groupEnd();
 }
 
 function normalizeMergeTokenLabel(raw: string): string {
@@ -815,7 +894,65 @@ function normalizeMergeTokenLabel(raw: string): string {
   if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
     return trimmed.slice(2, -2).trim();
   }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed.slice(1, -1).trim();
+  }
+  if (trimmed.startsWith("//")) {
+    return trimmed.slice(2).trim();
+  }
   return trimmed;
+}
+
+function mergeTokenDisplay(raw: string): string {
+  const token = raw.trim();
+  if (!token) return "";
+  if (token.startsWith("{{") || token.startsWith("{") || token.startsWith("//")) return token;
+  if (token.includes(".")) return `{{${token}}}`;
+  return `{${token}}`;
+}
+
+function collectEmailMergeTextParts(draft: BuilderDraft): string[] {
+  const parts: string[] = [
+    draft.subject,
+    draft.previewText,
+    draft.fromName,
+    draft.settings.physicalAddress,
+    draft.settings.footerBrandingText,
+    draft.settings.plainTextOverride || "",
+  ];
+  draft.template.blocks.forEach((block) => {
+    [
+      block.content,
+      block.leftHtml,
+      block.rightHtml,
+      block.caption,
+      block.headerTitle,
+      block.headerSubtitle,
+      block.videoTitle,
+      block.fileLabel,
+      block.fileDescription,
+      block.html,
+    ].forEach((value) => {
+      if (typeof value === "string" && value.trim()) {
+        parts.push(value);
+      }
+    });
+  });
+  return parts;
+}
+
+function extractLineForEmailToken(draft: BuilderDraft, token: string): string {
+  const normalized = normalizeMergeTokenLabel(token);
+  for (const part of collectEmailMergeTextParts(draft)) {
+    const lines = stripHtml(part)
+      .replace(/\r/g, "\n")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const match = lines.find((line) => extractMergeTokenKeys(line).some((candidate) => normalizeMergeTokenLabel(candidate) === normalized));
+    if (match) return match;
+  }
+  return mergeTokenDisplay(token);
 }
 
 function looksLikeSafeUrl(value: string): boolean {
@@ -1025,6 +1162,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [zoom, setZoom] = useState(100);
   const [editingName, setEditingName] = useState(false);
   const [mergeSearch, setMergeSearch] = useState("");
+  const [mergeLinePreviewToken, setMergeLinePreviewToken] = useState<string | null>(null);
+  const [mergeLinePreview, setMergeLinePreview] = useState<MergeLinePreviewResponse | null>(null);
+  const [mergeLinePreviewLoading, setMergeLinePreviewLoading] = useState(false);
+  const [mergeLinePreviewError, setMergeLinePreviewError] = useState<string | null>(null);
   const [collapsedMergeGroups, setCollapsedMergeGroups] = useState<Set<string>>(new Set());
   const [brandingExpanded, setBrandingExpanded] = useState(false);
   const [addContentExpanded, setAddContentExpanded] = useState(true);
@@ -1330,6 +1471,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       if (!auto) {
         setNotice("Draft saved.");
       }
+      return saved.id;
     } catch (requestError) {
       const conflict = requestError instanceof Error && "conflict" in requestError
         ? (requestError as Error & { conflict?: SaveConflictState }).conflict
@@ -1346,6 +1488,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       } else {
         setError(requestError instanceof Error ? requestError.message : "Failed to save template.");
       }
+      return null;
     } finally {
       setSaving(false);
       setAutosaving(false);
@@ -1530,8 +1673,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     }
   }, [selectedBlockId, setTemplateDocument]);
 
-  const refreshServerPreview = useCallback(async (options?: { silent?: boolean }) => {
-    if (!activeTemplateId) {
+  const refreshServerPreview = useCallback(async (options?: { silent?: boolean; templateId?: string }) => {
+    const previewTemplateId = options?.templateId || activeTemplateId;
+    if (!previewTemplateId) {
       if (!options?.silent) {
         setError("Save this template before requesting server preview.");
       }
@@ -1543,7 +1687,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     }
     setPreviewRefreshing(true);
     try {
-      const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${activeTemplateId}/preview`, {
+      const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${previewTemplateId}/preview`, {
         method: "POST",
         body: JSON.stringify(buildPreviewRequestBody()),
       });
@@ -1554,6 +1698,15 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       setPreviewRecipientLabel(preview.recipient ? (preview.recipient.fullName || preview.recipient.email) : null);
       setPreviewDeltaSummary(deltaSummary);
       setPreviewLastUpdatedAt(new Date().toISOString());
+      if (!options?.silent) {
+        logBuilderPreviewDiagnostics("recipient-preview", {
+          templateId: previewTemplateId,
+          draft,
+          preview,
+          requestBody: buildPreviewRequestBody(),
+          deltaSummary,
+        });
+      }
       if (!options?.silent) {
         setNotice(Array.isArray(preview.warnings) && preview.warnings.length > 0 ? "Server preview refreshed with warnings." : "Server preview refreshed.");
       }
@@ -1646,6 +1799,27 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           recipientConstituentId: "recipientConstituentId" in previewBody ? previewBody.recipientConstituentId : undefined,
           previewMode: previewBody.previewMode,
         }),
+      });
+      logBuilderPreviewDiagnostics("send-preview-to-self", {
+        templateId: activeTemplateId,
+        draft,
+        preview: {
+          id: activeTemplateId,
+          subject: draft.subject,
+          previewText: draft.previewText,
+          html: serverPreviewHtml,
+          text: serverPreviewText,
+          mergeFieldsUsed: extractTokensFromDocument(draft),
+          warnings: serverPreviewWarnings,
+          recipient: previewRecipientLabel ? {
+            email: toEmail,
+            firstName: "",
+            lastName: "",
+            fullName: previewRecipientLabel,
+          } : null,
+        },
+        requestBody: previewBody,
+        toEmail,
       });
       setNotice(`Preview sent to ${toEmail}.`);
     } catch (requestError) {
@@ -1762,12 +1936,47 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       .filter((group) => group.fields.length > 0);
   }, [mergeFieldGroups, mergeSearch]);
 
+  const knownMergeTokens = useMemo(() => new Set(
+    mergeFieldGroups.flatMap((group) => group.fields.map((field) => normalizeMergeTokenLabel(field.token)))
+  ), [mergeFieldGroups]);
+  const detectedMergeTokens = useMemo(() => (
+    Array.from(new Set(collectEmailMergeTextParts(draft).flatMap((part) => extractMergeTokenKeys(part))))
+  ), [draft]);
+  const unknownMergeTokens = useMemo(
+    () => detectedMergeTokens.filter((token) => !knownMergeTokens.has(normalizeMergeTokenLabel(token))),
+    [detectedMergeTokens, knownMergeTokens],
+  );
+
+  const loadMergeLinePreview = useCallback(async (token: string) => {
+    const normalized = normalizeMergeTokenLabel(token);
+    if (!knownMergeTokens.has(normalized)) {
+      setMergeLinePreviewToken(token);
+      setMergeLinePreview(null);
+      setMergeLinePreviewError("Unknown merge field. Fix the token before previewing live data.");
+      return;
+    }
+
+    const line = extractLineForEmailToken(draftRef.current, token);
+    setMergeLinePreviewToken(token);
+    setMergeLinePreviewLoading(true);
+    setMergeLinePreviewError(null);
+    try {
+      const result = await apiFetch<MergeLinePreviewResponse>("/api/oyama-email/merge-fields/line-preview", {
+        method: "POST",
+        body: JSON.stringify({ line, limit: 5 }),
+      });
+      setMergeLinePreview(result);
+    } catch (requestError) {
+      setMergeLinePreview(null);
+      setMergeLinePreviewError(requestError instanceof Error ? requestError.message : "Could not load live merge preview.");
+    } finally {
+      setMergeLinePreviewLoading(false);
+    }
+  }, [knownMergeTokens]);
+
   const builderWarnings = useMemo(() => {
     const warnings: string[] = [];
 
-    const knownTokens = new Set(
-      mergeFieldGroups.flatMap((group) => group.fields.map((field) => normalizeMergeTokenLabel(field.token)))
-    );
     const groupByPrefix = new Map<string, MergeFieldGroup>();
     mergeFieldGroups.forEach((group) => {
       const key = group.key.trim().toLowerCase();
@@ -1803,8 +2012,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
 
     const usedTokens = new Set(contentParts.flatMap((part) => extractMergeTokenKeys(part)));
     usedTokens.forEach((token) => {
-      if (!knownTokens.has(token)) {
-        warnings.push(`Unknown merge field: {{ ${token} }}`);
+      if (!knownMergeTokens.has(normalizeMergeTokenLabel(token))) {
+        warnings.push(`Unknown merge field: ${mergeTokenDisplay(token)}`);
       }
 
       for (const [prefix, group] of groupByPrefix.entries()) {
@@ -1865,7 +2074,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       });
 
     return Array.from(new Set(warnings));
-  }, [draft, mergeFieldGroups]);
+  }, [draft, knownMergeTokens, mergeFieldGroups]);
 
   const toggleMergeGroup = useCallback((key: string) => {
     setCollapsedMergeGroups((prev) => {
@@ -2086,10 +2295,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
 
   const handlePreviewOpen = useCallback(async () => {
     setPreviewModalOpen(true);
-    if (activeTemplateId) {
-      void refreshServerPreview({ silent: true });
+    const previewTemplateId = dirty || !activeTemplateId
+      ? await saveTemplate(false)
+      : activeTemplateId;
+    if (previewTemplateId) {
+      void refreshServerPreview({ silent: false, templateId: previewTemplateId });
     }
-  }, [activeTemplateId, refreshServerPreview]);
+  }, [activeTemplateId, dirty, refreshServerPreview, saveTemplate]);
 
   const generateAiSmartHtml = useCallback(async (blockId: string, description: string, tone: WritingTone, instruction?: string, objective: AiSmartObjective = "fundraising") => {
     const brief = description.trim();
@@ -2342,7 +2554,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
         {/* Row 1: back + name + status + actions */}
-        <div className="flex h-16 items-center gap-3 px-6">
+        <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6">
           <button
             type="button"
             onClick={() => router.push("/oyama-email/templates")}
@@ -2382,7 +2594,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           <span className="hidden flex-none text-xs text-slate-400 xl:block">
             {autosaving ? "Saving draft…" : dirty ? "Unsaved changes - autosave active" : formatLastSaved(lastSavedAt)}
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             <button
               type="button"
               onClick={() => void saveTemplate(false)}
@@ -2401,7 +2613,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             {canPublish ? (
               <Link
                 href={publishHref}
-                className="inline-flex h-10 items-center rounded-lg border border-emerald-800 bg-emerald-800 px-5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                className="inline-flex h-10 items-center rounded-lg border border-emerald-800 bg-emerald-800 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 sm:px-5"
               >
                 Next: Publish →
               </Link>
@@ -2410,7 +2622,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 type="button"
                 disabled
                 title="Save template first"
-                className="h-10 rounded-lg border border-slate-200 bg-slate-100 px-5 text-sm font-semibold text-slate-400"
+                className="h-10 rounded-lg border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-400 sm:px-5"
               >
                 Next: Publish →
               </button>
@@ -2419,8 +2631,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </div>
 
         {/* Row 2: Ribbon tabs + zoom + device toggle */}
-        <div className="flex h-12 items-end border-t border-slate-100 px-6">
-          <div className="mr-4 flex h-full items-end gap-8">
+        <div className="flex min-h-12 flex-wrap items-end gap-2 overflow-x-auto border-t border-slate-100 px-3 sm:px-6">
+          <div className="mr-2 flex min-w-max items-end gap-4 sm:mr-4 sm:gap-8">
             <button
               type="button"
               onClick={() => setActiveTab("edit")}
@@ -2435,7 +2647,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               onClick={() => void handlePreviewOpen()}
               className="h-12 border-b-2 border-transparent px-1 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
             >
-              {previewRefreshing ? "Loading…" : "Preview"}
+              {previewRefreshing ? "Loading..." : "Show Me How It Will Look to the Recipient"}
             </button>
             <button
               type="button"
@@ -2454,8 +2666,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               Mobile
             </button>
           </div>
-          <div className="flex-1" />
-          <div className="mb-1 flex items-center gap-2">
+          <div className="hidden flex-1 sm:block" />
+          <div className="mb-1 flex min-w-max items-center gap-2">
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-1.5">
               <button
                 type="button"
@@ -2502,9 +2714,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       </header>
 
       {/* ── 3-col layout ─────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 gap-6 overflow-hidden bg-[radial-gradient(circle_at_top_left,_#e6f4ef_0%,_#f3f6fb_32%,_#f9fbff_100%)] p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto bg-[radial-gradient(circle_at_top_left,_#e6f4ef_0%,_#f3f6fb_32%,_#f9fbff_100%)] p-3 lg:flex-row lg:gap-6 lg:overflow-hidden lg:p-6">
         {/* LEFT PANEL */}
-        <aside className="flex w-[320px] flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+        <aside className="order-1 flex max-h-[42dvh] w-full flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm lg:order-none lg:max-h-none lg:w-[320px]">
           <div className="flex-1 overflow-y-auto px-5 py-5">
             {/* Add Content */}
             <div className="mb-4">
@@ -2573,6 +2785,73 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     placeholder="Search fields…"
                     className="h-8 w-full rounded-lg border border-slate-200 px-2.5 text-xs text-slate-700 focus:border-emerald-400 focus:outline-none"
                   />
+                  <div className="mt-3 grid grid-cols-3 gap-1.5">
+                    {["{first}", "{last}", "{name}", "{amount}", "{giftDate}", "{totalGiving}"].map((token) => (
+                      <button
+                        key={token}
+                        type="button"
+                        onClick={() => insertMergeToken(token)}
+                        className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-left font-mono text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+                      >
+                        {token}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Detected Fields</p>
+                      <span className={[
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        unknownMergeTokens.length ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800",
+                      ].join(" ")}
+                      >
+                        {unknownMergeTokens.length ? "Review" : "Known"}
+                      </span>
+                    </div>
+                    {detectedMergeTokens.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {detectedMergeTokens.map((token) => {
+                          const known = knownMergeTokens.has(normalizeMergeTokenLabel(token));
+                          const display = mergeTokenDisplay(token);
+                          return (
+                            <button
+                              key={token}
+                              type="button"
+                              onMouseEnter={() => void loadMergeLinePreview(token)}
+                              onFocus={() => void loadMergeLinePreview(token)}
+                              className={[
+                                "rounded border px-2 py-1 font-mono text-[11px] font-semibold",
+                                known ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "border-amber-300 bg-amber-50 text-amber-800",
+                              ].join(" ")}
+                            >
+                              {display}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-[11px] text-slate-500">No merge fields detected yet.</p>
+                    )}
+                    {mergeLinePreviewToken ? (
+                      <div className="mt-3 rounded-md border border-slate-200 bg-white p-2">
+                        <p className="text-[11px] font-semibold text-slate-700">Line preview for <span className="font-mono">{mergeTokenDisplay(mergeLinePreviewToken)}</span></p>
+                        {mergeLinePreviewLoading ? <p className="mt-1 text-[11px] text-slate-500">Loading live examples...</p> : null}
+                        {mergeLinePreviewError ? <p className="mt-1 text-[11px] text-red-700">{mergeLinePreviewError}</p> : null}
+                        {!mergeLinePreviewLoading && !mergeLinePreviewError && mergeLinePreview?.items.length === 0 ? <p className="mt-1 text-[11px] text-slate-500">No constituents available for preview.</p> : null}
+                        {!mergeLinePreviewLoading && mergeLinePreview?.items.length ? (
+                          <div className="mt-2 space-y-2">
+                            {mergeLinePreview.items.map((item) => (
+                              <div key={item.constituentId} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                                <p className="text-[11px] font-semibold text-slate-600">{item.recipientName}</p>
+                                <p className="mt-0.5 text-xs text-slate-800">{item.renderedLine || "(blank after merge)"}</p>
+                                {item.warnings?.length ? <p className="mt-1 text-[11px] text-amber-700">{item.warnings.join(" ")}</p> : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="mt-3 space-y-2">
                     {filteredMergeGroups.map((group) => {
                       const collapsed = collapsedMergeGroups.has(group.key);
@@ -2624,13 +2903,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </aside>
 
         {/* CANVAS */}
-        <main className="flex min-h-0 flex-1 flex-col overflow-auto rounded-2xl border border-slate-200/90 bg-[linear-gradient(180deg,#f8fbff_0%,#f2f8f5_100%)] shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
+        <main className="order-2 flex min-h-[60dvh] flex-1 flex-col overflow-auto rounded-2xl border border-slate-200/90 bg-[linear-gradient(180deg,#f8fbff_0%,#f2f8f5_100%)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] lg:order-none lg:min-h-0">
           <div
-            className="mx-auto my-10 w-full px-10"
+            className="mx-auto my-4 w-full px-3 sm:my-8 sm:px-6 lg:my-10 lg:px-10"
             style={{ maxWidth: activeTab === "mobilePreview" ? 480 : canvasWidth + 160 }}
           >
             <div
-              style={{ ...(scaledStyle || {}), width: canvasWidth, maxWidth: "100%", margin: "0 auto" }}
+              style={{ ...(scaledStyle || {}), width: `min(100%, ${canvasWidth}px)`, maxWidth: "100%", margin: "0 auto" }}
               className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_50px_rgba(15,23,42,0.12)]"
             >
               {draft.template.blocks.length === 0 ? (
@@ -2676,14 +2955,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           onDragOver={(event) => handleBlockDragOver(event, block.id)}
                           onDrop={(event) => handleBlockDrop(event, block.id)}
                           onDragEnd={handleBlockDragEnd}
-                          className={["relative mx-5 my-4 cursor-pointer rounded-2xl border transition-all",
+                          className={["relative mx-2 my-3 cursor-pointer rounded-2xl border transition-all sm:mx-5 sm:my-4",
                             isSelected ? "border-emerald-300 bg-emerald-50/30 shadow-[0_14px_26px_rgba(5,150,105,0.12)]" : "border-transparent bg-white hover:border-slate-200 hover:bg-slate-50/70",
                             dragOverBlockId === block.id ? "ring-2 ring-emerald-400 ring-inset" : "",
                             draggingBlockId === block.id ? "opacity-60" : "",
                           ].join(" ")}
                         >
                           {isSelected ? (
-                            <div className="absolute right-4 top-3 z-10 flex items-center overflow-visible rounded-xl border border-slate-200 bg-white shadow-md">
+                            <div className="absolute right-2 top-2 z-10 flex max-w-[calc(100%-1rem)] items-center overflow-visible rounded-xl border border-slate-200 bg-white shadow-md sm:right-4 sm:top-3">
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); moveBlock(block.id, -1); }}
@@ -2813,7 +3092,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="flex w-[352px] flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+        <aside className="order-3 flex max-h-[46dvh] w-full flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm lg:order-none lg:max-h-none lg:w-[352px]">
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <p className="text-base font-semibold text-slate-950">Email Settings</p>
             {builderWarnings.length > 0 ? (
@@ -3329,13 +3608,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           onClick={() => setPreviewModalOpen(false)}
         >
           <div
-            className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+            className="mx-2 flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] sm:mx-4 sm:h-[92vh] sm:rounded-[28px]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="border-b border-slate-200 bg-slate-50/90 px-5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-800">Email Preview</p>
+                  <p className="text-sm font-semibold text-slate-800">Recipient Email Preview</p>
                   <InfoTooltip label="About preview recipients">
                     Select a recipient to lock preview output to one donor record. Use email mode to preview with a specific email address.
                   </InfoTooltip>
@@ -3382,14 +3661,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                       placeholder="Search recipient"
                       title="Search preview recipient"
                       aria-label="Search preview recipient"
-                      className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 sm:w-44"
                     />
                     <select
                       value={selectedPreviewRecipientId}
                       onChange={(event) => setSelectedPreviewRecipientId(event.target.value)}
                       title="Select preview recipient"
                       aria-label="Select preview recipient"
-                      className="max-w-[280px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 sm:max-w-[280px]"
                     >
                       <option value="">Choose a donor</option>
                       {filteredPreviewRecipients.map((row) => (
@@ -3408,7 +3687,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     placeholder="recipient@example.org"
                     title="Preview email address"
                     aria-label="Preview email address"
-                    className="w-52 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 sm:w-52"
                   />
                 ) : null}
                 <select

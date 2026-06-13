@@ -34,7 +34,7 @@ describe("OyamaEmail workspace source contract", () => {
     expect(campaignsNew).toContain('view="campaigns"');
     expect(campaignDetail).toContain('view="campaigns"');
     expect(audience).toContain('redirect("/oyama-email/campaigns?tab=audience")');
-    expect(queue).toContain('redirect("/oyama-email/campaigns?tab=queue")');
+    expect(queue).toContain('view="queue"');
     expect(analytics).toContain('redirect("/oyama-email/campaigns?tab=analytics")');
     expect(settings).toContain('view="settings"');
   });
@@ -54,6 +54,7 @@ describe("OyamaEmail workspace source contract", () => {
 
     expect(workspace).toContain("Templates");
     expect(workspace).toContain("Campaign Workflow");
+    expect(workspace).toContain("Email Queue");
     expect(workspace).toContain("Calendar");
     expect(workspace).toContain("Settings");
     expect(workspace).toContain("Back to CRM");
@@ -74,8 +75,11 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("My Templates");
     expect(workspace).toContain("Shared Templates");
     expect(workspace).toContain("AI-assisted");
-    expect(builder).toContain("Inline Editing");
+    expect(builder).toContain("Show Me How It Will Look to the Recipient");
+    expect(builder).toContain("Recipient Email Preview");
     expect(builder).toContain("Open Advanced Editor");
+    expect(builder).toContain("saveTemplate(false)");
+    expect(builder).toContain("refreshServerPreview({ silent: false, templateId: previewTemplateId })");
   });
 
   it("keeps legacy communications routes redirected into OyamaEmail", () => {

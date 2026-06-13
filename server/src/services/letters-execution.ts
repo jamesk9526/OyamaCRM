@@ -8,6 +8,7 @@ import {
   getConstituentSalutation,
   isOrganizationConstituent,
 } from "../lib/constituent-identity.js";
+import { omitUnavailableModelSelectFields } from "../lib/prisma-model-fields.js";
 
 interface TemplateForMerge {
   id: string;
@@ -208,7 +209,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   const constituent = resolvedConstituentId
     ? await prisma.constituent.findFirst({
         where: { id: resolvedConstituentId, organizationId: params.organizationId },
-        select: {
+        select: omitUnavailableModelSelectFields("Constituent", {
           id: true,
           firstName: true,
           lastName: true,
@@ -228,7 +229,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
           state: true,
           zip: true,
           household: { select: { id: true, name: true } },
-        },
+        }),
       })
     : null;
 

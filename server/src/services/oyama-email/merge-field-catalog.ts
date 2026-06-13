@@ -1,4 +1,6 @@
 const EMAIL_MERGE_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+const EMAIL_SIMPLE_BRACE_TOKEN_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}(?!\})/g;
+const EMAIL_SLASH_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_.]*)\b/g;
 
 export type EmailMergeFieldGroupDescriptor = {
   key: string;
@@ -11,6 +13,14 @@ export type EmailMergeFieldGroupDescriptor = {
 };
 
 export const EMAIL_MERGE_TOKEN_ALIASES: Record<string, string> = {
+  first: "firstName",
+  last: "lastName",
+  name: "fullName",
+  preferred: "preferredName",
+  amount: "donationAmount",
+  giftDate: "gift.date",
+  donationDate: "gift.date",
+  totalGiving: "totalLifetimeGiving",
   "gift.taxDeductibleAmount": "taxDeductibleAmount",
   "donation.taxDeductibleAmount": "taxDeductibleAmount",
   "gift.amount": "donationAmount",
@@ -35,6 +45,24 @@ export const EMAIL_MERGE_TOKEN_ALIASES: Record<string, string> = {
 };
 
 export const EMAIL_MERGE_FIELD_GROUPS: EmailMergeFieldGroupDescriptor[] = [
+  {
+    key: "simple",
+    label: "Simple Fields",
+    availability: "donor",
+    fields: [
+      { token: "{first}", description: "Recipient first name" },
+      { token: "{last}", description: "Recipient last name" },
+      { token: "{name}", description: "Recipient full name" },
+      { token: "{preferred}", description: "Best greeting name" },
+      { token: "{email}", description: "Recipient email address" },
+      { token: "{amount}", description: "Current or most recent gift amount" },
+      { token: "{giftDate}", description: "Current or most recent gift date" },
+      { token: "{totalGiving}", description: "Lifetime giving total" },
+      { token: "//first", description: "Slash alias for first name" },
+      { token: "//last", description: "Slash alias for last name" },
+      { token: "//amount", description: "Slash alias for gift amount" },
+    ],
+  },
   {
     key: "personalization",
     label: "Personalization Fields",
@@ -181,6 +209,12 @@ function normalizeCatalogToken(raw: string): string {
   if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
     return trimmed.slice(2, -2).trim();
   }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed.slice(1, -1).trim();
+  }
+  if (trimmed.startsWith("//")) {
+    return trimmed.slice(2).trim();
+  }
   return trimmed;
 }
 
@@ -196,7 +230,35 @@ export function canonicalizeEmailMergeToken(token: string): string {
 }
 
 export function extractEmailMergeTokens(value: string): string[] {
-  return Array.from(value.matchAll(EMAIL_MERGE_TOKEN_PATTERN), (match) => match[1]?.trim() || "").filter(Boolean);
+  const tokens = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  EMAIL_MERGE_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = EMAIL_MERGE_TOKEN_PATTERN.exec(value)) !== null) {
+    const token = match[1]?.trim();
+    if (token) tokens.add(token);
+  }
+
+  EMAIL_SIMPLE_BRACE_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = EMAIL_SIMPLE_BRACE_TOKEN_PATTERN.exec(value)) !== null) {
+    const token = match[2]?.trim();
+    if (token) tokens.add(token);
+  }
+
+  EMAIL_SLASH_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = EMAIL_SLASH_TOKEN_PATTERN.exec(value)) !== null) {
+    const token = match[2]?.trim();
+    if (token) tokens.add(token);
+  }
+
+  return Array.from(tokens);
+}
+
+function displayEmailMergeToken(token: string): string {
+  if (EMAIL_MERGE_TOKEN_ALIASES[token] || /^[a-zA-Z][a-zA-Z0-9_]*$/.test(token)) {
+    return `{${token}}`;
+  }
+  return `{{${token}}}`;
 }
 
 export function findUnsupportedEmailMergeTokens(parts: Array<string | null | undefined>): string[] {
@@ -241,11 +303,11 @@ export function buildEmailMergePreviewWarnings(
   const warnings: string[] = [];
   const unsupported = findUnsupportedEmailMergeTokens(parts);
   if (unsupported.length > 0) {
-    warnings.push(`Unsupported merge fields: ${unsupported.map((token) => `{{${token}}}`).join(", ")}.`);
+    warnings.push(`Unsupported merge fields: ${unsupported.map(displayEmailMergeToken).join(", ")}.`);
   }
   const emptyResolved = findEmptyResolvedEmailMergeTokens(parts, vars);
   if (emptyResolved.length > 0) {
-    warnings.push(`Preview data missing for: ${emptyResolved.map((token) => `{{${token}}}`).join(", ")}.`);
+    warnings.push(`Preview data missing for: ${emptyResolved.map(displayEmailMergeToken).join(", ")}.`);
   }
   return warnings;
 }

@@ -19,6 +19,7 @@ import type {
 const SIDEBAR_ITEMS: Array<{ label: string; href: string; view?: OyamaEmailView; matchPrefix?: string }> = [
   { label: "Templates", href: "/oyama-email/templates", view: "templates" },
   { label: "Campaign Workflow", href: "/oyama-email/campaigns", view: "campaigns" },
+  { label: "Email Queue", href: "/oyama-email/queue", view: "queue" },
   { label: "Calendar", href: "/oyama-email/calendar", view: "callender", matchPrefix: "/oyama-email/cal" },
   { label: "Settings", href: "/oyama-email/settings", view: "settings" },
 ];
@@ -341,7 +342,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const normalizedView: OyamaEmailView = view === "send" || view === "audience" || view === "queue" || view === "analytics"
+  const normalizedView: OyamaEmailView = view === "send" || view === "audience" || view === "analytics"
     ? "campaigns"
     : view;
 
@@ -362,6 +363,8 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const temporarySegmentId = searchParams.get("temporarySegmentId") || null;
 
   const targetCampaignId = templateId || campaignId || searchParams.get("templateId") || null;
+  const templateRows = useMemo(() => campaigns.filter(isReusableEmailTemplate), [campaigns]);
+  const sendRecordRows = useMemo(() => campaigns.filter((row) => !isReusableEmailTemplate(row)), [campaigns]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -567,23 +570,33 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     }
 
     const blockers = complianceChecks(builderDraft).filter((row) => row.required && !row.passed);
-    if (blockers.length > 0) {
-      setError("Resolve compliance blockers before publishing this template.");
-      return;
-    }
+    logEmailPublishDiagnostics({
+      stage: "before-publish",
+      campaign: selectedCampaign,
+      draft: builderDraft,
+      validationIssues: blockers,
+    });
 
     setSaving(true);
     setError(null);
     setNotice(null);
     try {
-      await apiFetch(`/api/email-campaigns/${selectedCampaign.id}`, {
+      const result = await apiFetch<OyamaEmailCampaign>(`/api/email-campaigns/${selectedCampaign.id}`, {
         method: "PUT",
         body: JSON.stringify({
           preparationStatus: "READY",
           status: "DRAFT",
         }),
       });
-      setNotice("Template marked Ready in publish workflow.");
+      logEmailPublishDiagnostics({
+        stage: "after-publish",
+        campaign: result,
+        draft: { ...builderDraft, bodyHtml: result.bodyHtml || builderDraft.bodyHtml },
+        validationIssues: blockers,
+      });
+      setNotice(blockers.length > 0
+        ? "Template published with validation notes. Review the browser console for developer diagnostics."
+        : "Template marked Ready in publish workflow.");
       await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to publish template.");
@@ -611,13 +624,19 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
+          {normalizedView !== "builder" ? (
+            <OyamaEmailMobileNav pathname={pathname} activeView={normalizedView} />
+          ) : null}
           {normalizedView !== "builder" ? <OyamaEmailTopBar view={normalizedView} targetCampaign={selectedCampaign} /> : null}
           {error ? <Alert tone="error">{error}</Alert> : null}
           {notice ? <Alert tone="success">{notice}</Alert> : null}
 
           {loading ? <LoadingState label="Loading OyamaEmail workspace..." /> : null}
           {!loading && normalizedView === "templates" ? (
-            <TemplatesView campaigns={campaigns} onUseTemplate={setSendTemplate} />
+            <TemplatesView campaigns={templateRows} onUseTemplate={setSendTemplate} />
+          ) : null}
+          {!loading && normalizedView === "queue" ? (
+            <EmailQueueView campaigns={sendRecordRows} />
           ) : null}
           {!loading && normalizedView === "builder" ? (
             <BuilderView templateId={templateId} />
@@ -634,7 +653,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
           ) : null}
           {!loading && (normalizedView === "campaigns" || normalizedView === "callender") ? (
             <CampaignsView
-              campaigns={campaigns}
+              campaigns={sendRecordRows}
               stats={stats}
               focusedCampaignId={campaignId ?? null}
               initialTab={initialCampaignTab}
@@ -646,6 +665,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
               temporarySegmentId={temporarySegmentId}
               constituents={constituents}
               lists={lists}
+              templates={templateRows}
               onRefresh={load}
             />
           ) : null}
@@ -654,6 +674,40 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function OyamaEmailMobileNav({ pathname, activeView }: { pathname: string; activeView: OyamaEmailView }) {
+  return (
+    <div className="sticky top-0 z-40 border-b border-emerald-900/30 bg-[#06291f] px-3 py-2 text-white shadow-lg lg:hidden">
+      <div className="flex items-center gap-3">
+        <Link href="/oyama-email" className="flex shrink-0 items-center gap-2">
+          <EmailLogo className="h-9 w-9" />
+          <span className="text-sm font-semibold tracking-wide">OYAMA EMAIL</span>
+        </Link>
+        <Link href="/" className="ml-auto shrink-0 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-50">
+          Back
+        </Link>
+      </div>
+      <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Oyama Email mobile navigation">
+        {SIDEBAR_ITEMS.map((item) => {
+          const active = Boolean(item.matchPrefix ? pathname.startsWith(item.matchPrefix) : pathname.startsWith(item.href))
+            || Boolean(item.view && activeView === item.view);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={[
+                "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-semibold",
+                active ? "border-emerald-300 bg-emerald-500/80 text-white" : "border-white/15 bg-white/10 text-emerald-50",
+              ].join(" ")}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
@@ -747,10 +801,10 @@ function OyamaEmailSidebar({
 
 function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targetCampaign: OyamaEmailCampaign | null }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-5 py-4 xl:px-8">
+    <header className="z-30 border-b border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4 lg:sticky lg:top-0 xl:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[31px] font-semibold tracking-tight text-slate-900">{workspaceTitle(view)}</p>
+        <div className="min-w-0">
+          <p className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[31px]">{workspaceTitle(view)}</p>
           <p className="text-sm text-slate-600">{workspaceSubtitle(view, targetCampaign)}</p>
         </div>
 
@@ -859,8 +913,8 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
             <p className="mt-1 text-sm text-slate-600">Choose a template to get started or create a new email from scratch.</p>
           </div>
 
-          <div className="flex min-w-[320px] flex-1 flex-wrap items-center justify-end gap-2">
-            <label className="relative min-w-[260px] flex-1 md:max-w-[360px]">
+          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:min-w-[320px]">
+            <label className="relative min-w-0 flex-1 basis-full sm:min-w-[260px] sm:basis-auto md:max-w-[360px]">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.3-4.3m1.8-5.2a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
@@ -1097,6 +1151,15 @@ function isAiAssistedEmailTemplate(campaign: OyamaEmailCampaign): boolean {
   return /data-ai-|ai-generated|ai-assisted/i.test(campaign.bodyHtml ?? "");
 }
 
+function isReusableEmailTemplate(campaign: OyamaEmailCampaign): boolean {
+  return campaign.status === "DRAFT"
+    && (campaign.totalRecipients || 0) === 0
+    && !campaign.sentAt
+    && !campaign.scheduledAt
+    && !campaign.audienceFilter
+    && !campaign.templateSnapshot;
+}
+
 function BuilderView({ templateId }: { templateId?: string }) {
   return <OyamaEmailBuilderWorkspace templateId={templateId} />;
 }
@@ -1124,7 +1187,7 @@ function PublishView({
       <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <p className="text-base font-semibold text-slate-900">Compliance Checklist</p>
-          <StatusBadge label={blockerCount === 0 ? "Ready" : `${blockerCount} blocker${blockerCount === 1 ? "" : "s"}`} tone={blockerCount === 0 ? "green" : "red"} />
+          <StatusBadge label={blockerCount === 0 ? "Ready" : `${blockerCount} note${blockerCount === 1 ? "" : "s"}`} tone={blockerCount === 0 ? "green" : "amber"} />
         </div>
         {checks.map((check) => (
           <div key={check.key} className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
@@ -1132,7 +1195,7 @@ function PublishView({
               <p className="text-sm font-semibold text-slate-800">{check.label}</p>
               <p className="text-xs text-slate-600">{check.detail}</p>
             </div>
-            <StatusBadge label={check.passed ? "Pass" : "Fix"} tone={check.passed ? "green" : check.required ? "red" : "amber"} />
+            <StatusBadge label={check.passed ? "Pass" : "Review"} tone={check.passed ? "green" : "amber"} />
           </div>
         ))}
       </aside>
@@ -1143,10 +1206,10 @@ function PublishView({
             <p className="text-sm text-slate-600">Email Preview</p>
             <p className="text-base font-semibold text-slate-900">{draft.subject || "Untitled subject"}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSave} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Save Draft</button>
             <button type="button" onClick={onSendTest} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Send Test Email</button>
-            <button type="button" onClick={onPublish} disabled={saving || blockerCount > 0} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">Publish Template</button>
+            <button type="button" onClick={onPublish} disabled={saving} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">Publish Template</button>
           </div>
         </div>
 
@@ -1170,6 +1233,51 @@ function PublishView({
       </aside>
     </section>
   );
+}
+
+function logEmailPublishDiagnostics({
+  stage,
+  campaign,
+  draft,
+  validationIssues,
+}: {
+  stage: "before-publish" | "after-publish";
+  campaign: OyamaEmailCampaign;
+  draft: BuilderDraft;
+  validationIssues: ReturnType<typeof complianceChecks>;
+}) {
+  const htmlOutput = draft.bodyHtml || campaign.bodyHtml || "";
+  const plainTextOutput = campaign.bodyText || htmlToText(htmlOutput);
+  const diagnostics = {
+    stage,
+    publishedAt: new Date().toISOString(),
+    campaignId: campaign.id,
+    name: draft.name || campaign.name,
+    subject: draft.subject || campaign.subject || "",
+    previewText: draft.previewText || campaign.previewText || "",
+    fromName: draft.fromName || campaign.fromName || "",
+    fromEmail: draft.fromEmail || campaign.fromEmail || "",
+    replyToEmail: draft.replyToEmail || campaign.replyToEmail || "",
+    status: campaign.status,
+    preparationStatus: campaign.preparationStatus,
+    validationIssueCount: validationIssues.length,
+    validationIssues: validationIssues.map((issue) => ({
+      key: issue.key,
+      label: issue.label,
+      detail: issue.detail,
+      required: issue.required,
+      passed: issue.passed,
+    })),
+    mergeFields: extractMergeTokens(htmlOutput),
+    htmlLength: htmlOutput.length,
+    plainTextLength: plainTextOutput.length,
+  };
+
+  console.groupCollapsed(`[OyamaEmail Publish Diagnostics] ${stage}: ${campaign.id}`);
+  console.info("Summary", diagnostics);
+  console.info("Entire email HTML output", htmlOutput);
+  console.info("Plain-text output", plainTextOutput);
+  console.groupEnd();
 }
 
 function SendWizardView({
@@ -1328,6 +1436,7 @@ function CampaignsView({
   temporarySegmentId,
   constituents,
   lists,
+  templates,
   onRefresh,
 }: {
   campaigns: OyamaEmailCampaign[];
@@ -1342,6 +1451,7 @@ function CampaignsView({
   temporarySegmentId: string | null;
   constituents: OyamaEmailConstituent[];
   lists: OyamaEmailRecipientList[];
+  templates: OyamaEmailCampaign[];
   onRefresh: () => Promise<void>;
 }) {
   const router = useRouter();
@@ -1606,7 +1716,7 @@ function CampaignsView({
               </div>
             ) : null}
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Campaigns tracked: <span className="font-semibold text-slate-900">{stats?.total ?? campaigns.length}</span>
+              Send records tracked: <span className="font-semibold text-slate-900">{campaigns.length}</span>
             </div>
           </div>
 
@@ -1623,7 +1733,7 @@ function CampaignsView({
             <>
               {wizardVisible ? (
                 <NewCampaignWizardPanel
-                  templates={campaigns}
+                  templates={templates}
                   lists={lists}
                   constituents={constituents}
                   preferredTemplateId={preferredTemplateId}
@@ -3960,43 +4070,72 @@ function AudienceView({
   );
 }
 
-function QueueView({ campaigns }: { campaigns: OyamaEmailCampaign[] }) {
-  const queueRows = campaigns.filter((row) => row.status === "SCHEDULED" || row.status === "SENDING");
+function EmailQueueView({ campaigns }: { campaigns: OyamaEmailCampaign[] }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const rows = useMemo(() => campaigns.filter((row) => {
+    const needle = search.trim().toLowerCase();
+    if (statusFilter !== "ALL" && row.status !== statusFilter) return false;
+    if (!needle) return true;
+    return `${row.name} ${row.subject || ""} ${row.fromEmail || ""}`.toLowerCase().includes(needle);
+  }), [campaigns, search, statusFilter]);
+  const statusOptions = useMemo(() => {
+    const values = Array.from(new Set(campaigns.map((row) => row.status))).sort();
+    return ["ALL", ...values];
+  }, [campaigns]);
 
   return (
     <section className="space-y-4 p-4 xl:p-6">
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-2xl font-semibold text-slate-900">Queue</p>
-        <p className="mt-1 text-sm text-slate-600">Monitor campaigns waiting to send and campaigns currently in send processing.</p>
+        <p className="text-2xl font-semibold text-slate-900">Email Queue</p>
+        <p className="mt-1 text-sm text-slate-600">Drafted, scheduled, sending, sent, failed, and cancelled email send records live here. Reusable templates stay in the template library.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search email records..."
+            className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-auto sm:min-w-64"
+          />
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            aria-label="Filter email queue by status"
+          >
+            {statusOptions.map((value) => <option key={value} value={value}>{value === "ALL" ? "All statuses" : statusLabel(value)}</option>)}
+          </select>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
             <tr>
               <th className="px-3 py-2">Campaign</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Scheduled</th>
+              <th className="px-3 py-2">Sent</th>
               <th className="px-3 py-2">Recipients</th>
               <th className="px-3 py-2">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {queueRows.length === 0 ? (
+            {rows.length === 0 ? (
               <tr>
-                <td className="px-3 py-6 text-sm text-slate-500" colSpan={5}>No queued campaigns right now.</td>
+                <td className="px-3 py-6 text-sm text-slate-500" colSpan={6}>No email send records matched this view.</td>
               </tr>
             ) : null}
-            {queueRows.map((row) => (
+            {rows.map((row) => (
               <tr key={row.id}>
                 <td className="px-3 py-2">
                   <p className="font-semibold text-slate-900">{row.name}</p>
                   <p className="text-xs text-slate-500">{row.subject || "No subject"}</p>
                 </td>
-                <td className="px-3 py-2"><StatusBadge label={row.status} tone={statusTone(row.status)} /></td>
+                <td className="px-3 py-2"><StatusBadge label={statusLabel(row.status)} tone={statusTone(row.status)} /></td>
                 <td className="px-3 py-2">{formatDateTime(row.scheduledAt || "")}</td>
+                <td className="px-3 py-2">{formatDateTime(row.sentAt || "")}</td>
                 <td className="px-3 py-2">{row.totalRecipients}</td>
-                <td className="px-3 py-2"><WorkspaceAction href={`/oyama-email/campaigns/${row.id}`}>Open</WorkspaceAction></td>
+                <td className="px-3 py-2"><WorkspaceAction href={`/oyama-email/campaigns/${row.id}?tab=overview`}>Open</WorkspaceAction></td>
               </tr>
             ))}
           </tbody>
@@ -4192,6 +4331,7 @@ function SideIcon({ label }: { label: string }) {
     Calendar: "M8 7V4m8 3V4M4 10h16M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z",
     Audience: "M17 20v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m16 0v-2a4 4 0 0 0-3-3.87M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
     Queue: "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01",
+    "Email Queue": "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01",
     Analytics: "M4 19h16M7 16V9m5 7V6m5 10v-4",
     Settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-12v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3",
     "Help Center": "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 14h.01M10.8 9.1a1.8 1.8 0 1 1 2.9 1.4c-.8.6-1.2 1-1.2 2",
@@ -4232,7 +4372,8 @@ function workspaceTitle(view: OyamaEmailView): string {
   if (view === "builder") return "Email Builder";
   if (view === "publish") return "Publish & Compliance";
   if (view === "callender") return "Calendar";
-  if (view === "campaigns" || view === "send" || view === "audience" || view === "queue" || view === "analytics") return "Campaigns";
+  if (view === "queue") return "Email Queue";
+  if (view === "campaigns" || view === "send" || view === "audience" || view === "analytics") return "Campaigns";
   return "Settings";
 }
 
@@ -4242,7 +4383,8 @@ function workspaceSubtitle(view: OyamaEmailView, campaign: OyamaEmailCampaign | 
   if (view === "send") return "Use the New Campaign wizard inside Campaigns for one-direction flow.";
   if (view === "templates") return "Start with reusable content here, then move into the campaign workflow for audience, review, and send steps.";
   if (view === "callender") return "Manage all upcoming email schedules with timeline planning and quick campaign access.";
-  if (view === "campaigns" || view === "audience" || view === "queue" || view === "analytics") {
+  if (view === "queue") return "Drafted, queued, sent, failed, and cancelled email records with one status source.";
+  if (view === "campaigns" || view === "audience" || view === "analytics") {
     return "One canonical campaign workflow: setup, template, audience, review, then queue, schedule, or send from the campaign record.";
   }
   return "Configure delivery defaults and compliance policy behavior.";

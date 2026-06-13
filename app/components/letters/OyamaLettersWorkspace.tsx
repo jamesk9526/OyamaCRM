@@ -9,6 +9,7 @@ import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
+import LetterPage from "@/app/components/letters/LetterPage";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -128,6 +129,19 @@ interface PreviewResult {
   unsupportedFields: string[];
 }
 
+interface MergeLinePreviewItem {
+  constituentId: string;
+  donationId?: string | null;
+  recipientName: string;
+  renderedLine: string;
+  missingFields?: string[];
+  unsupportedFields?: string[];
+}
+
+interface MergeLinePreviewResponse {
+  items: MergeLinePreviewItem[];
+}
+
 interface BatchResult {
   dryRun?: boolean;
   batchId?: string;
@@ -220,6 +234,7 @@ interface LetterAiSuggestResponse {
 type SettingsTab = "organization" | "workflow";
 type GenerateMode = "single" | "batch";
 type DeliveryTarget = "PDF_ONLY" | "PRINT_QUEUE" | "MAIL_QUEUE";
+type PublishReviewTab = "summary" | "fields" | "validation" | "recipient" | "pdf" | "confirm";
 
 interface HeaderPresetDraft {
   name: string;
@@ -383,6 +398,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
       <div className="flex min-h-[100dvh]">
         <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
+          <LettersMobileNav activeView={view} />
           <LettersTopBar view={view} templateId={templateId} />
           {view === "library" ? <TemplateLibrary /> : null}
           {view === "builder" ? <TemplateBuilder templateId={templateId} /> : null}
@@ -393,6 +409,51 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
           {view === "settings" ? <SettingsWorkspace /> : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
+  const pathname = usePathname();
+
+  function isActiveRoute(href: string) {
+    if (href === "/oyama-letters") {
+      return pathname === "/oyama-letters" || pathname.startsWith("/oyama-letters/templates");
+    }
+    return pathname === href;
+  }
+
+  return (
+    <div className="sticky top-0 z-40 border-b border-emerald-900/30 bg-[#06291f] px-3 py-2 text-white shadow-lg lg:hidden">
+      <div className="flex items-center gap-3">
+        <Link href="/oyama-letters" className="min-w-0 text-sm font-semibold tracking-wide">
+          OYAMA LETTERS
+        </Link>
+        <Link href="/constituents" className="ml-auto shrink-0 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-50">
+          Donor CRM
+        </Link>
+      </div>
+      <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Oyama Letters mobile navigation">
+        {LETTERS_SIDEBAR_ITEMS.map((item) => {
+          const active = isActiveRoute(item.href)
+            || (item.href === "/oyama-letters/generate" && activeView === "generate")
+            || (item.href === "/oyama-letters/queue" && activeView === "queue")
+            || (item.href === "/oyama-letters/how-to" && activeView === "howto")
+            || (item.href === "/oyama-letters/settings" && activeView === "settings");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={[
+                "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-semibold",
+                active ? "border-emerald-300 bg-emerald-500/80 text-white" : "border-white/15 bg-white/10 text-emerald-50",
+              ].join(" ")}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
@@ -522,7 +583,7 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate" || view === "queue";
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center gap-4 border-b border-[#0a4f2e] bg-[radial-gradient(circle_at_18%_0%,#0d6b3b_0,#01402c_42%,#022b24_100%)] px-5 xl:px-8">
+    <header className="z-30 flex min-h-12 flex-wrap items-center gap-3 border-b border-[#0a4f2e] bg-[radial-gradient(circle_at_18%_0%,#0d6b3b_0,#01402c_42%,#022b24_100%)] px-3 py-2 sm:px-5 lg:sticky lg:top-0 xl:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Link href="/oyama-letters" className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10" aria-label="Back to letters home">
           <ChevronLeft />
@@ -663,7 +724,7 @@ function LettersHowToWorkspace() {
       steps: [
         "Open Settings and use Branding Settings shortcuts.",
         "Update global branding when name, address, or logo changes.",
-        "Update letter header/footer presets and signature blocks.",
+        "Update the global Communication Header + Footer and signature blocks.",
         "Re-open PDF preview after updates to confirm output quality.",
       ],
       actions: [
@@ -964,7 +1025,7 @@ function TemplateLibrary() {
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-base font-semibold text-slate-900">First-Time Template Setup</p>
-                <p className="mt-1 text-sm text-slate-600">To avoid broken previews and publish blockers, set up branding assets first.</p>
+                <p className="mt-1 text-sm text-slate-600">Set up branding assets first so previews and generated PDFs match what recipients receive.</p>
               </div>
               <button type="button" onClick={dismissSetupHint} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">Dismiss</button>
             </div>
@@ -972,10 +1033,9 @@ function TemplateLibrary() {
             <div className="space-y-4 px-5 py-4">
               {setupHintStep === 0 ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-700">You need three pieces configured before publishing letters:</p>
+                  <p className="text-sm text-slate-700">You need two global branding pieces configured before publishing letters:</p>
                   <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
-                    <li>Default Header preset</li>
-                    <li>Default Footer preset</li>
+                    <li>Communication header and footer in Branding Defaults</li>
                     <li>Default Signature block</li>
                   </ul>
                   <div className="flex justify-end gap-2">
@@ -988,7 +1048,7 @@ function TemplateLibrary() {
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-slate-900">Step-by-step setup</p>
                   <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-700">
-                    <li>Open <Link href="/settings/branding/letter-presets" className="font-semibold text-emerald-700 hover:underline">Letter Presets</Link> and set one Header + one Footer as default.</li>
+                    <li>Open <Link href="/settings/branding#communication-header-footer" className="font-semibold text-emerald-700 hover:underline">Branding Defaults</Link> and set the Communication Header + Footer.</li>
                     <li>Open <Link href="/settings/branding/signatures" className="font-semibold text-emerald-700 hover:underline">Signatures</Link> and set one active default signature.</li>
                     <li>Return here when done.</li>
                   </ol>
@@ -1001,7 +1061,7 @@ function TemplateLibrary() {
 
               {setupHintStep === 2 ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-slate-700">Great. Do you want to apply the default header/footer/signature to all current templates now?</p>
+                  <p className="text-sm text-slate-700">Great. Do you want to apply the default signature to current templates now?</p>
                   {setupHintError ? <Alert tone="amber">{setupHintError}</Alert> : null}
                   <div className="flex justify-between gap-2">
                     <Button onClick={() => setSetupHintStep(1)}>Back</Button>
@@ -1029,13 +1089,16 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const selectedEditorImageRef = useRef<HTMLImageElement | null>(null);
   const [draft, setDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
   const [mergeSections, setMergeSections] = useState<MergeFieldSection[]>([]);
-  const [headers, setHeaders] = useState<HeaderPreset[]>([]);
-  const [footers, setFooters] = useState<FooterPreset[]>([]);
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
   const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View" | "AI">("Insert");
   const [inspectorTab, setInspectorTab] = useState<"Document" | "Merge Fields" | "Block Settings">("Document");
+  const [mergeFieldSearch, setMergeFieldSearch] = useState("");
+  const [mergeLinePreviewToken, setMergeLinePreviewToken] = useState<string | null>(null);
+  const [mergeLinePreview, setMergeLinePreview] = useState<MergeLinePreviewResponse | null>(null);
+  const [mergeLinePreviewLoading, setMergeLinePreviewLoading] = useState(false);
+  const [mergeLinePreviewError, setMergeLinePreviewError] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState("Letter (8.5 x 11 in)");
   const [fontFamily, setFontFamily] = useState("Calibri");
   const [fontSize, setFontSize] = useState("11");
@@ -1117,17 +1180,13 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setError(null);
     setLoading(Boolean(templateId));
     try {
-      const [fields, headerRows, footerRows, signatureRows, brandingRow, constituentRows] = await Promise.all([
+      const [fields, signatureRows, brandingRow, constituentRows] = await Promise.all([
         apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
-        apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
-        apiFetch<FooterPreset[]>("/api/letters/footer-presets"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
         apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
-      setHeaders(headerRows);
-      setFooters(footerRows);
       setSignatures(signatureRows);
       setBranding(normalizeBrandingSettings(brandingRow));
       setConstituents(constituentRows);
@@ -1296,6 +1355,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       </html>
     `);
     printWindow.document.close();
+  }
+
+  async function openPrintRoute() {
+    const activeTemplateId = templateId || await save();
+    if (!activeTemplateId) return;
+    const opened = window.open(`/oyama-letters/templates/${encodeURIComponent(activeTemplateId)}/print`, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.assign(`/oyama-letters/templates/${encodeURIComponent(activeTemplateId)}/print`);
+    }
   }
 
   async function save(nextStatus?: TemplateStatus) {
@@ -1759,26 +1827,6 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setNotice(`${selected.name} selected. It will render once at the end of the generated letter.`);
   }
 
-  function applyDefaultHeader() {
-    const selected = headers.find((item) => item.id === draft.headerPresetId) ?? headers.find((item) => item.isDefault) ?? headers[0] ?? null;
-    if (!selected) {
-      setNotice("No letter header preset exists yet. Create one in Settings > Branding > Letter Presets.");
-      return;
-    }
-    setDraft((current) => ({ ...current, headerPresetId: selected.id }));
-    setNotice(`Header preset applied: ${selected.name}`);
-  }
-
-  function applyDefaultFooter() {
-    const selected = footers.find((item) => item.id === draft.footerPresetId) ?? footers.find((item) => item.isDefault) ?? footers[0] ?? null;
-    if (!selected) {
-      setNotice("No letter footer preset exists yet. Create one in Settings > Branding > Letter Presets.");
-      return;
-    }
-    setDraft((current) => ({ ...current, footerPresetId: selected.id }));
-    setNotice(`Footer preset applied: ${selected.name}`);
-  }
-
   function findText() {
     const editor = editorRef.current;
     if (!editor) {
@@ -2020,6 +2068,21 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }, [dirty, saving]);
 
   const allFields = mergeSections.flatMap((section) => section.fields);
+  const filteredMergeSections = useMemo(() => {
+    const needle = mergeFieldSearch.trim().toLowerCase();
+    if (!needle) return mergeSections;
+    return mergeSections
+      .map((section) => ({
+        ...section,
+        fields: section.fields.filter((field) => {
+          const normalized = normalizeToken(field).toLowerCase();
+          return normalized.includes(needle)
+            || field.toLowerCase().includes(needle)
+            || section.label.toLowerCase().includes(needle);
+        }),
+      }))
+      .filter((section) => section.fields.length > 0);
+  }, [mergeFieldSearch, mergeSections]);
   const mergeRegistry = useMemo(() => new Set(allFields.map(normalizeToken)), [allFields]);
   const detectedTokens = useMemo(
     () => extractTokens(`${draft.printSubject ?? ""} ${draft.printBody ?? ""} ${draft.emailSubject ?? ""} ${draft.emailBody ?? ""}`),
@@ -2032,24 +2095,44 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const localChecklist = useMemo(() => [
     { key: "name", label: "Template name", ok: Boolean(draft.name.trim()), missingHint: "Add a template name." },
     { key: "printBody", label: "Print body content", ok: Boolean(draft.printBody.replace(/<[^>]+>/g, " ").trim()), missingHint: "Add printable body content." },
-    { key: "header", label: "Header preset selected", ok: Boolean(draft.headerPresetId), missingHint: "Select a letterhead preset." },
-    { key: "footer", label: "Footer preset selected", ok: Boolean(draft.footerPresetId), missingHint: "Select a footer preset." },
     {
       key: "fields",
       label: unknownTokens.length === 0 ? "All detected merge fields are known" : `Unknown merge fields: ${unknownTokens.join(", ")}`,
       ok: unknownTokens.length === 0,
       missingHint: "Use supported merge field tokens or fix typos.",
     },
-  ], [draft.footerPresetId, draft.headerPresetId, draft.name, draft.printBody, unknownTokens]);
+  ], [draft.name, draft.printBody, unknownTokens]);
   const localChecklistReady = localChecklist.every((item) => item.ok);
-  const selectedHeader = headers.find((item) => item.id === draft.headerPresetId) ?? headers.find((item) => item.isDefault) ?? null;
-  const selectedFooter = footers.find((item) => item.id === draft.footerPresetId) ?? footers.find((item) => item.isDefault) ?? null;
+  async function loadMergeLinePreview(token: string) {
+    const normalized = normalizeToken(token);
+    if (!mergeRegistry.has(normalized)) {
+      setMergeLinePreviewToken(token);
+      setMergeLinePreview(null);
+      setMergeLinePreviewError("Unknown merge field. Fix the token before previewing live data.");
+      return;
+    }
+
+    const line = extractLineForToken(currentDraftSnapshot().printBody, token);
+    setMergeLinePreviewToken(token);
+    setMergeLinePreviewLoading(true);
+    setMergeLinePreviewError(null);
+    try {
+      const result = await apiFetch<MergeLinePreviewResponse>("/api/letters/merge-fields/line-preview", {
+        method: "POST",
+        body: JSON.stringify({ line, limit: 5 }),
+      });
+      setMergeLinePreview(result);
+    } catch (requestError) {
+      setMergeLinePreview(null);
+      setMergeLinePreviewError(errorMessage(requestError, "Could not load live merge preview."));
+    } finally {
+      setMergeLinePreviewLoading(false);
+    }
+  }
   const wordCount = countWords(draft.printBody);
   const pageSizeShort = pageSize.includes("Letter") ? "8.5 x 11 in" : pageSize.includes("Legal") ? "8.5 x 14 in" : "A4";
   const pageMetrics = pageSizeToMetrics(pageSize);
   const editorFrameWidth = pageMetrics.width + 84;
-  const renderedHeader = headerPresetToDraft(selectedHeader);
-  const renderedFooter = footerPresetToDraft(selectedFooter);
   const selectedTestConstituent = constituents.find((item) => item.id === testConstituentId) ?? null;
   const testConstituentResults = useMemo(() => {
     const needle = testConstituentSearch.trim().toLowerCase();
@@ -2071,10 +2154,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         onChange={handleImageFileSelected}
       />
       <div className="sticky top-0 z-40 shrink-0 shadow-sm">
-      <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
-        <div className="flex h-12 items-end gap-7">
+      <div className="border-b border-slate-200 bg-white px-3 sm:px-4 xl:px-7">
+        <div className="flex min-h-12 flex-wrap items-end gap-3 py-1 sm:gap-7">
           {(["File", "Insert", "Format", "Layout", "Review", "View", "AI"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); if (tab === "AI") setAiComposerOpen(true); }} className={["h-10 border-b-2 px-1 text-sm font-medium", activeRibbon === tab ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-700"].join(" ")}>{tab}</button>)}
-          <div className="ml-auto flex items-center gap-3 pb-2">
+          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 pb-2 sm:w-auto sm:gap-3">
             <span className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
             <span className={[
               "text-xs font-semibold",
@@ -2091,28 +2174,28 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
             <Button onClick={() => setPreviewMode((value) => !value)}>{previewMode ? "Edit" : "Preview"}</Button>
             <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test Constituent"}</Button>
+            <Button onClick={() => void openPrintRoute()} disabled={saving}>Print Route</Button>
             <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Live PDF"}</Button>
             <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
             <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Publish</Button>
           </div>
         </div>
       </div>
-      <div className="flex min-h-[94px] items-stretch gap-3 overflow-x-auto border-b border-slate-200 bg-white px-4 py-1 xl:px-7">
+      <div className="flex min-h-[88px] items-stretch gap-3 overflow-x-auto border-b border-slate-200 bg-white px-3 py-1 sm:min-h-[94px] sm:px-4 xl:px-7">
         {activeRibbon === "File" ? (
           <>
             <RibbonButton onClick={() => void save()}>Save Draft</RibbonButton>
             <RibbonButton onClick={() => void saveAndPublish()}>Continue to Publish</RibbonButton>
+            <RibbonButton onClick={() => void openPrintRoute()}>Open Print Route</RibbonButton>
             <RibbonButton onClick={() => setDraft(EMPTY_DRAFT)}>New Blank Template</RibbonButton>
           </>
         ) : null}
         {activeRibbon === "Insert" ? (
           <>
-            <RibbonGroup label="Insert">
-              <RibbonToolButton iconName="merge-fields" glyph="{}" label="Merge Field" onClick={() => allFields[0] ? insertToken(allFields[0]) : setInspectorTab("Merge Fields")} />
-              <RibbonToolButton iconName="signature-block" glyph="✒" label="Signature" onClick={() => insertSignature()} />
-              <RibbonToolButton iconName="letterhead" glyph="◫" label="Letterhead" onClick={applyDefaultHeader} />
-              <RibbonToolButton iconName="address-block" glyph="▤" label="Footer" onClick={applyDefaultFooter} />
-            </RibbonGroup>
+              <RibbonGroup label="Insert">
+                <RibbonToolButton iconName="merge-fields" glyph="{}" label="Merge Field" onClick={() => allFields[0] ? insertToken(allFields[0]) : setInspectorTab("Merge Fields")} />
+                <RibbonToolButton iconName="signature-block" glyph="✒" label="Signature" onClick={() => insertSignature()} />
+              </RibbonGroup>
             <RibbonGroup label="Font">
               <select value={fontFamily} onChange={(event) => { setFontFamily(event.target.value); replaceSelection(`<span style="font-family:${escapeHtml(event.target.value)};">${selectedText("Text")}</span>`, true); }} className="h-9 w-32 shrink-0 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold">
                 {["Calibri", "Arial", "Georgia", "Times New Roman", "Verdana"].map((font) => <option key={font} value={font}>{font}</option>)}
@@ -2224,26 +2307,17 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_356px]">
-        <aside className="hidden min-h-0 overflow-y-auto border-r border-slate-200 bg-white p-4 lg:block">
+        <aside className="order-1 max-h-[38dvh] min-h-0 overflow-y-auto border-b border-slate-200 bg-white p-3 lg:order-none lg:max-h-none lg:border-b-0 lg:border-r lg:p-4">
           <div className="space-y-5">
             {/* Branding group */}
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Branding</p>
               <div className="space-y-2">
-                <details open className="rounded-md border border-slate-200 bg-white p-3">
-                  <summary className="cursor-pointer text-sm font-semibold">Letterhead</summary>
-                  <div className="mt-3 space-y-2">
-                    <MiniPresetCard title={selectedHeader?.name ?? "No header selected"} body="Applies the live Letters header preset to this template." />
-                    <Button onClick={applyDefaultHeader}>Insert</Button>
-                  </div>
-                </details>
-                <details className="rounded-md border border-slate-200 bg-white p-3">
-                  <summary className="cursor-pointer text-sm font-semibold">Footer</summary>
-                  <div className="mt-3 space-y-2">
-                    <MiniPresetCard title={selectedFooter?.name ?? "No footer selected"} body="Applies the live Letters footer preset to this template." />
-                    <Button onClick={applyDefaultFooter}>Insert</Button>
-                  </div>
-                </details>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-900">Global Header + Footer</p>
+                  <p className="mt-1 text-xs text-slate-600">Letters use the single communication header and footer from Branding Defaults.</p>
+                  <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
+                </div>
                 <details open className="rounded-md border border-slate-200 bg-white p-3">
                   <summary className="cursor-pointer text-sm font-semibold">Signature Blocks</summary>
                   <div className="mt-3 space-y-2">
@@ -2303,31 +2377,58 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             )}
           </div>
         </aside>
-        <section className="min-w-0 overflow-auto bg-[#edf1f5] p-5">
+        <section className="order-2 min-w-0 overflow-auto bg-[#edf1f5] p-2 sm:p-5 lg:order-none">
           {showMarginGuides ? <EditorRuler pageWidth={pageMetrics.width} leftGutter={30} /> : null}
           <div className="mx-auto flex max-w-full gap-2" style={{ width: editorFrameWidth }}>
             {showMarginGuides ? <EditorVerticalRuler pageHeight={pageMetrics.height} /> : <div className="w-7 shrink-0" />}
             <div className="max-w-full" style={{ width: pageMetrics.width, transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}>
-              <article className="bg-white shadow-[0_18px_45px_rgba(15,23,42,0.12)] ring-1 ring-slate-300" style={{ minHeight: pageMetrics.height, paddingTop: margins.top * 58, paddingBottom: margins.bottom * 58, paddingLeft: margins.left * 72, paddingRight: margins.right * 72 }}>
-              <LetterPreviewHeader branding={branding} header={renderedHeader} />
-              <label className="sr-only" htmlFor="printBody">Print body</label>
-              <div
-                id="printBody"
-                ref={editorRef}
-                contentEditable={!previewMode}
-                suppressContentEditableWarning
-                onInput={syncEditorContent}
-                onFocus={rememberEditorSelection}
-                onBlur={rememberEditorSelection}
-                onMouseUp={rememberEditorSelection}
-                onClick={handleEditorClick}
-                onKeyUp={rememberEditorSelection}
-                onKeyDown={handleEditorKeyDown}
-                className="min-h-[650px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
-                spellCheck
+              <LetterPage
+                branding={branding}
+                title={draft.name || "Letter Preview"}
+                subject={draft.printSubject}
+                salutation={null}
+                minHeight={pageMetrics.height}
+                marginTop={margins.top}
+                marginRight={margins.right}
+                marginBottom={margins.bottom}
+                marginLeft={margins.left}
+                sender={{
+                  name: branding.defaultLetterSignerName,
+                  title: branding.defaultLetterSignerTitle,
+                  email: branding.defaultLetterSignerEmail,
+                  phone: branding.defaultLetterSignerPhone,
+                  signatureUrl: branding.defaultLetterSignatureImageUrl,
+                  closing: branding.defaultLetterClosingPhrase,
+                }}
+                bodySlot={(
+                  <>
+                    <label className="sr-only" htmlFor="printBody">Print body</label>
+                    {previewMode ? (
+                      <div
+                        id="printBody"
+                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_.merge-token-badge]:inline-flex [&_.merge-token-badge]:items-center [&_.merge-token-badge]:rounded [&_.merge-token-badge]:border [&_.merge-token-badge]:border-emerald-300 [&_.merge-token-badge]:bg-emerald-50 [&_.merge-token-badge]:px-1.5 [&_.merge-token-badge]:py-0.5 [&_.merge-token-badge]:font-mono [&_.merge-token-badge]:text-[11px] [&_.merge-token-badge]:font-semibold [&_.merge-token-badge]:text-emerald-800 [&_.merge-token-badge-unknown]:border-amber-300 [&_.merge-token-badge-unknown]:bg-amber-50 [&_.merge-token-badge-unknown]:text-amber-800 [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                        dangerouslySetInnerHTML={{ __html: decorateMergeTokens(draft.printBody || "<p></p>", mergeRegistry) }}
+                      />
+                    ) : (
+                      <div
+                        id="printBody"
+                        ref={editorRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={syncEditorContent}
+                        onFocus={rememberEditorSelection}
+                        onBlur={rememberEditorSelection}
+                        onMouseUp={rememberEditorSelection}
+                        onClick={handleEditorClick}
+                        onKeyUp={rememberEditorSelection}
+                        onKeyDown={handleEditorKeyDown}
+                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                        spellCheck
+                      />
+                    )}
+                  </>
+                )}
               />
-              <LetterPreviewFooter branding={branding} footer={renderedFooter} />
-              </article>
             </div>
           </div>
           <div className="mx-auto mt-3 flex h-9 max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm" style={{ width: editorFrameWidth }}>
@@ -2341,8 +2442,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <span className="ml-auto">{zoom}%</span>
           </div>
         </section>
-        <aside className="hidden min-h-0 overflow-y-auto border-l border-slate-200 bg-[#fbfcfd] xl:block">
-          <div className="sticky top-0 z-10 flex gap-5 border-b border-slate-200 bg-white px-4 pt-2">
+        <aside className="order-3 max-h-[46dvh] min-h-0 overflow-y-auto border-t border-slate-200 bg-[#fbfcfd] xl:order-none xl:max-h-none xl:border-l xl:border-t-0">
+          <div className="sticky top-0 z-10 flex gap-3 overflow-x-auto border-b border-slate-200 bg-white px-3 pt-2 sm:gap-5 sm:px-4">
             {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-10 border-b-2 text-[13px] font-semibold", inspectorTab === tab ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600"].join(" ")}>{tab}</button>)}
           </div>
           <div className="space-y-4 p-4">
@@ -2364,9 +2465,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   </div>
                   <CheckField label="Show Margin Guides" checked={showMarginGuides} onChange={setShowMarginGuides} />
                 </InspectorCard>
-                <InspectorCard title="Branding Blocks" tooltip="Header, footer, and signature presets are shared assets. Changing the selected preset changes which reusable branding blocks this template references.">
-                  <LabeledSelect label="Letterhead" value={draft.headerPresetId} onChange={(value) => setDraft((current) => ({ ...current, headerPresetId: value }))} options={["", ...headers.map((item) => item.id)]} labels={Object.fromEntries(headers.map((item) => [item.id, item.name]))} />
-                  <LabeledSelect label="Footer" value={draft.footerPresetId} onChange={(value) => setDraft((current) => ({ ...current, footerPresetId: value }))} options={["", ...footers.map((item) => item.id)]} labels={Object.fromEntries(footers.map((item) => [item.id, item.name]))} />
+                <InspectorCard title="Global Branding" tooltip="Letters use the single communication header and footer from Branding Defaults. Only signatures are selected per template.">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    <p className="font-semibold text-slate-800">Header + footer</p>
+                    <p className="mt-1">Applied from Branding Defaults to every OyamaLetters preview and output.</p>
+                    <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex font-semibold text-emerald-700 hover:underline">Edit global header/footer</Link>
+                  </div>
                   <LabeledSelect label="Signature (optional)" value={draft.signatureBlockId} onChange={(value) => setDraft((current) => ({ ...current, signatureBlockId: value }))} options={["", ...signatures.map((item) => item.id)]} labels={Object.fromEntries(signatures.map((item) => [item.id, item.name]))} />
                 </InspectorCard>
                 <InspectorCard title="Template Status">
@@ -2387,14 +2491,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                       <div key={item.key} className="rounded-md border border-slate-200 bg-white px-3 py-2">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs font-semibold text-slate-700">{item.label}</p>
-                          <StatusPill label={item.ok ? "OK" : "Fix"} tone={item.ok ? "green" : "orange"} />
+                          <StatusPill label={item.ok ? "OK" : "Review"} tone={item.ok ? "green" : "orange"} />
                         </div>
                         {!item.ok && item.missingHint ? <p className="mt-1 text-[11px] text-slate-500">{item.missingHint}</p> : null}
                       </div>
                     ))}
                   </div>
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                    <p className="font-semibold">Local status: {localChecklistReady ? "Ready for publish checks" : "Needs updates"}</p>
+                    <p className="font-semibold">Local status: {localChecklistReady ? "No local notes" : "Review notes available"}</p>
                     <p className="mt-1">Detected merge fields: {detectedTokens.length} · Unknown: {unknownTokens.length}</p>
                     {dirty ? <p className="mt-1 text-amber-700">Unsaved edits detected. Save before relying on server preflight.</p> : null}
                   </div>
@@ -2405,10 +2509,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     {inspectorPreflightError ? <p className="mt-1 text-red-700">{inspectorPreflightError}</p> : null}
                     {inspectorPreflight && !inspectorPreflightLoading ? (
                       <>
-                        <p className={["mt-1 font-semibold", inspectorPreflight.canPublish ? "text-emerald-700" : "text-amber-700"].join(" ")}>
-                          {inspectorPreflight.canPublish ? "Server status: Ready" : "Server status: Blocked"}
+                        <p className="mt-1 font-semibold text-slate-700">
+                          Server status: Informational
                         </p>
-                        <p className="mt-1 text-slate-600">Blockers: {inspectorPreflight.blockers.length} · Warnings: {inspectorPreflight.warnings.length}</p>
+                        <p className="mt-1 text-slate-600">Validation notes: {inspectorPreflight.blockers.length} · Warnings: {inspectorPreflight.warnings.length}</p>
                       </>
                     ) : null}
                     <div className="mt-2 flex gap-2">
@@ -2421,8 +2525,79 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             ) : null}
             {inspectorTab === "Merge Fields" ? (
               <>
-                <p className="px-1 text-sm font-semibold">Live Merge Fields</p>
-                {mergeSections.map((section) => (
+                <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Live Merge Fields</p>
+                    <p className="mt-1 text-xs text-slate-600">Search, then click a field to insert it. Simple fields like {"{first}"} and slash fields like //first render from live CRM data.</p>
+                  </div>
+                  <SearchBox value={mergeFieldSearch} onChange={setMergeFieldSearch} placeholder="Search merge fields..." />
+                  <div className="grid grid-cols-3 gap-2">
+                    {["{first}", "{last}", "{name}", "{amount}", "{giftDate}", "{totalGiving}"].map((field) => (
+                      <button key={field} type="button" onClick={() => insertToken(field)} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-left text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100">
+                        {field}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Detected in this draft</p>
+                      <StatusPill label={unknownTokens.length ? "Review" : "Known"} tone={unknownTokens.length ? "orange" : "green"} />
+                    </div>
+                    {detectedTokens.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {detectedTokens.map((token) => {
+                          const known = mergeRegistry.has(normalizeToken(token));
+                          return (
+                            <button
+                              key={token}
+                              type="button"
+                              onMouseEnter={() => void loadMergeLinePreview(token)}
+                              onFocus={() => void loadMergeLinePreview(token)}
+                              className={[
+                                "rounded border px-2 py-1 font-mono text-[11px] font-semibold",
+                                known ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "border-amber-300 bg-amber-50 text-amber-800",
+                              ].join(" ")}
+                            >
+                              {token}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-500">No merge fields detected yet.</p>
+                    )}
+                    {mergeLinePreviewToken ? (
+                      <div className="mt-3 rounded-md border border-slate-200 bg-white p-2">
+                        <p className="text-[11px] font-semibold text-slate-700">Line preview for <span className="font-mono">{mergeLinePreviewToken}</span></p>
+                        {mergeLinePreviewLoading ? <p className="mt-1 text-xs text-slate-500">Loading live examples...</p> : null}
+                        {mergeLinePreviewError ? <p className="mt-1 text-xs text-red-700">{mergeLinePreviewError}</p> : null}
+                        {!mergeLinePreviewLoading && !mergeLinePreviewError && mergeLinePreview?.items.length === 0 ? <p className="mt-1 text-xs text-slate-500">No constituents available for preview.</p> : null}
+                        {!mergeLinePreviewLoading && mergeLinePreview?.items.length ? (
+                          <div className="mt-2 space-y-2">
+                            {mergeLinePreview.items.map((item) => (
+                              <div key={`${item.constituentId}-${item.donationId ?? "none"}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+                                <p className="text-[11px] font-semibold text-slate-600">{item.recipientName}</p>
+                                <p className="mt-0.5 text-xs text-slate-800">{item.renderedLine || "(blank after merge)"}</p>
+                                {(item.missingFields?.length || item.unsupportedFields?.length) ? (
+                                  <p className="mt-1 text-[11px] text-amber-700">
+                                    Notes: {[...(item.missingFields ?? []), ...(item.unsupportedFields ?? [])].join(", ")}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Showing {filteredMergeSections.reduce((sum, section) => sum + section.fields.length, 0)} of {allFields.length} fields
+                  </p>
+                </div>
+                {filteredMergeSections.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">No merge fields match that search.</div>
+                ) : null}
+                {filteredMergeSections.map((section) => (
                   <details key={section.key} open className="rounded-md border border-slate-200 bg-white p-3">
                     <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-500">{section.label}</summary>
                     <div className="mt-2 space-y-1">
@@ -2632,6 +2807,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const router = useRouter();
   const [template, setTemplate] = useState<LetterTemplateDetail | null>(null);
   const [sections, setSections] = useState<MergeFieldSection[]>([]);
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [validation, setValidation] = useState<PublishValidationResult | null>(null);
   const [publishHistory, setPublishHistory] = useState<PublishHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2642,6 +2818,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const [savedPreviewPdfError, setSavedPreviewPdfError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [activePublishTab, setActivePublishTab] = useState<PublishReviewTab>("summary");
 
   const load = useCallback(async () => {
     if (!templateId) {
@@ -2652,9 +2829,10 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
     setLoading(true);
     setError(null);
     try {
-      const [templateResult, fieldsResult, validationResult, historyResult] = await Promise.all([
+      const [templateResult, fieldsResult, brandingResult, validationResult, historyResult] = await Promise.all([
         apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
         apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
+        apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
           method: "POST",
           body: JSON.stringify({ confirm: false }),
@@ -2663,6 +2841,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       ]);
       setTemplate(templateResult);
       setSections(fieldsResult.sections ?? []);
+      setBranding(normalizeBrandingSettings(brandingResult));
       setValidation(validationResult);
       setPublishHistory(historyResult.items ?? []);
     } catch (requestError) {
@@ -2690,12 +2869,20 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const validationBlockers = validation?.blockers ?? [];
   const validationWarnings = validation?.warnings ?? [];
   const samplePdfPreflight = validation?.samplePdfPreflight ?? null;
-  const canPublishNow = unknownTokens.length === 0 && validationBlockers.length === 0 && (validation?.canPublish ?? false);
+  const validationIssueCount = unknownTokens.length + validationBlockers.length;
+  const canPublishNow = Boolean(templateId);
 
   async function publish() {
     if (!templateId) return;
     setSaving(true);
     setError(null);
+    logLetterPublishDiagnostics({
+      stage: "before-publish",
+      template,
+      branding,
+      unknownTokens,
+      validation,
+    });
     try {
       const result = await apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
         method: "POST",
@@ -2703,10 +2890,19 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       });
       setValidation(result);
       if (!result.canPublish || !result.published) {
-        setError("Publish preflight failed. Resolve blockers and try again.");
+        setError("Publish request did not complete. Review server response and try again.");
         return;
       }
-      setNotice("Template published. Opening Generate workspace...");
+      logLetterPublishDiagnostics({
+        stage: "after-publish",
+        template,
+        branding,
+        unknownTokens,
+        validation: result,
+      });
+      setNotice(validationIssueCount > 0
+        ? "Template published with validation notes. Review the browser console for developer diagnostics."
+        : "Template published. Opening Generate workspace...");
       router.push(`/oyama-letters/generate?templateId=${encodeURIComponent(templateId)}&mode=batch&target=print`);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to publish template."));
@@ -2749,6 +2945,12 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       }, 60000);
       setNotice("Opened server-rendered sample PDF in a new tab.");
     } catch (requestError) {
+      console.warn("[OyamaLetters PDF Preview Diagnostics] Failed to open sample server PDF.", {
+        templateId,
+        templateName: template?.name ?? null,
+        error: errorMessage(requestError, "Failed to open sample PDF preview."),
+        rawPrintBodyHtml: template?.printBody ?? "",
+      });
       setError(errorMessage(requestError, "Failed to open sample PDF preview."));
     } finally {
       setSamplePdfLoading(false);
@@ -2783,6 +2985,12 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
         return nextUrl;
       });
     } catch (requestError) {
+      console.warn("[OyamaLetters PDF Preview Diagnostics] Failed to load inline server preview.", {
+        templateId,
+        templateName: template?.name ?? null,
+        error: errorMessage(requestError, "Unable to load server preview."),
+        rawPrintBodyHtml: template?.printBody ?? "",
+      });
       setSavedPreviewPdfError(errorMessage(requestError, "Unable to load server preview."));
       setSavedPreviewPdfUrl((current) => {
         if (current) URL.revokeObjectURL(current);
@@ -2791,7 +2999,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
     } finally {
       setSavedPreviewPdfLoading(false);
     }
-  }, [templateId]);
+  }, [template?.name, template?.printBody, templateId]);
 
   useEffect(() => {
     void loadSavedPreviewPdf();
@@ -2799,11 +3007,21 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
 
   if (loading) return <LoadingPage label="Loading publish workspace..." />;
 
-  const publishTabs = ["Template Summary", "Merge Fields", "Missing Data Behavior", "Recipient Compatibility", "PDF Preview", "Publish Confirmation"];
+  const publishTabs: Array<{ key: PublishReviewTab; label: string }> = [
+    { key: "summary", label: "Template Summary" },
+    { key: "fields", label: "Merge Fields" },
+    { key: "validation", label: "Validation Notes" },
+    { key: "recipient", label: "Recipient Compatibility" },
+    { key: "pdf", label: "PDF Preview" },
+    { key: "confirm", label: "Publish Confirmation" },
+  ];
+  const activePublishTabIndex = Math.max(0, publishTabs.findIndex((tab) => tab.key === activePublishTab));
+  const previousPublishTab = publishTabs[activePublishTabIndex - 1] ?? null;
+  const nextPublishTab = publishTabs[activePublishTabIndex + 1] ?? null;
 
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
-      <PageHero title="Publish Template" subtitle="Configure merge fields, validation, and preview before generation.">
+      <PageHero title="Publish Template" subtitle="Review merge fields, validation notes, and PDF output before generation. Publishing is allowed even when validation notes need follow-up.">
         <Button href={templateId ? `/oyama-letters/templates/${templateId}` : "/oyama-letters"}>Back to Canvas</Button>
         <Button onClick={() => void load()}>Validate</Button>
         <Button onClick={() => void openSampleServerPdf()} disabled={samplePdfLoading || !templateId}>{samplePdfLoading ? "Rendering Sample PDF..." : "Open Sample Server PDF"}</Button>
@@ -2811,75 +3029,160 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       </PageHero>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {notice ? <Alert tone="green">{notice}</Alert> : null}
+      <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 xl:px-6">
+        <span className="font-semibold">Publish policy:</span> validation is advisory. Unknown merge fields, missing sample data, or PDF preflight warnings are logged for review but do not prevent publishing.
+      </div>
       <div className="border-b border-slate-200 bg-white px-4 xl:px-6">
         <div className="flex gap-6 overflow-x-auto">
           {publishTabs.map((tab) => (
-            <button key={tab} type="button" className={["h-12 shrink-0 border-b-2 text-xs font-semibold", tab === "Merge Fields" ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600 hover:text-slate-900"].join(" ")}>
-              {tab}
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActivePublishTab(tab.key)}
+              className={["h-12 shrink-0 border-b-2 text-xs font-semibold", activePublishTab === tab.key ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600 hover:text-slate-900"].join(" ")}
+            >
+              {tab.label}
             </button>
           ))}
         </div>
       </div>
       <div className="grid gap-4 p-3 xl:grid-cols-[minmax(0,1fr)_400px] xl:p-5">
         <section className="space-y-4">
-          <div>
-            <h2 className="text-[18px] font-semibold">Detected Merge Fields ({tokens.length})</h2>
-            <p className="mt-1 text-xs text-slate-600">Review and configure how each merge field should behave.</p>
-          </div>
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-            <table className="w-full min-w-[760px] text-left text-[13px]">
-              <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600">
-                <tr><th className="px-4 py-3">Merge Field</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Behavior</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {tokens.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No merge fields detected in this saved template.</td></tr>
-                ) : tokens.map((token) => {
-                  const known = registry.has(normalizeToken(token));
-                  return (
-                    <tr key={token}>
-                      <td className="px-4 py-3 font-mono text-xs">{token}</td>
-                      <td className="px-4 py-3">{tokenSource(token)}</td>
-                      <td className="px-4 py-3"><StatusPill label={known ? "Known" : "Unknown"} tone={known ? "green" : "red"} /></td>
-                      <td className="px-4 py-3 text-slate-600">{known ? "Available for preview and generation" : "Fix token before publish"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-            <p className={["font-semibold", canPublishNow ? "text-emerald-800" : "text-red-700"].join(" ")}>
-              Validation Status: {canPublishNow ? "Good" : "Needs Attention"}
-            </p>
-            <p className="mt-1 text-xs text-slate-600">
-              {unknownTokens.length === 0 ? "Detected merge fields are registered." : `Unknown fields: ${unknownTokens.join(", ")}`}
-            </p>
-            {validationBlockers.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-red-700">
-                {validationBlockers.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            ) : null}
-            {validationWarnings.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-700">
-                {validationWarnings.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            ) : null}
-          </div>
-          <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-            <p className={["font-semibold", samplePdfPreflight?.canRender ? "text-emerald-800" : "text-amber-800"].join(" ")}>
-              PDF Parity Check: {samplePdfPreflight?.canRender ? "Server Render Verified" : samplePdfPreflight?.checked ? "Render Needs Attention" : "Preflight Skipped"}
-            </p>
-            <p className="mt-1 text-xs text-slate-600">
-              Uses server renderer ({samplePdfPreflight?.renderer ?? "SERVER_RENDER"}) with parser {samplePdfPreflight?.parser ?? "htmlToPdfBlocks"} for pre-publish validation.
-            </p>
-            <p className="mt-2 text-xs text-slate-700">Parsed block count: {String(samplePdfPreflight?.blockCount ?? 0)}</p>
-            {samplePdfPreflight?.reason === "NO_SAMPLE_RECIPIENT" ? (
-              <p className="mt-2 text-xs text-amber-700">No sample recipient available, so parity could not be fully verified.</p>
-            ) : null}
-            {samplePdfPreflight?.reason === "PARSER_FAILURE" ? (
-              <p className="mt-2 text-xs text-red-700">Server parser failed during preflight. Fix template content before publishing.</p>
-            ) : null}
+          {activePublishTab === "summary" ? (
+            <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[18px] font-semibold">Template Summary</h2>
+                  <p className="mt-1 text-xs text-slate-600">Confirm the saved template that will become available for generation.</p>
+                </div>
+                <StatusPill label={template?.status ?? "Unknown"} tone={template?.status === "ACTIVE" ? "green" : "orange"} />
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <ReviewFact label="Template name" value={template?.name || "Untitled"} />
+                <ReviewFact label="Category" value={template?.category?.replaceAll("_", " ") || "General"} />
+                <ReviewFact label="Print subject" value={template?.printSubject || "No print subject"} />
+                <ReviewFact label="Signature" value={template?.signatureBlock?.name || "Optional, not selected"} />
+              </div>
+              <div className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                This publish step activates the saved template for staff generation. It does not create letters, print files, mail records, or emails.
+              </div>
+            </div>
+          ) : null}
+
+          {activePublishTab === "fields" ? (
+            <>
+              <div>
+                <h2 className="text-[18px] font-semibold">Detected Merge Fields ({tokens.length})</h2>
+                <p className="mt-1 text-xs text-slate-600">Review every token found in the saved print and email content.</p>
+              </div>
+              <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+                <table className="w-full min-w-[760px] text-left text-[13px]">
+                  <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600">
+                    <tr><th className="px-4 py-3">Merge Field</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Behavior</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {tokens.length === 0 ? (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No merge fields detected in this saved template.</td></tr>
+                    ) : tokens.map((token) => {
+                      const known = registry.has(normalizeToken(token));
+                      return (
+                        <tr key={token}>
+                          <td className="px-4 py-3 font-mono text-xs">{token}</td>
+                          <td className="px-4 py-3">{tokenSource(token)}</td>
+                          <td className="px-4 py-3"><StatusPill label={known ? "Known" : "Unknown"} tone={known ? "green" : "orange"} /></td>
+                          <td className="px-4 py-3 text-slate-600">{known ? "Available for preview and generation" : "Review before generation; publishing is still allowed"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+
+          {activePublishTab === "validation" ? (
+            <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-[18px] font-semibold">Validation Notes</h2>
+              <p className="mt-1 text-xs text-slate-600">These notes are informational. Publish remains available so staff can decide whether to proceed.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <ReviewMetric label="Unknown fields" value={unknownTokens.length} tone={unknownTokens.length ? "amber" : "green"} />
+                <ReviewMetric label="Server notes" value={validationBlockers.length} tone={validationBlockers.length ? "amber" : "green"} />
+                <ReviewMetric label="Warnings" value={validationWarnings.length} tone={validationWarnings.length ? "amber" : "green"} />
+              </div>
+              <ValidationList title="Unknown merge fields" items={unknownTokens} empty="No unknown merge fields detected." tone="amber" />
+              <ValidationList title="Server validation notes" items={validationBlockers} empty="No server validation notes returned." tone="amber" />
+              <ValidationList title="Warnings" items={validationWarnings} empty="No warnings returned." tone="amber" />
+            </div>
+          ) : null}
+
+          {activePublishTab === "recipient" ? (
+            <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-[18px] font-semibold">Recipient Compatibility</h2>
+              <p className="mt-1 text-xs text-slate-600">Sample recipient checks help catch missing address or merge data before staff generate real letters.</p>
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className={["text-sm font-semibold", validation?.sampleValidation?.valid === false ? "text-amber-800" : "text-emerald-800"].join(" ")}>
+                  {validation?.sampleValidation?.valid === false ? "Sample recipient has notes" : "Sample recipient check is clear or not required"}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  {(validation?.sampleValidation?.reasons ?? ["VALID"]).join(", ")}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {activePublishTab === "pdf" ? (
+            <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[18px] font-semibold">PDF Preview</h2>
+                  <p className="mt-1 text-xs text-slate-600">Verify the same server-rendered path used by generated letter PDFs.</p>
+                </div>
+                <Button onClick={() => void openSampleServerPdf()} disabled={samplePdfLoading || !templateId}>{samplePdfLoading ? "Rendering..." : "Open Server PDF"}</Button>
+              </div>
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className={["font-semibold", samplePdfPreflight?.canRender ? "text-emerald-800" : "text-amber-800"].join(" ")}>
+                  PDF Parity Check: {samplePdfPreflight?.canRender ? "Server Render Verified" : samplePdfPreflight?.checked ? "Render Needs Attention" : "Preflight Skipped"}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Uses server renderer ({samplePdfPreflight?.renderer ?? "SERVER_RENDER"}) with parser {samplePdfPreflight?.parser ?? "htmlToPdfBlocks"} for preview parity checks.
+                </p>
+                <p className="mt-2 text-xs text-slate-700">Parsed block count: {String(samplePdfPreflight?.blockCount ?? 0)}</p>
+                {samplePdfPreflight?.reason === "NO_SAMPLE_RECIPIENT" ? (
+                  <p className="mt-2 text-xs text-amber-700">No sample recipient was available. The server will use a synthetic preview recipient for direct sample PDF rendering.</p>
+                ) : null}
+                {samplePdfPreflight?.reason === "PARSER_FAILURE" ? (
+                  <p className="mt-2 text-xs text-red-700">Server parser failed during preflight. Publishing is still allowed, but generated PDFs may need review before mailing.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {activePublishTab === "confirm" ? (
+            <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-[18px] font-semibold">Publish Confirmation</h2>
+              <p className="mt-1 text-xs text-slate-600">Publishing activates this template for the Generate Letters workspace.</p>
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <ReviewMetric label="Fields" value={tokens.length} tone="slate" />
+                <ReviewMetric label="Notes" value={validationIssueCount} tone={validationIssueCount ? "amber" : "green"} />
+                <ReviewMetric label="PDF blocks" value={samplePdfPreflight?.blockCount ?? 0} tone={samplePdfPreflight?.canRender ? "green" : "amber"} />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button onClick={() => void load()}>Refresh Review</Button>
+                <Button onClick={() => void publish()} tone="primary" disabled={saving || !canPublishNow}>{saving ? "Publishing..." : "Publish & Continue"}</Button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+            <Button onClick={() => previousPublishTab ? setActivePublishTab(previousPublishTab.key) : undefined} disabled={!previousPublishTab}>Previous Review Step</Button>
+            <div className="text-xs font-semibold text-slate-600">
+              Step {activePublishTabIndex + 1} of {publishTabs.length}: {publishTabs[activePublishTabIndex]?.label ?? "Review"}
+            </div>
+            {nextPublishTab ? (
+              <Button onClick={() => setActivePublishTab(nextPublishTab.key)} tone="primary">Next Review Step</Button>
+            ) : (
+              <Button onClick={() => void publish()} tone="primary" disabled={saving || !canPublishNow}>{saving ? "Publishing..." : "Publish & Continue"}</Button>
+            )}
           </div>
         </section>
         <aside className="space-y-3">
@@ -2897,7 +3200,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
                 </object>
               ) : (
                 <>
-                  <MiniDocument html={template?.printBody || ""} />
+                  <MiniDocument html={template?.printBody || ""} branding={branding} />
                   <p className="mt-3 text-xs text-amber-700">{savedPreviewPdfError || "Server preview unavailable, showing raw template body."}</p>
                 </>
               )}
@@ -2936,6 +3239,122 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       </div>
     </main>
   );
+}
+
+function buildLetterPublishHtml(template: LetterTemplateDetail | null, branding: BrandingSettings): string {
+  const organizationName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization";
+  const headerHtml = branding.globalHeaderHtml
+    || `<div><strong>${escapeHtml(organizationName)}</strong>${branding.tagline ? `<div>${escapeHtml(branding.tagline)}</div>` : ""}</div>`;
+  const address = formatBrandingAddress(branding);
+  const footerHtml = branding.globalFooterHtml
+    || `<div>${escapeHtml(branding.footerLegalText || organizationName)}</div>${address ? `<div>${escapeHtml(address)}</div>` : ""}`;
+
+  return [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    '<meta charset="utf-8" />',
+    `<title>${escapeHtml(template?.name || "Letter Template")}</title>`,
+    "</head>",
+    `<body style="margin:0;background:#f8fafc;color:#0f172a;font-family:Arial, Helvetica, sans-serif;">`,
+    '<main style="max-width:760px;margin:0 auto;background:#ffffff;padding:40px;">',
+    `<header data-oyama-global-letter-header="true">${headerHtml}</header>`,
+    `<article data-oyama-letter-body="true">${template?.printBody || ""}</article>`,
+    `<footer data-oyama-global-letter-footer="true">${footerHtml}</footer>`,
+    "</main>",
+    "</body>",
+    "</html>",
+  ].join("");
+}
+
+function ReviewFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function ReviewMetric({ label, value, tone }: { label: string; value: number; tone: "green" | "amber" | "slate" }) {
+  const toneClass = tone === "green"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+    : tone === "amber"
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : "border-slate-200 bg-slate-50 text-slate-900";
+  return (
+    <div className={`rounded-md border p-4 ${toneClass}`}>
+      <p className="text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs font-semibold">{label}</p>
+    </div>
+  );
+}
+
+function ValidationList({
+  title,
+  items,
+  empty,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  empty: string;
+  tone: "amber" | "green";
+}) {
+  const toneClass = tone === "green" ? "text-emerald-800" : "text-amber-800";
+  return (
+    <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
+      <p className={`text-sm font-semibold ${toneClass}`}>{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-xs text-slate-600">{empty}</p>
+      ) : (
+        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-700">
+          {items.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function logLetterPublishDiagnostics({
+  stage,
+  template,
+  branding,
+  unknownTokens,
+  validation,
+}: {
+  stage: "before-publish" | "after-publish";
+  template: LetterTemplateDetail | null;
+  branding: BrandingSettings;
+  unknownTokens: string[];
+  validation: PublishValidationResult | null;
+}) {
+  const fullHtml = buildLetterPublishHtml(template, branding);
+  const rawBodyHtml = template?.printBody || "";
+  const diagnostics = {
+    stage,
+    publishedAt: new Date().toISOString(),
+    templateId: template?.id ?? null,
+    templateName: template?.name ?? null,
+    status: template?.status ?? null,
+    printSubject: template?.printSubject ?? null,
+    emailSubject: template?.emailSubject ?? null,
+    unknownTokens,
+    validationBlockers: validation?.blockers ?? [],
+    validationWarnings: validation?.warnings ?? [],
+    sampleValidation: validation?.sampleValidation ?? null,
+    samplePdfPreflight: validation?.samplePdfPreflight ?? null,
+    fullHtmlLength: fullHtml.length,
+    rawBodyHtmlLength: rawBodyHtml.length,
+    globalHeaderConfigured: Boolean(branding.globalHeaderHtml.trim()),
+    globalFooterConfigured: Boolean(branding.globalFooterHtml.trim()),
+  };
+
+  console.groupCollapsed(`[OyamaLetters Publish Diagnostics] ${stage}: ${template?.id ?? "unsaved"}`);
+  console.info("Summary", diagnostics);
+  console.info("Entire letter HTML output", fullHtml);
+  console.info("Raw letter body HTML", rawBodyHtml);
+  console.groupEnd();
 }
 
 function GenerateWorkspace() {
@@ -2989,6 +3408,10 @@ function GenerateWorkspace() {
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewPdfFileName, setPreviewPdfFileName] = useState("letter-preview.pdf");
+  const [previewPdfLoading, setPreviewPdfLoading] = useState(false);
+  const [previewPdfError, setPreviewPdfError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3246,6 +3669,12 @@ function GenerateWorkspace() {
     };
   }, [pdfViewerUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+    };
+  }, [previewPdfUrl]);
+
   function readPdfFileName(response: Response, fallback: string): string {
     const disposition = response.headers.get("content-disposition") ?? "";
     const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -3359,9 +3788,54 @@ function GenerateWorkspace() {
     }
   }
 
-  async function runPreview() {
+  async function loadProductionPreviewPdf(previewRecipientId: string) {
+    setPreviewPdfLoading(true);
+    setPreviewPdfError(null);
+    try {
+      const pdf = await requestPdfBlobUrl(
+        "/api/letters/generated/preview-pdf?preview=1&inline=1",
+        {
+          templateId,
+          constituentId: previewRecipientId,
+          donationMode,
+          donationId: donationMode === "specific" ? donationId || undefined : undefined,
+          donationDateRange,
+          donationType,
+          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+          year: new Date().getFullYear(),
+        },
+        "letter-preview.pdf",
+      );
+      setPreviewPdfUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return pdf.objectUrl;
+      });
+      setPreviewPdfFileName(pdf.fileName);
+    } catch (requestError) {
+      setPreviewPdfUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return null;
+      });
+      setPreviewPdfError(errorMessage(requestError, "Failed to load production PDF preview."));
+      console.warn("[OyamaLetters Preview Diagnostics] Production PDF preview failed.", {
+        templateId,
+        previewRecipientId,
+        donationMode,
+        donationId: donationMode === "specific" ? donationId || null : null,
+        donationDateRange,
+        donationType,
+        donationMinimum,
+        error: errorMessage(requestError, "Failed to load production PDF preview."),
+        mergedPreviewHtml: preview?.mergedPrintBody ?? "",
+      });
+    } finally {
+      setPreviewPdfLoading(false);
+    }
+  }
+
+  async function runPreview(targetRecipientId?: string) {
     if (!templateId) return setError("Choose a template first.");
-    const previewRecipientId = constituentId || selectedRecipientIds[0] || pendingRecipientIds[0];
+    const previewRecipientId = targetRecipientId || constituentId || selectedRecipientIds[0] || pendingRecipientIds[0];
     if (!previewRecipientId) return setError("Pick at least one recipient before previewing.");
     setWorking(true);
     setError(null);
@@ -3380,6 +3854,8 @@ function GenerateWorkspace() {
         }),
       });
       setPreview(previewResult);
+      setConstituentId(previewRecipientId);
+      await loadProductionPreviewPdf(previewRecipientId);
       setNotice(`Preview ready. Missing fields: ${previewResult.missingFields.length}. Unsupported fields: ${previewResult.unsupportedFields.length}.`);
       setWizardStep(4);
     } catch (requestError) {
@@ -3472,12 +3948,8 @@ function GenerateWorkspace() {
   }
 
   const selectedTemplate = templates.find((template) => template.id === templateId) ?? null;
-  const previewHeaderDraft = selectedTemplateDetail?.headerPreset
-    ? headerPresetToDraft(selectedTemplateDetail.headerPreset)
-    : buildImportedHeaderPreset(branding);
-  const previewFooterDraft = selectedTemplateDetail?.footerPreset
-    ? footerPresetToDraft(selectedTemplateDetail.footerPreset)
-    : buildImportedFooterPreset(branding);
+  const previewHeaderDraft = buildImportedHeaderPreset(branding);
+  const previewFooterDraft = buildImportedFooterPreset(branding);
   const selectedDirectRecipientId = constituentId || activeRecipientIds[0] || pendingRecipientIds[0] || "";
   const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   const effectiveRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
@@ -3598,7 +4070,11 @@ function GenerateWorkspace() {
     const raw = previewFocusIndex + delta;
     const nextIndex = (raw + previewRecipientPool.length) % previewRecipientPool.length;
     const target = previewRecipientPool[nextIndex];
-    if (target) setConstituentId(target.id);
+    if (!target) return;
+    setConstituentId(target.id);
+    if (wizardStep === 4) {
+      void runPreview(target.id);
+    }
   }
 
   const topNextLabel = wizardStep === 1
@@ -4216,8 +4692,8 @@ function GenerateWorkspace() {
           <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold text-slate-900">Letter Preview</h3>
-                <p className="text-sm text-slate-600">This is a sample of how your letter will look.</p>
+                <h3 className="text-xl font-semibold text-slate-900">Production PDF Preview</h3>
+                <p className="text-sm text-slate-600">Server-rendered preview using the same PDF path as generated letters.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => cyclePreviewRecipient("prev")} className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700">‹</button>
@@ -4226,15 +4702,43 @@ function GenerateWorkspace() {
               </div>
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#f3f5f8] p-3">
-              <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
-                <LetterPreviewHeader branding={branding} header={previewHeaderDraft} />
-                <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run preview to render the letter sample." showLetterhead={false} />
-                <LetterPreviewFooter branding={branding} footer={previewFooterDraft} />
-              </div>
+              {previewPdfLoading ? (
+                <div className="flex min-h-[520px] items-center justify-center rounded border border-slate-200 bg-white text-sm font-semibold text-slate-600">
+                  Rendering server PDF preview...
+                </div>
+              ) : null}
+              {!previewPdfLoading && previewPdfUrl ? (
+                <object
+                  title="Production letter PDF preview"
+                  data={`${previewPdfUrl}#toolbar=1&navpanes=0&view=FitH`}
+                  type="application/pdf"
+                  className="h-[620px] w-full rounded border border-slate-200 bg-white"
+                >
+                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Inline PDF preview is unavailable in this browser. Use the buttons below to open or save the server-rendered preview.
+                  </div>
+                </object>
+              ) : null}
+              {!previewPdfLoading && !previewPdfUrl ? (
+                <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
+                  {previewPdfError ? <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">{previewPdfError}</p> : null}
+                  <LetterPreviewHeader branding={branding} header={previewHeaderDraft} />
+                  <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run preview to render the letter sample." showLetterhead={false} />
+                  <LetterPreviewFooter branding={branding} footer={previewFooterDraft} />
+                </div>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>Open PDF Preview</Button>
-              <Button onClick={printCurrentPdf} disabled={!pdfViewerUrl || pdfLoading}>Print Preview</Button>
+              {previewPdfUrl ? (
+                <a href={previewPdfUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Open Server Preview</a>
+              ) : (
+                <Button onClick={() => previewFocus ? void loadProductionPreviewPdf(previewFocus.id) : undefined} disabled={!previewFocus || previewPdfLoading}>{previewPdfLoading ? "Rendering..." : "Render Server Preview"}</Button>
+              )}
+              {previewPdfUrl ? (
+                <a href={previewPdfUrl} download={previewPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Save Preview PDF</a>
+              ) : (
+                <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>Open Generated PDF</Button>
+              )}
             </div>
           </aside>
         </section>
@@ -5169,7 +5673,7 @@ function SettingsWorkspace() {
         {tab === "organization" ? (
           <div className="grid gap-4 xl:grid-cols-3">
             <SettingsCard title="Identity & Logo" body="Organization name, address, colors, and logos used by server-rendered letter PDFs." href="/settings/branding" />
-            <SettingsCard title="Letter Presets" body="Letter header and footer presets used by the editor, previews, and final PDFs." href="/settings/branding/letter-presets" />
+            <SettingsCard title="Global Header + Footer" body="The single communication header and footer used by all letters and emails." href="/settings/branding#communication-header-footer" />
             <SettingsCard title="Signatures" body="Reusable signer blocks used by templates and generated PDFs." href="/settings/branding/signatures" />
           </div>
         ) : null}
@@ -5186,25 +5690,15 @@ function SettingsWorkspace() {
 
 function LettersOrganizationSettingsPanel() {
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
-  const [headers, setHeaders] = useState<HeaderPreset[]>([]);
-  const [footers, setFooters] = useState<FooterPreset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [brandingRow, headerRows, footerRows] = await Promise.all([
-        apiFetch<BrandingSettings>("/api/settings/branding"),
-        apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
-        apiFetch<FooterPreset[]>("/api/letters/footer-presets"),
-      ]);
+      const brandingRow = await apiFetch<BrandingSettings>("/api/settings/branding");
       setBranding(normalizeBrandingSettings(brandingRow));
-      setHeaders(headerRows);
-      setFooters(footerRows);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load Letters organization settings."));
     } finally {
@@ -5215,32 +5709,6 @@ function LettersOrganizationSettingsPanel() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function importBrandingDefaults() {
-    setSaving(true);
-    setNotice(null);
-    setError(null);
-    try {
-      const defaultHeader = headers.find((item) => item.isDefault) ?? null;
-      const defaultFooter = footers.find((item) => item.isDefault) ?? null;
-      const headerPayload = buildImportedHeaderPreset(branding);
-      const footerPayload = buildImportedFooterPreset(branding);
-      await Promise.all([
-        defaultHeader
-          ? apiFetch<HeaderPreset>(`/api/letters/header-presets/${defaultHeader.id}`, { method: "PATCH", body: JSON.stringify(headerPayload) })
-          : apiFetch<HeaderPreset>("/api/letters/header-presets", { method: "POST", body: JSON.stringify(headerPayload) }),
-        defaultFooter
-          ? apiFetch<FooterPreset>(`/api/letters/footer-presets/${defaultFooter.id}`, { method: "PATCH", body: JSON.stringify(footerPayload) })
-          : apiFetch<FooterPreset>("/api/letters/footer-presets", { method: "POST", body: JSON.stringify(footerPayload) }),
-      ]);
-      setNotice("Imported organization branding into Letters-only default header and footer presets.");
-      await load();
-    } catch (requestError) {
-      setError(errorMessage(requestError, "Failed to import organization branding into Letters."));
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const logo = branding.logoUrl || branding.logoSquareUrl;
   const orgName = branding.organizationDisplayName || branding.legalOrganizationName || "No organization name configured";
@@ -5258,7 +5726,6 @@ function LettersOrganizationSettingsPanel() {
         </div>
         {loading ? <p className="mt-5 text-sm text-slate-500">Loading branding...</p> : null}
         {error ? <Alert tone="amber">{error}</Alert> : null}
-        {notice ? <Alert tone="green">{notice}</Alert> : null}
         <div className="mt-5 space-y-4">
           <div className="flex items-center gap-4 rounded-md border border-slate-200 p-3">
             <div className="flex h-16 w-24 items-center justify-center rounded-md bg-slate-50">
@@ -5280,18 +5747,18 @@ function LettersOrganizationSettingsPanel() {
             <ColorSwatch label="Primary" value={branding.primaryColor} />
             <ColorSwatch label="Accent" value={branding.accentColor} />
           </div>
-          <Button onClick={() => void importBrandingDefaults()} tone="primary" disabled={saving || loading}>{saving ? "Importing..." : "Import Organization Defaults"}</Button>
+          <Button href="/settings/branding#communication-header-footer" tone="primary">Edit Branding Defaults</Button>
         </div>
       </section>
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
         <p className="font-semibold">Letters Default Preview</p>
-        <p className="mt-1 text-sm text-slate-600">Importing writes to Letters-only header/footer presets. It does not overwrite global Organization or Branding Settings.</p>
+        <p className="mt-1 text-sm text-slate-600">This preview uses the global Communication Header + Footer from Branding Defaults.</p>
         <div className="mt-5 rounded-md border border-slate-200 bg-[#f3f5f8] p-5">
           <div className="mx-auto max-w-[640px] bg-white px-10 py-8 shadow-sm ring-1 ring-slate-200">
             <LetterPreviewHeader branding={branding} header={buildImportedHeaderPreset(branding)} />
             <div className="py-10 text-sm leading-7 text-slate-700">
               <p>Dear {"{{donor.firstName}}"},</p>
-              <p className="mt-5">Your Letters templates will use this imported organization identity when their default header/footer presets are selected.</p>
+              <p className="mt-5">Your Letters templates use this organization identity and the global communication header/footer.</p>
               <p className="mt-5">With gratitude,</p>
             </div>
             <LetterPreviewFooter branding={branding} footer={buildImportedFooterPreset(branding)} />
@@ -5836,7 +6303,7 @@ function CategoryTabs({ category, setCategory }: { category: string; setCategory
   );
 }
 
-function MiniDocument({ html, emptyText = "No document content available.", showLetterhead = true }: { html: string; emptyText?: string; showLetterhead?: boolean }) {
+function MiniDocument({ html, emptyText = "No document content available.", showLetterhead = true, branding = DEFAULT_BRANDING_SETTINGS }: { html: string; emptyText?: string; showLetterhead?: boolean; branding?: BrandingSettings }) {
   if (!showLetterhead) {
     // Used when wrapped by LetterPreviewHeader/Footer — no standalone card, no internal letterhead
     if (!html.trim()) return <p className="py-8 text-center text-sm text-slate-500">{emptyText}</p>;
@@ -5844,24 +6311,21 @@ function MiniDocument({ html, emptyText = "No document content available.", show
   }
   if (!html.trim()) return <div className="mx-auto flex min-h-[420px] max-w-[330px] items-center justify-center bg-white p-8 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">{emptyText}</div>;
   return (
-    <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
-      <Letterhead compact />
-      <div className="prose prose-sm max-w-none [&_p]:my-2" dangerouslySetInnerHTML={{ __html: html }} />
-    </div>
-  );
-}
-
-function Letterhead({ compact = false }: { compact?: boolean }) {
-  return (
-    <header className={compact ? "mb-6 flex items-start justify-between gap-4" : "mb-10 flex items-start justify-between gap-8"}>
-      <div className="flex items-center gap-3">
-        <LogoMark className={compact ? "h-8 w-8 text-emerald-800" : "h-14 w-14 text-emerald-800"} />
-        <div>
-          <p className={compact ? "text-lg font-semibold tracking-wide text-emerald-900" : "text-3xl font-semibold tracking-wide text-emerald-900"}>OYAMA</p>
-          <p className="text-[8px] tracking-[0.48em] text-slate-700">MINISTRIES</p>
-        </div>
+    <div className="mx-auto h-[520px] max-w-[360px] overflow-hidden">
+      <div className="origin-top-left scale-[0.44]" style={{ width: 816 }}>
+        <LetterPage
+          branding={branding}
+          title="Mini letter preview"
+          subject=""
+          salutation={null}
+          bodyHtml={html}
+          marginTop={0.7}
+          marginRight={0.7}
+          marginBottom={0.6}
+          marginLeft={0.7}
+        />
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -6404,12 +6868,66 @@ function ensureEditorSelection(editor: HTMLDivElement): void {
   selection.addRange(range);
 }
 
+const CANONICAL_LETTER_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+const SIMPLE_LETTER_TOKEN_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}(?!\})/g;
+const SLASH_LETTER_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_.]*)\b/g;
+
 function extractTokens(value: string): string[] {
-  return Array.from(new Set((value.match(/\{\{\s*[^{}]+\s*\}\}/g) ?? []).map((token) => token.replace(/\s+/g, ""))));
+  const tokens = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  CANONICAL_LETTER_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = CANONICAL_LETTER_TOKEN_PATTERN.exec(value)) !== null) {
+    const key = match[1]?.trim();
+    if (key) tokens.add(`{{${key}}}`);
+  }
+
+  SIMPLE_LETTER_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = SIMPLE_LETTER_TOKEN_PATTERN.exec(value)) !== null) {
+    const key = match[2]?.trim();
+    if (key) tokens.add(`{${key}}`);
+  }
+
+  SLASH_LETTER_TOKEN_PATTERN.lastIndex = 0;
+  while ((match = SLASH_LETTER_TOKEN_PATTERN.exec(value)) !== null) {
+    const key = match[2]?.trim();
+    if (key) tokens.add(`//${key}`);
+  }
+
+  return Array.from(tokens);
 }
 
 function normalizeToken(token: string): string {
-  return token.replace(/\s+/g, "");
+  const compact = token.replace(/\s+/g, "");
+  if (compact.startsWith("{{") && compact.endsWith("}}")) return compact;
+  if (compact.startsWith("{") && compact.endsWith("}")) return compact;
+  if (compact.startsWith("//")) return compact;
+  return compact;
+}
+
+function decorateMergeTokens(html: string, registry: Set<string>): string {
+  const renderBadge = (token: string): string => {
+    const known = registry.has(normalizeToken(token));
+    const className = known ? "merge-token-badge" : "merge-token-badge merge-token-badge-unknown";
+    const label = known ? "Known merge field" : "Unknown merge field";
+    return `<span class="${className}" title="${label}">${escapeHtml(token)}</span>`;
+  };
+
+  return html
+    .replace(CANONICAL_LETTER_TOKEN_PATTERN, (_match, key: string) => renderBadge(`{{${String(key || "").trim()}}}`))
+    .replace(SIMPLE_LETTER_TOKEN_PATTERN, (_match, prefix: string, key: string) => `${prefix}${renderBadge(`{${String(key || "").trim()}}`)}`)
+    .replace(SLASH_LETTER_TOKEN_PATTERN, (_match, prefix: string, key: string) => `${prefix}${renderBadge(`//${String(key || "").trim()}`)}`);
+}
+
+function extractLineForToken(html: string, token: string): string {
+  const normalizedToken = normalizeToken(token);
+  const plain = htmlToPlainTextClient(html)
+    .replace(/\r/g, "\n")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const matching = plain.find((line) => extractTokens(line).some((candidate) => normalizeToken(candidate) === normalizedToken));
+  return matching || token;
 }
 
 function tokenSource(token: string): string {

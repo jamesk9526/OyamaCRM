@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js";
+import { prismaModelExists } from "./prisma-model-fields.js";
 
 export const CONSTITUENT_GROUP_TYPES = ["CHURCH", "BUSINESS", "ORGANIZATION"] as const;
 
@@ -49,10 +50,32 @@ export async function syncConstituentGroupMemberships(params: {
   memberships: ConstituentGroupMembershipInput[];
 }): Promise<void> {
   const { organizationId, constituentId, memberships } = params;
+  if (!prismaModelExists("ConstituentGroup") || !prismaModelExists("ConstituentGroupMember")) {
+    console.warn("[constituent-groups] Skipping group membership sync because Prisma runtime metadata is missing group models.", {
+      organizationId,
+      constituentId,
+      requestedMembershipCount: memberships.length,
+    });
+    return;
+  }
+
+  const groupDelegate = prisma.constituentGroup;
+  const memberDelegate = prisma.constituentGroupMember;
+  if (!groupDelegate || !memberDelegate) {
+    console.warn("[constituent-groups] Skipping group membership sync because Prisma client delegates are unavailable.", {
+      organizationId,
+      constituentId,
+      requestedMembershipCount: memberships.length,
+      hasConstituentGroupDelegate: Boolean(groupDelegate),
+      hasConstituentGroupMemberDelegate: Boolean(memberDelegate),
+    });
+    return;
+  }
+
   const requestedGroupIds = memberships.map((membership) => membership.groupId);
 
   const validGroups = requestedGroupIds.length > 0
-    ? await prisma.constituentGroup.findMany({
+    ? await groupDelegate.findMany({
         where: {
           id: { in: requestedGroupIds },
           organizationId,
@@ -64,7 +87,7 @@ export async function syncConstituentGroupMemberships(params: {
   const validGroupIds = new Set(validGroups.map((group) => group.id));
   const sanitizedMemberships = memberships.filter((membership) => validGroupIds.has(membership.groupId));
 
-  await prisma.constituentGroupMember.deleteMany({
+  await memberDelegate.deleteMany({
     where: {
       constituentId,
       ...(sanitizedMemberships.length > 0
@@ -74,7 +97,7 @@ export async function syncConstituentGroupMemberships(params: {
   });
 
   for (const membership of sanitizedMemberships) {
-    await prisma.constituentGroupMember.upsert({
+    await memberDelegate.upsert({
       where: {
         groupId_constituentId: {
           groupId: membership.groupId,
@@ -104,6 +127,14 @@ export async function ensureConstituentGroup(params: {
 }) {
   const name = clean(params.name);
   if (!name) return null;
+  if (!prismaModelExists("ConstituentGroup") || !prisma.constituentGroup) {
+    console.warn("[constituent-groups] Cannot ensure constituent group because Prisma runtime metadata or delegate is missing.", {
+      organizationId: params.organizationId,
+      name,
+      groupType: params.groupType,
+    });
+    return null;
+  }
 
   const existing = await prisma.constituentGroup.findFirst({
     where: {

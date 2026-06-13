@@ -1,6 +1,6 @@
 # DonorCRM Letters And Printables
 
-Last updated: 2026-06-09
+Last updated: 2026-06-13
 
 ## Purpose
 
@@ -24,7 +24,7 @@ It should:
 2. Select an existing printable project or create a new one.
 3. Edit the project in the document studio at `/letters-printables/templates/[templateId]`.
 4. Use the Word-style paper canvas to write content, insert styled content blocks, and type `{{` for inline merge-field suggestions.
-5. Create or choose header/footer presets from the studio. Organization logo, name, address, colors, and identity always come from Organization Settings and Branding Settings.
+5. Configure the single Communication Header + Footer in Branding Settings. Organization logo, name, address, colors, and identity always come from Organization Settings and Branding Settings.
 6. Search for a constituent and optional donation in the preview context instead of pasting IDs.
 7. Run print preview, then publish/generate and route to PDF export, print queue, or mail queue.
 
@@ -42,7 +42,7 @@ Reason:
 - `/letters-printables` now opens a project manager with large cards, small cards, and list views.
 - The editor route now opens a document-studio layout with a paper canvas, compact ribbon, left project/tools panel, right preview context, inline merge suggestions, and publish controls.
 - The document studio supports active-block left/center/right/justify alignment, saved-section alignment before insertion, and an inspector table builder for rows, columns, header rows, width, padding, border style, and cell alignment.
-- Header and footer preset creation is available from the editor, while organization branding remains sourced from Branding Settings.
+- Header and footer chrome is global from Branding Settings; the editor focuses on letter body content, merge fields, layout, and signatures.
 - Editor images can be uploaded to `/api/letters/media` and inserted into the printable canvas.
 - The editor can be opened in a full-screen new tab with `?fullscreen=1`.
 - Branding Settings now includes editable header/footer preset tools and uploaded handwritten signature images for rendered letters.

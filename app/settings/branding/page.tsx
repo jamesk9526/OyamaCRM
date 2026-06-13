@@ -245,6 +245,42 @@ export default function BrandingSettingsPage() {
           </div>
         </section>
 
+        <section id="communication-header-footer" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Communication Header + Footer</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              These are the only organization-level header and footer blocks. They apply to every OyamaEmail render and every OyamaLetters preview/output.
+            </p>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Field label="Global Header HTML">
+              <textarea
+                value={form.globalHeaderHtml}
+                onChange={(e) => setField("globalHeaderHtml", e.target.value)}
+                className="min-h-40 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+                placeholder="<div><strong>Your Organization</strong></div>"
+              />
+            </Field>
+            <Field label="Global Footer HTML">
+              <textarea
+                value={form.globalFooterHtml}
+                onChange={(e) => setField("globalFooterHtml", e.target.value)}
+                className="min-h-40 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+                placeholder="<div>Address, contact details, and legal text</div>"
+              />
+            </Field>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Rendered Preview</p>
+            <iframe
+              title="Communication header and footer preview"
+              sandbox=""
+              className="h-64 w-full rounded border border-gray-200 bg-white"
+              srcDoc={`<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:${escapeAttribute(form.emailFontFamily)};"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${escapeAttribute(form.emailBackgroundColor)};"><tr><td align="center" style="padding:18px;"><table role="presentation" width="${form.emailContentWidth}" cellspacing="0" cellpadding="0" style="max-width:100%;background:#ffffff;border:1px solid #dbe5df;border-radius:10px;overflow:hidden;"><tr><td style="padding:18px 22px;border-bottom:1px solid #e5e7eb;">${form.globalHeaderHtml || `<strong>${escapeHtml(form.organizationDisplayName || "Organization Header")}</strong>`}</td></tr><tr><td style="padding:22px;color:#475569;">Recipient content renders between the global header and footer.</td></tr><tr><td style="padding:18px 22px;border-top:1px solid #e5e7eb;background:#f8fafc;color:#475569;">${form.globalFooterHtml || escapeHtml(form.footerLegalText || computedAddress || "Organization footer")}</td></tr></table></td></tr></table></body></html>`}
+            />
+          </div>
+        </section>
+
         <section className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Contact + Location</h2>
           <div className="grid gap-4 md:grid-cols-2">
@@ -345,4 +381,16 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error("Failed to read file."));
     reader.readAsDataURL(file);
   });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeAttribute(value: string): string {
+  return escapeHtml(value).replace(/'/g, "&#39;");
 }

@@ -35,9 +35,11 @@ describe("OyamaLetters generate workspace source contract", () => {
 
   it("generates from real CRM APIs and previews real PDF blobs", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersApi = read("server/src/routes/letters.ts");
 
     expect(workspace).toContain("/api/letters/templates");
     expect(workspace).toContain("/api/letters/generated/preview");
+    expect(workspace).toContain("/api/letters/generated/preview-pdf?preview=1&inline=1");
     expect(workspace).toContain("/api/letters/generated/batch");
     expect(workspace).toContain("/api/letters/generated/queue/mail/actions");
     expect(workspace).toContain("/api/letters/ai-compose");
@@ -45,6 +47,9 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1");
     expect(workspace).toContain("/api/constituents");
     expect(workspace).toContain("/api/donations");
+    expect(lettersApi).toContain("sample-preview-recipient");
+    expect(lettersApi).toContain("syntheticPreviewRecipient");
+    expect(lettersApi).toContain("production-faithful preview PDF");
     expect(workspace).not.toContain("fake");
     expect(workspace).not.toContain("mockDonor");
   });
@@ -70,7 +75,7 @@ describe("OyamaLetters generate workspace source contract", () => {
   it("routes letter branding to global branding settings", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
 
-    expect(workspace).toContain("/settings/branding/letter-presets");
+    expect(workspace).toContain("/settings/branding#communication-header-footer");
     expect(workspace).toContain("/settings/branding/signatures");
     expect(workspace).toContain("Letter branding now uses the global Branding Settings source of truth");
   });

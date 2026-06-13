@@ -1,6 +1,6 @@
 # Workspace Layout System
 
-Last updated: 2026-05-31
+Last updated: 2026-06-13
 
 ## Purpose
 
@@ -105,6 +105,8 @@ Rollout changes:
 
 - Communications owns: email campaigns, drafts, send queue, communication log.
 - Letters & Printables owns: printable templates, generated letters, print queue, mail queue, physical mail operations.
+- Branding Settings owns the single Communication Header and single Communication Footer. OyamaEmail and OyamaLetters consume those blocks; they must not expose competing per-template header/footer pickers as the primary workflow.
+- OyamaEmail Template Library owns reusable content only. Drafted, queued, sent, failed, and cancelled send records belong in Email Queue or campaign detail history, not in the template library.
 
 Ribbon groups and project-library cards keep Letters & Printables linked as a related workspace while preserving ownership boundaries.
 

@@ -81,6 +81,83 @@ export const SUPPORTED_LETTER_MERGE_FIELDS = [
   "{{staff.email}}",
 ] as const;
 
+const SIMPLE_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
+  first: "donor.firstName",
+  firstname: "donor.firstName",
+  firstName: "donor.firstName",
+  last: "donor.lastName",
+  lastname: "donor.lastName",
+  lastName: "donor.lastName",
+  name: "donor.fullName",
+  full: "donor.fullName",
+  fullName: "donor.fullName",
+  preferred: "donor.preferredName",
+  preferredName: "donor.preferredName",
+  salutation: "donor.salutation",
+  email: "donor.email",
+  phone: "donor.phone",
+  address: "donor.addressBlock",
+  address1: "donor.addressLine1",
+  address2: "donor.addressLine2",
+  city: "donor.city",
+  state: "donor.state",
+  zip: "donor.zip",
+  amount: "gift.amount",
+  giftAmount: "gift.amount",
+  donationAmount: "gift.amount",
+  giftDate: "gift.date",
+  donationDate: "gift.date",
+  date: "gift.date",
+  fund: "gift.fund",
+  designation: "gift.fund",
+  campaign: "gift.campaign",
+  receipt: "gift.receiptNumber",
+  receiptNumber: "gift.receiptNumber",
+  deductible: "gift.taxDeductibleAmount",
+  taxDeductible: "gift.taxDeductibleAmount",
+  year: "year",
+  totalGiving: "year.totalGiving",
+  yearTotal: "year.totalGiving",
+  firstGiftDate: "year.firstGiftDate",
+  lastGiftDate: "year.lastGiftDate",
+  giftCount: "year.numberOfGifts",
+  org: "organization.name",
+  orgName: "organization.name",
+  organization: "organization.name",
+  organizationName: "organization.name",
+  mission: "organization.mission",
+  staff: "staff.fullName",
+  staffName: "staff.fullName",
+  signer: "staff.fullName",
+  staffTitle: "staff.title",
+  signerTitle: "staff.title",
+  staffEmail: "staff.email",
+};
+
+export const SIMPLE_LETTER_MERGE_FIELDS = [
+  "{first}",
+  "{last}",
+  "{name}",
+  "{preferred}",
+  "{email}",
+  "{phone}",
+  "{address}",
+  "{amount}",
+  "{giftDate}",
+  "{fund}",
+  "{campaign}",
+  "{receipt}",
+  "{year}",
+  "{totalGiving}",
+  "{orgName}",
+  "{staffName}",
+  "//first",
+  "//last",
+  "//name",
+  "//amount",
+  "//giftDate",
+] as const;
+
 /**
  * Legacy aliases kept for backward compatibility with older templates.
  * These aliases are normalized to canonical merge keys at render/validation time.
@@ -113,10 +190,14 @@ const LEGACY_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
 
 const FIELD_SET = new Set<string>(SUPPORTED_LETTER_MERGE_FIELDS.map((field) => field.slice(2, -2).trim()));
 const FIELD_PATTERN = /{{\s*([a-zA-Z0-9_.]+)(?:\s*\|\s*([^}]+?))?\s*}}/g;
+const SIMPLE_BRACE_FIELD_PATTERN = /(^|[^{]){\s*([a-zA-Z][a-zA-Z0-9]*)(?:\s*\|\s*([^}]+?))?\s*}/g;
+const SLASH_FIELD_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9]*)(?![\w/])/g;
 
 function canonicalizeMergeFieldKey(key: string): string {
   const normalized = key.trim();
-  return LEGACY_LETTER_MERGE_FIELD_ALIASES[normalized] ?? normalized;
+  return SIMPLE_LETTER_MERGE_FIELD_ALIASES[normalized]
+    ?? LEGACY_LETTER_MERGE_FIELD_ALIASES[normalized]
+    ?? normalized;
 }
 
 function formatDateValue(value: string, format: string): string {
@@ -178,6 +259,18 @@ export function collectMergeFieldKeys(...blocks: Array<string | null | undefined
       match = FIELD_PATTERN.exec(block);
     }
     FIELD_PATTERN.lastIndex = 0;
+    match = SIMPLE_BRACE_FIELD_PATTERN.exec(block);
+    while (match) {
+      keys.add(canonicalizeMergeFieldKey(match[2] ?? ""));
+      match = SIMPLE_BRACE_FIELD_PATTERN.exec(block);
+    }
+    SIMPLE_BRACE_FIELD_PATTERN.lastIndex = 0;
+    match = SLASH_FIELD_PATTERN.exec(block);
+    while (match) {
+      keys.add(canonicalizeMergeFieldKey(match[2] ?? ""));
+      match = SLASH_FIELD_PATTERN.exec(block);
+    }
+    SLASH_FIELD_PATTERN.lastIndex = 0;
   }
   return Array.from(keys).sort();
 }
@@ -196,24 +289,27 @@ export interface RenderMergeFieldsOptions {
  * Missing supported fields are always rendered as blank, while missingFields collects warnings.
  */
 export function renderMergeFields(template: string, values: Record<string, string>, options: RenderMergeFieldsOptions = {}): string {
-  return template.replace(FIELD_PATTERN, (_full, key: string, rawFilters: string | undefined) => {
-    const normalized = String(key ?? "").trim();
+  const renderToken = (displayKey: string, rawFilters: string | undefined, original: string): string => {
+    const normalized = String(displayKey ?? "").trim();
     const canonical = canonicalizeMergeFieldKey(normalized);
-    if (!FIELD_SET.has(canonical)) {
-      return `{{${normalized}}}`;
-    }
+    if (!FIELD_SET.has(canonical)) return original;
     const filtered = applyMergeFilters(values[canonical] ?? "", parseFilters(rawFilters));
-    if (!filtered.trim() && canonical.endsWith(".lastName")) {
-      const firstNameKey = canonical.replace(/\.lastName$/, ".firstName");
-      const firstNameFallback = applyMergeFilters(values[firstNameKey] ?? "", parseFilters(rawFilters));
-      if (firstNameFallback.trim()) {
-        return firstNameFallback;
-      }
-    }
     if (!filtered.trim()) {
-      options.missingFields?.add(normalized);
+      options.missingFields?.add(canonical);
       return "";
     }
     return filtered;
-  });
+  };
+
+  return template
+    .replace(FIELD_PATTERN, (full: string, key: string, rawFilters: string | undefined) => {
+      const normalized = String(key ?? "").trim();
+      return renderToken(normalized, rawFilters, `{{${normalized}}}`);
+    })
+    .replace(SIMPLE_BRACE_FIELD_PATTERN, (full: string, prefix: string, key: string, rawFilters: string | undefined) => (
+      `${prefix}${renderToken(key, rawFilters, full.slice(prefix.length))}`
+    ))
+    .replace(SLASH_FIELD_PATTERN, (full: string, prefix: string, key: string) => (
+      `${prefix}${renderToken(key, undefined, `//${key}`)}`
+    ));
 }

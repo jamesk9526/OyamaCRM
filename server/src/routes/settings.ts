@@ -104,6 +104,8 @@ interface BrandingSettingsPayload {
   locationName?: string;
   taxId?: string;
   footerLegalText?: string;
+  globalHeaderHtml?: string;
+  globalFooterHtml?: string;
   socialFacebook?: string;
   socialInstagram?: string;
   socialLinkedIn?: string;
@@ -471,6 +473,8 @@ function getDefaultBrandingSettings() {
     locationName: "",
     taxId: "",
     footerLegalText: "",
+    globalHeaderHtml: "",
+    globalFooterHtml: "",
     socialFacebook: "",
     socialInstagram: "",
     socialLinkedIn: "",
@@ -528,6 +532,8 @@ function normalizeBrandingPayload(input: unknown) {
     locationName: sanitizeString(raw.locationName),
     taxId: sanitizeString(raw.taxId),
     footerLegalText: sanitizeString(raw.footerLegalText),
+    globalHeaderHtml: sanitizeString(raw.globalHeaderHtml),
+    globalFooterHtml: sanitizeString(raw.globalFooterHtml),
     socialFacebook: sanitizeString(raw.socialFacebook),
     socialInstagram: sanitizeString(raw.socialInstagram),
     socialLinkedIn: sanitizeString(raw.socialLinkedIn),

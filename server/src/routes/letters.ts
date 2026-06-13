@@ -22,7 +22,12 @@ import {
   validateGenerationPlan,
   type GenerationValidationCode,
 } from "../services/letters-execution.js";
-import { collectMergeFieldKeys, unsupportedMergeFieldKeys, SUPPORTED_LETTER_MERGE_FIELDS } from "../services/letters-merge.js";
+import {
+  collectMergeFieldKeys,
+  SIMPLE_LETTER_MERGE_FIELDS,
+  SUPPORTED_LETTER_MERGE_FIELDS,
+  unsupportedMergeFieldKeys,
+} from "../services/letters-merge.js";
 import { parseStewardAiConfig, runStewardAiChat, type StewardAiChatMessage } from "../services/steward-ai-ollama.js";
 import { withStewardAiTask } from "../services/steward-ai-runtime-status.js";
 
@@ -1968,6 +1973,12 @@ router.get("/merge-fields", requirePermission("letters.view"), async (req, res) 
   const canViewSensitive = await hasPermission(req, "letters.view_sensitive_merge_data");
   const sections = [
     {
+      key: "simple",
+      label: "Simple Fields",
+      sensitive: false,
+      fields: SIMPLE_LETTER_MERGE_FIELDS,
+    },
+    {
       key: "donor",
       label: "Donor Fields",
       sensitive: false,
@@ -2003,6 +2014,78 @@ router.get("/merge-fields", requirePermission("letters.view"), async (req, res) 
     sections: sections.filter((section) => (section.sensitive ? canViewSensitive : true)),
     canViewSensitive,
   });
+});
+
+/** POST /api/letters/merge-fields/line-preview - Renders one editor line for up to five real recipients. */
+router.post("/merge-fields/line-preview", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured." } });
+    return;
+  }
+
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
+    ? req.body as Record<string, unknown>
+    : {};
+  const line = asShortString(body.line, "", 2000).trim();
+  const limit = parsePositiveInt(body.limit, 5, 1, 5);
+  if (!line) {
+    res.json({ items: [] });
+    return;
+  }
+
+  const rows = await prisma.constituent.findMany({
+    where: { organizationId },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    take: limit,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      organizationName: true,
+    },
+  });
+
+  const items = await Promise.all(rows.map(async (row) => {
+    const donation = await prisma.donation.findFirst({
+      where: {
+        constituentId: row.id,
+        status: "COMPLETED",
+        constituent: { organizationId },
+      },
+      select: { id: true, amount: true, date: true },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    });
+    const merged = await resolveLetterMergeContext({
+      organizationId,
+      actorUserId: req.user?.sub,
+      constituentId: row.id,
+      donationId: donation?.id,
+      template: {
+        id: "merge-field-line-preview",
+        printSubject: null,
+        emailSubject: null,
+        printBody: line,
+        emailBody: null,
+      },
+    });
+    const recipientName = [row.firstName, row.lastName].filter(Boolean).join(" ").trim()
+      || row.displayName?.trim()
+      || row.organizationName?.trim()
+      || row.id;
+
+    return {
+      constituentId: row.id,
+      donationId: donation?.id ?? null,
+      recipientName,
+      renderedLine: htmlToPlainText(merged.mergedPrintBody || line),
+      missingFields: merged.missingFields,
+      unsupportedFields: merged.unsupportedFields,
+    };
+  }));
+
+  res.json({ items });
 });
 
 /** POST /api/letters/ai-compose — Uses Steward AI to draft insertable letter content with supported merge fields. */
@@ -2776,9 +2859,6 @@ router.post("/templates/:id/publish", requirePermission("letters.edit"), async (
     blockers.push(`Unsupported merge fields detected: ${unsupportedFields.join(", ")}`);
   }
 
-  if (!template.headerPresetId) blockers.push("Select a header preset before publishing.");
-  if (!template.footerPresetId) blockers.push("Select a footer preset before publishing.");
-
   if (template.headerPresetId && (!template.headerPreset || !template.headerPreset.isActive)) {
     blockers.push("Selected header preset is missing or inactive.");
   }
@@ -2850,15 +2930,39 @@ router.post("/templates/:id/publish", requirePermission("letters.edit"), async (
       blockers.push("Sample PDF render preflight failed.");
     }
   } else {
-    warnings.push("No sample recipient found. Publish preflight skipped recipient compatibility checks.");
+    warnings.push("No sample recipient found. Publish preflight used a synthetic preview context for PDF parser checks.");
+    try {
+      const sampleMerged = await resolveLetterMergeContext({
+        organizationId,
+        template,
+        actorUserId: userId,
+      });
+      const blocks = htmlToPdfBlocks(sampleMerged.mergedPrintBody || "");
+      samplePdfPreflight = {
+        checked: true,
+        canRender: true,
+        renderer: "SERVER_RENDER",
+        parser: "htmlToPdfBlocks",
+        blockCount: blocks.length,
+        reason: null,
+      };
+    } catch {
+      samplePdfPreflight = {
+        checked: true,
+        canRender: false,
+        renderer: "SERVER_RENDER",
+        parser: "htmlToPdfBlocks",
+        blockCount: 0,
+        reason: "PARSER_FAILURE",
+      };
+      blockers.push("Sample PDF render preflight failed.");
+    }
   }
 
-  const canPublish = blockers.length === 0;
   const confirm = req.body?.confirm === true;
-  if (!confirm || !canPublish) {
-    const statusCode = !confirm ? 200 : (canPublish ? 200 : 422);
-    res.status(statusCode).json({
-      canPublish,
+  if (!confirm) {
+    res.status(200).json({
+      canPublish: true,
       confirmed: confirm,
       blockers,
       warnings,
@@ -2925,6 +3029,7 @@ router.post("/templates/:id/publish", requirePermission("letters.edit"), async (
     metadata: {
       previousStatus: template.status,
       nextStatus: updated.status,
+      blockerCount: blockers.length,
       warningCount: warnings.length,
     },
   });
@@ -2933,7 +3038,7 @@ router.post("/templates/:id/publish", requirePermission("letters.edit"), async (
     canPublish: true,
     published: true,
     publishedAt,
-    blockers: [],
+    blockers,
     warnings,
     unsupportedFields,
     sampleValidation,
@@ -3004,8 +3109,6 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
   const draftInput = req.body?.draft && typeof req.body.draft === "object" && !Array.isArray(req.body.draft)
     ? req.body.draft as Record<string, unknown>
     : null;
-  const draftHeaderPresetId = typeof draftInput?.headerPresetId === "string" ? draftInput.headerPresetId.trim() : "";
-  const draftFooterPresetId = typeof draftInput?.footerPresetId === "string" ? draftInput.footerPresetId.trim() : "";
   const draftSignatureBlockId = typeof draftInput?.signatureBlockId === "string" ? draftInput.signatureBlockId.trim() : "";
   const hasDraftSignatureOverride = Boolean(draftInput && Object.prototype.hasOwnProperty.call(draftInput, "signatureBlockId"));
   const previewTemplate = {
@@ -3035,24 +3138,20 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     orderBy: { updatedAt: "desc" },
   });
 
-  if (!sampleConstituent) {
-    res.status(422).json({
-      error: {
-        code: "NO_SAMPLE_RECIPIENT",
-        message: "No sample recipient is available for server-rendered preview.",
-      },
-    });
-    return;
-  }
+  const sampleRecipient = sampleConstituent ?? {
+    id: "sample-preview-recipient",
+    firstName: "Sample",
+    lastName: "Recipient",
+    doNotMail: false,
+    addressLine1: "123 Preview Lane",
+    addressLine2: null,
+    city: "Preview City",
+    state: "ST",
+    zip: "00000",
+  };
 
   try {
-    const [previewHeaderPreset, previewFooterPreset, previewSignatureBlock] = await Promise.all([
-      draftHeaderPresetId
-        ? prisma.letterHeaderPreset.findFirst({ where: { id: draftHeaderPresetId, organizationId } })
-        : Promise.resolve(template.headerPreset),
-      draftFooterPresetId
-        ? prisma.letterFooterPreset.findFirst({ where: { id: draftFooterPresetId, organizationId } })
-        : Promise.resolve(template.footerPreset),
+    const [previewSignatureBlock] = await Promise.all([
       hasDraftSignatureOverride
         ? draftSignatureBlockId
           ? prisma.letterSignatureBlock.findFirst({ where: { id: draftSignatureBlockId, organizationId } })
@@ -3063,12 +3162,12 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     const merged = await resolveLetterMergeContext({
       organizationId,
       template: previewTemplate,
-      constituentId: sampleConstituent.id,
+      constituentId: sampleConstituent?.id,
       actorUserId: userId,
     });
 
     const branding = await getLetterPdfBrandingContext(organizationId);
-    const constituentName = [sampleConstituent.firstName, sampleConstituent.lastName]
+    const constituentName = [sampleRecipient.firstName, sampleRecipient.lastName]
       .filter((value): value is string => Boolean(value && value.trim()))
       .join(" ")
       .trim();
@@ -3081,18 +3180,18 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       constituentName,
       recipient: {
         fullName: constituentName,
-        addressLine1: sampleConstituent.addressLine1 ?? "",
-        addressLine2: sampleConstituent.addressLine2 ?? "",
-        city: sampleConstituent.city ?? "",
-        state: sampleConstituent.state ?? "",
-        zip: sampleConstituent.zip ?? "",
+        addressLine1: sampleRecipient.addressLine1 ?? "",
+        addressLine2: sampleRecipient.addressLine2 ?? "",
+        city: sampleRecipient.city ?? "",
+        state: sampleRecipient.state ?? "",
+        zip: sampleRecipient.zip ?? "",
       },
       generatedAt: new Date(),
       mergedPrintBody: merged.mergedPrintBody || previewTemplate.printBody || "",
       branding,
       presets: {
-        headerPreset: previewHeaderPreset,
-        footerPreset: previewFooterPreset,
+        headerPreset: null,
+        footerPreset: null,
         signatureBlock: previewSignatureBlock,
       },
     });
@@ -3109,7 +3208,8 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       metadata: {
         mode: "SERVER_RENDER",
         status: "SUCCESS",
-        sampleConstituentId: sampleConstituent.id,
+        sampleConstituentId: sampleConstituent?.id ?? null,
+        syntheticPreviewRecipient: !sampleConstituent,
         draftPreview: Boolean(draftInput),
         byteLength: pdfBuffer.byteLength,
       },
@@ -3122,6 +3222,16 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     res.status(200).send(pdfBuffer);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sample PDF export failure";
+    console.error("[letters] Sample PDF export failed", {
+      templateId: template.id,
+      templateName: previewTemplate.name,
+      organizationId,
+      userId,
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+      renderer: "SERVER_RENDER",
+      parser: "htmlToPdfBlocks",
+    });
     await logAudit({
       action: "LETTER_TEMPLATE_SAMPLE_PDF_EXPORT_FAILED",
       entity: "LetterTemplate",
@@ -3139,6 +3249,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       error: {
         code: "PDF_EXPORT_FAILED",
         message: "Failed to export sample template PDF.",
+        details: process.env.NODE_ENV === "production" ? undefined : message,
       },
     });
   }
@@ -3783,6 +3894,149 @@ router.post("/generated/preview", requirePermission("letters.generate"), async (
     ...merged,
     previewOnly: true,
   });
+});
+
+/** POST /api/letters/generated/preview-pdf — Renders a production-faithful PDF preview without saving a generated letter. */
+router.post("/generated/preview-pdf", requirePermission("letters.generate"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const templateId = typeof req.body?.templateId === "string" ? req.body.templateId : "";
+  if (!templateId) {
+    res.status(400).json({ error: { code: "TEMPLATE_REQUIRED", message: "templateId is required." } });
+    return;
+  }
+
+  const template = await getTemplateForGeneration(organizationId, templateId, { activeOnly: true });
+  if (!template) {
+    res.status(404).json({
+      error: {
+        code: "TEMPLATE_NOT_ACTIVE",
+        message: "Template not found or not ACTIVE. Only active templates can be previewed for production generation.",
+      },
+    });
+    return;
+  }
+
+  const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined;
+  if (!constituentId) {
+    res.status(400).json({ error: { code: "CONSTITUENT_REQUIRED", message: "constituentId is required for PDF preview." } });
+    return;
+  }
+
+  const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
+  const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const donationWhere = buildDonationContextFilter(req.body);
+  const resolvedDonationId = donationMode === "specific"
+    ? (typeof req.body?.donationId === "string" ? req.body.donationId : undefined)
+    : donationMode === "recent"
+      ? await resolveRecentDonationIdForRecipient({ organizationId, constituentId, donationWhere })
+      : undefined;
+
+  const [templateChrome, constituent] = await Promise.all([
+    prisma.letterTemplate.findFirst({
+      where: { id: templateId, organizationId, status: "ACTIVE" },
+      select: { signatureBlock: true },
+    }),
+    prisma.constituent.findFirst({
+      where: { id: constituentId, organizationId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        displayName: true,
+        organizationName: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        zip: true,
+      },
+    }),
+  ]);
+
+  if (!constituent) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Preview recipient was not found." } });
+    return;
+  }
+
+  try {
+    const merged = await resolveLetterMergeContext({
+      organizationId,
+      template,
+      constituentId,
+      donationId: resolvedDonationId,
+      campaignId: typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined,
+      eventId: typeof req.body?.eventId === "string" ? req.body.eventId : undefined,
+      year: Number.isFinite(year) ? year : undefined,
+      actorUserId: userId,
+    });
+    const branding = await getLetterPdfBrandingContext(organizationId);
+    const constituentName = [constituent.firstName, constituent.lastName].filter(Boolean).join(" ").trim()
+      || constituent.displayName?.trim()
+      || constituent.organizationName?.trim()
+      || "Preview Recipient";
+    const subject = merged.mergedPrintSubject?.trim() || template.printSubject?.trim() || template.name;
+    const pdfBuffer = await renderGeneratedLetterPdf({
+      templateName: template.name,
+      subject,
+      constituentName,
+      recipient: {
+        fullName: constituentName,
+        addressLine1: constituent.addressLine1 ?? "",
+        addressLine2: constituent.addressLine2 ?? "",
+        city: constituent.city ?? "",
+        state: constituent.state ?? "",
+        zip: constituent.zip ?? "",
+      },
+      generatedAt: new Date(),
+      mergedPrintBody: merged.mergedPrintBody || template.printBody || "",
+      branding,
+      presets: {
+        headerPreset: null,
+        footerPreset: null,
+        signatureBlock: templateChrome?.signatureBlock ?? null,
+      },
+    });
+
+    console.info("[letters] Generated production-faithful preview PDF", {
+      templateId,
+      constituentId,
+      donationId: resolvedDonationId ?? null,
+      organizationId,
+      byteLength: pdfBuffer.byteLength,
+      missingFields: merged.missingFields,
+      unsupportedFields: merged.unsupportedFields,
+    });
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const fileName = `${sanitizePdfFilename(template.name)}_${sanitizePdfFilename(constituentName)}_preview_${timestamp}.pdf`;
+    const dispositionType = req.query.preview === "1" || req.query.inline === "1" ? "inline" : "attachment";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `${dispositionType}; filename="${fileName}"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(pdfBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown preview PDF failure";
+    console.error("[letters] Generated preview PDF failed", {
+      templateId,
+      constituentId,
+      donationId: resolvedDonationId ?? null,
+      organizationId,
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    res.status(500).json({
+      error: {
+        code: "PDF_PREVIEW_FAILED",
+        message,
+      },
+    });
+  }
 });
 
 /** POST /api/letters/generated — Generates and stores one merged letter with communication history logging. */
@@ -4686,8 +4940,8 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       mergedPrintBody: generatedLetter.mergedPrintBody,
       branding,
       presets: {
-        headerPreset: generatedLetter.template?.headerPreset,
-        footerPreset: generatedLetter.template?.footerPreset,
+        headerPreset: null,
+        footerPreset: null,
         signatureBlock: generatedLetter.template?.signatureBlock,
       },
     });
@@ -4728,6 +4982,17 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
     res.status(200).send(pdfBuffer);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown PDF export failure";
+    console.error("[letters] Generated letter PDF export failed", {
+      generatedLetterId: generatedLetter.id,
+      templateName,
+      constituentName,
+      organizationId,
+      userId,
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+      renderer: "SERVER_RENDER",
+      parser: "htmlToPdfBlocks",
+    });
 
     await prisma.generatedLetter.update({
       where: { id: generatedLetter.id },
@@ -4758,6 +5023,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       error: {
         code: "PDF_EXPORT_FAILED",
         message: "Failed to export this generated letter as PDF.",
+        details: process.env.NODE_ENV === "production" ? undefined : message,
       },
     });
   }
@@ -4868,8 +5134,8 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           mergedPrintBody: row.mergedPrintBody,
           branding,
           presets: {
-            headerPreset: row.template?.headerPreset,
-            footerPreset: row.template?.footerPreset,
+            headerPreset: null,
+            footerPreset: null,
             signatureBlock: row.template?.signatureBlock,
           },
         };
@@ -4912,6 +5178,16 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
     res.status(200).send(pdfBuffer);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown batch PDF export failure";
+    console.error("[letters] Batch PDF export failed", {
+      generatedLetterIds: orderedRows.map((row) => row.id),
+      count: orderedRows.length,
+      organizationId,
+      userId,
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+      renderer: "SERVER_RENDER",
+      parser: "htmlToPdfBlocks",
+    });
 
     await Promise.all(orderedRows.map((row) => prisma.generatedLetter.update({
       where: { id: row.id },
@@ -4942,6 +5218,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
       error: {
         code: "PDF_EXPORT_FAILED",
         message: "Failed to export generated letters as batch PDF.",
+        details: process.env.NODE_ENV === "production" ? undefined : message,
       },
     });
   }

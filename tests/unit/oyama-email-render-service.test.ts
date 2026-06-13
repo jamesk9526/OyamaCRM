@@ -38,6 +38,34 @@ describe("oyama email render service", () => {
     expect(rendered.text).toBe("Custom text-only body\n{{preferredName}}");
   });
 
+  it("wraps rendered emails with global organization header and footer", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [
+        {
+          id: "body",
+          type: "text",
+          content: "<p>Hello {{preferredName}}</p>",
+        },
+      ],
+    });
+    const settings = normalizeEmailTemplateSettings({
+      includeUnsubscribeLink: true,
+      enablePlainTextVersion: true,
+    });
+
+    const rendered = renderEmailTemplateDocument(template, settings, {
+      organizationName: "Oyama Test Org",
+      globalHeaderHtml: "<strong>Global Header</strong>",
+      globalFooterHtml: "<span>Global Footer</span>",
+      addressLine: "123 Main St",
+    });
+
+    expect(rendered.html).toContain("Global Header");
+    expect(rendered.html).toContain("Hello {{preferredName}}");
+    expect(rendered.html).toContain("Global Footer");
+    expect(rendered.html).toContain("{{unsubscribeUrl}}");
+  });
+
   it("converts legacy builder blocks into structured OyamaEmail HTML blocks", () => {
     const template = normalizeEmailTemplateDocument({
       blocks: [
@@ -89,5 +117,19 @@ describe("oyama email render service", () => {
     );
 
     expect(output).toBe("April 20, 2025 6:00 PM Main Hall Jordan");
+  });
+
+  it("resolves simple brace and slash merge aliases", () => {
+    const output = applyMergeTokens(
+      "Hi {first} {last}, your //amount gift on {giftDate} matters.",
+      {
+        firstName: "Ava",
+        lastName: "Donor",
+        donationAmount: "$42.00",
+        "gift.date": "June 13, 2026",
+      },
+    );
+
+    expect(output).toBe("Hi Ava Donor, your $42.00 gift on June 13, 2026 matters.");
   });
 });

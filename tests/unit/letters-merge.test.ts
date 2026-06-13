@@ -55,7 +55,7 @@ describe("letters-merge", () => {
     expect(Array.from(missingFields)).toEqual(["donor.addressBlock"]);
   });
 
-  it("falls back to first name when last name is missing", () => {
+  it("does not replace a missing last name with the first name", () => {
     const missingFields = new Set<string>();
     const output = renderMergeFields(
       "Dear {{ donor.firstName }} {{ donor.lastName }},",
@@ -66,8 +66,63 @@ describe("letters-merge", () => {
       { missingMode: "highlight", missingFields },
     );
 
-    expect(output).toBe("Dear Ava Ava,");
-    expect(Array.from(missingFields)).toEqual([]);
+    expect(output).toBe("Dear Ava ,");
+    expect(Array.from(missingFields)).toEqual(["donor.lastName"]);
+  });
+
+  it("keeps donor first name and last name distinct", () => {
+    const output = renderMergeFields(
+      "Dear {{ donor.firstName }} {{ donor.lastName }}, legacy {{ constituent.firstName }} {{ constituent.lastName }}",
+      {
+        "donor.firstName": "Ava",
+        "donor.lastName": "Taylor",
+      },
+    );
+
+    expect(output).toBe("Dear Ava Taylor, legacy Ava Taylor");
+  });
+
+  it("renders simple brace aliases from canonical donor and gift values", () => {
+    const keys = collectMergeFieldKeys("Dear {first} {last}, thank you for {amount} on {giftDate}.");
+    const output = renderMergeFields(
+      "Dear {first} {last}, thank you for {amount} on {giftDate}.",
+      {
+        "donor.firstName": "Ava",
+        "donor.lastName": "Taylor",
+        "gift.amount": "$125.00",
+        "gift.date": "June 13, 2026",
+      },
+    );
+
+    expect(keys).toEqual(["donor.firstName", "donor.lastName", "gift.amount", "gift.date"]);
+    expect(output).toBe("Dear Ava Taylor, thank you for $125.00 on June 13, 2026.");
+  });
+
+  it("renders slash aliases and leaves unknown slash text unchanged", () => {
+    const keys = collectMergeFieldKeys("Dear //first, //unknownAlias gave //amount.");
+    const output = renderMergeFields(
+      "Dear //first, //unknownAlias gave //amount.",
+      {
+        "donor.firstName": "Ava",
+        "gift.amount": "$125.00",
+      },
+    );
+
+    expect(keys).toEqual(["donor.firstName", "gift.amount", "unknownAlias"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual(["unknownAlias"]);
+    expect(output).toBe("Dear Ava, //unknownAlias gave $125.00.");
+  });
+
+  it("supports filters on simple brace aliases", () => {
+    const output = renderMergeFields(
+      "Dear {preferred|fallback:\"Friend\"}, gift {amount|currency}.",
+      {
+        "donor.preferredName": "",
+        "gift.amount": "125",
+      },
+    );
+
+    expect(output).toBe("Dear Friend, gift $125.00.");
   });
 
   it("contains core donor and gift merge tokens", () => {

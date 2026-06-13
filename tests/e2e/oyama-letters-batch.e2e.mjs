@@ -115,7 +115,7 @@ async function run() {
     await page.getByRole("button", { name: /next: recipients/i }).first().click();
 
     await page.getByRole("button", { name: /^Individuals$/i }).click();
-    await page.getByPlaceholder("Search recipients...").fill(`Batch${seeded.suffix}`);
+    await page.getByPlaceholder("Search recipients by name, email, or address...").fill(`Batch${seeded.suffix}`);
     await page.waitForTimeout(500);
     const checkboxes = page.locator('tbody input[type="checkbox"]');
     const count = await checkboxes.count();
@@ -128,7 +128,7 @@ async function run() {
     await page.getByText("No donation information").click();
     await page.getByRole("button", { name: /next: preview/i }).first().click();
     await page.getByRole("heading", { name: "Batch Summary" }).waitFor({ timeout: 30000 });
-    await page.getByRole("button", { name: /next: generate/i }).first().click();
+    await page.locator("section").filter({ has: page.getByRole("heading", { name: "Batch Summary" }) }).getByRole("button", { name: /next: generate/i }).click();
 
     await page.getByRole("button", { name: /^Print Queue$/i }).click();
     const [validateRawResponse] = await Promise.all([
@@ -151,23 +151,29 @@ async function run() {
     }
 
     await page.getByText(/Generated/i).first().waitFor({ timeout: 30000 });
-    await Promise.all([
-      page.waitForResponse((response) => response.url().includes("/api/letters/generated/export-pdf-batch") && response.ok()),
+    const [batchPdfResponse] = await Promise.all([
+      page.waitForResponse((response) => response.url().includes("/api/letters/generated/export-pdf-batch")),
       page.getByRole("button", { name: /view batch pdf/i }).click(),
     ]);
+    if (!batchPdfResponse.ok()) {
+      throw new Error(`Batch PDF export failed with ${batchPdfResponse.status()}: ${await batchPdfResponse.text()}`);
+    }
     await page.locator('object[title="Generated PDF"]').waitFor({ timeout: 30000 });
     await page.getByRole("link", { name: /save pdf/i }).waitFor({ timeout: 30000 });
     await page.getByRole("button", { name: /^print$/i }).waitFor({ timeout: 30000 });
     await page.getByRole("button", { name: /^close$/i }).click();
 
-    await Promise.all([
-      page.waitForResponse((response) => response.url().includes("/export-pdf") && response.ok()),
+    const [individualPdfResponse] = await Promise.all([
+      page.waitForResponse((response) => response.url().includes("/export-pdf")),
       page.getByRole("button", { name: /view individual pdf/i }).click(),
     ]);
+    if (!individualPdfResponse.ok()) {
+      throw new Error(`Individual PDF export failed with ${individualPdfResponse.status()}: ${await individualPdfResponse.text()}`);
+    }
     await page.locator('object[title="Generated PDF"]').waitFor({ timeout: 30000 });
     await page.getByRole("button", { name: /^close$/i }).click();
 
-    await page.getByRole("link", { name: /open queue/i }).click();
+    await page.getByRole("link", { name: /continue to queue/i }).click();
     await page.waitForLoadState("networkidle").catch(() => {});
     const queueBody = await page.locator("body").innerText();
     if (!/Needs Review|NEEDS_REVIEW|Print Queue/i.test(queueBody)) {

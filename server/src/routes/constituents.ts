@@ -29,6 +29,7 @@ import {
   syncConstituentGroupMemberships,
 } from "../lib/constituent-groups.js";
 import { getConstituentDisplayName, getConstituentSortName, isOrganizationConstituent } from "../lib/constituent-identity.js";
+import { omitUnavailableModelDataFields, omitUnavailableModelSelectFields, prismaModelHasField } from "../lib/prisma-model-fields.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -112,6 +113,9 @@ const MEMBER_SELECT = {
   totalLifetimeGiving: true,
 };
 
+const SAFE_CONSTITUENT_SELECT = omitUnavailableModelSelectFields("Constituent", CONSTITUENT_SELECT) as Prisma.ConstituentSelect;
+const SAFE_MEMBER_SELECT = omitUnavailableModelSelectFields("Constituent", MEMBER_SELECT) as Prisma.ConstituentSelect;
+
 const CONSTITUENT_GROUP_SELECT = {
   id: true,
   name: true,
@@ -151,6 +155,11 @@ type ConstituentSearchSortable = {
   entityKind: string | null;
   email: string | null;
   phone: string | null;
+};
+
+type ConstituentListRow = ConstituentSearchSortable & {
+  id: string;
+  [key: string]: unknown;
 };
 
 function normalizeSearchText(value: string | null | undefined): string {
@@ -647,58 +656,30 @@ router.get("/", async (req, res) => {
     return;
   }
 
-  const where: Prisma.ConstituentWhereInput = {
-    organizationId,
-    ...(search && {
-    OR: [
-      { firstName: { contains: search } },
-      { lastName: { contains: search } },
-      { organizationName: { contains: search } },
-      { contactFirstName: { contains: search } },
-      { contactLastName: { contains: search } },
+  const searchFilters: Prisma.ConstituentWhereInput[] = search
+    ? [
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        ...(prismaModelHasField("Constituent", "organizationName") ? [{ organizationName: { contains: search } }] : []),
+        ...(prismaModelHasField("Constituent", "contactFirstName") ? [{ contactFirstName: { contains: search } }] : []),
+        ...(prismaModelHasField("Constituent", "contactLastName") ? [{ contactLastName: { contains: search } }] : []),
         { email: { contains: search } },
         { phone: { contains: search } },
-      ],
-    }),
+      ]
+    : [];
+
+  const where: Prisma.ConstituentWhereInput = {
+    organizationId,
+    ...(searchFilters.length > 0 && { OR: searchFilters }),
     ...(type && { type: type as never }),
     ...(status && { donorStatus: status as never }),
   };
 
-  const isOrganizationNameFieldError = (error: unknown): boolean => (
-    error instanceof Error && /Unknown field `organizationName` for select statement on model `Constituent`/i.test(error.message)
-  );
-
-  const stripOrganizationNameFromWhere = (input: Prisma.ConstituentWhereInput): Prisma.ConstituentWhereInput => {
-    if (!input || typeof input !== "object") return input;
-    const clone = { ...input } as Prisma.ConstituentWhereInput & { OR?: Array<Record<string, unknown>> };
-    if (Array.isArray(clone.OR)) {
-      clone.OR = clone.OR.filter((entry) => !("organizationName" in entry));
-    }
-    return clone;
-  };
-
-  const fallbackSelectWithoutOrganizationName = (() => {
-    const copy = { ...CONSTITUENT_SELECT } as Record<string, unknown>;
-    delete copy.organizationName;
-    return copy as Prisma.ConstituentSelect;
-  })();
-
-  const safeFindMany = async (args: Omit<Prisma.ConstituentFindManyArgs, "select">): Promise<unknown[]> => {
-    try {
-      return await prisma.constituent.findMany({
-        ...args,
-        select: CONSTITUENT_SELECT,
-      });
-    } catch (error) {
-      if (!isOrganizationNameFieldError(error)) {
-        throw error;
-      }
-      return prisma.constituent.findMany({
-        ...args,
-        where: stripOrganizationNameFromWhere((args.where || {}) as Prisma.ConstituentWhereInput),
-        select: fallbackSelectWithoutOrganizationName,
-      });
-    }
+  const safeFindMany = async (args: Omit<Prisma.ConstituentFindManyArgs, "select">): Promise<ConstituentListRow[]> => {
+    return prisma.constituent.findMany({
+      ...args,
+      select: SAFE_CONSTITUENT_SELECT,
+    }) as Promise<ConstituentListRow[]>;
   };
 
   if (hasPagination) {
@@ -712,7 +693,7 @@ router.get("/", async (req, res) => {
         skip,
         take: normalizedPageSize,
         orderBy: { lastName: "asc" },
-      }) as Promise<any[]>,
+      }),
       prisma.constituent.count({ where }),
       prisma.constituent.count({
         where: {
@@ -763,7 +744,7 @@ router.get("/", async (req, res) => {
       where,
       take: searchWindow,
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    }) as any[];
+    });
 
     const ranked = sortConstituentsBySearchRelevance(searchCandidates, search).slice(0, effectiveLimit);
     res.json(ranked);
@@ -774,7 +755,7 @@ router.get("/", async (req, res) => {
     where,
     ...(normalizedLimit ? { take: normalizedLimit } : {}),
     orderBy: { lastName: "asc" },
-  }) as any[];
+  });
 
   res.json(items);
 });
@@ -1154,7 +1135,7 @@ router.get("/:id", async (req, res) => {
       headOf: {
         include: {
           members: {
-            select: MEMBER_SELECT,
+            select: SAFE_MEMBER_SELECT,
             orderBy: { lastName: "asc" },
           },
         },
@@ -1195,7 +1176,7 @@ router.post("/", async (req, res) => {
   }
 
   const constituent = await prisma.constituent.create({
-    data: {
+    data: omitUnavailableModelDataFields("Constituent", {
       firstName, lastName, prefix, email, email2, phone, phone2, mobile,
       organizationName, contactFirstName, contactLastName, contactTitle,
       entityKind: entityKind ?? "PERSON",
@@ -1209,7 +1190,7 @@ router.post("/", async (req, res) => {
       doNotCall: doNotCall ?? false,
       doNotMail: doNotMail ?? false,
       organizationId: resolvedOrganizationId,
-    },
+    }) as Prisma.ConstituentUncheckedCreateInput,
   });
 
   // Auto-create a Household record when type is HOUSEHOLD
@@ -1294,13 +1275,13 @@ router.put("/:id", async (req, res) => {
 
   const constituent = await prisma.constituent.update({
     where: { id: req.params.id },
-    data: {
+    data: omitUnavailableModelDataFields("Constituent", {
       firstName, lastName, prefix, email, email2, phone, phone2, mobile,
       organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
       addressLine1, addressLine2, city, state, zip, country,
       type, donorStatus, employer, occupation, notes,
       doNotEmail, doNotCall, doNotMail,
-    },
+    }) as Prisma.ConstituentUncheckedUpdateInput,
   });
 
   // If switching to HOUSEHOLD type, ensure a Household record exists
@@ -1591,10 +1572,12 @@ router.post("/import", async (req, res) => {
       const effectiveEntityKind = (rec.entityKind || (isOrg ? "ORGANIZATION" : "PERSON")).trim().toUpperCase();
       const effectiveFirstName = isOrg ? "" : (rec.firstName || "");
       const effectiveLastName = isOrg ? inferredOrganizationName : (rec.lastName || "");
+      const effectiveDisplayName = (rec.displayName || (isOrg ? effectiveOrganizationName : "")).trim();
 
       const data = {
         firstName:    effectiveFirstName,
         lastName:     effectiveLastName,
+        displayName: effectiveDisplayName || undefined,
         organizationName: effectiveOrganizationName || undefined,
         contactFirstName: rec.contactFirstName || undefined,
         contactLastName: rec.contactLastName || undefined,
@@ -1632,9 +1615,10 @@ router.post("/import", async (req, res) => {
       if (!data.firstName && !data.lastName) { skipped++; continue; }
 
       /** Shared scalar fields (no relation keys) — safe for both create and update */
-      const scalars = {
+      const scalars = omitUnavailableModelDataFields("Constituent", {
         firstName:    data.firstName,
         lastName:     data.lastName,
+        displayName: data.displayName,
         organizationName: data.organizationName,
         contactFirstName: data.contactFirstName,
         contactLastName: data.contactLastName,
@@ -1665,7 +1649,7 @@ router.post("/import", async (req, res) => {
         donorStatus:  data.donorStatus,
         externalId:   data.externalId,
         type:         data.type,
-      };
+      });
 
       if (dryRun) {
         // Dry-run: just tally what would happen without writing
@@ -1679,9 +1663,17 @@ router.post("/import", async (req, res) => {
 
         const exists = existingByExtId ?? existingByEmail ?? existingByPhone;
         if (exists) {
-          duplicateResolution === "skip" || mode === "create_only" ? skipped++ : updated++;
+          if (duplicateResolution === "skip" || mode === "create_only") {
+            skipped++;
+          } else {
+            updated++;
+          }
         } else {
-          mode === "update_only" ? skipped++ : created++;
+          if (mode === "update_only") {
+            skipped++;
+          } else {
+            created++;
+          }
         }
         continue;
       }
@@ -1730,7 +1722,9 @@ router.post("/import", async (req, res) => {
       } else {
         if (mode === "update_only") { skipped++; continue; }
         // Create new constituent — include organizationId relation key
-        const createdConstituent = await prisma.constituent.create({ data: { ...scalars, organizationId: resolvedOrgId } });
+        const createdConstituent = await prisma.constituent.create({
+          data: { ...scalars, organizationId: resolvedOrgId } as Prisma.ConstituentUncheckedCreateInput,
+        });
         await applyImportedTags(createdConstituent.id, rec.tags, data.type, rec);
         createdConstituentIds.push(createdConstituent.id);
         created++;

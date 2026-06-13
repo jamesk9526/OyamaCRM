@@ -1,7 +1,7 @@
 /** OyamaEmail queue route. */
-import { redirect } from "next/navigation";
+import OyamaEmailWorkspace from "@/app/components/oyama-email/OyamaEmailWorkspace";
 
-/** Legacy route redirected to campaign workspace queue tab. */
+/** Renders drafted and sent email records in the dedicated queue workspace. */
 export default function OyamaEmailQueuePage() {
-  redirect("/oyama-email/campaigns?tab=queue");
+  return <OyamaEmailWorkspace view="queue" />;
 }

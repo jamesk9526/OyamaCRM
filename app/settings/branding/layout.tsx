@@ -1,4 +1,4 @@
-/** Branding settings sub-layout — tab strip across Identity/Theme, Letter Presets, and Signatures. */
+/** Branding settings sub-layout — tab strip across canonical branding settings and signatures. */
 "use client";
 
 import Link from "next/link";
@@ -6,8 +6,7 @@ import { usePathname } from "next/navigation";
 import type React from "react";
 
 const BRANDING_TABS = [
-  { href: "/settings/branding", label: "Identity & Theme", exact: true },
-  { href: "/settings/branding/letter-presets", label: "Letter Presets" },
+  { href: "/settings/branding", label: "Branding Defaults", exact: true },
   { href: "/settings/branding/signatures", label: "Signatures" },
 ];
 

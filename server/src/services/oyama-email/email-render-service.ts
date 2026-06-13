@@ -3,7 +3,7 @@
  * Converts template JSON into final HTML and plain-text output.
  */
 
-import { canonicalizeEmailMergeToken } from "./merge-field-catalog.js";
+import { canonicalizeEmailMergeToken, extractEmailMergeTokens } from "./merge-field-catalog.js";
 
 export type OyamaEmailBlockType =
   | "header"
@@ -93,6 +93,8 @@ export interface RenderEmailTemplateResult {
 }
 
 const MERGE_FIELD_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+const SIMPLE_BRACE_FIELD_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}(?!\})/g;
+const SLASH_FIELD_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_.]*)\b/g;
 
 function asObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -686,6 +688,26 @@ interface RenderTheme {
   linkColor: string;
 }
 
+export type OyamaEmailGlobalChrome = {
+  organizationName?: string;
+  legalOrganizationName?: string;
+  tagline?: string;
+  logoUrl?: string;
+  logoSquareUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  emailBackgroundColor?: string;
+  emailFontFamily?: string;
+  emailContentWidth?: number;
+  contactEmail?: string;
+  contactPhone?: string;
+  websiteUrl?: string;
+  addressLine?: string;
+  footerLegalText?: string;
+  globalHeaderHtml?: string;
+  globalFooterHtml?: string;
+};
+
 function themeFromTemplate(template: OyamaEmailTemplateDocument): RenderTheme {
   return {
     fontFamily: sanitizeFontFamily(template.fontFamily),
@@ -912,15 +934,64 @@ function renderHtmlBlock(block: OyamaEmailBlock): string {
 </tr>`;
 }
 
-function renderFooter(settings: OyamaEmailTemplateSettings, theme: RenderTheme): string {
-  const parts: string[] = [];
+function renderGlobalHeader(chrome: OyamaEmailGlobalChrome | undefined, theme: RenderTheme): string {
+  const html = sanitizeRichHtml(asString(chrome?.globalHeaderHtml));
+  if (html) {
+    return `
+<tr>
+  <td style="padding:18px 24px;border-bottom:1px solid #e2e8f0;background:#ffffff;font-family:${escapeHtml(theme.fontFamily)};">
+    ${html}
+  </td>
+</tr>`;
+  }
 
-  if (settings.footerBrandingText.trim()) {
+  const organizationName = asString(chrome?.organizationName).trim();
+  const tagline = asString(chrome?.tagline).trim();
+  const logoUrl = asString(chrome?.logoUrl).trim() || asString(chrome?.logoSquareUrl).trim();
+  if (!organizationName && !tagline && !logoUrl) return "";
+
+  return `
+<tr>
+  <td style="padding:18px 24px;border-bottom:1px solid #e2e8f0;background:#ffffff;font-family:${escapeHtml(theme.fontFamily)};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        ${logoUrl ? `<td width="76" style="vertical-align:middle;padding-right:14px;"><img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(organizationName || "Organization logo")}" style="display:block;max-width:72px;max-height:54px;width:auto;height:auto;" /></td>` : ""}
+        <td style="vertical-align:middle;">
+          ${organizationName ? `<div style="font-size:${Math.max(18, theme.baseFontSize + 3)}px;line-height:1.25;font-weight:700;color:${escapeHtml(theme.textColor)};">${escapeHtml(organizationName)}</div>` : ""}
+          ${tagline ? `<div style="margin-top:3px;font-size:${Math.max(11, theme.baseFontSize - 3)}px;line-height:${theme.lineHeight};color:#64748b;">${escapeHtml(tagline)}</div>` : ""}
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>`;
+}
+
+function renderFooter(settings: OyamaEmailTemplateSettings, theme: RenderTheme, chrome?: OyamaEmailGlobalChrome): string {
+  const parts: string[] = [];
+  const globalFooterHtml = sanitizeRichHtml(asString(chrome?.globalFooterHtml));
+  const globalFooterLegalText = asString(chrome?.footerLegalText).trim();
+  const globalAddress = asString(chrome?.addressLine).trim();
+  const globalContact = [
+    asString(chrome?.contactEmail).trim(),
+    asString(chrome?.contactPhone).trim(),
+    asString(chrome?.websiteUrl).trim(),
+  ].filter(Boolean).join(" · ");
+
+  if (globalFooterHtml) {
+    parts.push(`<div>${globalFooterHtml}</div>`);
+  } else if (globalFooterLegalText) {
+    parts.push(`<div>${escapeHtml(globalFooterLegalText)}</div>`);
+  } else if (settings.footerBrandingText.trim()) {
     parts.push(`<div>${escapeHtml(settings.footerBrandingText.trim())}</div>`);
   }
 
-  if (settings.includePhysicalAddress && settings.physicalAddress.trim()) {
-    parts.push(`<div>${escapeHtml(settings.physicalAddress.trim())}</div>`);
+  if (settings.includePhysicalAddress) {
+    const address = globalAddress || settings.physicalAddress.trim();
+    if (address) parts.push(`<div>${escapeHtml(address)}</div>`);
+  }
+
+  if (globalContact) {
+    parts.push(`<div>${escapeHtml(globalContact)}</div>`);
   }
 
   if (settings.includeUnsubscribeLink) {
@@ -938,23 +1009,23 @@ function renderFooter(settings: OyamaEmailTemplateSettings, theme: RenderTheme):
 }
 
 export function extractMergeFieldsFromContent(value: string): string[] {
-  const tokens = new Set<string>();
-  let match: RegExpExecArray | null;
-  while ((match = MERGE_FIELD_PATTERN.exec(value)) !== null) {
-    tokens.add(match[1]);
-  }
-  return Array.from(tokens).sort();
+  return Array.from(new Set(extractEmailMergeTokens(value))).sort();
 }
 
 export function applyMergeTokens(value: string, vars: Record<string, string>): string {
-  return value.replace(MERGE_FIELD_PATTERN, (_token, rawKey: string) => {
+  const resolve = (rawKey: string): string => {
     const key = canonicalizeEmailMergeToken(String(rawKey || "").trim());
     if (!key) return "";
     if (Object.prototype.hasOwnProperty.call(vars, key)) {
       return vars[key] ?? "";
     }
     return "";
-  });
+  };
+
+  return value
+    .replace(MERGE_FIELD_PATTERN, (_token, rawKey: string) => resolve(rawKey))
+    .replace(SIMPLE_BRACE_FIELD_PATTERN, (_token, prefix: string, rawKey: string) => `${prefix}${resolve(rawKey)}`)
+    .replace(SLASH_FIELD_PATTERN, (_token, prefix: string, rawKey: string) => `${prefix}${resolve(rawKey)}`);
 }
 
 export function htmlToPlainText(value: string): string {
@@ -977,8 +1048,15 @@ export function htmlToPlainText(value: string): string {
 export function renderEmailTemplateDocument(
   template: OyamaEmailTemplateDocument,
   settings: OyamaEmailTemplateSettings,
+  chrome?: OyamaEmailGlobalChrome,
 ): RenderEmailTemplateResult {
-  const theme = themeFromTemplate(template);
+  const baseTheme = themeFromTemplate(template);
+  const theme: RenderTheme = {
+    ...baseTheme,
+    fontFamily: sanitizeFontFamily(asString(chrome?.emailFontFamily).trim() || baseTheme.fontFamily),
+    linkColor: asString(chrome?.primaryColor).trim() || baseTheme.linkColor,
+  };
+  const globalHeader = renderGlobalHeader(chrome, theme);
   const body = template.blocks
     .map((block) => {
       if (block.type === "header") return renderHeaderBlock(block, theme);
@@ -995,9 +1073,9 @@ export function renderEmailTemplateDocument(
     })
     .join("\n");
 
-  const footer = renderFooter(settings, theme);
-  const contentWidth = clamp(template.contentWidth, 420, 760);
-  const bg = escapeHtml(template.backgroundColor || "#f3f7f5");
+  const footer = renderFooter(settings, theme, chrome);
+  const contentWidth = clamp(asNumber(chrome?.emailContentWidth, template.contentWidth), 420, 760);
+  const bg = escapeHtml(asString(chrome?.emailBackgroundColor).trim() || template.backgroundColor || "#f3f7f5");
   const linkColor = escapeHtml(theme.linkColor);
 
   const html = `<!doctype html>
@@ -1019,6 +1097,7 @@ export function renderEmailTemplateDocument(
       <tr>
         <td align="center" style="padding:24px 12px;">
           <table class="oyama-email-root" role="presentation" width="${contentWidth}" cellpadding="0" cellspacing="0" border="0" style="width:${contentWidth}px;max-width:100%;background:#ffffff;border:1px solid #dbe5df;border-radius:14px;overflow:hidden;">
+            ${globalHeader}
             ${body}
             ${footer}
           </table>
@@ -1043,8 +1122,9 @@ export function renderEmailTemplateDocumentWithMerge(
   template: OyamaEmailTemplateDocument,
   settings: OyamaEmailTemplateSettings,
   vars: Record<string, string>,
+  chrome?: OyamaEmailGlobalChrome,
 ): RenderEmailTemplateResult {
-  const rendered = renderEmailTemplateDocument(template, settings);
+  const rendered = renderEmailTemplateDocument(template, settings, chrome);
   return {
     html: applyMergeTokens(rendered.html, vars),
     text: applyMergeTokens(rendered.text, vars),

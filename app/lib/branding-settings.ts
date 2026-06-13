@@ -26,6 +26,8 @@ export interface BrandingSettings {
   locationName: string;
   taxId: string;
   footerLegalText: string;
+  globalHeaderHtml: string;
+  globalFooterHtml: string;
   socialFacebook: string;
   socialInstagram: string;
   socialLinkedIn: string;
@@ -67,6 +69,8 @@ export const DEFAULT_BRANDING_SETTINGS: BrandingSettings = {
   locationName: "",
   taxId: "",
   footerLegalText: "",
+  globalHeaderHtml: "",
+  globalFooterHtml: "",
   socialFacebook: "",
   socialInstagram: "",
   socialLinkedIn: "",
@@ -125,6 +129,8 @@ export function normalizeBrandingSettings(input: unknown): BrandingSettings {
     locationName: normalizeText(raw.locationName),
     taxId: normalizeText(raw.taxId),
     footerLegalText: normalizeText(raw.footerLegalText),
+    globalHeaderHtml: normalizeText(raw.globalHeaderHtml),
+    globalFooterHtml: normalizeText(raw.globalFooterHtml),
     socialFacebook: normalizeText(raw.socialFacebook),
     socialInstagram: normalizeText(raw.socialInstagram),
     socialLinkedIn: normalizeText(raw.socialLinkedIn),

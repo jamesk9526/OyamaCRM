@@ -1,7 +1,7 @@
-/** Letter header and footer preset management — lives in Branding Settings as the source of truth. */
-import LetterBrandingManager from "@/app/components/letters/LetterBrandingManager";
+/** Compatibility route for legacy letter preset links. */
+import { redirect } from "next/navigation";
 
-/** Renders letter header/footer branding presets within the centralized Branding Settings workspace. */
+/** Header and footer settings now live on the canonical Branding Defaults page. */
 export default function BrandingLetterPresetsPage() {
-  return <LetterBrandingManager />;
+  redirect("/settings/branding#communication-header-footer");
 }

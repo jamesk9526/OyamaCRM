@@ -40,6 +40,7 @@ import {
   normalizeEmailTemplateDocument,
   normalizeEmailTemplateSettings,
   renderEmailTemplateDocument,
+  type OyamaEmailGlobalChrome,
 } from "../services/oyama-email/email-render-service.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
@@ -643,11 +644,13 @@ function ensureComplianceFooter(content: string, format: "html" | "text"): strin
 }
 
 function buildCampaignDeliveryBodies(
-  campaign: { bodyHtml: string | null; bodyText: string | null; templateJson?: string | null },
+  campaign: { id?: string; name?: string | null; bodyHtml: string | null; bodyText: string | null; templateJson?: string | null },
   purpose: EmailPurpose,
+  branding?: OyamaEmailGlobalChrome,
 ) {
   let baseHtml = campaign.bodyHtml?.trim() || `<p>${campaign.bodyText || "No content"}</p>`;
   let baseText = campaign.bodyText?.trim() || "No text content";
+  let renderedThroughStructuredTemplate = false;
 
   if (campaign.templateJson?.trim()) {
     try {
@@ -661,13 +664,39 @@ function buildCampaignDeliveryBodies(
       const rendered = renderEmailTemplateDocument(
         normalizeEmailTemplateDocument(templateSource),
         normalizeEmailTemplateSettings(settingsSource),
+        branding,
       );
 
       baseHtml = rendered.html;
       baseText = rendered.text || baseText;
-    } catch {
-      // Keep existing campaign body fields when template JSON is malformed.
+      renderedThroughStructuredTemplate = true;
+    } catch (error) {
+      console.warn("[email-campaigns] Template JSON render failed; falling back to branded legacy body wrapper.", {
+        campaignId: campaign.id ?? null,
+        campaignName: campaign.name ?? null,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
+  }
+
+  if (!renderedThroughStructuredTemplate && branding) {
+    const rendered = renderEmailTemplateDocument(
+      normalizeEmailTemplateDocument({
+        blocks: [{ id: "legacy_body", type: "html", html: baseHtml }],
+        backgroundColor: branding.emailBackgroundColor,
+        fontFamily: branding.emailFontFamily,
+        contentWidth: branding.emailContentWidth,
+        linkColor: branding.primaryColor,
+      }),
+      normalizeEmailTemplateSettings({
+        includeUnsubscribeLink: true,
+        includePhysicalAddress: true,
+        enablePlainTextVersion: true,
+      }),
+      branding,
+    );
+    baseHtml = rendered.html;
+    baseText = rendered.text || baseText;
   }
 
   if (!requiresPreferenceCompliance(purpose)) {
@@ -2409,7 +2438,8 @@ async function validateCampaignSendReadiness(params: {
   sendOptions?: CampaignSendOptions;
 }): Promise<CampaignValidationResult> {
   const purpose = parseEmailPurpose(params.campaign.purpose);
-  const deliveryBodies = buildCampaignDeliveryBodies(params.campaign, purpose);
+  const branding = await loadOrganizationBrandingContext(params.campaign.organizationId);
+  const deliveryBodies = buildCampaignDeliveryBodies(params.campaign, purpose, branding);
 
   const requiredFieldsChecks: CampaignValidationCheck[] = [
     {
@@ -2600,7 +2630,8 @@ export async function sendCampaignNow(
   }
 
   const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
-  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
+  const branding = await loadOrganizationBrandingContext(campaign.organizationId);
+  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose, branding);
   const complianceIssues = getCampaignComplianceIssues({
     purpose,
     subject: campaign.subject,
@@ -4142,7 +4173,8 @@ router.post("/:id/preview", async (req, res) => {
   }
 
   const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
-  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
+  const branding = await loadOrganizationBrandingContext(organizationId);
+  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose, branding);
   let previewTarget: Awaited<ReturnType<typeof resolveCampaignPreviewTarget>>;
   try {
     previewTarget = await resolveCampaignPreviewTarget({
@@ -4723,7 +4755,8 @@ router.post("/:id/send-test", async (req, res) => {
   try {
     const sender = await createOrganizationEmailSender(campaign.organizationId);
     const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
-    const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose);
+    const branding = await loadOrganizationBrandingContext(campaign.organizationId);
+    const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose, branding);
     const unsupportedTokens = findUnsupportedEmailMergeTokens([
       campaign.subject,
       campaign.previewText,

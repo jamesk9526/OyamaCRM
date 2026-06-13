@@ -7,11 +7,22 @@ type BrandingConfig = Record<string, unknown>;
 export type OrganizationBrandingContext = {
   organizationName: string;
   legalOrganizationName: string;
+  tagline: string;
+  logoUrl: string;
+  logoSquareUrl: string;
+  primaryColor: string;
+  accentColor: string;
+  emailBackgroundColor: string;
+  emailFontFamily: string;
+  emailContentWidth: number;
   contactEmail: string;
   contactPhone: string;
   websiteUrl: string;
   addressLine: string;
   taxId: string;
+  footerLegalText: string;
+  globalHeaderHtml: string;
+  globalFooterHtml: string;
   defaultSignerTitle: string;
 };
 
@@ -22,6 +33,17 @@ function asObject(value: unknown): BrandingConfig {
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function asHex(value: unknown, fallback: string): string {
+  const next = asText(value);
+  return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
+}
+
+function asWidth(value: unknown): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return 600;
+  return Math.min(760, Math.max(420, parsed));
 }
 
 function joinParts(parts: Array<string | null | undefined>, separator: string): string {
@@ -67,11 +89,22 @@ export async function loadOrganizationBrandingContext(
   return {
     organizationName,
     legalOrganizationName: asText(config.legalOrganizationName) || organizationName,
+    tagline: asText(config.tagline),
+    logoUrl: asText(config.logoUrl),
+    logoSquareUrl: asText(config.logoSquareUrl),
+    primaryColor: asHex(config.primaryColor, "#16a34a"),
+    accentColor: asHex(config.accentColor, "#0f766e"),
+    emailBackgroundColor: asHex(config.emailBackgroundColor, "#f5f5f5"),
+    emailFontFamily: asText(config.emailFontFamily) || "Arial, Helvetica, sans-serif",
+    emailContentWidth: asWidth(config.emailContentWidth),
     contactEmail: asText(config.contactEmail),
     contactPhone: asText(config.contactPhone),
     websiteUrl: asText(config.websiteUrl),
     addressLine: formatAddress(config),
     taxId: asText(config.taxId),
+    footerLegalText: asText(config.footerLegalText),
+    globalHeaderHtml: asText(config.globalHeaderHtml),
+    globalFooterHtml: asText(config.globalFooterHtml),
     defaultSignerTitle: asText(config.defaultLetterSignerTitle),
   };
 }
