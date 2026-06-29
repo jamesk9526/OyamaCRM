@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collectMergeFieldKeys,
+  COMPATIBILITY_LETTER_MERGE_FIELDS,
   renderMergeFields,
   SUPPORTED_LETTER_MERGE_FIELDS,
   unsupportedMergeFieldKeys,
@@ -125,6 +126,62 @@ describe("letters-merge", () => {
     expect(output).toBe("Dear Friend, gift $125.00.");
   });
 
+  it("formats date filters as stored date-only values instead of local previous-day values", () => {
+    const output = renderMergeFields(
+      "Gift date: {{ gift.date | date:\"MM/dd/yyyy\" }} / {{ gift.date | date:\"long\" }}",
+      {
+        "gift.date": "2026-06-29T00:00:00.000Z",
+      },
+    );
+
+    expect(output).toBe("Gift date: 06/29/2026 / June 29, 2026");
+  });
+
+  it("renders email-style compatibility aliases used by shared communication helpers", () => {
+    const keys = collectMergeFieldKeys(
+      "{{organizationName}} {{organizationPhone}} {{organizationWebsite}} {{organizationTaxId}} {{staffName}} {{staff.name}} {{staffTitle}} {{staffEmail}} {{campaignName}} {{currentYear}} {{currentDate}}",
+    );
+    const output = renderMergeFields(
+      "{{organizationName}} {{organizationPhone}} {{organizationWebsite}} {{organizationTaxId}} {{staffName}} {{staff.name}} {{staffTitle}} {{staffEmail}} {{campaignName}} {{currentYear}} {{currentDate}}",
+      {
+        "organization.name": "The Pregnancy Care Center",
+        "organization.phone": "417-678-0090",
+        "organization.website": "www.thepregnancycarecenter.com",
+        "organization.taxId": "12-3456789",
+        "staff.fullName": "Rebecca Haine",
+        "staff.title": "Executive Director",
+        "staff.email": "contact@thepregnancycarecenter.com",
+        "gift.campaign": "Spring Appeal",
+        "year": "2026",
+        "currentDate": "June 16, 2026",
+      },
+    );
+
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("The Pregnancy Care Center 417-678-0090 www.thepregnancycarecenter.com 12-3456789 Rebecca Haine Rebecca Haine Executive Director contact@thepregnancycarecenter.com Spring Appeal 2026 June 16, 2026");
+  });
+
+  it("renders common gift summary aliases from canonical gift and year values", () => {
+    const keys = collectMergeFieldKeys(
+      "{{donationAmount}} {{lastGiftAmount}} {{receiptNumber}} {{taxDeductibleAmount}} {{totalYtdGiving}} {{giftCount}} {{firstGiftDate}} {{lastGiftDate}}",
+    );
+    const output = renderMergeFields(
+      "{{donationAmount}} {{lastGiftAmount}} {{receiptNumber}} {{taxDeductibleAmount}} {{totalYtdGiving}} {{giftCount}} {{firstGiftDate}} {{lastGiftDate}}",
+      {
+        "gift.amount": "$42.50",
+        "gift.receiptNumber": "R-100",
+        "gift.taxDeductibleAmount": "$42.50",
+        "year.totalGiving": "$500.00",
+        "year.numberOfGifts": "4",
+        "year.firstGiftDate": "January 10, 2026",
+        "year.lastGiftDate": "June 15, 2026",
+      },
+    );
+
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("$42.50 $42.50 R-100 $42.50 $500.00 4 January 10, 2026 June 15, 2026");
+  });
+
   it("contains core donor and gift merge tokens", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donor.firstName}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.firstName}}");
@@ -134,5 +191,9 @@ describe("letters-merge", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{gift.amount}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donation.amount}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{organization.name}}");
+    expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{currentDate}}");
+    expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{organizationName}}");
+    expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{lastGiftAmount}}");
+    expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{staff.name}}");
   });
 });

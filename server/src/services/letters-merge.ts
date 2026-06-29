@@ -66,6 +66,7 @@ export const SUPPORTED_LETTER_MERGE_FIELDS = [
   "{{year.firstGiftDate}}",
   "{{year.lastGiftDate}}",
   "{{year.numberOfGifts}}",
+  "{{currentDate}}",
   "{{campaign.name}}",
   "{{event.name}}",
   "{{household.name}}",
@@ -97,6 +98,7 @@ const SIMPLE_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
   email: "donor.email",
   phone: "donor.phone",
   address: "donor.addressBlock",
+  addressBlock: "donor.addressBlock",
   address1: "donor.addressLine1",
   address2: "donor.addressLine2",
   city: "donor.city",
@@ -105,19 +107,24 @@ const SIMPLE_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
   amount: "gift.amount",
   giftAmount: "gift.amount",
   donationAmount: "gift.amount",
+  lastGiftAmount: "gift.amount",
   giftDate: "gift.date",
   donationDate: "gift.date",
   date: "gift.date",
   fund: "gift.fund",
   designation: "gift.fund",
   campaign: "gift.campaign",
+  campaignName: "gift.campaign",
   receipt: "gift.receiptNumber",
   receiptNumber: "gift.receiptNumber",
   deductible: "gift.taxDeductibleAmount",
   taxDeductible: "gift.taxDeductibleAmount",
+  taxDeductibleAmount: "gift.taxDeductibleAmount",
   year: "year",
+  currentYear: "year",
   totalGiving: "year.totalGiving",
   yearTotal: "year.totalGiving",
+  totalYtdGiving: "year.totalGiving",
   firstGiftDate: "year.firstGiftDate",
   lastGiftDate: "year.lastGiftDate",
   giftCount: "year.numberOfGifts",
@@ -125,13 +132,20 @@ const SIMPLE_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
   orgName: "organization.name",
   organization: "organization.name",
   organizationName: "organization.name",
+  organizationAddress: "organization.address",
+  organizationPhone: "organization.phone",
+  organizationEmail: "organization.email",
+  organizationWebsite: "organization.website",
+  organizationTaxId: "organization.taxId",
   mission: "organization.mission",
   staff: "staff.fullName",
   staffName: "staff.fullName",
   signer: "staff.fullName",
+  signatureName: "staff.fullName",
   staffTitle: "staff.title",
   signerTitle: "staff.title",
   staffEmail: "staff.email",
+  currentDate: "currentDate",
 };
 
 export const SIMPLE_LETTER_MERGE_FIELDS = [
@@ -156,6 +170,38 @@ export const SIMPLE_LETTER_MERGE_FIELDS = [
   "//name",
   "//amount",
   "//giftDate",
+] as const;
+
+export const COMPATIBILITY_LETTER_MERGE_FIELDS = [
+  "{{preferredName}}",
+  "{{firstName}}",
+  "{{lastName}}",
+  "{{fullName}}",
+  "{{email}}",
+  "{{addressBlock}}",
+  "{{donationAmount}}",
+  "{{lastGiftAmount}}",
+  "{{giftDate}}",
+  "{{lastGiftDate}}",
+  "{{receiptNumber}}",
+  "{{taxDeductibleAmount}}",
+  "{{totalYtdGiving}}",
+  "{{giftCount}}",
+  "{{firstGiftDate}}",
+  "{{campaignName}}",
+  "{{organizationName}}",
+  "{{organizationAddress}}",
+  "{{organizationPhone}}",
+  "{{organizationEmail}}",
+  "{{organizationWebsite}}",
+  "{{organizationTaxId}}",
+  "{{staffName}}",
+  "{{staff.name}}",
+  "{{staffTitle}}",
+  "{{staffEmail}}",
+  "{{signatureName}}",
+  "{{currentYear}}",
+  "{{currentDate}}",
 ] as const;
 
 /**
@@ -186,6 +232,7 @@ const LEGACY_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
   "gift.designation": "gift.fund",
   "organization.signerName": "staff.fullName",
   "organization.signerTitle": "staff.title",
+  "staff.name": "staff.fullName",
 };
 
 const FIELD_SET = new Set<string>(SUPPORTED_LETTER_MERGE_FIELDS.map((field) => field.slice(2, -2).trim()));
@@ -205,9 +252,9 @@ function formatDateValue(value: string, format: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   if (format === "MM/dd/yyyy") {
-    return new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }).format(parsed);
+    return new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric", timeZone: "UTC" }).format(parsed);
   }
-  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(parsed);
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(parsed);
 }
 
 function formatCurrencyValue(value: string): string {

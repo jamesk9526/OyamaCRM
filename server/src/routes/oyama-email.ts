@@ -6,6 +6,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import type { EmailPurpose } from "@prisma/client";
+import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -31,6 +32,8 @@ import {
 } from "../services/oyama-email/email-render-service.js";
 
 const router = Router();
+const EMAIL_TEMPLATE_EXPORT_SCHEMA = "oyama-email-template-export";
+const EMAIL_TEMPLATE_EXPORT_VERSION = 1;
 
 const EMAIL_PATTERN =
   /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
@@ -54,6 +57,29 @@ interface TemplatePayload {
   settings: OyamaEmailTemplateSettings;
 }
 
+type EmailTemplateExportPayload = {
+  schema: typeof EMAIL_TEMPLATE_EXPORT_SCHEMA;
+  version: typeof EMAIL_TEMPLATE_EXPORT_VERSION;
+  kind: "oyama-email-template";
+  exportedAt: string;
+  source: {
+    templateId: string;
+    organizationId: string;
+    app: "OyamaEmail";
+  };
+  template: {
+    name: string;
+    subject: string;
+    previewText: string;
+    fromName: string;
+    replyToEmail: string;
+    purpose: EmailPurpose;
+    preferenceCategory: string;
+    document: OyamaEmailTemplateDocument;
+    settings: OyamaEmailTemplateSettings;
+  };
+};
+
 function isValidEmail(value: string): boolean {
   return EMAIL_PATTERN.test(value.trim());
 }
@@ -76,6 +102,17 @@ function asBoolean(value: unknown, fallback = false): boolean {
     if (normalized === "false") return false;
   }
   return fallback;
+}
+
+function sanitizeJsonDownloadName(value: string): string {
+  const cleaned = value.trim().replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "");
+  return cleaned || "template";
+}
+
+function unwrapEmailTemplateImport(input: unknown): Record<string, unknown> {
+  const body = asObject(input);
+  const wrapped = asObject(body.export);
+  return Object.keys(wrapped).length > 0 ? wrapped : body;
 }
 
 function escapeHtml(value: string): string {
@@ -767,6 +804,116 @@ router.get("/templates", async (req, res) => {
   res.json(rows.map((row) => mapTemplateResponse(row, branding)));
 });
 
+router.post("/templates/import", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const imported = unwrapEmailTemplateImport(req.body);
+  const template = asObject(imported.template);
+  if (imported.schema !== EMAIL_TEMPLATE_EXPORT_SCHEMA || imported.kind !== "oyama-email-template" || Object.keys(template).length === 0) {
+    res.status(400).json({ error: { code: "INVALID_TEMPLATE_EXPORT", message: "Upload a valid OyamaEmail template export JSON file." } });
+    return;
+  }
+
+  const [orgSettings, organization] = await Promise.all([
+    prisma.organizationSettings.findUnique({
+      where: { organizationId },
+      select: { smtpFromName: true, smtpFromEmail: true },
+    }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    }),
+  ]);
+  const smtpFromEmail = orgSettings?.smtpFromEmail?.trim() || "";
+  if (!smtpFromEmail || !isValidEmail(smtpFromEmail)) {
+    res.status(400).json({
+      error: {
+        code: "SMTP_NOT_READY",
+        message: "Global SMTP from email is not configured. Update SMTP settings before importing templates.",
+      },
+    });
+    return;
+  }
+
+  const organizationName = organization?.name?.trim() || orgSettings?.smtpFromName?.trim() || "Oyama Ministries";
+  const branding = await loadOrganizationBrandingContext(organizationId, organizationName);
+  const importedName = asString(template.name, "").trim();
+  const fallback = {
+    name: importedName ? `${importedName} (Imported ${new Date().toISOString().slice(0, 10)})` : `Imported Email Template ${new Date().toISOString().slice(0, 10)}`,
+    subject: asString(template.subject).trim(),
+    previewText: asString(template.previewText).trim(),
+    fromName: asString(template.fromName, organizationName).trim() || organizationName,
+    fromEmail: smtpFromEmail,
+    replyToEmail: smtpFromEmail,
+    purpose: parseEmailPurpose(template.purpose),
+    preferenceCategory: asString(template.preferenceCategory, "GENERAL_UPDATES").trim() || "GENERAL_UPDATES",
+    template: normalizeEmailTemplateDocument(template.document),
+    settings: normalizeEmailTemplateSettings(template.settings),
+  };
+  const payload = normalizeTemplatePayload(
+    {
+      name: fallback.name,
+      subject: fallback.subject,
+      previewText: fallback.previewText,
+      fromName: fallback.fromName,
+      replyToEmail: fallback.replyToEmail,
+      purpose: fallback.purpose,
+      preferenceCategory: fallback.preferenceCategory,
+      template: fallback.template,
+      settings: fallback.settings,
+    },
+    fallback,
+  );
+  const rendered = renderEmailTemplateDocument(payload.template, payload.settings, branding);
+  const templateJson = serializeStoredTemplateJson({
+    template: payload.template,
+    settings: payload.settings,
+    preferenceCategory: payload.preferenceCategory,
+  });
+
+  const created = await prisma.emailCampaign.create({
+    data: {
+      organizationId,
+      name: payload.name,
+      subject: payload.subject,
+      previewText: payload.previewText,
+      fromName: payload.fromName,
+      fromEmail: payload.fromEmail,
+      replyToEmail: payload.replyToEmail,
+      purpose: payload.purpose,
+      bodyHtml: rendered.html,
+      bodyText: rendered.text,
+      templateJson,
+      status: "DRAFT",
+      totalRecipients: 0,
+      scheduledAt: null,
+      sentAt: null,
+      audienceFilter: null,
+    },
+  });
+
+  await logAudit({
+    action: "OYAMA_EMAIL_TEMPLATE_IMPORTED",
+    entity: "EmailCampaign",
+    entityId: created.id,
+    organizationId,
+    userId,
+    metadata: {
+      sourceTemplateId: asObject(imported.source).templateId ?? null,
+      sourceOrganizationId: asObject(imported.source).organizationId ?? null,
+      schema: imported.schema,
+      version: imported.version,
+    },
+  });
+
+  res.status(201).json(mapTemplateResponse(created, branding));
+});
+
 router.post("/templates", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
@@ -940,6 +1087,69 @@ router.get("/templates/:id", async (req, res) => {
 
   const branding = await loadOrganizationBrandingContext(organizationId);
   res.json(mapTemplateResponse(campaign, branding));
+});
+
+router.get("/templates/:id/export", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const userId = req.user?.sub;
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({
+    where: {
+      id: req.params.id,
+      organizationId,
+    },
+  });
+
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found." } });
+    return;
+  }
+
+  const stored = parseStoredTemplateJson(campaign.templateJson, {
+    bodyHtml: campaign.bodyHtml,
+    bodyText: campaign.bodyText,
+  });
+  const payload: EmailTemplateExportPayload = {
+    schema: EMAIL_TEMPLATE_EXPORT_SCHEMA,
+    version: EMAIL_TEMPLATE_EXPORT_VERSION,
+    kind: "oyama-email-template",
+    exportedAt: new Date().toISOString(),
+    source: {
+      templateId: campaign.id,
+      organizationId,
+      app: "OyamaEmail",
+    },
+    template: {
+      name: campaign.name,
+      subject: campaign.subject,
+      previewText: campaign.previewText || "",
+      fromName: campaign.fromName,
+      replyToEmail: campaign.replyToEmail || "",
+      purpose: campaign.purpose,
+      preferenceCategory: stored.preferenceCategory,
+      document: stored.template,
+      settings: stored.settings,
+    },
+  };
+
+  await logAudit({
+    action: "OYAMA_EMAIL_TEMPLATE_EXPORTED",
+    entity: "EmailCampaign",
+    entityId: campaign.id,
+    organizationId,
+    userId,
+    metadata: { schema: payload.schema, version: payload.version },
+  });
+
+  const fileName = `${sanitizeJsonDownloadName(campaign.name)}_email_template.json`;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send(JSON.stringify(payload, null, 2));
 });
 
 router.put("/templates/:id", async (req, res) => {

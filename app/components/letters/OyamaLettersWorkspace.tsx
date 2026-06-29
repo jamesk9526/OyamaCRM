@@ -157,7 +157,7 @@ interface BatchResult {
   generatedSample?: Array<{ id: string; constituentId: string; constituentName: string }>;
   addToPrintQueue?: boolean;
   deliveryTarget?: DeliveryTarget;
-  donationMode?: "none" | "specific" | "recent";
+  donationMode?: DonationMode;
   queuedForPrintCount?: number;
   queuedForMailCount?: number;
 }
@@ -234,6 +234,7 @@ interface LetterAiSuggestResponse {
 type SettingsTab = "organization" | "workflow";
 type GenerateMode = "single" | "batch";
 type DeliveryTarget = "PDF_ONLY" | "PRINT_QUEUE" | "MAIL_QUEUE";
+type DonationMode = "recent" | "specific" | "none" | "selected";
 type PublishReviewTab = "summary" | "fields" | "validation" | "recipient" | "pdf" | "confirm";
 
 interface HeaderPresetDraft {
@@ -800,6 +801,8 @@ function TemplateLibrary() {
   const [setupHintStep, setSetupHintStep] = useState<0 | 1 | 2>(0);
   const [applyingDefaults, setApplyingDefaults] = useState(false);
   const [setupHintError, setSetupHintError] = useState<string | null>(null);
+  const [importingTemplate, setImportingTemplate] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     try {
@@ -884,6 +887,47 @@ function TemplateLibrary() {
     }
   }
 
+  async function exportTemplateBackup(template: LetterTemplateSummary) {
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(template.id)}/export`, { method: "GET" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? `Export failed with status ${response.status}`);
+      }
+      const blob = await response.blob();
+      downloadBlob(blob, filenameFromDisposition(response.headers.get("content-disposition")) ?? `${safeDownloadName(template.name)}_letter_template.json`);
+      setNotice(`Exported ${template.name}.`);
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to export template."));
+    }
+  }
+
+  async function importTemplateBackup(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!file) return;
+    setImportingTemplate(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      const created = await apiFetch<LetterTemplateSummary>("/api/letters/templates/import", {
+        method: "POST",
+        body: JSON.stringify(parsed),
+      });
+      setOwnership("ALL");
+      setStatus("DRAFT");
+      setNotice(`Imported ${created.name} as a draft template.`);
+      void load();
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to import template backup."));
+    } finally {
+      setImportingTemplate(false);
+    }
+  }
+
   return (
     <main className="min-w-0 flex-1 bg-[#f5f7fa]">
       <PageHero
@@ -892,7 +936,11 @@ function TemplateLibrary() {
         tooltip="Templates stay reusable here. Generation creates letter batches later so recipients, queue state, and print/mail actions do not mutate the template itself."
       >
         <Button onClick={() => void load()}>Refresh</Button>
+        <Button onClick={() => importInputRef.current?.click()} disabled={importingTemplate}>
+          {importingTemplate ? "Importing..." : "Import Template"}
+        </Button>
         <Button href="/oyama-letters/templates/new" tone="primary">Create New Template</Button>
+        <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" />
       </PageHero>
       <div className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
         <WorkspaceHint title="Recommended Flow" tone="slate">
@@ -1008,11 +1056,11 @@ function TemplateLibrary() {
         <EmptyState title="No templates found" body="No live templates match the current filters. Create a template to begin the OyamaLetters workflow." actionHref="/oyama-letters/templates/new" actionLabel="Create Template" />
       ) : layout === "grid" ? (
         <div className="grid gap-5 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 xl:p-6">
-          {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} />)}
+          {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       ) : (
         <div className="space-y-3 p-4 xl:p-6">
-          {visibleTemplates.map((template) => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} />)}
+          {visibleTemplates.map((template) => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       )}
       <div className="px-4 pb-4 text-xs text-slate-600 xl:px-7 xl:pb-6">
@@ -1934,7 +1982,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     const blocks = {
       thankYou: "<p>Thank you for your generous support of {{organization.name}}.</p>",
       closing: "<p>With gratitude,</p>",
-      ps: "<p>P.S. {{snippets.psLine}}</p>",
+      ps: "<p>P.S. Your generosity helps make this mission possible.</p>",
       impact: "<p>Because of friends like you, we can continue our mission of {{organization.mission}}.</p>",
     };
     const aligned = blocks[kind].replace("<p>", `<p style="text-align:${align};">`);
@@ -3397,7 +3445,7 @@ function GenerateWorkspace() {
   const [recipientTab, setRecipientTab] = useState<"all" | "missingAddress" | "missingRequired" | "suppressed">("all");
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [recipientStepTab, setRecipientStepTab] = useState<"lists" | "segments" | "filters" | "individuals">("segments");
-  const [donationMode, setDonationMode] = useState<"recent" | "specific" | "none">("recent");
+  const [donationMode, setDonationMode] = useState<DonationMode>("recent");
   const [donationDateRange, setDonationDateRange] = useState("Last 90 days");
   const [donationType, setDonationType] = useState("All Types");
   const [donationMinimum, setDonationMinimum] = useState("");
@@ -3423,6 +3471,9 @@ function GenerateWorkspace() {
     setTemporaryRecipientList(list);
     setSelectedRecipientIds(list.constituentIds);
     setSelectedIndividualIds(list.constituentIds);
+    if ((list.donationIds ?? []).length > 0) {
+      setDonationMode("selected");
+    }
     setGenerateMode("batch");
     setRecipientStepTab("individuals");
   }, [temporaryListId]);
@@ -3712,6 +3763,18 @@ function GenerateWorkspace() {
     };
   }
 
+  function buildDonationContextPayload() {
+    const selectedDonationIds = temporaryRecipientList?.donationIds ?? [];
+    return {
+      donationMode,
+      donationId: donationMode === "specific" ? donationId || undefined : undefined,
+      donationIds: donationMode === "selected" ? selectedDonationIds : undefined,
+      donationDateRange,
+      donationType,
+      donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+    };
+  }
+
   function printCurrentPdf() {
     if (!pdfViewerUrl) return;
     const printWindow = window.open("", "_blank", "width=1100,height=900");
@@ -3797,11 +3860,7 @@ function GenerateWorkspace() {
         {
           templateId,
           constituentId: previewRecipientId,
-          donationMode,
-          donationId: donationMode === "specific" ? donationId || undefined : undefined,
-          donationDateRange,
-          donationType,
-          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+          ...buildDonationContextPayload(),
           year: new Date().getFullYear(),
         },
         "letter-preview.pdf",
@@ -3822,6 +3881,7 @@ function GenerateWorkspace() {
         previewRecipientId,
         donationMode,
         donationId: donationMode === "specific" ? donationId || null : null,
+        donationIds: donationMode === "selected" ? temporaryRecipientList?.donationIds ?? [] : [],
         donationDateRange,
         donationType,
         donationMinimum,
@@ -3845,11 +3905,7 @@ function GenerateWorkspace() {
         body: JSON.stringify({
           templateId,
           constituentId: previewRecipientId,
-          donationMode,
-          donationId: donationMode === "specific" ? donationId || undefined : undefined,
-          donationDateRange,
-          donationType,
-          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+          ...buildDonationContextPayload(),
           year: new Date().getFullYear(),
         }),
       });
@@ -3881,11 +3937,7 @@ function GenerateWorkspace() {
           templateId,
           constituentId: targetRecipientId,
           deliveryTarget,
-          donationMode,
-          donationId: donationMode === "specific" ? donationId || undefined : undefined,
-          donationDateRange,
-          donationType,
-          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+          ...buildDonationContextPayload(),
           year: new Date().getFullYear(),
         }),
       });
@@ -3922,11 +3974,7 @@ function GenerateWorkspace() {
           constituentIds: runtimeRecipientIds.length > 0 ? runtimeRecipientIds : undefined,
           filterType: "ALL",
           deliveryTarget,
-          donationMode,
-          donationId: donationMode === "specific" ? donationId || undefined : undefined,
-          donationDateRange,
-          donationType,
-          donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+          ...buildDonationContextPayload(),
         }),
       });
 
@@ -4012,7 +4060,9 @@ function GenerateWorkspace() {
     ? "No donation information"
     : donationMode === "specific"
       ? "Specific donation (all recipients)"
-      : "Most recent donation (per recipient)";
+      : donationMode === "selected"
+        ? `Selected donations (per recipient)${temporaryRecipientList?.donationIds?.length ? ` · ${temporaryRecipientList.donationIds.length} gift${temporaryRecipientList.donationIds.length === 1 ? "" : "s"}` : ""}`
+        : "Most recent donation (per recipient)";
   const qualifyingDonationRecipients = donationMode === "none" ? 0 : totalRecipients;
   const generatedForTemplate = generated.filter((row) => row.templateId === templateId);
   const generatedForAudience = activeRecipientIds.length > 0
@@ -4223,7 +4273,8 @@ function GenerateWorkspace() {
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <p className="text-sm font-semibold text-emerald-950">{temporaryRecipientList.name}</p>
                 <p className="mt-1 text-xs text-emerald-800">
-                  Temporary list loaded from selected donations with {temporaryRecipientList.constituentIds.length} unique donor{temporaryRecipientList.constituentIds.length === 1 ? "" : "s"}. Choose a template, then continue to review recipients.
+                  Temporary list loaded from selected donations with {temporaryRecipientList.constituentIds.length} unique donor{temporaryRecipientList.constituentIds.length === 1 ? "" : "s"}
+                  {temporaryRecipientList.donationIds?.length ? ` and ${temporaryRecipientList.donationIds.length} selected gift${temporaryRecipientList.donationIds.length === 1 ? "" : "s"}` : ""}. Choose a template, then continue to review recipients.
                 </p>
               </div>
             ) : null}
@@ -4551,11 +4602,21 @@ function GenerateWorkspace() {
             <div className="rounded-lg border border-slate-200 p-3">
               <p className="text-sm font-semibold text-slate-900">Donation Selection</p>
               <div className="mt-3 space-y-3 text-sm">
+                {temporaryRecipientList?.donationIds?.length ? (
+                  <label className="flex items-start gap-3">
+                    <input type="radio" checked={donationMode === "selected"} onChange={() => setDonationMode("selected")} className="mt-1" />
+                    <span>
+                      <span className="font-semibold text-slate-900">Use the selected donations from this run</span>
+                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Recommended</span>
+                      <span className="mt-1 block text-xs text-slate-600">Matches each recipient to the gift rows selected before opening OyamaLetters.</span>
+                    </span>
+                  </label>
+                ) : null}
                 <label className="flex items-start gap-3">
                   <input type="radio" checked={donationMode === "recent"} onChange={() => setDonationMode("recent")} className="mt-1" />
                   <span>
                     <span className="font-semibold text-slate-900">Use each recipient's most recent donation</span>
-                    <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Recommended</span>
+                    {!temporaryRecipientList?.donationIds?.length ? <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Recommended</span> : null}
                     <span className="mt-1 block text-xs text-slate-600">Automatically pulls the most recent qualifying donation for each recipient.</span>
                   </span>
                 </label>
@@ -6185,7 +6246,7 @@ function CheckField({ label, checked, onChange }: { label: string; checked: bool
   );
 }
 
-function TemplateCard({ template, currentUserId }: { template: LetterTemplateSummary; currentUserId: string | null }) {
+function TemplateCard({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md">
@@ -6217,10 +6278,17 @@ function TemplateCard({ template, currentUserId }: { template: LetterTemplateSum
             <p className="mt-1 font-semibold text-slate-800">{template.status === "ACTIVE" ? "Live" : titleCase(template.status)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href={`/oyama-letters/templates/${template.id}`} className="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50">
             Open Template
           </Link>
+          <button
+            type="button"
+            onClick={() => onExport(template)}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Export
+          </button>
           <Link
             href={template.status === "ACTIVE" ? `/oyama-letters/generate?templateId=${encodeURIComponent(template.id)}` : `/oyama-letters/templates/${template.id}/publish`}
             className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
@@ -6233,7 +6301,7 @@ function TemplateCard({ template, currentUserId }: { template: LetterTemplateSum
   );
 }
 
-function TemplateRow({ template, currentUserId }: { template: LetterTemplateSummary; currentUserId: string | null }) {
+function TemplateRow({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
     <article className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -6250,6 +6318,9 @@ function TemplateRow({ template, currentUserId }: { template: LetterTemplateSumm
       </div>
       <p className="hidden text-sm text-slate-500 md:block">Updated {formatDate(template.updatedAt)}</p>
       <p className="hidden text-sm text-slate-500 lg:block">Used {template._count?.generatedLetters ?? 0} times</p>
+      <button type="button" onClick={() => onExport(template)} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+        Export
+      </button>
       <Button href={`/oyama-letters/templates/${template.id}`}>Open</Button>
     </article>
   );
@@ -6696,6 +6767,32 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+function filenameFromDisposition(value: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+function safeDownloadName(value: string): string {
+  return value.trim().replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "") || "template";
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 function templateRecoverySlot(templateId: string | null | undefined): string {
   return templateId?.trim() || "__new__";
 }
@@ -6966,6 +7063,13 @@ function formatDate(value?: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function formatStoredDate(value?: string | null): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
 function personName(row: {
   firstName?: string | null;
   lastName?: string | null;
@@ -7036,5 +7140,5 @@ function hasAddress(row: { addressLine1?: string | null; city?: string | null; s
 function formatDonation(row: DonationLookup): string {
   const amount = Number(row.amount);
   const money = Number.isFinite(amount) ? amount.toLocaleString("en-US", { style: "currency", currency: "USD" }) : String(row.amount);
-  return `${money} - ${formatDate(row.date)}`;
+  return `${money} - ${formatStoredDate(row.date)}`;
 }

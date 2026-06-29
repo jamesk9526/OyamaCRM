@@ -13,7 +13,7 @@ beforeAll(async () => {
     password: "admin123!",
   });
   token = login.body.data?.accessToken ?? "";
-});
+}, 30000);
 
 describe("letters merge aliases API", () => {
   const auth = () => ({ Authorization: `Bearer ${token}` });
@@ -93,5 +93,79 @@ describe("letters merge aliases API", () => {
     expect(previewPdf.headers["content-type"]).toContain("application/pdf");
     expect(Buffer.isBuffer(previewPdf.body)).toBe(true);
     expect(previewPdf.body.byteLength).toBeGreaterThan(1000);
+  });
+
+  it("uses selected donation IDs as per-recipient merge context instead of falling back to recent gifts", async () => {
+    const suffix = Date.now();
+    const constituent = await request(app)
+      .post("/api/constituents")
+      .set(auth())
+      .send({
+        firstName: "SelectedGift",
+        lastName: `Donor${suffix}`,
+        email: `selected-gift-${suffix}@example.org`,
+        addressLine1: "456 Selected Way",
+        city: "Aurora",
+        state: "MO",
+        zip: "65605",
+        type: "DONOR",
+      });
+    expect(constituent.status).toBe(201);
+
+    const selectedDonation = await request(app)
+      .post("/api/donations")
+      .set(auth())
+      .send({
+        constituentId: constituent.body.id,
+        amount: 42.5,
+        date: "2026-01-10T12:00:00.000Z",
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+        notes: "Selected donation merge context test",
+      });
+    expect(selectedDonation.status).toBe(201);
+
+    const newerDonation = await request(app)
+      .post("/api/donations")
+      .set(auth())
+      .send({
+        constituentId: constituent.body.id,
+        amount: 999,
+        date: "2026-06-15T12:00:00.000Z",
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+        notes: "More recent gift that must not override selected context",
+      });
+    expect(newerDonation.status).toBe(201);
+
+    const template = await request(app)
+      .post("/api/letters/templates")
+      .set(auth())
+      .send({
+        name: `Selected Donation Merge ${suffix}`,
+        category: "THANK_YOU",
+        status: "ACTIVE",
+        printBody: "Dear {{donor.firstName}}, selected gift {{gift.amount}} on {{gift.date}}.",
+        emailBody: "Selected gift {{gift.amount}}.",
+      });
+    expect(template.status).toBe(201);
+
+    const preview = await request(app)
+      .post("/api/letters/generated/preview")
+      .set(auth())
+      .send({
+        templateId: template.body.id,
+        constituentId: constituent.body.id,
+        donationMode: "selected",
+        donationIds: [selectedDonation.body.id],
+      });
+
+    expect(preview.status).toBe(200);
+    expect(preview.body.mergedPrintBody).toContain("$42.50");
+    expect(preview.body.mergedPrintBody).toContain("January 10, 2026");
+    expect(preview.body.mergedPrintBody).not.toContain("$999.00");
+    expect(preview.body.missingFields).toEqual([]);
   });
 });

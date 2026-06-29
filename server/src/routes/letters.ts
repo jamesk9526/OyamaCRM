@@ -24,6 +24,7 @@ import {
 } from "../services/letters-execution.js";
 import {
   collectMergeFieldKeys,
+  COMPATIBILITY_LETTER_MERGE_FIELDS,
   SIMPLE_LETTER_MERGE_FIELDS,
   SUPPORTED_LETTER_MERGE_FIELDS,
   unsupportedMergeFieldKeys,
@@ -55,12 +56,14 @@ const PRINT_QUEUE_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_F
 const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
 const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 const LETTER_DELIVERY_TARGETS = ["PDF_ONLY", "PRINT_QUEUE", "MAIL_QUEUE"] as const;
-const LETTER_DONATION_MODES = ["none", "specific", "recent"] as const;
+const LETTER_DONATION_MODES = ["none", "specific", "recent", "selected"] as const;
 const LETTER_WORKFLOW_POLICY_PLUGIN_KEY = "letters-workflow-settings";
 const LETTER_PUBLISH_HISTORY_PLUGIN_KEY = "letters-template-publish-history";
 const LETTER_BRANDING_PLUGIN_KEY = "organization-branding";
 const STEWARD_AI_PLUGIN_KEY = "steward_ai";
 const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
+const LETTER_TEMPLATE_EXPORT_SCHEMA = "oyama-letter-template-export";
+const LETTER_TEMPLATE_EXPORT_VERSION = 1;
 const LETTER_PUBLISH_HISTORY_LIMIT = 200;
 const PDF_FALLBACK_MODES = ["BROWSER_PRINT", "SERVER_RENDER"] as const;
 const LETTER_MEDIA_EXTENSIONS: Record<string, string> = {
@@ -78,6 +81,33 @@ type LetterPriority = (typeof LETTER_PRIORITY)[number];
 type PdfFallbackMode = (typeof PDF_FALLBACK_MODES)[number];
 type LetterDeliveryTarget = (typeof LETTER_DELIVERY_TARGETS)[number];
 type LetterDonationMode = (typeof LETTER_DONATION_MODES)[number];
+type LetterTemplateExportPayload = {
+  schema: typeof LETTER_TEMPLATE_EXPORT_SCHEMA;
+  version: typeof LETTER_TEMPLATE_EXPORT_VERSION;
+  kind: "oyama-letter-template";
+  exportedAt: string;
+  source: {
+    templateId: string;
+    organizationId: string;
+    app: "OyamaLetters";
+  };
+  template: {
+    name: string;
+    category: string;
+    description: string | null;
+    printSubject: string | null;
+    printBody: string;
+    printLayoutJson: unknown;
+    emailSubject: string | null;
+    emailBody: string | null;
+    headerPresetId: string | null;
+    footerPresetId: string | null;
+    signatureBlockId: string | null;
+    logoMode: string;
+    customLogoUrl: string | null;
+    crmScope: string;
+  };
+};
 
 interface LetterPdfBrandingContext {
   organizationName: string;
@@ -259,6 +289,12 @@ function normalizeOptionalId(value: unknown): string | null {
   return normalized || null;
 }
 
+/** Converts unknown request bodies to plain records for import parsing. */
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
 /** Converts unknown JSON input to a JSON-safe value for Prisma JSON storage. */
 function asJsonObject(value: unknown): Prisma.InputJsonValue | undefined {
   if (value === undefined) return undefined;
@@ -267,6 +303,36 @@ function asJsonObject(value: unknown): Prisma.InputJsonValue | undefined {
   } catch {
     return undefined;
   }
+}
+
+function sanitizeJsonDownloadName(value: string): string {
+  const cleaned = value.trim().replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "");
+  return cleaned || "template";
+}
+
+async function normalizeImportedLetterPresetId(
+  kind: "header" | "footer" | "signature",
+  value: unknown,
+  organizationId: string,
+): Promise<string | null> {
+  const id = normalizeOptionalId(value);
+  if (!id) return null;
+  if (kind === "header") {
+    const match = await prisma.letterHeaderPreset.findFirst({ where: { id, organizationId }, select: { id: true } });
+    return match?.id ?? null;
+  }
+  if (kind === "footer") {
+    const match = await prisma.letterFooterPreset.findFirst({ where: { id, organizationId }, select: { id: true } });
+    return match?.id ?? null;
+  }
+  const match = await prisma.letterSignatureBlock.findFirst({ where: { id, organizationId }, select: { id: true } });
+  return match?.id ?? null;
+}
+
+function unwrapLetterTemplateImport(input: unknown): Record<string, unknown> {
+  const body = asRecord(input);
+  const wrapped = asRecord(body.export);
+  return Object.keys(wrapped).length > 0 ? wrapped : body;
 }
 
 /** Maps shared validation output into stable batch skip reason strings. */
@@ -450,6 +516,57 @@ async function resolveRecentDonationIdForRecipient(params: {
     orderBy: { date: "desc" },
   });
   return row?.id;
+}
+
+function parseDonationIds(rawDonationIds: unknown): string[] {
+  if (!Array.isArray(rawDonationIds)) return [];
+  return Array.from(new Set(rawDonationIds.map((value) => String(value).trim()).filter(Boolean)));
+}
+
+async function buildSelectedDonationIdByConstituent(params: {
+  organizationId: string;
+  donationIds: string[];
+}): Promise<Map<string, string>> {
+  if (params.donationIds.length === 0) return new Map();
+
+  const rows = await prisma.donation.findMany({
+    where: {
+      id: { in: params.donationIds },
+      status: "COMPLETED",
+      constituent: { organizationId: params.organizationId },
+    },
+    select: { id: true, constituentId: true, date: true, createdAt: true },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+
+  const byConstituent = new Map<string, string>();
+  for (const row of rows) {
+    if (!byConstituent.has(row.constituentId)) {
+      byConstituent.set(row.constituentId, row.id);
+    }
+  }
+  return byConstituent;
+}
+
+async function resolveDonationIdForRecipient(params: {
+  organizationId: string;
+  constituentId?: string;
+  donationMode: LetterDonationMode;
+  specificDonationId?: string;
+  selectedDonationIdByConstituent?: Map<string, string>;
+  donationWhere: Prisma.DonationWhereInput;
+}): Promise<string | undefined> {
+  if (params.donationMode === "specific") return params.specificDonationId;
+  if (!params.constituentId) return undefined;
+  if (params.donationMode === "selected") return params.selectedDonationIdByConstituent?.get(params.constituentId);
+  if (params.donationMode === "recent") {
+    return resolveRecentDonationIdForRecipient({
+      organizationId: params.organizationId,
+      constituentId: params.constituentId,
+      donationWhere: params.donationWhere,
+    });
+  }
+  return undefined;
 }
 
 /** Produces initial queue metadata for generated letters without calling guarded queue actions. */
@@ -1979,6 +2096,12 @@ router.get("/merge-fields", requirePermission("letters.view"), async (req, res) 
       fields: SIMPLE_LETTER_MERGE_FIELDS,
     },
     {
+      key: "compatibility",
+      label: "Compatibility Fields",
+      sensitive: false,
+      fields: COMPATIBILITY_LETTER_MERGE_FIELDS,
+    },
+    {
       key: "donor",
       label: "Donor Fields",
       sensitive: false,
@@ -2511,6 +2634,65 @@ router.get("/templates/:id", requirePermission("letters.view"), async (req, res)
   }
 });
 
+/** GET /api/letters/templates/:id/export — Downloads one portable letter template backup. */
+router.get("/templates/:id/export", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const template = await prisma.letterTemplate.findFirst({ where: { id: getRouteId(req), organizationId } });
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const payload: LetterTemplateExportPayload = {
+    schema: LETTER_TEMPLATE_EXPORT_SCHEMA,
+    version: LETTER_TEMPLATE_EXPORT_VERSION,
+    kind: "oyama-letter-template",
+    exportedAt: new Date().toISOString(),
+    source: {
+      templateId: template.id,
+      organizationId,
+      app: "OyamaLetters",
+    },
+    template: {
+      name: template.name,
+      category: template.category,
+      description: template.description,
+      printSubject: template.printSubject,
+      printBody: template.printBody,
+      printLayoutJson: template.printLayoutJson,
+      emailSubject: template.emailSubject,
+      emailBody: template.emailBody,
+      headerPresetId: template.headerPresetId,
+      footerPresetId: template.footerPresetId,
+      signatureBlockId: template.signatureBlockId,
+      logoMode: template.logoMode,
+      customLogoUrl: template.customLogoUrl,
+      crmScope: template.crmScope,
+    },
+  };
+
+  await logAudit({
+    action: "LETTER_TEMPLATE_EXPORTED",
+    entity: "LetterTemplate",
+    entityId: template.id,
+    organizationId,
+    userId,
+    metadata: { schema: payload.schema, version: payload.version },
+  });
+
+  const fileName = `${sanitizeJsonDownloadName(template.name)}_letter_template.json`;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send(JSON.stringify(payload, null, 2));
+});
+
 /** POST /api/letters/templates/apply-default-branding — Applies current default header/footer/signature to all non-archived templates. */
 router.post("/templates/apply-default-branding", requirePermission("letters.edit"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -2571,6 +2753,88 @@ router.post("/templates/apply-default-branding", requirePermission("letters.edit
       signatureBlockId: defaultSignature?.id ?? null,
     },
   });
+});
+
+/** POST /api/letters/templates/import — Imports a portable letter template backup as a new draft. */
+router.post("/templates/import", requirePermission("letters.create"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const imported = unwrapLetterTemplateImport(req.body);
+  const template = asRecord(imported.template);
+  if (imported.schema !== LETTER_TEMPLATE_EXPORT_SCHEMA || imported.kind !== "oyama-letter-template" || !template) {
+    res.status(400).json({ error: { code: "INVALID_TEMPLATE_EXPORT", message: "Upload a valid OyamaLetters template export JSON file." } });
+    return;
+  }
+
+  const name = typeof template.name === "string" && template.name.trim()
+    ? `${template.name.trim()} (Imported ${new Date().toISOString().slice(0, 10)})`
+    : `Imported Letter Template ${new Date().toISOString().slice(0, 10)}`;
+  const printBody = typeof template.printBody === "string" ? template.printBody : "";
+  if (!printBody.trim()) {
+    res.status(400).json({ error: { code: "PRINT_BODY_REQUIRED", message: "Imported letter template is missing print body content." } });
+    return;
+  }
+
+  const category = parseEnum(template.category, LETTER_CATEGORIES) ?? "GENERAL";
+  const logoMode = parseEnum(template.logoMode, LETTER_LOGO_MODES) ?? "ORGANIZATION_DEFAULT";
+  const crmScope = parseEnum(template.crmScope, LETTER_CRM_SCOPES) ?? "DONOR";
+  const [headerPresetId, footerPresetId, signatureBlockId] = await Promise.all([
+    normalizeImportedLetterPresetId("header", template.headerPresetId, organizationId),
+    normalizeImportedLetterPresetId("footer", template.footerPresetId, organizationId),
+    normalizeImportedLetterPresetId("signature", template.signatureBlockId, organizationId),
+  ]);
+  const emailBody = typeof template.emailBody === "string" ? template.emailBody : null;
+  const printSubject = typeof template.printSubject === "string" ? template.printSubject : null;
+  const emailSubject = typeof template.emailSubject === "string" ? template.emailSubject : null;
+  const mergeKeys = collectMergeFieldKeys(printBody, emailBody, printSubject, emailSubject);
+
+  const created = await prisma.letterTemplate.create({
+    data: {
+      organizationId,
+      name,
+      category,
+      description: typeof template.description === "string" ? template.description.trim() || null : null,
+      status: "DRAFT",
+      printSubject,
+      printBody,
+      printLayoutJson: asJsonObject(template.printLayoutJson),
+      emailSubject,
+      emailBody,
+      headerPresetId,
+      footerPresetId,
+      signatureBlockId,
+      logoMode,
+      customLogoUrl: typeof template.customLogoUrl === "string" ? template.customLogoUrl : null,
+      mergeFieldsUsed: mergeKeys,
+      crmScope,
+      createdByUserId: userId,
+      updatedByUserId: userId,
+    },
+  });
+
+  await logAudit({
+    action: "LETTER_TEMPLATE_IMPORTED",
+    entity: "LetterTemplate",
+    entityId: created.id,
+    organizationId,
+    userId,
+    metadata: {
+      sourceTemplateId: asRecord(imported.source).templateId ?? null,
+      sourceOrganizationId: asRecord(imported.source).organizationId ?? null,
+      restoredPresetLinks: {
+        headerPresetId,
+        footerPresetId,
+        signatureBlockId,
+      },
+    },
+  });
+
+  res.status(201).json(created);
 });
 
 /** POST /api/letters/templates — Creates a new letter template. */
@@ -3159,10 +3423,29 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
         : Promise.resolve(template.signatureBlock),
     ]);
 
+    const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES)
+      ?? (req.body?.donationId ? "specific" : sampleConstituent ? "recent" : "none");
+    const donationIds = parseDonationIds(req.body?.donationIds);
+    const selectedDonationIdByConstituent = donationMode === "selected"
+      ? await buildSelectedDonationIdByConstituent({ organizationId, donationIds })
+      : undefined;
+    const resolvedDonationId = await resolveDonationIdForRecipient({
+      organizationId,
+      constituentId: sampleConstituent?.id,
+      donationMode,
+      specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+      selectedDonationIdByConstituent,
+      donationWhere: buildDonationContextFilter({
+        ...(req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {}),
+        donationDateRange: req.body?.donationDateRange ?? "All time",
+      }),
+    });
+
     const merged = await resolveLetterMergeContext({
       organizationId,
       template: previewTemplate,
       constituentId: sampleConstituent?.id,
+      donationId: resolvedDonationId,
       actorUserId: userId,
     });
 
@@ -3873,12 +4156,19 @@ router.post("/generated/preview", requirePermission("letters.generate"), async (
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
   const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined;
   const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const donationIds = parseDonationIds(req.body?.donationIds);
+  const selectedDonationIdByConstituent = donationMode === "selected"
+    ? await buildSelectedDonationIdByConstituent({ organizationId, donationIds })
+    : undefined;
   const donationWhere = buildDonationContextFilter(req.body);
-  const resolvedDonationId = donationMode === "specific"
-    ? (typeof req.body?.donationId === "string" ? req.body.donationId : undefined)
-    : donationMode === "recent" && constituentId
-      ? await resolveRecentDonationIdForRecipient({ organizationId, constituentId, donationWhere })
-      : undefined;
+  const resolvedDonationId = await resolveDonationIdForRecipient({
+    organizationId,
+    constituentId,
+    donationMode,
+    specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIdByConstituent,
+    donationWhere,
+  });
   const merged = await resolveLetterMergeContext({
     organizationId,
     template,
@@ -3930,12 +4220,19 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
 
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
   const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const donationIds = parseDonationIds(req.body?.donationIds);
+  const selectedDonationIdByConstituent = donationMode === "selected"
+    ? await buildSelectedDonationIdByConstituent({ organizationId, donationIds })
+    : undefined;
   const donationWhere = buildDonationContextFilter(req.body);
-  const resolvedDonationId = donationMode === "specific"
-    ? (typeof req.body?.donationId === "string" ? req.body.donationId : undefined)
-    : donationMode === "recent"
-      ? await resolveRecentDonationIdForRecipient({ organizationId, constituentId, donationWhere })
-      : undefined;
+  const resolvedDonationId = await resolveDonationIdForRecipient({
+    organizationId,
+    constituentId,
+    donationMode,
+    specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIdByConstituent,
+    donationWhere,
+  });
 
   const [templateChrome, constituent] = await Promise.all([
     prisma.letterTemplate.findFirst({
@@ -4067,12 +4364,19 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
 
   const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId : undefined;
   const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const donationIds = parseDonationIds(req.body?.donationIds);
+  const selectedDonationIdByConstituent = donationMode === "selected"
+    ? await buildSelectedDonationIdByConstituent({ organizationId, donationIds })
+    : undefined;
   const donationWhere = buildDonationContextFilter(req.body);
-  const donationId = donationMode === "specific"
-    ? (typeof req.body?.donationId === "string" ? req.body.donationId : undefined)
-    : donationMode === "recent" && constituentId
-      ? await resolveRecentDonationIdForRecipient({ organizationId, constituentId, donationWhere })
-      : undefined;
+  const donationId = await resolveDonationIdForRecipient({
+    organizationId,
+    constituentId,
+    donationMode,
+    specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIdByConstituent,
+    donationWhere,
+  });
   const campaignId = typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined;
   const eventId = typeof req.body?.eventId === "string" ? req.body.eventId : undefined;
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
@@ -5262,6 +5566,10 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const addToPrintQueue = deliveryTarget === "PRINT_QUEUE";
   const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
   const specificDonationId = typeof req.body?.donationId === "string" && req.body.donationId.trim() ? req.body.donationId.trim() : undefined;
+  const selectedDonationIds = parseDonationIds(req.body?.donationIds);
+  const selectedDonationIdByConstituent = donationMode === "selected"
+    ? await buildSelectedDonationIdByConstituent({ organizationId, donationIds: selectedDonationIds })
+    : undefined;
   const donationContextFilter = buildDonationContextFilter(req.body);
   const templateNeedsAddress = templateUsesAddressMergeFields(template);
   const dedupeHousehold = req.body?.dedupeHousehold === true;
@@ -5350,15 +5658,14 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       seenHouseholds.add(candidate.householdId);
     }
 
-    const recipientDonationId = donationMode === "specific"
-      ? specificDonationId
-      : donationMode === "recent"
-        ? await resolveRecentDonationIdForRecipient({
-            organizationId,
-            constituentId: candidate.id,
-            donationWhere: donationContextFilter,
-          })
-        : undefined;
+    const recipientDonationId = await resolveDonationIdForRecipient({
+      organizationId,
+      constituentId: candidate.id,
+      donationMode,
+      specificDonationId,
+      selectedDonationIdByConstituent,
+      donationWhere: donationContextFilter,
+    });
 
     const preview = await resolveLetterMergeContext({
       organizationId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PAYMENT_METHODS, DONATION_STATUSES, methodLabel } from "./donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -103,9 +103,9 @@ const EMPTY: FormData = {
 
 export default function DonationForm({ mode = "create", donationId, defaultValues, constituents, campaigns, designations, onCancel, onSaved }: Props) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<FormData>({ ...EMPTY, ...defaultValues });
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [addToQB, setAddToQB] = useState(false);
   const [constituentQuery, setConstituentQuery] = useState("");
   const [constituentResults, setConstituentResults] = useState<ConstituentOption[]>([]);
@@ -191,11 +191,13 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     if (!form.constituentId) { setError("Please select a constituent."); return; }
     if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Please enter a valid amount."); return; }
     setError(null);
+    setSaving(true);
 
-    startTransition(async () => {
+    void (async () => {
       const path  = mode === "edit" ? `/api/donations/${donationId}` : "/api/donations";
       const method = mode === "edit" ? "PUT" : "POST";
 
@@ -232,8 +234,10 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save donation.");
+      } finally {
+        setSaving(false);
       }
-    });
+    })();
   }
 
   const inputCls = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500";
@@ -388,9 +392,9 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={isPending}
+        <button type="submit" disabled={saving}
           className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors">
-          {isPending ? "Saving…" : mode === "edit" ? "Update Donation" : "Record Donation"}
+          {saving ? "Saving…" : mode === "edit" ? "Update Donation" : "Record Donation"}
         </button>
         <button type="button" onClick={() => onCancel ? onCancel() : router.back()}
           className="px-6 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">

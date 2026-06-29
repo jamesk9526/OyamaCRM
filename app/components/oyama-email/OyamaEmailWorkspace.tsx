@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
@@ -391,6 +391,14 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     }
   }, []);
 
+  const refreshCampaignRows = useCallback(async () => {
+    try {
+      setCampaigns(await apiFetch<OyamaEmailCampaign[]>("/api/email-campaigns?limit=100"));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to refresh email templates.");
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -633,7 +641,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
 
           {loading ? <LoadingState label="Loading OyamaEmail workspace..." /> : null}
           {!loading && normalizedView === "templates" ? (
-            <TemplatesView campaigns={templateRows} onUseTemplate={setSendTemplate} />
+            <TemplatesView campaigns={templateRows} onUseTemplate={setSendTemplate} onTemplatesChanged={refreshCampaignRows} />
           ) : null}
           {!loading && normalizedView === "queue" ? (
             <EmailQueueView campaigns={sendRecordRows} />
@@ -819,7 +827,15 @@ function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targ
   );
 }
 
-function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCampaign[]; onUseTemplate: (template: OyamaEmailCampaign) => void }) {
+function TemplatesView({
+  campaigns,
+  onUseTemplate,
+  onTemplatesChanged,
+}: {
+  campaigns: OyamaEmailCampaign[];
+  onUseTemplate: (template: OyamaEmailCampaign) => void;
+  onTemplatesChanged: () => Promise<void>;
+}) {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Templates");
@@ -828,6 +844,10 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
   const [categorySort, setCategorySort] = useState<"default" | "count">("default");
   const [sortBy, setSortBy] = useState<"updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc">("updatedDesc");
   const [page, setPage] = useState(1);
+  const [importingTemplate, setImportingTemplate] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [libraryNotice, setLibraryNotice] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const pageSize = 8;
   const myCount = useMemo(() => campaigns.filter((row) => row.ownerId === user?.id).length, [campaigns, user?.id]);
   const sharedCount = useMemo(() => campaigns.filter((row) => row.ownerId !== user?.id).length, [campaigns, user?.id]);
@@ -899,6 +919,47 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
 
   const pageRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
 
+  async function exportTemplateBackup(template: OyamaEmailCampaign) {
+    setLibraryError(null);
+    setLibraryNotice(null);
+    try {
+      const response = await apiFetchResponse(`/api/oyama-email/templates/${encodeURIComponent(template.id)}/export`, { method: "GET" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? `Export failed with status ${response.status}`);
+      }
+      const blob = await response.blob();
+      downloadBlob(blob, filenameFromDisposition(response.headers.get("content-disposition")) ?? `${safeDownloadName(template.name)}_email_template.json`);
+      setLibraryNotice(`Exported ${template.name}.`);
+    } catch (requestError) {
+      setLibraryError(errorMessage(requestError, "Failed to export email template."));
+    }
+  }
+
+  async function importTemplateBackup(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!file) return;
+    setImportingTemplate(true);
+    setLibraryError(null);
+    setLibraryNotice(null);
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      const created = await apiFetch<OyamaEmailCampaign>("/api/oyama-email/templates/import", {
+        method: "POST",
+        body: JSON.stringify(parsed),
+      });
+      setOwnership("ALL");
+      setCategory("All Templates");
+      setLibraryNotice(`Imported ${created.name} as a draft email template.`);
+      await onTemplatesChanged();
+    } catch (requestError) {
+      setLibraryError(errorMessage(requestError, "Failed to import email template backup."));
+    } finally {
+      setImportingTemplate(false);
+    }
+  }
+
   return (
     <section className="space-y-5 p-4 xl:p-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:p-5">
@@ -950,6 +1011,15 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
               <option value="nameAsc">Name A-Z</option>
             </select>
 
+            <button
+              type="button"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importingTemplate}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {importingTemplate ? "Importing..." : "Import Template"}
+            </button>
+            <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" />
             <WorkspaceAction href="/oyama-email/templates/new" tone="primary">Start New Template</WorkspaceAction>
           </div>
         </div>
@@ -1031,6 +1101,9 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
         </div>
       </div>
 
+      {libraryNotice ? <Alert tone="success">{libraryNotice}</Alert> : null}
+      {libraryError ? <Alert tone="error">{libraryError}</Alert> : null}
+
       {sortedRows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="text-lg font-semibold text-slate-900">No templates matched your filters.</p>
@@ -1087,6 +1160,7 @@ function TemplatesView({ campaigns, onUseTemplate }: { campaigns: OyamaEmailCamp
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => onUseTemplate(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600">Continue to Campaign Flow</button>
+                      <button type="button" onClick={() => void exportTemplateBackup(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export</button>
                     </div>
                   </div>
                 </article>
@@ -4407,6 +4481,36 @@ function statusLabel(status: string): string {
   if (normalized === "CANCELLED") return "Cancelled";
   if (normalized === "ARCHIVED") return "Archived";
   return "Draft";
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function filenameFromDisposition(value: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+function safeDownloadName(value: string): string {
+  return value.trim().replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "") || "template";
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 function toDayKey(value: string): string {

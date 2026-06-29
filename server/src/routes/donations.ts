@@ -582,15 +582,21 @@ router.post("/", async (req, res) => {
     userAgent: req.headers["user-agent"],
   });
 
-  // Execute Steward Paths for completed donations so repetitive stewardship work happens automatically.
+  // Execute Steward Paths after the donation response path so heavy automations do not block data entry.
   if (organizationId && donation.status === "COMPLETED") {
-    await executeStewardPathsForTrigger({
+    void executeStewardPathsForTrigger({
       organizationId,
       trigger: "DONATION_RECEIVED",
       constituentId: donation.constituentId,
       donationId: donation.id,
       userId: req.user?.sub,
       source: "api/donations:create",
+    }).catch((error) => {
+      console.error("Failed to execute donation Steward Paths", {
+        donationId: donation.id,
+        constituentId: donation.constituentId,
+        error,
+      });
     });
   }
 

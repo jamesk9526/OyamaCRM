@@ -97,8 +97,9 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 4. Use Publish Workspace to review detected merge fields and publish the saved template. Validation notes are informational and do not block publishing. Publishing logs grouped browser-console diagnostics, including the full composed letter HTML and validation notes.
 5. Use Generate Letters to search real constituents, attach real donation context when needed, preview merged output, and generate a letter or batch.
 6. Use Print & Mail Queue for live print/mail queue rows and Settings for signature links and workflow policy controls.
-7. Set the shared Communication Header + Footer in `/settings/branding`; that one header and one footer apply to every OyamaLetters output and every OyamaEmail render.
-8. Current status: Working for the refreshed workspace routes. The UI uses live API data and empty states; it does not ship placeholder recipient/template data.
+7. Use `Export` on a template card to download a JSON backup. Use `Import Template` in the library to restore that file as a new draft for testing or backup recovery; import does not overwrite or publish the original template.
+8. Set the shared Communication Header + Footer in `/settings/branding`; that one header and one footer apply to every OyamaLetters output and every OyamaEmail render.
+9. Current status: Working for the refreshed workspace routes. The UI uses live API data and empty states; it does not ship placeholder recipient/template data.
 
 ### OyamaEmail workflow (canonical)
 
@@ -112,9 +113,10 @@ Use OyamaEmail as the donor email command center:
 4. Use persisted segment audiences before scheduling or queueing sends. Temporary/manual/list recipient selections are reviewable and sendable immediately, but are not stored on the campaign record for later scheduled sends yet.
 5. Use Template Library only for reusable content. Drafted/sent email records appear in Email Queue with their current status.
 6. In the builder, use `Show Me How It Will Look to the Recipient` to open the server-rendered recipient preview before sending a test or live campaign.
-7. Publishing an email template logs grouped browser-console diagnostics, including the full HTML output and validation notes.
-8. Use Email Queue and Analytics to verify delivery outcomes and failed-recipient truth.
-9. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
+7. Use `Export` on a template card to download a JSON backup. Use `Import Template` in the library to restore that file as a new draft for testing or backup recovery; the current organization's sender settings are used on import.
+8. Publishing an email template logs grouped browser-console diagnostics, including the full HTML output and validation notes.
+9. Use Email Queue and Analytics to verify delivery outcomes and failed-recipient truth.
+10. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
 
 ### Steward Paths builder workflow
 

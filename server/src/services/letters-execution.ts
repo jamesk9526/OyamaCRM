@@ -117,10 +117,44 @@ function formatCurrency(value: unknown): string {
   }).format(toNumber(value));
 }
 
-/** Formats dates for merged donor-facing content. */
-function formatDate(value: Date | null | undefined): string {
+/** Formats stored date-only values for merged donor-facing content. */
+function formatStoredDate(value: Date | null | undefined): string {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(value);
+}
+
+/** Formats true timestamp values for merged donor-facing content. */
+function formatCurrentDate(value: Date | null | undefined): string {
   if (!value) return "";
   return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(value);
+}
+
+function readBrandingText(config: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const raw = config[key];
+    if (typeof raw === "string" && raw.trim()) return raw.trim();
+  }
+  return "";
+}
+
+function joinTextParts(parts: Array<string | null | undefined>, separator: string): string {
+  return parts.map((part) => String(part ?? "").trim()).filter(Boolean).join(separator);
+}
+
+function buildBrandingAddressBlock(config: Record<string, unknown>): string {
+  const cityStateZip = joinTextParts([
+    readBrandingText(config, "city"),
+    readBrandingText(config, "stateProvince", "state"),
+    readBrandingText(config, "postalCode", "zip"),
+  ], ", ");
+
+  return [
+    readBrandingText(config, "locationName"),
+    readBrandingText(config, "streetAddress1", "addressLine1", "address1"),
+    readBrandingText(config, "streetAddress2", "addressLine2", "address2"),
+    cityStateZip,
+    readBrandingText(config, "country"),
+  ].filter(Boolean).join("<br />");
 }
 
 /** Returns true when the constituent has enough mailing fields for printed delivery. */
@@ -183,11 +217,12 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
   const brandingConfig = brandingSetting?.config && typeof brandingSetting.config === "object" && !Array.isArray(brandingSetting.config)
     ? (brandingSetting.config as Record<string, unknown>)
     : {};
-  const readBrandingText = (key: string): string => {
-    const raw = brandingConfig[key];
-    return typeof raw === "string" ? raw.trim() : "";
-  };
-  const organizationMission = readBrandingText("missionStatement") || readBrandingText("tagline");
+  const organizationName = readBrandingText(brandingConfig, "organizationDisplayName", "legalOrganizationName", "organizationName")
+    || organization?.name
+    || "";
+  const organizationMission = readBrandingText(brandingConfig, "missionStatement", "tagline");
+  const organizationAddress = buildBrandingAddressBlock(brandingConfig);
+  const organizationEmail = readBrandingText(brandingConfig, "contactEmail", "email") || settings?.smtpFromEmail || "";
 
   const donation = params.donationId
     ? await prisma.donation.findFirst({
@@ -250,6 +285,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     : null;
 
   const targetYear = Math.max(2000, Math.min(3000, params.year ?? new Date().getFullYear()));
+  const currentDate = new Date();
   const yearStart = new Date(`${targetYear}-01-01T00:00:00.000Z`);
   const yearEnd = new Date(`${targetYear}-12-31T23:59:59.999Z`);
 
@@ -316,7 +352,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "constituent.contactTitle": constituent?.contactTitle ?? "",
     "constituent.salutation": constituent ? getConstituentSalutation(constituent) : "Dear Friend,",
     "gift.amount": formatCurrency(donation?.amount ?? 0),
-    "gift.date": formatDate(donation?.date),
+    "gift.date": formatStoredDate(donation?.date),
     "gift.fund": donation?.designation?.name ?? "",
     "gift.campaign": campaignName,
     "gift.paymentMethod": donation?.paymentMethod ? donation.paymentMethod.replace(/_/g, " ") : "",
@@ -324,22 +360,23 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "gift.taxDeductibleAmount": formatCurrency(donation?.taxDeductible ? donation.amount : 0),
     "year": String(targetYear),
     "year.totalGiving": formatCurrency(yearTotal),
-    "year.firstGiftDate": formatDate(firstGift),
-    "year.lastGiftDate": formatDate(lastGift),
+    "year.firstGiftDate": formatStoredDate(firstGift),
+    "year.lastGiftDate": formatStoredDate(lastGift),
     "year.numberOfGifts": String(yearDonations.length),
+    "currentDate": formatCurrentDate(currentDate),
     "campaign.name": campaignName,
     "event.name": eventName,
     "household.name": constituent?.household?.name ?? "",
-    "organization.name": organization?.name ?? "",
+    "organization.name": organizationName,
     "organization.mission": organizationMission,
-    "organization.address": "",
-    "organization.phone": "",
-    "organization.email": settings?.smtpFromEmail ?? "",
-    "organization.website": "",
-    "organization.taxId": "",
-    "staff.fullName": user ? `${user.firstName} ${user.lastName}`.trim() : "",
-    "staff.title": user?.role ? user.role.toUpperCase() : "",
-    "staff.email": user?.email ?? "",
+    "organization.address": organizationAddress,
+    "organization.phone": readBrandingText(brandingConfig, "contactPhone", "phone"),
+    "organization.email": organizationEmail,
+    "organization.website": readBrandingText(brandingConfig, "websiteUrl", "website"),
+    "organization.taxId": readBrandingText(brandingConfig, "taxId", "ein"),
+    "staff.fullName": readBrandingText(brandingConfig, "defaultLetterSignerName", "defaultSignerName") || (user ? `${user.firstName} ${user.lastName}`.trim() : ""),
+    "staff.title": readBrandingText(brandingConfig, "defaultLetterSignerTitle", "defaultSignerTitle") || (user?.role ? user.role.toUpperCase() : ""),
+    "staff.email": readBrandingText(brandingConfig, "defaultLetterSignerEmail", "defaultSignerEmail") || user?.email || "",
   };
 
   const missingFields = new Set<string>();
