@@ -8,6 +8,7 @@ import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
+import { formatDonationDate } from "@/app/components/donations/donation-utils";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import LetterPage from "@/app/components/letters/LetterPage";
 import {
@@ -4699,7 +4700,7 @@ function GenerateWorkspace() {
               </div>
               <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-sm">
                 <span className="font-semibold text-slate-700">Most Recent Donation Date</span>
-                <span className="font-semibold text-slate-900">{mostRecentDonationDate ? formatDate(mostRecentDonationDate.toISOString()) : "-"}</span>
+                <span className="font-semibold text-slate-900">{mostRecentDonationDate ? formatDonationDate(mostRecentDonationDate.toISOString()) : "-"}</span>
               </div>
             </div>
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -7063,13 +7064,6 @@ function formatDate(value?: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatStoredDate(value?: string | null): string {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
-}
-
 function personName(row: {
   firstName?: string | null;
   lastName?: string | null;
@@ -7140,5 +7134,5 @@ function hasAddress(row: { addressLine1?: string | null; city?: string | null; s
 function formatDonation(row: DonationLookup): string {
   const amount = Number(row.amount);
   const money = Number.isFinite(amount) ? amount.toLocaleString("en-US", { style: "currency", currency: "USD" }) : String(row.amount);
-  return `${money} - ${formatStoredDate(row.date)}`;
+  return `${money} - ${formatDonationDate(row.date)}`;
 }
