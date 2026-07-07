@@ -1875,6 +1875,44 @@ export async function renderGeneratedLetterPdf(params: {
   return Buffer.from(pdfBytes);
 }
 
+function formatPdfDonationDate(date: Date, style: "long" | "short" | "numeric", timeZone?: string): string {
+  const options: Intl.DateTimeFormatOptions = style === "numeric"
+    ? { month: "2-digit", day: "2-digit", year: "numeric" }
+    : { month: style, day: "numeric", year: "numeric" };
+  return new Intl.DateTimeFormat("en-US", {
+    ...options,
+    ...(timeZone ? { timeZone } : {}),
+  }).format(date);
+}
+
+/** Normalizes already-merged donation date text before server PDF export. */
+export function normalizeMergedDonationDateTextForPdfExport(mergedPrintBody: string, donationDate?: Date | null): string {
+  if (!donationDate || !mergedPrintBody) return mergedPrintBody;
+
+  const correctLabels = {
+    long: formatPdfDonationDate(donationDate, "long", "UTC"),
+    short: formatPdfDonationDate(donationDate, "short", "UTC"),
+    numeric: formatPdfDonationDate(donationDate, "numeric", "UTC"),
+  };
+  const previousUtcDate = new Date(donationDate.getTime() - 24 * 60 * 60 * 1000);
+  const staleCandidates = [
+    [formatPdfDonationDate(donationDate, "long"), correctLabels.long],
+    [formatPdfDonationDate(donationDate, "short"), correctLabels.short],
+    [formatPdfDonationDate(donationDate, "numeric"), correctLabels.numeric],
+    [formatPdfDonationDate(previousUtcDate, "long", "UTC"), correctLabels.long],
+    [formatPdfDonationDate(previousUtcDate, "short", "UTC"), correctLabels.short],
+    [formatPdfDonationDate(previousUtcDate, "numeric", "UTC"), correctLabels.numeric],
+  ];
+
+  let output = mergedPrintBody;
+  for (const [staleLabel, correctLabel] of staleCandidates) {
+    if (staleLabel && staleLabel !== correctLabel) {
+      output = output.split(staleLabel).join(correctLabel);
+    }
+  }
+  return output;
+}
+
 /** Renders many generated letters into one multi-page PDF for batch print/export workflows. */
 async function renderGeneratedLettersBatchPdf(items: Array<{
   templateName: string;
@@ -5211,6 +5249,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
           zip: true,
         },
       },
+      donation: { select: { date: true } },
     },
   });
 
@@ -5241,7 +5280,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
         zip: generatedLetter.constituent?.zip ?? "",
       },
       generatedAt: generatedLetter.generatedAt,
-      mergedPrintBody: generatedLetter.mergedPrintBody,
+      mergedPrintBody: normalizeMergedDonationDateTextForPdfExport(generatedLetter.mergedPrintBody, generatedLetter.donation?.date),
       branding,
       presets: {
         headerPreset: null,
@@ -5389,6 +5428,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           zip: true,
         },
       },
+      donation: { select: { date: true } },
     },
   });
 
@@ -5435,7 +5475,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
             zip: row.constituent?.zip ?? "",
           },
           generatedAt: row.generatedAt,
-          mergedPrintBody: row.mergedPrintBody,
+          mergedPrintBody: normalizeMergedDonationDateTextForPdfExport(row.mergedPrintBody, row.donation?.date),
           branding,
           presets: {
             headerPreset: null,

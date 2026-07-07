@@ -110,6 +110,7 @@ interface DonationLookup {
   id: string;
   amount: number | string;
   date: string;
+  dateLabel?: string | null;
   constituentId?: string | null;
   constituent?: {
     firstName?: string | null;
@@ -4053,10 +4054,10 @@ function GenerateWorkspace() {
   const averageDonationAmount = donationAmounts.length > 0
     ? donationAmounts.reduce((sum, amount) => sum + amount, 0) / donationAmounts.length
     : 0;
-  const mostRecentDonationDate = donations
-    .map((item) => new Date(item.date))
-    .filter((value) => !Number.isNaN(value.getTime()))
-    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const mostRecentDonation = donations
+    .map((item) => ({ item, date: new Date(item.date) }))
+    .filter(({ date }) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b.date.getTime() - a.date.getTime())[0]?.item;
   const donationApplicationLabel = donationMode === "none"
     ? "No donation information"
     : donationMode === "specific"
@@ -4700,7 +4701,7 @@ function GenerateWorkspace() {
               </div>
               <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-sm">
                 <span className="font-semibold text-slate-700">Most Recent Donation Date</span>
-                <span className="font-semibold text-slate-900">{mostRecentDonationDate ? formatDonationDate(mostRecentDonationDate.toISOString()) : "-"}</span>
+                <span className="font-semibold text-slate-900">{mostRecentDonation ? donationDateLabel(mostRecentDonation) : "-"}</span>
               </div>
             </div>
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -7134,5 +7135,9 @@ function hasAddress(row: { addressLine1?: string | null; city?: string | null; s
 function formatDonation(row: DonationLookup): string {
   const amount = Number(row.amount);
   const money = Number.isFinite(amount) ? amount.toLocaleString("en-US", { style: "currency", currency: "USD" }) : String(row.amount);
-  return `${money} - ${formatDonationDate(row.date)}`;
+  return `${money} - ${donationDateLabel(row)}`;
+}
+
+function donationDateLabel(row: DonationLookup): string {
+  return row.dateLabel?.trim() || formatDonationDate(row.date);
 }

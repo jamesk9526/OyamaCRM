@@ -1,6 +1,6 @@
 /** Unit coverage for server-side letter PDF block parsing. */
 import { describe, expect, it } from "vitest";
-import { htmlToPdfBlocks, htmlToPlainText, renderGeneratedLetterPdf } from "@/server/src/routes/letters";
+import { htmlToPdfBlocks, htmlToPlainText, normalizeMergedDonationDateTextForPdfExport, renderGeneratedLetterPdf } from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
   it("preserves explicit blank paragraphs and white-space blocks", () => {
@@ -89,6 +89,18 @@ describe("letters PDF layout parsing", () => {
 
   it("keeps more intentional blank lines in plain-text fallback cleanup", () => {
     expect(htmlToPlainText("Top\n\n\n\nBottom")).toBe("Top\n\n\n\nBottom");
+  });
+
+  it("normalizes stale previous-day donation date text before PDF export", () => {
+    const normalized = normalizeMergedDonationDateTextForPdfExport(
+      "<p>Thank you for your gift on June 28, 2026.</p><p>Receipt date 06/28/2026.</p>",
+      new Date("2026-06-29T00:00:00.000Z"),
+    );
+
+    expect(normalized).toContain("June 29, 2026");
+    expect(normalized).toContain("06/29/2026");
+    expect(normalized).not.toContain("June 28, 2026");
+    expect(normalized).not.toContain("06/28/2026");
   });
 
   it("renders an uploaded signature image into a valid server PDF", async () => {

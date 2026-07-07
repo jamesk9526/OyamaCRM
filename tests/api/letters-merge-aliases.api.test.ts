@@ -41,7 +41,7 @@ describe("letters merge aliases API", () => {
       .send({
         constituentId: constituent.body.id,
         amount: 321.45,
-        date: "2026-06-13T12:00:00.000Z",
+        date: "2026-06-29T00:00:00.000Z",
         paymentMethod: "CHECK",
         status: "COMPLETED",
         taxDeductible: true,
@@ -74,7 +74,8 @@ describe("letters merge aliases API", () => {
     expect(preview.status).toBe(200);
     expect(preview.body.mergedPrintBody).toContain(`Dear AliasFirst AliasLast${suffix}`);
     expect(preview.body.mergedPrintBody).toContain("$321.45");
-    expect(preview.body.mergedPrintBody).toContain("June 13, 2026");
+    expect(preview.body.mergedPrintBody).toContain("June 29, 2026");
+    expect(preview.body.mergedPrintBody).not.toContain("June 28, 2026");
     expect(preview.body.mergedPrintBody).toContain(`AliasFirst AliasLast${suffix}`);
     expect(preview.body.mergedPrintBody).toContain(`alias-${suffix}@example.org`);
     expect(preview.body.unsupportedFields).toEqual([]);

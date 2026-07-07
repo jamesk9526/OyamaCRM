@@ -94,6 +94,16 @@ function formatDonationDateForLabel(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Formats donation date-only values for UI labels without local timezone drift. */
+function formatDonationDateForDisplay(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 /** Formats one donation amount with fixed dollars and cents for generated labels. */
 function formatDonationAmountForLabel(amount: Prisma.Decimal): string {
   return Number(amount).toFixed(2);
@@ -447,7 +457,15 @@ router.get("/", async (req, res) => {
     prisma.donation.count({ where }),
   ]);
 
-  res.json({ items, total, page: parsedLimit ? parsedPage : 1, limit: parsedLimit ?? total });
+  res.json({
+    items: items.map((item) => ({
+      ...item,
+      dateLabel: formatDonationDateForDisplay(item.date),
+    })),
+    total,
+    page: parsedLimit ? parsedPage : 1,
+    limit: parsedLimit ?? total,
+  });
 });
 
 /**
