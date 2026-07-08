@@ -137,6 +137,70 @@ describe("letters-merge", () => {
     expect(output).toBe("Gift date: 06/29/2026 / June 29, 2026");
   });
 
+  it("renders canonical gift amount and gift date on the same line", () => {
+    const keys = collectMergeFieldKeys(
+      "Gift line: {{gift.amount}} on {{gift.date}}. Adjacent: {{gift.amount}}{{gift.date}}.",
+    );
+    const output = renderMergeFields(
+      "Gift line: {{gift.amount}} on {{gift.date}}. Adjacent: {{gift.amount}}{{gift.date}}.",
+      {
+        "gift.amount": "$125.00",
+        "gift.date": "June 13, 2026",
+      },
+    );
+
+    expect(keys).toEqual(["gift.amount", "gift.date"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("Gift line: $125.00 on June 13, 2026. Adjacent: $125.00June 13, 2026.");
+  });
+
+  it("renders donation compatibility aliases for amount and date on the same line", () => {
+    const keys = collectMergeFieldKeys("Donation line: {{donation.amount}} on {{donation.date}}.");
+    const output = renderMergeFields(
+      "Donation line: {{donation.amount}} on {{donation.date}}.",
+      {
+        "gift.amount": "$321.45",
+        "gift.date": "June 29, 2026",
+      },
+    );
+
+    expect(keys).toEqual(["gift.amount", "gift.date"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("Donation line: $321.45 on June 29, 2026.");
+  });
+
+  it("renders advertised shorthand amount and date aliases in double-brace form", () => {
+    const keys = collectMergeFieldKeys("Gift shorthand: {{amount}} {{giftAmount}} {{date}} {{giftDate}}.");
+    const output = renderMergeFields(
+      "Gift shorthand: {{amount}} {{giftAmount}} {{date}} {{giftDate}}.",
+      {
+        "gift.amount": "$50.00",
+        "gift.date": "July 7, 2026",
+      },
+    );
+
+    expect(keys).toEqual(["gift.amount", "gift.date"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("Gift shorthand: $50.00 $50.00 July 7, 2026 July 7, 2026.");
+  });
+
+  it("renders donor-prefixed compatibility aliases shared with email templates", () => {
+    const keys = collectMergeFieldKeys("Dear {{donor.first}} {{donor.last}}, {{donor.name}} gave on {{donor.giftDate}}.");
+    const output = renderMergeFields(
+      "Dear {{donor.first}} {{donor.last}}, {{donor.name}} gave on {{donor.giftDate}}.",
+      {
+        "donor.firstName": "Ava",
+        "donor.lastName": "Taylor",
+        "donor.fullName": "Ava Taylor",
+        "gift.date": "July 7, 2026",
+      },
+    );
+
+    expect(keys).toEqual(["donor.firstName", "donor.fullName", "donor.lastName", "gift.date"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("Dear Ava Taylor, Ava Taylor gave on July 7, 2026.");
+  });
+
   it("renders email-style compatibility aliases used by shared communication helpers", () => {
     const keys = collectMergeFieldKeys(
       "{{organizationName}} {{organizationPhone}} {{organizationWebsite}} {{organizationTaxId}} {{staffName}} {{staff.name}} {{staffTitle}} {{staffEmail}} {{campaignName}} {{currentYear}} {{currentDate}}",
@@ -193,6 +257,7 @@ describe("letters-merge", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{organization.name}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{currentDate}}");
     expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{organizationName}}");
+    expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{giftAmount}}");
     expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{lastGiftAmount}}");
     expect(COMPATIBILITY_LETTER_MERGE_FIELDS).toContain("{{staff.name}}");
   });

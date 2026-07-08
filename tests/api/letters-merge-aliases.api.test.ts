@@ -169,4 +169,66 @@ describe("letters merge aliases API", () => {
     expect(preview.body.mergedPrintBody).not.toContain("$999.00");
     expect(preview.body.missingFields).toEqual([]);
   });
+
+  it("renders gift date and amount on the same line for browser print PDF preview", async () => {
+    const suffix = Date.now();
+    const constituent = await request(app)
+      .post("/api/constituents")
+      .set(auth())
+      .send({
+        firstName: "PrintPdf",
+        lastName: `GiftLine${suffix}`,
+        email: `print-pdf-gift-line-${suffix}@example.org`,
+        addressLine1: "789 Print Preview Rd",
+        city: "Monett",
+        state: "MO",
+        zip: "65708",
+        type: "DONOR",
+      });
+    expect(constituent.status).toBe(201);
+
+    const donation = await request(app)
+      .post("/api/donations")
+      .set(auth())
+      .send({
+        constituentId: constituent.body.id,
+        amount: 77.77,
+        date: "2026-07-07T00:00:00.000Z",
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+        notes: "Browser print PDF merge preview test",
+      });
+    expect(donation.status).toBe(201);
+
+    const template = await request(app)
+      .post("/api/letters/templates")
+      .set(auth())
+      .send({
+        name: `Browser Print PDF Merge ${suffix}`,
+        category: "THANK_YOU",
+        status: "DRAFT",
+        printSubject: "Printable Letter",
+        printBody: [
+          "<p>Dear {{donor.fullName}},</p>",
+          "<p>{{gift.date}} {{gift.amount}}</p>",
+          "<p>Alias: {giftDate} {giftAmount}</p>",
+        ].join(""),
+        emailBody: "Thanks {{donor.fullName}}.",
+      });
+    expect(template.status).toBe(201);
+
+    const preview = await request(app)
+      .get(`/api/letters/templates/${template.body.id}/print-preview`)
+      .set(auth());
+
+    expect(preview.status).toBe(200);
+    expect(preview.body.mergedPrintBody).toContain("July 7, 2026 $77.77");
+    expect(preview.body.mergedPrintBody).toContain("Alias: July 7, 2026 $77.77");
+    expect(preview.body.mergedPrintBody).not.toContain("{{gift.date}}");
+    expect(preview.body.mergedPrintBody).not.toContain("{{gift.amount}}");
+    expect(preview.body.mergedPrintBody).not.toContain("{giftDate}");
+    expect(preview.body.mergedPrintBody).not.toContain("{giftAmount}");
+    expect(preview.body.resolvedDonationId).toBe(donation.body.id);
+  });
 });

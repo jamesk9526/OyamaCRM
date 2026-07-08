@@ -541,7 +541,7 @@ async function buildTemplateMergeVars(params: {
       "gift.amount": donationAmount,
       "gift.amountType": giftAmountType,
       "donation.amountType": giftAmountType,
-      "gift.date": formatDate(donation?.date ?? null),
+      "gift.date": resolvedLastGiftDate,
       "gift.receiptNumber": donation?.receiptNumber?.trim() || "",
       "gift.taxDeductibleAmount": taxDeductibleAmount,
 

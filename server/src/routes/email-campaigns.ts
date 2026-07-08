@@ -33,10 +33,10 @@ import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
 import {
   buildEmailMergePreviewWarnings,
-  canonicalizeEmailMergeToken,
   findUnsupportedEmailMergeTokens,
 } from "../services/oyama-email/merge-field-catalog.js";
 import {
+  applyMergeTokens,
   normalizeEmailTemplateDocument,
   normalizeEmailTemplateSettings,
   renderEmailTemplateDocument,
@@ -709,8 +709,6 @@ function buildCampaignDeliveryBodies(
   };
 }
 
-const CAMPAIGN_MERGE_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
-
 type CampaignPreviewMode = "audience-sample" | "manual-email" | "template-only";
 
 type CampaignPreviewRecipient = {
@@ -724,16 +722,6 @@ type CampaignMergeContext = {
   recipient: CampaignPreviewRecipient | null;
   vars: Record<string, string>;
 };
-
-function renderCampaignMergeTokens(content: string, vars: Record<string, string>): string {
-  return content.replace(CAMPAIGN_MERGE_TOKEN_PATTERN, (_match, rawToken: string) => {
-    const token = canonicalizeEmailMergeToken(rawToken);
-    if (Object.prototype.hasOwnProperty.call(vars, token)) {
-      return vars[token] ?? "";
-    }
-    return "";
-  });
-}
 
 function formatCampaignCurrency(value: Prisma.Decimal | number | null | undefined): string {
   const numeric = Number(value ?? Number.NaN);
@@ -938,7 +926,7 @@ async function buildCampaignMergeContext(params: {
       "gift.amount": donationAmount,
       "gift.amountType": giftAmountType,
       "donation.amountType": giftAmountType,
-      "gift.date": formatCampaignDate(latestDonation?.date ?? null),
+      "gift.date": resolvedLastGiftDate,
       "gift.receiptNumber": latestDonation?.receiptNumber?.trim() || "",
       "gift.taxDeductibleAmount": taxDeductibleAmount,
       campaignName: donationCampaignName || params.campaign.name,
@@ -1021,10 +1009,10 @@ async function personalizeCampaignContent(params: {
     campaign: params.campaign,
   });
 
-  let subject = renderCampaignMergeTokens(params.campaign.subject || params.campaign.name, mergeContext.vars);
-  const previewText = renderCampaignMergeTokens(params.campaign.previewText?.trim() || "", mergeContext.vars);
-  let html = renderCampaignMergeTokens(params.deliveryBodies.html, mergeContext.vars);
-  let text = renderCampaignMergeTokens(params.deliveryBodies.text, mergeContext.vars);
+  let subject = applyMergeTokens(params.campaign.subject || params.campaign.name, mergeContext.vars);
+  const previewText = applyMergeTokens(params.campaign.previewText?.trim() || "", mergeContext.vars);
+  let html = applyMergeTokens(params.deliveryBodies.html, mergeContext.vars);
+  let text = applyMergeTokens(params.deliveryBodies.text, mergeContext.vars);
 
   const shouldIssueLinks =
     requiresPreferenceCompliance(params.purpose)
@@ -2202,7 +2190,6 @@ function resolveMediaExtension(mimeType: string, fileName: string): string {
   if (safeMime.includes("png")) return "png";
   if (safeMime.includes("gif")) return "gif";
   if (safeMime.includes("webp")) return "webp";
-  if (safeMime.includes("svg")) return "svg";
 
   const extFromName = path.extname(fileName || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   return extFromName || "bin";
@@ -2988,6 +2975,11 @@ router.post("/:id/media", async (req, res) => {
   const dataBase64 = typeof req.body?.dataBase64 === "string" ? req.body.dataBase64.trim() : "";
   if (!fileName || !dataBase64) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "fileName and dataBase64 are required" } });
+    return;
+  }
+  const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+  if (!allowedImageMimeTypes.has(mimeType.toLowerCase())) {
+    res.status(400).json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Email image uploads must be PNG, JPG, WEBP, or GIF." } });
     return;
   }
 

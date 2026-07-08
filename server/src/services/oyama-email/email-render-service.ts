@@ -33,6 +33,8 @@ export interface OyamaEmailBlock {
   content?: string;
   src?: string;
   alt?: string;
+  imageWidthPercent?: number;
+  imageLinkUrl?: string;
   label?: string;
   href?: string;
   color?: string;
@@ -507,11 +509,17 @@ function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
   }
 
   if (type === "image") {
+    const alignRaw = asString(input.align).trim().toLowerCase();
+    const align = alignRaw === "left" || alignRaw === "right" ? alignRaw : "center";
     return {
       id,
       type,
       src: asString(input.src).trim(),
       alt: asString(input.alt).trim(),
+      imageWidthPercent: clamp(asNumber(input.imageWidthPercent, asNumber(input.width, 100)), 20, 100),
+      imageLinkUrl: asString(input.imageLinkUrl).trim() || asString(input.link).trim(),
+      caption: asString(input.caption).trim(),
+      align,
     };
   }
 
@@ -763,10 +771,18 @@ function renderImageBlock(block: OyamaEmailBlock): string {
   }
 
   const alt = escapeHtml(asString(block.alt).trim() || "Email image");
+  const widthPercent = clamp(asNumber(block.imageWidthPercent, 100), 20, 100);
+  const align = block.align === "left" || block.align === "right" ? block.align : "center";
+  const margin = align === "left" ? "0 auto 0 0" : align === "right" ? "0 0 0 auto" : "0 auto";
+  const image = `<img src="${escapeHtml(src)}" alt="${alt}" width="${widthPercent}%" style="width:${widthPercent}%;max-width:100%;height:auto;border-radius:10px;display:block;margin:${margin};border:0;" />`;
+  const linkUrl = asString(block.imageLinkUrl).trim();
+  const imageHtml = linkUrl ? `<a href="${escapeHtml(linkUrl)}" style="text-decoration:none;">${image}</a>` : image;
+  const caption = asString(block.caption).trim();
   return `
 <tr>
   <td style="padding:14px 24px;text-align:center;">
-    <img src="${escapeHtml(src)}" alt="${alt}" style="max-width:100%;height:auto;border-radius:10px;display:block;margin:0 auto;" />
+    ${imageHtml}
+    ${caption ? `<div style="margin-top:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.4;color:#64748b;text-align:center;">${escapeHtml(caption)}</div>` : ""}
   </td>
 </tr>`;
 }

@@ -1156,6 +1156,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [snippetAlign, setSnippetAlign] = useState<LetterTextAlign>("left");
   const [tableBuilder, setTableBuilder] = useState<TableBuilderDraft>(DEFAULT_TABLE_BUILDER);
   const [selectedImageWidth, setSelectedImageWidth] = useState<number | null>(null);
+  const [selectedImageAlt, setSelectedImageAlt] = useState("");
+  const [selectedImageAlign, setSelectedImageAlign] = useState<"left" | "center" | "right">("center");
   const [zoom, setZoom] = useState(100);
   const [previewMode, setPreviewMode] = useState(false);
   const [showMarginGuides, setShowMarginGuides] = useState(true);
@@ -1829,7 +1831,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           purpose: "editor",
         }),
       });
-      insertBlock(`<img src="${escapeHtml(uploaded.url)}" alt="${escapeHtml(file.name)}" data-letter-width="50" style="width:50%; max-width:100%; height:auto;" />`);
+      insertBlock(`<figure data-letter-image-block="true" style="margin:12px 0; text-align:center;"><img src="${escapeHtml(uploaded.url)}" alt="${escapeHtml(file.name)}" data-letter-width="50" style="width:50%; max-width:100%; height:auto;" /></figure>`);
       setNotice(`Image inserted: ${file.name}`);
     } catch (requestError) {
       setNotice(errorMessage(requestError, "Image upload failed. Try another file."));
@@ -1841,12 +1843,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     if (!(target instanceof HTMLImageElement)) {
       selectedEditorImageRef.current = null;
       setSelectedImageWidth(null);
+      setSelectedImageAlt("");
+      setSelectedImageAlign("center");
       return;
     }
     selectedEditorImageRef.current = target;
     const marker = Number.parseFloat(target.dataset.letterWidth ?? "");
     const width = Number.isFinite(marker) ? marker : Math.round((target.getBoundingClientRect().width / Math.max(1, editorRef.current?.getBoundingClientRect().width ?? 1)) * 100);
     setSelectedImageWidth(Math.min(100, Math.max(10, width)));
+    setSelectedImageAlt(target.alt || "");
+    const container = target.closest<HTMLElement>("[data-letter-image-block], figure, p, div");
+    const textAlign = container?.style.textAlign === "left" || container?.style.textAlign === "right" ? container.style.textAlign : "center";
+    setSelectedImageAlign(textAlign);
     setInspectorTab("Block Settings");
   }
 
@@ -1865,6 +1873,36 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setSelectedImageWidth(normalized);
     commitBody(editor.innerHTML);
     setNotice(`Image width set to ${normalized}%.`);
+  }
+
+  function updateSelectedImageAlt(value: string) {
+    const image = selectedEditorImageRef.current;
+    const editor = editorRef.current;
+    setSelectedImageAlt(value);
+    if (!image || !editor || !editor.contains(image)) return;
+    image.alt = value;
+    commitBody(editor.innerHTML);
+  }
+
+  function alignSelectedImage(align: "left" | "center" | "right") {
+    const image = selectedEditorImageRef.current;
+    const editor = editorRef.current;
+    if (!image || !editor || !editor.contains(image)) {
+      setNotice("Select an image in the letter before aligning it.");
+      return;
+    }
+    let container = image.closest<HTMLElement>("[data-letter-image-block], figure");
+    if (!container) {
+      container = document.createElement("figure");
+      container.dataset.letterImageBlock = "true";
+      image.replaceWith(container);
+      container.appendChild(image);
+    }
+    container.style.margin = "12px 0";
+    container.style.textAlign = align;
+    setSelectedImageAlign(align);
+    commitBody(editor.innerHTML);
+    setNotice(`Image aligned ${align}.`);
   }
 
   function insertSignature(signature?: SignatureBlock | null) {
@@ -2711,6 +2749,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <p className="text-xs text-slate-500">Select an image in the letter to resize it.</p>
                   ) : (
                     <div className="space-y-3">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Alt Text
+                        <input
+                          value={selectedImageAlt}
+                          onChange={(event) => updateSelectedImageAlt(event.target.value)}
+                          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-800"
+                        />
+                      </label>
                       <input
                         aria-label="Selected image width"
                         type="range"
@@ -2723,6 +2769,13 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                       />
                       <div className="grid grid-cols-4 gap-2">
                         {[25, 50, 75, 100].map((width) => <Button key={width} onClick={() => resizeSelectedImage(width)}>{width}%</Button>)}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["left", "center", "right"] as const).map((align) => (
+                          <Button key={align} onClick={() => alignSelectedImage(align)} tone={selectedImageAlign === align ? "primary" : "default"}>
+                            {align.charAt(0).toUpperCase() + align.slice(1)}
+                          </Button>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -6967,9 +7020,9 @@ function ensureEditorSelection(editor: HTMLDivElement): void {
   selection.addRange(range);
 }
 
-const CANONICAL_LETTER_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
-const SIMPLE_LETTER_TOKEN_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*\}(?!\})/g;
-const SLASH_LETTER_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_.]*)\b/g;
+const CANONICAL_LETTER_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)(?:\s*\|\s*([^}]+?))?\s*\}\}/g;
+const SIMPLE_LETTER_TOKEN_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_]*)(?:\s*\|\s*([^}]+?))?\s*\}(?!\})/g;
+const SLASH_LETTER_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_]*)(?![\w/])/g;
 
 function extractTokens(value: string): string[] {
   const tokens = new Set<string>();
@@ -6997,11 +7050,17 @@ function extractTokens(value: string): string[] {
 }
 
 function normalizeToken(token: string): string {
-  const compact = token.replace(/\s+/g, "");
-  if (compact.startsWith("{{") && compact.endsWith("}}")) return compact;
-  if (compact.startsWith("{") && compact.endsWith("}")) return compact;
-  if (compact.startsWith("//")) return compact;
-  return compact;
+  const trimmed = token.trim();
+  if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
+    const key = trimmed.slice(2, -2).split("|")[0]?.trim().replace(/\s+/g, "") ?? "";
+    return `{{${key}}}`;
+  }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    const key = trimmed.slice(1, -1).split("|")[0]?.trim().replace(/\s+/g, "") ?? "";
+    return `{${key}}`;
+  }
+  if (trimmed.startsWith("//")) return trimmed.replace(/\s+/g, "");
+  return trimmed.replace(/\s+/g, "");
 }
 
 function decorateMergeTokens(html: string, registry: Set<string>): string {
@@ -7013,8 +7072,8 @@ function decorateMergeTokens(html: string, registry: Set<string>): string {
   };
 
   return html
-    .replace(CANONICAL_LETTER_TOKEN_PATTERN, (_match, key: string) => renderBadge(`{{${String(key || "").trim()}}}`))
-    .replace(SIMPLE_LETTER_TOKEN_PATTERN, (_match, prefix: string, key: string) => `${prefix}${renderBadge(`{${String(key || "").trim()}}`)}`)
+    .replace(CANONICAL_LETTER_TOKEN_PATTERN, (match: string) => renderBadge(match))
+    .replace(SIMPLE_LETTER_TOKEN_PATTERN, (match: string, prefix: string) => `${prefix}${renderBadge(match.slice(prefix.length))}`)
     .replace(SLASH_LETTER_TOKEN_PATTERN, (_match, prefix: string, key: string) => `${prefix}${renderBadge(`//${String(key || "").trim()}`)}`);
 }
 

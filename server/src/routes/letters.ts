@@ -279,7 +279,7 @@ function getRouteId(req: Request): string {
 function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toUpperCase();
-  return allowed.includes(normalized as T) ? (normalized as T) : null;
+  return allowed.find((item) => item.toUpperCase() === normalized) ?? null;
 }
 
 /** Normalizes optional string id values and maps blank strings to null. */
@@ -513,14 +513,26 @@ async function resolveRecentDonationIdForRecipient(params: {
       constituent: { organizationId: params.organizationId },
     },
     select: { id: true },
-    orderBy: { date: "desc" },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   return row?.id;
 }
 
 function parseDonationIds(rawDonationIds: unknown): string[] {
-  if (!Array.isArray(rawDonationIds)) return [];
-  return Array.from(new Set(rawDonationIds.map((value) => String(value).trim()).filter(Boolean)));
+  const readDonationId = (value: unknown): string => {
+    if (typeof value === "string") return value.trim();
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const record = value as Record<string, unknown>;
+      if (typeof record.id === "string") return record.id.trim();
+      if (typeof record.donationId === "string") return record.donationId.trim();
+    }
+    return "";
+  };
+  if (Array.isArray(rawDonationIds)) {
+    return Array.from(new Set(rawDonationIds.map(readDonationId).filter(Boolean)));
+  }
+  const single = readDonationId(rawDonationIds);
+  return single ? [single] : [];
 }
 
 async function buildSelectedDonationIdByConstituent(params: {
@@ -553,12 +565,18 @@ async function resolveDonationIdForRecipient(params: {
   constituentId?: string;
   donationMode: LetterDonationMode;
   specificDonationId?: string;
+  selectedDonationIds?: string[];
   selectedDonationIdByConstituent?: Map<string, string>;
   donationWhere: Prisma.DonationWhereInput;
 }): Promise<string | undefined> {
   if (params.donationMode === "specific") return params.specificDonationId;
   if (!params.constituentId) return undefined;
-  if (params.donationMode === "selected") return params.selectedDonationIdByConstituent?.get(params.constituentId);
+  if (params.donationMode === "selected") {
+    const selectedForConstituent = params.selectedDonationIdByConstituent?.get(params.constituentId);
+    if (selectedForConstituent) return selectedForConstituent;
+    if (params.selectedDonationIds?.length === 1) return params.selectedDonationIds[0];
+    return undefined;
+  }
   if (params.donationMode === "recent") {
     return resolveRecentDonationIdForRecipient({
       organizationId: params.organizationId,
@@ -2630,6 +2648,108 @@ router.get("/templates", requirePermission("letters.view"), async (req, res) => 
   }
 });
 
+/** GET /api/letters/templates/:id/print-preview — Returns merged sample output for browser print/PDF. */
+router.get("/templates/:id/print-preview", requirePermission("letters.view"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const template = await prisma.letterTemplate.findFirst({
+    where: { id: getRouteId(req), organizationId },
+    select: {
+      id: true,
+      name: true,
+      printSubject: true,
+      printBody: true,
+      emailSubject: true,
+      emailBody: true,
+    },
+  });
+
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const detectedFields = collectMergeFieldKeys(template.printBody, template.emailBody, template.printSubject, template.emailSubject);
+  const needsGiftContext = detectedFields.some((field) => field.startsWith("gift.") || field.startsWith("donation."));
+  const sampleConstituent = await prisma.constituent.findFirst({
+    where: {
+      organizationId,
+      doNotMail: false,
+      ...(needsGiftContext ? { donations: { some: { status: "COMPLETED" } } } : {}),
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      organizationName: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
+      state: true,
+      zip: true,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const resolvedDonationId = await resolveDonationIdForRecipient({
+    organizationId,
+    constituentId: sampleConstituent?.id,
+    donationMode: sampleConstituent ? "recent" : "none",
+    donationWhere: buildDonationContextFilter({ donationDateRange: "All time" }),
+  });
+
+  const merged = await resolveLetterMergeContext({
+    organizationId,
+    template,
+    constituentId: sampleConstituent?.id,
+    donationId: resolvedDonationId,
+    actorUserId: userId,
+  });
+
+  const recipientName = sampleConstituent
+    ? [sampleConstituent.firstName, sampleConstituent.lastName].filter(Boolean).join(" ").trim()
+      || sampleConstituent.displayName?.trim()
+      || sampleConstituent.organizationName?.trim()
+      || "Sample Preview Recipient"
+    : "Sample Preview Recipient";
+
+  res.json({
+    templateId: template.id,
+    templateName: template.name,
+    mergedPrintSubject: merged.mergedPrintSubject || template.printSubject || template.name,
+    mergedPrintBody: merged.mergedPrintBody,
+    missingFields: merged.missingFields,
+    unsupportedFields: merged.unsupportedFields,
+    resolvedConstituentId: merged.resolvedConstituentId,
+    resolvedDonationId: merged.resolvedDonationId,
+    recipient: sampleConstituent
+      ? {
+        id: sampleConstituent.id,
+        displayName: recipientName,
+        addressLine1: sampleConstituent.addressLine1 ?? "",
+        addressLine2: sampleConstituent.addressLine2 ?? "",
+        city: sampleConstituent.city ?? "",
+        state: sampleConstituent.state ?? "",
+        postalCode: sampleConstituent.zip ?? "",
+      }
+      : {
+        id: null,
+        displayName: recipientName,
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+      },
+  });
+});
+
 /** GET /api/letters/templates/:id — Returns one template with preset references. */
 router.get("/templates/:id", requirePermission("letters.view"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -3470,10 +3590,11 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     const resolvedDonationId = await resolveDonationIdForRecipient({
       organizationId,
       constituentId: sampleConstituent?.id,
-      donationMode,
-      specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
-      selectedDonationIdByConstituent,
-      donationWhere: buildDonationContextFilter({
+    donationMode,
+    specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIds: donationIds,
+    selectedDonationIdByConstituent,
+    donationWhere: buildDonationContextFilter({
         ...(req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {}),
         donationDateRange: req.body?.donationDateRange ?? "All time",
       }),
@@ -3508,7 +3629,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
         zip: sampleRecipient.zip ?? "",
       },
       generatedAt: new Date(),
-      mergedPrintBody: merged.mergedPrintBody || previewTemplate.printBody || "",
+      mergedPrintBody: merged.mergedPrintBody || "",
       branding,
       presets: {
         headerPreset: null,
@@ -4204,6 +4325,7 @@ router.post("/generated/preview", requirePermission("letters.generate"), async (
     constituentId,
     donationMode,
     specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIds: donationIds,
     selectedDonationIdByConstituent,
     donationWhere,
   });
@@ -4268,6 +4390,7 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
     constituentId,
     donationMode,
     specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIds: donationIds,
     selectedDonationIdByConstituent,
     donationWhere,
   });
@@ -4329,7 +4452,7 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
         zip: constituent.zip ?? "",
       },
       generatedAt: new Date(),
-      mergedPrintBody: merged.mergedPrintBody || template.printBody || "",
+      mergedPrintBody: merged.mergedPrintBody || "",
       branding,
       presets: {
         headerPreset: null,
@@ -4412,6 +4535,7 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
     constituentId,
     donationMode,
     specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+    selectedDonationIds: donationIds,
     selectedDonationIdByConstituent,
     donationWhere,
   });
@@ -5703,6 +5827,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       constituentId: candidate.id,
       donationMode,
       specificDonationId,
+      selectedDonationIds,
       selectedDonationIdByConstituent,
       donationWhere: donationContextFilter,
     });

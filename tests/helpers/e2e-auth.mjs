@@ -32,9 +32,14 @@ export async function loginViaApi(page, options = {}) {
     let response = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      response = await page.request.post(loginUrl, {
-        data: { email, password },
-      });
+      try {
+        response = await page.request.post(loginUrl, {
+          data: { email, password },
+        });
+      } catch {
+        response = null;
+        break;
+      }
 
       if (response.ok()) break;
 

@@ -22,6 +22,9 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("{last}");
     expect(workspace).toContain("{amount}");
     expect(workspace).toContain("//first");
+    expect(workspace).toContain("const CANONICAL_LETTER_TOKEN_PATTERN = /\\{\\{\\s*([a-zA-Z0-9_.]+)(?:\\s*\\|\\s*([^}]+?))?\\s*\\}\\}/g");
+    expect(workspace).toContain("const SIMPLE_LETTER_TOKEN_PATTERN = /(^|[^{])\\{\\s*([a-zA-Z][a-zA-Z0-9_]*)(?:\\s*\\|\\s*([^}]+?))?\\s*\\}(?!\\})/g");
+    expect(workspace).toContain("split(\"|\")[0]");
     expect(mergeService).toContain("{{donor.firstName}}");
     expect(mergeService).toContain("{{donor.lastName}}");
     expect(mergeService).toContain("{{donor.fullName}}");
@@ -56,7 +59,11 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Push to Bottom");
     expect(workspace).toContain("Signature (optional)");
     expect(workspace).toContain("resizeSelectedImage");
+    expect(workspace).toContain("updateSelectedImageAlt");
+    expect(workspace).toContain("alignSelectedImage");
     expect(workspace).toContain("Selected Image Size");
+    expect(workspace).toContain("data-letter-image-block");
+    expect(workspace).toContain("Alt Text");
     expect(workspace).toContain('purpose: "editor"');
     expect(workspace).not.toContain('window.prompt("Rows"');
     expect(workspace).not.toContain('window.prompt("Columns"');
@@ -104,6 +111,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(letterDocument).toContain("brandingSnapshot");
     expect(printRoute).toContain("<LetterPage");
     expect(printRoute).toContain("buildLetterDocument");
+    expect(printRoute).toContain("/print-preview");
+    expect(printRoute).toContain("mergedPrintBody");
     expect(printRoute).toContain("document={document}");
     expect(printRoute).toContain("window.print()");
     expect(printPage).toContain("LetterPrintRoute");

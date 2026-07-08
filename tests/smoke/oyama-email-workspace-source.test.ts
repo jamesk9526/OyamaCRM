@@ -78,6 +78,10 @@ describe("OyamaEmail workspace source contract", () => {
     expect(builder).toContain("Show Me How It Will Look to the Recipient");
     expect(builder).toContain("Recipient Email Preview");
     expect(builder).toContain("Open Advanced Editor");
+    expect(builder).toContain("imageWidthPercent");
+    expect(builder).toContain("imageLinkUrl");
+    expect(builder).toContain("Upload Image");
+    expect(builder).toContain("Full Width");
     expect(builder).toContain("saveTemplate(false)");
     expect(builder).toContain("refreshServerPreview({ silent: false, templateId: previewTemplateId })");
   });

@@ -72,6 +72,7 @@ describe("letters PDF layout parsing", () => {
     const blocks = htmlToPdfBlocks([
       '<img src="/uploads/letter-media/org/photo.png" alt="Impact photo" data-letter-width="75" style="width:75%;height:auto;" />',
       '<p><img src="/uploads/letter-media/org/signature.png" alt="Signature" data-letter-width="34" /></p>',
+      '<figure data-letter-image-block="true" style="text-align:right;"><img src="/uploads/letter-media/org/team.png" alt="Team photo" data-letter-width="45" style="width:45%;max-width:100%;height:auto;" /></figure>',
     ].join(""));
 
     expect(blocks[0]).toMatchObject({
@@ -84,6 +85,12 @@ describe("letters PDF layout parsing", () => {
       kind: "image",
       src: "/uploads/letter-media/org/signature.png",
       widthPercent: 34,
+    });
+    expect(blocks[2]).toMatchObject({
+      kind: "image",
+      src: "/uploads/letter-media/org/team.png",
+      alt: "Team photo",
+      widthPercent: 45,
     });
   });
 

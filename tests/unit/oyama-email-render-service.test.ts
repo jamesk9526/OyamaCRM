@@ -105,6 +105,31 @@ describe("oyama email render service", () => {
     expect(rendered.html).toContain("{{eventDate}}");
   });
 
+  it("renders uploaded image blocks with width, alignment, link, and caption", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [
+        {
+          id: "impact-photo",
+          type: "image",
+          src: "https://cdn.example.org/impact/photo.jpg",
+          alt: "Impact photo",
+          imageWidthPercent: 55,
+          align: "right",
+          imageLinkUrl: "https://example.org/story",
+          caption: "Impact caption",
+        },
+      ],
+    });
+
+    const rendered = renderEmailTemplateDocument(template, normalizeEmailTemplateSettings({ includeUnsubscribeLink: false }));
+
+    expect(rendered.html).toContain('<a href="https://example.org/story"');
+    expect(rendered.html).toContain('alt="Impact photo"');
+    expect(rendered.html).toContain("width:55%");
+    expect(rendered.html).toContain("margin:0 0 0 auto");
+    expect(rendered.html).toContain("Impact caption");
+  });
+
   it("resolves compatibility merge aliases to canonical values", () => {
     const output = applyMergeTokens(
       "{{eventDate}} {{eventTime}} {{eventLocation}} {{donor.preferredName}}",
@@ -131,5 +156,33 @@ describe("oyama email render service", () => {
     );
 
     expect(output).toBe("Hi Ava Donor, your $42.00 gift on June 13, 2026 matters.");
+  });
+
+  it("resolves gift amount and gift date when they appear on the same line", () => {
+    const output = applyMergeTokens(
+      "Your gift of {{gift.amount}} on {{gift.date}} was received. Alias: {giftAmount} / {giftDate}.",
+      {
+        donationAmount: "$42.00",
+        "gift.date": "June 13, 2026",
+      },
+    );
+
+    expect(output).toBe("Your gift of $42.00 on June 13, 2026 was received. Alias: $42.00 / June 13, 2026.");
+  });
+
+  it("resolves donor-prefixed simple merge aliases", () => {
+    const output = applyMergeTokens(
+      "{{donor.first}} {{donor.last}} {{donor.name}} {{donor.preferred}} {{donor.giftDate}} {{donor.totalGiving}}",
+      {
+        firstName: "Ava",
+        lastName: "Donor",
+        fullName: "Ava Donor",
+        preferredName: "Ava",
+        "gift.date": "June 13, 2026",
+        totalLifetimeGiving: "$500.00",
+      },
+    );
+
+    expect(output).toBe("Ava Donor Ava Donor Ava June 13, 2026 $500.00");
   });
 });

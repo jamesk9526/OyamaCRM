@@ -68,13 +68,20 @@ async function seedBatchRun(token) {
       name: `E2E Batch Template ${suffix}`,
       category: "THANK_YOU",
       status: "ACTIVE",
-      printBody: "Dear {{donor.firstName}}, thank you for supporting {{organization.name}}.",
-      emailBody: "Thanks {{donor.firstName}}.",
+      printBody: [
+        "Dear {{donor.firstName}}, thank you for supporting {{organization.name}}.",
+        "Same-line gift output: {{gift.amount}} on {{gift.date}}.",
+        "Alias output: {giftAmount} / {giftDate}.",
+      ].join(" "),
+      emailBody: "Thanks {{donor.firstName}} for {giftAmount} on {giftDate}.",
     }),
   }), "Template setup");
 
   const constituentIds = [];
+  const expectedGiftLines = [];
   for (let index = 1; index <= 3; index += 1) {
+    const amount = 100 + index + 0.25;
+    const date = `2026-06-2${index}T12:00:00.000Z`;
     const row = await expectJsonOk(await fetch(`${API_BASE}/api/constituents`, {
       method: "POST",
       headers,
@@ -90,9 +97,29 @@ async function seedBatchRun(token) {
       }),
     }), `Constituent ${index} setup`);
     constituentIds.push(row.id);
+
+    await expectJsonOk(await fetch(`${API_BASE}/api/donations`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        constituentId: row.id,
+        amount,
+        date,
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+        notes: "E2E merge-field donation context",
+      }),
+    }), `Donation ${index} setup`);
+
+    expectedGiftLines.push({
+      constituentId: row.id,
+      amount: `$${amount.toFixed(2)}`,
+      date: `June 2${index}, 2026`,
+    });
   }
 
-  return { suffix, templateId: template.id, constituentIds };
+  return { suffix, templateId: template.id, constituentIds, expectedGiftLines };
 }
 
 async function run() {
@@ -125,8 +152,22 @@ async function run() {
     }
 
     await page.getByRole("button", { name: /next: donation context/i }).first().click();
-    await page.getByText("No donation information").click();
-    await page.getByRole("button", { name: /next: preview/i }).first().click();
+    await page.getByText("Use each recipient's most recent donation").click();
+    const [previewRawResponse] = await Promise.all([
+      page.waitForResponse((response) => response.url().includes("/api/letters/generated/preview") && response.request().method() === "POST"),
+      page.getByRole("button", { name: /next: preview/i }).first().click(),
+    ]);
+    const preview = await previewRawResponse.json();
+    const matchedExpectedGift = seeded.expectedGiftLines.find((item) =>
+      preview.mergedPrintBody?.includes(`Same-line gift output: ${item.amount} on ${item.date}`)
+      && preview.mergedPrintBody?.includes(`Alias output: ${item.amount} / ${item.date}`)
+    );
+    if (!matchedExpectedGift) {
+      throw new Error(`Preview did not render same-line gift amount/date: ${JSON.stringify(preview)}`);
+    }
+    if (/\{\{\s*gift\.(amount|date)\s*\}\}|\{giftAmount\}|\{giftDate\}/.test(preview.mergedPrintBody ?? "")) {
+      throw new Error(`Preview left raw gift merge fields unresolved: ${preview.mergedPrintBody}`);
+    }
     await page.getByRole("heading", { name: "Batch Summary" }).waitFor({ timeout: 30000 });
     await page.locator("section").filter({ has: page.getByRole("heading", { name: "Batch Summary" }) }).getByRole("button", { name: /next: generate/i }).click();
 

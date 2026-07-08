@@ -24,7 +24,7 @@ beforeAll(async () => {
   }
   adminUserId = adminUser.id;
   organizationId = adminUser.organizationId;
-});
+}, 30000);
 
 describe("oyama email merge field audit", () => {
   it("returns the complete merge field catalog used by builder and preview tooling", async () => {
@@ -86,7 +86,7 @@ describe("oyama email merge field audit", () => {
       .set(auth)
       .send({
         name: `Merge Preview Template ${unique}`,
-        subject: "Hello {{preferredName}} {{unsupported.foo}}",
+        subject: "Hello {{preferredName}} {{donor.first}} {{unsupported.foo}}",
         previewText: "{{preferencesUrl}}",
         template: {
           version: 1,
@@ -101,7 +101,7 @@ describe("oyama email merge field audit", () => {
             {
               id: "block_1",
               type: "text",
-              content: "<p>{{organizationWebsite}}</p><p>{{event.name}}</p><p>{{unsupported.foo}}</p><p>{{preferencesUrl}}</p>",
+              content: "<p>{{organizationWebsite}}</p><p>{{donor.first}} {{donor.last}} {{donor.name}} {{donor.preferred}}</p><p>{{event.name}}</p><p>{{unsupported.foo}}</p><p>{{preferencesUrl}}</p>",
             },
           ],
         },
@@ -122,7 +122,9 @@ describe("oyama email merge field audit", () => {
       .send({ recipientEmail });
 
     expect(preview.status).toBe(200);
+    expect(preview.body?.subject).toContain("Ava Ava");
     expect(preview.body?.html).toContain("https://hope.example.org");
+    expect(preview.body?.html).toContain("Ava Donor Ava Donor Ava");
     expect(preview.body?.html).toContain("/preferences/");
     expect(preview.body?.warnings).toContain("Unsupported merge fields: {{unsupported.foo}}.");
     expect(Array.isArray(preview.body?.warnings)).toBe(true);
@@ -330,10 +332,28 @@ describe("oyama email merge field audit", () => {
         campaignId: donorCampaign.id,
         eventId: event.id,
         amount: 125,
+        date: new Date("2025-05-01T00:00:00.000Z"),
         receiptNumber: `RCPT-${unique}`,
         taxDeductible: true,
       },
     });
+
+    const linePreview = await request(app)
+      .post("/api/oyama-email/merge-fields/line-preview")
+      .set(auth)
+      .send({
+        line: "Line preview: {{gift.amount}} on {{gift.date}}. Alias: {giftAmount} / {giftDate}. Donor {{donor.giftDate}}.",
+        limit: 5,
+      });
+
+    expect(linePreview.status).toBe(200);
+    const linePreviewItem = (linePreview.body?.items ?? []).find((item: { recipientName?: string }) => item.recipientName?.includes("Jordan Lee"));
+    expect(linePreviewItem?.renderedLine).toContain("Line preview: $125.00 on May 1, 2025");
+    expect(linePreviewItem?.renderedLine).toContain("Alias: $125.00 / May 1, 2025");
+    expect(linePreviewItem?.renderedLine).toContain("Donor May 1, 2025");
+    expect(linePreviewItem?.renderedLine).not.toContain("{{gift.amount}}");
+    expect(linePreviewItem?.renderedLine).not.toContain("{{gift.date}}");
+    expect(linePreviewItem?.warnings ?? []).toEqual([]);
 
     const path = await prisma.stewardPath.create({
       data: {
@@ -380,6 +400,7 @@ describe("oyama email merge field audit", () => {
         replyToEmail: "reply@hopefoundation.org",
         bodyHtml: [
           "<p>{{ donor.firstName }} {{ donor.lastName }}</p>",
+          "<p>Same line gift: {{ gift.amount }} on {{ gift.date }}</p>",
           "<p>{{ gift.amount }} {{ gift.receiptNumber }}</p>",
           "<p>{{ gift.amountType }} {{ giftAmountType }}</p>",
           "<p>{{ event.name }} {{ event.location }}</p>",
@@ -391,6 +412,7 @@ describe("oyama email merge field audit", () => {
         ].join(""),
         bodyText: [
           "{{ donor.firstName }} {{ donor.lastName }}",
+          "Same line gift: {{ gift.amount }} on {{ gift.date }}",
           "{{ gift.amount }} {{ gift.receiptNumber }}",
           "{{ gift.amountType }} {{ giftAmountType }}",
           "{{ event.name }} {{ event.location }}",
@@ -412,6 +434,7 @@ describe("oyama email merge field audit", () => {
     expect(preview.status).toBe(200);
     expect(preview.body?.bodyHtml).toContain("Jordan Lee");
     expect(preview.body?.bodyHtml).toContain("$125.00");
+    expect(preview.body?.bodyHtml).toContain("Same line gift: $125.00 on May 1, 2025");
     expect(preview.body?.bodyHtml).toContain("One-time");
     expect(preview.body?.bodyHtml).toContain(`RCPT-${unique}`);
     expect(preview.body?.bodyHtml).toContain(`Spring Gala ${unique}`);
@@ -436,5 +459,6 @@ describe("oyama email merge field audit", () => {
     expect(templatePreviewByConstituent.body?.recipient?.id).toBe(constituent.id);
     expect(templatePreviewByConstituent.body?.recipient?.fullName).toContain("Jordan Lee");
     expect(templatePreviewByConstituent.body?.html).toContain("One-time");
+    expect(templatePreviewByConstituent.body?.html).toContain("Same line gift: $125.00 on May 1, 2025");
   });
 });

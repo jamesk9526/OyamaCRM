@@ -47,6 +47,8 @@ interface BuilderBlock {
   content?: string;
   src?: string;
   alt?: string;
+  imageWidthPercent?: number;
+  imageLinkUrl?: string;
   label?: string;
   href?: string;
   color?: string;
@@ -649,6 +651,10 @@ function createBlock(type: BuilderBlockType): BuilderBlock {
       type,
       src: "",
       alt: "",
+      imageWidthPercent: 100,
+      align: "center",
+      caption: "",
+      imageLinkUrl: "",
     };
   }
 
@@ -1875,6 +1881,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             ...block,
             src: response.url,
             alt: block.alt || file.name,
+            imageWidthPercent: block.imageWidthPercent || 100,
+            align: block.align || "center",
           };
         }
         if (block.type === "video") {
@@ -4298,11 +4306,11 @@ function RichTextEditor({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  replaceTriggerWithText(`{{${option.token}}}`);
+                  replaceTriggerWithText(option.label);
                 }}
                 className="w-full rounded-md px-2 py-1.5 text-left hover:bg-emerald-50"
               >
-                <p className="truncate font-mono text-xs text-slate-700">{`{{${option.token}}}`}</p>
+                <p className="truncate font-mono text-xs text-slate-700">{option.label}</p>
                 <p className="truncate text-[10px] text-slate-500">{option.group} - {option.description}</p>
               </button>
             )) : <p className="px-2 py-2 text-xs text-slate-500">No merge fields matched.</p>}
@@ -4384,8 +4392,19 @@ function CanvasBlockPreview({ block }: { block: BuilderBlock }) {
   }
 
   if (block.type === "image") {
+    const widthPercent = clampNumber(Number(block.imageWidthPercent || 100), 20, 100);
+    const align = block.align === "left" || block.align === "right" ? block.align : "center";
+    const marginClass = align === "left" ? "mr-auto" : align === "right" ? "ml-auto" : "mx-auto";
     return block.src ? (
-      <img src={block.src} alt={block.alt || "Image block"} className="mx-auto max-h-[260px] w-full rounded-md object-cover" />
+      <figure className="m-0">
+        <img
+          src={block.src}
+          alt={block.alt || "Image block"}
+          className={`${marginClass} max-h-[260px] max-w-full rounded-md object-cover`}
+          style={{ width: `${widthPercent}%` }}
+        />
+        {block.caption ? <figcaption className="mt-2 text-center text-xs text-slate-500">{block.caption}</figcaption> : null}
+      </figure>
     ) : (
       <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-8 text-center text-sm text-slate-500">Image source not set</div>
     );
@@ -4698,6 +4717,54 @@ function BlockInspector({
               value={block.alt || ""}
               onChange={(event) => onChange({ alt: event.target.value })}
               onFocus={() => onSetInsertTarget("alt")}
+              className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-800"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs font-semibold text-slate-700">
+              Width
+              <input
+                type="range"
+                min="20"
+                max="100"
+                step="5"
+                value={block.imageWidthPercent || 100}
+                onChange={(event) => onChange({ imageWidthPercent: clampNumber(Number(event.target.value) || 100, 20, 100) })}
+                className="mt-2 w-full"
+              />
+              <span className="mt-1 block text-[11px] text-slate-500">{block.imageWidthPercent || 100}%</span>
+            </label>
+            <label className="block text-xs font-semibold text-slate-700">
+              Align
+              <select
+                value={block.align || "center"}
+                onChange={(event) => onChange({ align: event.target.value as BuilderBlock["align"] })}
+                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-800"
+              >
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => onChange({ imageWidthPercent: 50 })} className="rounded-md border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">50%</button>
+            <button type="button" onClick={() => onChange({ imageWidthPercent: 100 })} className="rounded-md border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Full Width</button>
+          </div>
+          <label className="block text-xs font-semibold text-slate-700">
+            Link URL
+            <input
+              value={block.imageLinkUrl || ""}
+              onChange={(event) => onChange({ imageLinkUrl: event.target.value })}
+              className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-800"
+            />
+          </label>
+          <label className="block text-xs font-semibold text-slate-700">
+            Caption
+            <input
+              value={block.caption || ""}
+              onChange={(event) => onChange({ caption: event.target.value })}
+              onFocus={() => onSetInsertTarget("caption")}
               className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm text-slate-800"
             />
           </label>

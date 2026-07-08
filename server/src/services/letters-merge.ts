@@ -179,8 +179,11 @@ export const COMPATIBILITY_LETTER_MERGE_FIELDS = [
   "{{fullName}}",
   "{{email}}",
   "{{addressBlock}}",
+  "{{amount}}",
+  "{{giftAmount}}",
   "{{donationAmount}}",
   "{{lastGiftAmount}}",
+  "{{date}}",
   "{{giftDate}}",
   "{{lastGiftDate}}",
   "{{receiptNumber}}",
@@ -209,6 +212,12 @@ export const COMPATIBILITY_LETTER_MERGE_FIELDS = [
  * These aliases are normalized to canonical merge keys at render/validation time.
  */
 const LEGACY_LETTER_MERGE_FIELD_ALIASES: Readonly<Record<string, string>> = {
+  "donor.first": "donor.firstName",
+  "donor.last": "donor.lastName",
+  "donor.name": "donor.fullName",
+  "donor.preferred": "donor.preferredName",
+  "donor.giftDate": "gift.date",
+  "donor.totalGiving": "year.totalGiving",
   "constituent.firstName": "donor.firstName",
   "constituent.lastName": "donor.lastName",
   "constituent.fullName": "donor.fullName",

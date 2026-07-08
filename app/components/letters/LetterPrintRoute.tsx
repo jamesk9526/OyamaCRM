@@ -16,10 +16,20 @@ interface LetterPrintRouteProps {
 }
 
 interface PrintableLetterTemplate {
-  id: string;
-  name: string;
-  printSubject?: string | null;
-  printBody?: string | null;
+  templateId: string;
+  templateName: string;
+  mergedPrintSubject?: string | null;
+  mergedPrintBody: string;
+  recipient?: {
+    displayName?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+  } | null;
+  missingFields?: string[];
+  unsupportedFields?: string[];
 }
 
 export default function LetterPrintRoute({ templateId }: LetterPrintRouteProps) {
@@ -33,7 +43,7 @@ export default function LetterPrintRoute({ templateId }: LetterPrintRouteProps) 
     setError(null);
     try {
       const [templateResult, brandingResult] = await Promise.all([
-        apiFetch<PrintableLetterTemplate>(`/api/letters/templates/${encodeURIComponent(templateId)}`),
+        apiFetch<PrintableLetterTemplate>(`/api/letters/templates/${encodeURIComponent(templateId)}/print-preview`),
         apiFetch<BrandingSettings>("/api/settings/branding"),
       ]);
       setTemplate(templateResult);
@@ -66,20 +76,37 @@ export default function LetterPrintRoute({ templateId }: LetterPrintRouteProps) 
   }
 
   const document = buildLetterDocument({
-    id: `template-print:${template.id}`,
-    templateId: template.id,
+    id: `template-print:${template.templateId}`,
+    templateId: template.templateId,
     workspace: "oyamaLetters",
-    title: template.name,
+    title: template.templateName,
     branding,
-    subject: template.printSubject || template.name,
+    recipient: template.recipient
+      ? {
+        displayName: template.recipient.displayName ?? undefined,
+        addressLine1: template.recipient.addressLine1 ?? undefined,
+        addressLine2: template.recipient.addressLine2 ?? undefined,
+        city: template.recipient.city ?? undefined,
+        state: template.recipient.state ?? undefined,
+        postalCode: template.recipient.postalCode ?? undefined,
+      }
+      : undefined,
+    subject: template.mergedPrintSubject || template.templateName,
     salutation: null,
-    bodyHtml: template.printBody || "",
+    bodyHtml: template.mergedPrintBody || "",
   });
 
   return (
     <main className="min-h-[100dvh] bg-slate-200 py-8 print:bg-white print:p-0">
       <div className="non-printing mx-auto mb-4 flex w-[816px] max-w-[calc(100vw-2rem)] items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-        <Link href={`/oyama-letters/templates/${encodeURIComponent(templateId)}`} className="font-semibold text-slate-700 hover:text-emerald-700">Back to builder</Link>
+        <div>
+          <Link href={`/oyama-letters/templates/${encodeURIComponent(templateId)}`} className="font-semibold text-slate-700 hover:text-emerald-700">Back to builder</Link>
+          {(template.missingFields?.length || template.unsupportedFields?.length) ? (
+            <p className="mt-1 text-xs text-amber-700">
+              Review merge data before mailing: {[...(template.missingFields ?? []), ...(template.unsupportedFields ?? [])].join(", ")}
+            </p>
+          ) : null}
+        </div>
         <button type="button" onClick={() => window.print()} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Print</button>
       </div>
       <div className="mx-auto w-[816px] max-w-[calc(100vw-2rem)] print:w-auto print:max-w-none">
