@@ -462,11 +462,11 @@ function parseDonationDateRange(rawRange: unknown, legacyFrom?: unknown, legacyT
 
   const label = typeof rawRange === "string" ? rawRange.trim().toLowerCase() : "";
   const now = new Date();
+  if (!label || label === "all time") return {};
   if (label === "last 30 days") return { from: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), to: now };
-  if (label === "last 90 days" || !label) return { from: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000), to: now };
+  if (label === "last 90 days") return { from: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000), to: now };
   if (label === "last 12 months") return { from: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000), to: now };
   if (label === "this year") return { from: new Date(Date.UTC(now.getUTCFullYear(), 0, 1)), to: now };
-  if (label === "all time") return {};
   return {};
 }
 

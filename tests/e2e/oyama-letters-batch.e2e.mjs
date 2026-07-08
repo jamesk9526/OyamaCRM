@@ -81,7 +81,7 @@ async function seedBatchRun(token) {
   const expectedGiftLines = [];
   for (let index = 1; index <= 3; index += 1) {
     const amount = 100 + index + 0.25;
-    const date = `2026-06-2${index}T12:00:00.000Z`;
+    const date = `2025-02-1${index}T12:00:00.000Z`;
     const row = await expectJsonOk(await fetch(`${API_BASE}/api/constituents`, {
       method: "POST",
       headers,
@@ -115,7 +115,7 @@ async function seedBatchRun(token) {
     expectedGiftLines.push({
       constituentId: row.id,
       amount: `$${amount.toFixed(2)}`,
-      date: `June 2${index}, 2026`,
+      date: `February 1${index}, 2025`,
     });
   }
 

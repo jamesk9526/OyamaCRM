@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
+import { prisma } from "@/server/src/lib/prisma";
 
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 let token = "";
@@ -230,5 +231,124 @@ describe("letters merge aliases API", () => {
     expect(preview.body.mergedPrintBody).not.toContain("{giftDate}");
     expect(preview.body.mergedPrintBody).not.toContain("{giftAmount}");
     expect(preview.body.resolvedDonationId).toBe(donation.body.id);
+  });
+
+  it("uses each batch recipient's most recent donation across all time by default", async () => {
+    const suffix = Date.now();
+    const template = await request(app)
+      .post("/api/letters/templates")
+      .set(auth())
+      .send({
+        name: `Batch Recent Gift Merge ${suffix}`,
+        category: "THANK_YOU",
+        status: "ACTIVE",
+        printBody: "Dear {{donor.firstName}}, batch gift {{gift.amount}} on {{gift.date}}.",
+        emailBody: "Batch gift {{gift.amount}}.",
+      });
+    expect(template.status).toBe(201);
+
+    const first = await request(app)
+      .post("/api/constituents")
+      .set(auth())
+      .send({
+        firstName: "BatchRecentOne",
+        lastName: `Donor${suffix}`,
+        email: `batch-recent-one-${suffix}@example.org`,
+        addressLine1: "100 Batch Ave",
+        city: "Monett",
+        state: "MO",
+        zip: "65708",
+        type: "DONOR",
+      });
+    const second = await request(app)
+      .post("/api/constituents")
+      .set(auth())
+      .send({
+        firstName: "BatchRecentTwo",
+        lastName: `Donor${suffix}`,
+        email: `batch-recent-two-${suffix}@example.org`,
+        addressLine1: "200 Batch Ave",
+        city: "Aurora",
+        state: "MO",
+        zip: "65605",
+        type: "DONOR",
+      });
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+
+    const oldFirstGift = await request(app)
+      .post("/api/donations")
+      .set(auth())
+      .send({
+        constituentId: first.body.id,
+        amount: 10,
+        date: "2025-01-05T12:00:00.000Z",
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+      });
+    const recentFirstGift = await request(app)
+      .post("/api/donations")
+      .set(auth())
+      .send({
+        constituentId: first.body.id,
+        amount: 88.88,
+        date: "2025-02-14T12:00:00.000Z",
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+      });
+    const secondGift = await request(app)
+      .post("/api/donations")
+      .set(auth())
+      .send({
+        constituentId: second.body.id,
+        amount: 55.55,
+        date: "2024-11-20T12:00:00.000Z",
+        paymentMethod: "CHECK",
+        status: "COMPLETED",
+        taxDeductible: true,
+      });
+    expect(oldFirstGift.status).toBe(201);
+    expect(recentFirstGift.status).toBe(201);
+    expect(secondGift.status).toBe(201);
+
+    const batch = await request(app)
+      .post("/api/letters/generated/batch")
+      .set(auth())
+      .send({
+        templateId: template.body.id,
+        constituentIds: [first.body.id, second.body.id],
+        donationMode: "recent",
+        dryRun: false,
+        deliveryTarget: "PDF_ONLY",
+      });
+
+    expect(batch.status).toBe(200);
+    expect(batch.body.generatedCount).toBe(2);
+    expect(batch.body.skippedCount).toBe(0);
+
+    const generatedIds = batch.body.generatedIds as string[];
+    const generated = await prisma.generatedLetter.findMany({
+      where: { id: { in: generatedIds } },
+      select: {
+        constituentId: true,
+        donationId: true,
+        mergedPrintBody: true,
+      },
+    });
+    expect(generated).toHaveLength(2);
+
+    const firstLetter = generated.find((row) => row.constituentId === first.body.id);
+    const secondLetter = generated.find((row) => row.constituentId === second.body.id);
+    expect(firstLetter?.donationId).toBe(recentFirstGift.body.id);
+    expect(firstLetter?.mergedPrintBody).toContain("$88.88");
+    expect(firstLetter?.mergedPrintBody).toContain("February 14, 2025");
+    expect(firstLetter?.mergedPrintBody).not.toContain("$0.00");
+    expect(firstLetter?.mergedPrintBody).not.toContain("$10.00");
+    expect(secondLetter?.donationId).toBe(secondGift.body.id);
+    expect(secondLetter?.mergedPrintBody).toContain("$55.55");
+    expect(secondLetter?.mergedPrintBody).toContain("November 20, 2024");
+    expect(secondLetter?.mergedPrintBody).not.toContain("$0.00");
   });
 });

@@ -3501,7 +3501,7 @@ function GenerateWorkspace() {
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [recipientStepTab, setRecipientStepTab] = useState<"lists" | "segments" | "filters" | "individuals">("segments");
   const [donationMode, setDonationMode] = useState<DonationMode>("recent");
-  const [donationDateRange, setDonationDateRange] = useState("Last 90 days");
+  const [donationDateRange, setDonationDateRange] = useState("All time");
   const [donationType, setDonationType] = useState("All Types");
   const [donationMinimum, setDonationMinimum] = useState("");
   const [donationAdvancedOpen, setDonationAdvancedOpen] = useState(false);
