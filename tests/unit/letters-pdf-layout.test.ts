@@ -1,6 +1,12 @@
 /** Unit coverage for server-side letter PDF block parsing. */
 import { describe, expect, it } from "vitest";
-import { htmlToPdfBlocks, htmlToPlainText, normalizeMergedDonationDateTextForPdfExport, renderGeneratedLetterPdf } from "@/server/src/routes/letters";
+import {
+  buildLetterPdfBodyBlocks,
+  htmlToPdfBlocks,
+  htmlToPlainText,
+  normalizeMergedDonationDateTextForPdfExport,
+  renderGeneratedLetterPdf,
+} from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
   it("preserves explicit blank paragraphs and white-space blocks", () => {
@@ -140,6 +146,40 @@ describe("letters PDF layout parsing", () => {
 
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
     expect(pdf.byteLength).toBeGreaterThan(500);
+  });
+
+  it("appends the selected signature block even when the signer is mentioned in the body", async () => {
+    const blocks = await buildLetterPdfBodyBlocks(
+      "<p>Please contact Jane Smith if you have questions before the event.</p><p>Thank you for your support.</p>",
+      {
+        signerName: "Jane Smith",
+        signerTitle: "Executive Director",
+        closingPhrase: "With gratitude,",
+        typedSignature: "Jane Smith",
+      },
+    );
+
+    const text = blocks.filter((block) => "text" in block).map((block) => block.text);
+    expect(text).toContain("With gratitude,");
+    expect(text.filter((line) => line === "Jane Smith")).toHaveLength(1);
+    expect(text).toContain("Executive Director");
+  });
+
+  it("does not duplicate a signature block already present at the end of the body", async () => {
+    const blocks = await buildLetterPdfBodyBlocks(
+      "<p>Thank you for your support.</p><p>With gratitude,</p><p>Jane Smith</p><p>Executive Director</p>",
+      {
+        signerName: "Jane Smith",
+        signerTitle: "Executive Director",
+        closingPhrase: "With gratitude,",
+        typedSignature: "Jane Smith",
+      },
+    );
+
+    const text = blocks.filter((block) => "text" in block).map((block) => block.text);
+    expect(text.filter((line) => line === "With gratitude,")).toHaveLength(1);
+    expect(text.filter((line) => line === "Jane Smith")).toHaveLength(1);
+    expect(text.filter((line) => line === "Executive Director")).toHaveLength(1);
   });
 
   it("renders justified text and multiline table cells into a valid server PDF", async () => {

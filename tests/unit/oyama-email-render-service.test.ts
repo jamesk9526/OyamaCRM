@@ -185,4 +185,27 @@ describe("oyama email render service", () => {
 
     expect(output).toBe("Ava Donor Ava Donor Ava June 13, 2026 $500.00");
   });
+
+  it("renders legacy staff signature blocks through the normal merge pass", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [
+        {
+          id: "signature",
+          type: "staffSignature",
+          signoff: "With gratitude,",
+          staffTitle: "Executive Director",
+        },
+      ],
+    });
+    const rendered = renderEmailTemplateDocument(template, normalizeEmailTemplateSettings({ includeUnsubscribeLink: false }));
+    const merged = applyMergeTokens(rendered.html, {
+      signatureName: "Rebecca Haine",
+      staffTitle: "Executive Director",
+    });
+
+    expect(merged).toContain("With gratitude,");
+    expect(merged).toContain("Rebecca Haine");
+    expect(merged).toContain("Executive Director");
+    expect(merged).not.toContain("{{signatureName}}");
+  });
 });

@@ -1687,11 +1687,47 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   return next;
 }
 
-function bodyContainsSignature(html: string, signature?: LetterPdfPresetContext["signatureBlock"]): boolean {
+function normalizeSignatureCompare(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9@.+]+/g, " ").trim();
+}
+
+function pdfBodyAlreadyHasSignature(html: string, signature?: LetterPdfPresetContext["signatureBlock"]): boolean {
   if (!signature) return false;
   if (signature.signatureImageUrl && html.includes(signature.signatureImageUrl)) return true;
-  const plain = htmlToPlainText(html).toLowerCase();
-  return Boolean(signature.signerName && plain.includes(signature.signerName.trim().toLowerCase()));
+
+  const tailLines = htmlToPlainText(html)
+    .split(/\n+/g)
+    .map((line) => normalizeSignatureCompare(line))
+    .filter(Boolean)
+    .slice(-8);
+  if (tailLines.length === 0) return false;
+
+  const signerCandidates = [signature.signerName, signature.typedSignature]
+    .map((value) => normalizeSignatureCompare(String(value ?? "")))
+    .filter(Boolean);
+  const supportingCandidates = [
+    signature.closingPhrase,
+    signature.signerTitle,
+    signature.email,
+    signature.phone,
+  ].map((value) => normalizeSignatureCompare(String(value ?? ""))).filter(Boolean);
+
+  const hasSignerLine = signerCandidates.some((candidate) => tailLines.includes(candidate));
+  if (!hasSignerLine) return false;
+  if (supportingCandidates.length === 0) return tailLines[tailLines.length - 1] === signerCandidates[0];
+  return supportingCandidates.some((candidate) => tailLines.includes(candidate));
+}
+
+export async function buildLetterPdfBodyBlocks(
+  mergedPrintBody: string,
+  signature?: LetterPdfPresetContext["signatureBlock"],
+  recipient?: LetterPdfRecipientContext | null,
+): Promise<PdfContentBlock[]> {
+  const bodyBlocks = stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(mergedPrintBody || ""), recipient);
+  const signedBlocks = pdfBodyAlreadyHasSignature(mergedPrintBody || "", signature)
+    ? bodyBlocks
+    : appendSignatureBlocks(bodyBlocks, signature);
+  return hydratePdfImageBlocks(signedBlocks);
 }
 
 function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number }): void {
@@ -1880,10 +1916,7 @@ export async function renderGeneratedLetterPdf(params: {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
 
-  const bodyBlocks = stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(params.mergedPrintBody || ""), params.recipient);
-  const blocks = await hydratePdfImageBlocks(bodyContainsSignature(params.mergedPrintBody || "", params.presets.signatureBlock)
-    ? bodyBlocks
-    : appendSignatureBlocks(bodyBlocks, params.presets.signatureBlock));
+  const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
     startY: 150,
   });
@@ -1950,10 +1983,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
       doc.addPage();
     }
     const startPage = doc.getNumberOfPages();
-    const bodyBlocks = stripLeadingRecipientAddressBlocks(htmlToPdfBlocks(item.mergedPrintBody || ""), item.recipient);
-    const blocks = await hydratePdfImageBlocks(bodyContainsSignature(item.mergedPrintBody || "", item.presets.signatureBlock)
-      ? bodyBlocks
-      : appendSignatureBlocks(bodyBlocks, item.presets.signatureBlock));
+    const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
       startY: 150,
     });

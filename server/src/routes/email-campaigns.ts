@@ -740,6 +740,7 @@ function formatCampaignDate(value: Date | null | undefined): string {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   }).format(value);
 }
 
