@@ -4,6 +4,7 @@ import {
   buildLetterPdfBodyBlocks,
   htmlToPdfBlocks,
   htmlToPlainText,
+  LetterPdfLayoutError,
   normalizeMergedDonationDateTextForPdfExport,
   recipientFacingLetterSubject,
   renderGeneratedLetterPdf,
@@ -50,6 +51,18 @@ describe("letters PDF layout parsing", () => {
     expect(blocks[0]).toMatchObject({ kind: "paragraph", align: "justify" });
     expect(blocks[1]).toMatchObject({ kind: "heading", align: "center" });
     expect(blocks[2]).toMatchObject({ kind: "paragraph", align: "right" });
+  });
+
+  it("preserves font size and family metadata for server PDF rendering", () => {
+    const blocks = htmlToPdfBlocks('<p><span style="font-family: Georgia; font-size:14pt;">Formatted body text</span></p>');
+
+    expect(blocks[0]).toMatchObject({ kind: "paragraph", fontFamily: "times", fontSize: 14 });
+  });
+
+  it("treats the canvas page-break marker and legacy page-break CSS as an intentional page break", () => {
+    const blocks = htmlToPdfBlocks('<p>First page</p><div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div><p>Second page</p>');
+
+    expect(blocks.map((block) => block.kind)).toEqual(["paragraph", "pageBreak", "paragraph"]);
   });
 
   it("preserves block quotes as distinct indented PDF content", () => {
@@ -210,6 +223,19 @@ describe("letters PDF layout parsing", () => {
     expect(text).toContain("Executive Director");
   });
 
+  it("separates an appended signature from the letter body", async () => {
+    const blocks = await buildLetterPdfBodyBlocks(
+      "<p>Thank you for your support.</p>",
+      { signerName: "Jordan Lee", closingPhrase: "With gratitude," },
+    );
+
+    expect(blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "spacer", height: 10 }),
+      expect.objectContaining({ kind: "paragraph", text: "With gratitude," }),
+      expect.objectContaining({ kind: "paragraph", text: "Jordan Lee" }),
+    ]));
+  });
+
   it("does not duplicate a signature block already present at the end of the body", async () => {
     const blocks = await buildLetterPdfBodyBlocks(
       "<p>Thank you for your support.</p><p>With gratitude,</p><p>Jane Smith</p><p>Executive Director</p>",
@@ -225,6 +251,70 @@ describe("letters PDF layout parsing", () => {
     expect(text.filter((line) => line === "With gratitude,")).toHaveLength(1);
     expect(text.filter((line) => line === "Jane Smith")).toHaveLength(1);
     expect(text.filter((line) => line === "Executive Director")).toHaveLength(1);
+  });
+
+  it("does not append a second signature when name and title share one body line", async () => {
+    const blocks = await buildLetterPdfBodyBlocks(
+      "<p>Thank you for your support.</p><p>With gratitude,</p><p>Rebecca Haine, Executive Director</p>",
+      {
+        signerName: "Rebecca Haine",
+        signerTitle: "Executive Director",
+        closingPhrase: "With gratitude,",
+        signatureImageUrl: "https://example.test/signature.png",
+      },
+    );
+
+    const text = blocks.filter((block) => "text" in block).map((block) => block.text);
+    expect(text.filter((line) => line === "With gratitude,")).toHaveLength(1);
+    expect(text.filter((line) => line.includes("Rebecca Haine"))).toHaveLength(1);
+    expect(blocks.some((block) => block.kind === "image")).toBe(false);
+  });
+
+  it("blocks accidental overflow instead of silently creating a second PDF page", async () => {
+    await expect(renderGeneratedLetterPdf({
+      templateName: "One Page Limit",
+      subject: "One Page Limit",
+      constituentName: "Test Donor",
+      generatedAt: new Date("2026-07-16T12:00:00.000Z"),
+      mergedPrintBody: `<p>${"A deliberately long paragraph ".repeat(800)}</p>`,
+      branding: {
+        organizationName: "Test Organization",
+        tagline: "",
+        addressLine: "",
+        contactLine: "",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#0f766e",
+      },
+      presets: {},
+    })).rejects.toBeInstanceOf(LetterPdfLayoutError);
+  });
+
+  it("creates another PDF page only for an explicit page break", async () => {
+    const pdf = await renderGeneratedLetterPdf({
+      templateName: "Intentional Two Pages",
+      subject: "Intentional Two Pages",
+      constituentName: "Test Donor",
+      generatedAt: new Date("2026-07-16T12:00:00.000Z"),
+      mergedPrintBody: '<p>First page content.</p><div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div><p>Second page content.</p>',
+      branding: {
+        organizationName: "Test Organization",
+        tagline: "",
+        addressLine: "",
+        contactLine: "",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#0f766e",
+      },
+      presets: {},
+    });
+
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? [])).toHaveLength(2);
   });
 
   it("renders justified text and multiline table cells into a valid server PDF", async () => {

@@ -116,6 +116,8 @@ interface LetterPdfBrandingContext {
   contactLine: string;
   taxId: string;
   footerLegalText: string;
+  globalHeaderHtml?: string;
+  globalFooterHtml?: string;
   logoDataUrl: string | null;
   logoFormat: "PNG" | "JPEG" | "WEBP" | null;
   primaryColor: string;
@@ -1122,12 +1124,13 @@ function stripHtmlInline(value: string): string {
 }
 
 type PdfContentBlock =
-  | { kind: "heading"; text: string; level: number; lineHeight?: number; align?: PdfTextAlign }
-  | { kind: "paragraph"; text: string; lineHeight?: number; align?: PdfTextAlign }
-  | { kind: "quote"; text: string; lineHeight?: number; align?: PdfTextAlign }
-  | { kind: "list"; text: string; ordered: boolean; index: number; depth: number; lineHeight?: number; align?: PdfTextAlign }
+  | { kind: "heading"; text: string; level: number; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
+  | { kind: "paragraph"; text: string; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
+  | { kind: "quote"; text: string; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
+  | { kind: "list"; text: string; ordered: boolean; index: number; depth: number; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
   | { kind: "tableRow"; cells: PdfTableCell[]; header: boolean }
   | { kind: "divider" }
+  | { kind: "pageBreak" }
   | { kind: "spacer"; height: number; fill?: boolean }
   | {
       kind: "image";
@@ -1140,6 +1143,17 @@ type PdfContentBlock =
     };
 
 type PdfTextAlign = "left" | "center" | "right" | "justify";
+type PdfFontFamily = "helvetica" | "times" | "courier";
+
+/** Thrown when a letter needs an extra page but no author-requested page break exists. */
+export class LetterPdfLayoutError extends Error {
+  readonly code = "LETTER_ONE_PAGE_LIMIT_EXCEEDED";
+
+  constructor() {
+    super("This letter exceeds one page. Shorten the content, tighten its formatting, or insert a Page Break where the next page should begin.");
+    this.name = "LetterPdfLayoutError";
+  }
+}
 
 interface PdfTableCell {
   text: string;
@@ -1344,6 +1358,29 @@ function flattenHtmlListsForPdf(html: string): string {
   return output + html.slice(cursor);
 }
 
+function parsePdfFontSize(attributes: string, innerHtml = ""): number | undefined {
+  const match = `${attributes} ${innerHtml}`.match(/font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(pt|px)?/i);
+  if (!match) return undefined;
+  const rawValue = Number.parseFloat(match[1]);
+  if (!Number.isFinite(rawValue)) return undefined;
+  const points = match[2]?.toLowerCase() === "px" ? rawValue * 0.75 : rawValue;
+  return Math.min(28, Math.max(8, points));
+}
+
+function parsePdfFontFamily(attributes: string, innerHtml = ""): PdfFontFamily | undefined {
+  const match = `${attributes} ${innerHtml}`.match(/font-family\s*:\s*([^;"'>]+)/i);
+  const value = match?.[1]?.replace(/["']/g, "").trim().toLowerCase() ?? "";
+  if (!value) return undefined;
+  if (value.includes("times") || value.includes("georgia") || value.includes("serif")) return "times";
+  if (value.includes("courier") || value.includes("mono")) return "courier";
+  return "helvetica";
+}
+
+function isPdfPageBreak(attributes: string): boolean {
+  if (readHtmlAttribute(attributes, "data-letter-page-break").toLowerCase() === "true") return true;
+  return /(?:page-break-after|break-after)\s*:\s*(?:always|page)/i.test(attributes);
+}
+
 /** Converts simple template HTML into PDF layout blocks while preserving common editor formatting. */
 export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   const blocks: PdfContentBlock[] = [];
@@ -1380,14 +1417,18 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       if (cells.length > 0) {
         blocks.push({ kind: "tableRow", cells, header: cells.some((cell) => cell.header) });
       }
+    } else if (isPdfPageBreak(attributes)) {
+      blocks.push({ kind: "pageBreak" });
     } else {
       const text = stripHtmlInline(inner);
       const lineHeight = parsePdfLineHeight(attributes, inner);
       const align = parsePdfTextAlign(attributes, inner);
+      const fontSize = parsePdfFontSize(attributes, inner);
+      const fontFamily = parsePdfFontFamily(attributes, inner);
       if (text) {
         if (/^[-=_]{5,}$/.test(text)) blocks.push({ kind: "divider" });
-        else if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2, lineHeight, align });
-        else if (tag === "blockquote") blocks.push({ kind: "quote", text, lineHeight, align });
+        else if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2, lineHeight, align, fontSize, fontFamily });
+        else if (tag === "blockquote") blocks.push({ kind: "quote", text, lineHeight, align, fontSize, fontFamily });
         else if (readHtmlAttribute(attributes, "data-pdf-list-kind")) {
           blocks.push({
             kind: "list",
@@ -1397,11 +1438,13 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
             depth: Math.max(0, Number.parseInt(readHtmlAttribute(attributes, "data-pdf-list-depth"), 10) || 0),
             lineHeight,
             align,
+            fontSize,
+            fontFamily,
           });
         } else if (tag === "li") {
-          blocks.push({ kind: "list", text, ordered: false, index: 1, depth: 0, lineHeight, align });
+          blocks.push({ kind: "list", text, ordered: false, index: 1, depth: 0, lineHeight, align, fontSize, fontFamily });
         }
-        else blocks.push({ kind: "paragraph", text, lineHeight, align });
+        else blocks.push({ kind: "paragraph", text, lineHeight, align, fontSize, fontFamily });
       } else {
         const nestedImageAttributes = inner.match(/<\s*img\b([^>]*)>/i)?.[1];
         const nestedImage = nestedImageAttributes ? parsePdfImageBlock(nestedImageAttributes) : null;
@@ -1561,6 +1604,8 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     contactLine,
     taxId: readFirstTextConfig(branding, ["taxId", "ein"]),
     footerLegalText: readTextConfig(branding, "footerLegalText"),
+    globalHeaderHtml: readTextConfig(branding, "globalHeaderHtml"),
+    globalFooterHtml: readTextConfig(branding, "globalFooterHtml"),
     logoDataUrl: logo?.dataUrl ?? null,
     logoFormat: logo?.format ?? null,
     primaryColor: readFirstTextConfig(branding, ["primaryColor", "accentColor"]) || "#0f766e",
@@ -1584,18 +1629,20 @@ export function recipientFacingLetterSubject(value: string | null | undefined): 
 }
 
 function headerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["headerPreset"]): string[] {
+  const customHeader = preset?.customHtml?.trim() || branding.globalHeaderHtml?.trim() || "";
+  if (customHeader) return [stripHtmlInline(customHeader)].filter(Boolean);
   return [
     (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
     (preset?.showTagline ?? false) ? branding.tagline : "",
     (preset?.showAddress ?? true) ? branding.addressLine : "",
     (preset?.showPhone ?? true) || (preset?.showWebsite ?? true) ? branding.contactLine : "",
-    preset?.customHtml ? stripHtmlInline(preset.customHtml) : "",
   ].filter(Boolean);
 }
 
 function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["footerPreset"]): string[] {
+  const customFooter = preset?.customHtml?.trim() || branding.globalFooterHtml?.trim() || "";
+  if (customFooter) return [stripHtmlInline(customFooter)].filter(Boolean);
   return [
-    preset?.customHtml ? stripHtmlInline(preset.customHtml) : "",
     preset?.customText ?? "",
     branding.footerLegalText,
     (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
@@ -1607,6 +1654,15 @@ function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPrese
     ].filter(Boolean).join(" | "),
     (preset?.showTaxId ?? false) && branding.taxId ? `Tax ID: ${branding.taxId}` : "",
   ].filter(Boolean);
+}
+
+async function getDefaultLetterPdfPresets(organizationId: string): Promise<LetterPdfPresetContext> {
+  const [headerPreset, footerPreset, signatureBlock] = await Promise.all([
+    prisma.letterHeaderPreset.findFirst({ where: { organizationId, isDefault: true, isActive: true } }),
+    prisma.letterFooterPreset.findFirst({ where: { organizationId, isDefault: true, isActive: true } }),
+    prisma.letterSignatureBlock.findFirst({ where: { organizationId, isDefault: true, isActive: true } }),
+  ]);
+  return { headerPreset, footerPreset, signatureBlock };
 }
 
 function buildRecipientCityStateZip(recipient?: LetterPdfRecipientContext | null): string {
@@ -1758,17 +1814,32 @@ function drawPdfChrome(
             : marginX;
       const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
       const headerTextY = hasLogo || hasFallbackLogo ? logoY + activeLogoHeight / 2 + 5 : 48;
+      const detailColumnWidth = 248;
+      const titleMaxWidth = logoAlignment === "LEFT"
+        ? Math.max(96, pageWidth - marginX - headerTextX - detailColumnWidth - 18)
+        : Math.max(160, pageWidth - marginX * 2);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.setTextColor(15, 23, 42);
-      if (header[0]) doc.text(header[0], headerTextX, headerTextY, { align: headerTextAlign });
+      // A wide wordmark already includes the organization name. Rendering the text
+      // again beside it causes the collision visible in exported PDFs.
+      const logoIncludesOrganizationName = hasLogo && renderedLogoWidth >= 104;
+      if (header[0] && !logoIncludesOrganizationName) {
+        const titleLines = doc.splitTextToSize(header[0], titleMaxWidth) as string[];
+        const titleLineHeight = 14;
+        const titleStartY = headerTextY - ((Math.max(1, titleLines.length) - 1) * titleLineHeight) / 2;
+        titleLines.slice(0, 2).forEach((line, index) => {
+          doc.text(line, headerTextX, titleStartY + index * titleLineHeight, { align: headerTextAlign });
+        });
+      }
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
       const detailX = logoAlignment === "LEFT" ? pageWidth - marginX : headerTextX;
       const detailAlign = logoAlignment === "LEFT" ? "right" : headerTextAlign;
-      header.slice(1, 4).forEach((line, index) => {
-        doc.text(line, detailX, 42 + index * 11, { align: detailAlign });
+      const detailLines = header.slice(1, 4).flatMap((line) => doc.splitTextToSize(line, detailColumnWidth) as string[]);
+      detailLines.slice(0, 4).forEach((line, index) => {
+        doc.text(line, detailX, 42 + index * 10, { align: detailAlign });
       });
       doc.setDrawColor(brandR, brandG, brandB);
       doc.line(marginX, 104, pageWidth - marginX, 104);
@@ -1809,7 +1880,7 @@ function drawPdfChrome(
     doc.setFontSize(8);
     footer.slice(0, 4).forEach((line, index) => {
       doc.setTextColor(71, 85, 105);
-      doc.text(line, marginX, footerY + index * 10);
+      doc.text(line, pageWidth / 2, footerY + index * 10, { align: "center" });
     });
   }
 }
@@ -1817,6 +1888,7 @@ function drawPdfChrome(
 function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
   if (!signature) return blocks;
   const next = [...blocks];
+  if (next.length > 0) next.push({ kind: "spacer", height: 10 });
   if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
   if (signature.signatureImageUrl) {
     next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 34 });
@@ -1859,10 +1931,10 @@ function pdfBodyAlreadyHasSignature(html: string, signature?: LetterPdfPresetCon
     signature.phone,
   ].map((value) => normalizeSignatureCompare(String(value ?? ""))).filter(Boolean);
 
-  const hasSignerLine = signerCandidates.some((candidate) => tailLines.includes(candidate));
+  const hasSignerLine = tailLines.some((line) => signerCandidates.some((candidate) => line === candidate || line.includes(candidate)));
   if (!hasSignerLine) return false;
   if (supportingCandidates.length === 0) return tailLines[tailLines.length - 1] === signerCandidates[0];
-  return supportingCandidates.some((candidate) => tailLines.includes(candidate));
+  return tailLines.some((line) => supportingCandidates.some((candidate) => line === candidate || line.includes(candidate)));
 }
 
 export async function buildLetterPdfBodyBlocks(
@@ -1877,7 +1949,7 @@ export async function buildLetterPdfBodyBlocks(
   return hydratePdfImageBlocks(signedBlocks);
 }
 
-function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number }): void {
+function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number; requireExplicitPageBreaks?: boolean }): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
@@ -1888,6 +1960,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
 
   const ensurePageSpace = (requiredHeight: number) => {
     if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
+    if (options.requireExplicitPageBreaks) throw new LetterPdfLayoutError();
     doc.addPage();
     cursorY = options.continuationStartY ?? contentTop;
   };
@@ -1924,15 +1997,16 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
 
   const estimatedBlockHeight = (block: PdfContentBlock): number => {
     if (block.kind === "heading") {
-      const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
+      const size = block.fontSize ?? (block.level === 1 ? 18 : block.level === 2 ? 15 : 13);
       return textHeight(block.text, size, block.lineHeight) + 10;
     }
-    if (block.kind === "quote") return textHeight(block.text, 10.5, block.lineHeight, 18) + 10;
+    if (block.kind === "quote") return textHeight(block.text, block.fontSize ?? 10.5, block.lineHeight, 18) + 10;
     if (block.kind === "list") {
       const listIndent = 28 + block.depth * 16;
-      return textHeight(block.text, 10.5, block.lineHeight, listIndent) + 6;
+      return textHeight(block.text, block.fontSize ?? 10.5, block.lineHeight, listIndent) + 6;
     }
     if (block.kind === "divider") return 18;
+    if (block.kind === "pageBreak") return 0;
     if (block.kind === "spacer") return block.fill ? 0 : block.height;
     if (block.kind === "image") {
       const width = maxTextWidth * (block.widthPercent / 100);
@@ -1960,10 +2034,11 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     indent = 0,
     lineHeightMultiplier = 1.38,
     align: PdfTextAlign = "left",
+    fontFamily: PdfFontFamily = "helvetica",
   ) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    doc.setFont("helvetica", fontStyle);
+    doc.setFont(fontFamily, fontStyle);
     doc.setFontSize(fontSize);
     doc.setTextColor(15, 23, 42);
     const width = maxTextWidth - indent;
@@ -1986,10 +2061,11 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   };
 
   const writeQuote = (block: Extract<PdfContentBlock, { kind: "quote" }>) => {
-    const estimatedHeight = Math.max(18, textHeight(block.text, 10.5, block.lineHeight, 18));
+    const fontSize = block.fontSize ?? 10.5;
+    const estimatedHeight = Math.max(18, textHeight(block.text, fontSize, block.lineHeight, 18));
     ensurePageSpace(estimatedHeight + 8);
     const quoteTop = cursorY - 9;
-    writeText(block.text, 10.5, "italic", 8, 18, block.lineHeight, block.align);
+    writeText(block.text, fontSize, "italic", 8, 18, block.lineHeight, block.align, block.fontFamily);
     doc.setDrawColor(148, 163, 184);
     doc.setLineWidth(1.5);
     doc.line(marginX + 4, quoteTop, marginX + 4, Math.max(quoteTop + 14, cursorY - 8));
@@ -1999,14 +2075,14 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   const writeListItem = (block: Extract<PdfContentBlock, { kind: "list" }>) => {
     const trimmed = block.text.trim();
     if (!trimmed) return;
-    const fontSize = 10.5;
+    const fontSize = block.fontSize ?? 10.5;
     const marker = block.ordered ? `${block.index}.` : "•";
     const markerIndent = 10 + block.depth * 16;
     const contentIndent = markerIndent + 18;
     const width = maxTextWidth - contentIndent;
     const lineHeight = Math.max(fontSize, Math.round(fontSize * (block.lineHeight ?? 1.38)));
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont(block.fontFamily ?? "helvetica", "normal");
     doc.setFontSize(fontSize);
     doc.setTextColor(15, 23, 42);
     const lines = doc.splitTextToSize(trimmed, width) as string[];
@@ -2031,9 +2107,14 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
 
   const renderedBlocks = blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock];
   renderedBlocks.forEach((block, index) => {
-    if (block.kind === "heading") {
-      const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
-      writeText(block.text, size, "bold", 10, 0, block.lineHeight, block.align);
+    if (block.kind === "pageBreak") {
+      if (index < renderedBlocks.length - 1) {
+        doc.addPage();
+        cursorY = options.continuationStartY ?? contentTop;
+      }
+    } else if (block.kind === "heading") {
+      const size = block.fontSize ?? (block.level === 1 ? 18 : block.level === 2 ? 15 : 13);
+      writeText(block.text, size, "bold", 10, 0, block.lineHeight, block.align, block.fontFamily);
     } else if (block.kind === "quote") {
       writeQuote(block);
     } else if (block.kind === "list") {
@@ -2094,7 +2175,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       });
       cursorY += rowHeight;
     } else {
-      writeText(block.text, 11, "normal", 8, 0, block.lineHeight, block.align);
+      writeText(block.text, block.fontSize ?? 11, "normal", 8, 0, block.lineHeight, block.align, block.fontFamily);
     }
   });
 }
@@ -2117,6 +2198,7 @@ export async function renderGeneratedLetterPdf(params: {
   renderPdfContentBlocks(doc, blocks, {
     startY: 230,
     continuationStartY: 132,
+    requireExplicitPageBreaks: true,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
     subject: params.subject,
@@ -2188,6 +2270,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     renderPdfContentBlocks(doc, blocks, {
       startY: 230,
       continuationStartY: 132,
+      requireExplicitPageBreaks: true,
     });
     const endPage = doc.getNumberOfPages();
     drawPdfChrome(doc, item.branding, item.presets, item.recipient, {
@@ -3808,12 +3891,13 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
   };
 
   try {
-    const [previewSignatureBlock] = await Promise.all([
+    const [previewSignatureBlock, defaultPresets] = await Promise.all([
       hasDraftSignatureOverride
         ? draftSignatureBlockId
           ? prisma.letterSignatureBlock.findFirst({ where: { id: draftSignatureBlockId, organizationId } })
           : Promise.resolve(null)
         : Promise.resolve(template.signatureBlock),
+      getDefaultLetterPdfPresets(organizationId),
     ]);
 
     const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES)
@@ -3867,9 +3951,9 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       mergedPrintBody: merged.mergedPrintBody || "",
       branding,
       presets: {
-        headerPreset: null,
-        footerPreset: null,
-        signatureBlock: previewSignatureBlock,
+        headerPreset: template.headerPreset ?? defaultPresets.headerPreset,
+        footerPreset: template.footerPreset ?? defaultPresets.footerPreset,
+        signatureBlock: previewSignatureBlock ?? defaultPresets.signatureBlock,
       },
     });
 
@@ -3921,6 +4005,11 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
         error: message,
       },
     });
+
+    if (error instanceof LetterPdfLayoutError) {
+      res.status(422).json({ error: { code: error.code, message } });
+      return;
+    }
 
     res.status(500).json({
       error: {
@@ -4633,7 +4722,7 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
   const [templateChrome, constituent] = await Promise.all([
     prisma.letterTemplate.findFirst({
       where: { id: templateId, organizationId, status: "ACTIVE" },
-      select: { signatureBlock: true },
+      select: { headerPreset: true, footerPreset: true, signatureBlock: true },
     }),
     prisma.constituent.findFirst({
       where: { id: constituentId, organizationId },
@@ -4668,7 +4757,10 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
       year: Number.isFinite(year) ? year : undefined,
       actorUserId: userId,
     });
-    const branding = await getLetterPdfBrandingContext(organizationId);
+    const [branding, defaultPresets] = await Promise.all([
+      getLetterPdfBrandingContext(organizationId),
+      getDefaultLetterPdfPresets(organizationId),
+    ]);
     const constituentName = [constituent.firstName, constituent.lastName].filter(Boolean).join(" ").trim()
       || constituent.displayName?.trim()
       || constituent.organizationName?.trim()
@@ -4690,9 +4782,9 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
       mergedPrintBody: merged.mergedPrintBody || "",
       branding,
       presets: {
-        headerPreset: null,
-        footerPreset: null,
-        signatureBlock: templateChrome?.signatureBlock ?? null,
+        headerPreset: templateChrome?.headerPreset ?? defaultPresets.headerPreset,
+        footerPreset: templateChrome?.footerPreset ?? defaultPresets.footerPreset,
+        signatureBlock: templateChrome?.signatureBlock ?? defaultPresets.signatureBlock,
       },
     });
 
@@ -4723,6 +4815,11 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
       error: message,
       stack: error instanceof Error ? error.stack : undefined,
     });
+    if (error instanceof LetterPdfLayoutError) {
+      res.status(422).json({ error: { code: error.code, message } });
+      return;
+    }
+
     res.status(500).json({
       error: {
         code: "PDF_PREVIEW_FAILED",
@@ -5646,7 +5743,10 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
   const subject = recipientFacingLetterSubject(generatedLetter.mergedPrintSubject);
 
   try {
-    const branding = await getLetterPdfBrandingContext(organizationId);
+    const [branding, defaultPresets] = await Promise.all([
+      getLetterPdfBrandingContext(organizationId),
+      getDefaultLetterPdfPresets(organizationId),
+    ]);
     const pdfBuffer = await renderGeneratedLetterPdf({
       templateName,
       subject,
@@ -5663,9 +5763,9 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       mergedPrintBody: normalizeMergedDonationDateTextForPdfExport(generatedLetter.mergedPrintBody, generatedLetter.donation?.date),
       branding,
       presets: {
-        headerPreset: null,
-        footerPreset: null,
-        signatureBlock: generatedLetter.template?.signatureBlock,
+        headerPreset: generatedLetter.template?.headerPreset ?? defaultPresets.headerPreset,
+        footerPreset: generatedLetter.template?.footerPreset ?? defaultPresets.footerPreset,
+        signatureBlock: generatedLetter.template?.signatureBlock ?? defaultPresets.signatureBlock,
       },
     });
 
@@ -5741,6 +5841,11 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
         error: message,
       },
     });
+
+    if (error instanceof LetterPdfLayoutError) {
+      res.status(422).json({ error: { code: error.code, message } });
+      return;
+    }
 
     res.status(500).json({
       error: {
@@ -5832,7 +5937,10 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
   const exportedAtIso = new Date().toISOString();
 
   try {
-    const branding = await getLetterPdfBrandingContext(organizationId);
+    const [branding, defaultPresets] = await Promise.all([
+      getLetterPdfBrandingContext(organizationId),
+      getDefaultLetterPdfPresets(organizationId),
+    ]);
     const pdfBuffer = await renderGeneratedLettersBatchPdf(
       orderedRows.map((row) => {
         const constituentName = [row.constituent?.firstName, row.constituent?.lastName]
@@ -5858,9 +5966,9 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           mergedPrintBody: normalizeMergedDonationDateTextForPdfExport(row.mergedPrintBody, row.donation?.date),
           branding,
           presets: {
-            headerPreset: null,
-            footerPreset: null,
-            signatureBlock: row.template?.signatureBlock,
+            headerPreset: row.template?.headerPreset ?? defaultPresets.headerPreset,
+            footerPreset: row.template?.footerPreset ?? defaultPresets.footerPreset,
+            signatureBlock: row.template?.signatureBlock ?? defaultPresets.signatureBlock,
           },
         };
       }),
@@ -5937,6 +6045,11 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
         error: message,
       },
     });
+
+    if (error instanceof LetterPdfLayoutError) {
+      res.status(422).json({ error: { code: error.code, message } });
+      return;
+    }
 
     res.status(500).json({
       error: {

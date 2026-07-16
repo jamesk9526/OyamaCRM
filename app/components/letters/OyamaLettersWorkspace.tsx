@@ -1140,6 +1140,7 @@ function TemplateLibrary() {
 function TemplateBuilder({ templateId }: { templateId?: string }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const previewBodyRef = useRef<HTMLDivElement | null>(null);
   const savedEditorRangeRef = useRef<Range | null>(null);
   const lastInlineSuggestionRequestRef = useRef("");
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -1189,6 +1190,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [editorPdfOpen, setEditorPdfOpen] = useState(false);
   const [editorPdfLoading, setEditorPdfLoading] = useState(false);
   const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
+  const [canvasOverflowing, setCanvasOverflowing] = useState(false);
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiTone, setAiTone] = useState("Warm and grateful");
@@ -1318,6 +1320,22 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     const normalizedBody = draft.printBody || "<p></p>";
     if (editor.innerHTML !== normalizedBody) editor.innerHTML = normalizedBody;
   }, [draft.printBody]);
+
+  useEffect(() => {
+    const body = previewMode ? previewBodyRef.current : editorRef.current;
+    if (!body) {
+      setCanvasOverflowing(false);
+      return;
+    }
+    const measure = () => setCanvasOverflowing(body.scrollHeight > body.clientHeight + 4);
+    const frame = window.requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [draft.printBody, previewMode, pageSize, margins.top, margins.bottom, margins.left, margins.right]);
 
   useEffect(() => {
     return () => {
@@ -2225,6 +2243,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     }
   }
   const wordCount = countWords(draft.printBody);
+  const selectedSignature = signatures.find((item) => item.id === draft.signatureBlockId)
+    ?? signatures.find((item) => item.isDefault && item.isActive)
+    ?? null;
+  const canvasSigner = selectedSignature?.signerName || branding.defaultLetterSignerName;
+  const canvasSignerTitle = selectedSignature?.signerTitle || branding.defaultLetterSignerTitle;
+  const canvasClosing = selectedSignature?.closingPhrase || branding.defaultLetterClosingPhrase;
+  const canvasBodyHasSignature = letterBodyHasSignature(draft.printBody, canvasSigner, canvasSignerTitle, canvasClosing);
+  const explicitPageBreakCount = countLetterPageBreaks(draft.printBody);
+  const intendedPageCount = explicitPageBreakCount + 1;
   const pageSizeShort = pageSize.includes("Letter") ? "8.5 x 11 in" : pageSize.includes("Legal") ? "8.5 x 14 in" : "A4";
   const pageMetrics = pageSizeToMetrics(pageSize);
   const editorFrameWidth = pageMetrics.width + 84;
@@ -2318,7 +2345,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <RibbonGroup label="Tools">
               <RibbonToolButton iconName="pdf-preview" glyph="▣" label="Image" onClick={insertImage} />
               <RibbonToolButton iconName="canvas-builder" glyph="▦" label="Table" onClick={insertTable} />
-              <RibbonToolButton iconName="page-break" glyph="↵" label="Page Break" onClick={() => insertBlock('<div style="page-break-after: always;"></div>')} />
+              <RibbonToolButton iconName="page-break" glyph="↵" label="Page Break" onClick={() => insertBlock('<div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div>')} />
               <RibbonToolButton iconName="validation-check" glyph="✓" label="Spelling" onClick={runSpellCheck} />
             </RibbonGroup>
           </>
@@ -2488,20 +2515,23 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 marginBottom={margins.bottom}
                 marginLeft={margins.left}
                 sender={{
-                  name: branding.defaultLetterSignerName,
-                  title: branding.defaultLetterSignerTitle,
-                  email: branding.defaultLetterSignerEmail,
-                  phone: branding.defaultLetterSignerPhone,
-                  signatureUrl: branding.defaultLetterSignatureImageUrl,
-                  closing: branding.defaultLetterClosingPhrase,
+                  name: canvasSigner,
+                  title: canvasSignerTitle,
+                  email: selectedSignature?.email || branding.defaultLetterSignerEmail,
+                  phone: selectedSignature?.phone || branding.defaultLetterSignerPhone,
+                  signatureUrl: selectedSignature?.signatureImageUrl || branding.defaultLetterSignatureImageUrl,
+                  closing: canvasClosing,
                 }}
+                fixedHeight
+                autoSignature={!canvasBodyHasSignature}
                 bodySlot={(
                   <>
                     <label className="sr-only" htmlFor="printBody">Print body</label>
                     {previewMode ? (
                       <div
                         id="printBody"
-                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_.merge-token-badge]:inline-flex [&_.merge-token-badge]:items-center [&_.merge-token-badge]:rounded [&_.merge-token-badge]:border [&_.merge-token-badge]:border-emerald-300 [&_.merge-token-badge]:bg-emerald-50 [&_.merge-token-badge]:px-1.5 [&_.merge-token-badge]:py-0.5 [&_.merge-token-badge]:font-mono [&_.merge-token-badge]:text-[11px] [&_.merge-token-badge]:font-semibold [&_.merge-token-badge]:text-emerald-800 [&_.merge-token-badge-unknown]:border-amber-300 [&_.merge-token-badge-unknown]:bg-amber-50 [&_.merge-token-badge-unknown]:text-amber-800 [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                        ref={previewBodyRef}
+                        className="h-full min-h-0 max-h-full w-full overflow-y-auto border-0 bg-transparent pr-1 text-[14px] leading-7 text-slate-950 outline-none [&_.merge-token-badge]:inline-flex [&_.merge-token-badge]:items-center [&_.merge-token-badge]:rounded [&_.merge-token-badge]:border [&_.merge-token-badge]:border-emerald-300 [&_.merge-token-badge]:bg-emerald-50 [&_.merge-token-badge]:px-1.5 [&_.merge-token-badge]:py-0.5 [&_.merge-token-badge]:font-mono [&_.merge-token-badge]:text-[11px] [&_.merge-token-badge]:font-semibold [&_.merge-token-badge]:text-emerald-800 [&_.merge-token-badge-unknown]:border-amber-300 [&_.merge-token-badge-unknown]:bg-amber-50 [&_.merge-token-badge-unknown]:text-amber-800 [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_[data-letter-page-break]]:my-4 [&_[data-letter-page-break]]:flex [&_[data-letter-page-break]]:items-center [&_[data-letter-page-break]]:gap-2 [&_[data-letter-page-break]]:text-[11px] [&_[data-letter-page-break]]:font-semibold [&_[data-letter-page-break]]:uppercase [&_[data-letter-page-break]]:tracking-wide [&_[data-letter-page-break]]:text-emerald-700 [&_[data-letter-page-break]]:before:h-px [&_[data-letter-page-break]]:before:flex-1 [&_[data-letter-page-break]]:before:bg-emerald-300 [&_[data-letter-page-break]]:after:h-px [&_[data-letter-page-break]]:after:flex-1 [&_[data-letter-page-break]]:after:bg-emerald-300"
                         dangerouslySetInnerHTML={{ __html: decorateMergeTokens(draft.printBody || "<p></p>", mergeRegistry) }}
                       />
                     ) : (
@@ -2517,7 +2547,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                         onClick={handleEditorClick}
                         onKeyUp={rememberEditorSelection}
                         onKeyDown={handleEditorKeyDown}
-                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                        className="h-full min-h-0 max-h-full w-full overflow-y-auto border-0 bg-transparent pr-1 text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_[data-letter-page-break]]:my-4 [&_[data-letter-page-break]]:flex [&_[data-letter-page-break]]:items-center [&_[data-letter-page-break]]:gap-2 [&_[data-letter-page-break]]:text-[11px] [&_[data-letter-page-break]]:font-semibold [&_[data-letter-page-break]]:uppercase [&_[data-letter-page-break]]:tracking-wide [&_[data-letter-page-break]]:text-emerald-700 [&_[data-letter-page-break]]:before:h-px [&_[data-letter-page-break]]:before:flex-1 [&_[data-letter-page-break]]:before:bg-emerald-300 [&_[data-letter-page-break]]:after:h-px [&_[data-letter-page-break]]:after:flex-1 [&_[data-letter-page-break]]:after:bg-emerald-300"
                         spellCheck
                       />
                     )}
@@ -2533,9 +2563,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <span className="text-slate-300 select-none">·</span>
             <span>Words: {wordCount}</span>
             <span className="text-slate-300 select-none">·</span>
+            <span className={canvasOverflowing ? "font-semibold text-red-700" : "font-semibold text-emerald-700"}>
+              {canvasOverflowing ? "Overflow blocked" : `${intendedPageCount} ${intendedPageCount === 1 ? "page" : "pages"} requested`}
+            </span>
+            <span className="text-slate-300 select-none">·</span>
             <span>{previewMode ? "Preview" : "Insert"}</span>
             <span className="ml-auto">{zoom}%</span>
           </div>
+          {canvasOverflowing ? (
+            <div className="mx-auto mt-2 max-w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" style={{ width: editorFrameWidth }}>
+              This page is full. Server PDF output will stop here until you shorten the content or insert a Page Break before the next section.
+            </div>
+          ) : null}
         </section>
         <aside className="order-3 max-h-[46dvh] min-h-0 overflow-y-auto border-t border-slate-200 bg-[#fbfcfd] xl:order-none xl:max-h-none xl:border-l xl:border-t-0">
           <div className="sticky top-0 z-10 flex gap-3 overflow-x-auto border-b border-slate-200 bg-white px-3 pt-2 sm:gap-5 sm:px-4">
@@ -2709,7 +2748,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <Button onClick={() => formatBlock("h1")}>Insert Heading</Button>
                     <Button onClick={() => insertBlock("<hr />")}>Insert Divider</Button>
                     <Button onClick={insertFillSpace}>Push Content to Bottom</Button>
-                    <Button onClick={() => insertBlock('<div style="page-break-after: always;"></div>')}>Insert Page Break</Button>
+                    <Button onClick={() => insertBlock('<div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div>')}>Insert Page Break</Button>
                     <Button onClick={() => insertSignature()}>Insert Signature</Button>
                   </div>
                 </InspectorCard>
@@ -7032,6 +7071,24 @@ function countWords(value: string): number {
   const plain = value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").trim();
   if (!plain) return 0;
   return plain.split(/\s+/).filter(Boolean).length;
+}
+
+function countLetterPageBreaks(value: string): number {
+  return Array.from(value.matchAll(/<[^>]+>/g))
+    .filter((tag) => /data-letter-page-break\s*=\s*["']true["']|(?:page-break-after|break-after)\s*:\s*(?:always|page)/i.test(tag[0]))
+    .length;
+}
+
+function normalizeLetterSignatureText(value: string | null | undefined): string {
+  return (value ?? "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").toLowerCase().replace(/[^a-z0-9@.+]+/g, " ").trim();
+}
+
+function letterBodyHasSignature(bodyHtml: string, signerName?: string | null, signerTitle?: string | null, closingPhrase?: string | null): boolean {
+  const tail = normalizeLetterSignatureText(bodyHtml).slice(-800);
+  const signer = normalizeLetterSignatureText(signerName);
+  if (!signer || !tail.includes(signer)) return false;
+  const supporting = [signerTitle, closingPhrase].map(normalizeLetterSignatureText).filter(Boolean);
+  return supporting.length === 0 || supporting.some((value) => tail.includes(value));
 }
 
 function headerPresetToDraft(header: HeaderPreset | null): HeaderPresetDraft {

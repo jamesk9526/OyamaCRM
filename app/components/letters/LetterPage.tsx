@@ -51,6 +51,8 @@ export interface LetterPageProps {
   className?: string;
   minHeight?: number | string;
   screenShadow?: boolean;
+  fixedHeight?: boolean;
+  autoSignature?: boolean;
 }
 
 const LETTER_WIDTH_PX = 816;
@@ -90,6 +92,8 @@ export default function LetterPage({
   className = "",
   minHeight = LETTER_HEIGHT_PX,
   screenShadow = true,
+  fixedHeight = false,
+  autoSignature = true,
 }: LetterPageProps) {
   const resolvedBranding = document?.branding ?? branding;
   const resolvedTitle = title ?? document?.title;
@@ -145,6 +149,7 @@ export default function LetterPage({
     "--letter-accent": accentColor,
     width: LETTER_WIDTH_PX,
     minHeight,
+    ...(fixedHeight ? { height: minHeight } : {}),
     paddingTop: `${resolvedMarginTop}in`,
     paddingRight: `${resolvedMarginRight}in`,
     paddingBottom: `${resolvedMarginBottom}in`,
@@ -155,6 +160,7 @@ export default function LetterPage({
     <article
       className={[
         "letter-page flex flex-col bg-white text-slate-950 ring-1 ring-slate-300",
+        fixedHeight ? "overflow-hidden" : "",
         screenShadow ? "shadow-[0_18px_45px_rgba(15,23,42,0.12)]" : "",
         className,
       ].filter(Boolean).join(" ")}
@@ -212,7 +218,7 @@ export default function LetterPage({
         </p>
       ) : null}
 
-      <section className="mt-7 flex-1 text-[14px] leading-7 text-slate-950">
+      <section className="mt-7 flex-1 min-h-0 overflow-hidden text-[14px] leading-7 text-slate-950">
         {displaySalutation ? <p className="mb-4">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()
@@ -221,20 +227,22 @@ export default function LetterPage({
         )}
       </section>
 
-      <section className="mt-8 text-sm leading-6 text-slate-900">
-        <p>{closing}</p>
-        {signatureUrl ? <img src={signatureUrl} alt="" className="mt-3 max-h-20 max-w-56 object-contain" /> : null}
-        <p className="mt-4 font-semibold">{senderName}</p>
-        {senderTitle ? <p className="text-slate-600">{senderTitle}</p> : null}
-      </section>
+      {autoSignature ? (
+        <section className="mt-8 text-sm leading-6 text-slate-900">
+          <p>{closing}</p>
+          {signatureUrl ? <img src={signatureUrl} alt="" className="mt-3 max-h-20 max-w-56 object-contain" /> : null}
+          <p className="mt-4 font-semibold">{senderName}</p>
+          {senderTitle ? <p className="text-slate-600">{senderTitle}</p> : null}
+        </section>
+      ) : null}
 
       {resolvedFooterEnabled ? (
         <footer className="mt-8 border-t pt-4" style={{ borderColor: accentColor }}>
           {resolvedBranding.footerLegalText ? <p className="text-center text-[11px] leading-5 text-slate-500">{resolvedBranding.footerLegalText}</p> : null}
           {displayFooterBlocks.length > 0 ? (
-            <div className="mt-3 grid gap-2 text-[10px] leading-4 text-slate-600 sm:grid-cols-3">
+            <div className="mt-3 grid justify-center gap-2 text-center text-[10px] leading-4 text-slate-600 sm:grid-cols-3">
               {displayFooterBlocks.slice(0, 3).map((block) => (
-                <div key={`${block.label}:${block.text}`} className="rounded-[6px] border border-slate-200 bg-slate-50 px-3 py-2">
+                <div key={`${block.label}:${block.text}`} className="rounded-[6px] border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                   <p className="font-semibold uppercase tracking-wide" style={{ color: accentColor }}>{block.label}</p>
                   <p className="mt-0.5 break-words">{block.text}</p>
                 </div>
