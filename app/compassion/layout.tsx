@@ -109,7 +109,7 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
     };
   }, []);
 
-  const contentTopPaddingClass = shellScrolled ? "pt-16 xl:pt-20" : "pt-16 xl:pt-28";
+  const contentTopPaddingClass = "pt-14 xl:pt-20";
 
   if (isPublicWidgetRoute) {
     return <>{children}</>;
@@ -138,11 +138,11 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex h-[100dvh] min-h-[100svh] flex-col bg-white">
       {/* TopBar is module-aware and will render blue accents for /compassion paths */}
       <TopBar scrolled={shellScrolled} />
-      <div className={`relative flex min-w-0 flex-1 overflow-hidden transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${contentTopPaddingClass}`}>
-        <div className="hidden lg:block">
+      <div className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
+        <div className="hidden h-full lg:block">
           <CompassionSidebar />
         </div>
 
@@ -155,7 +155,7 @@ export default function CompassionLayout({ children }: { children: React.ReactNo
         </MobileSidebarDrawer>
 
         {/* Blue-tinted content area distinguishes Compassion CRM visually */}
-        <main data-crm-scroll-root="true" className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-blue-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
+        <main data-crm-scroll-root="true" className="min-h-0 min-w-0 flex-1 overscroll-contain overflow-x-hidden overflow-y-auto bg-blue-50/30 p-3 sm:p-4 lg:p-4 min-[1440px]:p-5 2xl:p-6">
           <ErrorBoundary>
             <div className="min-w-0 max-w-full">{children}</div>
           </ErrorBoundary>

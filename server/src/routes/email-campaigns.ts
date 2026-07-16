@@ -445,6 +445,10 @@ interface CampaignWorkflowSettings {
   lastQueueActionAt: string | null;
   lastQueueActionById: string | null;
   templateSnapshot: CampaignTemplateSnapshot | null;
+  source: string | null;
+  sourceGeneratedLetterId: string | null;
+  sourceTemplateId: string | null;
+  sourceConstituentId: string | null;
 }
 
 const CAMPAIGN_PREPARATION_STATUSES: CampaignPreparationStatus[] = ["NOT_STARTED", "DRAFT", "READY"];
@@ -472,6 +476,10 @@ const DEFAULT_CAMPAIGN_WORKFLOW: CampaignWorkflowSettings = {
   lastQueueActionAt: null,
   lastQueueActionById: null,
   templateSnapshot: null,
+  source: null,
+  sourceGeneratedLetterId: null,
+  sourceTemplateId: null,
+  sourceConstituentId: null,
 };
 
 type CampaignSendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL" | "MULTI_SEGMENT" | "MULTI_LIST";
@@ -1543,6 +1551,19 @@ function normalizeCampaignWorkflow(
         ? value.lastQueueActionById.trim()
         : fallback.lastQueueActionById,
     templateSnapshot: normalizeTemplateSnapshot(value.templateSnapshot) ?? fallback.templateSnapshot,
+    source: typeof value.source === "string" && value.source.trim() ? value.source.trim() : fallback.source,
+    sourceGeneratedLetterId:
+      typeof value.sourceGeneratedLetterId === "string" && value.sourceGeneratedLetterId.trim()
+        ? value.sourceGeneratedLetterId.trim()
+        : fallback.sourceGeneratedLetterId,
+    sourceTemplateId:
+      typeof value.sourceTemplateId === "string" && value.sourceTemplateId.trim()
+        ? value.sourceTemplateId.trim()
+        : fallback.sourceTemplateId,
+    sourceConstituentId:
+      typeof value.sourceConstituentId === "string" && value.sourceConstituentId.trim()
+        ? value.sourceConstituentId.trim()
+        : fallback.sourceConstituentId,
   };
 }
 

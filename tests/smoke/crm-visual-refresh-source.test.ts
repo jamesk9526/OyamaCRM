@@ -47,7 +47,18 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(naturalDashboard).toContain("Steward Recommendations");
     expect(naturalDashboard).toContain("Recent Activity");
     expect(naturalDashboard).toContain("Needs Attention");
-    expect(naturalDashboard).toContain("Upcoming Events");
+    expect(naturalDashboard).toContain("Active Campaigns");
+    expect(naturalDashboard).toContain("Dashboard quick actions");
+    expect(naturalDashboard).toContain("xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.95fr)]");
+    expect(naturalDashboard).toContain("sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]");
+    expect(naturalDashboard).toContain("min-w-0");
+    expect(naturalDashboard).toContain("sm:grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(naturalDashboard).toContain("Calendar-year view");
+    expect(naturalDashboard).toContain("Create Email");
+    expect(naturalDashboard).toContain("Create Letter");
+    expect(naturalDashboard).toContain("Overdue donor tasks");
+    expect(naturalDashboard).not.toContain("2 emails failed to send");
+    expect(naturalDashboard).not.toContain("Math.max(1, Math.round");
     expect(dashboardService).toContain("/api/reports/giving-trend");
     expect(dashboardService).toContain("/api/reports/designations-summary");
     expect(dashboardService).toContain("/api/settings/dashboard-appearance");
@@ -87,6 +98,9 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(ribbonButton).toContain('data-mobile-touch="true"');
     expect(globals).toContain('[data-mobile-touch="true"]');
     expect(globals).toContain("min-height: 44px");
+    expect(globals).toContain(".crm-card-surface");
+    expect(globals).toContain(".crm-page-header-surface");
+    expect(globals).toContain(".crm-filter-surface");
     expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
@@ -94,6 +108,25 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(sidebar).toContain('label: "Donor Records"');
     expect(sidebar).toContain('label: "Constituents"');
     expect(sidebar).toContain('label: "Donations"');
+  });
+
+  it("keeps shared navigation stable and drawer-first below the desktop breakpoint", () => {
+    const appShell = read("app/components/layout/AppShell.tsx");
+    const topBar = read("app/components/layout/TopBar.tsx");
+    const mobileDrawer = read("app/components/layout/MobileSidebarDrawer.tsx");
+    const megaMenu = read("app/components/layout/DonorMegaMenu.tsx");
+    const globals = read("app/globals.css");
+
+    expect(appShell).toContain('hidden h-full lg:flex');
+    expect(appShell).toContain('const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-26" : "pt-14"');
+    expect(appShell).toContain("useBrowserLayoutEffect");
+    expect(topBar).toContain('xl:h-[72px]');
+    expect(topBar).toContain("lg:hidden");
+    expect(mobileDrawer).toContain('DESKTOP_NAVIGATION_MEDIA_QUERY = "(min-width: 1024px)"');
+    expect(mobileDrawer).toContain('aria-modal="true"');
+    expect(mobileDrawer).toContain("getFocusableElements");
+    expect(megaMenu).toContain("top-14");
+    expect(globals).toContain("scrollbar-gutter: stable");
   });
 
   it("applies the next visual pass to Constituents without removing existing behavior", () => {

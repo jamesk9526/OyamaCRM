@@ -1,8 +1,57 @@
 # Production Readiness Checklist
 
-Last updated: 2026-06-13 (OyamaEmail/OyamaLetters communication header-footer simplification)
+Last updated: 2026-07-16 (Letters and Email production-readiness pass)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-07-16 Letters and Email Production-Readiness Snapshot
+
+| Item | Status | Evidence |
+|---|---|---|
+| Reusable email template review gate | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
+| Proof email uses a clear in-workspace recipient dialog | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
+| Two-page letter PDF headers, footers, lists, and quotes | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, rendered proof recorded in `docs/status/audit-artifacts/2026-07-16-letters-email-production-readiness-pass.md` |
+| Exact mixed inline typography and client-inbox screenshot matrix | Partially Working | The PDF block renderer supports paragraphs, headings, lists, images, tables, and quotes, but does not reproduce every rich-text inline treatment; automated Gmail/Outlook screenshot verification is not configured. |
+
+Validation for this pass: focused Letters/Email suite passed 48/48, TypeScript typecheck passed, targeted ESLint passed with 0 errors, and a two-page PDF was rendered and visually inspected. The full suite result is recorded with the final validation evidence in the dated audit artifact.
+
+## 2026-07-16 Donor Dashboard Responsive Layout Snapshot
+
+| Item | Status | Evidence |
+|---|---|---|
+| Compact desktop and mobile Donor Dashboard layout | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/page.tsx`, `app/components/dashboard/DashboardWidget.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+| Dashboard responsive governance and office guidance | Working | `docs/architecture/workspace-layout-system.md`, `docs/DONOR_DASHBOARD.md`, `docs/howto/HOW_TO_USE.md` |
+| Browser screenshot verification in this environment | Partially Working | In-app browser was unavailable; focused source contracts, targeted ESLint, and web/server typechecks passed. Repeat live viewport inspection at `1280x720`, `1366x768`, tablet, and phone widths when browser access is restored. |
+
+## 2026-07-15 Letters and Email Output Formatting Snapshot
+
+| Item | Status | Evidence |
+|---|---|---|
+| Letter bullets and numbered lists remain visible in editor, shared print view, and server PDF output | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` |
+| Letter PDFs preserve ordered starting numbers, nested list depth, and hanging indentation | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `docs/status/audit-artifacts/2026-07-15-letters-email-output-audit.md` |
+| OyamaEmail lists render with inline client-safe styles and meaningful plain-text markers | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` |
+| Exact LetterPage-to-jsPDF typography parity | Partially Working | The server renderer still flattens mixed inline font treatments; use generated PDF preview as the final review surface. |
+| Cross-client Gmail/Outlook rendering matrix | Partially Working | Canonical renderer now inlines list styles, but automated inbox-client screenshot testing is not configured. |
+
+Validation for this pass: focused formatting/source contracts passed 41/41; web and server typechecks passed; targeted ESLint reported 0 errors. The full parallel suite passed 645/646, with the known Compassion scheduling capacity test passing 8/8 when isolated.
+
+## 2026-07-13 Validation Snapshot
+
+| Validation | Result | Status |
+|---|---|---|
+| `pnpm lint` | Passed with 0 errors and 125 warnings | Working |
+| `pnpm typecheck` | Web and server typechecks passed | Working |
+| `pnpm test` | 74/75 files and 638/639 tests passed under parallel load; the one Compassion scheduling failure passes 8/8 when isolated | Partially Working |
+| `pnpm build` | Production build passed; 198 routes generated | Working |
+
+Lint, typecheck, and build gates are green. The combined test lane remains partially working because a Compassion public-scheduling test intermittently receives a 404 under parallel suite load even though that file passes 8/8 in isolation. Other release risks include incomplete workspace permission enforcement, payment/webhook idempotency, export/upload authorization consistency, backup/restore documentation, and the non-blocking lint-warning backlog.
+
+## 2026-07-14 Navigation Shell Stability Pass
+
+| Item | Status | Evidence |
+|---|---|---|
+| Shared sidebar/topbar responsive shell | Partially Working | `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/CrmSidebar.tsx`, `app/components/layout/MobileSidebarDrawer.tsx`; source smoke 9/9, `pnpm typecheck` passed, `pnpm build` passed (198 routes), focused ESLint had 0 errors (2 existing warnings in `DonorMegaMenu.tsx`) |
+| Live visual viewport audit | Partially Working | Browser-backed verification is still required. The in-app browser surface was unavailable in this session and no local web/API server was listening for the Playwright responsive audit. |
 
 ## Design and Workflow Governance Gate (required)
 
@@ -51,12 +100,13 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 |---|---|---|
 | `/oyama-letters` opens a dedicated Letter & Document Studio shell outside the DonorCRM page chrome | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/layout/AppShell.tsx` |
 | Template Library, Canvas Builder, Publish Workspace, Generate Letters, queue, and settings routes use live letters APIs | Working | `app/oyama-letters/page.tsx`, `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx` |
-| Generate Letters multi-recipient batch flow validates, generates, opens PDFs, and routes print queue metadata with workflow policy | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/e2e/oyama-letters-batch.e2e.mjs` |
+| Generate Letters multi-recipient batch flow validates, generates, opens PDFs, routes print queue metadata, and preserves recipient/campaign/event/year merge context | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/api/letters-merge-aliases.api.test.ts`, `tests/smoke/letters-printables-generate-source.test.ts`, `tests/e2e/oyama-letters-batch.e2e.mjs` |
 | Canvas Builder block, format, and layout controls update real template content, including line height, dividers, preserved white space, push-to-bottom layout, active-block justification, and inspector-built tables | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/unit/letters-pdf-layout.test.ts` |
 | Shared branded letter document preview and print output use one typed client model | Partially Working | `app/lib/letters/letter-document.ts`, `app/components/letters/LetterPage.tsx`, `app/components/letters/LetterPrintRoute.tsx`, `app/oyama-letters/templates/[templateId]/print/page.tsx`, `tests/unit/letter-document.test.ts`, `tests/smoke/letter-builder-ui-source.test.ts` |
 | Uploaded letter images resize and uploaded signature images render in server PDFs | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterSignaturesManager.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` |
 | Letter sample PDF preview remains available without a live sample recipient | Working | `server/src/routes/letters.ts`, `tests/smoke/letters-printables-generate-source.test.ts` |
 | Selected donations hand off to OyamaLetters as a temporary unique-donor list | Working | `app/donations/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Generated letters create or reopen a linked, reviewable OyamaEmail draft with a durable return path, without sending or leaving the print/mail queue | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/email-campaigns.ts`, `tests/smoke/api-smoke.test.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` |
 | Branding Defaults owns one global communication header and one global communication footer for all letter output | Working | `app/settings/branding/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts` |
 | Existing live letters backend is bound into the refreshed shell UI | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` |
 | Workspace switcher exposes OyamaLetters as its own entry | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts` |
@@ -78,7 +128,7 @@ Notes:
 | Template, builder, publish, send, campaigns, callender, audience, queue, analytics, and settings routes are wired | Working | `app/oyama-email/templates/page.tsx`, `app/oyama-email/templates/new/page.tsx`, `app/oyama-email/templates/[templateId]/builder/page.tsx`, `app/oyama-email/templates/[templateId]/publish/page.tsx`, `app/oyama-email/send/page.tsx`, `app/oyama-email/campaigns/page.tsx`, `app/oyama-email/callender/page.tsx`, `app/oyama-email/campaigns/[campaignId]/page.tsx`, `app/oyama-email/audience/page.tsx`, `app/oyama-email/queue/page.tsx`, `app/oyama-email/analytics/page.tsx`, `app/oyama-email/settings/page.tsx` |
 | Legacy communications email entry routes redirect into OyamaEmail routes | Working | `app/communications/page.tsx`, `app/communications/new/page.tsx`, `app/communications/new/type/page.tsx`, `app/communications/new/audience/page.tsx`, `app/communications/new/preset/page.tsx`, `app/communications/new/editor/page.tsx`, `app/communications/new/review/page.tsx`, `app/communications/new/send/page.tsx`, `app/communications/log/page.tsx`, `app/communications/library/templates/page.tsx`, `app/communications/library/segments/page.tsx`, `app/communications/library/campaigns/page.tsx`, `app/communications/[campaignId]/page.tsx`, `app/communications/[campaignId]/review/page.tsx`, `app/communications/[campaignId]/schedule/page.tsx` |
 | Campaigns workspace supports board + calendar planning, drag/reschedule, and status-driven command-center actions backed by API endpoints | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/email-campaigns.ts`, `tests/api/email-campaign-workflow.api.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` |
-| Email Queue is a dedicated sidebar workspace for drafted and sent email records; Template Library is limited to reusable templates | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/oyama-email/queue/page.tsx`, `server/src/routes/oyama-email.ts` |
+| Email Queue is a dedicated sidebar workspace for drafted and sent email records; Template Library uses its canonical reusable-template feed and retains templates after save | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/oyama-email/queue/page.tsx`, `server/src/routes/oyama-email.ts`, `tests/api/oyama-email-merge-preview.api.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` |
 | Send lifecycle uses provider-accepted events (no simulated bounce fallback), exposes failed-recipient truth in queue/progress summaries, and has webhook idempotency coverage | Working | `server/src/routes/email-campaigns.ts`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/api/email-campaign-workflow.api.test.ts` |
 | Builder no longer silently loads/saves the starter template over malformed existing templates | Working | `server/src/routes/oyama-email.ts`, `tests/api/oyama-email-merge-preview.api.test.ts` |
 | Canonical builder uses Tiptap rich editing plus saved plain-text override | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` |
@@ -107,7 +157,7 @@ Use only these status labels:
 
 | Item | Status | Evidence |
 |---|---|---|
-| Donor dashboard tools use a compact filter bar and Recharts-backed visual panels | Working | `app/components/dashboard/DonorDashboardVisualRefresh.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+| Donor dashboard uses live focus queues, working workflow launch actions, visible refresh, and shared DonorCRM theme surfaces | Working | `app/page.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/ui/crm/*`, `app/globals.css`, `tests/smoke/crm-visual-refresh-source.test.ts` |
 | DonorCRM high-traffic workspace commands use grouped Explorer-style ribbons | Working | `app/components/ui/crm/CRMActionBar.tsx`, `app/constituents/page.tsx`, `app/donations/page.tsx`, `app/meetings/page.tsx`, `app/tasks/page.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
 | Donor sidebar visually matches the dark green/teal top bar brand chrome on desktop | Working | `app/components/layout/CrmSidebar.tsx` |
 | Donor sidebar grouping exposes separate Home and Core CRM groups while keeping supporting tools in lower collapsible groups | Working | `app/components/layout/sidebar-configs.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
@@ -473,7 +523,7 @@ Notes:
 |---|---|---|
 | Workspace permissions are enforced | Not Implemented | Module-level workspace policy checks are not consistently enforced |
 | Tests cover critical workflows | Partially Working | Smoke is passing (151/151), but current e2e run failed due local service availability mismatch (`localhost:3650`) |
-| Lint/type/build pipelines are green | Broken | Typecheck and builds are green, but lint is currently red (13 errors) |
+| Lint/type/build pipelines are green | Partially Working | Validated 2026-07-13: lint and typecheck pass, production build generates 198 routes, and 125 lint warnings remain. Full tests pass 638/639 under parallel load; the isolated failing file passes 8/8. |
 | Prisma client generation is reliable | Broken | `pnpm db:generate` failed on Windows with Prisma engine rename `EPERM` |
 | Payment/webhook endpoints are idempotent | Not Implemented | Provider webhooks are not implemented yet |
 | Backup/restore process is documented | Not Implemented | Recovery runbook is still missing |
@@ -482,7 +532,7 @@ Notes:
 
 ## Release Gate Exit Criteria
 
-1. Fix lint errors so `pnpm lint` returns Working.
+1. Keep `pnpm lint` at zero errors and reduce the remaining warning backlog without hiding actionable rules.
 2. Stabilize E2E runtime contracts (base URL, login route, ports) so all three E2E commands return Working.
 3. Resolve Windows Prisma engine lock behavior so `pnpm db:generate` returns Working.
 4. Keep release checks green on re-run: lint, all typecheck commands, smoke, all E2E commands, test, coverage, build, build:server, db:generate, and db:verify:linux-casing.

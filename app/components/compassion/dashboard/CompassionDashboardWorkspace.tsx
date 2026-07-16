@@ -3,6 +3,7 @@
 "use client";
 
 import { type ReactNode, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -206,9 +207,9 @@ function ScheduleCard({ appointments }: { appointments: AppointmentItem[] }) {
           ))}
         </div>
       )}
-      <a href="/compassion/appointments" className="block text-xs text-blue-600 hover:underline mt-4">
+      <Link href="/compassion/appointments" className="block text-xs text-blue-600 hover:underline mt-4">
         View full calendar →
-      </a>
+      </Link>
     </div>
   );
 }
@@ -336,9 +337,9 @@ function TasksCard({ followUps, overdueCount }: { followUps: FollowUpItem[]; ove
           ))}
         </div>
       )}
-      <a href="/compassion/follow-ups" className="block text-xs text-blue-600 hover:underline mt-4">
+      <Link href="/compassion/follow-ups" className="block text-xs text-blue-600 hover:underline mt-4">
         View all tasks →
-      </a>
+      </Link>
     </div>
   );
 }
@@ -381,9 +382,9 @@ function DailyWorkQueue({ rows }: { rows: WorkQueueRow[] }) {
           <h2 className="text-base font-semibold text-gray-900">Today&apos;s Work Queue</h2>
           <p className="text-sm text-gray-500">Appointments and follow-ups in one simple list.</p>
         </div>
-        <a href="/compassion/follow-ups" className="rounded-md border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50">
+        <Link href="/compassion/follow-ups" className="rounded-md border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50">
           Open follow ups
-        </a>
+        </Link>
       </div>
 
       {rows.length === 0 ? (

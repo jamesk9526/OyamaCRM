@@ -216,7 +216,7 @@ export default function LetterPage({
         {displaySalutation ? <p className="mb-4">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()
-            ? <div className="letter-page-body [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_ol]:my-3 [&_p]:my-3 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2 [&_ul]:my-3" dangerouslySetInnerHTML={{ __html: resolvedBodyHtml }} />
+            ? <div className="letter-page-body [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_li]:my-1 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_p]:my-3 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7" dangerouslySetInnerHTML={{ __html: resolvedBodyHtml }} />
             : <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No document content available.</p>
         )}
       </section>

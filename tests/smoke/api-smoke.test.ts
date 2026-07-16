@@ -252,7 +252,7 @@ describe("API smoke tests", () => {
         category: "THANK_YOU",
         status: "ACTIVE",
         printBody: "{{donor.salutation}}\nThank you for your support of {{organization.name}}.",
-        emailBody: "Thank you {{donor.firstName}} for your gift.",
+        emailBody: "<p>Thank you {{donor.firstName}} for your <strong>support</strong>.</p>",
       });
 
     expect(template.status).toBe(201);
@@ -286,6 +286,36 @@ describe("API smoke tests", () => {
       .send({});
     expect(createDraft.status).toBe(200);
     expect(createDraft.body).toHaveProperty("emailCampaign");
+    expect(createDraft.body.reused).toBe(false);
+    expect(createDraft.body.redirectTo).toBe(`/oyama-email/campaigns/${createDraft.body.emailCampaign.id}`);
+    expect(createDraft.body.emailCampaign.bodyHtml).toContain("<strong>support</strong>");
+    expect(createDraft.body.emailCampaign.bodyText).not.toContain("<strong>");
+
+    const reusedDraft = await request(app)
+      .post(`/api/letters/generated/${generatedId}/create-email-draft`)
+      .set(auth)
+      .send({});
+    expect(reusedDraft.status).toBe(200);
+    expect(reusedDraft.body.reused).toBe(true);
+    expect(reusedDraft.body.emailCampaign.id).toBe(createDraft.body.emailCampaign.id);
+
+    const updatedCampaign = await request(app)
+      .put(`/api/email-campaigns/${createDraft.body.emailCampaign.id}`)
+      .set(auth)
+      .send({ name: `${templateName} Email Companion` });
+    expect(updatedCampaign.status).toBe(200);
+    expect(updatedCampaign.body.workflow).toMatchObject({
+      source: "letters_generated",
+      sourceGeneratedLetterId: generatedId,
+      sourceTemplateId: templateId,
+      sourceConstituentId: constituent?.id,
+    });
+
+    const campaignDetail = await request(app)
+      .get(`/api/email-campaigns/${createDraft.body.emailCampaign.id}`)
+      .set(auth);
+    expect(campaignDetail.status).toBe(200);
+    expect(campaignDetail.body.workflow.sourceGeneratedLetterId).toBe(generatedId);
 
     const history = await request(app)
       .get(`/api/letters/constituents/${constituent?.id}/generated`)

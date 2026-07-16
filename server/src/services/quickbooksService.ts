@@ -281,7 +281,7 @@ export async function handleOAuthCallback(
  */
 export async function getAuthorizedClient(
   organizationId: string
-): Promise<any> {
+) {
   const plugin = await prisma.pluginSetting.findUnique({
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
   });

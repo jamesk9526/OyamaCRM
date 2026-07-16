@@ -5,6 +5,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 import { DASHBOARD_APPEARANCE_DEFAULTS, DASHBOARD_HERO_ACTIONS } from "@/app/features/donor-dashboard/dashboard-config";
 import type { DashboardAppearanceSettings, DashboardHeroActionId } from "@/app/features/donor-dashboard/types";
@@ -425,12 +426,12 @@ export default function DashboardAppearancePage() {
 
       {/* Save */}
       <div className="flex items-center justify-end gap-3 pb-4">
-        <a
+        <Link
           href="/"
           className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
         >
           Preview dashboard
-        </a>
+        </Link>
         <button
           type="button"
           onClick={handleSave}

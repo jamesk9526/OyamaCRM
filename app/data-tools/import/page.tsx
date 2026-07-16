@@ -8,6 +8,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import ImportWizard from "./ImportWizard";
 import { apiFetch } from "@/app/lib/auth-client";
 import GuidedImportWizard from "@/app/components/data-tools/GuidedImportWizard";
@@ -52,12 +53,12 @@ export default function ImportPage() {
             Upload a donor, organization, church, business, or audience CSV file, map fields to your CRM, and review data quality before importing.
           </p>
         </div>
-        <a
+        <Link
           href="/data-tools"
           className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
         >
           ← Back to Data Tools
-        </a>
+        </Link>
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

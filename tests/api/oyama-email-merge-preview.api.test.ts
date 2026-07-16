@@ -271,6 +271,84 @@ describe("oyama email merge field audit", () => {
     expect(loaded.body?.renderedHtml).not.toContain("Your generosity makes practical care possible every day");
   });
 
+  it("keeps a saved template in the canonical library when legacy campaign metadata was attached", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const unique = Date.now();
+    const campaign = await prisma.emailCampaign.create({
+      data: {
+        organizationId,
+        name: `Library Recovery Template ${unique}`,
+        subject: "A reusable subject",
+        fromName: "Hope Foundation",
+        fromEmail: "noreply@hopefoundation.org",
+        replyToEmail: "noreply@hopefoundation.org",
+        bodyHtml: "<p>Reusable template content.</p>",
+        bodyText: "Reusable template content.",
+        templateJson: JSON.stringify({
+          version: 1,
+          template: {
+            version: 1,
+            contentWidth: 600,
+            backgroundColor: "#f3f7f5",
+            fontFamily: "Arial, Helvetica, sans-serif",
+            baseFontSize: 16,
+            lineHeight: 1.6,
+            textColor: "#1f2937",
+            linkColor: "#0f5c3c",
+            blocks: [{ id: "block_1", type: "text", content: "<p>Reusable template content.</p>" }],
+          },
+          settings: {
+            includeUnsubscribeLink: true,
+            includePhysicalAddress: true,
+            enablePlainTextVersion: true,
+          },
+          preferenceCategory: "GENERAL_UPDATES",
+        }),
+        status: "DRAFT",
+        audienceFilter: JSON.stringify({
+          filter: null,
+          sharing: { ownerId: adminUserId, sharedWithOrganization: false },
+          workflow: { preparationStatus: "DRAFT" },
+        }),
+      },
+    });
+
+    const beforeSave = await request(app)
+      .get("/api/oyama-email/templates?limit=100")
+      .set(auth);
+    expect(beforeSave.status).toBe(200);
+    expect(beforeSave.body.some((row: { id: string }) => row.id === campaign.id)).toBe(false);
+
+    const saved = await request(app)
+      .put(`/api/oyama-email/templates/${campaign.id}`)
+      .set(auth)
+      .send({
+        name: campaign.name,
+        subject: campaign.subject,
+        lastKnownUpdatedAt: campaign.updatedAt.toISOString(),
+      });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body?.ownerId).toBe(adminUserId);
+
+    const stored = await prisma.emailCampaign.findUnique({
+      where: { id: campaign.id },
+      select: { audienceFilter: true, scheduledAt: true, sentAt: true, totalRecipients: true },
+    });
+    expect(stored).toEqual({
+      audienceFilter: null,
+      scheduledAt: null,
+      sentAt: null,
+      totalRecipients: 0,
+    });
+
+    const afterSave = await request(app)
+      .get("/api/oyama-email/templates?limit=100")
+      .set(auth);
+    expect(afterSave.status).toBe(200);
+    expect(afterSave.body.some((row: { id: string }) => row.id === campaign.id)).toBe(true);
+  });
+
   it("keeps live campaign preview aligned with donor, gift, event, organization, compliance, and steward merge fields", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
     const unique = Date.now();

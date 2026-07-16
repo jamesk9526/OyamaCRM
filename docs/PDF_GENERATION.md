@@ -1,6 +1,6 @@
 # PDF Generation
 
-Last updated: May 27, 2026
+Last updated: July 15, 2026
 
 ## Current Pipeline
 
@@ -30,8 +30,9 @@ PDF export status is stored in `GeneratedLetter.metadataJson.pdfExport`:
 ## Limitations
 
 - Current server renderer is jsPDF, not Playwright/Chromium.
-- HTML/CSS fidelity is limited because the renderer converts merged HTML to plain text before PDF layout.
-- Embedded images, exact browser CSS, advanced tables, Avery labels, cover pages, and table of contents need a Chromium renderer before they can be considered production-complete.
+- The block parser preserves headings, paragraphs, spacing, dividers, semantic bullet/numbered lists, nested list indentation, basic tables, alignment, uploaded images, and signatures.
+- Exact browser CSS and mixed inline typography such as bold/italic/color runs are not fully preserved because jsPDF receives normalized layout blocks rather than a browser render tree.
+- Advanced tables, Avery labels, cover pages, and table of contents need a dedicated layout implementation or Chromium renderer before they can be considered production-complete.
 - Browser preview uses native PDF rendering, not PDF.js/react-pdf.
 
 ## Next Tasks

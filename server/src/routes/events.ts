@@ -23,13 +23,14 @@ import { issueTableLinkAccessToken, revokeTableLinkAccessTokens, verifyTableLink
 import { completeGuestInvite, createGuestInvite, markGuestInviteOpened } from "../services/guest-invite-service.js";
 import { createWalkInGuest, listEventGuests } from "../services/event-guest-service.js";
 import { getEventReportingSnapshot } from "../services/event-reporting-service.js";
-import type { EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@prisma/client";
+import type { EventCheckInExceptionStatus, EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@prisma/client";
 
 const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
 const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
 const MAX_SEATS_PER_PUBLIC_REGISTRATION = 50;
 const MAX_CHECKIN_CODE_GENERATION_ATTEMPTS = 10;
+const CHECK_IN_EXCEPTION_STATUSES = new Set<EventCheckInExceptionStatus>(["OPEN", "RESOLVED", "DISMISSED"]);
 const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "api",
   "apps",
@@ -3903,7 +3904,11 @@ router.get("/:eventId/checkin/exceptions", async (req, res) => {
     return;
   }
 
-  const exceptions = await listCheckInExceptions(event.id, req.query.status as any);
+  const requestedStatus = typeof req.query.status === "string" ? req.query.status : undefined;
+  const status = requestedStatus && CHECK_IN_EXCEPTION_STATUSES.has(requestedStatus as EventCheckInExceptionStatus)
+    ? requestedStatus as EventCheckInExceptionStatus
+    : undefined;
+  const exceptions = await listCheckInExceptions(event.id, status);
   res.json(exceptions);
 });
 

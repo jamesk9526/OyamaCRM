@@ -326,6 +326,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [campaigns, setCampaigns] = useState<OyamaEmailCampaign[]>([]);
+  const [templates, setTemplates] = useState<OyamaEmailCampaign[]>([]);
   const [stats, setStats] = useState<OyamaEmailStats | null>(null);
   const [lists, setLists] = useState<OyamaEmailRecipientList[]>([]);
   const [constituents, setConstituents] = useState<OyamaEmailConstituent[]>([]);
@@ -341,6 +342,8 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [testSendDialogOpen, setTestSendDialogOpen] = useState(false);
+  const [testRecipientEmail, setTestRecipientEmail] = useState("");
 
   const normalizedView: OyamaEmailView = view === "send" || view === "audience" || view === "analytics"
     ? "campaigns"
@@ -363,26 +366,29 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const temporarySegmentId = searchParams.get("temporarySegmentId") || null;
 
   const targetCampaignId = templateId || campaignId || searchParams.get("templateId") || null;
-  const templateRows = useMemo(() => campaigns.filter(isReusableEmailTemplate), [campaigns]);
+  const templateRows = templates;
   const sendRecordRows = useMemo(() => campaigns.filter((row) => !isReusableEmailTemplate(row)), [campaigns]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [campaignRows, statsRow, listRows, constituentRows] = await Promise.all([
+      const [campaignRows, templateRowsResponse, statsRow, listRows, constituentRows] = await Promise.all([
         apiFetch<OyamaEmailCampaign[]>("/api/email-campaigns?limit=100"),
+        apiFetch<OyamaEmailCampaign[]>("/api/oyama-email/templates?limit=100"),
         apiFetch<OyamaEmailStats>("/api/email-campaigns/stats").catch(() => null),
         apiFetch<OyamaEmailRecipientList[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<OyamaEmailConstituent[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setCampaigns(campaignRows);
+      setTemplates(templateRowsResponse);
       setStats(statsRow);
       setLists(listRows);
       setConstituents(constituentRows);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load OyamaEmail workspace.");
       setCampaigns([]);
+      setTemplates([]);
       setStats(null);
       setLists([]);
       setConstituents([]);
@@ -391,9 +397,9 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     }
   }, []);
 
-  const refreshCampaignRows = useCallback(async () => {
+  const refreshTemplateRows = useCallback(async () => {
     try {
-      setCampaigns(await apiFetch<OyamaEmailCampaign[]>("/api/email-campaigns?limit=100"));
+      setTemplates(await apiFetch<OyamaEmailCampaign[]>("/api/oyama-email/templates?limit=100"));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to refresh email templates.");
     }
@@ -413,7 +419,9 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
       return;
     }
 
-    const fromCollection = campaigns.find((row) => row.id === targetCampaignId) ?? null;
+    const fromCollection = templates.find((row) => row.id === targetCampaignId)
+      ?? campaigns.find((row) => row.id === targetCampaignId)
+      ?? null;
     if (fromCollection) {
       setFocusedCampaign(fromCollection);
       return;
@@ -431,7 +439,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     return () => {
       cancelled = true;
     };
-  }, [campaigns, targetCampaignId]);
+  }, [campaigns, targetCampaignId, templates]);
 
   useEffect(() => {
     if (!focusedCampaign) {
@@ -459,8 +467,10 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   const selectedCampaign = useMemo(() => {
     if (focusedCampaign) return focusedCampaign;
     if (!targetCampaignId) return null;
-    return campaigns.find((row) => row.id === targetCampaignId) ?? null;
-  }, [campaigns, focusedCampaign, targetCampaignId]);
+    return templates.find((row) => row.id === targetCampaignId)
+      ?? campaigns.find((row) => row.id === targetCampaignId)
+      ?? null;
+  }, [campaigns, focusedCampaign, targetCampaignId, templates]);
 
   const selectedRecipients = useMemo(() => {
     const byId = new Map(constituents.map((row) => [row.id, row]));
@@ -547,13 +557,26 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     }
   }
 
-  async function sendTest() {
+  function openTestSendDialog() {
     if (!selectedCampaign?.id) {
       setError("Save this template before sending a test email.");
       return;
     }
-    const toEmail = window.prompt("Send test to email address:", builderDraft.replyToEmail || builderDraft.fromEmail || "");
-    if (!toEmail) return;
+    setError(null);
+    setTestRecipientEmail(builderDraft.replyToEmail || builderDraft.fromEmail || "");
+    setTestSendDialogOpen(true);
+  }
+
+  async function sendTest(toEmail: string): Promise<boolean> {
+    const recipient = toEmail.trim();
+    if (!selectedCampaign?.id) {
+      setError("Save this template before sending a test email.");
+      return false;
+    }
+    if (!/.+@.+\..+/.test(recipient)) {
+      setError("Enter a valid test recipient email address.");
+      return false;
+    }
 
     setSaving(true);
     setError(null);
@@ -561,11 +584,13 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     try {
       await apiFetch(`/api/email-campaigns/${selectedCampaign.id}/send-test`, {
         method: "POST",
-        body: JSON.stringify({ toEmail }),
+        body: JSON.stringify({ toEmail: recipient }),
       });
-      setNotice(`Test email sent to ${toEmail}.`);
+      setNotice(`Test email sent to ${recipient}.`);
+      return true;
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to send test email.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -578,6 +603,11 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     }
 
     const blockers = complianceChecks(builderDraft).filter((row) => row.required && !row.passed);
+    if (blockers.length > 0) {
+      setError(`Resolve ${blockers.length} required compliance ${blockers.length === 1 ? "check" : "checks"} before marking this template Ready.`);
+      setNotice(null);
+      return;
+    }
     logEmailPublishDiagnostics({
       stage: "before-publish",
       campaign: selectedCampaign,
@@ -602,9 +632,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
         draft: { ...builderDraft, bodyHtml: result.bodyHtml || builderDraft.bodyHtml },
         validationIssues: blockers,
       });
-      setNotice(blockers.length > 0
-        ? "Template published with validation notes. Review the browser console for developer diagnostics."
-        : "Template marked Ready in publish workflow.");
+      setNotice("Template marked Ready in publish workflow.");
       await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to publish template.");
@@ -641,7 +669,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
 
           {loading ? <LoadingState label="Loading OyamaEmail workspace..." /> : null}
           {!loading && normalizedView === "templates" ? (
-            <TemplatesView campaigns={templateRows} onUseTemplate={setSendTemplate} onTemplatesChanged={refreshCampaignRows} />
+            <TemplatesView campaigns={templateRows} onUseTemplate={setSendTemplate} onTemplatesChanged={refreshTemplateRows} />
           ) : null}
           {!loading && normalizedView === "queue" ? (
             <EmailQueueView campaigns={sendRecordRows} />
@@ -655,7 +683,7 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
               campaign={selectedCampaign}
               saving={saving}
               onSave={saveDraft}
-              onSendTest={sendTest}
+              onSendTest={openTestSendDialog}
               onPublish={publishTemplate}
             />
           ) : null}
@@ -679,6 +707,15 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
           ) : null}
           {!loading && normalizedView === "settings" ? (
             <SettingsView />
+          ) : null}
+          {testSendDialogOpen ? (
+            <TestSendDialog
+              email={testRecipientEmail}
+              saving={saving}
+              onChange={setTestRecipientEmail}
+              onClose={() => setTestSendDialogOpen(false)}
+              onSend={sendTest}
+            />
           ) : null}
         </div>
       </div>
@@ -839,7 +876,7 @@ function TemplatesView({
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Templates");
-  const [ownership, setOwnership] = useState<"MINE" | "SHARED" | "ALL">("MINE");
+  const [ownership, setOwnership] = useState<"MINE" | "SHARED" | "ALL">("ALL");
   const [provenance, setProvenance] = useState<"ALL" | "HUMAN" | "AI">("ALL");
   const [categorySort, setCategorySort] = useState<"default" | "count">("default");
   const [sortBy, setSortBy] = useState<"updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc">("updatedDesc");
@@ -1090,7 +1127,7 @@ function TemplatesView({
         </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-3">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
-            Library opens on <span className="font-semibold">your templates</span> first so drafting starts from owned work instead of team noise.
+            Library opens on <span className="font-semibold">all reusable templates</span> so legacy and team-owned work stays visible after save.
           </div>
           <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900">
             <span className="font-semibold">AI-assisted</span> badges come from saved builder JSON, not guesswork from names or categories.
@@ -1283,7 +1320,7 @@ function PublishView({
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSave} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Save Draft</button>
             <button type="button" onClick={onSendTest} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Send Test Email</button>
-            <button type="button" onClick={onPublish} disabled={saving} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">Publish Template</button>
+            <button type="button" onClick={onPublish} disabled={saving || blockerCount > 0} title={blockerCount > 0 ? "Resolve required compliance checks before marking this template Ready." : undefined} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">Mark Ready</button>
           </div>
         </div>
 
@@ -1302,10 +1339,59 @@ function PublishView({
         <KeyValue label="Plain Text" value={htmlToText(draft.bodyHtml).slice(0, 80) || "Auto-generated"} />
 
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-          Publishing sets this template as Ready for Send workflows while preserving draft history in campaign records.
+          Resolve every required check, then mark this reusable template Ready. Sending remains a separate campaign review workflow.
         </div>
       </aside>
     </section>
+  );
+}
+
+function TestSendDialog({
+  email,
+  saving,
+  onChange,
+  onClose,
+  onSend,
+}: {
+  email: string;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSend: (email: string) => Promise<boolean>;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 p-3 sm:items-center sm:justify-center" role="presentation">
+      <form
+        className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="test-send-dialog-title"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void onSend(email).then((sent) => {
+            if (sent) onClose();
+          });
+        }}
+      >
+        <h2 id="test-send-dialog-title" className="text-lg font-semibold text-slate-900">Send a proof email</h2>
+        <p className="mt-1 text-sm text-slate-600">This sends only to the address below. It does not queue or send the campaign audience.</p>
+        <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="oyama-email-test-recipient">Test recipient</label>
+        <input
+          id="oyama-email-test-recipient"
+          type="email"
+          value={email}
+          onChange={(event) => onChange(event.target.value)}
+          autoFocus
+          required
+          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          placeholder="reviewer@organization.org"
+        />
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Cancel</button>
+          <button type="submit" disabled={saving} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60">{saving ? "Sending..." : "Send proof"}</button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -2219,6 +2305,12 @@ function CampaignDetailWorkspace({
   const templateBuilderHref = campaign.templateSnapshot?.templateId
     ? `/oyama-email/templates/${campaign.templateSnapshot.templateId}/builder`
     : `/oyama-email/campaigns/${campaign.id}?tab=settings`;
+  const sourceWorkflow = campaign.workflow;
+  const sourceHref = sourceWorkflow?.source === "letters_generated" && sourceWorkflow.sourceTemplateId
+    ? `/oyama-letters/generate?templateId=${encodeURIComponent(sourceWorkflow.sourceTemplateId)}${sourceWorkflow.sourceConstituentId ? `&constituentId=${encodeURIComponent(sourceWorkflow.sourceConstituentId)}` : ""}${sourceWorkflow.sourceGeneratedLetterId ? `&generatedLetterId=${encodeURIComponent(sourceWorkflow.sourceGeneratedLetterId)}` : ""}`
+    : sourceWorkflow?.source === "letters_template" && sourceWorkflow.sourceTemplateId
+      ? `/oyama-letters/templates/${encodeURIComponent(sourceWorkflow.sourceTemplateId)}`
+      : null;
 
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -2448,6 +2540,18 @@ function CampaignDetailWorkspace({
           <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             Recommended next step: <span className="font-semibold">{campaign.nextRecommendedAction}</span>
           </p>
+        ) : null}
+
+        {sourceHref ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Created from OyamaLetters</p>
+              <p className="mt-0.5 text-xs text-emerald-900">This campaign is the reviewable email companion to a letter workflow. Sending remains controlled here in OyamaEmail.</p>
+            </div>
+            <Link href={sourceHref} className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">
+              Return to Source Letter
+            </Link>
+          </div>
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">

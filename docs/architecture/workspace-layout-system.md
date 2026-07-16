@@ -1,6 +1,6 @@
 # Workspace Layout System
 
-Last updated: 2026-06-13
+Last updated: 2026-07-16
 
 ## Purpose
 
@@ -20,6 +20,8 @@ Hierarchy:
 When used, this system applies inside page content and does not replace the global sidebar.
 
 The contextual ribbon must be a shared system, not one global command dump. Dashboard, Constituents, donor profiles, Donations, Campaigns, OyamaEmail, OyamaLetters, and Steward Paths each declare their own tabs and commands. Commands that are not relevant to the current page are hidden; commands that are relevant but blocked must be disabled with a reason.
+
+DonorCRM visual surfaces use the shared `crm-page-surface`, `crm-card-surface`, `crm-page-header-surface`, and `crm-filter-surface` theme primitives. Dashboard and list pages should use the same background, border, focus-ring, typography, and compact radius system. Dashboard counters must come from live dashboard/report data; inferred filler counts and decorative chart points are not permitted.
 
 ## Mandatory workspace standards
 
@@ -107,6 +109,7 @@ Rollout changes:
 - Letters & Printables owns: printable templates, generated letters, print queue, mail queue, physical mail operations.
 - Branding Settings owns the single Communication Header and single Communication Footer. OyamaEmail and OyamaLetters consume those blocks; they must not expose competing per-template header/footer pickers as the primary workflow.
 - OyamaEmail Template Library owns reusable content only. Drafted, queued, sent, failed, and cancelled send records belong in Email Queue or campaign detail history, not in the template library.
+- Outbound templates follow one review path: Save Draft -> required compliance review -> proof send to a named reviewer -> Mark Ready -> campaign audience review -> send/history. A template-ready action must not bypass campaign audience review, and proof-send controls must clearly state that they do not send the audience.
 
 Ribbon groups and project-library cards keep Letters & Printables linked as a related workspace while preserving ownership boundaries.
 
@@ -168,7 +171,35 @@ Shared layout expectations:
 - The TopBar must stay on a single intentional row on compact desktop widths by shortening spacing and moving lower-priority tools into a compact actions menu.
 - Tables should scroll inside their own rounded container instead of forcing page-wide overflow.
 
+Shell stability requirements:
+
+- The shared mobile navigation drawer is the only primary side-navigation surface below `1024px`; desktop-only sidebars must not appear at the tablet breakpoint.
+- Header space must be reserved at a stable height. A scroll state may adjust visual treatment such as shadow or contrast, but it must not move the workspace content vertically.
+- When DonorCRM uses its mega navigation, the header and navigation row reserve a single stable `104px` footprint rather than changing position while the page scrolls.
+- Persisted sidebar and donor-navigation preferences must be applied before paint where the browser supports it, so a saved compact rail does not visibly expand then collapse.
+- Drawers must use modal semantics, keyboard Escape handling, focus containment, focus restoration, safe-area padding, and close automatically when crossing into the desktop breakpoint.
+- Main scroll roots reserve scrollbar space and contain overscroll to avoid horizontal movement when a page becomes scrollable or an overlay opens.
+
 Validation expectations:
 
 - New workspaces should be checked at `1366x768` and `1280x720` before being considered layout-complete.
 - Responsive audit evidence can be written to `docs/status/responsive-ui-audit.json` and `docs/status/responsive-ui-audit.md` via `scripts/qa/responsive-ui-pass.mjs` when that audit pass is part of the work.
+
+## Donor Dashboard Responsive Profile
+
+The Donor Dashboard is the live DonorCRM overview and stewardship launch surface, not a secondary navigation rail. Its responsive hierarchy is:
+
+1. Command-center context and working quick actions
+2. Live focus and attention queues
+3. KPI summary cards
+4. Giving, recommendation, activity, and donor-work queues
+5. Personal dashboard widgets
+
+Dashboard-specific layout rules:
+
+- Below `640px`, cards stack in one column. Chart/legend pairs stack before labels, values, or controls become compressed.
+- From `640px` to `1279px`, summary cards and short priority tiles use two columns; the hero remains one focused content column with its two live status tiles beneath it.
+- From `1280px`, the hero may use its two-column composition and analytical panels may sit side by side. Three-panel operational rows are reserved for this same wide layout.
+- Every dashboard grid item and card uses `min-w-0`; tables scroll within their card rather than expanding the page.
+- Recommendation badges wrap below their content on narrow screens, then return to the trailing column at `640px` and above.
+- The dashboard must use live values, truthful empty states, and functional deep links at every breakpoint. Responsive work must not add decorative/filler metrics.

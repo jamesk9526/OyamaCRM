@@ -413,7 +413,7 @@ const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
   },
 };
 
-export default function DonorMegaMenu({ donorAccentTone = "green", scrolled = false }: DonorMegaMenuProps) {
+export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMenuProps) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
   const [dropdownAnchor, setDropdownAnchor] = useState<DOMRect | null>(null);
@@ -517,7 +517,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green", scrolled = fa
     <>
     <nav
       aria-label="DonorCRM mobile workspace navigation"
-      className="fixed left-0 right-0 top-16 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 px-2 shadow-[0_10px_24px_rgba(15,23,42,0.055)] backdrop-blur-xl transition-[top] duration-200 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+      className="fixed left-0 right-0 top-14 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 px-2 shadow-[0_10px_24px_rgba(15,23,42,0.055)] backdrop-blur-xl [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -562,7 +562,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green", scrolled = fa
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className={`fixed left-0 right-0 top-16 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/92 px-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)] backdrop-blur-xl transition-[top] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden ${scrolled ? "xl:top-24" : "xl:top-32"}`}
+      className="fixed left-0 right-0 top-14 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/92 px-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)] backdrop-blur-xl [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);

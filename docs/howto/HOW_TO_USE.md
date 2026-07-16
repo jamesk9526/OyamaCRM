@@ -1,6 +1,6 @@
 # OyamaCRM Office How-To Guide (Current Reality)
 
-Last updated: 2026-06-13
+Last updated: 2026-07-16
 
 ## Purpose
 
@@ -34,6 +34,7 @@ Use the dated audit docs for details:
 2. Use the module switcher in the top bar to choose DonorCRM, Compassion CRM, or Events CRM.
 3. Stay inside one module for the full task whenever possible (for cleaner activity history).
 4. Use the ribbon directly below the top bar for page-specific actions. The tabs and commands change by page, so Dashboard tools, list tools, profile tools, gifts tools, and Steward Paths tools are intentionally different.
+5. On screens narrower than `1024px`, use the navigation-menu button in the top bar. The module navigation opens as a drawer and closes with the close button, by tapping outside it, or by pressing Escape.
 
 ### Workspace-first operating rule (required)
 
@@ -95,7 +96,7 @@ This release includes a full browser-driven DonorCRM route pass with fresh scree
 2. Start in Template Library, then open a template to enter the Canvas Builder.
 3. Use the builder ribbon and side panels for letter layout, merge-field placement, snippets, signatures, formatting, tables, page breaks, and margin controls.
 4. Use Publish Workspace to review detected merge fields and publish the saved template. Validation notes are informational and do not block publishing. Publishing logs grouped browser-console diagnostics, including the full composed letter HTML and validation notes.
-5. Use Generate Letters to search real constituents, attach real donation context when needed, preview merged output, and generate a letter or batch.
+5. Use Generate Letters to search real constituents, attach real donation context when needed, preview merged output, and generate a letter or batch. When launched from a Campaign or event-aware workflow, the batch preserves that campaign/event context alongside recipient, organization, staff, and year merge fields.
 6. Use Print & Mail Queue for live print/mail queue rows and Settings for signature links and workflow policy controls.
 7. Use `Export` on a template card to download a JSON backup. Use `Import Template` in the library to restore that file as a new draft for testing or backup recovery; import does not overwrite or publish the original template.
 8. Set the shared Communication Header + Footer in `/settings/branding`; that one header and one footer apply to every OyamaLetters output and every OyamaEmail render.
@@ -112,11 +113,13 @@ Use OyamaEmail as the donor email command center:
 3. To email a selected donation group, select donations on the Donations page and choose `Create Email for Selected Donors`. The campaign wizard loads those emails as a temporary segment and still requires the normal audience review checkbox before sending.
 4. Use persisted segment audiences before scheduling or queueing sends. Temporary/manual/list recipient selections are reviewable and sendable immediately, but are not stored on the campaign record for later scheduled sends yet.
 5. Use Template Library only for reusable content. Drafted/sent email records appear in Email Queue with their current status.
-6. In the builder, use `Show Me How It Will Look to the Recipient` to open the server-rendered recipient preview before sending a test or live campaign.
-7. Use `Export` on a template card to download a JSON backup. Use `Import Template` in the library to restore that file as a new draft for testing or backup recovery; the current organization's sender settings are used on import.
-8. Publishing an email template logs grouped browser-console diagnostics, including the full HTML output and validation notes.
-9. Use Email Queue and Analytics to verify delivery outcomes and failed-recipient truth.
-10. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
+6. In the builder, use `Show Me How It Will Look to the Recipient` to open the server-rendered recipient preview. After saving, open Publish, resolve every required compliance check, use `Send Test Email` to send a proof only to the supplied reviewer address, then choose `Mark Ready`. Audience review and live sending remain in the campaign workflow.
+7. Image blocks, story images, staff signatures, headshots, and contact-card images can use an uploaded image or a hosted URL. Uploading from a new draft saves that draft first, then attaches the image to the template. Email uploads support PNG, JPG, WEBP, and GIF up to 5 MB.
+8. Use `Export` on a template card to download a JSON backup. Use `Import Template` in the library to restore that file as a new draft for testing or backup recovery; the current organization's sender settings are used on import.
+9. Generated OyamaLetters records with an email recipient offer `Create Email Draft`. The handoff opens a linked, reviewable OyamaEmail campaign, preserves rich HTML, and reuses the existing campaign on repeat clicks. It never sends automatically. Use the campaign’s `Return to Source Letter` action to reopen the originating letter context.
+10. Marking a template Ready requires the required review checks to pass; diagnostics remain available in the browser console for troubleshooting.
+11. Use Email Queue and Analytics to verify delivery outcomes and failed-recipient truth.
+12. Legacy `/communications/*` email routes should be treated as compatibility redirects into OyamaEmail routes.
 
 ### Steward Paths builder workflow
 
@@ -214,10 +217,19 @@ Use this section as an operations safety list.
 Use DonorCRM as the daily stewardship command center:
 
 1. Start in Dashboard and review follow-up metrics first.
-2. Open donor profiles from high-priority queues.
-3. Confirm donation acknowledgment state.
-4. Generate letters and optional email drafts.
-5. Create and complete follow-up tasks.
+2. Use the dashboard quick actions to record a gift, add a donor, create an email, create a letter, or open tasks without navigating through multiple menus.
+3. Open donor profiles from high-priority queues.
+4. Confirm donation acknowledgment state.
+5. Generate letters and optional email drafts.
+6. Create and complete follow-up tasks.
+
+### Donor Dashboard on compact and mobile screens
+
+1. On phones and tablets, open navigation from the top-bar menu; the desktop sidebar is intentionally replaced by the drawer below `1024px`.
+2. Start with the Donor Command Center, then work from Today&apos;s Focus and Needs Attention before opening lower dashboard widgets.
+3. Dashboard cards stack into a single column on small screens. Donation tables scroll inside their own card; swipe inside the table rather than trying to scroll the whole page sideways.
+4. Use `Customize` to change personal dashboard widgets. The control opens the same dashboard layout workflow at every screen size.
+5. Use `Refresh` when a live dashboard value needs to be reloaded. The dashboard does not invent values while data is loading or unavailable.
 
 Donor references for staff and implementers:
 

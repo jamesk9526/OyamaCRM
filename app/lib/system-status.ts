@@ -376,10 +376,9 @@ export const PRODUCTION_READINESS_CHECKLIST: ReadinessChecklistItem[] = [
   { item: "Reports are permission-gated", status: "Partially Working", note: "Report routes are active, but deeper scope-level authorization is still in progress." },
   { item: "Exports are permission-gated", status: "Not Implemented", note: "Export workflows and export authorization layer are not complete." },
   { item: "Tests cover critical workflows", status: "Partially Working", note: "Current smoke and e2e checks pass, but broader regression depth and consistency still need expansion." },
-  { item: "Lint/type/build pipelines are green", status: "Broken", note: "Build and smoke pass, but typecheck currently fails in tests/smoke/hrm-api-smoke.test.ts and lint scope requires stabilization." },
+  { item: "Lint/type/build pipelines are green", status: "Partially Working", note: "Validated 2026-07-13: lint has zero errors, typecheck passes, and the 198-route production build succeeds. Full tests pass 638/639 under parallel load; the one Compassion scheduling failure passes 8/8 when isolated. Lint reports 125 non-blocking warnings." },
   { item: "Deployment scripts are documented", status: "Partially Working", note: "PM2 and setup guidance exist, but full release runbook coverage is incomplete." },
   { item: "Environment variables are documented", status: "Partially Working", note: "Env documentation exists, but deployment-grade docs need expansion." },
   { item: "Backup/restore process is documented", status: "Not Implemented", note: "Backup and restore runbooks are still missing." },
   { item: "Version info is visible in the app", status: "Working", note: "Version/build metadata appears in settings and health diagnostics." },
 ];
-

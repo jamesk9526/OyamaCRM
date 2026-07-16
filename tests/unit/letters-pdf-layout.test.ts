@@ -5,10 +5,16 @@ import {
   htmlToPdfBlocks,
   htmlToPlainText,
   normalizeMergedDonationDateTextForPdfExport,
+  recipientFacingLetterSubject,
   renderGeneratedLetterPdf,
 } from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
+  it("does not expose the legacy internal printable-letter label to recipients", () => {
+    expect(recipientFacingLetterSubject("Printable Letter")).toBe("");
+    expect(recipientFacingLetterSubject("  Thank you for your support  ")).toBe("Thank you for your support");
+  });
+
   it("preserves explicit blank paragraphs and white-space blocks", () => {
     const blocks = htmlToPdfBlocks([
       "<p>Opening paragraph</p>",
@@ -44,6 +50,37 @@ describe("letters PDF layout parsing", () => {
     expect(blocks[0]).toMatchObject({ kind: "paragraph", align: "justify" });
     expect(blocks[1]).toMatchObject({ kind: "heading", align: "center" });
     expect(blocks[2]).toMatchObject({ kind: "paragraph", align: "right" });
+  });
+
+  it("preserves block quotes as distinct indented PDF content", () => {
+    const blocks = htmlToPdfBlocks('<blockquote style="text-align:center; line-height:1.6;">Care changes a community one relationship at a time.</blockquote>');
+
+    expect(blocks).toEqual([
+      expect.objectContaining({
+        kind: "quote",
+        text: "Care changes a community one relationship at a time.",
+        align: "center",
+        lineHeight: 1.6,
+      }),
+    ]);
+  });
+
+  it("preserves bullet, ordered, starting-number, and nested list semantics", () => {
+    const blocks = htmlToPdfBlocks([
+      "<ul>",
+      "<li>First bullet</li>",
+      "<li>Second bullet<ul><li>Nested bullet</li></ul></li>",
+      "</ul>",
+      '<ol start="4"><li>Fourth item</li><li>Fifth item</li></ol>',
+    ].join(""));
+
+    expect(blocks).toEqual([
+      expect.objectContaining({ kind: "list", text: "First bullet", ordered: false, index: 1, depth: 0 }),
+      expect.objectContaining({ kind: "list", text: "Second bullet", ordered: false, index: 2, depth: 0 }),
+      expect.objectContaining({ kind: "list", text: "Nested bullet", ordered: false, index: 1, depth: 1 }),
+      expect.objectContaining({ kind: "list", text: "Fourth item", ordered: true, index: 4, depth: 0 }),
+      expect.objectContaining({ kind: "list", text: "Fifth item", ordered: true, index: 5, depth: 0 }),
+    ]);
   });
 
   it("preserves table header cells, multiline text, and cell alignment", () => {
@@ -102,6 +139,14 @@ describe("letters PDF layout parsing", () => {
 
   it("keeps more intentional blank lines in plain-text fallback cleanup", () => {
     expect(htmlToPlainText("Top\n\n\n\nBottom")).toBe("Top\n\n\n\nBottom");
+  });
+
+  it("keeps bullet, ordered, and nested markers in plain-text handoffs", () => {
+    const text = htmlToPlainText('<ul><li>Parent<ol start="3"><li>Third child</li><li>Fourth child</li></ol></li></ul>');
+
+    expect(text).toContain("- Parent");
+    expect(text).toContain("  3. Third child");
+    expect(text).toContain("  4. Fourth child");
   });
 
   it("normalizes stale previous-day donation date text before PDF export", () => {
@@ -195,6 +240,35 @@ describe("letters PDF layout parsing", () => {
         '<tr><th style="text-align:left;">Gift Detail</th><th style="text-align:right;">Value</th></tr>',
         '<tr><td style="text-align:left;">Donation<br>Amount</td><td style="text-align:right;">$100.00</td></tr>',
         '</tbody></table>',
+      ].join(""),
+      branding: {
+        organizationName: "Test Organization",
+        tagline: "",
+        addressLine: "",
+        contactLine: "",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#0f766e",
+      },
+      presets: {},
+    });
+
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect(pdf.byteLength).toBeGreaterThan(500);
+  });
+
+  it("renders wrapped bullet and ordered lists into a valid server PDF", async () => {
+    const pdf = await renderGeneratedLetterPdf({
+      templateName: "List Formatting Test",
+      subject: "List Formatting Test",
+      constituentName: "Test Donor",
+      generatedAt: new Date("2026-07-15T12:00:00.000Z"),
+      mergedPrintBody: [
+        "<p>Your support makes the following work possible:</p>",
+        "<ul><li>A deliberately long bullet item that wraps across lines and should keep its continuation aligned with the item text instead of the bullet marker.</li><li>Second bullet</li></ul>",
+        '<ol start="3"><li>Third numbered item</li><li>Fourth numbered item</li></ol>',
       ].join(""),
       branding: {
         organizationName: "Test Organization",

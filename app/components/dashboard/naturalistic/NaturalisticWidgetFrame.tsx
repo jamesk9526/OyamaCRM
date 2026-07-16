@@ -21,7 +21,7 @@ export default function NaturalisticWidgetFrame({
   action,
 }: NaturalisticWidgetFrameProps) {
   return (
-    <article className="flex min-h-[18rem] flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+    <article className="flex min-h-[18rem] min-w-0 flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">{eyebrow}</p>

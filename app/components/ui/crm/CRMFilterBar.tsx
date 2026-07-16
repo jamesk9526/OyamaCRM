@@ -10,7 +10,7 @@ interface CRMFilterBarProps {
 /** CRMFilterBar standardizes spacing and surface treatment for search/filter controls. */
 export default function CRMFilterBar({ children, className = "" }: CRMFilterBarProps) {
   return (
-    <CRMCard padding="sm" className={`border-emerald-100/70 bg-gradient-to-br from-white via-white to-emerald-50/35 ${className}`}>
+    <CRMCard padding="sm" className={`crm-filter-surface ${className}`}>
       <div className="grid gap-2 md:grid-cols-[minmax(240px,1fr)_auto] lg:flex lg:items-center lg:gap-3">{children}</div>
     </CRMCard>
   );

@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { Router, type Request } from "express";
 import type { jsPDF as JsPdfDocument } from "jspdf";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -1039,7 +1039,26 @@ function buildMetadataWithPdfExport(
 
 /** Converts merged HTML into plain text for deterministic server-side PDF rendering. */
 export function htmlToPlainText(value: string): string {
-  const withoutTags = value
+  const listStack: Array<{ index: number; ordered: boolean }> = [];
+  const withListMarkers = value.replace(/<\s*(\/?)\s*(ul|ol|li)\b([^>]*)>/gi, (_tag, closingToken: string, rawTag: string, attributes: string) => {
+    const closing = closingToken === "/";
+    const tag = rawTag.toLowerCase();
+    if (tag === "ul" || tag === "ol") {
+      if (closing) listStack.pop();
+      else {
+        const requestedStart = Number.parseInt(readHtmlAttribute(attributes, "start"), 10);
+        listStack.push({ index: tag === "ol" && Number.isFinite(requestedStart) ? requestedStart : 1, ordered: tag === "ol" });
+      }
+      return "\n";
+    }
+    if (closing) return "\n";
+    const list = listStack[listStack.length - 1] ?? { index: 1, ordered: false };
+    const marker = list.ordered ? `${list.index}.` : "-";
+    list.index += 1;
+    return `\n${"  ".repeat(Math.max(0, listStack.length - 1))}${marker} `;
+  });
+
+  const withoutTags = withListMarkers
     .replace(/\r\n/g, "\n")
     .replace(/<\s*br\s*\/?\s*>/gi, "\n")
     .replace(/<\s*\/\s*(p|div|h\d|li|tr|table|section|article|blockquote)\s*>/gi, "\n")
@@ -1067,7 +1086,7 @@ export function htmlToPlainText(value: string): string {
 
   return decoded
     .replace(/[\t\f\v]+/g, " ")
-    .replace(/[ ]{2,}/g, " ")
+    .replace(/(?<=\S)[ ]{2,}/g, " ")
     .replace(/\n{9,}/g, "\n\n\n\n\n\n\n\n")
     .trim();
 }
@@ -1105,7 +1124,8 @@ function stripHtmlInline(value: string): string {
 type PdfContentBlock =
   | { kind: "heading"; text: string; level: number; lineHeight?: number; align?: PdfTextAlign }
   | { kind: "paragraph"; text: string; lineHeight?: number; align?: PdfTextAlign }
-  | { kind: "list"; text: string; lineHeight?: number; align?: PdfTextAlign }
+  | { kind: "quote"; text: string; lineHeight?: number; align?: PdfTextAlign }
+  | { kind: "list"; text: string; ordered: boolean; index: number; depth: number; lineHeight?: number; align?: PdfTextAlign }
   | { kind: "tableRow"; cells: PdfTableCell[]; header: boolean }
   | { kind: "divider" }
   | { kind: "spacer"; height: number; fill?: boolean }
@@ -1216,15 +1236,123 @@ function plainTextToPdfBlocks(value: string): PdfContentBlock[] {
   return blocks;
 }
 
+type PdfListNode = {
+  attributes: string;
+  children: PdfListNode[];
+  depth: number;
+  htmlParts: string[];
+  index: number;
+  ordered: boolean;
+};
+
+/**
+ * Flattens semantic HTML lists into ordered PDF item markers before the general
+ * block parser runs. This keeps numbering and nested indentation without a DOM.
+ */
+function flattenHtmlListsForPdf(html: string): string {
+  const parseListRegion = (region: string): string => {
+    const rootNodes: PdfListNode[] = [];
+    const listStack: Array<{ depth: number; nextIndex: number; nodes: PdfListNode[]; ordered: boolean }> = [];
+    const itemStack: PdfListNode[] = [];
+    const tokenPattern = /<\s*(\/?)\s*(ul|ol|li)\b([^>]*)>/gi;
+    let cursor = 0;
+    let token: RegExpExecArray | null = tokenPattern.exec(region);
+
+    while (token) {
+      const activeItem = itemStack[itemStack.length - 1];
+      if (activeItem) activeItem.htmlParts.push(region.slice(cursor, token.index));
+
+      const closing = token[1] === "/";
+      const tag = token[2].toLowerCase();
+      const attributes = token[3] ?? "";
+      if (tag === "ul" || tag === "ol") {
+        if (closing) {
+          listStack.pop();
+        } else {
+          const parent = itemStack[itemStack.length - 1];
+          const ordered = tag === "ol";
+          const requestedStart = Number.parseInt(readHtmlAttribute(attributes, "start"), 10);
+          listStack.push({
+            depth: listStack.length,
+            nextIndex: ordered && Number.isFinite(requestedStart) ? requestedStart : 1,
+            nodes: parent ? parent.children : rootNodes,
+            ordered,
+          });
+        }
+      } else if (closing) {
+        itemStack.pop();
+      } else {
+        const list = listStack[listStack.length - 1];
+        if (list) {
+          const node: PdfListNode = {
+            attributes,
+            children: [],
+            depth: list.depth,
+            htmlParts: [],
+            index: list.nextIndex,
+            ordered: list.ordered,
+          };
+          list.nextIndex += 1;
+          list.nodes.push(node);
+          itemStack.push(node);
+        }
+      }
+
+      cursor = tokenPattern.lastIndex;
+      token = tokenPattern.exec(region);
+    }
+
+    const activeItem = itemStack[itemStack.length - 1];
+    if (activeItem) activeItem.htmlParts.push(region.slice(cursor));
+
+    const serialize = (nodes: PdfListNode[]): string => nodes.map((node) => {
+      const item = `<p${node.attributes} data-pdf-list-kind="${node.ordered ? "ordered" : "bullet"}" data-pdf-list-index="${node.index}" data-pdf-list-depth="${node.depth}">${node.htmlParts.join("")}</p>`;
+      return `${item}${serialize(node.children)}`;
+    }).join("");
+
+    return serialize(rootNodes);
+  };
+
+  const listTagPattern = /<\s*(\/?)\s*(ul|ol)\b[^>]*>/gi;
+  const regions: Array<{ start: number; end: number }> = [];
+  let depth = 0;
+  let regionStart = -1;
+  let tag: RegExpExecArray | null = listTagPattern.exec(html);
+  while (tag) {
+    const closing = tag[1] === "/";
+    if (!closing) {
+      if (depth === 0) regionStart = tag.index;
+      depth += 1;
+    } else if (depth > 0) {
+      depth -= 1;
+      if (depth === 0 && regionStart >= 0) {
+        regions.push({ start: regionStart, end: listTagPattern.lastIndex });
+        regionStart = -1;
+      }
+    }
+    tag = listTagPattern.exec(html);
+  }
+
+  if (regions.length === 0) return html;
+  let output = "";
+  let cursor = 0;
+  regions.forEach((region) => {
+    output += html.slice(cursor, region.start);
+    output += parseListRegion(html.slice(region.start, region.end));
+    cursor = region.end;
+  });
+  return output + html.slice(cursor);
+}
+
 /** Converts simple template HTML into PDF layout blocks while preserving common editor formatting. */
 export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   const blocks: PdfContentBlock[] = [];
-  const normalized = html
+  const normalized = flattenHtmlListsForPdf(html)
     .replace(/\r\n/g, "\n")
-    .replace(/<\s*\/\s*(div|section|article|blockquote)\s*>/gi, "</p>")
-    .replace(/<\s*(div|section|article|blockquote)\b([^>]*)>/gi, "<p$2>");
+    .replace(/<\s*\/\s*(div|section|article)\s*>/gi, "</p>")
+    .replace(/<\s*(div|section|article)\b([^>]*)>/gi, "<p$2>");
 
-  const pattern = /<\s*(h[1-3]|p|li|tr)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*img\b([^>]*)>|<\s*hr\b[^>]*>/gi;
+  const pattern = /<\s*(h[1-3]|p|li|blockquote|tr)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*img\b([^>]*)>|<\s*hr\b[^>]*>/gi;
   let match: RegExpExecArray | null = pattern.exec(normalized);
   while (match) {
     const tag = (match[1] ?? (match[4] !== undefined ? "img" : "hr")).toLowerCase();
@@ -1259,7 +1387,20 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       if (text) {
         if (/^[-=_]{5,}$/.test(text)) blocks.push({ kind: "divider" });
         else if (tag.startsWith("h")) blocks.push({ kind: "heading", text, level: Number.parseInt(tag.slice(1), 10) || 2, lineHeight, align });
-        else if (tag === "li") blocks.push({ kind: "list", text, lineHeight, align });
+        else if (tag === "blockquote") blocks.push({ kind: "quote", text, lineHeight, align });
+        else if (readHtmlAttribute(attributes, "data-pdf-list-kind")) {
+          blocks.push({
+            kind: "list",
+            text,
+            ordered: readHtmlAttribute(attributes, "data-pdf-list-kind") === "ordered",
+            index: Math.max(1, Number.parseInt(readHtmlAttribute(attributes, "data-pdf-list-index"), 10) || 1),
+            depth: Math.max(0, Number.parseInt(readHtmlAttribute(attributes, "data-pdf-list-depth"), 10) || 0),
+            lineHeight,
+            align,
+          });
+        } else if (tag === "li") {
+          blocks.push({ kind: "list", text, ordered: false, index: 1, depth: 0, lineHeight, align });
+        }
         else blocks.push({ kind: "paragraph", text, lineHeight, align });
       } else {
         const nestedImageAttributes = inner.match(/<\s*img\b([^>]*)>/i)?.[1];
@@ -1374,32 +1515,8 @@ async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: 
   }
 }
 
-async function resolveFallbackBrandingLogoPath(organizationId: string): Promise<string | null> {
-  const brandingDir = path.resolve(process.cwd(), "public", "uploads", "branding", organizationId);
-  try {
-    const entries = await readdir(brandingDir, { withFileTypes: true });
-    const candidates = entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name)
-      .filter((fileName) => /\.(png|jpe?g|webp)$/i.test(fileName));
-    if (candidates.length === 0) return null;
-
-    const ranked = await Promise.all(candidates.map(async (fileName) => {
-      const absolutePath = path.join(brandingDir, fileName);
-      const metadata = await stat(absolutePath);
-      return { fileName, mtimeMs: metadata.mtimeMs };
-    }));
-
-    ranked.sort((a, b) => b.mtimeMs - a.mtimeMs);
-    return `/uploads/branding/${organizationId}/${ranked[0]?.fileName ?? ""}`;
-  } catch {
-    return null;
-  }
-}
-
 async function resolveBrandingLogoDataUrl(
   branding: unknown,
-  organizationId: string,
 ): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
   const candidates = [
     readFirstTextConfig(branding, ["logoUrl", "logo", "primaryLogoUrl", "brandLogoUrl"]),
@@ -1409,13 +1526,8 @@ async function resolveBrandingLogoDataUrl(
     const logo = await loadBrandingLogoDataUrl(candidate);
     if (logo) return logo;
   }
-
-  const fallbackPath = await resolveFallbackBrandingLogoPath(organizationId);
-  if (fallbackPath) {
-    const fallbackLogo = await loadBrandingLogoDataUrl(fallbackPath);
-    if (fallbackLogo) return fallbackLogo;
-  }
-
+  // Do not guess from the newest branding upload. It can be unrelated to the
+  // configured identity and makes the recipient-facing PDF disagree with the UI.
   return null;
 }
 
@@ -1440,7 +1552,7 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     readFirstTextConfig(branding, ["contactEmail", "email"]) || settings?.smtpFromEmail || "",
     readFirstTextConfig(branding, ["websiteUrl", "website"]),
   ].filter(Boolean).join(" | ");
-  const logo = await resolveBrandingLogoDataUrl(branding, organizationId);
+  const logo = await resolveBrandingLogoDataUrl(branding);
 
   return {
     organizationName,
@@ -1463,6 +1575,12 @@ function sanitizePdfFilename(value: string): string {
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
   return normalized || "generated_letter";
+}
+
+/** Keeps internal template labels out of the recipient-facing correspondence. */
+export function recipientFacingLetterSubject(value: string | null | undefined): string {
+  const subject = value?.trim() ?? "";
+  return subject.toLowerCase() === "printable letter" ? "" : subject;
 }
 
 function headerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["headerPreset"]): string[] {
@@ -1559,6 +1677,7 @@ function drawPdfChrome(
   presets: LetterPdfPresetContext,
   recipient?: LetterPdfRecipientContext | null,
   pageRange?: { startPage?: number; endPage?: number },
+  documentMeta?: { subject?: string; generatedAt?: Date },
 ): void {
   const pageCount = doc.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -1595,8 +1714,6 @@ function drawPdfChrome(
     }
   }
 
-  const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
-  const headerTextX = logoAlignment === "CENTER" ? pageWidth / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX : marginX;
   const activeLogoWidth = hasFallbackLogo ? fallbackLogoWidth : renderedLogoWidth;
   const activeLogoHeight = hasFallbackLogo ? fallbackLogoHeight : renderedLogoHeight;
   const logoX = logoAlignment === "CENTER" ? (pageWidth - activeLogoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - activeLogoWidth : marginX;
@@ -1632,36 +1749,66 @@ function drawPdfChrome(
     }
 
     if (header.length > 0 || hasLogo || hasFallbackLogo) {
-      const headerTextY = hasLogo || hasFallbackLogo ? 84 : 42;
+      const headerTextX = logoAlignment === "LEFT" && (hasLogo || hasFallbackLogo)
+        ? logoX + activeLogoWidth + 12
+        : logoAlignment === "CENTER"
+          ? pageWidth / 2
+          : logoAlignment === "RIGHT"
+            ? pageWidth - marginX
+            : marginX;
+      const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
+      const headerTextY = hasLogo || hasFallbackLogo ? logoY + activeLogoHeight / 2 + 5 : 48;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
       if (header[0]) doc.text(header[0], headerTextX, headerTextY, { align: headerTextAlign });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      const detailX = logoAlignment === "LEFT" ? pageWidth - marginX : headerTextX;
+      const detailAlign = logoAlignment === "LEFT" ? "right" : headerTextAlign;
       header.slice(1, 4).forEach((line, index) => {
-        doc.text(line, headerTextX, headerTextY + 15 + index * 11, { align: headerTextAlign });
+        doc.text(line, detailX, 42 + index * 11, { align: detailAlign });
       });
       doc.setDrawColor(brandR, brandG, brandB);
-      doc.line(marginX, 116, pageWidth - marginX, 116);
+      doc.line(marginX, 104, pageWidth - marginX, 104);
     }
 
     if (recipientAddressLines.length > 0 && page === firstPage) {
       const maxLines = 5;
-      const rightColumnLines = recipientAddressLines.slice(0, maxLines);
+      const addressLines = recipientAddressLines.slice(0, maxLines);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
-      rightColumnLines.forEach((line, index) => {
-        doc.text(line, pageWidth - marginX, 60 + index * 12, { align: "right" });
+      addressLines.forEach((line, index) => {
+        doc.text(line, marginX, 136 + index * 13);
       });
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105);
+      const renderedDate = documentMeta?.generatedAt
+        ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
+        : "";
+      if (renderedDate) doc.text(renderedDate, pageWidth - marginX, 136, { align: "right" });
+      const subject = recipientFacingLetterSubject(documentMeta?.subject);
+      if (subject) {
+        const subjectY = 136 + addressLines.length * 13 + 22;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(brandR, brandG, brandB);
+        doc.text("RE:", marginX, subjectY);
+        const subjectOffset = doc.getTextWidth("RE: ");
+        doc.setTextColor(15, 23, 42);
+        doc.text(subject, marginX + subjectOffset, subjectY);
+      }
     }
 
     doc.setDrawColor(226, 232, 240);
     doc.line(marginX, footerY - 16, pageWidth - marginX, footerY - 16);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
     footer.slice(0, 4).forEach((line, index) => {
+      doc.setTextColor(71, 85, 105);
       doc.text(line, marginX, footerY + index * 10);
     });
   }
@@ -1730,7 +1877,7 @@ export async function buildLetterPdfBodyBlocks(
   return hydratePdfImageBlocks(signedBlocks);
 }
 
-function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number }): void {
+function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number }): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
@@ -1742,7 +1889,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   const ensurePageSpace = (requiredHeight: number) => {
     if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
     doc.addPage();
-    cursorY = contentTop;
+    cursorY = options.continuationStartY ?? contentTop;
   };
 
   type PdfTextOptions = { align?: PdfTextAlign; maxWidth?: number };
@@ -1780,7 +1927,11 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
       return textHeight(block.text, size, block.lineHeight) + 10;
     }
-    if (block.kind === "list") return textHeight(`• ${block.text}`, 10.5, block.lineHeight, 10) + 6;
+    if (block.kind === "quote") return textHeight(block.text, 10.5, block.lineHeight, 18) + 10;
+    if (block.kind === "list") {
+      const listIndent = 28 + block.depth * 16;
+      return textHeight(block.text, 10.5, block.lineHeight, listIndent) + 6;
+    }
     if (block.kind === "divider") return 18;
     if (block.kind === "spacer") return block.fill ? 0 : block.height;
     if (block.kind === "image") {
@@ -1804,7 +1955,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   const writeText = (
     text: string,
     fontSize: number,
-    fontStyle: "normal" | "bold" = "normal",
+    fontStyle: "normal" | "bold" | "italic" = "normal",
     marginAfter = 8,
     indent = 0,
     lineHeightMultiplier = 1.38,
@@ -1834,13 +1985,59 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     cursorY += marginAfter;
   };
 
+  const writeQuote = (block: Extract<PdfContentBlock, { kind: "quote" }>) => {
+    const estimatedHeight = Math.max(18, textHeight(block.text, 10.5, block.lineHeight, 18));
+    ensurePageSpace(estimatedHeight + 8);
+    const quoteTop = cursorY - 9;
+    writeText(block.text, 10.5, "italic", 8, 18, block.lineHeight, block.align);
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(1.5);
+    doc.line(marginX + 4, quoteTop, marginX + 4, Math.max(quoteTop + 14, cursorY - 8));
+    doc.setLineWidth(0.2);
+  };
+
+  const writeListItem = (block: Extract<PdfContentBlock, { kind: "list" }>) => {
+    const trimmed = block.text.trim();
+    if (!trimmed) return;
+    const fontSize = 10.5;
+    const marker = block.ordered ? `${block.index}.` : "•";
+    const markerIndent = 10 + block.depth * 16;
+    const contentIndent = markerIndent + 18;
+    const width = maxTextWidth - contentIndent;
+    const lineHeight = Math.max(fontSize, Math.round(fontSize * (block.lineHeight ?? 1.38)));
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(fontSize);
+    doc.setTextColor(15, 23, 42);
+    const lines = doc.splitTextToSize(trimmed, width) as string[];
+    lines.forEach((line, lineIndex) => {
+      ensurePageSpace(lineHeight);
+      if (lineIndex === 0) {
+        drawText(marker, marginX + markerIndent, cursorY);
+      }
+      const x = block.align === "center"
+        ? marginX + contentIndent + width / 2
+        : block.align === "right"
+          ? marginX + contentIndent + width
+          : marginX + contentIndent;
+      const options = block.align && block.align !== "left"
+        ? { align: block.align, maxWidth: width }
+        : undefined;
+      drawText(line, x, cursorY, options);
+      cursorY += lineHeight;
+    });
+    cursorY += 6;
+  };
+
   const renderedBlocks = blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock];
   renderedBlocks.forEach((block, index) => {
     if (block.kind === "heading") {
       const size = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
       writeText(block.text, size, "bold", 10, 0, block.lineHeight, block.align);
+    } else if (block.kind === "quote") {
+      writeQuote(block);
     } else if (block.kind === "list") {
-      writeText(`• ${block.text}`, 10.5, "normal", 6, 10, block.lineHeight, block.align);
+      writeListItem(block);
     } else if (block.kind === "divider") {
       ensurePageSpace(18);
       doc.setDrawColor(203, 213, 225);
@@ -1918,9 +2115,13 @@ export async function renderGeneratedLetterPdf(params: {
 
   const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
-    startY: 150,
+    startY: 230,
+    continuationStartY: 132,
   });
-  drawPdfChrome(doc, params.branding, params.presets, params.recipient);
+  drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
+    subject: params.subject,
+    generatedAt: params.generatedAt,
+  });
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -1985,12 +2186,16 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     const startPage = doc.getNumberOfPages();
     const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
-      startY: 150,
+      startY: 230,
+      continuationStartY: 132,
     });
     const endPage = doc.getNumberOfPages();
     drawPdfChrome(doc, item.branding, item.presets, item.recipient, {
       startPage,
       endPage,
+    }, {
+      subject: item.subject,
+      generatedAt: item.generatedAt,
     });
   }
 
@@ -2752,7 +2957,7 @@ router.get("/templates/:id/print-preview", requirePermission("letters.view"), as
   res.json({
     templateId: template.id,
     templateName: template.name,
-    mergedPrintSubject: merged.mergedPrintSubject || template.printSubject || template.name,
+    mergedPrintSubject: recipientFacingLetterSubject(merged.mergedPrintSubject || template.printSubject),
     mergedPrintBody: merged.mergedPrintBody,
     missingFields: merged.missingFields,
     unsupportedFields: merged.unsupportedFields,
@@ -3644,7 +3849,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       .join(" ")
       .trim();
     const templateName = previewTemplate.name?.trim() || "Template Sample";
-    const subject = merged.mergedPrintSubject?.trim() || previewTemplate.printSubject?.trim() || templateName;
+    const subject = recipientFacingLetterSubject(merged.mergedPrintSubject || previewTemplate.printSubject);
 
     const pdfBuffer = await renderGeneratedLetterPdf({
       templateName,
@@ -4468,7 +4673,7 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
       || constituent.displayName?.trim()
       || constituent.organizationName?.trim()
       || "Preview Recipient";
-    const subject = merged.mergedPrintSubject?.trim() || template.printSubject?.trim() || template.name;
+    const subject = recipientFacingLetterSubject(merged.mergedPrintSubject || template.printSubject);
     const pdfBuffer = await renderGeneratedLetterPdf({
       templateName: template.name,
       subject,
@@ -4831,7 +5036,7 @@ router.post("/templates/:id/create-email-draft", requirePermission("letters.crea
 
   res.json({
     emailCampaign: campaign,
-    redirectTo: `/communications/${campaign.id}`,
+    redirectTo: `/oyama-email/campaigns/${campaign.id}`,
   });
 });
 
@@ -4849,6 +5054,7 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
     include: {
       template: { select: { id: true, name: true, category: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
+      emailCampaign: { select: { id: true, status: true } },
     },
   });
 
@@ -4859,6 +5065,16 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
 
   if (!generated.constituent?.email) {
     res.status(400).json({ error: { code: "MISSING_EMAIL", message: "Constituent email is required to create an email draft." } });
+    return;
+  }
+
+  if (generated.emailCampaign) {
+    res.json({
+      generatedLetter: generated,
+      emailCampaign: generated.emailCampaign,
+      redirectTo: `/oyama-email/campaigns/${generated.emailCampaign.id}`,
+      reused: true,
+    });
     return;
   }
 
@@ -4877,11 +5093,19 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
     },
     _workflow: {
       preparationStatus: "READY",
+      source: "letters_generated",
+      sourceGeneratedLetterId: generated.id,
+      sourceTemplateId: generated.template.id,
+      sourceConstituentId: generated.constituent.id,
     },
   });
 
   const subject = generated.emailSubject || generated.mergedPrintSubject || `${generated.template.name}`;
-  const bodyText = generated.mergedEmailBody || generated.mergedPrintBody;
+  const sourceBody = generated.mergedEmailBody || generated.mergedPrintBody;
+  const bodyHtml = /<\/?[a-z][\s\S]*>/i.test(sourceBody)
+    ? sourceBody
+    : `<p>${textToHtml(sourceBody)}</p>`;
+  const bodyText = htmlToPlainText(sourceBody);
   const campaign = await prisma.emailCampaign.create({
     data: {
       organizationId,
@@ -4891,7 +5115,7 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
       fromName: settings?.smtpFromName || "OyamaCRM",
       fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
       bodyText,
-      bodyHtml: `<p>${textToHtml(bodyText)}</p>`,
+      bodyHtml,
       audienceFilter,
       status: "DRAFT",
     },
@@ -4940,6 +5164,8 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
   res.json({
     generatedLetter: updatedLetter,
     emailCampaign: campaign,
+    redirectTo: `/oyama-email/campaigns/${campaign.id}`,
+    reused: false,
   });
 });
 
@@ -4957,7 +5183,7 @@ router.get("/generated/queue/print", requirePermission("letters.view"), async (r
   const rows = await prisma.generatedLetter.findMany({
     where: {
       organizationId,
-      status: { in: ["GENERATED", "PRINTED", "MAILED", "ARCHIVED"] },
+      status: { in: ["GENERATED", "PRINTED", "MAILED", "EMAIL_DRAFT_CREATED", "ARCHIVED"] },
     },
     include: {
       template: { select: { id: true, name: true, category: true } },
@@ -5013,7 +5239,7 @@ router.get("/generated/queue/mail", requirePermission("letters.view"), async (re
   const rows = await prisma.generatedLetter.findMany({
     where: {
       organizationId,
-      status: { in: ["PRINTED", "MAILED", "ARCHIVED", "GENERATED"] },
+      status: { in: ["PRINTED", "MAILED", "EMAIL_DRAFT_CREATED", "ARCHIVED", "GENERATED"] },
     },
     include: {
       template: { select: { id: true, name: true, category: true } },
@@ -5417,7 +5643,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
     .join(" ")
     .trim();
   const templateName = generatedLetter.template?.name?.trim() || "Generated Letter";
-  const subject = generatedLetter.mergedPrintSubject?.trim() || templateName;
+  const subject = recipientFacingLetterSubject(generatedLetter.mergedPrintSubject);
 
   try {
     const branding = await getLetterPdfBrandingContext(organizationId);
@@ -5614,7 +5840,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           .join(" ")
           .trim();
         const templateName = row.template?.name?.trim() || "Generated Letter";
-        const subject = row.mergedPrintSubject?.trim() || templateName;
+        const subject = recipientFacingLetterSubject(row.mergedPrintSubject);
 
         return {
           templateName,
@@ -5778,6 +6004,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const filterType = parseEnum(req.body?.filterType, ["ALL", "ACTIVE", "LAPSED", "NEW", "MAJOR_DONOR", "MONTHLY_DONOR"] as const) ?? "ALL";
   const donorStatusFilter = filterType === "ALL" || filterType === "MONTHLY_DONOR" ? undefined : filterType;
   const campaignId = typeof req.body?.campaignId === "string" && req.body.campaignId.trim() ? req.body.campaignId.trim() : undefined;
+  const eventId = typeof req.body?.eventId === "string" && req.body.eventId.trim() ? req.body.eventId.trim() : undefined;
   const dateFrom = typeof req.body?.dateFrom === "string" && req.body.dateFrom.trim() ? new Date(`${req.body.dateFrom.trim()}T00:00:00.000Z`) : null;
   const dateTo = typeof req.body?.dateTo === "string" && req.body.dateTo.trim() ? new Date(`${req.body.dateTo.trim()}T23:59:59.999Z`) : null;
   const donationAudienceFilter: Prisma.DonationWhereInput = {
@@ -5867,6 +6094,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       template,
       constituentId: candidate.id,
       donationId: recipientDonationId,
+      campaignId,
+      eventId,
       year: Number.isFinite(year) ? year : undefined,
       actorUserId: userId,
     });
@@ -5903,6 +6132,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       actorUserId: userId,
       constituentId: candidate.id,
       donationId: recipientDonationId,
+      campaignId,
+      eventId,
       year: Number.isFinite(year) ? year : undefined,
       activeOnly: true,
     });
@@ -5958,6 +6189,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       deliveryTarget,
       donationMode,
       campaignId,
+      eventId,
       dateFrom: dateFrom && !Number.isNaN(dateFrom.getTime()) ? dateFrom.toISOString() : null,
       dateTo: dateTo && !Number.isNaN(dateTo.getTime()) ? dateTo.toISOString() : null,
       selectedCount: candidates.length,

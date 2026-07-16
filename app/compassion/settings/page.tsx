@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type WidgetFieldKey = "email" | "phone" | "appointmentType" | "location" | "notes";
@@ -475,12 +476,12 @@ export default function CompassionSettingsPage() {
           <p className="text-sm font-semibold text-blue-800">Need to add Compassion staff or accounts?</p>
           <p className="text-sm text-blue-700 mt-1">Use the staff directory to add names for scheduling and optionally create linked Compassion accounts.</p>
         </div>
-        <a
+        <Link
           href="/compassion/settings/staff"
           className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
         >
           Open Staff Directory
-        </a>
+        </Link>
       </div>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

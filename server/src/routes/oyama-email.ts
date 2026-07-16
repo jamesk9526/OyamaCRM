@@ -42,6 +42,8 @@ interface StoredTemplateJson {
   template: OyamaEmailTemplateDocument;
   settings: OyamaEmailTemplateSettings;
   preferenceCategory: string;
+  ownerId: string | null;
+  sharedWithOrganization: boolean;
 }
 
 interface TemplatePayload {
@@ -229,6 +231,8 @@ function parseStoredTemplateJson(
       template: fallbackTemplate,
       settings: normalizeEmailTemplateSettings({}),
       preferenceCategory: "GENERAL_UPDATES",
+      ownerId: null,
+      sharedWithOrganization: false,
     };
   }
 
@@ -242,12 +246,16 @@ function parseStoredTemplateJson(
     const preferenceCategory = hasWrappedTemplate
       ? asString(obj.preferenceCategory, "GENERAL_UPDATES").trim() || "GENERAL_UPDATES"
       : "GENERAL_UPDATES";
+    const ownerId = hasWrappedTemplate ? asString(obj.ownerId).trim() || null : null;
+    const sharedWithOrganization = hasWrappedTemplate ? asBoolean(obj.sharedWithOrganization, false) : false;
 
     if (!hasUsableTemplateBlocks(template)) {
       return {
         template: fallbackTemplate,
         settings: normalizeEmailTemplateSettings(settings),
         preferenceCategory,
+        ownerId,
+        sharedWithOrganization,
       };
     }
 
@@ -255,12 +263,16 @@ function parseStoredTemplateJson(
       template: normalizeEmailTemplateDocument(template),
       settings: normalizeEmailTemplateSettings(settings),
       preferenceCategory,
+      ownerId,
+      sharedWithOrganization,
     };
   } catch {
     return {
       template: fallbackTemplate,
       settings: normalizeEmailTemplateSettings({}),
       preferenceCategory: "GENERAL_UPDATES",
+      ownerId: null,
+      sharedWithOrganization: false,
     };
   }
 }
@@ -271,6 +283,8 @@ function serializeStoredTemplateJson(input: StoredTemplateJson): string {
     template: input.template,
     settings: input.settings,
     preferenceCategory: input.preferenceCategory,
+    ownerId: input.ownerId,
+    sharedWithOrganization: input.sharedWithOrganization,
   });
 }
 
@@ -665,6 +679,15 @@ function mapTemplateResponse(campaign: {
   bodyHtml?: string | null;
   bodyText?: string | null;
   templateJson: string | null;
+  totalRecipients?: number;
+  delivered?: number;
+  opened?: number;
+  clicked?: number;
+  bounced?: number;
+  unsubscribed?: number;
+  scheduledAt?: Date | null;
+  sentAt?: Date | null;
+  audienceFilter?: string | null;
 }, chrome?: OyamaEmailGlobalChrome) {
   const stored = parseStoredTemplateJson(campaign.templateJson, {
     bodyHtml: campaign.bodyHtml,
@@ -684,6 +707,20 @@ function mapTemplateResponse(campaign: {
     fromEmail: campaign.fromEmail,
     replyToEmail: campaign.replyToEmail || "",
     purpose: campaign.purpose,
+    bodyHtml: campaign.bodyHtml || "",
+    bodyText: campaign.bodyText || "",
+    templateJson: campaign.templateJson,
+    totalRecipients: campaign.totalRecipients || 0,
+    delivered: campaign.delivered || 0,
+    opened: campaign.opened || 0,
+    clicked: campaign.clicked || 0,
+    bounced: campaign.bounced || 0,
+    unsubscribed: campaign.unsubscribed || 0,
+    scheduledAt: campaign.scheduledAt || null,
+    sentAt: campaign.sentAt || null,
+    audienceFilter: campaign.audienceFilter || null,
+    ownerId: stored.ownerId,
+    sharedWithOrganization: stored.sharedWithOrganization,
     preferenceCategory: stored.preferenceCategory,
     template: stored.template,
     settings: stored.settings,
@@ -875,6 +912,8 @@ router.post("/templates/import", async (req, res) => {
     template: payload.template,
     settings: payload.settings,
     preferenceCategory: payload.preferenceCategory,
+    ownerId: userId,
+    sharedWithOrganization: false,
   });
 
   const created = await prisma.emailCampaign.create({
@@ -981,6 +1020,11 @@ router.post("/templates", async (req, res) => {
     where: {
       organizationId,
       name: payload.name,
+      status: "DRAFT",
+      totalRecipients: 0,
+      scheduledAt: null,
+      sentAt: null,
+      audienceFilter: null,
       ...(requestedOverwriteTemplateId ? { id: { not: requestedOverwriteTemplateId } } : {}),
     },
     select: {
@@ -995,6 +1039,8 @@ router.post("/templates", async (req, res) => {
     template: payload.template,
     settings: payload.settings,
     preferenceCategory: payload.preferenceCategory,
+    ownerId: req.user?.sub ?? null,
+    sharedWithOrganization: false,
   });
 
   const overwriteTemplateId = requestedOverwriteTemplateId || conflictingByName?.id || "";
@@ -1003,6 +1049,11 @@ router.post("/templates", async (req, res) => {
       where: {
         id: overwriteTemplateId,
         organizationId,
+        status: "DRAFT",
+        totalRecipients: 0,
+        scheduledAt: null,
+        sentAt: null,
+        audienceFilter: null,
       },
     });
 
@@ -1025,6 +1076,10 @@ router.post("/templates", async (req, res) => {
         bodyText: rendered.text,
         templateJson,
         status: "DRAFT",
+        totalRecipients: 0,
+        scheduledAt: null,
+        sentAt: null,
+        audienceFilter: null,
       },
     });
 
@@ -1061,6 +1116,10 @@ router.post("/templates", async (req, res) => {
       bodyText: rendered.text,
       templateJson,
       status: "DRAFT",
+      totalRecipients: 0,
+      scheduledAt: null,
+      sentAt: null,
+      audienceFilter: null,
     },
   });
 
@@ -1172,6 +1231,16 @@ router.put("/templates/:id", async (req, res) => {
     return;
   }
 
+  if (existing.status !== "DRAFT" || existing.totalRecipients > 0 || existing.scheduledAt || existing.sentAt) {
+    res.status(409).json({
+      error: {
+        code: "TEMPLATE_RECORD_REQUIRED",
+        message: "This record already has campaign scheduling or delivery activity and cannot be converted into a reusable template.",
+      },
+    });
+    return;
+  }
+
   const body = asObject(req.body);
   const forceOverwrite = asBoolean(body.forceOverwrite, false);
   const lastKnownUpdatedAt = asString(body.lastKnownUpdatedAt).trim();
@@ -1247,6 +1316,11 @@ router.put("/templates/:id", async (req, res) => {
       organizationId,
       name: payload.name,
       id: { not: existing.id },
+      status: "DRAFT",
+      totalRecipients: 0,
+      scheduledAt: null,
+      sentAt: null,
+      audienceFilter: null,
     },
     select: {
       id: true,
@@ -1276,6 +1350,8 @@ router.put("/templates/:id", async (req, res) => {
     template: payload.template,
     settings: payload.settings,
     preferenceCategory: payload.preferenceCategory,
+    ownerId: stored.ownerId ?? req.user?.sub ?? null,
+    sharedWithOrganization: stored.sharedWithOrganization,
   });
 
   const updated = await prisma.emailCampaign.update({
@@ -1292,6 +1368,10 @@ router.put("/templates/:id", async (req, res) => {
       bodyText: rendered.text,
       templateJson,
       status: "DRAFT",
+      totalRecipients: 0,
+      scheduledAt: null,
+      sentAt: null,
+      audienceFilter: null,
     },
   });
 

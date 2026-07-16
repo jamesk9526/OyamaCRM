@@ -1397,14 +1397,14 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
         </>
       )}
-      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[height,box-shadow,background-color,border-color,left] ${shellMotionClass} ${isDonorEnterpriseChrome
-        ? "border-b border-emerald-200/15 bg-[radial-gradient(circle_at_12%_0%,#05412e_0,#032b21_44%,#011814_100%)] shadow-none xl:h-12"
+      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[box-shadow,background-color,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome
+        ? "border-b border-emerald-200/15 bg-[radial-gradient(circle_at_12%_0%,#05412e_0,#032b21_44%,#011814_100%)] shadow-none xl:h-14"
         : (scrolled
-          ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px] xl:border-b-0"
-          : "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-[98px] xl:border-b-0")}`}
+          ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px]"
+          : "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-[72px]")}`}
         style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
         {!isDonorEnterpriseChrome ? (
-          <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden transition-[height,width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "h-[84px] w-[372px]" : "h-[116px] w-[472px]"}`}>
+          <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden h-full transition-[width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "w-[372px]" : "w-[472px]"}`}>
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
             <defs>
               <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
@@ -1469,7 +1469,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 type="button"
                 aria-label="Open navigation menu"
                 onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/88 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15 max-[380px]:h-8 max-[380px]:w-8"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/88 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15 max-[380px]:h-8 max-[380px]:w-8 lg:hidden"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -2116,13 +2116,13 @@ function ModuleSwitcher({
     return true;
   }), [moduleKey, pathname, settings.compassionEnabled, settings.donorEnabled, canViewHrm]);
 
-  if (modules.length === 0) return null;
-
   const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
 
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  if (!current) return null;
 
   const switcherTone = resolveModuleSwitcherTone(current.key as TopBarModuleKey, scrolled);
 

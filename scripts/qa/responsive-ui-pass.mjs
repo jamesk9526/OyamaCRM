@@ -149,6 +149,7 @@ async function collectMetrics(page) {
     const compactViewport = window.innerWidth >= 1024 && window.innerWidth < 1440;
     const mobileViewport = window.innerWidth < 1024;
     const expectedTopbarMax = mobileViewport ? 120 : compactViewport ? 80 : 72;
+    const cumulativeLayoutShift = Number(window.__oyamaCumulativeLayoutShift || 0);
 
     return {
       viewportWidth: window.innerWidth,
@@ -158,6 +159,7 @@ async function collectMetrics(page) {
       hasHorizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + tolerance,
       topbarHeight,
       topbarTooTall: topbarHeight > expectedTopbarMax,
+      cumulativeLayoutShift,
       workspaceRailVisible: isVisible(workspaceRail),
       workspaceControlsTriggerVisible: isVisible(workspaceControlsTrigger),
       sidebarCollapsed,
@@ -177,6 +179,7 @@ function classifyResult(route, viewport, diagnostics) {
   if (fatalMarker) issues.push(`fatal:${fatalMarker}`);
   if (diagnostics.hasHorizontalOverflow) issues.push("layout:page-horizontal-overflow");
   if (diagnostics.topbarTooTall) issues.push(`layout:topbar-too-tall:${diagnostics.topbarHeight}`);
+  if (diagnostics.cumulativeLayoutShift > 0.1) issues.push(`layout:cumulative-layout-shift:${diagnostics.cumulativeLayoutShift.toFixed(3)}`);
   if (compactViewport && route.id !== "trivia-app" && diagnostics.workspaceRailVisible && !diagnostics.workspaceControlsTriggerVisible) {
     issues.push("layout:rail-did-not-collapse");
   }
@@ -246,6 +249,24 @@ async function run() {
         viewport: { width: viewport.width, height: viewport.height },
         isMobile: viewport.isMobile ?? false,
         hasTouch: viewport.hasTouch ?? false,
+      });
+      await context.addInitScript(() => {
+        window.__oyamaCumulativeLayoutShift = 0;
+        if (!("PerformanceObserver" in window)) return;
+
+        const observer = new PerformanceObserver((entryList) => {
+          for (const entry of entryList.getEntries()) {
+            if (!entry.hadRecentInput) {
+              window.__oyamaCumulativeLayoutShift += entry.value;
+            }
+          }
+        });
+
+        try {
+          observer.observe({ type: "layout-shift", buffered: true });
+        } catch {
+          // Older engines can still run the rest of the responsive audit.
+        }
       });
       const page = await context.newPage();
 

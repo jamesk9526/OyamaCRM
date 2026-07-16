@@ -883,7 +883,7 @@ router.put("/branding", requireAuth, requireRole("admin"), async (req: Request, 
 });
 
 /**
- * POST /api/settings/branding/logo-upload — Uploads one branding logo image and returns a public URL.
+ * POST /api/settings/branding/logo-upload — Uploads and selects one branding logo image.
  * Request: { fileName: string, mimeType: image/*, dataBase64: string, slot?: "primary" | "square" }
  * Response: { url, fileName, mimeType, sizeBytes }
  */
@@ -934,8 +934,22 @@ router.post("/branding/logo-upload", requireAuth, requireRole("admin"), async (r
     await writeFile(targetPath, buffer);
 
     const publicUrl = `/uploads/branding/${organizationId}/${safeName}`;
+    const existing = await prisma.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: BRANDING_PLUGIN_KEY } },
+      select: { config: true },
+    });
+    const current = normalizeBrandingPayload(existing?.config);
+    const branding = {
+      ...current,
+      [slot === "square" ? "logoSquareUrl" : "logoUrl"]: publicUrl,
+    };
+    await prisma.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: BRANDING_PLUGIN_KEY } },
+      create: { organizationId, pluginKey: BRANDING_PLUGIN_KEY, enabled: true, config: branding },
+      update: { enabled: true, config: branding },
+    });
     await logAudit({
-      action: "BRANDING_LOGO_UPLOADED",
+      action: "BRANDING_LOGO_UPLOADED_AND_SELECTED",
       entity: "OrganizationBranding",
       entityId: organizationId,
       userId,
@@ -945,7 +959,7 @@ router.post("/branding/logo-upload", requireAuth, requireRole("admin"), async (r
       userAgent: req.headers["user-agent"],
     });
 
-    return res.status(201).json({ url: publicUrl, fileName, mimeType, sizeBytes: buffer.byteLength });
+    return res.status(201).json({ url: publicUrl, fileName, mimeType, sizeBytes: buffer.byteLength, branding });
   } catch {
     return res.status(500).json({ error: { code: "BRANDING_LOGO_UPLOAD_FAILED", message: "Failed to upload branding logo." } });
   }

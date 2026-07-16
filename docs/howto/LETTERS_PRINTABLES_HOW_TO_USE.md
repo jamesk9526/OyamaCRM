@@ -1,16 +1,14 @@
 # How To Use Letters & Printables
 
-Date: June 4, 2026
+Date: July 13, 2026
 
 ## Primary Journey
 
-1. Open Donor CRM.
-2. Go to Communications.
-3. Open Letters & Printables.
-4. Select a template.
-5. Compose the letter.
-6. Run Preview with a test constituent or gift.
-7. Save Draft or Publish.
+1. Open the canonical OyamaLetters workspace at `/oyama-letters`.
+2. Select a template.
+3. Compose the letter.
+4. Run Preview with a test constituent or gift.
+5. Save Draft or Publish.
 
 ## Compose
 
@@ -39,7 +37,7 @@ Use the left insert panel for content blocks:
 - Campaign Info
 - Event Info
 
-After inserting an image, click it in the canvas and open `Block Settings`. Use `Selected Image Size` to choose a preset width or adjust the width slider. PNG, JPG, and WEBP files are uploaded to Letters media storage and render in generated PDFs.
+After inserting an image, click it in the canvas and open `Block Settings`. Use `Selected Image Size` to choose a preset width or adjust the width slider. PNG, JPG, and WEBP files up to 5 MB are uploaded to Letters media storage and render in generated PDFs.
 
 ## Signature Blocks
 
@@ -62,6 +60,16 @@ Use PNG, JPG, or WEBP for uploaded signatures. Selecting a signature in a letter
 
 The temporary list lasts for the current browser tab session and does not create a permanent CRM segment or send anything automatically.
 
+## Create An OyamaEmail Draft From A Generated Letter
+
+1. Generate a letter for a recipient who has an email address.
+2. In the final Generated Letters table, choose `Create Email Draft`.
+3. OyamaLetters creates a linked draft and opens it in the canonical OyamaEmail campaign workspace.
+4. Review the recipient, rendered content, communication preferences, and send readiness in OyamaEmail before taking any send action.
+5. Use `Return to Source Letter` in OyamaEmail when you need to reopen the originating template, recipient, and generated-letter context.
+
+This handoff never sends automatically. Choosing the action again opens the already-linked campaign instead of creating another draft. The generated letter remains available in its print and mail workflow, and the source link survives later campaign edits.
+
 ## Format Text
 
 Use the right Format tab for font family, font size, bold, italic, underline, strikethrough, inline code, color, alignment, and spacing.
@@ -76,4 +84,4 @@ Use the right Settings tab for subject, category, status, internal notes, and Te
 
 ## Preview And Publish
 
-`Preview` opens a print-focused preview modal. `Publish` requires confirmation before opening production generation workflows. More Options contains secondary actions such as Convert to Email Draft, Export PDF, Print Test, Archive Template, and Version History.
+`Preview` opens a print-focused preview modal. `Publish` requires confirmation before opening production generation workflows. More Options contains secondary actions such as Export PDF, Print Test, Archive Template, and Version History. Recipient-specific email handoff happens after generation so merge fields and recipient context are preserved.

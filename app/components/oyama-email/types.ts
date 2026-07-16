@@ -71,6 +71,10 @@ export interface OyamaEmailCampaign {
     queueState?: "ACTIVE" | "PAUSED";
     lastQueueActionAt?: string | null;
     lastQueueActionById?: string | null;
+    source?: string | null;
+    sourceGeneratedLetterId?: string | null;
+    sourceTemplateId?: string | null;
+    sourceConstituentId?: string | null;
   } | null;
 }
 

@@ -3,6 +3,7 @@
 // Route: /compassion/import/clients
 
 import CompassionClientImportWizard from "./CompassionClientImportWizard";
+import Link from "next/link";
 
 /**
  * CompassionClientImportPage: thin wrapper that renders the 5-step client import wizard.
@@ -18,12 +19,12 @@ export default function CompassionClientImportPage() {
             Upload a CSV file, map fields, and import client records into Compassion CRM safely.
           </p>
         </div>
-        <a
+        <Link
           href="/compassion/data-tools"
           className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
         >
           ← Back to Data Tools
-        </a>
+        </Link>
       </div>
       <CompassionClientImportWizard />
     </div>

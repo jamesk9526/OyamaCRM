@@ -6,9 +6,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { ReactNode } from "react";
-import { DASHBOARD_APPEARANCE_DEFAULTS } from "@/app/features/donor-dashboard/dashboard-config";
+import { DASHBOARD_APPEARANCE_DEFAULTS, DASHBOARD_HERO_ACTIONS } from "@/app/features/donor-dashboard/dashboard-config";
 import { formatDashboardCompactCurrency, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/dashboard-client-service";
 import type { CampaignImpact, DashboardData, DonationPreview, DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
@@ -24,9 +24,8 @@ interface NaturalisticDonorDashboardProps {
   reportingYearMode: string;
   headerActions?: ReactNode;
   extraSections?: ReactNode;
+  onRefresh?: () => void | Promise<void>;
 }
-
-type TrendRange = "mom" | "3m" | "6m" | "1y" | "all";
 
 function formatRelativeTime(dateValue: string): string {
   const date = new Date(dateValue);
@@ -63,15 +62,6 @@ function sparklinePath(values: number[], width = 102, height = 28): string {
     .join(" ");
 }
 
-function getTrendPointCount(point: { count?: number; giftCount?: number; donationCount?: number }): number {
-  const candidates = [point.count, point.giftCount, point.donationCount];
-  for (const candidate of candidates) {
-    const numeric = Number(candidate);
-    if (Number.isFinite(numeric)) return numeric;
-  }
-  return 0;
-}
-
 function StatCard({
   title,
   value,
@@ -79,6 +69,7 @@ function StatCard({
   trendPositive,
   color,
   sparkValues,
+  href,
   compactValue = false,
 }: {
   title: string;
@@ -87,6 +78,7 @@ function StatCard({
   trendPositive: boolean;
   color: "emerald" | "blue" | "violet" | "amber" | "teal";
   sparkValues: number[];
+  href: string;
   compactValue?: boolean;
 }) {
   const tone = color === "emerald"
@@ -110,7 +102,8 @@ function StatCard({
           : <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.75h17a1.75 1.75 0 011.75 1.75v7a1.75 1.75 0 01-1.75 1.75h-17A1.75 1.75 0 011.75 15.5v-7A1.75 1.75 0 013.5 6.75zm.25 1.25 8.25 6 8.25-6" />;
 
   return (
-    <article className="rounded-2xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.06)]">
+    <Link href={href} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2">
+    <article className="h-full rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-[0_4px_14px_rgba(15,23,42,0.05)] transition hover:border-emerald-200 hover:shadow-[0_8px_22px_rgba(5,150,105,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-medium text-slate-600">{title}</p>
@@ -122,11 +115,14 @@ function StatCard({
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className={`text-[11px] font-semibold ${trendPositive ? "text-emerald-700" : "text-slate-500"}`}>{trendText}</p>
-        <svg width="102" height="28" viewBox="0 0 102 28" aria-hidden="true" className="shrink-0">
-          <path d={sparklinePath(sparkValues, 102, 28)} fill="none" stroke={tone.stroke} strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        {sparkValues.length > 1 ? (
+          <svg width="102" height="28" viewBox="0 0 102 28" aria-hidden="true" className="shrink-0">
+            <path d={sparklinePath(sparkValues, 102, 28)} fill="none" stroke={tone.stroke} strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        ) : <span className="text-[10px] font-medium text-slate-400">Open details</span>}
       </div>
     </article>
+    </Link>
   );
 }
 
@@ -163,23 +159,19 @@ function DashboardStatusPill({ children }: { children: ReactNode }) {
 }
 
 export default function NaturalisticDonorDashboard({
-  greeting: _greeting,
   name,
   loading: summaryLoading,
   summary,
   retention,
-  revenueGoal: _revenueGoal,
   dataThroughLabel,
   reportingYearMode,
   headerActions,
   extraSections,
+  onRefresh,
 }: NaturalisticDonorDashboardProps) {
   const [appearance, setAppearance] = useState(DASHBOARD_APPEARANCE_DEFAULTS);
   const [donations, setDonations] = useState<DonationPreview[]>([]);
   const [trendPoints, setTrendPoints] = useState<DashboardData["trendPoints"]>([]);
-  const [trendTotal, setTrendTotal] = useState(0);
-  const [trendGiftCount, setTrendGiftCount] = useState(0);
-  const [trendPercent, setTrendPercent] = useState<number | null>(null);
   const [designationSlices, setDesignationSlices] = useState<DashboardData["designationSlices"]>([]);
   const [designationTotal, setDesignationTotal] = useState(0);
   const [campaigns, setCampaigns] = useState<CampaignImpact[]>([]);
@@ -194,9 +186,6 @@ export default function NaturalisticDonorDashboard({
       setAppearance(data.appearance);
       setDonations(data.recentDonations);
       setTrendPoints(data.trendPoints);
-      setTrendTotal(data.trendTotal);
-      setTrendGiftCount(data.trendGiftCount);
-      setTrendPercent(data.trendPercent);
       setDesignationSlices(data.designationSlices);
       setDesignationTotal(data.designationTotal);
       setCampaigns(data.campaigns);
@@ -217,8 +206,8 @@ export default function NaturalisticDonorDashboard({
   const totalDonorsValue = summary ? summary.totalConstituents.toLocaleString() : "—";
   const monthGivingValue = summary ? formatDashboardCurrency(toDashboardNumber(summary.monthAmount)) : "—";
   const newDonorsValue = summary ? summary.newDonorsThisMonth.toLocaleString() : "—";
-  const upcomingEventsCount = campaigns.filter((campaign) => campaign.endDate && new Date(campaign.endDate) >= new Date()).length;
-  const sparkValues = trendPoints.length > 0 ? trendPoints.map((point) => point.amount) : [2, 3, 2.5, 3.5, 4, 4.4, 5.2];
+  const activeCampaignCount = summary?.activeCampaigns ?? campaigns.filter((campaign) => campaign.active).length;
+  const sparkValues = trendPoints.map((point) => point.amount);
   const unackedCount = donations.filter((donation) => !donation.acknowledgmentSentAt).length;
 
   const topDesignationRows = useMemo(() => {
@@ -250,35 +239,46 @@ export default function NaturalisticDonorDashboard({
 
   const stewardRecommendations = suggestions.slice(0, 4);
 
+  const highPriorityRecommendationCount = stewardRecommendations.filter((item) => item.urgency === "high").length;
   const focusItems = [
-    { id: "follow-up", label: `${summary?.newDonorsThisMonth ?? 0} donors need follow-up`, sub: "High priority", tone: "emerald" },
-    { id: "receipts", label: `${unackedCount} gifts need receipts`, sub: "Awaiting receipt", tone: "amber" },
-    { id: "events", label: `${upcomingEventsCount} upcoming events`, sub: "This week", tone: "violet" },
-    { id: "automation", label: `${stewardRecommendations.filter((item) => item.urgency !== "low").length} path automation paused`, sub: "Needs review", tone: "blue" },
+    { id: "follow-up", label: `${summary?.newDonorsThisMonth ?? 0} new donors`, sub: "Review welcome follow-up", tone: "emerald", href: "/constituents" },
+    { id: "receipts", label: `${unackedCount} gifts unacknowledged`, sub: "Review recent gifts", tone: "amber", href: "/donations" },
+    { id: "campaigns", label: `${activeCampaignCount} active campaigns`, sub: "Review fundraising pace", tone: "violet", href: "/campaigns" },
+    { id: "recommendations", label: `${highPriorityRecommendationCount} high-priority signals`, sub: "Review steward recommendations", tone: "blue", href: "/steward-signals" },
   ] as const;
 
   const attentionItems = [
-    { id: "failed", label: "Failed email sends", sub: "2 emails failed to send", count: 2, href: "/oyama-email/queue", tone: "rose" },
-    { id: "receipts", label: "Gifts need receipts", sub: "Awaiting receipt generation", count: unackedCount, href: "/donations", tone: "amber" },
-    { id: "address", label: "Donors missing addresses", sub: "Update contact information", count: Math.max(1, Math.round((summary?.totalConstituents ?? 0) * 0.001)), href: "/constituents", tone: "orange" },
-    { id: "paths", label: "Path automations paused", sub: "New Donor Welcome Path", count: stewardRecommendations.filter((item) => item.urgency !== "low").length, href: "/steward-paths", tone: "violet" },
+    { id: "overdue", label: "Overdue donor tasks", sub: "Work due or overdue follow-ups", count: summary?.overdueTasks ?? 0, href: "/tasks", tone: "rose" },
+    { id: "receipts", label: "Unacknowledged gifts", sub: "Review acknowledgment status", count: unackedCount, href: "/donations", tone: "amber" },
+    { id: "signals", label: "High-priority signals", sub: "Steward recommendations requiring review", count: highPriorityRecommendationCount, href: "/steward-signals", tone: "orange" },
+    { id: "tasks", label: "Open donor tasks", sub: "Current stewardship work queue", count: summary?.pendingTasks ?? 0, href: "/tasks", tone: "violet" },
   ] as const;
+  const visibleAttentionItems = attentionItems.filter((item) => item.count > 0);
+
+  const quickActions = [
+    ...appearance.primaryActions.map((id) => ({ id, ...DASHBOARD_HERO_ACTIONS[id] })),
+    { id: "add-donor", label: "Add Donor", href: "/constituents/new" },
+    { id: "new-email", label: "Create Email", href: "/oyama-email/templates/new" },
+    { id: "new-letter", label: "Create Letter", href: "/oyama-letters/templates/new" },
+  ];
 
   const weekLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date());
-  const widgetCardClass = "rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.06)]";
+  const widgetCardClass = "rounded-xl border border-slate-200/90 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.05)]";
   const widgetHeaderClass = "flex items-center justify-between border-b border-slate-100 px-4 py-3";
 
+  const reportingPeriodLabel = reportingYearMode === "FISCAL" ? "Fiscal-year view" : "Calendar-year view";
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#eef7f2_0%,#f6f7f6_42%,#f1f5f9_100%)]">
-      <div className="mx-auto max-w-[1580px] px-4 pb-8 pt-5 sm:px-6 xl:px-8">
+    <div className="min-h-screen min-w-0 bg-[linear-gradient(180deg,#f3f7f4_0%,#f8faf9_34%,#f3f6f5_100%)]">
+      <div className="mx-auto min-w-0 max-w-[1580px] px-3 pb-8 pt-4 sm:px-5 xl:px-7">
         {sectionErrors.length > 0 ? (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
             {sectionErrors.slice(0, 2).join(" ")}
           </div>
         ) : null}
 
-        <section className="mb-4 overflow-hidden rounded-[30px] border border-slate-200 bg-[linear-gradient(135deg,#f7fbf8_0%,#ffffff_55%,#edf5ff_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
-          <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.95fr)]">
+        <section className="mb-4 overflow-hidden rounded-2xl border border-emerald-900/10 bg-[linear-gradient(135deg,#f8fcf9_0%,#ffffff_58%,#f2f7f5_100%)] shadow-[0_8px_24px_rgba(15,23,42,0.055)]">
+          <div className="grid min-w-0 gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.95fr)] sm:px-5">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
@@ -289,16 +289,40 @@ export default function NaturalisticDonorDashboard({
                 </span>
               </div>
               <div>
-                <h1 className="text-[31px] font-semibold tracking-tight text-slate-900 sm:text-[36px]">Welcome back, {firstName}</h1>
-                <p className="mt-1 max-w-3xl text-sm text-slate-600">Today&apos;s giving, stewardship, and campaign pressure in one tighter donor workspace.</p>
+                <h1 className="text-[28px] font-semibold tracking-tight text-slate-950 sm:text-[32px]">Welcome back, {firstName}</h1>
+                <p className="mt-1 max-w-3xl text-sm text-slate-600">Review live donor activity, handle the next stewardship action, or start a common workflow.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {headerActions}
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadRichData();
+                    void onRefresh?.();
+                  }}
+                  disabled={richLoading || summaryLoading}
+                  className="inline-flex min-h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 disabled:opacity-60"
+                >
+                  {richLoading || summaryLoading ? "Refreshing..." : "Refresh"}
+                </button>
                 <DashboardStatusPill>Live snapshot only</DashboardStatusPill>
               </div>
+              <nav className="flex flex-wrap gap-2 pt-1" aria-label="Dashboard quick actions">
+                {quickActions.map((action, index) => (
+                  <Link
+                    key={action.id}
+                    href={action.href}
+                    className={index === 0
+                      ? "inline-flex min-h-9 items-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800"
+                      : "inline-flex min-h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"}
+                  >
+                    {action.label}
+                  </Link>
+                ))}
+              </nav>
             </div>
-            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
-              <HeroMiniTile label="Attention Queue" value={`${focusItems.filter((item) => item.tone === "emerald" || item.tone === "amber").length} priorities`} detail={`${unackedCount} receipts and ${summary?.newDonorsThisMonth ?? 0} new donor follow-ups`} />
+            <div className="grid min-w-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
+              <HeroMiniTile label="Attention Queue" value={`${visibleAttentionItems.length} active`} detail={visibleAttentionItems.length > 0 ? `${unackedCount} unacknowledged gifts and ${summary?.overdueTasks ?? 0} overdue tasks` : "No current dashboard alerts"} />
               <HeroMiniTile label="Coverage" value={totalDonorsValue} detail="Active donor records in current dashboard scope" tone="blue" />
             </div>
           </div>
@@ -309,8 +333,8 @@ export default function NaturalisticDonorDashboard({
             <h2 className="text-sm font-semibold text-slate-900">Today&apos;s Focus</h2>
             <p className="text-xs text-slate-500">High-signal follow-up items and live donor pressure points.</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <DashboardStatusPill>{weekLabel} · {dataThroughLabel}</DashboardStatusPill>
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+            <DashboardStatusPill>{reportingPeriodLabel}</DashboardStatusPill>
           </div>
         </div>
 
@@ -319,9 +343,9 @@ export default function NaturalisticDonorDashboard({
             <h2 className="text-sm font-semibold text-slate-800">Priority Tiles</h2>
             <Link href="/steward-signals" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">View all</Link>
           </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {focusItems.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
+              <Link key={item.id} href={item.href} className="flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2 transition hover:border-emerald-200 hover:bg-emerald-50/50">
                 <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${item.tone === "emerald" ? "bg-emerald-100 text-emerald-700" : item.tone === "amber" ? "bg-amber-100 text-amber-700" : item.tone === "violet" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
@@ -331,28 +355,28 @@ export default function NaturalisticDonorDashboard({
                   <p className="text-[13px] font-semibold text-slate-800">{item.label}</p>
                   <p className="text-[11px] text-slate-500">{item.sub}</p>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
 
-        <section className="mb-4 grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-5">
-          <StatCard title="Total Donors" value={totalDonorsValue} trendText="↑ Active records" trendPositive color="emerald" sparkValues={sparkValues} />
-          <StatCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "—"} vs last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} color="blue" sparkValues={sparkValues.map((v, i) => v * (0.85 + i * 0.04))} />
-          <StatCard title="New Donors" value={newDonorsValue} trendText={`↑ ${summary?.newDonorsThisMonth ?? 0} vs last month`} trendPositive color="violet" sparkValues={sparkValues.map((v, i) => v * (0.7 + i * 0.05))} />
-          <StatCard title="Upcoming Events" value={upcomingEventsCount.toLocaleString()} trendText="View this week" trendPositive={false} color="amber" sparkValues={sparkValues.map((v, i) => v * (0.6 + i * 0.06))} />
-          <StatCard title="Emails Sent" value="Not tracking yet" trendText="Connect OyamaEmail" trendPositive={false} color="teal" compactValue sparkValues={sparkValues.map((v, i) => v * (0.9 + i * 0.02))} />
+        <section className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          <StatCard title="Total Donors" value={totalDonorsValue} trendText="Open donor records" trendPositive color="emerald" sparkValues={[]} href="/constituents" />
+          <StatCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "No comparison"} vs last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} color="blue" sparkValues={sparkValues} href="/donations" />
+          <StatCard title="New Donors" value={newDonorsValue} trendText="Review welcome follow-up" trendPositive color="violet" sparkValues={[]} href="/constituents" />
+          <StatCard title="Active Campaigns" value={activeCampaignCount.toLocaleString()} trendText="Review fundraising work" trendPositive={false} color="amber" sparkValues={[]} href="/campaigns" />
+          <StatCard title="Retention Rate" value={retention ? `${Math.round(retention.rate)}%` : "—"} trendText="Open donor reporting" trendPositive={(retention?.rate ?? 0) >= 50} color="teal" compactValue sparkValues={[]} href="/reports" />
         </section>
 
-        <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1.45fr]">
-          <article className={`${widgetCardClass} p-4`}>
+        <section className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1.45fr]">
+          <article className={`${widgetCardClass} min-w-0 p-4`}>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Giving Overview</h2>
               <span className="text-[11px] font-medium text-slate-500">Live dashboard breakdown</span>
             </div>
             <p className="text-xs font-medium text-slate-500">{formatDashboardCompactCurrency(designationTotal)} total giving (YTD)</p>
-            <div className="grid grid-cols-[1fr_1fr] items-center gap-3">
-              <div className="h-[230px]">
+            <div className="grid min-w-0 grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="h-[190px] min-w-0 sm:h-[230px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={topDesignationRows.map((row) => ({ name: row.label, value: row.value }))} dataKey="value" innerRadius={52} outerRadius={86} strokeWidth={2}>
@@ -375,21 +399,21 @@ export default function NaturalisticDonorDashboard({
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 {topDesignationRows.map((row, index) => (
                   <div key={row.label} className="flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: ["#0ea5a5", "#22c55e", "#84cc16", "#f59e0b", "#a855f7"][index % 5] }} />
-                      <span className="text-slate-700">{row.label}</span>
+                      <span className="truncate text-slate-700">{row.label}</span>
                     </div>
-                    <span className="font-semibold text-slate-800">{formatDashboardCompactCurrency(row.value)} ({row.pct}%)</span>
+                    <span className="shrink-0 whitespace-nowrap font-semibold text-slate-800">{formatDashboardCompactCurrency(row.value)} ({row.pct}%)</span>
                   </div>
                 ))}
               </div>
             </div>
           </article>
 
-          <article className={widgetCardClass}>
+          <article className={`${widgetCardClass} min-w-0`}>
             <div className={widgetHeaderClass}>
               <h2 className="text-lg font-semibold text-slate-900">Steward Recommendations</h2>
               <span className="text-[11px] font-medium text-slate-500">Top 4 recommendations</span>
@@ -398,7 +422,7 @@ export default function NaturalisticDonorDashboard({
               {stewardRecommendations.length === 0 ? (
                 <p className="text-sm text-slate-500">No recommendations yet.</p>
               ) : stewardRecommendations.map((item) => (
-                <div key={item.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 rounded-lg border border-slate-100 px-3 py-2.5">
+                <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 rounded-lg border border-slate-100 px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
                   <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
@@ -408,7 +432,7 @@ export default function NaturalisticDonorDashboard({
                     <p className="text-sm font-semibold text-slate-800">{item.title}</p>
                     <p className="text-xs text-slate-500">{item.description}</p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                  <span className={`col-start-2 justify-self-start rounded-full px-2 py-0.5 text-[10px] font-semibold sm:col-auto sm:justify-self-auto ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
                     {item.urgency === "high" ? "High Priority" : item.urgency === "medium" ? "Medium Priority" : "Low Priority"}
                   </span>
                 </div>
@@ -417,8 +441,8 @@ export default function NaturalisticDonorDashboard({
           </article>
         </section>
 
-        <section className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1.35fr_1.05fr_0.9fr]">
-          <article className={widgetCardClass}>
+        <section className="mt-3 grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[1.35fr_1.05fr_0.9fr]">
+          <article className={`${widgetCardClass} min-w-0`}>
             <div className={widgetHeaderClass}>
               <h2 className="text-lg font-semibold text-slate-900">Recent Gifts</h2>
               <Link href="/donations" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">Open donation ledger</Link>
@@ -434,7 +458,9 @@ export default function NaturalisticDonorDashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {donations.slice(0, 6).map((donation) => (
+                  {donations.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">No recent gifts are available for this dashboard period.</td></tr>
+                  ) : donations.slice(0, 6).map((donation) => (
                     <tr key={donation.id} className="border-t border-slate-100">
                       <td className="px-4 py-2.5">
                         <p className="font-semibold text-slate-800">{donation.constituent?.firstName ?? "Donor"} {donation.constituent?.lastName ?? ""}</p>
@@ -450,13 +476,13 @@ export default function NaturalisticDonorDashboard({
             </div>
           </article>
 
-          <article className={widgetCardClass}>
+          <article className={`${widgetCardClass} min-w-0`}>
             <div className={widgetHeaderClass}>
               <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
               <span className="text-[11px] font-medium text-slate-500">Latest donor updates</span>
             </div>
             <div className="space-y-3 px-4 py-3">
-              {activityRows.map((row) => (
+              {activityRows.length === 0 ? <p className="py-5 text-center text-sm text-slate-500">No recent donor activity is available.</p> : activityRows.map((row) => (
                 <div key={row.id} className="flex items-start gap-2.5">
                   <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">•</span>
                   <div>
@@ -468,13 +494,13 @@ export default function NaturalisticDonorDashboard({
               ))}
             </div>
           </article>
-          <article className={widgetCardClass}>
+          <article className={`${widgetCardClass} min-w-0`}>
             <div className={widgetHeaderClass}>
               <h2 className="text-lg font-semibold text-slate-900">Needs Attention</h2>
               <span className="text-[11px] font-medium text-slate-500">Linked donor work queues</span>
             </div>
             <div className="space-y-1.5 px-4 py-3">
-              {attentionItems.map((item) => (
+              {visibleAttentionItems.length === 0 ? <p className="py-5 text-center text-sm text-slate-500">No dashboard work queues currently need attention.</p> : visibleAttentionItems.map((item) => (
                 <Link key={item.id} href={item.href} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{item.label}</p>

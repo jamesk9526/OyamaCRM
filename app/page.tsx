@@ -24,9 +24,9 @@ export default function DashboardPage() {
   const name = user ? `${user.firstName} ${user.lastName}` : "…";
 
   const widgetArea = (
-    <section className="mt-3 rounded-2xl border border-slate-200/90 bg-white/70 p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)] sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-2 px-1">
-        <div>
+    <section className="mt-3 min-w-0 rounded-2xl border border-slate-200/90 bg-white/70 p-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)] sm:p-4">
+      <div className="mb-3 flex items-start justify-between gap-2 px-1 sm:items-center">
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold text-slate-900">Dashboard Widgets</h2>
           <p className="text-xs text-slate-500">Organize, enable, and configure your personal dashboard layout.</p>
         </div>
@@ -108,18 +108,15 @@ export default function DashboardPage() {
         revenueGoal={dashboardState.revenueGoal}
         dataThroughLabel={dashboardState.dataThroughLabel}
         reportingYearMode={dashboardState.reportingYearMode}
+        onRefresh={dashboardState.load}
         headerActions={(
           <button
             type="button"
             onClick={dashboardState.openCustomizeModal}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-100"
+            className="inline-flex min-h-9 items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 shadow-sm hover:bg-emerald-100"
             aria-label="Customize dashboard"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317a1 1 0 0 1 1.35-.936l1.1.445a1 1 0 0 0 .75 0l1.1-.445a1 1 0 0 1 1.35.936l.08 1.183a1 1 0 0 0 .568.84l1.06.54a1 1 0 0 1 .486 1.3l-.447 1.097a1 1 0 0 0 0 .75l.447 1.097a1 1 0 0 1-.486 1.3l-1.06.54a1 1 0 0 0-.568.84l-.08 1.183a1 1 0 0 1-1.35.936l-1.1-.445a1 1 0 0 0-.75 0l-1.1.445a1 1 0 0 1-1.35-.936l-.08-1.183a1 1 0 0 0-.568-.84l-1.06-.54a1 1 0 0 1-.486-1.3l.447-1.097a1 1 0 0 0 0-.75l-.447-1.097a1 1 0 0 1 .486-1.3l1.06-.54a1 1 0 0 0 .568-.84l.08-1.183z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
-            </svg>
-            Customize Dashboard
+            Customize
           </button>
         )}
         extraSections={<div id="dashboard-widgets">{widgetArea}</div>}

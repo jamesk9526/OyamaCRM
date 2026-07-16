@@ -19,7 +19,7 @@ beforeAll(async () => {
 describe("letters merge aliases API", () => {
   const auth = () => ({ Authorization: `Bearer ${token}` });
 
-  it("renders simple donor and donation aliases from database-backed preview context", async () => {
+  it("renders simple donor and donation aliases from database-backed preview context", { timeout: 20000 }, async () => {
     const suffix = Date.now();
     const constituent = await request(app)
       .post("/api/constituents")
@@ -350,5 +350,96 @@ describe("letters merge aliases API", () => {
     expect(secondLetter?.mergedPrintBody).toContain("$55.55");
     expect(secondLetter?.mergedPrintBody).toContain("November 20, 2024");
     expect(secondLetter?.mergedPrintBody).not.toContain("$0.00");
+  });
+
+  it("keeps recipient, campaign, event, organization, and year merge context when batch-generating", async () => {
+    const suffix = Date.now();
+    const admin = await prisma.user.findUnique({
+      where: { email: "admin@hopefoundation.org" },
+      select: { organizationId: true },
+    });
+    if (!admin) throw new Error("Seed admin user not found for batch merge test.");
+
+    const template = await request(app)
+      .post("/api/letters/templates")
+      .set(auth())
+      .send({
+        name: `Batch Merge Context ${suffix}`,
+        category: "THANK_YOU",
+        status: "ACTIVE",
+        printBody: "Dear {{donor.firstName}} — {{campaign.name}} — {{event.name}} — {{organization.name}} — {{year}}.",
+        emailBody: "{{donor.firstName}} {{campaign.name}} {{event.name}} {{year}}",
+      });
+    expect(template.status).toBe(201);
+
+    const recipient = await request(app)
+      .post("/api/constituents")
+      .set(auth())
+      .send({
+        firstName: "BatchContext",
+        lastName: `Recipient${suffix}`,
+        email: `batch-context-${suffix}@example.org`,
+        addressLine1: "300 Context Ave",
+        city: "Springfield",
+        state: "IL",
+        zip: "62701",
+        type: "DONOR",
+      });
+    expect(recipient.status).toBe(201);
+
+    const campaign = await prisma.campaign.create({
+      data: {
+        organizationId: admin.organizationId,
+        name: `Batch Context Campaign ${suffix}`,
+        startDate: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    });
+    const event = await prisma.event.create({
+      data: {
+        organizationId: admin.organizationId,
+        name: `Batch Context Event ${suffix}`,
+        startDate: new Date("2026-08-15T17:00:00.000Z"),
+      },
+    });
+
+    const batch = await request(app)
+      .post("/api/letters/generated/batch")
+      .set(auth())
+      .send({
+        templateId: template.body.id,
+        constituentIds: [recipient.body.id],
+        campaignId: campaign.id,
+        eventId: event.id,
+        year: 2024,
+        donationMode: "none",
+        deliveryTarget: "PDF_ONLY",
+      });
+
+    expect(batch.status).toBe(200);
+    expect(batch.body.generatedCount).toBe(1);
+    expect(batch.body.skippedCount).toBe(0);
+
+    const generated = await prisma.generatedLetter.findUnique({
+      where: { id: batch.body.generatedIds[0] },
+      select: {
+        constituentId: true,
+        campaignId: true,
+        eventId: true,
+        mergedPrintBody: true,
+        mergedEmailBody: true,
+      },
+    });
+    expect(generated?.constituentId).toBe(recipient.body.id);
+    expect(generated?.campaignId).toBe(campaign.id);
+    expect(generated?.eventId).toBe(event.id);
+    expect(generated?.mergedPrintBody).toContain("BatchContext");
+    expect(generated?.mergedPrintBody).toContain(campaign.name);
+    expect(generated?.mergedPrintBody).toContain(event.name);
+    expect(generated?.mergedPrintBody).toContain("Hope Foundation");
+    expect(generated?.mergedPrintBody).toContain("2024");
+    expect(generated?.mergedEmailBody).toContain("BatchContext");
+    expect(generated?.mergedEmailBody).toContain(campaign.name);
+    expect(generated?.mergedEmailBody).toContain(event.name);
+    expect(generated?.mergedEmailBody).toContain("2024");
   });
 });

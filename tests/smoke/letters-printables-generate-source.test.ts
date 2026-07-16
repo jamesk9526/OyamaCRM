@@ -41,6 +41,9 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("/api/letters/generated/preview");
     expect(workspace).toContain("/api/letters/generated/preview-pdf?preview=1&inline=1");
     expect(workspace).toContain("/api/letters/generated/batch");
+    expect(workspace).toContain("buildMergeContextPayload");
+    expect(workspace).toContain('searchParams.get("campaignId")');
+    expect(workspace).toContain('searchParams.get("eventId")');
     expect(workspace).toContain("/api/letters/generated/queue/mail/actions");
     expect(workspace).toContain("/api/letters/ai-compose");
     expect(workspace).toContain("/api/letters/ai-suggest");
@@ -50,6 +53,8 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(lettersApi).toContain("sample-preview-recipient");
     expect(lettersApi).toContain("syntheticPreviewRecipient");
     expect(lettersApi).toContain("production-faithful preview PDF");
+    expect(lettersApi).toContain("eventId,");
+    expect(lettersApi).toContain("campaignId,");
     expect(workspace).not.toContain("fake");
     expect(workspace).not.toContain("mockDonor");
   });
@@ -74,10 +79,15 @@ describe("OyamaLetters generate workspace source contract", () => {
 
   it("routes letter branding to global branding settings", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersApi = read("server/src/routes/letters.ts");
+    const settingsApi = read("server/src/routes/settings.ts");
 
     expect(workspace).toContain("/settings/branding#communication-header-footer");
     expect(workspace).toContain("/settings/branding/signatures");
     expect(workspace).toContain("Letter branding now uses the global Branding Settings source of truth");
+    expect(lettersApi).toContain('readFirstTextConfig(branding, ["logoUrl", "logo", "primaryLogoUrl", "brandLogoUrl"])');
+    expect(lettersApi).toContain("Do not guess from the newest branding upload");
+    expect(settingsApi).toContain("BRANDING_LOGO_UPLOADED_AND_SELECTED");
   });
 
   it("keeps operational PDF labels out of rendered letter output", () => {

@@ -7,8 +7,13 @@
   --accent: #16a34a;
   --accent-light: #f0fdf4;
   --crm-surface: #ffffff;
-  --crm-border: #e2e8f0;
+  --crm-surface-subtle: #f8faf9;
+  --crm-border: #dce6e0;
+  --crm-border-strong: #c7d8ce;
   --crm-muted-text: #64748b;
+  --crm-accent: #047857;
+  --crm-accent-soft: #ecfdf5;
+  --crm-focus-ring: rgba(16, 185, 129, 0.28);
 }
 
 @theme inline {
@@ -22,6 +27,10 @@ body {
   height: 100%;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -32,6 +41,11 @@ body {
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: contain;
+}
+
+[data-crm-scroll-root="true"] {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .crm-fonts {
@@ -49,14 +63,48 @@ body {
 
 /* Shared CRM visual language primitives for calm, consistent page surfaces. */
 .crm-page-surface {
-  background: #f7faf8;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(209, 250, 229, 0.34), transparent 28rem),
+    linear-gradient(180deg, #f4f8f5 0%, #f8faf9 45%, #f3f6f4 100%);
 }
 
 .crm-shell-surface {
   background: var(--crm-surface);
-  border: 1px solid #bddfc7;
-  border-radius: 0.375rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--crm-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+}
+
+.crm-card-surface {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: var(--crm-border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.045);
+}
+
+.crm-card-surface:hover {
+  border-color: var(--crm-border-strong);
+}
+
+.crm-page-header-surface {
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 62%, #f0fdf4 100%);
+  border-color: var(--crm-border);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+}
+
+.crm-filter-surface {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: var(--crm-border);
+}
+
+.crm-fonts :is(input, textarea, select):focus-visible {
+  outline: none;
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px var(--crm-focus-ring);
+}
+
+.crm-fonts ::selection {
+  background: #a7f3d0;
+  color: #052e24;
 }
 
 .crm-soft-divider {

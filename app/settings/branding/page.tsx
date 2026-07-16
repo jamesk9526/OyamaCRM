@@ -70,7 +70,7 @@ export default function BrandingSettingsPage() {
         }),
       });
       setField(field, uploaded.url);
-      setUploadMessage(`${field === "logoUrl" ? "Primary" : "Square"} logo uploaded. Save Branding Defaults to publish changes.`);
+      setUploadMessage(`${field === "logoUrl" ? "Primary" : "Square"} logo uploaded and selected for Letters and Email. Save Branding Defaults only for any other edits on this page.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to upload logo file.");
     } finally {

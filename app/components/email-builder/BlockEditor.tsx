@@ -77,6 +77,57 @@ const inputCls =
   'block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400';
 const selectCls = inputCls;
 
+/** Keeps uploaded and externally hosted image choices in one predictable control. */
+function ImageSourceField({
+  label,
+  value,
+  onChange,
+  onUploadImage,
+  imageUploadInProgress,
+}: {
+  label: string;
+  value?: string;
+  onChange: (value: string) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !onUploadImage) return;
+    setError(null);
+    try {
+      onChange(await onUploadImage(file));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Image upload failed.');
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+      <Field label={label} hint="Upload to this template or paste a hosted image URL.">
+        <input type="url" className={inputCls} value={value ?? ''} onChange={(event) => onChange(event.target.value)} placeholder="https://example.com/image.jpg" />
+      </Field>
+      {onUploadImage ? (
+        <>
+          <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif" className="hidden" onChange={(event) => void handleFileSelected(event)} />
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={Boolean(imageUploadInProgress)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60">
+            {imageUploadInProgress ? 'Uploading image...' : 'Upload image'}
+          </button>
+        </>
+      ) : null}
+      {value ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={value} alt="Selected media preview" className="max-h-32 w-full rounded-md border border-slate-200 bg-white object-contain" />
+      ) : null}
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+    </div>
+  );
+}
+
 type InspectorTab = 'content' | 'style' | 'settings';
 
 interface TemplatePanelProps {
@@ -1227,9 +1278,13 @@ function FeatureListEditor({
 function ImpactStoryEditor({
   block,
   onUpdate,
+  onUploadImage,
+  imageUploadInProgress,
 }: {
   block: ImpactStoryBlock;
   onUpdate: (partial: Partial<ImpactStoryBlock>) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
 }) {
   return (
     <>
@@ -1245,9 +1300,7 @@ function ImpactStoryEditor({
       <Field label="Client-safe name or pseudonym">
         <input type="text" className={inputCls} value={block.pseudonym ?? ''} onChange={(e) => onUpdate({ pseudonym: e.target.value || undefined })} />
       </Field>
-      <Field label="Image URL (optional)">
-        <input type="url" className={inputCls} value={block.imageUrl ?? ''} onChange={(e) => onUpdate({ imageUrl: e.target.value || undefined })} />
-      </Field>
+      <ImageSourceField label="Story image" value={block.imageUrl} onChange={(imageUrl) => onUpdate({ imageUrl: imageUrl || undefined })} onUploadImage={onUploadImage} imageUploadInProgress={imageUploadInProgress} />
       <Field label="Impact Outcome">
         <textarea className={inputCls} rows={3} value={block.outcome} onChange={(e) => onUpdate({ outcome: e.target.value })} />
       </Field>
@@ -1432,9 +1485,13 @@ function FirstTimeDonorWelcomeEditor({
 function StaffSignatureEditor({
   block,
   onUpdate,
+  onUploadImage,
+  imageUploadInProgress,
 }: {
   block: StaffSignatureBlock;
   onUpdate: (partial: Partial<StaffSignatureBlock>) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
 }) {
   return (
     <>
@@ -1443,8 +1500,8 @@ function StaffSignatureEditor({
       <Field label="Phone Token"><input type="text" className={inputCls} value={block.phoneToken} onChange={(e) => onUpdate({ phoneToken: e.target.value })} /></Field>
       <Field label="Email Token"><input type="text" className={inputCls} value={block.emailToken} onChange={(e) => onUpdate({ emailToken: e.target.value })} /></Field>
       <Field label="Organization Token"><input type="text" className={inputCls} value={block.organizationToken} onChange={(e) => onUpdate({ organizationToken: e.target.value })} /></Field>
-      <Field label="Signature Image URL"><input type="url" className={inputCls} value={block.signatureImageUrl ?? ''} onChange={(e) => onUpdate({ signatureImageUrl: e.target.value || undefined })} /></Field>
-      <Field label="Headshot URL"><input type="url" className={inputCls} value={block.headshotUrl ?? ''} onChange={(e) => onUpdate({ headshotUrl: e.target.value || undefined })} /></Field>
+      <ImageSourceField label="Signature image" value={block.signatureImageUrl} onChange={(signatureImageUrl) => onUpdate({ signatureImageUrl: signatureImageUrl || undefined })} onUploadImage={onUploadImage} imageUploadInProgress={imageUploadInProgress} />
+      <ImageSourceField label="Headshot" value={block.headshotUrl} onChange={(headshotUrl) => onUpdate({ headshotUrl: headshotUrl || undefined })} onUploadImage={onUploadImage} imageUploadInProgress={imageUploadInProgress} />
     </>
   );
 }
@@ -1563,9 +1620,13 @@ function PartnerLogosEditor({
 function ContactCardEditor({
   block,
   onUpdate,
+  onUploadImage,
+  imageUploadInProgress,
 }: {
   block: ContactCardBlock;
   onUpdate: (partial: Partial<ContactCardBlock>) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
 }) {
   return (
     <>
@@ -1586,9 +1647,7 @@ function ContactCardEditor({
           <input type="email" className={inputCls} value={block.email ?? ''} onChange={(e) => onUpdate({ email: e.target.value || undefined })} />
         </Field>
       </div>
-      <Field label="Image URL">
-        <input type="url" className={inputCls} value={block.imageUrl ?? ''} onChange={(e) => onUpdate({ imageUrl: e.target.value || undefined })} />
-      </Field>
+      <ImageSourceField label="Contact image" value={block.imageUrl} onChange={(imageUrl) => onUpdate({ imageUrl: imageUrl || undefined })} onUploadImage={onUploadImage} imageUploadInProgress={imageUploadInProgress} />
       <Field label="Note">
         <textarea className={inputCls} rows={3} value={block.note ?? ''} onChange={(e) => onUpdate({ note: e.target.value || undefined })} />
       </Field>
@@ -2669,6 +2728,8 @@ export default function BlockEditor({
               <ImpactStoryEditor
                 block={selectedBlock as ImpactStoryBlock}
                 onUpdate={update as (p: Partial<ImpactStoryBlock>) => void}
+                onUploadImage={onUploadImage}
+                imageUploadInProgress={imageUploadInProgress}
               />
             )}
             {selectedBlock.type === 'impactGrid' && (
@@ -2747,6 +2808,8 @@ export default function BlockEditor({
               <StaffSignatureEditor
                 block={selectedBlock as StaffSignatureBlock}
                 onUpdate={update as (p: Partial<StaffSignatureBlock>) => void}
+                onUploadImage={onUploadImage}
+                imageUploadInProgress={imageUploadInProgress}
               />
             )}
             {selectedBlock.type === 'footerCompliance' && (
@@ -2771,6 +2834,8 @@ export default function BlockEditor({
               <ContactCardEditor
                 block={selectedBlock as ContactCardBlock}
                 onUpdate={update as (p: Partial<ContactCardBlock>) => void}
+                onUploadImage={onUploadImage}
+                imageUploadInProgress={imageUploadInProgress}
               />
             )}
             {selectedBlock.type === 'image' && (

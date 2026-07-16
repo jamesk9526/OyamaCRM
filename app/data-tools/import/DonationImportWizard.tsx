@@ -11,6 +11,7 @@
  */
 
 import { useState, useRef, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   CRM_DONATION_FIELDS,
   DONATION_FIELD_GROUPS,
@@ -837,12 +838,12 @@ export default function DonationImportWizard() {
               >
                 Import Another File
               </button>
-              <a
+              <Link
                 href="/donations"
                 className="px-5 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800"
               >
                 View Donations →
-              </a>
+              </Link>
             </div>
           </div>
         )}

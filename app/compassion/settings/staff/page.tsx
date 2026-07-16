@@ -1,6 +1,7 @@
 // Compassion settings staff page route that hosts the staff directory manager.
 
 import CompassionStaffDirectoryManager from "@/app/components/compassion/settings/CompassionStaffDirectoryManager";
+import Link from "next/link";
 
 /**
  * CompassionStaffSettingsPage renders the staff directory and optional account management UI.
@@ -14,12 +15,12 @@ export default function CompassionStaffSettingsPage() {
           <h1 className="text-xl font-semibold text-gray-900">Compassion Staff</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage staff profiles, scheduling visibility, and optional linked accounts.</p>
         </div>
-        <a
+        <Link
           href="/compassion/settings"
           className="text-sm text-blue-600 hover:text-blue-700 underline"
         >
           Back to Compassion Settings
-        </a>
+        </Link>
       </div>
 
       <CompassionStaffDirectoryManager />

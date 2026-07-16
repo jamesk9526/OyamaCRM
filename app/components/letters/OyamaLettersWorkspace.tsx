@@ -164,6 +164,13 @@ interface BatchResult {
   queuedForMailCount?: number;
 }
 
+interface EmailDraftHandoffResult {
+  generatedLetter: Partial<GeneratedLetterSummary> & { id: string };
+  emailCampaign: { id: string; status: string };
+  redirectTo?: string;
+  reused: boolean;
+}
+
 interface WorkflowPolicy {
   autoQueueBatchToPrint: boolean;
   requirePrintApproval: boolean;
@@ -318,7 +325,7 @@ const EMPTY_DRAFT: TemplateDraft = {
   description: "",
   category: "GENERAL",
   status: "DRAFT",
-  printSubject: "Printable Letter",
+  printSubject: "",
   printBody: "<p>Dear {{donor.firstName}},</p><p>Thank you for your support of {{organization.name}}.</p><p>With gratitude,</p>",
   emailSubject: "",
   emailBody: "",
@@ -1258,7 +1265,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           description: template.description ?? "",
           category: template.category ?? "GENERAL",
           status: (template.status as TemplateStatus) ?? "DRAFT",
-          printSubject: template.printSubject ?? "Printable Letter",
+          printSubject: template.printSubject ?? "",
           printBody: nextBody,
           emailSubject: template.emailSubject ?? "",
           emailBody: template.emailBody ?? "",
@@ -1814,9 +1821,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       return;
     }
 
-    const maxSize = 6 * 1024 * 1024;
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      setNotice("Images must be 6 MB or smaller.");
+      setNotice("Images must be 5 MB or smaller.");
       return;
     }
 
@@ -2494,7 +2501,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     {previewMode ? (
                       <div
                         id="printBody"
-                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_.merge-token-badge]:inline-flex [&_.merge-token-badge]:items-center [&_.merge-token-badge]:rounded [&_.merge-token-badge]:border [&_.merge-token-badge]:border-emerald-300 [&_.merge-token-badge]:bg-emerald-50 [&_.merge-token-badge]:px-1.5 [&_.merge-token-badge]:py-0.5 [&_.merge-token-badge]:font-mono [&_.merge-token-badge]:text-[11px] [&_.merge-token-badge]:font-semibold [&_.merge-token-badge]:text-emerald-800 [&_.merge-token-badge-unknown]:border-amber-300 [&_.merge-token-badge-unknown]:bg-amber-50 [&_.merge-token-badge-unknown]:text-amber-800 [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_.merge-token-badge]:inline-flex [&_.merge-token-badge]:items-center [&_.merge-token-badge]:rounded [&_.merge-token-badge]:border [&_.merge-token-badge]:border-emerald-300 [&_.merge-token-badge]:bg-emerald-50 [&_.merge-token-badge]:px-1.5 [&_.merge-token-badge]:py-0.5 [&_.merge-token-badge]:font-mono [&_.merge-token-badge]:text-[11px] [&_.merge-token-badge]:font-semibold [&_.merge-token-badge]:text-emerald-800 [&_.merge-token-badge-unknown]:border-amber-300 [&_.merge-token-badge-unknown]:bg-amber-50 [&_.merge-token-badge-unknown]:text-amber-800 [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
                         dangerouslySetInnerHTML={{ __html: decorateMergeTokens(draft.printBody || "<p></p>", mergeRegistry) }}
                       />
                     ) : (
@@ -2510,7 +2517,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                         onClick={handleEditorClick}
                         onKeyUp={rememberEditorSelection}
                         onKeyDown={handleEditorKeyDown}
-                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
+                        className="min-h-[520px] w-full border-0 bg-transparent text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2"
                         spellCheck
                       />
                     )}
@@ -2520,7 +2527,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </div>
           </div>
           <div className="mx-auto mt-3 flex h-9 max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm" style={{ width: editorFrameWidth }}>
-            <span className="font-semibold text-slate-700">Page 1 of 1</span>
+            <span className="font-semibold text-slate-700">Canvas preview</span>
             <span className="text-slate-300 select-none">·</span>
             <span>{pageSizeShort}</span>
             <span className="text-slate-300 select-none">·</span>
@@ -2746,7 +2753,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 </InspectorCard>
                 <InspectorCard title="Selected Image Size">
                   {selectedImageWidth === null ? (
-                    <p className="text-xs text-slate-500">Select an image in the letter to resize it.</p>
+                    <p className="text-xs text-slate-500">Insert a PNG, JPG, or WEBP image up to 5 MB, then select it here to set size, alignment, and accessible alt text.</p>
                   ) : (
                     <div className="space-y-3">
                       <label className="block text-xs font-semibold text-slate-700">
@@ -3461,8 +3468,10 @@ function logLetterPublishDiagnostics({
 }
 
 function GenerateWorkspace() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const temporaryListId = searchParams.get("temporaryListId") ?? "";
+  const sourceGeneratedLetterId = searchParams.get("generatedLetterId") ?? "";
   const [temporaryRecipientList, setTemporaryRecipientList] = useState<TemporaryRecipientList | null>(null);
   const [templates, setTemplates] = useState<LetterTemplateSummary[]>([]);
   const [generated, setGenerated] = useState<GeneratedLetterSummary[]>([]);
@@ -3476,6 +3485,12 @@ function GenerateWorkspace() {
   const [templateId, setTemplateId] = useState(searchParams.get("templateId") ?? "");
   const [constituentId, setConstituentId] = useState(searchParams.get("constituentId") ?? "");
   const [donationId, setDonationId] = useState(searchParams.get("donationId") ?? "");
+  const campaignId = searchParams.get("campaignId")?.trim() ?? "";
+  const eventId = searchParams.get("eventId")?.trim() ?? "";
+  const requestedYear = Number.parseInt(searchParams.get("year") ?? "", 10);
+  const mergeYear = Number.isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 3000
+    ? requestedYear
+    : new Date().getFullYear();
   const modeParam = (searchParams.get("mode") ?? "").toLowerCase();
   const targetParam = (searchParams.get("target") ?? "").toLowerCase();
   const quickPrint = searchParams.get("quickPrint") === "1";
@@ -3517,6 +3532,7 @@ function GenerateWorkspace() {
   const [previewPdfError, setPreviewPdfError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [emailDraftWorkingId, setEmailDraftWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -3818,6 +3834,32 @@ function GenerateWorkspace() {
     };
   }
 
+  async function createOrOpenEmailDraft(row: GeneratedLetterSummary) {
+    if (row.emailCampaignId) {
+      router.push(`/oyama-email/campaigns/${encodeURIComponent(row.emailCampaignId)}`);
+      return;
+    }
+
+    setEmailDraftWorkingId(row.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await apiFetch<EmailDraftHandoffResult>(`/api/letters/generated/${encodeURIComponent(row.id)}/create-email-draft`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setGenerated((current) => current.map((item) => item.id === row.id
+        ? { ...item, ...result.generatedLetter, emailCampaignId: result.emailCampaign.id }
+        : item));
+      setNotice(result.reused ? "Opened the existing OyamaEmail draft." : "Created a reviewable OyamaEmail draft. No email was sent.");
+      router.push(result.redirectTo ?? `/oyama-email/campaigns/${encodeURIComponent(result.emailCampaign.id)}`);
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to create an OyamaEmail draft from this letter."));
+    } finally {
+      setEmailDraftWorkingId(null);
+    }
+  }
+
   function buildDonationContextPayload() {
     const selectedDonationIds = temporaryRecipientList?.donationIds ?? [];
     return {
@@ -3827,6 +3869,14 @@ function GenerateWorkspace() {
       donationDateRange,
       donationType,
       donationMinimum: donationMinimum ? Number(donationMinimum) : undefined,
+    };
+  }
+
+  function buildMergeContextPayload() {
+    return {
+      campaignId: campaignId || undefined,
+      eventId: eventId || undefined,
+      year: mergeYear,
     };
   }
 
@@ -3916,7 +3966,7 @@ function GenerateWorkspace() {
           templateId,
           constituentId: previewRecipientId,
           ...buildDonationContextPayload(),
-          year: new Date().getFullYear(),
+          ...buildMergeContextPayload(),
         },
         "letter-preview.pdf",
       );
@@ -3961,7 +4011,7 @@ function GenerateWorkspace() {
           templateId,
           constituentId: previewRecipientId,
           ...buildDonationContextPayload(),
-          year: new Date().getFullYear(),
+          ...buildMergeContextPayload(),
         }),
       });
       setPreview(previewResult);
@@ -3993,7 +4043,7 @@ function GenerateWorkspace() {
           constituentId: targetRecipientId,
           deliveryTarget,
           ...buildDonationContextPayload(),
-          year: new Date().getFullYear(),
+          ...buildMergeContextPayload(),
         }),
       });
       if (deliveryTarget === "PRINT_QUEUE") {
@@ -4030,6 +4080,7 @@ function GenerateWorkspace() {
           filterType: "ALL",
           deliveryTarget,
           ...buildDonationContextPayload(),
+          ...buildMergeContextPayload(),
         }),
       });
 
@@ -4129,7 +4180,8 @@ function GenerateWorkspace() {
     ?? batch?.generatedSample?.map((sample) => sample.id)
     ?? generatedForAudience.map((row) => row.id)
   ).filter(Boolean).slice(0, 100);
-  const focusedGenerated = generatedForAudience.find((row) => row.constituentId === (constituentId || activeRecipientIds[0]))
+  const focusedGenerated = generatedForTemplate.find((row) => row.id === sourceGeneratedLetterId)
+    ?? generatedForAudience.find((row) => row.constituentId === (constituentId || activeRecipientIds[0]))
     ?? generatedForAudience[0]
     ?? generatedForTemplate[0]
     ?? null;
@@ -4950,7 +5002,7 @@ function GenerateWorkspace() {
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
-                    <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Generated</th><th className="px-3 py-2">PDF</th></tr>
+                    <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Generated</th><th className="px-3 py-2">Actions</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {generatedForTemplate.map((row) => (
@@ -4961,7 +5013,18 @@ function GenerateWorkspace() {
                         </td>
                         <td className="px-3 py-2 text-xs text-slate-600">{formatDate(row.generatedAt)}</td>
                         <td className="px-3 py-2">
-                          <button type="button" onClick={() => void openIndividualPdf(row.id)} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={pdfLoading}>View PDF</button>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => void openIndividualPdf(row.id)} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50" disabled={pdfLoading}>View PDF</button>
+                            <button
+                              type="button"
+                              onClick={() => void createOrOpenEmailDraft(row)}
+                              className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={!row.constituent?.email || emailDraftWorkingId === row.id}
+                              title={row.constituent?.email ? "Open a reviewable draft in OyamaEmail. This does not send email." : "This recipient does not have an email address."}
+                            >
+                              {emailDraftWorkingId === row.id ? "Creating..." : row.emailCampaignId ? "Open Email Draft" : row.constituent?.email ? "Create Email Draft" : "No Email"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -6433,7 +6496,7 @@ function MiniDocument({ html, emptyText = "No document content available.", show
   if (!showLetterhead) {
     // Used when wrapped by LetterPreviewHeader/Footer — no standalone card, no internal letterhead
     if (!html.trim()) return <p className="py-8 text-center text-sm text-slate-500">{emptyText}</p>;
-    return <div className="prose prose-sm max-w-none [&_p]:my-2" dangerouslySetInnerHTML={{ __html: html }} />;
+    return <div className="prose prose-sm max-w-none [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: html }} />;
   }
   if (!html.trim()) return <div className="mx-auto flex min-h-[420px] max-w-[330px] items-center justify-center bg-white p-8 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">{emptyText}</div>;
   return (

@@ -51,3 +51,21 @@ Donor CRM -> Communications -> Letters & Printables -> Select Template -> Compos
 Contextual links from donor, gift, campaign, or Steward workflows should open this same builder with preview context prefilled rather than creating a separate mini editor.
 
 Generated output should open `/oyama-letters/generate` for production actions. `/letters-printables`, `/letters-printables/generate`, `/communications/letters-printables`, and `/communications/letters-printables/generate` are compatibility redirects to the canonical routes.
+
+## 2026-07-15 Output Formatting Addendum
+
+- Canvas, mini-preview, and shared print-page list styles now explicitly restore bullet and decimal markers after CSS resets.
+- The server PDF parser distinguishes unordered and ordered lists, honors ordered starting values, carries nested depth, and renders wrapped items with hanging indentation.
+- Plain-text handoffs retain bullet/number markers and nested indentation, including Letter-to-OyamaEmail draft copy.
+- The fixed `Page 1 of 1` canvas label was removed because generated PDF proof is the authoritative pagination surface.
+- Exact mixed inline typography remains a jsPDF fidelity limitation and is tracked as `Partially Working` in the dated output audit.
+
+Evidence: `docs/status/audit-artifacts/2026-07-15-letters-email-output-audit.md`.
+
+## 2026-07-16 Production-Readiness Addendum
+
+- Block quotes are preserved as a distinct PDF block, rendered with an italic treatment, readable indentation, and a restrained left rule.
+- Repeated letter header/footer chrome is explicitly reset for every rendered page and was checked in a two-page raster proof.
+- Final generated output intentionally remains free of operational `Page X of Y` labels; the letter itself is the recipient-facing artifact, while pagination is reviewed in the PDF preview.
+
+Evidence: `docs/status/audit-artifacts/2026-07-16-letters-email-production-readiness-pass.md`.

@@ -2,6 +2,16 @@
 
 The DonorCRM dashboard is the stewardship home page for live donor work. It preserves the global OyamaCRM sidebar and top bar, then renders a configurable dashboard workspace inside that app shell.
 
+## Responsive Layout
+
+The dashboard prioritizes the next donor action before analytical detail at every width:
+
+- Phones: one card column; command center, focus queues, KPIs, then detail widgets. Donation tables keep their own horizontal scroll area.
+- Tablets and compact desktops (`640px`–`1279px`): two-column KPI/priority grids; the command center remains one focused column with its live status tiles beneath it.
+- Wide desktop (`1280px` and above): the command center, giving/recommendation panels, and three operational detail panels may use their multi-column layouts.
+
+Cards and grid children use contained overflow (`min-w-0`) so long donor, fund, campaign, and recommendation text does not cause page-level horizontal scrolling. Recommendation status badges move below the recommendation content on narrow screens. The generated dashboard values and action links are identical across breakpoints.
+
 ## Data Sources
 
 - Total Giving: `/api/reports/giving-trend`, summed from completed donations in the selected reporting scope.
@@ -51,3 +61,4 @@ Recommended checks:
 - Confirm Record Gift, View Reports, and Open Tasks route correctly.
 - Verify assigned task completion from My Due Tasks.
 - Check responsive layout at `1366x768`, `1280x720`, tablet, and mobile widths.
+- Confirm focus queues, quick actions, the Giving Overview, recommendation status badges, Recent Gifts scrolling, and personal widget cards do not create page-level horizontal scrolling.

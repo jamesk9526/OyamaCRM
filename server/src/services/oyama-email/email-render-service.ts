@@ -142,7 +142,34 @@ function escapeHtml(value: string): string {
 function sanitizeRichHtml(value: string): string {
   return value
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/\son[a-z]+\s*=\s*(['\"]).*?\1/gi, "");
+    .replace(/\son[a-z]+\s*=\s*(?:(['\"]).*?\1|[^\s>]+)/gi, "");
+}
+
+function addDefaultInlineStyle(html: string, tag: string, defaultStyle: string): string {
+  return html.replace(new RegExp(`<${tag}\\b([^>]*)>`, "gi"), (openingTag, attributes: string) => {
+    const stylePattern = /\sstyle\s*=\s*(["'])(.*?)\1/i;
+    if (stylePattern.test(attributes)) {
+      return openingTag.replace(stylePattern, (_styleAttribute: string, quote: string, existingStyle: string) => (
+        ` style=${quote}${defaultStyle}${existingStyle}${quote}`
+      ));
+    }
+    return `<${tag}${attributes} style="${defaultStyle}">`;
+  });
+}
+
+function formatEmailRichTextHtml(value: string, theme: RenderTheme): string {
+  const textColor = escapeHtml(theme.textColor);
+  const linkColor = escapeHtml(theme.linkColor);
+  let html = sanitizeRichHtml(value);
+  html = addDefaultInlineStyle(html, "p", "margin:0 0 0.95em 0;");
+  html = addDefaultInlineStyle(html, "h1", `margin:0 0 0.55em 0;color:${textColor};font-size:${Math.max(theme.baseFontSize + 12, 28)}px;line-height:1.2;`);
+  html = addDefaultInlineStyle(html, "h2", `margin:0 0 0.55em 0;color:${textColor};font-size:${Math.max(theme.baseFontSize + 8, 24)}px;line-height:1.24;`);
+  html = addDefaultInlineStyle(html, "h3", `margin:0 0 0.55em 0;color:${textColor};font-size:${Math.max(theme.baseFontSize + 4, 20)}px;line-height:1.28;`);
+  html = addDefaultInlineStyle(html, "ul", "display:block;list-style-type:disc;margin:0 0 0.95em 0;padding:0 0 0 26px;");
+  html = addDefaultInlineStyle(html, "ol", "display:block;list-style-type:decimal;margin:0 0 0.95em 0;padding:0 0 0 26px;");
+  html = addDefaultInlineStyle(html, "li", "display:list-item;margin:0 0 0.35em 0;padding:0;");
+  html = addDefaultInlineStyle(html, "blockquote", "margin:0 0 0.95em 0;padding:0 0 0 14px;border-left:3px solid #cbd5e1;color:#475569;");
+  return addDefaultInlineStyle(html, "a", `color:${linkColor};text-decoration:underline;`);
 }
 
 function nextId(index: number): string {
@@ -727,7 +754,7 @@ function themeFromTemplate(template: OyamaEmailTemplateDocument): RenderTheme {
 }
 
 function renderTextBlock(block: OyamaEmailBlock, theme: RenderTheme): string {
-  const html = sanitizeRichHtml(asString(block.content));
+  const html = formatEmailRichTextHtml(asString(block.content), theme);
   return `
 <tr>
   <td style="padding:14px 24px;font-family:${escapeHtml(theme.fontFamily)};font-size:${theme.baseFontSize}px;line-height:${theme.lineHeight};color:${escapeHtml(theme.textColor)};">
@@ -821,8 +848,8 @@ function renderSpacerBlock(block: OyamaEmailBlock): string {
 }
 
 function renderColumnsBlock(block: OyamaEmailBlock, theme: RenderTheme): string {
-  const left = sanitizeRichHtml(asString(block.leftHtml).trim() || "<p>Add left column content.</p>");
-  const right = sanitizeRichHtml(asString(block.rightHtml).trim() || "<p>Add right column content.</p>");
+  const left = formatEmailRichTextHtml(asString(block.leftHtml).trim() || "<p>Add left column content.</p>", theme);
+  const right = formatEmailRichTextHtml(asString(block.rightHtml).trim() || "<p>Add right column content.</p>", theme);
 
   return `
 <tr>
@@ -1045,7 +1072,26 @@ export function applyMergeTokens(value: string, vars: Record<string, string>): s
 }
 
 export function htmlToPlainText(value: string): string {
-  return value
+  const listStack: Array<{ index: number; ordered: boolean }> = [];
+  const withListMarkers = value.replace(/<\s*(\/?)\s*(ul|ol|li)\b([^>]*)>/gi, (_tag, closingToken: string, rawTag: string, attributes: string) => {
+    const closing = closingToken === "/";
+    const tag = rawTag.toLowerCase();
+    if (tag === "ul" || tag === "ol") {
+      if (closing) listStack.pop();
+      else {
+        const requestedStart = Number.parseInt(attributes.match(/\bstart\s*=\s*["']?([0-9]+)/i)?.[1] ?? "", 10);
+        listStack.push({ index: tag === "ol" && Number.isFinite(requestedStart) ? requestedStart : 1, ordered: tag === "ol" });
+      }
+      return "\n";
+    }
+    if (closing) return "\n";
+    const list = listStack[listStack.length - 1] ?? { index: 1, ordered: false };
+    const marker = list.ordered ? `${list.index}.` : "-";
+    list.index += 1;
+    return `\n${"  ".repeat(Math.max(0, listStack.length - 1))}${marker} `;
+  });
+
+  return withListMarkers
     .replace(/<\s*br\s*\/?>/gi, "\n")
     .replace(/<\s*\/\s*p\s*>/gi, "\n\n")
     .replace(/<\s*\/\s*h[1-6]\s*>/gi, "\n\n")
@@ -1054,10 +1100,9 @@ export function htmlToPlainText(value: string): string {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/\s+\n/g, "\n")
-    .replace(/\n\s+/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
+    .replace(/(?<=\S)[ \t]{2,}/g, " ")
     .trim();
 }
 
@@ -1108,6 +1153,9 @@ export function renderEmailTemplateDocument(
       .oyama-email-root h2 { font-size: ${Math.max(theme.baseFontSize + 8, 24)}px; line-height: 1.24; }
       .oyama-email-root h3 { font-size: ${Math.max(theme.baseFontSize + 4, 20)}px; line-height: 1.28; }
       .oyama-email-root p { margin: 0 0 0.95em 0; }
+      .oyama-email-root ul { display: block; list-style-type: disc; margin: 0 0 0.95em 0; padding: 0 0 0 26px; }
+      .oyama-email-root ol { display: block; list-style-type: decimal; margin: 0 0 0.95em 0; padding: 0 0 0 26px; }
+      .oyama-email-root li { display: list-item; margin: 0 0 0.35em 0; padding: 0; }
     </style>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bg};">
       <tr>

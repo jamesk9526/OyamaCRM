@@ -1856,8 +1856,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }, [activeTemplateId, buildPreviewRequestBody, currentUserEmail, previewMode, serverPreviewHtml, serverPreviewText, serverPreviewWarnings, smtpDefaults.fromEmail, testRecipientEmail, previewRecipientLabel]);
 
   const uploadImage = useCallback(async (blockId: string, file: File) => {
-    if (!activeTemplateId) {
-      setError("Save this template before uploading an image.");
+    const allowedTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+    if (!allowedTypes.has(file.type.toLowerCase())) {
+      setError("Choose a PNG, JPG, WEBP, or GIF image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Choose an image that is 5MB or smaller.");
       return;
     }
 
@@ -1865,8 +1870,12 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setError(null);
 
     try {
+      const templateIdForUpload = activeTemplateId ?? await saveTemplate(false);
+      if (!templateIdForUpload) {
+        throw new Error("The draft could not be saved before the image upload.");
+      }
       const dataBase64 = await fileToBase64(file);
-      const response = await apiFetch<{ url: string }>(`/api/email-campaigns/${activeTemplateId}/media`, {
+      const response = await apiFetch<{ url: string }>(`/api/email-campaigns/${templateIdForUpload}/media`, {
         method: "POST",
         body: JSON.stringify({
           fileName: file.name,
@@ -1901,7 +1910,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     } finally {
       setUploadingImage(false);
     }
-  }, [activeTemplateId, updateBlock]);
+  }, [activeTemplateId, saveTemplate, updateBlock]);
 
   const insertMergeToken = useCallback((token: string) => {
     if (insertTarget?.scope === "template") {
@@ -3472,7 +3481,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     aiSmartBusy={aiSmartBusyBlockId === selectedBlock.id}
                     aiSmartError={aiSmartBusyBlockId === selectedBlock.id ? aiSmartError : null}
                     uploadingImage={uploadingImage}
-                    canUpload={Boolean(activeTemplateId)}
+                    canUpload
                     className="mt-0"
                   />
                 ) : null}
@@ -4354,6 +4363,16 @@ function RichTextEditor({
         .oyama-email-tiptap .oyama-email-prosemirror ol {
           margin: 0 0 0.85em 1.25em;
           padding-left: 1.1em;
+        }
+        .oyama-email-tiptap .oyama-email-prosemirror ul {
+          list-style-type: disc;
+        }
+        .oyama-email-tiptap .oyama-email-prosemirror ol {
+          list-style-type: decimal;
+        }
+        .oyama-email-tiptap .oyama-email-prosemirror li {
+          display: list-item;
+          margin: 0 0 0.25em;
         }
       `}</style>
     </div>

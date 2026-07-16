@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type React from "react";
 import type { DonorAccentTone } from "@/app/lib/workspace-settings";
 import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
@@ -274,6 +274,7 @@ const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
 };
 
 const SIDEBAR_SCROLLBAR_CLASS = "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** Returns true when the item should be shown for the current role. */
 export function isSidebarItemVisible(item: CrmSidebarItem, userRole?: string | null): boolean {
@@ -363,7 +364,7 @@ export default function CrmSidebar({
   const [groupOpenState, setGroupOpenState] = useState<Record<string, boolean>>(() => getInitialGroupOpenState(groups));
   const groupStorageKey = `${storageKey}.groups`;
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     if (typeof window === "undefined") return;
 
     const stored = window.localStorage.getItem(storageKey);
@@ -412,7 +413,7 @@ export default function CrmSidebar({
     };
   }, []);
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     if (typeof window === "undefined") return;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
@@ -513,7 +514,7 @@ export default function CrmSidebar({
 
   return (
     <aside
-      className={`${styles.aside} group/sidebar relative ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out`}
+      className={`${styles.aside} group/sidebar relative ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out motion-reduce:transition-none`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
       style={donorTintStyle}
     >

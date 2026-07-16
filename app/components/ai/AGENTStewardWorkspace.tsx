@@ -4001,6 +4001,17 @@ interface MessageRowProps {
 }
 
 function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegenerate, onCopy, onSaveTemplate, onSaveDraftLetter, onRunAction, onOpenReport, onAskReportQuestion }: MessageRowProps) {
+  const [thinkingPulseTicks, setThinkingPulseTicks] = useState(0);
+
+  useEffect(() => {
+    if (msg.role === "user" || !isStreaming) {
+      setThinkingPulseTicks(0);
+      return;
+    }
+    const timer = window.setInterval(() => setThinkingPulseTicks((v) => v + 1), 1200);
+    return () => window.clearInterval(timer);
+  }, [isStreaming, msg.role]);
+
   if (msg.role === "user") {
     return (
       <div className="steward-message-row steward-message-row-user flex justify-end animate-slide-up-fade-in">
@@ -4021,17 +4032,6 @@ function MessageRow({ msg, activeMode, renderMode, isStreaming, isLast, onRegene
   const canSaveAsDraftLetter = hasLetterLikeBody || canSaveAsTemplate;
   const effectiveMode: ChatMode = msg.responseMode ?? activeMode;
   const thoughtStackActive = effectiveMode === "free" ? false : (msg.thoughtStackEnabled ?? true);
-  const [thinkingPulseTicks, setThinkingPulseTicks] = useState(0);
-
-  useEffect(() => {
-    if (!isStreaming) {
-      setThinkingPulseTicks(0);
-      return;
-    }
-    const timer = window.setInterval(() => setThinkingPulseTicks((v) => v + 1), 1200);
-    return () => window.clearInterval(timer);
-  }, [isStreaming]);
-
   const thinkingElapsedLabel = `${thinkingPulseTicks * 1.2}`;
 
   return (

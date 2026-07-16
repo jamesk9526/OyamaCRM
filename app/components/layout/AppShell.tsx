@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
@@ -94,6 +94,7 @@ function isRootPublicEventSlugPath(pathname: string): boolean {
 // Routes that board-report roles may access (board dashboard + its own sub-routes)
 const BOARD_PATHS = ["/board"];
 const DONOR_LAYOUT_STORAGE_KEY = "oyamacrm.shell.donor.layout";
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 function readStoredDonorLayout(): DonorNavigationLayout | null {
   if (typeof window === "undefined") return null;
@@ -146,6 +147,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const scrollFrameRef = useRef<number | null>(null);
   const routeTransitionTimeoutRef = useRef<number | null>(null);
   const dashboardChromeTint = useDashboardChromeTint(user?.id);
+
+  // Apply the user's persisted navigation preference before paint; organization settings
+  // still load afterward and are only used when no local preference exists.
+  useBrowserLayoutEffect(() => {
+    const localLayout = readStoredDonorLayout();
+    if (!localLayout) return;
+    setWorkspaceSettings((current) => (
+      current.donorNavigationLayout === localLayout
+        ? current
+        : { ...current, donorNavigationLayout: localLayout }
+    ));
+  }, []);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -261,7 +274,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     if (typeof window === "undefined") return;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
@@ -277,7 +290,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => mediaQuery.removeListener(updateCompactDesktop);
   }, []);
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     if (typeof window === "undefined") return;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
@@ -368,11 +381,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       : workspaceSettings.donorNavigationLayout;
   const donorMegaMenuEnabled = donorShellVisible && effectiveDonorLayout === "mega";
   const donorSidebarDesktopEnabled = donorShellVisible && effectiveDonorLayout === "sidebar";
-  const contentTopPaddingClass = donorMegaMenuEnabled
-    ? shellScrolled
-      ? "pt-52 xl:pt-64"
-      : "pt-52 xl:pt-76"
-    : "pt-14";
+  // Reserve a stable header + mega navigation footprint so content does not jump on scroll.
+  const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-26" : "pt-14";
 
   const shellStyle: CSSProperties = {
     "--oyama-donor-chrome-start": dashboardChromeTint.dark,
@@ -385,7 +395,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="crm-fonts flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      className="crm-fonts flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface"
       style={shellStyle}
     >
       <TopBar
@@ -395,9 +405,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         donorSidebarCollapsed={donorSidebarCollapsed}
       />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
-      <div className="relative flex min-w-0 flex-1 overflow-hidden bg-white transition-[padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
         {donorSidebarDesktopEnabled ? (
-          <div className="hidden md:flex h-full relative z-[60]">
+          <div className="relative z-[60] hidden h-full lg:flex">
             <Sidebar
               donorAccentTone={workspaceSettings.donorAccentTone}
               donorChromeTint={dashboardChromeTint}
@@ -416,9 +426,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </MobileSidebarDrawer>
         ) : null}
 
-        <div className={`flex-1 min-w-0 overflow-hidden ${contentTopPaddingClass}`}>
+        <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
           {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
-          <main data-crm-scroll-root="true" className="h-full min-w-0 overflow-x-hidden overflow-y-auto crm-page-surface px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-0 sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-0 xl:px-7 xl:pb-7 xl:pt-0 min-[1440px]:px-8 min-[1440px]:pt-0 2xl:px-9 2xl:pt-0">
+          <main data-crm-scroll-root="true" className="h-full min-w-0 overscroll-contain overflow-x-hidden overflow-y-auto crm-page-surface px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-0 sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-0 xl:px-7 xl:pb-7 xl:pt-0 min-[1440px]:px-8 min-[1440px]:pt-0 2xl:px-9 2xl:pt-0">
 
             <ErrorBoundary>
               <div className="min-w-0 max-w-full">

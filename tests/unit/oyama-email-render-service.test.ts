@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyMergeTokens,
   createDefaultEmailTemplateDocument,
+  htmlToPlainText,
   normalizeEmailTemplateDocument,
   normalizeEmailTemplateSettings,
   renderEmailTemplateDocument,
@@ -64,6 +65,40 @@ describe("oyama email render service", () => {
     expect(rendered.html).toContain("Hello {{preferredName}}");
     expect(rendered.html).toContain("Global Footer");
     expect(rendered.html).toContain("{{unsubscribeUrl}}");
+  });
+
+  it("renders email-safe list markers and readable plain-text lists", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [
+        {
+          id: "body",
+          type: "text",
+          content: '<p>Ways to help:</p><ul><li>Volunteer</li><li>Share</li></ul><ol start="3"><li>Register</li><li>Attend</li></ol>',
+        },
+      ],
+    });
+    const settings = normalizeEmailTemplateSettings({
+      enablePlainTextVersion: true,
+      includeUnsubscribeLink: false,
+    });
+
+    const rendered = renderEmailTemplateDocument(template, settings);
+
+    expect(rendered.html).toContain("list-style-type:disc");
+    expect(rendered.html).toContain("list-style-type:decimal");
+    expect(rendered.html).toContain("display:list-item");
+    expect(rendered.text).toContain("- Volunteer");
+    expect(rendered.text).toContain("- Share");
+    expect(rendered.text).toContain("3. Register");
+    expect(rendered.text).toContain("4. Attend");
+  });
+
+  it("preserves nested list structure in plain-text fallback", () => {
+    const text = htmlToPlainText("<ul><li>Parent<ol><li>First child</li><li>Second child</li></ol></li></ul>");
+
+    expect(text).toContain("- Parent");
+    expect(text).toContain("  1. First child");
+    expect(text).toContain("  2. Second child");
   });
 
   it("converts legacy builder blocks into structured OyamaEmail HTML blocks", () => {

@@ -2,6 +2,7 @@
 // Accessible at /data-tools/import/donation
 
 import DonationImportWizard from "../DonationImportWizard";
+import Link from "next/link";
 
 /**
  * DonationImportPage — page wrapper for the historical donation CSV import wizard.
@@ -12,19 +13,19 @@ export default function DonationImportPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center gap-3">
-        <a
+        <Link
           href="/data-tools"
           className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
         >
           ← Data Tools
-        </a>
+        </Link>
         <span className="text-gray-300">/</span>
-        <a
+        <Link
           href="/data-tools/import"
           className="text-sm text-gray-500 hover:text-gray-700"
         >
           Import
-        </a>
+        </Link>
         <span className="text-gray-300">/</span>
         <span className="text-sm text-gray-700 font-medium">Donations</span>
       </div>

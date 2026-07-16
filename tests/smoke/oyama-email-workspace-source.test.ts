@@ -44,6 +44,7 @@ describe("OyamaEmail workspace source contract", () => {
     const builder = read("app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx");
 
     expect(workspace).toContain("/api/email-campaigns?limit=100");
+    expect(workspace).toContain("/api/oyama-email/templates?limit=100");
     expect(workspace).toContain("/api/email-campaigns/stats");
     expect(workspace).toContain("/api/email-campaigns/lists");
     expect(workspace).toContain("/api/email-campaigns/calendar");
@@ -78,12 +79,32 @@ describe("OyamaEmail workspace source contract", () => {
     expect(builder).toContain("Show Me How It Will Look to the Recipient");
     expect(builder).toContain("Recipient Email Preview");
     expect(builder).toContain("Open Advanced Editor");
+    expect(builder).toContain("list-style-type: disc");
+    expect(builder).toContain("list-style-type: decimal");
+    expect(builder).toContain("display: list-item");
     expect(builder).toContain("imageWidthPercent");
     expect(builder).toContain("imageLinkUrl");
     expect(builder).toContain("Upload Image");
     expect(builder).toContain("Full Width");
     expect(builder).toContain("saveTemplate(false)");
+    expect(builder).toContain("The draft could not be saved before the image upload.");
+    expect(builder).toContain("Choose an image that is 5MB or smaller.");
     expect(builder).toContain("refreshServerPreview({ silent: false, templateId: previewTemplateId })");
+    expect(workspace).toContain("TestSendDialog");
+    expect(workspace).toContain("Resolve required compliance checks before marking this template Ready.");
+    expect(workspace).not.toContain("window.prompt(\"Send test to email address:");
+    expect(workspace).toContain('useState<"MINE" | "SHARED" | "ALL">("ALL")');
+  });
+
+  it("uses one upload-or-URL control for image-capable email blocks", () => {
+    const editor = read("app/components/email-builder/BlockEditor.tsx");
+
+    expect(editor).toContain("function ImageSourceField");
+    expect(editor).toContain("Upload to this template or paste a hosted image URL.");
+    expect(editor).toContain('label="Story image"');
+    expect(editor).toContain('label="Signature image"');
+    expect(editor).toContain('label="Headshot"');
+    expect(editor).toContain('label="Contact image"');
   });
 
   it("keeps legacy communications routes redirected into OyamaEmail", () => {
@@ -96,6 +117,18 @@ describe("OyamaEmail workspace source contract", () => {
     expect(communicationsNew).toContain('redirect("/oyama-email/campaigns/new")');
     expect(communicationsTemplateLibrary).toContain('redirect("/oyama-email/templates")');
     expect(communicationsCampaign).toContain("/oyama-email/campaigns/");
+  });
+
+  it("shows durable OyamaLetters source context in campaign review", () => {
+    const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
+    const types = read("app/components/oyama-email/types.ts");
+    const campaignRoutes = read("server/src/routes/email-campaigns.ts");
+
+    expect(workspace).toContain("Created from OyamaLetters");
+    expect(workspace).toContain("Return to Source Letter");
+    expect(workspace).toContain("sourceGeneratedLetterId");
+    expect(types).toContain("sourceGeneratedLetterId?: string | null");
+    expect(campaignRoutes).toContain("sourceGeneratedLetterId: string | null");
   });
 
   it("supports donation multi-select temporary segments for email templates", () => {

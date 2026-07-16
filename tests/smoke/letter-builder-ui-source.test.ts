@@ -36,11 +36,18 @@ describe("letter builder UI redesign source contract", () => {
 
   it("keeps primary builder and publishing actions in the new workspace shell", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const letterPage = read("app/components/letters/LetterPage.tsx");
 
     expect(workspace).toContain("Save");
     expect(workspace).toContain("Publish");
     expect(workspace).toContain("Validate");
     expect(workspace).toContain("Generate Letters");
+    expect(workspace).toContain("[&_ul]:list-disc");
+    expect(workspace).toContain("[&_ol]:list-decimal");
+    expect(workspace).toContain("Canvas preview");
+    expect(workspace).not.toContain("Page 1 of 1");
+    expect(letterPage).toContain("[&_ul]:list-disc");
+    expect(letterPage).toContain("[&_ol]:list-decimal");
     expect(workspace).toContain("formatInline");
     expect(workspace).toContain("insertTable");
     expect(workspace).toContain("Table Builder");
@@ -65,6 +72,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("data-letter-image-block");
     expect(workspace).toContain("Alt Text");
     expect(workspace).toContain('purpose: "editor"');
+    expect(workspace).toContain("Images must be 5 MB or smaller.");
+    expect(workspace).toContain("Insert a PNG, JPG, or WEBP image up to 5 MB");
     expect(workspace).not.toContain('window.prompt("Rows"');
     expect(workspace).not.toContain('window.prompt("Columns"');
     expect(workspace).not.toContain("<WorkspaceRibbon");
@@ -165,5 +174,19 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Search recipients by name, email, or address");
     expect(lettersRoute).toContain("signature.signatureImageUrl");
     expect(lettersRoute).toContain("UNSUPPORTED_PDF_IMAGE_TYPE");
+  });
+
+  it("hands generated letters into reviewable canonical OyamaEmail drafts", () => {
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersRoute = read("server/src/routes/letters.ts");
+
+    expect(workspace).toContain("createOrOpenEmailDraft");
+    expect(workspace).toContain("Create Email Draft");
+    expect(workspace).toContain("Open Email Draft");
+    expect(workspace).toContain("Created a reviewable OyamaEmail draft. No email was sent.");
+    expect(workspace).toContain('searchParams.get("generatedLetterId")');
+    expect(lettersRoute).toContain("/oyama-email/campaigns/${campaign.id}");
+    expect(lettersRoute).toContain("reused: true");
+    expect(lettersRoute).toContain('source: "letters_generated"');
   });
 });

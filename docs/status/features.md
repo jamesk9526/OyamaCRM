@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last deep audit: 2026-05-18 (v1.1.0)_
+_Last focused audit: 2026-07-16 (Letters and Email production-readiness pass)_
 
 ## Governance baseline for new feature claims
 
@@ -13,12 +13,63 @@ Feature claims in this file should follow the workspace-first governance baselin
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
 
+## 2026-07-16 Letters and Email Production-Readiness Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| OyamaEmail template review gate | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | The reusable-template path is now Save Draft -> resolve required compliance checks -> Send proof -> Mark Ready. Required sender, content, unsubscribe, address, and plain-text checks prevent Ready status until resolved. |
+| OyamaEmail proof-send interaction | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | The browser prompt was replaced with an in-workspace dialog that states it sends only to the supplied reviewer address; campaign audience sending remains in the campaign review route. |
+| Letter quote and multi-page PDF output | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `docs/status/audit-artifacts/2026-07-16-letters-email-production-readiness-pass.md` | Block quotes render as indented italic content with a rule, and repeated PDF header/footer chrome is visually verified on a two-page proof. |
+
+## 2026-07-16 Donor Dashboard Responsive Layout Pass
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor Dashboard compact and mobile layout | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/page.tsx`, `app/components/dashboard/DashboardWidget.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | The live command center stays focused below wide desktop, giving chart/legend content stacks before it becomes cramped, recommendation badges reflow on small screens, and dashboard cards contain overflow. |
+| Donor Dashboard responsive operating guidance | Working | `docs/DONOR_DASHBOARD.md`, `docs/howto/HOW_TO_USE.md`, `docs/architecture/workspace-layout-system.md` | Staff guidance and architecture rules now state the dashboard breakpoints, action order, contained table scrolling, and functional-only data requirements. |
+
+## 2026-07-15 Letters and Email Output Formatting Audit
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Letter list editing, preview, print, and PDF output | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` | Bullet and numbered markers are explicit instead of relying on reset browser defaults. Server PDFs preserve unordered/ordered semantics, `<ol start>`, nested depth, and hanging indentation for wrapped items. |
+| OyamaEmail rich-text list output | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | Builder markers are visible, sent HTML receives email-safe inline list styles, and plain-text fallback retains bullet/number markers plus nested indentation. |
+| Letter browser/PDF styling parity | Partially Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts`, `docs/status/audit-artifacts/2026-07-15-letters-email-output-audit.md` | Lists, spacing, tables, images, alignment, and signatures have targeted coverage. Exact browser CSS and inline typography such as mixed bold/italic/color runs remain limited by the jsPDF block renderer. |
+| Builder page-count truthfulness | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Removed the hard-coded `Page 1 of 1`; the editor is labeled as a canvas preview and final pagination remains visible in the generated PDF proof. |
+
+## 2026-07-14 OyamaLetters Batch Merge Context Fix
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Batch letter merge fields | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/api/letters-merge-aliases.api.test.ts`, `tests/smoke/letters-printables-generate-source.test.ts` | Batch generation now carries the same campaign, event, and year context as the single-letter path through preview, validation, stored generation, and browser PDF preview. Recipient, donation, organization, staff, and year fields continue to resolve through the canonical merge service. |
+
+## 2026-07-13 CRM Audit and Release-Gate Stabilization
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Lint, typecheck, tests, and production build | Partially Working | `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`; `docs/status/audit-artifacts/2026-07-13-crm-audit.md`; `docs/status/audit-artifacts/2026-07-13-oyama-email-template-library-fix.md` | Lint, typecheck, and the 198-route production build pass. The expanded full suite passes 638/639 under parallel load; the one Compassion public-scheduling failure passes 8/8 when isolated. Lint retains 125 non-blocking warnings. |
+| Internal workspace navigation correctness | Working | Compassion and data-import route components | Replaced internal HTML anchors with Next.js links so navigation uses the application router. |
+| React hook and component stability | Working | `AGENTStewardWorkspace.tsx`, `TopBar.tsx`, `EventsWorkspaceSelectorPage.tsx` | Restored unconditional hook ordering and moved reusable Events cards out of render scope. |
+| Workspace permissions | Not Implemented | Existing layout TODOs and `app/lib/system-status.ts` | Module-level workspace policy enforcement remains the highest security gap. |
+
+## 2026-07-13 OyamaEmail Template Library Persistence Fix
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Saved-template library visibility | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/oyama-email.ts`, `tests/api/oyama-email-merge-preview.api.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` | The library loads the canonical template endpoint instead of filtering a limited campaign feed. Template saves clear campaign-only scheduling/audience fields, preserve template ownership in saved JSON, and keep legacy ownerless templates visible under the default All Templates view. |
+
+## 2026-07-13 OyamaLetters to OyamaEmail Handoff
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Generated-letter email draft handoff | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/email-campaigns.ts`, `tests/smoke/api-smoke.test.ts` | Generated recipients with email can create or reopen one linked OyamaEmail draft. Durable source metadata supports a return path after later campaign edits. The handoff preserves HTML, does not send, and keeps print/mail queue visibility. |
+
 ## 2026-06-13 Oyama Communications Simplification Pass
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
 | Global communication header/footer source | Working | `app/settings/branding/page.tsx`, `app/lib/branding-settings.ts`, `server/src/routes/settings.ts`, `server/src/services/organization-branding.ts`, `server/src/services/oyama-email/email-render-service.ts`, `server/src/routes/letters.ts` | Branding Defaults now owns one Communication Header and one Communication Footer. OyamaEmail preview/test/campaign render paths and OyamaLetters preview/PDF paths use the global source instead of per-template header/footer selection. |
-| OyamaEmail template library and queue split | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/oyama-email/queue/page.tsx`, `server/src/routes/oyama-email.ts` | Template Library shows reusable template rows only. Drafted, queued, sent, failed, and cancelled send records now live under the Email Queue sidebar item. |
+| OyamaEmail template library and queue split | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/oyama-email/queue/page.tsx`, `server/src/routes/oyama-email.ts`, `tests/api/oyama-email-merge-preview.api.test.ts` | Template Library loads reusable templates from its canonical endpoint and saved templates are normalized back to reusable-template state. Drafted, queued, sent, failed, and cancelled send records live under the Email Queue sidebar item. |
 | Recipient-rendered email preview action | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/routes/oyama-email.ts`, `tests/unit/oyama-email-render-service.test.ts` | Builder exposes “Show Me How It Will Look to the Recipient” and refreshes through the server-rendered recipient preview path with global header/footer chrome. |
 | Publish validation and diagnostics | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts` | Email and letter template publish actions are no longer blocked by validation notes. Publish flows log grouped browser-console diagnostics with validation notes, metadata, and the full HTML output for debugging. |
 | Letter and email template import/export backups | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/oyama-email.ts` | OyamaLetters and OyamaEmail template libraries can export portable JSON backups and import those files as new draft templates for testing or restore. Imports do not overwrite existing templates or restore active/published status. |
@@ -132,7 +183,7 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Donor dashboard filter bar and graphics pass | Working | `app/components/dashboard/DonorDashboardVisualRefresh.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Dashboard Tools now live in a compact `CRMFilterBar` limited to dashboard-local filters, chart focus, widget expansion, metric drill-ins, and refresh controls; giving trend, designations, giving sources, and retention use Recharts visuals with lightweight animations and existing live dashboard APIs. |
+| Donor dashboard command center and theme pass | Working | `app/page.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/ui/crm/*`, `app/globals.css`, `tests/smoke/crm-visual-refresh-source.test.ts` | The active dashboard exposes working quick actions and refresh, uses real donor/task/campaign/acknowledgment data for focus and attention queues, removes inferred filler counters and chart points, and shares one compact surface/focus theme with DonorCRM list pages. |
 | DonorCRM grouped command ribbons | Working | `app/components/ui/crm/CRMActionBar.tsx`, `app/constituents/page.tsx`, `app/donations/page.tsx`, `app/meetings/page.tsx`, `app/tasks/page.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Shared action bars now use the same Explorer-style surface as workspace ribbons, and high-traffic donor workspaces group commands by Create/View/Status/Range/Assignment without changing handlers. |
 | Donor desktop sidebar chrome alignment | Working | `app/components/layout/CrmSidebar.tsx` | Donor sidebar now uses the same dark green/teal chrome family as the top bar brand area, with matching active states, badges, footer, collapse button, and collapsed tooltips. |
 | Donor sidebar information architecture repair | Working | `app/components/layout/sidebar-configs.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Restored the documented/tested grouping: a separate Home group, Core CRM records, Steward Paths at the top of Engagement Workspace, Communication Tools grouped together, and System utilities lower/collapsible. |
@@ -273,6 +324,7 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
 | Global TopBar visual simplification | Working | `app/components/layout/TopBar.tsx` | Replaced the dark/glass topbar treatment with a calmer white CRM header, standard button surfaces, lighter search field, cleaner dividers, and less visual contrast between brand, module switcher, search, AI, notifications, and account controls. |
+| Sidebar and TopBar stability pass | Partially Working | `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/CrmSidebar.tsx`, `app/components/layout/MobileSidebarDrawer.tsx` | Shared navigation now uses the documented `<1024px` drawer breakpoint, compact sidebar preferences initialize before paint, headers reserve stable content space, and the drawer has keyboard focus management. Source smoke, typechecks, and focused lint passed; a live browser viewport pass remains pending because the local browser surface was unavailable. |
 
 ## 2026-05-14 Production Pass Phase 1/2 (Audit + IA Cleanup)
 

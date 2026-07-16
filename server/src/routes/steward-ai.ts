@@ -2516,10 +2516,8 @@ router.post("/chat/stream", async (req, res) => {
   }, null, 2));
   const _streamLines: string[] = [];
   const _origWrite = res.write.bind(res);
-  // @ts-ignore — intercept writes for debug accumulation
   res.write = (chunk: unknown, ...args: unknown[]) => {
     if (typeof chunk === "string") _streamLines.push(chunk.trimEnd());
-    // @ts-ignore
     return (_origWrite as (...a: unknown[]) => boolean)(chunk, ...args);
   };
 
