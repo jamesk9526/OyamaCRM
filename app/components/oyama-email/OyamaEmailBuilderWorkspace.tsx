@@ -2641,6 +2641,12 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             {autosaving ? "Saving draft…" : dirty ? "Unsaved changes - autosave active" : formatLastSaved(lastSavedAt)}
           </span>
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+            <Link
+              href="/oyama-email/docs"
+              className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+            >
+              Docs
+            </Link>
             <button
               type="button"
               onClick={() => void saveTemplate(false)}
@@ -2686,30 +2692,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 activeTab === "edit" ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
               ].join(" ")}
             >
-              Edit
+              Design
             </button>
             <button
               type="button"
               onClick={() => void handlePreviewOpen()}
               className="h-9 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-white/70 hover:text-slate-900"
             >
-              {previewRefreshing ? "Loading..." : "Show Me How It Will Look to the Recipient"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPlainTextModalOpen(true)}
-              className="h-9 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-white/70 hover:text-slate-900"
-            >
-              Plain Text
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab(activeTab === "mobilePreview" ? "edit" : "mobilePreview")}
-              className={["h-9 rounded-lg px-3 text-sm font-semibold transition-all",
-                activeTab === "mobilePreview" ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
-              ].join(" ")}
-            >
-              Mobile
+              {previewRefreshing ? "Preparing preview..." : "Recipient Preview"}
             </button>
           </div>
           <div className="hidden flex-1 sm:block" />
@@ -3332,6 +3322,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 checked={draft.settings.enablePlainTextVersion}
                 onChange={(v) => setDraftField("settings", { ...draft.settings, enablePlainTextVersion: v })}
               />
+              <button
+                type="button"
+                onClick={() => setPlainTextModalOpen(true)}
+                className="mt-2 inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+              >
+                Edit plain-text override
+              </button>
               {draft.settings.includePhysicalAddress ? (
                 <textarea
                   value={draft.settings.physicalAddress}
