@@ -10,6 +10,7 @@ export type OyamaEmailView =
   | "audience"
   | "queue"
   | "analytics"
+  | "docs"
   | "settings";
 
 export interface OyamaEmailWorkspaceProps {

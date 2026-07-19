@@ -385,6 +385,7 @@ const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
   { label: "Generate Letters", href: "/oyama-letters/generate" },
   { label: "Print & Mail Queue", href: "/oyama-letters/queue" },
+  { label: "Docs & Walkthroughs", href: "/oyama-letters/docs" },
   { label: "Settings", href: "/oyama-letters/settings" },
 ];
 
@@ -448,7 +449,7 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
             || (item.href === "/oyama-letters/queue" && activeView === "queue")
-            || (item.href === "/oyama-letters/how-to" && activeView === "howto")
+            || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (
             <Link
@@ -541,7 +542,7 @@ function LettersSidebar({
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
             || (item.href === "/oyama-letters/queue" && activeView === "queue")
-            || (item.href === "/oyama-letters/how-to" && activeView === "howto")
+            || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (
             <Link
@@ -746,7 +747,7 @@ function LettersHowToWorkspace() {
 
   return (
     <>
-      <PageHero title="Letters How To" subtitle="Step-by-step walkthrough for creating, publishing, generating, and delivering letters.">
+      <PageHero title="Letters Docs & Walkthroughs" subtitle="Short, task-based guides for building, previewing, generating, and delivering letters.">
         <Button href="/oyama-letters/templates/new" tone="primary">Start New Template</Button>
         <Button href="/oyama-letters/generate">Go to Generate</Button>
       </PageHero>
@@ -3808,7 +3809,7 @@ function GenerateWorkspace() {
     setter((previous) => (previous.includes(value) ? previous.filter((entry) => entry !== value) : [...previous, value]));
   }
 
-  async function applyRecipientSelection(nextStep: 2 | 3 = 2) {
+  async function applyRecipientSelection(nextStep: 2 | 3 = 2): Promise<string[] | null> {
     setPickerError(null);
     let nextListMembersById = listMembersById;
     const missingListIds = selectedListIds.filter((listId) => !nextListMembersById[listId]);
@@ -3828,7 +3829,7 @@ function GenerateWorkspace() {
         setListMembersById(nextListMembersById);
       } catch (requestError) {
         setPickerError(errorMessage(requestError, "Failed to load one or more selected lists."));
-        return;
+        return null;
       }
     }
 
@@ -3849,7 +3850,7 @@ function GenerateWorkspace() {
 
     if (finalIds.length === 0) {
       setError("Select at least one recipient source before applying.");
-      return;
+      return null;
     }
 
     setSelectedRecipientIds(finalIds);
@@ -3857,6 +3858,7 @@ function GenerateWorkspace() {
     setRecipientPickerOpen(false);
     setNotice(`${finalIds.length} recipients selected for generation.`);
     setWizardStep(nextStep);
+    return finalIds;
   }
 
   async function proceedFromRecipientsStep() {
@@ -3870,10 +3872,12 @@ function GenerateWorkspace() {
       if (constituentId && selectedRecipientIds.length === 0) {
         setSelectedRecipientIds([constituentId]);
       }
-      setWizardStep(3);
+      const previewRecipientId = constituentId || selectedRecipientIds[0];
+      await runPreview(previewRecipientId);
       return;
     }
-    await applyRecipientSelection(3);
+    const appliedRecipientIds = await applyRecipientSelection(2);
+    if (appliedRecipientIds?.[0]) await runPreview(appliedRecipientIds[0]);
   }
 
   useEffect(() => {
@@ -4198,6 +4202,14 @@ function GenerateWorkspace() {
   const selectedDirectRecipientId = constituentId || activeRecipientIds[0] || pendingRecipientIds[0] || "";
   const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   const effectiveRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
+  useEffect(() => {
+    if (modeParam === "single" || modeParam === "batch") return;
+    if (effectiveRecipientIds.length === 1) {
+      setGenerateMode("single");
+    } else if (effectiveRecipientIds.length > 1) {
+      setGenerateMode("batch");
+    }
+  }, [effectiveRecipientIds.length, modeParam]);
   const constituentById = new Map(constituents.map((row) => [row.id, row]));
   const sourceRecipients = effectiveRecipientIds
     .map((id) => constituentById.get(id))
@@ -4284,7 +4296,6 @@ function GenerateWorkspace() {
     || activeRecipientIds.length > 0;
   const canOpenRecipientsStep = Boolean(templateId);
   const canAdvanceFromSelection = Boolean(templateId && hasRecipientIntent);
-  const canOpenFinalStep = generatedForTemplate.length > 0;
   const generationBlockedByTemplate = selectedTemplate ? selectedTemplate.status !== "ACTIVE" : false;
   const previewRecipientPool = sourceRecipients.length > 0 ? sourceRecipients : constituents;
   const previewFocusId = constituentId || previewRecipientPool[0]?.id || "";
@@ -4304,12 +4315,11 @@ function GenerateWorkspace() {
       ? "Print queue generation starts in Needs Review until approved."
       : "Print queue generation is queued for print immediately.";
   const selectedSegmentSummary = selectedTagNames.length > 0 ? selectedTagNames.slice(0, 2).join(", ") : "No segment";
-  const wizardSteps: Array<{ id: 1 | 2 | 3 | 4 | 5; title: string; helper: string }> = [
-    { id: 1, title: "Select", helper: "Template and options configured" },
-    { id: 2, title: "Recipients", helper: "Choose recipients and review count" },
-    { id: 3, title: "Donation Context", helper: "Add donation information (optional)" },
-    { id: 4, title: "Preview", helper: "Review sample letter and batch summary" },
-    { id: 5, title: "Generate", helper: "Confirm and generate letters" },
+  const wizardSteps: Array<{ id: 1 | 2 | 4 | 5; title: string; helper: string }> = [
+    { id: 1, title: "Setup", helper: "Choose a template and optional gift details" },
+    { id: 2, title: "Recipients", helper: "Choose who receives the letter" },
+    { id: 4, title: "Preview", helper: "Check one production-ready sample" },
+    { id: 5, title: "Generate", helper: "Create PDFs or add them to a queue" },
   ];
 
   function cyclePreviewRecipient(direction: "prev" | "next") {
@@ -4326,9 +4336,9 @@ function GenerateWorkspace() {
   }
 
   const topNextLabel = wizardStep === 1
-    ? "Start Generation"
+    ? "Choose Recipients"
     : wizardStep === 2
-      ? "Next: Donation Context"
+      ? "Preview Letters"
       : wizardStep === 3
         ? "Next: Preview"
         : wizardStep === 4
@@ -4340,10 +4350,10 @@ function GenerateWorkspace() {
     ? "Back to Template Library"
     : wizardStep === 2
       ? "Back: Select"
-      : wizardStep === 3
-        ? "Back: Recipients"
-        : wizardStep === 4
-          ? "Back: Donation Context"
+    : wizardStep === 3
+      ? "Back: Recipients"
+    : wizardStep === 4
+          ? "Back: Recipients"
           : "Back: Preview";
   const topNextDisabled = wizardStep === 1
     ? !canOpenRecipientsStep
@@ -4352,7 +4362,7 @@ function GenerateWorkspace() {
       : wizardStep === 3
         ? !canAdvanceFromSelection
         : wizardStep === 4
-          ? !canOpenFinalStep
+          ? !preview || previewPdfLoading
           : working || !canAdvanceFromSelection || generationBlockedByTemplate || (deliveryTarget === "MAIL_QUEUE" && mailQueueUnavailable);
 
   function handleWorkflowBack() {
@@ -4360,7 +4370,7 @@ function GenerateWorkspace() {
       window.location.assign("/oyama-letters");
       return;
     }
-    setWizardStep((wizardStep - 1) as 1 | 2 | 3 | 4 | 5);
+    setWizardStep(wizardStep === 5 ? 4 : wizardStep === 4 ? 2 : wizardStep === 3 ? 2 : 1);
   }
 
   function handleTopNext() {
@@ -4414,14 +4424,14 @@ function GenerateWorkspace() {
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {notice ? <Alert tone="green">{notice}</Alert> : null}
       <section className="border-b border-slate-200 bg-white px-4 xl:px-6">
-        <div className="grid gap-2 py-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-2 py-4 sm:grid-cols-2 xl:grid-cols-4">
           {wizardSteps.map((step, index) => {
             const active = wizardStep === step.id;
             const completed = wizardStep > step.id;
             const allowed = step.id === 1
               || (step.id === 2 && canOpenRecipientsStep)
               || (step.id > 2 && step.id < 5 && canAdvanceFromSelection)
-              || (step.id === 5 && canOpenFinalStep);
+              || (step.id === 5 && Boolean(preview));
             return (
               <button
                 key={step.id}
@@ -4443,7 +4453,7 @@ function GenerateWorkspace() {
                       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
                         <path d="M6 12.5l3.5 3.5L18 7.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                    ) : step.id}
+                    ) : index + 1}
                   </span>
                   {index < wizardSteps.length - 1 ? <span className="inline-flex text-lg text-slate-300">→</span> : null}
                   <span>
@@ -4508,14 +4518,12 @@ function GenerateWorkspace() {
                 <div className="flex items-start gap-3">
                   <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700"><LettersPackIcon name="approval-review" className="h-5 w-5" fallback="$" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">Donation Context</p>
+                    <p className="text-sm font-semibold text-slate-900">Gift details <span className="font-normal text-slate-500">(optional)</span></p>
                     <p className="text-sm text-slate-700">{donationMode === "specific" && donationId ? formatDonation(donations.find((item) => item.id === donationId) ?? { id: donationId, amount: "-", date: new Date().toISOString() }) : donationApplicationLabel}</p>
                     <p className="text-xs text-slate-500">Date range: {donationDateRange.toLowerCase()}</p>
                   </div>
                 </div>
-                <div className="w-52">
-                  <LabeledSelect label="" value={donationId} onChange={setDonationId} options={["", ...donations.map((item) => item.id)]} labels={Object.fromEntries(donations.map((item) => [item.id, formatDonation(item)]))} />
-                </div>
+                <Button onClick={() => setWizardStep(3)}>Edit optional details</Button>
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
@@ -4527,7 +4535,7 @@ function GenerateWorkspace() {
                     <p className="text-xs text-slate-500">{queuePolicyMessage}</p>
                   </div>
                 </div>
-                <Button onClick={() => setWizardStep(5)}>Edit</Button>
+                <span className="text-xs font-semibold text-slate-500">Set after preview</span>
               </div>
             </div>
 
@@ -4737,7 +4745,7 @@ function GenerateWorkspace() {
               <Button onClick={() => setWizardStep(1)}>Back: Select Options</Button>
               <div className="flex items-center gap-2">
                 <Button onClick={() => setRecipientPickerOpen(true)}>Advanced Source Selector</Button>
-                <Button onClick={() => void proceedFromRecipientsStep()} tone="primary" disabled={!canAdvanceFromSelection}>Next: Donation Context</Button>
+                <Button onClick={() => void proceedFromRecipientsStep()} tone="primary" disabled={!canAdvanceFromSelection}>Preview Letters</Button>
               </div>
             </div>
           </div>
@@ -4987,18 +4995,20 @@ function GenerateWorkspace() {
                 </div>
               ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {previewPdfUrl ? (
-                <a href={previewPdfUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Open Server Preview</a>
-              ) : (
-                <Button onClick={() => previewFocus ? void loadProductionPreviewPdf(previewFocus.id) : undefined} disabled={!previewFocus || previewPdfLoading}>{previewPdfLoading ? "Rendering..." : "Render Server Preview"}</Button>
-              )}
-              {previewPdfUrl ? (
-                <a href={previewPdfUrl} download={previewPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Save Preview PDF</a>
-              ) : (
-                <Button onClick={() => void openIndividualPdf(focusedGenerated?.id || "")} disabled={!focusedGenerated || pdfLoading}>Open Generated PDF</Button>
-              )}
-            </div>
+            {previewPdfUrl ? (
+              <a href={previewPdfUrl} target="_blank" rel="noreferrer" className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-emerald-700 bg-emerald-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600">Open Full PDF Preview</a>
+            ) : (
+              <Button onClick={() => previewFocus ? void loadProductionPreviewPdf(previewFocus.id) : undefined} disabled={!previewFocus || previewPdfLoading}>{previewPdfLoading ? "Preparing preview..." : "Prepare PDF Preview"}</Button>
+            )}
+            {previewPdfUrl ? (
+              <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-700">More preview options</summary>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <a href={previewPdfUrl} download={previewPdfFileName} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Download preview PDF</a>
+                  <Button onClick={() => void runPreview()} disabled={working}>Refresh preview data</Button>
+                </div>
+              </details>
+            ) : null}
           </aside>
         </section>
       ) : null}
@@ -5008,7 +5018,7 @@ function GenerateWorkspace() {
           <div className="space-y-3">
             <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Generate Letters</p>
-              <p className="mt-1 text-xs text-slate-600">Confirm settings, generate letters, and open PDFs without leaving this page.</p>
+              <p className="mt-1 text-xs text-slate-600">Choose the output once, generate, then open the finished PDF or continue to its queue.</p>
               {generationBlockedByTemplate ? (
                 <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
                   Selected template is {selectedTemplate?.status ?? "not active"}. Only ACTIVE templates can generate production letters.
@@ -5021,6 +5031,7 @@ function GenerateWorkspace() {
                     <button type="button" onClick={() => setGenerateMode("single")} className={["rounded border px-2 py-1 text-xs font-semibold", generateMode === "single" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Single</button>
                     <button type="button" onClick={() => setGenerateMode("batch")} className={["rounded border px-2 py-1 text-xs font-semibold", generateMode === "batch" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Batch</button>
                   </div>
+                  <p className="mt-2 text-[11px] text-slate-500">Selected from the recipient count automatically. Change it here only when needed.</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Delivery Target</p>
@@ -5032,7 +5043,7 @@ function GenerateWorkspace() {
                   <p className="mt-2 text-xs text-slate-500">{queuePolicyMessage}</p>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   onClick={() => (generateMode === "single" ? void generateOne() : void runBatch(false))}
                   tone="primary"
@@ -5040,13 +5051,20 @@ function GenerateWorkspace() {
                 >
                   {generateMode === "single" ? "Generate One Letter" : "Generate Batch"}
                 </Button>
-                {generateMode === "batch" ? <Button onClick={() => void runBatch(true)} disabled={working || !canAdvanceFromSelection}>Validate Batch</Button> : null}
-                <Button onClick={() => void openBatchPdf(batchPdfIds)} disabled={pdfLoading || batchPdfIds.length === 0}>View Batch PDF</Button>
-                <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>View Individual PDF</Button>
-                <Button onClick={() => void load()}>Refresh Generated</Button>
+                <Button onClick={() => generateMode === "batch" ? void openBatchPdf(batchPdfIds) : focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined} disabled={pdfLoading || (generateMode === "batch" ? batchPdfIds.length === 0 : !focusedGenerated)}>
+                  {generateMode === "batch" ? "Open Batch PDF" : "Open Latest PDF"}
+                </Button>
                 <Button href="/oyama-letters/queue">Continue to Queue</Button>
-                <Button onClick={() => setWizardStep(1)}>Start New Run</Button>
               </div>
+              <details className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-700">Advanced generation tools</summary>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {generateMode === "batch" ? <Button onClick={() => void runBatch(true)} disabled={working || !canAdvanceFromSelection}>Validate without generating</Button> : null}
+                  <Button onClick={() => void load()}>Refresh generated list</Button>
+                  {pdfViewerUrl ? <Button onClick={() => setPdfViewerOpen(true)}>Reopen last PDF</Button> : null}
+                  <Button onClick={() => setWizardStep(1)}>Start a new run</Button>
+                </div>
+              </details>
               {batch ? (
                 <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -5064,23 +5082,7 @@ function GenerateWorkspace() {
                 </div>
               ) : null}
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-900">PDF Viewer</p>
-                  <p className="mt-1 text-xs text-slate-600">
-                    PDFs are rendered on the server with the current Letters branding, then opened here for saving and printing.
-                  </p>
-                </div>
-                {pdfLoading ? <StatusPill label="Loading PDF" tone="orange" /> : null}
-              </div>
-              {pdfError ? <div className="mt-3"><Alert tone="amber">{pdfError}</Alert></div> : null}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button onClick={() => void openBatchPdf(batchPdfIds)} disabled={pdfLoading || batchPdfIds.length === 0}>Generate Server Batch PDF</Button>
-                <Button onClick={() => (focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined)} disabled={pdfLoading || !focusedGenerated}>Generate Server Individual PDF</Button>
-                {pdfViewerUrl ? <Button onClick={() => setPdfViewerOpen(true)}>Reopen Last PDF</Button> : null}
-              </div>
-            </div>
+            {pdfError ? <Alert tone="amber">{pdfError}</Alert> : null}
           </div>
           <aside className="rounded-md border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-4 py-3">

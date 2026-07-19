@@ -141,7 +141,7 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("/api/letters/workflow-settings");
     expect(workspace).toContain("Generate Letters");
     expect(workspace).toContain("Print & Mail Queue");
-    expect(workspace).toContain("Letters How To");
+    expect(workspace).toContain("Docs & Walkthroughs");
     expect(workspace).toContain("My Templates");
     expect(workspace).toContain("Team Templates");
     expect(workspace).toContain("AI-assisted");
@@ -149,6 +149,28 @@ describe("letter builder UI redesign source contract", () => {
     expect(lettersRoute).toContain('label: "Simple Fields"');
     expect(workspace).not.toContain("mockDonor");
     expect(workspace).not.toContain("fake");
+  });
+
+  it("keeps the generation path simple while retaining optional context and advanced tools", () => {
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const docsRoute = read("app/oyama-letters/docs/page.tsx");
+    const legacyHowToRoute = read("app/oyama-letters/how-to/page.tsx");
+
+    expect(workspace).toContain('title: "Setup"');
+    expect(workspace).toContain('title: "Recipients"');
+    expect(workspace).toContain('title: "Preview"');
+    expect(workspace).toContain('title: "Generate"');
+    expect(workspace).toContain("Gift details");
+    expect(workspace).toContain("Edit optional details");
+    expect(workspace).toContain("Open Full PDF Preview");
+    expect(workspace).toContain("More preview options");
+    expect(workspace).toContain("Advanced generation tools");
+    expect(workspace).toContain('effectiveRecipientIds.length === 1');
+    expect(workspace).toContain("Selected from the recipient count automatically");
+    expect(workspace).toContain('wizardStep === 4 ? 2');
+    expect(workspace).not.toContain("canOpenFinalStep");
+    expect(docsRoute).toContain('view="howto"');
+    expect(legacyHowToRoute).toContain('redirect("/oyama-letters/docs")');
   });
 
   it("keeps signature blocks optional across publishing and donation handoff", () => {

@@ -21,6 +21,7 @@ const SIDEBAR_ITEMS: Array<{ label: string; href: string; view?: OyamaEmailView;
   { label: "Campaign Workflow", href: "/oyama-email/campaigns", view: "campaigns" },
   { label: "Email Queue", href: "/oyama-email/queue", view: "queue" },
   { label: "Calendar", href: "/oyama-email/calendar", view: "callender", matchPrefix: "/oyama-email/cal" },
+  { label: "Docs & Walkthroughs", href: "/oyama-email/docs", view: "docs" },
   { label: "Settings", href: "/oyama-email/settings", view: "settings" },
 ];
 
@@ -707,6 +708,9 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
           ) : null}
           {!loading && normalizedView === "settings" ? (
             <SettingsView />
+          ) : null}
+          {!loading && normalizedView === "docs" ? (
+            <EmailDocsView />
           ) : null}
           {testSendDialogOpen ? (
             <TestSendDialog
@@ -4382,6 +4386,95 @@ function AnalyticsView({ campaigns, stats }: { campaigns: OyamaEmailCampaign[]; 
   );
 }
 
+function EmailDocsView() {
+  const walkthroughs = [
+    {
+      title: "Build a reusable email",
+      summary: "Create the content once, preview it with real recipient data, then publish it for campaign use.",
+      steps: [
+        "Open Templates and create or select a template.",
+        "Add content blocks, write the subject and preview text, and resolve the readiness items.",
+        "Use Recipient Preview to check merge fields, mobile layout, plain text, and compliance output.",
+        "Send a proof to one reviewer, then continue to Publish & Compliance.",
+      ],
+      actions: [
+        { href: "/oyama-email/templates", label: "Open Templates" },
+        { href: "/oyama-email/templates/new", label: "Create Template" },
+      ],
+    },
+    {
+      title: "Create and send a campaign",
+      summary: "Templates hold reusable design; campaigns hold one audience, review history, and delivery run.",
+      steps: [
+        "Start a campaign and select a published template.",
+        "Choose the audience source and review eligible, suppressed, opted-out, and duplicate counts.",
+        "Run validation and send a test email to a reviewer address.",
+        "Queue, schedule, or send only from the campaign review step.",
+      ],
+      actions: [
+        { href: "/oyama-email/campaigns/new", label: "Start Campaign" },
+        { href: "/oyama-email/campaigns", label: "Open Campaigns" },
+      ],
+    },
+    {
+      title: "Review delivery and troubleshoot",
+      summary: "Use the canonical queue and campaign activity records to understand what happened after approval.",
+      steps: [
+        "Open Email Queue to find drafts, scheduled campaigns, active sends, failures, and completed sends.",
+        "Open the campaign record to review delivery totals and recipient-level events.",
+        "Check suppression and preference status before retrying a failed recipient.",
+        "Use Organization Settings for sender defaults and compliance configuration.",
+      ],
+      actions: [
+        { href: "/oyama-email/queue", label: "Open Email Queue" },
+        { href: "/oyama-email/settings", label: "Open Settings" },
+      ],
+    },
+  ] as const;
+
+  return (
+    <main className="min-w-0 flex-1 bg-[linear-gradient(180deg,#f8fafc_0%,#eef4f1_100%)] p-4 sm:p-6 xl:p-8">
+      <div className="mx-auto max-w-6xl">
+        <section className="overflow-hidden rounded-[24px] border border-emerald-900/10 bg-[linear-gradient(135deg,#073b2b,#0b6241)] p-6 text-white shadow-[0_22px_55px_rgba(6,78,59,0.18)] sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">OyamaEmail documentation</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">How to build, review, and send email</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-50/90">Follow the task guides below. Sending always stays reviewable: editing a template or sending a proof never sends to the campaign audience.</p>
+        </section>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-3">
+          {walkthroughs.map((guide, index) => (
+            <article key={guide.title} className="flex flex-col rounded-[22px] border border-white bg-white/90 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-sm font-bold text-emerald-800">{index + 1}</span>
+              <h2 className="mt-4 text-xl font-semibold tracking-tight text-slate-950">{guide.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{guide.summary}</p>
+              <ol className="mt-4 flex-1 space-y-3">
+                {guide.steps.map((step, stepIndex) => (
+                  <li key={step} className="flex gap-3 text-sm leading-5 text-slate-700">
+                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">{stepIndex + 1}</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                {guide.actions.map((action, actionIndex) => (
+                  <Link key={action.href} href={action.href} className={actionIndex === 0 ? "inline-flex h-9 items-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600" : "inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"}>{action.label}</Link>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <section className="mt-6 rounded-[22px] border border-amber-200 bg-amber-50/90 p-5">
+          <h2 className="text-base font-semibold text-amber-950">Before a production send</h2>
+          <div className="mt-3 grid gap-2 text-sm text-amber-900 sm:grid-cols-2 lg:grid-cols-4">
+            {["Audience totals reviewed", "Opt-outs and suppressions honored", "Proof email approved", "Subject, links, sender, and schedule confirmed"].map((item) => <p key={item} className="rounded-lg border border-amber-200 bg-white/60 px-3 py-2">✓ {item}</p>)}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 function SettingsView() {
   return (
     <section className="grid gap-4 p-4 xl:grid-cols-2 xl:p-6">
@@ -4511,6 +4604,7 @@ function SideIcon({ label }: { label: string }) {
     Queue: "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01",
     "Email Queue": "M8 6h12M8 12h12M8 18h12M3 6h.01M3 12h.01M3 18h.01",
     Analytics: "M4 19h16M7 16V9m5 7V6m5 10v-4",
+    "Docs & Walkthroughs": "M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5v-17Zm0 0A2.5 2.5 0 0 1 7.5 7H20M10 11h6m-6 4h4",
     Settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-12v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3",
     "Help Center": "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 14h.01M10.8 9.1a1.8 1.8 0 1 1 2.9 1.4c-.8.6-1.2 1-1.2 2",
   };
@@ -4551,6 +4645,7 @@ function workspaceTitle(view: OyamaEmailView): string {
   if (view === "publish") return "Publish & Compliance";
   if (view === "callender") return "Calendar";
   if (view === "queue") return "Email Queue";
+  if (view === "docs") return "Docs & Walkthroughs";
   if (view === "campaigns" || view === "send" || view === "audience" || view === "analytics") return "Campaigns";
   return "Settings";
 }
@@ -4562,6 +4657,7 @@ function workspaceSubtitle(view: OyamaEmailView, campaign: OyamaEmailCampaign | 
   if (view === "templates") return "Start with reusable content here, then move into the campaign workflow for audience, review, and send steps.";
   if (view === "callender") return "Manage all upcoming email schedules with timeline planning and quick campaign access.";
   if (view === "queue") return "Drafted, queued, sent, failed, and cancelled email records with one status source.";
+  if (view === "docs") return "Task-based guides for templates, campaigns, proofs, sending, and delivery review.";
   if (view === "campaigns" || view === "audience" || view === "analytics") {
     return "One canonical campaign workflow: setup, template, audience, review, then queue, schedule, or send from the campaign record.";
   }

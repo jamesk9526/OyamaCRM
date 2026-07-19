@@ -58,6 +58,9 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Email Queue");
     expect(workspace).toContain("Calendar");
     expect(workspace).toContain("Settings");
+    expect(workspace).toContain("Docs & Walkthroughs");
+    expect(workspace).toContain("How to build, review, and send email");
+    expect(workspace).toContain("Before a production send");
     expect(workspace).toContain("Back to CRM");
 
     expect(workspace).toContain("Overview");
@@ -76,7 +79,10 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("My Templates");
     expect(workspace).toContain("Shared Templates");
     expect(workspace).toContain("AI-assisted");
-    expect(builder).toContain("Show Me How It Will Look to the Recipient");
+    expect(builder).toContain("Recipient Preview");
+    expect(builder).toContain('href="/oyama-email/docs"');
+    expect(builder).toContain("Edit plain-text override");
+    expect(builder).not.toContain(">\n              Mobile\n");
     expect(builder).toContain("Recipient Email Preview");
     expect(builder).toContain("Open Advanced Editor");
     expect(builder).toContain("readinessPercent");
@@ -100,6 +106,14 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Resolve required compliance checks before marking this template Ready.");
     expect(workspace).not.toContain("window.prompt(\"Send test to email address:");
     expect(workspace).toContain('useState<"MINE" | "SHARED" | "ALL">("ALL")');
+  });
+
+  it("provides a canonical docs route with task-based email walkthroughs", () => {
+    const docsRoute = read("app/oyama-email/docs/page.tsx");
+    const types = read("app/components/oyama-email/types.ts");
+
+    expect(docsRoute).toContain('view="docs"');
+    expect(types).toContain('| "docs"');
   });
 
   it("uses one upload-or-URL control for image-capable email blocks", () => {

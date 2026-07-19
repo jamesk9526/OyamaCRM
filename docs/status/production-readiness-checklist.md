@@ -4,6 +4,21 @@ Last updated: 2026-07-19 (Donor dashboard and communication-studio visual modern
 
 This file is the release-gate source of truth for production readiness.
 
+## 2026-07-19 Letters/Email Workflow and Documentation Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Letters generation uses a clear Setup → Recipients → Preview → Generate primary path | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Preview and generation retain advanced capabilities without presenting duplicate primary actions | Working | `app/components/letters/OyamaLettersWorkspace.tsx` |
+| Letter preview can advance to Generate without requiring an existing generated letter | Working | Removed circular `canOpenFinalStep` gate; covered by `tests/smoke/letter-builder-ui-source.test.ts` |
+| OyamaEmail rendering, merge preview, and campaign API workflow | Working | Focused email suite passed 40/40 across five files, including render, merge-preview, and campaign-workflow API coverage. |
+| Canonical in-app Docs & Walkthroughs routes exist for both systems | Working | `/oyama-letters/docs`, `/oyama-email/docs`; compatibility redirect retained at `/oyama-letters/how-to` |
+| Email preview has one canonical entry point for visual, responsive-width, and plain-text checks | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
+| Letter generation mode defaults correctly from the recipient count | Working | Single for one recipient, Batch for multiple; explicit route/staff choice remains supported. |
+| Live browser walkthrough | Partially Working | The in-app browser surface was unavailable; source tests, API tests, lint, typecheck, and production build are the available regression evidence. |
+
+Detailed evidence: `docs/status/audit-artifacts/2026-07-19-letters-email-workflow-simplification.md`.
+
 ## 2026-07-19 Dashboard and Communication Studio Visual Snapshot
 
 | Release gate | Status | Evidence |

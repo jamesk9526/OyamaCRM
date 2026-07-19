@@ -1,7 +1,7 @@
-/** OyamaLetters in-app walkthrough route. */
-import OyamaLettersWorkspace from "@/app/components/letters/OyamaLettersWorkspace";
+/** Compatibility route for the canonical OyamaLetters docs workspace. */
+import { redirect } from "next/navigation";
 
-/** Renders step-by-step guidance for using letters tools end-to-end. */
+/** Keeps older bookmarks working while the sidebar uses the Docs route. */
 export default function OyamaLettersHowToPage() {
-  return <OyamaLettersWorkspace view="howto" />;
+  redirect("/oyama-letters/docs");
 }
