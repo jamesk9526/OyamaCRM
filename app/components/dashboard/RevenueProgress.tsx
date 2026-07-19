@@ -59,7 +59,7 @@ export default function RevenueProgress({
           <button
             onClick={onToggleGrants}
             title={includeGrants ? "Showing donations + grants — click to show donations only" : "Click to include awarded grants in total"}
-            className={`flex items-center gap-1.5 text-[11px] font-medium rounded-full px-2.5 py-1 border transition-colors ${
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-medium shadow-sm transition-all hover:-translate-y-px ${
               includeGrants
                 ? "bg-emerald-50 border-emerald-300 text-emerald-700"
                 : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-700"
@@ -121,8 +121,8 @@ export default function RevenueProgress({
           )}
         </div>
 
-        <div className="mt-3 h-2 w-full overflow-hidden rounded-full border border-slate-200 bg-slate-50">
-          <div className="h-full bg-emerald-600 transition-all" style={{ width: `${percentage}%` }} />
+        <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-inner">
+          <div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-700" style={{ width: `${percentage}%` }} />
         </div>
 
         <div className="mt-2 text-xs text-slate-500 text-center">

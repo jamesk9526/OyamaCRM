@@ -1,8 +1,31 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-16 (Letters and Email production-readiness pass)
+Last updated: 2026-07-19 (Donor dashboard and communication-studio visual modernization)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-07-19 Dashboard and Communication Studio Visual Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Dashboard sidebar, metrics, live charts, action cards, and customization controls use one responsive visual language | Working | `app/components/layout/CrmSidebar.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/GivingTrendChart.tsx`, `app/components/dashboard/DashboardLayoutModal.tsx` |
+| Letter canvas preserves working edit, merge, preview, PDF, recovery, and publish paths while exposing live readiness | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Email builder preserves block, preview, autosave, compliance, proof, and publish paths while exposing live readiness | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
+| Browser viewport and real inbox-client visual matrix | Partially Working | In-app browser access was unavailable. Repeat live desktop/tablet/mobile inspection and Gmail/Outlook rendering checks before the next production release. |
+
+Validation evidence is recorded in `docs/status/audit-artifacts/2026-07-19-donor-dashboard-and-builder-visual-modernization.md`.
+
+## 2026-07-19 Donor System Hardening Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Dashboard pending-acknowledgment count represents the full filtered dataset | Working | `app/features/donor-dashboard/services/dashboard-client-service.ts`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `server/src/routes/donations.ts` |
+| Dashboard acknowledgment actions open a real, clearable donation queue | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/donations/page.tsx` |
+| Letter print route preserves the staff-selected test recipient with organization/mail eligibility validation | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterPrintRoute.tsx`, `app/oyama-letters/templates/[templateId]/print/page.tsx`, `server/src/routes/letters.ts` |
+| Letters and Email editors avoid browser-native prompt/alert UX | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx` |
+| Cross-module workspace permission enforcement | Not Implemented | Existing release blocker; this pass retained route-level donor communication permissions but did not complete module-wide policy enforcement. |
+
+Validation for this pass: focused unit/source suite 84/84; database-backed donor/Letters/Email API and source suite 60/60; `pnpm typecheck` passed; targeted ESLint completed with 0 errors and 23 pre-existing warnings; `pnpm build` passed and generated 198 routes.
 
 ## 2026-07-16 Letters and Email Production-Readiness Snapshot
 
@@ -115,7 +138,7 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 
 Notes:
 
-- This pass prioritizes the new workspace requested from `Oyamaletters-uiplan.md` while using only live CRM/letters API data and explicit empty states.
+- This pass prioritizes the OyamaLetters workspace while using only live CRM/letters API data and explicit empty states.
 - 2026-06-13 shared preview/print update: `LetterDocument` now normalizes branding, recipient, sender, footer, and layout data for client preview and the dedicated print route. Server PDF generation remains on the existing jsPDF path until the next parity pass.
 - 2026-06-13 PDF hardening update: template sample PDF preview falls back to a synthetic preview recipient when no live sample recipient is available, and publish validation notes are advisory rather than blocking.
 - 2026-06-13 PDF runtime fix: linked jsPDF's Node PNG dependency chain (`fast-png`, `iobuffer`, `pako`) and verified `pnpm test:e2e:letters` through batch PDF and individual PDF export.
@@ -207,7 +230,7 @@ Notes:
 | Dashboard actionable insights card | Working | `app/page.tsx`, `app/components/dashboard/ActionableInsightsWidget.tsx` |
 | Dashboard AI widget set (runtime controls, opportunities, compact chat) | Working | `app/page.tsx`, `app/components/dashboard/AiInsightsWidget.tsx`, `app/components/dashboard/AiOpportunityWidget.tsx`, `app/components/dashboard/AiChatWidget.tsx` |
 | Shared contextual help tip component | Working | `app/components/ui/WorkspaceHelpTip.tsx` |
-| User-facing guide baseline | Working | `docs/howto/USER_GUIDE.md` |
+| User-facing guide baseline | Working | `docs/howto/HOW_TO_USE.md` |
 | CRM language guide baseline | Working | `docs/ui/CRM_LANGUAGE_GUIDE.md` |
 
 Notes:

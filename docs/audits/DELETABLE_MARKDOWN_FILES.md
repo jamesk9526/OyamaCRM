@@ -1,6 +1,6 @@
 # Deletable Markdown Files (Candidate List)
 
-Date: 2026-05-31
+Date: 2026-07-19
 Scope: Candidate markdown cleanup targets only. No automatic deletion in this file.
 
 ## Policy
@@ -8,7 +8,11 @@ Scope: Candidate markdown cleanup targets only. No automatic deletion in this fi
 This is a candidate list, not a delete-now list.
 Each item must pass the deletion checklist in `AGENTS.md` before removal.
 
-## Candidate Buckets
+## Resolution
+
+The root planning files, `report-e2e.md`, `CLAUDE.md`, and the duplicate `docs/howto/USER_GUIDE.md` were removed on 2026-07-19. Current code and the canonical workspace/status documentation superseded their unique operational value. See `docs/status/audit-artifacts/2026-07-19-documentation-and-agent-instructions-audit.md`.
+
+## Historical Candidate Buckets
 
 ### High Confidence (Merge then remove)
 

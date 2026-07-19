@@ -2994,9 +2994,11 @@ router.get("/templates/:id/print-preview", requirePermission("letters.view"), as
 
   const detectedFields = collectMergeFieldKeys(template.printBody, template.emailBody, template.printSubject, template.emailSubject);
   const needsGiftContext = detectedFields.some((field) => field.startsWith("gift.") || field.startsWith("donation."));
+  const requestedConstituentId = typeof req.query.constituentId === "string" ? req.query.constituentId.trim() : "";
   const sampleConstituent = await prisma.constituent.findFirst({
     where: {
       organizationId,
+      ...(requestedConstituentId ? { id: requestedConstituentId } : {}),
       doNotMail: false,
       ...(needsGiftContext ? { donations: { some: { status: "COMPLETED" } } } : {}),
     },
@@ -3014,6 +3016,11 @@ router.get("/templates/:id/print-preview", requirePermission("letters.view"), as
     },
     orderBy: { updatedAt: "desc" },
   });
+
+  if (requestedConstituentId && !sampleConstituent) {
+    res.status(404).json({ error: { code: "PREVIEW_RECIPIENT_NOT_FOUND", message: "The selected preview recipient is unavailable or cannot receive mail." } });
+    return;
+  }
 
   const resolvedDonationId = await resolveDonationIdForRecipient({
     organizationId,

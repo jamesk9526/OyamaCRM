@@ -172,20 +172,20 @@ const DONOR_ACCENT_OVERRIDES: Record<DonorAccentTone, { iconActive: string; acce
 
 const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
   donor: {
-    aside: "bg-[linear-gradient(180deg,#041f1a_0%,#031813_36%,#02120f_100%)] border-r border-[#06130f]",
+    aside: "bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.16),transparent_28%),linear-gradient(180deg,#06271f_0%,#041b16_42%,#02110e_100%)] border-r border-emerald-950/90 shadow-[10px_0_32px_rgba(2,18,15,0.16)]",
     navSurface: "",
     heading: "text-emerald-100/68",
     headingMuted: "hover:text-emerald-50",
-    itemActive: "text-emerald-50 bg-emerald-500/22 font-semibold ring-1 ring-emerald-300/22",
-    itemInactive: "text-emerald-50/92 hover:bg-emerald-500/12 hover:text-white",
+    itemActive: "text-white bg-[linear-gradient(90deg,rgba(16,185,129,0.28),rgba(16,185,129,0.12))] font-semibold ring-1 ring-inset ring-emerald-300/25 shadow-[0_8px_18px_rgba(0,0,0,0.12)]",
+    itemInactive: "text-emerald-50/86 hover:bg-white/[0.075] hover:text-white hover:shadow-[inset_0_0_0_1px_rgba(167,243,208,0.08)]",
     iconActive: "text-emerald-200",
     iconInactive: "text-emerald-100/82 group-hover:text-emerald-50",
     badge: "bg-emerald-200/14 text-emerald-100 ring-1 ring-emerald-200/18",
     sectionBorder: "border-transparent",
     sectionHover: "hover:bg-emerald-900/18",
-    footer: "border-t border-emerald-900/60 bg-[#081b15]",
+    footer: "border-t border-emerald-900/70 bg-emerald-950/45 backdrop-blur-xl",
     footerText: "text-emerald-200/80",
-    collapseButton: "border-emerald-800/70 bg-emerald-950/30 text-emerald-200 hover:bg-emerald-900/55 hover:text-white",
+    collapseButton: "border-emerald-700/55 bg-white/[0.06] text-emerald-100 shadow-[0_6px_16px_rgba(0,0,0,0.16)] hover:border-emerald-500/60 hover:bg-emerald-500/16 hover:text-white",
     tooltip: "border-emerald-800/60 bg-emerald-950 text-emerald-50 shadow-xl",
     tooltipSubtitle: "text-emerald-200/80",
     divider: "bg-emerald-500/26",
@@ -514,12 +514,12 @@ export default function CrmSidebar({
 
   return (
     <aside
-      className={`${styles.aside} group/sidebar relative ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-200 ease-out motion-reduce:transition-none`}
+      className={`${styles.aside} group/sidebar relative isolate ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-300 ease-out motion-reduce:transition-none`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
       style={donorTintStyle}
     >
       {hasBrandHeader ? (
-        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-900/65 bg-[#0b281d]" : "border-slate-200 bg-white"} ${donorCompact ? "px-2.5 py-2" : "px-2.5 py-2.5"}`}>
+        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-800/45 bg-white/[0.035] backdrop-blur-xl" : "border-slate-200 bg-white"} ${donorCompact ? "px-3 py-2.5" : "px-2.5 py-2.5"}`}>
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               {isCollapsed ? brandHeaderCollapsed : brandHeader}
@@ -546,7 +546,7 @@ export default function CrmSidebar({
           </div>
         </div>
       ) : null}
-      <div className={`flex-1 overflow-y-auto ${isDonorChrome ? "px-2.5 py-3" : donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
+      <div className={`flex-1 overflow-y-auto ${isDonorChrome ? "px-2.5 py-3.5" : donorCompact ? "px-2 py-2" : "px-3 py-6"} ${SIDEBAR_SCROLLBAR_CLASS} ${styles.navSurface}`}>
         {variant === "donor" ? (
           <div className="mb-3">
             {isCollapsed ? (
@@ -561,7 +561,7 @@ export default function CrmSidebar({
                     }
                   }
                 }}
-                className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-800/70 bg-emerald-950/35 text-emerald-100/90 hover:bg-emerald-900/55"
+                className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-700/50 bg-white/[0.055] text-emerald-100 shadow-[0_8px_20px_rgba(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:border-emerald-500/60 hover:bg-emerald-500/15"
                 aria-label="Expand sidebar to search CRM tools"
                 title="Search CRM tools"
               >
@@ -570,7 +570,7 @@ export default function CrmSidebar({
                 </svg>
               </button>
             ) : (
-              <div className="rounded-xl border border-emerald-800/65 bg-[#08231b] px-2 py-1.5">
+              <div className="rounded-2xl border border-emerald-700/40 bg-black/15 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_22px_rgba(0,0,0,0.1)] backdrop-blur-xl">
                 <div className="relative">
                   <svg className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-emerald-200/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -580,7 +580,7 @@ export default function CrmSidebar({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search CRM tools (email, donor, reports...)"
-                    className="h-8 w-full rounded-lg border border-emerald-800/70 bg-[#0b2b21] pl-9 pr-2 text-[13px] text-emerald-50 placeholder:text-emerald-200/55 outline-none focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/20"
+                    className="h-9 w-full rounded-xl border border-emerald-700/35 bg-white/[0.055] pl-9 pr-2 text-[13px] text-emerald-50 placeholder:text-emerald-200/45 outline-none transition focus:border-emerald-400/70 focus:bg-white/[0.08] focus:ring-2 focus:ring-emerald-400/15"
                     aria-label="Search donor CRM sidebar tools"
                   />
                 </div>
@@ -618,7 +618,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`${isDonorChrome ? "mb-2" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
+              className={`${isDonorChrome ? "mb-2.5" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="group/section relative px-2 py-1.5" aria-hidden="true">
@@ -638,7 +638,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`w-full flex items-center justify-between px-1 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] transition-colors ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
+                      className={`flex w-full items-center justify-between rounded-lg px-1.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.17em] transition-colors hover:bg-white/[0.035] ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg
@@ -661,7 +661,7 @@ export default function CrmSidebar({
 
               {groupIsOpen && (
                 <nav
-                  className={`space-y-0 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-2.5 border-l border-emerald-900/60 pl-2" : ""}`}
+                  className={`space-y-1 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-2.5 border-l border-emerald-700/25 pl-2" : ""}`}
                   aria-label={group.label}
                 >
                   {group.items.map((item) => {
@@ -673,18 +673,18 @@ export default function CrmSidebar({
                         href={item.href}
                         aria-current={active ? "page" : undefined}
                         aria-label={isCollapsed ? item.label : undefined}
-                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-8 justify-center rounded-xl px-1 py-1" : isDonorChrome ? "min-h-8 justify-start rounded-lg px-2 py-1.5" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive}`}
+                        className={`group relative mx-0.5 flex items-center ${isCollapsed ? "min-h-9 justify-center rounded-xl px-1 py-1" : isDonorChrome ? "min-h-9 justify-start rounded-xl px-2.5 py-1.5" : donorCompact ? "min-h-7 justify-start rounded-lg px-2 py-1" : "min-h-9 justify-start rounded-lg px-2.5 py-2"} gap-2 text-[12px] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${focusRingClass} ${active ? styles.itemActive : styles.itemInactive}`}
                         title={isCollapsed ? item.label : undefined}
                       >
                         {!isCollapsed && isDonorChrome ? (
                           <span
                             aria-hidden="true"
-                            className={`absolute -left-[0.62rem] top-1/2 h-px w-2.5 -translate-y-1/2 ${active ? "bg-emerald-400/85" : "bg-emerald-900/65"}`}
+                            className={`absolute -left-[0.64rem] top-1/2 -translate-y-1/2 ${active ? "h-5 w-[3px] rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.65)]" : "h-px w-2.5 bg-emerald-800/55"}`}
                           />
                         ) : null}
 
                         <span
-                          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md p-1 transition-colors ${active ? styles.iconActive : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
+                          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg p-1.5 transition-all ${active ? `${styles.iconActive} bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]` : styles.iconInactive} ${isCollapsed && active ? (isDonorChrome ? "bg-emerald-500/22" : "bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]") : ""}`}
                           aria-hidden="true"
                         >
                           {item.icon}

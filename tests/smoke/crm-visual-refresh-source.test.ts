@@ -31,6 +31,8 @@ describe("Donor CRM visual refresh foundation", () => {
     const naturalDashboard = read("app/components/dashboard/NaturalisticDonorDashboard.tsx");
     const dashboardService = read("app/features/donor-dashboard/services/dashboard-client-service.ts");
     const dashboardTypes = read("app/features/donor-dashboard/types.ts");
+    const donationsPage = read("app/donations/page.tsx");
+    const donationsRoute = read("server/src/routes/donations.ts");
     const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
     const statCard = read("app/components/dashboard/StatCard.tsx");
     const quickActionCard = read("app/components/ui/crm/CRMQuickActionCard.tsx");
@@ -62,6 +64,10 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(dashboardService).toContain("/api/reports/giving-trend");
     expect(dashboardService).toContain("/api/reports/designations-summary");
     expect(dashboardService).toContain("/api/settings/dashboard-appearance");
+    expect(dashboardService).toContain("acknowledgment=pending");
+    expect(naturalDashboard).toContain("pendingAcknowledgmentCount");
+    expect(donationsPage).toContain('searchParams.get("acknowledgment")');
+    expect(donationsRoute).toContain('acknowledgment === "pending"');
     expect(dashboardTypes).toContain("DashboardData");
     expect(monthlyDonations).toContain("/api/reports/donors-this-month");
     expect(monthlyDonations).toContain("/api/email-campaigns/lists");
@@ -195,7 +201,7 @@ describe("Donor CRM visual refresh foundation", () => {
 
     expect(plan).toContain("First-Pass Checklist");
     expect(plan).toContain("Not Done");
-    expect(agents).toContain("OyamaCRM Working Rules");
-    expect(agents).toContain("Workspace-first doctrine");
+    expect(agents).toContain("OyamaCRM Agent Guide");
+    expect(agents).toContain("Use real data and working actions");
   });
 });

@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-16 (Letters and Email production-readiness pass)_
+_Last focused audit: 2026-07-19 (Donor dashboard and communication-studio visual modernization)_
 
 ## Governance baseline for new feature claims
 
@@ -12,6 +12,26 @@ Feature claims in this file should follow the workspace-first governance baselin
 - Canonical route truth when compatibility redirects still exist
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
+
+## 2026-07-19 Donor Dashboard and Builder Visual Modernization
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Donor dashboard visual system | Working | `app/components/layout/CrmSidebar.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/GivingTrendChart.tsx`, `app/components/dashboard/DashboardLayoutModal.tsx` | Navigation, hero metrics, priority actions, cards, charts, configurable widgets, and customization controls now share a modern layered surface system with clearer hierarchy, focus states, responsive behavior, and live-data-only actions. |
+| OyamaLetters canvas studio | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` | The working ribbon, document canvas, snippets, merge fields, inspector, save/recovery state, and publish controls are retained inside a calmer three-pane studio. A live readiness rail surfaces checklist progress, word count, and intended pages before server preflight. |
+| OyamaEmail template studio | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Block insertion, drag ordering, recipient preview, plain text, autosave, test send, advanced editing, compliance settings, and publish routing are retained. A live readiness score and warning summary make incomplete requirements visible without hiding the canvas. |
+| Browser-backed viewport inspection | Partially Working | `docs/status/audit-artifacts/2026-07-19-donor-dashboard-and-builder-visual-modernization.md` | The in-app browser surface was unavailable in this environment. Source contracts, lint, typecheck, and production build provide regression evidence; live desktop/tablet/mobile inspection remains a release follow-up. |
+
+## 2026-07-19 Donor System UX and Workflow Hardening
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Dashboard acknowledgment workload | Working | `app/features/donor-dashboard/services/dashboard-client-service.ts`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `server/src/routes/donations.ts` | The dashboard now requests a full filtered count instead of treating the latest 20 gifts as the entire pending queue. Both dashboard actions open the canonical pending-acknowledgment ledger. |
+| Donation acknowledgment queue | Working | `app/donations/page.tsx`, `server/src/routes/donations.ts`, `tests/smoke/crm-visual-refresh-source.test.ts` | `acknowledgment=pending|sent` is server-filtered for list and aggregate endpoints. The pending queue has explicit scope guidance and a working clear-filter action. Page-level counts are labeled as page-level when the ledger is not queue-filtered. |
+| Letter find and recipient-accurate print route | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterPrintRoute.tsx`, `server/src/routes/letters.ts`, `tests/api/letters-merge-aliases.api.test.ts` | Browser prompts were replaced with an in-workspace find control and Ctrl/Cmd+F support. The shared print route carries the selected test constituent through a server-validated, organization-scoped preview request instead of silently selecting an unrelated recent donor. |
+| Email link and CTA editing | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Rich-text links, CTA links, and Smart HTML links now use accessible in-app dialogs with inline safe-URL validation. Browser prompt/alert interactions were removed. |
+
+Validation: focused unit/source suite passed 84/84; database-backed donor, Letters, and Email API/source suite passed 60/60; web and server typechecks passed; targeted ESLint reported 0 errors (23 existing warnings in the large Letters/Email workspaces).
 
 ## 2026-07-16 Letters and Email Production-Readiness Pass
 
@@ -352,7 +372,7 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 | Dashboard actionable insights widget | Working | `app/page.tsx`, `app/components/dashboard/ActionableInsightsWidget.tsx` | Added cross-workspace insight card with direct links for overdue work, acknowledgements, at-risk donors, and unread notifications. |
 | Dashboard AI widgets (runtime controls, opportunities, compact chat) | Working | `app/page.tsx`, `app/components/dashboard/AiInsightsWidget.tsx`, `app/components/dashboard/AiOpportunityWidget.tsx`, `app/components/dashboard/AiChatWidget.tsx` | Added enableable AI widgets with runtime status, opportunity suggestions, and compact ask/reply Steward chat linked to full AI workspace. |
 | Shared contextual help tip primitive | Working | `app/components/ui/WorkspaceHelpTip.tsx`, `app/page.tsx` | Added reusable compact help pattern and integrated it into dashboard sections. |
-| User-facing operational guide baseline | Working | `docs/howto/USER_GUIDE.md` | Added practical staff guide covering onboarding, daily workflows, and troubleshooting. |
+| User-facing operational guide baseline | Working | `docs/howto/HOW_TO_USE.md` | Canonical practical staff guide covering onboarding, daily workflows, and troubleshooting. |
 | CRM language standard baseline | Working | `docs/ui/CRM_LANGUAGE_GUIDE.md` | Added preferred terminology and plain-language replacement rules for staff-facing UI copy. |
 
 ## 2026-05-14 CRM Header Cleanup Stage 1 (Autopilot)

@@ -39,7 +39,6 @@ INCLUDE_FILES = [
     "tsconfig.json",
     "vitest.config.mts",
     "AGENTS.md",
-    "CLAUDE.md",
     "README.md",
 ]
 

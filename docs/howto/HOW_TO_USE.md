@@ -1,6 +1,6 @@
 # OyamaCRM Office How-To Guide (Current Reality)
 
-Last updated: 2026-07-16
+Last updated: 2026-07-19
 
 ## Purpose
 
@@ -31,16 +31,16 @@ Use the dated audit docs for details:
 ## Quick Start
 
 1. Open the app and sign in with your assigned staff account.
-2. Use the module switcher in the top bar to choose DonorCRM, Compassion CRM, or Events CRM.
+2. Use the module switcher in the top bar to choose DonorCRM, Compassion CRM, Events CRM, or a dedicated workspace.
 3. Stay inside one module for the full task whenever possible (for cleaner activity history).
 4. Use the ribbon directly below the top bar for page-specific actions. The tabs and commands change by page, so Dashboard tools, list tools, profile tools, gifts tools, and Steward Paths tools are intentionally different.
 5. On screens narrower than `1024px`, use the navigation-menu button in the top bar. The module navigation opens as a drawer and closes with the close button, by tapping outside it, or by pressing Escape.
 
-### Workspace-first operating rule (required)
+### Workspace operating guidance
 
 1. Use the canonical workspace for the job (for example, `/oyama-email`, `/oyama-letters`, `/steward-paths`).
 2. Follow one direction through the workflow: list/overview -> build/edit -> review -> publish/activate -> history.
-3. Avoid legacy duplicate paths when a canonical route exists.
+3. Avoid legacy paths when a canonical route exists; old links redirect where compatibility is retained.
 4. If a screen shows in-development messaging, treat it as non-production and use the closest Working workflow instead.
 
 ## DonorCRM Browser QA Baseline (2026-05-13)

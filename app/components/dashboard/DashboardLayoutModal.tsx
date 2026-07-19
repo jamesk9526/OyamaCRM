@@ -147,24 +147,24 @@ export default function DashboardLayoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm md:items-center md:p-4"
       onClick={onClose}
     >
       <div
-        className="flex h-[92dvh] w-full max-w-none flex-col overflow-hidden rounded-t-2xl border border-gray-200 bg-white shadow-2xl md:h-auto md:max-h-[calc(100dvh-2rem)] md:max-w-5xl md:rounded-2xl"
+        className="flex h-[92dvh] w-full max-w-none flex-col overflow-hidden rounded-t-[28px] border border-white/80 bg-white/95 shadow-[0_28px_90px_rgba(15,23,42,0.28)] backdrop-blur-xl md:h-auto md:max-h-[calc(100dvh-2rem)] md:max-w-5xl md:rounded-[28px]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3 md:px-6 md:py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-[radial-gradient(circle_at_88%_0%,rgba(16,185,129,0.13),transparent_28%),linear-gradient(135deg,#f8fcfa,#ffffff)] px-4 py-4 md:px-6 md:py-5">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Customize Dashboard Layout</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">Customize Dashboard Layout</h2>
             <p className="mt-0.5 text-xs text-gray-400">
               Reorder, show/hide, and resize your dashboard widgets
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-xl border border-slate-200 bg-white p-2 text-slate-400 shadow-sm transition-all hover:-translate-y-px hover:border-emerald-200 hover:text-slate-700"
             title="Close"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,12 +179,12 @@ export default function DashboardLayoutModal({
         </div>
 
         {/* Tab bar */}
-        <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-100 bg-gray-50 px-4 py-2 md:px-6">
+        <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 md:px-6">
           <button
             onClick={() => setActiveTab("widgets")}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
               activeTab === "widgets"
-                ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -195,9 +195,9 @@ export default function DashboardLayoutModal({
           </button>
           <button
             onClick={() => setActiveTab("settings")}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
               activeTab === "settings"
-                ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -206,12 +206,12 @@ export default function DashboardLayoutModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-white to-slate-50/50 px-4 py-4 md:px-6 md:py-5">
 
           {/* WIDGETS TAB */}
           {activeTab === "widgets" && (
             <div className="space-y-4">
-              <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              <p className="rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white px-3.5 py-2.5 text-xs text-blue-700 shadow-sm">
                 Drag rows to reorder visible widgets. Click the eye icon to show or hide. Use the size picker to control how wide each widget renders.
               </p>
 
@@ -246,8 +246,8 @@ export default function DashboardLayoutModal({
                       onDragEnd={handleDragEnd}
                       className={`hidden cursor-grab select-none items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-100 active:cursor-grabbing md:grid ${
                         isOver
-                          ? "border-green-400 bg-green-50 ring-2 ring-green-300 ring-offset-1"
-                          : "border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-gray-100"
+                          ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-300 ring-offset-2"
+                          : "border-slate-200/80 bg-white shadow-sm hover:-translate-y-px hover:border-emerald-200 hover:shadow-md"
                       }`}
                       style={{ gridTemplateColumns: "1.25rem 1.25rem 1fr 7rem 3.5rem 2rem" }}
                     >
@@ -361,7 +361,7 @@ export default function DashboardLayoutModal({
                 {activeOrder.map((id, idx) => {
                   const meta = metaMap[id];
                   return (
-                    <div key={`mobile-${id}`} className="rounded-xl border border-gray-200 bg-white p-3 md:hidden">
+                    <div key={`mobile-${id}`} className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm md:hidden">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-gray-800">{meta?.label ?? id}</p>
@@ -503,7 +503,7 @@ export default function DashboardLayoutModal({
           {activeTab === "settings" && (
             <div className="max-w-lg space-y-5">
               {/* Revenue source */}
-              <div className="rounded-xl border border-gray-200 p-4">
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/55 to-white p-4 shadow-sm">
                 <p className="mb-3 text-sm font-semibold text-gray-800">Revenue Progress Source</p>
                 <div className="space-y-3">
                   <label className="flex cursor-pointer items-start gap-3">
@@ -545,7 +545,7 @@ export default function DashboardLayoutModal({
               </div>
 
               {/* Revenue goal */}
-              <div className="rounded-xl border border-gray-200 p-4">
+              <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/45 to-white p-4 shadow-sm">
                 <p className="mb-3 text-sm font-semibold text-gray-800">Revenue Goal</p>
                 <div className="space-y-3">
                   <label className="flex cursor-pointer items-start gap-3">
@@ -584,7 +584,7 @@ export default function DashboardLayoutModal({
                           step="1000"
                           value={localManualRevenueGoalAmount}
                           onChange={(e) => setLocalManualRevenueGoalAmount(e.target.value)}
-                          className="w-44 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="w-44 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                           placeholder="250000"
                         />
                       </div>
@@ -597,7 +597,7 @@ export default function DashboardLayoutModal({
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-gray-50 px-4 py-3.5 md:rounded-b-2xl md:px-6">
+        <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-white/90 px-4 py-4 backdrop-blur-xl md:rounded-b-[28px] md:px-6">
           <button
             onClick={onClose}
             className="text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
@@ -610,7 +610,7 @@ export default function DashboardLayoutModal({
             </span>
             <button
               onClick={handleApply}
-              className="rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 active:bg-green-800"
+              className="rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(5,150,105,0.22)] transition-all hover:-translate-y-px hover:shadow-[0_12px_24px_rgba(5,150,105,0.28)] active:translate-y-0"
             >
               Apply Changes
             </button>

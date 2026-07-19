@@ -1,6 +1,6 @@
 # DonorCRM Module Guide
 
-Last updated: 2026-05-13
+Last updated: 2026-07-19
 
 This guide explains the current DonorCRM in plain office workflow language.
 
@@ -39,16 +39,15 @@ Use DonorCRM to manage donors, gifts, campaigns, stewardship follow-up, and fund
 - Use campaign list for active fundraising programs.
 - Open campaign detail to review/edit campaign configuration and connected giving context.
 
-## Communications
+## OyamaEmail
 
-- Use as your email and outreach workspace.
-- Create or open campaigns, review drafts, and move through scheduling/sending flow.
-- Open Email Builder for campaign-level content editing.
+- Use `/oyama-email` for email templates, audience selection, campaign review, sending, queue work, and analytics.
+- `/communications/*` is retained only as a compatibility redirect.
 
-## Letters and Printables
+## OyamaLetters
 
-- Manage letter templates and generate print-ready donor communications.
-- Use print queue and mail queue for operational handoff.
+- Use `/oyama-letters` to manage letter templates and generate print-ready donor communications.
+- Use its queue and batch views for operational handoff.
 - Use email draft bridge when a printed letter should also have an email touchpoint.
 
 ## Steward Paths

@@ -2576,6 +2576,15 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
 
   const canvasWidth = activeTab === "mobilePreview" ? 375 : Math.min(620, Math.max(420, draft.template.contentWidth));
   const scaledStyle: React.CSSProperties | undefined = zoom !== 100 ? { transform: `scale(${zoom / 100})`, transformOrigin: "top center" } : undefined;
+  const readinessChecks = [
+    Boolean(draft.name.trim()),
+    Boolean(draft.subject.trim()),
+    draft.template.blocks.length > 0,
+    draft.settings.includeUnsubscribeLink,
+    draft.settings.includePhysicalAddress && Boolean(draft.settings.physicalAddress.trim()),
+    builderWarnings.length === 0,
+  ];
+  const readinessPercent = Math.round((readinessChecks.filter(Boolean).length / readinessChecks.length) * 100);
 
   if (loading) {
     return (
@@ -2587,15 +2596,15 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#f6f8fb]">
+    <div className="flex min-h-[100dvh] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,0.12),transparent_28%),radial-gradient(circle_at_94%_8%,rgba(59,130,246,0.10),transparent_25%),linear-gradient(180deg,#f8fafc_0%,#eef3f7_100%)]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+      <header className="sticky top-0 z-30 border-b border-white/80 bg-white/90 shadow-[0_10px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         {/* Row 1: back + name + status + actions */}
-        <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6">
+        <div className="flex min-h-[72px] flex-wrap items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => router.push("/oyama-email/templates")}
-            className="flex-none rounded-lg p-1.5 text-slate-700 hover:bg-slate-100"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-x-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
             title="Back to template library"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
@@ -2619,13 +2628,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             <button
               type="button"
               onClick={() => setEditingName(true)}
-              className="min-w-0 flex-1 truncate text-left text-xl font-semibold text-slate-950 hover:text-emerald-700"
+              className="min-w-0 flex-1 truncate text-left text-xl font-semibold tracking-tight text-slate-950 transition hover:text-emerald-700 sm:text-2xl"
               title="Click to rename"
             >
               {draft.name || "Untitled Email Template"}
             </button>
           )}
-          <span className="flex-none rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+          <span className="flex-none rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm">
             {status === "SENT" ? "Published" : "Draft"}
           </span>
           <span className="hidden flex-none text-xs text-slate-400 xl:block">
@@ -2636,21 +2645,21 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               type="button"
               onClick={() => void saveTemplate(false)}
               disabled={saving || autosaving}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save Draft"}
             </button>
             <button
               type="button"
               onClick={() => setTestEmailDialogOpen(true)}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 hover:shadow-md"
             >
               Send Test
             </button>
             {canPublish ? (
               <Link
                 href={publishHref}
-                className="inline-flex h-10 items-center rounded-lg border border-emerald-800 bg-emerald-800 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 sm:px-5"
+                className="inline-flex h-10 items-center rounded-xl border border-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-700 px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(5,150,105,0.22)] transition hover:-translate-y-0.5 hover:from-emerald-600 hover:to-teal-600 hover:shadow-[0_12px_26px_rgba(5,150,105,0.3)] sm:px-5"
               >
                 Next: Publish →
               </Link>
@@ -2668,13 +2677,13 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </div>
 
         {/* Row 2: Ribbon tabs + zoom + device toggle */}
-        <div className="flex min-h-12 flex-wrap items-end gap-2 overflow-x-auto border-t border-slate-100 px-3 sm:px-6">
-          <div className="mr-2 flex min-w-max items-end gap-4 sm:mr-4 sm:gap-8">
+        <div className="flex min-h-14 flex-wrap items-center gap-2 overflow-x-auto border-t border-slate-100/80 px-3 sm:px-6 lg:px-8">
+          <div className="mr-2 flex min-w-max items-center gap-1 rounded-xl bg-slate-100/80 p-1 sm:mr-4">
             <button
               type="button"
               onClick={() => setActiveTab("edit")}
-              className={["h-12 border-b-2 px-1 text-sm font-semibold transition-colors",
-                activeTab === "edit" ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-600 hover:text-slate-900"
+              className={["h-9 rounded-lg px-3 text-sm font-semibold transition-all",
+                activeTab === "edit" ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
               ].join(" ")}
             >
               Edit
@@ -2682,22 +2691,22 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             <button
               type="button"
               onClick={() => void handlePreviewOpen()}
-              className="h-12 border-b-2 border-transparent px-1 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              className="h-9 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-white/70 hover:text-slate-900"
             >
               {previewRefreshing ? "Loading..." : "Show Me How It Will Look to the Recipient"}
             </button>
             <button
               type="button"
               onClick={() => setPlainTextModalOpen(true)}
-              className="h-12 border-b-2 border-transparent px-1 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              className="h-9 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-white/70 hover:text-slate-900"
             >
               Plain Text
             </button>
             <button
               type="button"
               onClick={() => setActiveTab(activeTab === "mobilePreview" ? "edit" : "mobilePreview")}
-              className={["h-12 border-b-2 px-1 text-sm font-semibold transition-colors",
-                activeTab === "mobilePreview" ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-600 hover:text-slate-900"
+              className={["h-9 rounded-lg px-3 text-sm font-semibold transition-all",
+                activeTab === "mobilePreview" ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
               ].join(" ")}
             >
               Mobile
@@ -2746,14 +2755,27 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             </div>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-3 border-t border-slate-100/80 bg-gradient-to-r from-slate-50/90 via-white to-emerald-50/60 px-3 py-2 sm:px-6 lg:px-8">
+          <div className="flex min-w-[220px] flex-1 items-center gap-3">
+            <div className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-slate-200/80 sm:max-w-56">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500" style={{ width: `${readinessPercent}%` }} />
+            </div>
+            <span className="text-xs font-semibold text-slate-700">{readinessPercent}% ready</span>
+          </div>
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">{draft.template.blocks.length} block{draft.template.blocks.length === 1 ? "" : "s"}</span>
+          <span className={["rounded-full border px-2.5 py-1 text-[11px] font-semibold", builderWarnings.length ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"].join(" ")}>
+            {builderWarnings.length ? `${builderWarnings.length} item${builderWarnings.length === 1 ? "" : "s"} to review` : "Preflight clear"}
+          </span>
+          <span className="hidden text-[11px] font-medium text-slate-500 md:inline">Select a block to edit · drag to reorder · double-click for advanced controls</span>
+        </div>
         {error ? <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}
         {notice ? <div className="border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{notice}</div> : null}
       </header>
 
       {/* ── 3-col layout ─────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto bg-[radial-gradient(circle_at_top_left,_#e6f4ef_0%,_#f3f6fb_32%,_#f9fbff_100%)] p-3 lg:flex-row lg:gap-6 lg:overflow-hidden lg:p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3 lg:flex-row lg:gap-5 lg:overflow-hidden lg:p-5 xl:p-6">
         {/* LEFT PANEL */}
-        <aside className="order-1 flex max-h-[42dvh] w-full flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm lg:order-none lg:max-h-none lg:w-[320px]">
+        <aside className="order-1 flex max-h-[42dvh] w-full flex-none flex-col overflow-hidden rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[320px]">
           <div className="flex-1 overflow-y-auto px-5 py-5">
             {/* Add Content */}
             <div className="mb-4">
@@ -2775,7 +2797,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                         key={choice.type}
                         type="button"
                         onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)}
-                        className="flex min-h-[58px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
+                        className="group flex min-h-[64px] items-center gap-2.5 rounded-xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/70 px-3 py-2 text-left text-xs font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:from-emerald-50 hover:to-white hover:text-emerald-800 hover:shadow-md"
                       >
                         <BlockTypeIcon type={choice.type} />
                         {choice.label}
@@ -2940,14 +2962,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </aside>
 
         {/* CANVAS */}
-        <main className="order-2 flex min-h-[60dvh] flex-1 flex-col overflow-auto rounded-2xl border border-slate-200/90 bg-[linear-gradient(180deg,#f8fbff_0%,#f2f8f5_100%)] shadow-[0_20px_45px_rgba(15,23,42,0.08)] lg:order-none lg:min-h-0">
+        <main className="order-2 flex min-h-[60dvh] flex-1 flex-col overflow-auto rounded-[24px] border border-white/90 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.95),transparent_34%),linear-gradient(180deg,#edf3f6_0%,#e7eeec_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_55px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 lg:order-none lg:min-h-0">
           <div
             className="mx-auto my-4 w-full px-3 sm:my-8 sm:px-6 lg:my-10 lg:px-10"
             style={{ maxWidth: activeTab === "mobilePreview" ? 480 : canvasWidth + 160 }}
           >
             <div
               style={{ ...(scaledStyle || {}), width: `min(100%, ${canvasWidth}px)`, maxWidth: "100%", margin: "0 auto" }}
-              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_50px_rgba(15,23,42,0.12)]"
+              className="overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_30px_70px_rgba(15,23,42,0.16),0_0_0_1px_rgba(148,163,184,0.22)]"
             >
               {draft.template.blocks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-center">
@@ -3129,7 +3151,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="order-3 flex max-h-[46dvh] w-full flex-none flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_22px_45px_rgba(15,23,42,0.08)] backdrop-blur-sm lg:order-none lg:max-h-none lg:w-[352px]">
+        <aside className="order-3 flex max-h-[46dvh] w-full flex-none flex-col overflow-hidden rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[364px]">
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <p className="text-base font-semibold text-slate-950">Email Settings</p>
             {builderWarnings.length > 0 ? (
@@ -3989,6 +4011,54 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   );
 }
 
+function UrlEditorDialog({
+  title,
+  value,
+  error,
+  allowRemove = false,
+  onChange,
+  onCancel,
+  onApply,
+}: {
+  title: string;
+  value: string;
+  error: string;
+  allowRemove?: boolean;
+  onChange: (value: string) => void;
+  onCancel: () => void;
+  onApply: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" onMouseDown={onCancel}>
+      <div role="dialog" aria-modal="true" aria-labelledby="email-url-dialog-title" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+        <h3 id="email-url-dialog-title" className="text-base font-semibold text-slate-900">{title}</h3>
+        <p className="mt-1 text-xs text-slate-500">Use HTTPS, email, phone, a relative path, or a merge-field URL.</p>
+        <label className="mt-4 block text-xs font-semibold text-slate-700">
+          Destination
+          <input
+            autoFocus
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onApply();
+              if (event.key === "Escape") onCancel();
+            }}
+            placeholder="https://example.org or {{donationUrl}}"
+            className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+          />
+        </label>
+        {error ? <p role="alert" className="mt-2 text-xs font-medium text-red-700">{error}</p> : null}
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button type="button" onClick={onCancel} className="h-9 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={onApply} className="h-9 rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800">
+            {allowRemove && !value.trim() ? "Remove link" : "Apply link"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RichTextEditor({
   value,
   onChange,
@@ -4014,6 +4084,7 @@ function RichTextEditor({
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeQuery, setMergeQuery] = useState("");
   const [textColor, setTextColor] = useState(linkColor || "#0f5c3c");
+  const [urlDialog, setUrlDialog] = useState<{ kind: "link" | "button"; value: string; error: string } | null>(null);
   const minEditorHeight = Math.max(120, minHeight ?? 210);
 
   const extensions = useMemo(() => [
@@ -4148,34 +4219,36 @@ function RichTextEditor({
   const setLink = useCallback(() => {
     if (!editor) return;
     const previousHref = String(editor.getAttributes("link").href || "https://");
-    const href = window.prompt("Enter link URL", previousHref);
-    if (href === null) return;
-    const trimmed = href.trim();
+    setUrlDialog({ kind: "link", value: previousHref, error: "" });
+  }, [editor]);
+
+  const applyUrlDialog = useCallback(() => {
+    if (!editor || !urlDialog) return;
+    const trimmed = urlDialog.value.trim();
     if (!trimmed) {
-      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      if (urlDialog.kind === "link") editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      setUrlDialog(null);
       return;
     }
     if (!looksLikeSafeUrl(trimmed) && !trimmed.includes("{{")) {
-      window.alert("Use an https, mailto, tel, relative, or merge-field URL.");
+      setUrlDialog((current) => current ? { ...current, error: "Enter a safe HTTPS, email, phone, relative, or merge-field URL." } : current);
       return;
     }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run();
-  }, [editor]);
+    if (urlDialog.kind === "link") {
+      editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run();
+    } else {
+      const selection = editor.state.selection;
+      const selectedText = editor.state.doc.textBetween(selection.from, selection.to, " ").trim() || "Learn more";
+      editor.chain().focus().insertContent(
+        `<a href="${escapeInlineHtml(trimmed)}" style="display:inline-block;background:#0f5c3c;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;">${escapeInlineHtml(selectedText)}</a>`
+      ).run();
+    }
+    setUrlDialog(null);
+  }, [editor, urlDialog]);
 
   const insertButtonLink = useCallback(() => {
     if (!editor) return;
-    const href = window.prompt("Button URL", "https://");
-    if (!href) return;
-    const trimmedHref = href.trim();
-    if (!looksLikeSafeUrl(trimmedHref) && !trimmedHref.includes("{{")) {
-      window.alert("Use an https, mailto, tel, relative, or merge-field URL.");
-      return;
-    }
-    const selection = editor.state.selection;
-    const selectedText = editor.state.doc.textBetween(selection.from, selection.to, " ").trim() || "Learn more";
-    editor.chain().focus().insertContent(
-      `<a href="${escapeInlineHtml(trimmedHref)}" style="display:inline-block;background:#0f5c3c;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:700;">${escapeInlineHtml(selectedText)}</a>`
-    ).run();
+    setUrlDialog({ kind: "button", value: "https://", error: "" });
   }, [editor]);
 
   const slashCommands = useMemo(() => {
@@ -4325,6 +4398,18 @@ function RichTextEditor({
             )) : <p className="px-2 py-2 text-xs text-slate-500">No merge fields matched.</p>}
           </div>
         </div>
+      ) : null}
+
+      {urlDialog ? (
+        <UrlEditorDialog
+          title={urlDialog.kind === "button" ? "Insert button link" : "Edit link"}
+          value={urlDialog.value}
+          error={urlDialog.error}
+          allowRemove={urlDialog.kind === "link"}
+          onChange={(value) => setUrlDialog((current) => current ? { ...current, value, error: "" } : current)}
+          onCancel={() => setUrlDialog(null)}
+          onApply={applyUrlDialog}
+        />
       ) : null}
 
       <style jsx global>{`
@@ -4555,8 +4640,10 @@ function BlockInspector({
   className?: string;
 }) {
   const visualEditorRef = useRef<HTMLDivElement>(null);
+  const smartLinkSelectionRef = useRef<Range | null>(null);
   const [smartToolInstruction, setSmartToolInstruction] = useState("");
   const [selectedMergeToken, setSelectedMergeToken] = useState("");
+  const [smartLinkDialog, setSmartLinkDialog] = useState<{ value: string; error: string } | null>(null);
 
   const quickMergeTokens = useMemo(
     () => mergeFieldGroups.flatMap((group) => group.fields.map((field) => field.token)).slice(0, 120),
@@ -4578,10 +4665,33 @@ function BlockInspector({
   }, [commitVisualHtml]);
 
   const insertSmartLink = useCallback(() => {
-    const raw = window.prompt("Enter URL or merge token (example: https://..., {{donationUrl}})", "https://");
-    if (!raw) return;
+    const selection = window.getSelection();
+    const editor = visualEditorRef.current;
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    smartLinkSelectionRef.current = range && editor?.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
+    setSmartLinkDialog({ value: "https://", error: "" });
+  }, []);
+
+  const applySmartLink = useCallback(() => {
+    if (!smartLinkDialog) return;
+    const raw = smartLinkDialog.value.trim();
+    if (!raw) {
+      setSmartLinkDialog((current) => current ? { ...current, error: "Enter a destination URL." } : current);
+      return;
+    }
+    if (!looksLikeSafeUrl(raw) && !raw.includes("{{")) {
+      setSmartLinkDialog((current) => current ? { ...current, error: "Enter a safe HTTPS, email, phone, relative, or merge-field URL." } : current);
+      return;
+    }
+    const selection = window.getSelection();
+    if (selection && smartLinkSelectionRef.current) {
+      selection.removeAllRanges();
+      selection.addRange(smartLinkSelectionRef.current);
+    }
     runEditorCommand("createLink", normalizeSmartHref(raw));
-  }, [runEditorCommand]);
+    smartLinkSelectionRef.current = null;
+    setSmartLinkDialog(null);
+  }, [runEditorCommand, smartLinkDialog]);
 
   const insertSelectedMergeToken = useCallback(() => {
     const token = selectedMergeToken.trim();
@@ -5341,6 +5451,16 @@ function BlockInspector({
             <p className="mt-2 text-[11px] text-slate-500">Direct edits in this visual surface update the block HTML automatically.</p>
           </div>
         </>
+      ) : null}
+      {smartLinkDialog ? (
+        <UrlEditorDialog
+          title="Insert smart HTML link"
+          value={smartLinkDialog.value}
+          error={smartLinkDialog.error}
+          onChange={(value) => setSmartLinkDialog((current) => current ? { ...current, value, error: "" } : current)}
+          onCancel={() => setSmartLinkDialog(null)}
+          onApply={applySmartLink}
+        />
       ) : null}
     </div>
   );

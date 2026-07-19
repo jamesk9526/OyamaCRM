@@ -6,7 +6,7 @@
  * Renders 12 bars with hover tooltips and month labels.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getFiscalYearForDate, normalizeFiscalYearStart } from "@/app/lib/fiscal-year";
 
@@ -129,7 +129,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
   }, [dateBasis, year]);
 
   /** Point total = donations + grants (when includeGrants is on). */
-  const monthTotal = (d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0);
+  const monthTotal = useCallback((d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0), [includeGrants]);
 
   const points: TrendPoint[] = useMemo(() => {
     const monthSequence = Array.from({ length: 12 }, (_, i) => (
@@ -143,7 +143,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
       current: monthTotal(currentData.find((row) => row.month === month) ?? { month, amount: 0, grantAmount: 0 }),
       previous: monthTotal(previousData.find((row) => row.month === month) ?? { month, amount: 0, grantAmount: 0 }),
     }));
-  }, [currentData, previousData, includeGrants, dateBasis, fiscalYearStart]);
+  }, [currentData, previousData, dateBasis, fiscalYearStart, monthTotal]);
 
   const totalYTD = points.reduce((sum, p) => sum + p.current, 0);
   const maxValue = Math.max(
@@ -187,12 +187,12 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
   }
 
   return (
-    <div className="flex flex-col h-full min-h-[200px]">
+    <div className="flex h-full min-h-[200px] flex-col">
       {/* Sub-header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between rounded-xl border border-slate-100 bg-gradient-to-r from-emerald-50/70 to-white px-3 py-2.5">
         <div>
-          <span className="text-xs text-gray-500 uppercase tracking-wider">{dateBasis === "fiscal" ? "Fiscal YTD Total" : "YTD Total"}</span>
-          <p className="text-2xl font-bold text-gray-900 mt-0.5">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{dateBasis === "fiscal" ? "Fiscal YTD Total" : "YTD Total"}</span>
+          <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
             {loading ? "—" : formatCurrencyExact(totalYTD)}
           </p>
         </div>
@@ -223,9 +223,9 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
           <p className="text-xs text-slate-500 mt-1">Record donations to populate the trend graph.</p>
         </div>
       ) : (
-        <div className="relative flex-1 rounded-lg border border-slate-100 bg-white/70 p-2">
+        <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
           {hovered ? (
-            <div className="absolute left-3 top-2 z-10 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] shadow-sm">
+            <div className="absolute left-3 top-2 z-10 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-[11px] shadow-[0_12px_28px_rgba(15,23,42,0.13)] backdrop-blur-md">
               <p className="font-semibold text-slate-800">{hovered.label}</p>
               <p className="text-emerald-700">This year: {formatCurrencyExact(hovered.current)}</p>
               <p className="text-slate-500">Prior year: {formatCurrencyExact(hovered.previous)}</p>
@@ -233,12 +233,21 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
           ) : null}
 
           <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-full w-full">
+            <defs>
+              <linearGradient id="giving-trend-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
+                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+              </linearGradient>
+              <filter id="giving-trend-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#10b981" floodOpacity="0.2" />
+              </filter>
+            </defs>
             {/* Grid + Y labels */}
             {yTicks.map((tick) => {
               const y = yFor(tick);
               return (
                 <g key={tick}>
-                  <line x1={chart.padLeft} y1={y} x2={chart.width - chart.padRight} y2={y} stroke="#e5e7eb" strokeWidth="1" />
+                  <line x1={chart.padLeft} y1={y} x2={chart.width - chart.padRight} y2={y} stroke="#e2e8f0" strokeWidth="1" strokeDasharray={tick === 0 ? undefined : "3 5"} />
                   <text x={chart.padLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#94a3b8">
                     {fmtCompactCurrency(tick)}
                   </text>
@@ -257,7 +266,8 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
             <path d={previousPath} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />
 
             {/* This year line */}
-            <path d={currentPath} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={`${currentPath} L${xFor(11)} ${chart.height - chart.padBottom} L${xFor(0)} ${chart.height - chart.padBottom} Z`} fill="url(#giving-trend-area)" />
+            <path d={currentPath} fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" filter="url(#giving-trend-glow)" />
 
             {/* Hover guide + points */}
             {points.map((p, i) => {
@@ -274,7 +284,8 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
                   {isActive ? (
                     <line x1={cx} y1={chart.padTop} x2={cx} y2={chart.height - chart.padBottom} stroke="#d1d5db" strokeDasharray="3 3" />
                   ) : null}
-                  <circle cx={cx} cy={cy} r={isActive ? 4.5 : 3} fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
+                  <rect x={cx - plotW / 24} y={chart.padTop} width={plotW / 12} height={plotH} fill="transparent" />
+                  <circle cx={cx} cy={cy} r={isActive ? 5 : 3.5} fill="#059669" stroke="#ffffff" strokeWidth="2" />
                 </g>
               );
             })}

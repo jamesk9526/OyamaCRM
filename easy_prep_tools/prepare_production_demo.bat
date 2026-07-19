@@ -38,7 +38,6 @@ echo [3/6] Copying required root files...
 call :copy_file ".env.example"
 call :copy_file "README.md"
 call :copy_file "AGENTS.md"
-call :copy_file "CLAUDE.md"
 call :copy_file "package.json"
 call :copy_file "pnpm-lock.yaml"
 call :copy_file "next.config.ts"

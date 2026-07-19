@@ -13,6 +13,7 @@ import LetterPage from "@/app/components/letters/LetterPage";
 
 interface LetterPrintRouteProps {
   templateId: string;
+  constituentId?: string;
 }
 
 interface PrintableLetterTemplate {
@@ -32,7 +33,7 @@ interface PrintableLetterTemplate {
   unsupportedFields?: string[];
 }
 
-export default function LetterPrintRoute({ templateId }: LetterPrintRouteProps) {
+export default function LetterPrintRoute({ templateId, constituentId }: LetterPrintRouteProps) {
   const [template, setTemplate] = useState<PrintableLetterTemplate | null>(null);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,7 @@ export default function LetterPrintRoute({ templateId }: LetterPrintRouteProps) 
     setError(null);
     try {
       const [templateResult, brandingResult] = await Promise.all([
-        apiFetch<PrintableLetterTemplate>(`/api/letters/templates/${encodeURIComponent(templateId)}/print-preview`),
+        apiFetch<PrintableLetterTemplate>(`/api/letters/templates/${encodeURIComponent(templateId)}/print-preview${constituentId ? `?constituentId=${encodeURIComponent(constituentId)}` : ""}`),
         apiFetch<BrandingSettings>("/api/settings/branding"),
       ]);
       setTemplate(templateResult);
@@ -53,7 +54,7 @@ export default function LetterPrintRoute({ templateId }: LetterPrintRouteProps) 
     } finally {
       setLoading(false);
     }
-  }, [templateId]);
+  }, [constituentId, templateId]);
 
   useEffect(() => {
     void load();

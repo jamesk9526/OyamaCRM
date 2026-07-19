@@ -1202,6 +1202,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [inlineSuggestEnabled, setInlineSuggestEnabled] = useState(false);
   const [inlineSuggestion, setInlineSuggestion] = useState("");
   const [inlineSuggestionLoading, setInlineSuggestionLoading] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
   const [inlineSuggestionError, setInlineSuggestionError] = useState<string | null>(null);
   const [aiPreferenceLoaded, setAiPreferenceLoaded] = useState(false);
 
@@ -1437,9 +1439,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   async function openPrintRoute() {
     const activeTemplateId = templateId || await save();
     if (!activeTemplateId) return;
-    const opened = window.open(`/oyama-letters/templates/${encodeURIComponent(activeTemplateId)}/print`, "_blank", "noopener,noreferrer");
+    const printParams = new URLSearchParams();
+    if (testConstituentId) printParams.set("constituentId", testConstituentId);
+    const printHref = `/oyama-letters/templates/${encodeURIComponent(activeTemplateId)}/print${printParams.size ? `?${printParams.toString()}` : ""}`;
+    const opened = window.open(printHref, "_blank", "noopener,noreferrer");
     if (!opened) {
-      window.location.assign(`/oyama-letters/templates/${encodeURIComponent(activeTemplateId)}/print`);
+      window.location.assign(printHref);
     }
   }
 
@@ -1940,14 +1945,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setNotice(`${selected.name} selected. It will render once at the end of the generated letter.`);
   }
 
-  function findText() {
+  function findText(queryInput = findQuery) {
     const editor = editorRef.current;
     if (!editor) {
       setNotice("Editor is not ready yet.");
       return;
     }
 
-    const query = window.prompt("Find text");
+    const query = queryInput.trim();
     if (!query) return;
 
     const plain = editor.textContent ?? "";
@@ -2025,6 +2030,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     if (key === "b") {
       event.preventDefault();
       formatInline("strong");
+      return;
+    }
+    if (key === "f") {
+      event.preventDefault();
+      setActiveRibbon("Review");
+      setFindOpen(true);
       return;
     }
     if (key === "i") {
@@ -2267,7 +2278,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   if (loading) return <LoadingPage label="Loading canvas builder..." />;
 
   return (
-    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[#edf1f5]">
+    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,0.12),transparent_26%),radial-gradient(circle_at_96%_8%,rgba(59,130,246,0.09),transparent_24%),linear-gradient(180deg,#f8fafc_0%,#eaf0f3_100%)]">
       <input
         ref={imageInputRef}
         type="file"
@@ -2275,17 +2286,21 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         className="hidden"
         onChange={handleImageFileSelected}
       />
-      <div className="sticky top-[89px] z-30 shrink-0 shadow-sm lg:top-0 lg:z-40">
-      <div className="border-b border-slate-200 bg-white px-3 sm:px-4 xl:px-7">
-        <div className="flex min-h-12 flex-wrap items-end gap-3 py-1 sm:gap-7">
-          {(["File", "Insert", "Format", "Layout", "Review", "View", "AI"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); if (tab === "AI") setAiComposerOpen(true); }} className={["h-10 border-b-2 px-1 text-sm font-medium", activeRibbon === tab ? "border-emerald-700 text-slate-950" : "border-transparent text-slate-700"].join(" ")}>{tab}</button>)}
+      <div className="sticky top-[89px] z-30 shrink-0 shadow-[0_12px_32px_rgba(15,23,42,0.08)] lg:top-0 lg:z-40">
+      <div className="border-b border-white/80 bg-white/90 px-3 backdrop-blur-xl sm:px-4 xl:px-7">
+        <div className="flex min-h-14 flex-wrap items-center gap-3 py-2">
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1">
+            {(["File", "Insert", "Format", "Layout", "Review", "View", "AI"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); if (tab === "AI") setAiComposerOpen(true); }} className={["h-9 rounded-lg px-3 text-sm font-semibold transition-all", activeRibbon === tab ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"].join(" ")}>{tab}</button>)}
+          </div>
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 pb-2 sm:w-auto sm:gap-3">
             <span className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
             <span className={[
-              "text-xs font-semibold",
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
               saveFailure ? "text-red-700" : dirty ? "text-amber-700" : "text-emerald-700",
+              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50",
             ].join(" ")}
             >
+              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-amber-500" : "bg-emerald-500"].join(" ")} aria-hidden="true" />
               {saving ? "Saving..." : saveFailure ? "Save failed - recovery ready" : dirty ? "Unsaved changes" : "All changes saved"}
             </span>
             {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-emerald-700 2xl:inline">{notice}</span> : null}
@@ -2303,7 +2318,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
         </div>
       </div>
-      <div className="flex min-h-[88px] items-stretch gap-3 overflow-x-auto border-b border-slate-200 bg-white px-3 py-1 sm:min-h-[94px] sm:px-4 xl:px-7">
+      <div className="flex min-h-[88px] items-stretch gap-3 overflow-x-auto border-b border-slate-200/80 bg-gradient-to-r from-white via-slate-50/70 to-emerald-50/40 px-3 py-2 sm:min-h-[94px] sm:px-4 xl:px-7">
         {activeRibbon === "File" ? (
           <>
             <RibbonButton onClick={() => void save()}>Save Draft</RibbonButton>
@@ -2390,11 +2405,37 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </RibbonGroup>
         ) : null}
         {activeRibbon === "Review" ? (
+          <>
           <RibbonGroup label="Tools">
             <RibbonButton onClick={runSpellCheck}>Spelling</RibbonButton>
-            <RibbonButton onClick={findText}>Find</RibbonButton>
+            <RibbonButton onClick={() => setFindOpen((open) => !open)}>Find</RibbonButton>
             <RibbonButton onClick={() => setInspectorTab("Merge Fields")}>Merge Fields</RibbonButton>
           </RibbonGroup>
+          {findOpen ? (
+            <form
+              className="my-auto flex shrink-0 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                findText();
+              }}
+            >
+              <label className="sr-only" htmlFor="letter-find-text">Find in letter</label>
+              <input
+                id="letter-find-text"
+                autoFocus
+                value={findQuery}
+                onChange={(event) => setFindQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setFindOpen(false);
+                }}
+                placeholder="Find in letter…"
+                className="h-9 w-56 rounded-md border border-slate-300 bg-white px-3 text-xs outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+              <button type="submit" disabled={!findQuery.trim()} className="h-9 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Find</button>
+              <button type="button" onClick={() => setFindOpen(false)} className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+            </form>
+          ) : null}
+          </>
         ) : null}
         {activeRibbon === "View" ? (
           <RibbonGroup label="Tools">
@@ -2426,21 +2467,32 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </>
         ) : null}
       </div>
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-200/70 bg-white/90 px-3 py-2 sm:px-5 xl:px-7">
+        <div className="flex min-w-[220px] flex-1 items-center gap-3">
+          <div className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-slate-200/80 sm:max-w-56">
+            <div className={["h-full rounded-full transition-all duration-500", localChecklistReady ? "bg-gradient-to-r from-emerald-500 to-teal-500" : "bg-gradient-to-r from-amber-400 to-orange-500"].join(" ")} style={{ width: `${Math.round((localChecklist.filter((item) => item.ok).length / localChecklist.length) * 100)}%` }} />
+          </div>
+          <span className="text-xs font-semibold text-slate-700">{localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`}</span>
+        </div>
+        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">{wordCount} words</span>
+        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">{intendedPageCount} {intendedPageCount === 1 ? "page" : "pages"}</span>
+        <span className="hidden text-[11px] font-medium text-slate-500 md:inline">Click the page to write · use Insert for fields and blocks · Preview before publish</span>
+      </div>
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_356px]">
-        <aside className="order-1 max-h-[38dvh] min-h-0 overflow-y-auto border-b border-slate-200 bg-white p-3 lg:order-none lg:max-h-none lg:border-b-0 lg:border-r lg:p-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-3 lg:grid-cols-[288px_minmax(0,1fr)_364px] lg:gap-5 lg:overflow-hidden lg:p-5 xl:p-6">
+        <aside className="order-1 max-h-[38dvh] min-h-0 overflow-y-auto rounded-[22px] border border-white/90 bg-white/90 p-4 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
           <div className="space-y-5">
             {/* Branding group */}
             <div>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Branding</p>
               <div className="space-y-2">
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm">
                   <p className="text-sm font-semibold text-slate-900">Global Header + Footer</p>
                   <p className="mt-1 text-xs text-slate-600">Letters use the single communication header and footer from Branding Defaults.</p>
                   <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
                 </div>
-                <details open className="rounded-md border border-slate-200 bg-white p-3">
+                <details open className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                   <summary className="cursor-pointer text-sm font-semibold">Signature Blocks</summary>
                   <div className="mt-3 space-y-2">
                     {signatures.length === 0 ? (
@@ -2460,7 +2512,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <div>
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Blocks & Snippets</p>
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Saved Sections</p>
-              <div className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="mb-3 grid grid-cols-4 gap-1" aria-label="Saved section justification settings">
                   {(["left", "center", "right", "justify"] as const).map((align) => (
                     <button
@@ -2487,7 +2539,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Merge Fields</p>
                 <div className="space-y-2">
                   {mergeSections.map((section) => (
-                    <details key={section.key} open={section.key === "donor" || section.key === "constituent"} className="rounded-md border border-slate-200 bg-white p-3">
+                    <details key={section.key} open={section.key === "donor" || section.key === "constituent"} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm open:border-emerald-200">
                       <summary className="cursor-pointer text-sm font-semibold">{section.label}</summary>
                       <div className="mt-3 space-y-2">
                         {section.fields.map((field) => <button key={field} type="button" onClick={() => insertToken(field)} className="block w-full rounded-md border border-slate-200 px-2 py-1.5 text-left font-mono text-[11px] hover:bg-slate-50">{field}</button>)}
@@ -2499,7 +2551,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             )}
           </div>
         </aside>
-        <section className="order-2 min-w-0 overflow-auto bg-[#edf1f5] p-2 sm:p-5 lg:order-none">
+        <section className="order-2 min-w-0 overflow-auto rounded-[24px] border border-white/90 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.95),transparent_34%),linear-gradient(180deg,#edf3f6_0%,#e4ece9_100%)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_55px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 sm:p-5 lg:order-none">
           {showMarginGuides ? <EditorRuler pageWidth={pageMetrics.width} leftGutter={30} /> : null}
           <div className="mx-auto flex max-w-full gap-2" style={{ width: editorFrameWidth }}>
             {showMarginGuides ? <EditorVerticalRuler pageHeight={pageMetrics.height} /> : <div className="w-7 shrink-0" />}
@@ -2556,7 +2608,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               />
             </div>
           </div>
-          <div className="mx-auto mt-3 flex h-9 max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm" style={{ width: editorFrameWidth }}>
+          <div className="mx-auto mt-4 flex min-h-10 max-w-full flex-wrap items-center gap-2 rounded-xl border border-white bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur" style={{ width: editorFrameWidth }}>
             <span className="font-semibold text-slate-700">Canvas preview</span>
             <span className="text-slate-300 select-none">·</span>
             <span>{pageSizeShort}</span>
@@ -2576,9 +2628,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </div>
           ) : null}
         </section>
-        <aside className="order-3 max-h-[46dvh] min-h-0 overflow-y-auto border-t border-slate-200 bg-[#fbfcfd] xl:order-none xl:max-h-none xl:border-l xl:border-t-0">
-          <div className="sticky top-0 z-10 flex gap-3 overflow-x-auto border-b border-slate-200 bg-white px-3 pt-2 sm:gap-5 sm:px-4">
-            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-10 border-b-2 text-[13px] font-semibold", inspectorTab === tab ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600"].join(" ")}>{tab}</button>)}
+        <aside className="order-3 max-h-[46dvh] min-h-0 overflow-y-auto rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl xl:order-none xl:max-h-none">
+          <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 p-2 backdrop-blur">
+            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-9 rounded-lg px-3 text-[12px] font-semibold transition-all", inspectorTab === tab ? "bg-emerald-50 text-emerald-800 shadow-sm ring-1 ring-emerald-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
           </div>
           <div className="space-y-4 p-4">
             {inspectorTab === "Document" ? (

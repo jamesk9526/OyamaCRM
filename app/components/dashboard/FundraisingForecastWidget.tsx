@@ -48,28 +48,28 @@ export default function FundraisingForecastWidget({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white px-3 py-2.5 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Projected EOY</p>
           <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(projectedWithMomentum)}</p>
           <p className="text-[11px] text-slate-500">{monthsRemaining} month{monthsRemaining === 1 ? "" : "s"} remaining</p>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white px-3 py-2.5 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Monthly Pace</p>
           <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(avgPerMonth)}</p>
           <p className="text-[11px] text-slate-500">Current run-rate</p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 px-3 py-2.5">
+      <div className="rounded-xl border border-slate-200/80 bg-white px-3 py-3 shadow-sm">
         <div className="mb-1.5 flex items-center justify-between text-xs text-slate-600">
           <span>Goal projection</span>
           <span className={gapToGoal > 0 ? "font-semibold text-amber-700" : "font-semibold text-emerald-700"}>
             {projectionPct}% of goal
           </span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
           <div
-            className={`h-full ${gapToGoal > 0 ? "bg-amber-500" : "bg-emerald-500"} transition-all duration-500`}
+            className={`h-full rounded-full ${gapToGoal > 0 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-gradient-to-r from-emerald-500 to-teal-500"} transition-all duration-700`}
             style={{ width: `${Math.max(8, Math.min(clampedPct, 100))}%` }}
           />
         </div>

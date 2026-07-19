@@ -220,7 +220,7 @@ describe("letters merge aliases API", () => {
     expect(template.status).toBe(201);
 
     const preview = await request(app)
-      .get(`/api/letters/templates/${template.body.id}/print-preview`)
+      .get(`/api/letters/templates/${template.body.id}/print-preview?constituentId=${constituent.body.id}`)
       .set(auth());
 
     expect(preview.status).toBe(200);

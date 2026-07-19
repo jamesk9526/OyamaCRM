@@ -35,17 +35,22 @@ export default function DonorRetention({ retained, total, rate, loading }: Donor
           ) : (
             <div className="relative">
               <svg width="160" height="160" viewBox="0 0 160 160" className="-rotate-90">
+                <defs>
+                  <linearGradient id="retention-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#059669" /><stop offset="100%" stopColor="#2dd4bf" /></linearGradient>
+                  <filter id="retention-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#059669" floodOpacity="0.18" /></filter>
+                </defs>
                 <circle cx="80" cy="80" r={radius} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
                 <circle
                   cx="80"
                   cy="80"
                   r={radius}
                   fill="none"
-                  stroke="#16a34a"
+                  stroke="url(#retention-ring)"
                   strokeWidth={strokeWidth}
                   strokeLinecap="round"
                   strokeDasharray={`${retainedArc} ${ringLength}`}
                   strokeDashoffset="0"
+                  filter="url(#retention-shadow)"
                 />
                 <circle
                   cx="80"
@@ -90,8 +95,8 @@ export default function DonorRetention({ retained, total, rate, loading }: Donor
                 </div>
               </div>
 
-              <div className="h-2 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
-                <div className="h-full bg-emerald-600" style={{ width: `${retainedPct}%` }} />
+              <div className="h-2.5 overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-inner">
+                <div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-[width] duration-700" style={{ width: `${retainedPct}%` }} />
               </div>
             </>
           )}

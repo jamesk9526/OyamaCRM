@@ -66,6 +66,7 @@ export default function DonationsPage() {
   const searchParams = useSearchParams();
   const campaignIdFilter = searchParams.get("campaignId") ?? "";
   const campaignNameFilter = searchParams.get("campaignName") ?? "";
+  const acknowledgmentFilter = searchParams.get("acknowledgment") === "pending" ? "pending" : "";
   const recordGiftOpen = searchParams.get("recordGift") === "1";
   const recordGiftSource = searchParams.get("source") ?? "";
   const recordGiftGrantTitle = searchParams.get("grantTitle") ?? "";
@@ -109,6 +110,7 @@ export default function DonationsPage() {
       if (campaignIdFilter) filterParams.set("campaignId", campaignIdFilter);
       if (search) filterParams.set("search", search);
       if (status) filterParams.set("status", status);
+      if (acknowledgmentFilter) filterParams.set("acknowledgment", acknowledgmentFilter);
       // "Include all years" explicitly disables date-range filtering.
       if (!allYears) {
         const usingDefaultCalendarRange = from === defaultRange.from && to === defaultRange.to;
@@ -146,7 +148,7 @@ export default function DonationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setStats, setTotal, status, to]);
+  }, [acknowledgmentFilter, allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setStats, setTotal, status, to]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -164,7 +166,7 @@ export default function DonationsPage() {
   // Filters always jump back to page 1 to avoid empty pages after narrowing.
   useEffect(() => {
     setPage(1);
-  }, [search, status, from, to, allYears, campaignIdFilter]);
+  }, [search, status, from, to, allYears, campaignIdFilter, acknowledgmentFilter]);
 
   useEffect(() => {
     setSelectedIds((current) => current.filter((id) => donations.some((row) => row.id === id)));
@@ -192,7 +194,16 @@ export default function DonationsPage() {
     [donations],
   );
   const filteredCountLabel = `${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} of ${total.toLocaleString()}`;
-  const hasActiveFilters = Boolean(search || status || allYears || from !== defaultRange.from || to !== defaultRange.to || campaignIdFilter);
+  const hasActiveFilters = Boolean(search || status || allYears || from !== defaultRange.from || to !== defaultRange.to || campaignIdFilter || acknowledgmentFilter);
+
+  function clearFilters() {
+    setSearch("");
+    setStatus("");
+    setAllYears(false);
+    setFrom(defaultRange.from);
+    setTo(defaultRange.to);
+    router.replace("/donations");
+  }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
@@ -387,11 +398,7 @@ export default function DonationsPage() {
               void load();
             },
             "clear-donation-filters": () => {
-              setSearch("");
-              setStatus("");
-              setAllYears(false);
-              setFrom(defaultRange.from);
-              setTo(defaultRange.to);
+              clearFilters();
             },
             "receipt-status-overview": () => {
               setStatus("COMPLETED");
@@ -416,6 +423,11 @@ export default function DonationsPage() {
                   Campaign scoped
                 </span>
               ) : null}
+              {acknowledgmentFilter ? (
+                <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200">
+                  Pending acknowledgments
+                </span>
+              ) : null}
             </div>
             <div>
               <h1 className="text-[30px] font-semibold tracking-tight text-slate-950 sm:text-[34px]">Donations</h1>
@@ -438,7 +450,7 @@ export default function DonationsPage() {
           </div>
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
             <CompactSummaryTile label="Records In View" value={loading ? "—" : total.toLocaleString()} detail={hasActiveFilters ? "Filtered ledger scope" : "Current working set"} />
-            <CompactSummaryTile label="Needs Receipt" value={loading ? "—" : awaitingAcknowledgmentCount.toLocaleString()} detail="Acknowledgment still pending" tone="amber" />
+            <CompactSummaryTile label="Needs Receipt" value={loading ? "—" : (acknowledgmentFilter ? total : awaitingAcknowledgmentCount).toLocaleString()} detail={acknowledgmentFilter ? "All matching pending gifts" : "Pending on this page"} tone="amber" />
             <CompactSummaryTile label="Selected" value={selectedIds.length.toLocaleString()} detail={selectedIds.length > 0 ? "Ready for batch handoff" : "No rows selected"} tone="blue" />
           </div>
         </div>
@@ -454,6 +466,15 @@ export default function DonationsPage() {
           </Link>
         </div>
       )}
+
+      {acknowledgmentFilter ? (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950">
+          <p><span className="font-semibold">Acknowledgment queue:</span> showing completed gifts that still need a receipt or thank-you.</p>
+          <button type="button" onClick={clearFilters} className="shrink-0 text-xs font-semibold text-amber-800 hover:text-amber-950">
+            Clear queue filter
+          </button>
+        </div>
+      ) : null}
 
       {apiDown && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
@@ -481,7 +502,7 @@ export default function DonationsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <CRMStatusBadge tone="green">Stewardship loop ready</CRMStatusBadge>
-            <span className="text-xs text-slate-500">{awaitingAcknowledgmentCount.toLocaleString()} gifts still need receipt follow-up</span>
+            <span className="text-xs text-slate-500">{(acknowledgmentFilter ? total : awaitingAcknowledgmentCount).toLocaleString()} {acknowledgmentFilter ? "matching gifts" : "gifts on this page"} still need receipt follow-up</span>
           </div>
         </div>
       </section>
@@ -500,13 +521,7 @@ export default function DonationsPage() {
               {hasActiveFilters ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setStatus("");
-                    setAllYears(false);
-                    setFrom(defaultRange.from);
-                    setTo(defaultRange.to);
-                  }}
+                  onClick={clearFilters}
                   className="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Clear Filters

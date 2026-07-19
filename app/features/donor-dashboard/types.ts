@@ -102,6 +102,7 @@ export interface DashboardData {
   period: DashboardDefaultPeriod;
   appearance: DashboardAppearanceSettings;
   recentDonations: DonationPreview[];
+  pendingAcknowledgmentCount: number;
   trendPoints: TrendPoint[];
   trendTotal: number;
   trendGiftCount: number;

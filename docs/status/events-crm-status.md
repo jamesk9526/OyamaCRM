@@ -123,7 +123,7 @@ Events CRM is now being shaped around a FundEasy / Attendance-style nonprofit fu
 | Donor-safe follow-up export | Partially Working | Event-scoped follow-up export endpoint supports JSON/CSV queue outputs for post-event workflows. |
 | Table Host Manager | Partially Working | Host coverage workspace is available, but host portal links, permissions, guest-list persistence, staff resend controls, and audit coverage are still incomplete. |
 | Event Page Builder | Working | Public page composition, publish readiness, payment policy, deployment history, and registration are wired. |
-| Emails, Donations/Pledges, Follow-Up | Partially Working / Not Implemented | These are visible with status labels in the command center, but their incomplete state is documented in `docs/STATUS.md`. |
+| Emails, Donations/Pledges, Follow-Up | Partially Working / Not Implemented | These are visible with status labels in the command center; current readiness is documented in `docs/status/features.md` and `docs/status/production-readiness-checklist.md`. |
 | In-development warning popups | Working | Partially implemented Events tools now show popup + banner warnings so unfinished behavior is visible to staff and reviewers. |
 
 ## 2026-05-10 Production Readiness Overrides

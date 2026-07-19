@@ -20,6 +20,7 @@ import type {
 interface DonationListResponse {
   items?: DonationPreview[];
   donations?: DonationPreview[];
+  total?: number;
 }
 
 interface TrendResponse {
@@ -65,9 +66,10 @@ export async function loadDonorDashboardData(input: {
   summary: DonorDashboardSummary | null;
   retention: RetentionData | null;
 }): Promise<DashboardData> {
-  const [appearanceResult, donationsResult, trendResult, designationResult, campaignsResult] = await Promise.allSettled([
+  const [appearanceResult, donationsResult, pendingAcknowledgmentsResult, trendResult, designationResult, campaignsResult] = await Promise.allSettled([
     apiFetch<Partial<DashboardAppearanceSettings>>("/api/settings/dashboard-appearance"),
     apiFetch<DonationListResponse | DonationPreview[]>("/api/donations?limit=20&status=COMPLETED"),
+    apiFetch<DonationListResponse>("/api/donations?limit=1&status=COMPLETED&acknowledgment=pending"),
     apiFetch<TrendResponse>(`/api/reports/giving-trend?dateBasis=${encodeURIComponent(input.reportingYearMode)}`),
     apiFetch<DesignationResponse>(`/api/reports/designations-summary?dateBasis=${encodeURIComponent(input.reportingYearMode)}`),
     apiFetch<CampaignImpact[] | { campaigns?: CampaignImpact[]; items?: CampaignImpact[] }>("/api/campaigns?active=true&limit=6"),
@@ -84,6 +86,9 @@ export async function loadDonorDashboardData(input: {
     period: appearance.defaultPeriod,
     appearance,
     recentDonations: donationsResult.status === "fulfilled" ? normalizeDonationList(donationsResult.value) : [],
+    pendingAcknowledgmentCount: pendingAcknowledgmentsResult.status === "fulfilled"
+      ? Math.max(0, Number(pendingAcknowledgmentsResult.value.total) || 0)
+      : 0,
     trendPoints: normalizeTrendPoints(trend?.points),
     trendTotal: toDashboardNumber(trend?.total),
     trendGiftCount: trend?.giftCount ?? 0,
@@ -95,6 +100,7 @@ export async function loadDonorDashboardData(input: {
     errors: [
       rejectedMessage("Dashboard appearance", appearanceResult),
       rejectedMessage("Recent donor movement", donationsResult),
+      rejectedMessage("Pending acknowledgments", pendingAcknowledgmentsResult),
       rejectedMessage("Giving trend", trendResult),
       rejectedMessage("Giving by designation", designationResult),
       rejectedMessage("Campaign impact", campaignsResult),

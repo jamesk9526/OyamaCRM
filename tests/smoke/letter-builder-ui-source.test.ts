@@ -32,6 +32,9 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Workflow Policy");
     expect(workspace).toContain("Blocks & Snippets");
     expect(workspace).toContain("Saved Sections");
+    expect(workspace).toContain("Ready for server preflight");
+    expect(workspace).toContain("Click the page to write");
+    expect(workspace).toContain("localChecklist.filter((item) => item.ok)");
   });
 
   it("keeps primary builder and publishing actions in the new workspace shell", () => {
@@ -76,6 +79,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Insert a PNG, JPG, or WEBP image up to 5 MB");
     expect(workspace).not.toContain('window.prompt("Rows"');
     expect(workspace).not.toContain('window.prompt("Columns"');
+    expect(workspace).not.toContain("window.prompt(");
+    expect(workspace).toContain('id="letter-find-text"');
     expect(workspace).not.toContain("<WorkspaceRibbon");
     expect(workspace).not.toContain("RibbonTab");
   });

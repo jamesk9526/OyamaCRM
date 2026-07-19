@@ -204,6 +204,7 @@ type DonationFilterQuery = {
   search?: string;
   scope?: string;
   dateBasis?: string;
+  acknowledgment?: string;
 };
 
 /**
@@ -361,6 +362,7 @@ async function buildDonationWhere(
   const keyword = query.search?.trim();
   const start = parseDateStart(query.from);
   const end = parseDateEnd(query.to);
+  const acknowledgment = query.acknowledgment?.trim().toLowerCase();
 
   let dateFilter: Prisma.DateTimeFilter | undefined;
   if (start || end) {
@@ -387,6 +389,8 @@ async function buildDonationWhere(
       ...(query.campaignId ? [{ campaignId: query.campaignId }] : []),
       ...(query.designationId ? [{ designationId: query.designationId }] : []),
       ...(query.status ? [{ status: query.status as DonationStatus }] : []),
+      ...(acknowledgment === "pending" ? [{ acknowledgmentSentAt: null }] : []),
+      ...(acknowledgment === "sent" ? [{ acknowledgmentSentAt: { not: null } }] : []),
       ...(dateFilter ? [{ date: dateFilter }] : []),
       ...(keyword
         ? [
@@ -424,6 +428,7 @@ router.get("/", async (req, res) => {
     to,
     search,
     scope,
+    acknowledgment,
     page = "1",
     limit = "50",
   } = req.query as Record<string, string>;
@@ -443,6 +448,7 @@ router.get("/", async (req, res) => {
     to,
     search,
     scope,
+    acknowledgment,
     dateBasis: req.query.dateBasis as string | undefined,
   });
 
@@ -479,7 +485,7 @@ router.get("/stats", async (req, res) => {
     return;
   }
 
-  const { constituentId, campaignId, designationId, status, from, to, search, scope, dateBasis } = req.query as Record<string, string>;
+  const { constituentId, campaignId, designationId, status, from, to, search, scope, dateBasis, acknowledgment } = req.query as Record<string, string>;
   const where = await buildDonationWhere(organizationId, {
     constituentId,
     campaignId,
@@ -490,6 +496,7 @@ router.get("/stats", async (req, res) => {
     search,
     scope,
     dateBasis,
+    acknowledgment,
   });
 
   const [raisedSum, totalGifts, completed, recurring] = await Promise.all([

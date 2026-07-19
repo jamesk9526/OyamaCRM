@@ -1,9 +1,13 @@
 # OyamaCRM Master Plan and Reality Audit
 
-Last updated: 2026-05-31
+Last updated: 2026-07-19
 Canonical owner: Platform architecture and delivery planning
 
 This is the canonical project master plan.
+
+## Current-state note
+
+This document provides planning and architectural context. For current implementation and release claims, use `docs/status/features.md` and `docs/status/production-readiness-checklist.md`; dated audit reports are evidence for their specific run dates, not evergreen certification. The July 19 documentation audit confirmed the canonical Email and Letters workspaces are `/oyama-email` and `/oyama-letters`, with legacy routes retained as redirects.
 
 ## Project Vision
 

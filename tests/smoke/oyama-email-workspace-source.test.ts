@@ -79,6 +79,9 @@ describe("OyamaEmail workspace source contract", () => {
     expect(builder).toContain("Show Me How It Will Look to the Recipient");
     expect(builder).toContain("Recipient Email Preview");
     expect(builder).toContain("Open Advanced Editor");
+    expect(builder).toContain("readinessPercent");
+    expect(builder).toContain("Preflight clear");
+    expect(builder).toContain("Select a block to edit");
     expect(builder).toContain("list-style-type: disc");
     expect(builder).toContain("list-style-type: decimal");
     expect(builder).toContain("display: list-item");
@@ -86,6 +89,9 @@ describe("OyamaEmail workspace source contract", () => {
     expect(builder).toContain("imageLinkUrl");
     expect(builder).toContain("Upload Image");
     expect(builder).toContain("Full Width");
+    expect(builder).toContain("function UrlEditorDialog");
+    expect(builder).not.toContain("window.prompt(");
+    expect(builder).not.toContain("window.alert(");
     expect(builder).toContain("saveTemplate(false)");
     expect(builder).toContain("The draft could not be saved before the image upload.");
     expect(builder).toContain("Choose an image that is 5MB or smaller.");

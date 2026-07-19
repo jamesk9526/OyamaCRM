@@ -28,7 +28,6 @@ REQUIRED_FILES = [
     ".env.example",
     "README.md",
     "AGENTS.md",
-    "CLAUDE.md",
     "package.json",
     "pnpm-lock.yaml",
     "next.config.ts",

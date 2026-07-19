@@ -1,7 +1,9 @@
 # Markdown Documentation Audit
 
-Date: 2026-05-13
+Date: 2026-05-13 (historical inventory)
 Scope: every `*.md` file in repository (excluding `.git` and `node_modules`).
+
+> Superseded for cleanup decisions by `docs/status/audit-artifacts/2026-07-19-documentation-and-agent-instructions-audit.md`. The inventory below is retained as a historical snapshot and therefore may name files that no longer exist.
 
 Total markdown files audited: 220
 
@@ -238,4 +240,3 @@ Total markdown files audited: 220
 | REFERANCE_SOFTWARE/GalaSoft/README.md | Project documentation | stale | docs/ | move to docs or archive | - |
 | REFERANCE_SOFTWARE/GalaSoft/TODO.MD | Project documentation | stale | docs/ | move to docs or archive | - |
 | REFERANCE_SOFTWARE/GalaSoft/vite-project/e2e/README.md | Project documentation | stale | docs/ | move to docs or archive | - |
-
