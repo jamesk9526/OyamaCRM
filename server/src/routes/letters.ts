@@ -31,6 +31,12 @@ import {
 } from "../services/letters-merge.js";
 import { parseStewardAiConfig, runStewardAiChat, type StewardAiChatMessage } from "../services/steward-ai-ollama.js";
 import { withStewardAiTask } from "../services/steward-ai-runtime-status.js";
+import {
+  createDefaultEmailTemplateDocument,
+  normalizeEmailTemplateDocument,
+  normalizeEmailTemplateSettings,
+  renderEmailTemplateDocument,
+} from "../services/oyama-email/email-render-service.js";
 
 const router = Router();
 
@@ -5142,6 +5148,70 @@ router.post("/templates/:id/create-email-draft", requirePermission("letters.crea
     emailCampaign: campaign,
     redirectTo: `/oyama-email/campaigns/${campaign.id}`,
   });
+});
+
+/** POST /api/letters/templates/:id/create-oyama-email-template — creates a reusable Email builder template and restores retained blocks when this letter began as an email companion. */
+router.post("/templates/:id/create-oyama-email-template", requirePermission("letters.create_email_draft"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const template = await prisma.letterTemplate.findFirst({ where: { id: getRouteId(req), organizationId } });
+  if (!template) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Letter template not found." } });
+    return;
+  }
+
+  const roundTrip = asRecord(template.printLayoutJson);
+  const preservedDocument = roundTrip?.schema === "oyama-communication-roundtrip-v1" && roundTrip.source === "oyama-email"
+    ? roundTrip.document
+    : null;
+  const emailDocument = preservedDocument
+    ? normalizeEmailTemplateDocument(preservedDocument)
+    : {
+        ...createDefaultEmailTemplateDocument(),
+        // Preserve the Letter canvas markup (tables, images, links, page-aware separators)
+        // as a real editable Email HTML block rather than reducing it to plain text.
+        blocks: [{ id: "letter_body", type: "html" as const, html: template.emailBody || textToHtml(template.printBody) }],
+      };
+  const emailSettings = normalizeEmailTemplateSettings(preservedDocument ? roundTrip.settings : {});
+  const settings = await prisma.organizationSettings.findUnique({ where: { organizationId }, select: { smtpFromName: true, smtpFromEmail: true } });
+  const rendered = renderEmailTemplateDocument(emailDocument, emailSettings);
+  const campaign = await prisma.emailCampaign.create({
+    data: {
+      organizationId,
+      name: `Letter companion: ${template.name}`,
+      subject: template.emailSubject || template.printSubject || template.name,
+      previewText: rendered.text.slice(0, 120),
+      fromName: settings?.smtpFromName || "OyamaCRM",
+      fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
+      bodyHtml: rendered.html,
+      bodyText: rendered.text,
+      templateJson: JSON.stringify({
+        template: emailDocument,
+        settings: emailSettings,
+        preferenceCategory: typeof roundTrip?.preferenceCategory === "string" ? roundTrip.preferenceCategory : "GENERAL_UPDATES",
+        ownerId: userId,
+        sharedWithOrganization: false,
+        _workflow: { source: "letters_template", sourceTemplateId: template.id, restoredEmailBlocks: Boolean(preservedDocument) },
+      }),
+      status: "DRAFT",
+    },
+  });
+
+  await logAudit({
+    action: "LETTER_TEMPLATE_OYAMA_EMAIL_TEMPLATE_CREATED",
+    entity: "LetterTemplate",
+    entityId: template.id,
+    organizationId,
+    userId,
+    metadata: { emailTemplateId: campaign.id, restoredOriginalBlocks: Boolean(preservedDocument) },
+  });
+
+  res.status(201).json({ emailTemplate: campaign, redirectTo: `/oyama-email/templates/${campaign.id}/builder`, restoredOriginalBlocks: Boolean(preservedDocument) });
 });
 
 /** POST /api/letters/generated/:id/create-email-draft — Creates a linked communications draft campaign. */

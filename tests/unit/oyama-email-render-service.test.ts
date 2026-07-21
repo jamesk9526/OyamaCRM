@@ -39,6 +39,30 @@ describe("oyama email render service", () => {
     expect(rendered.text).toBe("Custom text-only body\n{{preferredName}}");
   });
 
+  it("retains and renders full block stacks inside structured columns", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [{
+        id: "grid",
+        type: "columns",
+        columns: [
+          [{ id: "copy", type: "text", content: "<p>Column copy</p>" }, { id: "photo", type: "image", src: "https://cdn.example.org/story.jpg", alt: "Impact story" }],
+          [{ id: "cta", type: "button", label: "Give now", href: "https://example.org/give" }, { id: "file", type: "fileLink", fileLabel: "Read the report", fileUrl: "https://example.org/report" }],
+        ],
+      }],
+    });
+
+    const columnBlock = template.blocks[0];
+    expect(columnBlock?.type).toBe("columns");
+    expect(columnBlock?.columns?.[0]).toHaveLength(2);
+    expect(columnBlock?.columns?.[1]).toHaveLength(2);
+
+    const rendered = renderEmailTemplateDocument(template, normalizeEmailTemplateSettings({ includeUnsubscribeLink: false }));
+    expect(rendered.html).toContain("Column copy");
+    expect(rendered.html).toContain("story.jpg");
+    expect(rendered.html).toContain("Give now");
+    expect(rendered.html).toContain("Read the report");
+  });
+
   it("wraps rendered emails with global organization header and footer", () => {
     const template = normalizeEmailTemplateDocument({
       blocks: [

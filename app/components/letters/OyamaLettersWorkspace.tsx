@@ -1485,6 +1485,22 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     if (id) router.push(`/oyama-letters/templates/${id}/publish`);
   }
 
+  async function createOyamaEmailCompanion() {
+    const id = templateId || await save();
+    if (!id) return;
+    setError(null);
+    try {
+      const result = await apiFetch<{ redirectTo: string; restoredOriginalBlocks: boolean }>(`/api/letters/templates/${encodeURIComponent(id)}/create-oyama-email-template`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setNotice(result.restoredOriginalBlocks ? "Opened OyamaEmail with the original email blocks restored." : "Created a reviewable OyamaEmail companion from this letter.");
+      router.push(result.redirectTo);
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to create an OyamaEmail companion."));
+    }
+  }
+
   async function runInspectorPreflight(targetTemplateId?: string) {
     const id = (targetTemplateId ?? templateId)?.trim();
     if (!id) {
@@ -2670,6 +2686,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <p className="font-semibold text-slate-700">Version</p>
                     <p className="mt-1">Current working draft in canvas builder</p>
                   </div>
+                </InspectorCard>
+                <InspectorCard title="Email Companion" tooltip="Create a reusable OyamaEmail template for review and sending. If this printable was created from an Email template, its original block layout is restored exactly.">
+                  <p className="text-xs leading-5 text-slate-600">Email delivery stays draft-first in OyamaEmail. This action never sends to recipients.</p>
+                  <Button onClick={() => void createOyamaEmailCompanion()} disabled={saving}>Create OyamaEmail Companion</Button>
                 </InspectorCard>
                 <InspectorCard title="Preflight Checklist" tooltip="These checks run locally while you edit so staff can catch missing merge data, unknown tokens, and unsaved changes before publish review.">
                   <p className="text-xs text-slate-600">Live readiness checks while you edit in canvas.</p>

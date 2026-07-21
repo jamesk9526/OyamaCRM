@@ -48,45 +48,46 @@ export default function CampaignCard({ campaign, scopeLabel, onInfo, onEdit, onD
   const pct = Math.min(100, actualPct);
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+    <article className="group flex min-h-[248px] flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.035)] transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_18px_36px_rgba(15,23,42,0.09)]">
       {/* Title row */}
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold text-gray-900 leading-snug flex-1">{campaign.name}</h3>
-        <span className={`shrink-0 inline-flex px-2 py-0.5 rounded text-xs font-medium ${campaign.active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+        <h3 className="min-w-0 flex-1 text-base font-semibold leading-snug text-slate-950">{campaign.name}</h3>
+        <span className={`shrink-0 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${campaign.active ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200" : "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200"}`}>
           {campaign.active ? "Active" : "Inactive"}
         </span>
       </div>
 
       {/* Category badge */}
-      <span className={`self-start inline-flex px-2 py-0.5 rounded text-xs font-medium ${categoryColor(campaign.category)}`}>
+      <span className={`self-start inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${categoryColor(campaign.category)}`}>
         {categoryLabel(campaign.category)}
       </span>
 
       {/* Progress bar */}
       {goal > 0 && (
         <div>
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>${raised.toLocaleString()} raised</span>
+          <div className="mb-1.5 flex justify-between gap-2 text-xs text-slate-500">
+            <span className="font-medium text-slate-700">${raised.toLocaleString()} raised</span>
             <span className={actualPct > 100 ? "font-semibold text-emerald-700" : undefined}>{actualPct}% of ${goal.toLocaleString()}</span>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 transition-all" style={{ width: `${pct}%` }} />
           </div>
+          <p className="mt-1.5 text-[11px] text-slate-500">{actualPct >= 100 ? "Goal reached — review next stewardship move." : `$${Math.max(0, goal - raised).toLocaleString()} remaining to goal`}</p>
         </div>
       )}
 
       {/* Dates */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 mt-auto">
+      <div className="mt-auto flex items-center gap-2 text-xs text-slate-500">
         <span>Started {fmtDate(campaign.startDate)}</span>
         {campaign.endDate && <><span>·</span><span>Ends {fmtDate(campaign.endDate)}</span></>}
       </div>
 
-      {scopeLabel && <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Snapshot scope: {scopeLabel}</p>}
+      {scopeLabel && <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400">Snapshot scope: {scopeLabel}</p>}
 
       {/* Donation count + actions row */}
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+      <div className="flex items-center justify-between border-t border-slate-100 pt-3">
         {campaign._count ? (
-          <p className="text-xs text-gray-400">{campaign._count.donations} completed donation{campaign._count.donations !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-slate-500">{campaign._count.donations} completed donation{campaign._count.donations !== 1 ? "s" : ""}</p>
         ) : <span />}
         <div className="flex items-center gap-1.5">
           <Link
@@ -96,14 +97,14 @@ export default function CampaignCard({ campaign, scopeLabel, onInfo, onEdit, onD
               event.preventDefault();
               onInfo();
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
           >
             Info
           </Link>
           {onEdit && (
             <button
               onClick={() => onEdit(campaign)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-950"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -114,7 +115,7 @@ export default function CampaignCard({ campaign, scopeLabel, onInfo, onEdit, onD
           {onDelete && (
             <button
               onClick={() => onDelete(campaign.id)}
-              className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+              className="inline-flex items-center rounded-lg border border-red-200 bg-white px-2 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
               title="Delete campaign"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,6 +132,6 @@ export default function CampaignCard({ campaign, scopeLabel, onInfo, onEdit, onD
           />
         </div>
       </div>
-    </div>
+    </article>
   );
 }

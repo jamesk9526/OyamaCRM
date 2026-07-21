@@ -96,6 +96,10 @@ describe("OyamaEmail workspace source contract", () => {
     expect(builder).toContain("Upload Image");
     expect(builder).toContain("Full Width");
     expect(builder).toContain("function UrlEditorDialog");
+    expect(builder).toContain("Block-based columns");
+    expect(builder).toContain("including images, CTAs, video, social, files, and nested grids");
+    expect(builder).toContain("create-letter-template");
+    expect(builder).toContain("Create Letter");
     expect(builder).not.toContain("window.prompt(");
     expect(builder).not.toContain("window.alert(");
     expect(builder).toContain("saveTemplate(false)");
@@ -149,6 +153,20 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("sourceGeneratedLetterId");
     expect(types).toContain("sourceGeneratedLetterId?: string | null");
     expect(campaignRoutes).toContain("sourceGeneratedLetterId: string | null");
+  });
+
+  it("keeps template companions draft-first and preserves the structured email document for round trips", () => {
+    const emailRoutes = read("server/src/routes/oyama-email.ts");
+    const letterRoutes = read("server/src/routes/letters.ts");
+    const lettersWorkspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+
+    expect(emailRoutes).toContain("create-letter-template");
+    expect(emailRoutes).toContain("oyama-communication-roundtrip-v1");
+    expect(emailRoutes).toContain("document: stored.template");
+    expect(letterRoutes).toContain("create-oyama-email-template");
+    expect(letterRoutes).toContain("restoredOriginalBlocks");
+    expect(letterRoutes).toContain('type: "html" as const');
+    expect(lettersWorkspace).toContain("Create OyamaEmail Companion");
   });
 
   it("supports donation multi-select temporary segments for email templates", () => {

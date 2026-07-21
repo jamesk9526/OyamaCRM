@@ -5,7 +5,7 @@
 
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
-import type { EmailPurpose } from "@prisma/client";
+import { Prisma, type EmailPurpose } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -1147,6 +1147,62 @@ router.get("/templates/:id", async (req, res) => {
 
   const branding = await loadOrganizationBrandingContext(organizationId);
   res.json(mapTemplateResponse(campaign, branding));
+});
+
+/** POST /api/oyama-email/templates/:id/create-letter-template — creates a reviewable printable companion while retaining the complete email document for lossless round-trips. */
+router.post("/templates/:id/create-letter-template", requirePermission("letters.create"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const campaign = await prisma.emailCampaign.findFirst({ where: { id: String(req.params.id), organizationId } });
+  if (!campaign) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Email template not found." } });
+    return;
+  }
+
+  const stored = parseStoredTemplateJson(campaign.templateJson, { bodyHtml: campaign.bodyHtml, bodyText: campaign.bodyText });
+  const branding = await loadOrganizationBrandingContext(organizationId);
+  const rendered = renderEmailTemplateDocument(stored.template, stored.settings, branding);
+  const created = await prisma.letterTemplate.create({
+    data: {
+      organizationId,
+      name: `Email companion: ${campaign.name}`,
+      category: "GENERAL",
+      description: "Printable companion created from an OyamaEmail template. The original block document is retained for a lossless return to Email.",
+      status: "DRAFT",
+      printSubject: campaign.subject,
+      printBody: rendered.text || campaign.bodyText || campaign.name,
+      emailSubject: campaign.subject,
+      emailBody: rendered.html,
+      printLayoutJson: {
+        schema: "oyama-communication-roundtrip-v1",
+        source: "oyama-email",
+        sourceTemplateId: campaign.id,
+        document: stored.template,
+        settings: stored.settings,
+        preferenceCategory: stored.preferenceCategory,
+      } as unknown as Prisma.InputJsonValue,
+      mergeFieldsUsed: rendered.mergeFieldsUsed,
+      crmScope: "DONOR",
+      createdByUserId: userId,
+      updatedByUserId: userId,
+    },
+  });
+
+  await logAudit({
+    action: "OYAMA_EMAIL_LETTER_TEMPLATE_CREATED",
+    entity: "EmailCampaign",
+    entityId: campaign.id,
+    organizationId,
+    userId,
+    metadata: { letterTemplateId: created.id, preservedBlockCount: stored.template.blocks.length },
+  });
+
+  res.status(201).json({ letterTemplate: created, redirectTo: `/oyama-letters/templates/${created.id}` });
 });
 
 router.get("/templates/:id/export", async (req, res) => {

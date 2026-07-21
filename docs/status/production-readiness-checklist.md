@@ -1,8 +1,31 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-19 (Donor dashboard and communication-studio visual modernization)
+Last updated: 2026-07-20 (Donor campaign workspace visual and workflow audit)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-07-20 Donor Campaign Workspace Audit
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Campaign list presents portfolio scope, health, and goal progress in the shared donor visual system | Working | `app/campaigns/page.tsx`, `app/components/campaigns/CampaignCard.tsx` |
+| Campaign create, scoped API loads, active/inactive filtering, detail/edit navigation, confirmed delete, and Steward analysis remain wired | Working | `app/campaigns/page.tsx`, `app/components/campaigns/CampaignCard.tsx` |
+| Dashboard, campaign, Letter, and Email UI source contracts remain green | Working | Focused smoke suite passed 27/27. |
+| Web and server type safety after the donor UI pass | Working | `pnpm typecheck` passed. |
+| Live responsive visual walkthrough | Partially Working | In-app browser target was unavailable; repeat a live desktop/tablet/mobile check before release. |
+
+Detailed evidence: `docs/status/audit-artifacts/2026-07-20-donor-campaign-workspace-audit.md`.
+
+## 2026-07-20 Email/Letter Block Round-Trip Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Email columns preserve structured child blocks instead of degrading to HTML strings | Working | `server/src/services/oyama-email/email-render-service.ts`, renderer suite coverage |
+| Nested email column blocks render in preview, proof, and send output | Working | Text/image/button/file-link column coverage passed in `tests/unit/oyama-email-render-service.test.ts` |
+| Email and Letter template companions are draft-first and reviewable | Working | `POST /api/oyama-email/templates/:id/create-letter-template`, `POST /api/letters/templates/:id/create-oyama-email-template` |
+| Email-originated Letter companion restores the original structured email document on return | Working | Private `oyama-communication-roundtrip-v1` template envelope; source contract coverage passed. |
+
+Validation: focused Email/Letter source and renderer suite passed 31/31; web and server typechecks passed.
 
 ## 2026-07-19 Letters/Email Workflow and Documentation Snapshot
 

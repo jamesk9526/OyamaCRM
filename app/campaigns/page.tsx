@@ -157,40 +157,65 @@ export default function CampaignsPage() {
       )}
     >
     <div className="space-y-5">
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="overflow-hidden rounded-3xl border border-emerald-200/80 bg-[radial-gradient(circle_at_top_right,_rgba(52,211,153,0.22),_transparent_42%),linear-gradient(135deg,_#f0fdf4,_#ffffff_52%,_#f8fafc)] shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)] lg:px-6">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Fundraising portfolio</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Campaign command center</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Review campaign health, focus stewardship attention, and move from a goal signal into the right donor action without losing the current reporting scope.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm backdrop-blur">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Portfolio signal</p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{loading ? "—" : `${filtered.filter((campaign) => campaign.active).length} active`}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">{scopeLabel} view · {loading ? "Loading campaigns" : `${filtered.length.toLocaleString()} campaign${filtered.length === 1 ? "" : "s"} in the working view`}</p>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-emerald-100">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 transition-all"
+                style={{ width: `${campaigns.length > 0 ? Math.max(8, Math.round((campaigns.filter((campaign) => campaign.active).length / campaigns.length) * 100)) : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         {[
-          { label: `Total Campaigns (${scopeLabel})`, value: campaigns.length },
-          { label: "Active", value: campaigns.filter((c) => c.active).length, color: "text-green-600" },
-          { label: `Total Goal (${scopeLabel})`, value: `$${totalGoal.toLocaleString()}` },
-          { label: `Total Raised (${scopeLabel})`, value: `$${totalRaised.toLocaleString()}`, color: "text-green-600" },
+          { label: "Campaigns", value: campaigns.length, helper: `${scopeLabel} portfolio` },
+          { label: "Active", value: campaigns.filter((c) => c.active).length, helper: "Currently fundraising", color: "text-emerald-700" },
+          { label: "Portfolio Goal", value: `$${totalGoal.toLocaleString()}`, helper: "Configured targets" },
+          { label: "Raised", value: `$${totalRaised.toLocaleString()}`, helper: "Completed giving", color: "text-emerald-700" },
         ].map((s) => (
-          <div key={s.label} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color ?? "text-gray-900"}`}>{loading ? "—" : s.value}</p>
+          <div key={s.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{s.label}</p>
+            <p className={`mt-1 text-2xl font-semibold tracking-tight ${s.color ?? "text-slate-950"}`}>{loading ? "—" : s.value}</p>
+            <p className="mt-1 text-xs text-slate-500">{s.helper}</p>
           </div>
         ))}
       </div>
 
-      {/* Filter tabs */}
-      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.035)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Campaign view</p>
+          <div className="mt-2 flex flex-wrap gap-2">
           {(["all", "active", "inactive"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                filter === f ? "bg-green-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+              className={`rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
+                filter === f ? "bg-emerald-700 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
               }`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 text-sm">
-          <label className="inline-flex items-center gap-2 text-gray-600">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
             <input
               type="checkbox"
               checked={allYears}
@@ -204,7 +229,7 @@ export default function CampaignsPage() {
             value={year}
             onChange={(e) => setYear(Number.parseInt(e.target.value, 10))}
             disabled={allYears}
-            className="rounded-lg border border-gray-200 px-3 py-2 bg-white text-gray-700 disabled:opacity-50"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-700 shadow-sm disabled:opacity-50"
           >
             {yearOptions.map((optionYear) => (
               <option key={optionYear} value={optionYear}>
@@ -215,7 +240,7 @@ export default function CampaignsPage() {
         </div>
       </div>
 
-      <p className="text-xs text-gray-500 -mt-1">
+      <p className="mt-3 text-xs text-slate-500">
         {!allYears
           ? `Campaign totals and raised amounts are scoped to ${year}.`
           : "Campaign totals and raised amounts include all years."}

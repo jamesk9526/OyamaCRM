@@ -43,6 +43,8 @@ export interface OyamaEmailBlock {
   height?: number;
   leftHtml?: string;
   rightHtml?: string;
+  /** Structured column stacks. Retains every builder block instead of flattening columns to rich text. */
+  columns?: OyamaEmailBlock[][];
   links?: Array<{ label: string; url: string }>;
   socialMode?: "follow" | "share";
   socialLayout?: "row" | "column";
@@ -471,7 +473,7 @@ function legacyBlockToHtml(input: Record<string, unknown>, legacyType: string): 
   return paragraphHtml(extractNestedText(input)) || "<p>Legacy content block</p>";
 }
 
-function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
+function normalizeBlock(raw: unknown, index: number, depth = 0): OyamaEmailBlock {
   const input = asObject(raw);
   const legacyType = asString(input.type).trim();
   const mappedType = legacyType === "customHtml"
@@ -579,6 +581,18 @@ function normalizeBlock(raw: unknown, index: number): OyamaEmailBlock {
   }
 
   if (type === "columns") {
+    const structuredColumns = Array.isArray(input.columns) && depth < 3
+      ? input.columns.slice(0, 2).map((column, columnIndex) => Array.isArray(column)
+        ? column.slice(0, 24).map((item, itemIndex) => normalizeBlock(item, (index + 1) * 1000 + columnIndex * 100 + itemIndex, depth + 1))
+        : [])
+      : [];
+    if (structuredColumns.some((column) => column.length > 0)) {
+      return {
+        id,
+        type,
+        columns: [structuredColumns[0] || [], structuredColumns[1] || []],
+      };
+    }
     const leftHtml = asString(input.leftHtml).trim();
     const rightHtml = asString(input.rightHtml).trim();
     if (leftHtml || rightHtml) {
@@ -847,9 +861,35 @@ function renderSpacerBlock(block: OyamaEmailBlock): string {
 </tr>`;
 }
 
-function renderColumnsBlock(block: OyamaEmailBlock, theme: RenderTheme): string {
-  const left = formatEmailRichTextHtml(asString(block.leftHtml).trim() || "<p>Add left column content.</p>", theme);
-  const right = formatEmailRichTextHtml(asString(block.rightHtml).trim() || "<p>Add right column content.</p>", theme);
+function renderColumnBlock(block: OyamaEmailBlock, theme: RenderTheme, depth = 0): string {
+  if (block.type === "text") return formatEmailRichTextHtml(asString(block.content), theme);
+  if (block.type === "html") return formatEmailRichTextHtml(asString(block.html), theme);
+  if (block.type === "image") {
+    const src = escapeHtml(asString(block.src).trim());
+    const image = src ? `<img src="${src}" alt="${escapeHtml(asString(block.alt).trim() || "Image")}" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px;" />` : "<div style='border:1px dashed #94a3b8;padding:12px;color:#64748b;'>Image source not set</div>";
+    return `<div style="margin:10px 0;text-align:${block.align || "center"};">${block.imageLinkUrl ? `<a href="${escapeHtml(asString(block.imageLinkUrl))}">${image}</a>` : image}${block.caption ? `<div style="margin-top:6px;font-size:12px;color:#64748b;">${escapeHtml(block.caption)}</div>` : ""}</div>`;
+  }
+  if (block.type === "button" || block.type === "donationButton" || block.type === "eventButton") return `<div style="margin:12px 0;text-align:center;"><a href="${escapeHtml(asString(block.href).trim() || "#")}" style="display:inline-block;background:${escapeHtml(asString(block.color).trim() || "#0f5c3c")};color:${escapeHtml(asString(block.textColor).trim() || "#ffffff")};padding:10px 14px;border-radius:7px;text-decoration:none;font-family:${escapeHtml(theme.fontFamily)};font-size:14px;font-weight:700;">${escapeHtml(asString(block.label).trim() || "Open Link")}</a></div>`;
+  if (block.type === "divider") return `<hr style="margin:12px 0;border:0;border-top:${clamp(asNumber(block.thickness, 1), 1, 8)}px solid ${escapeHtml(asString(block.color).trim() || "#d7e0dc")};" />`;
+  if (block.type === "spacer") return `<div style="height:${clamp(asNumber(block.height, 24), 4, 160)}px;line-height:1px;">&nbsp;</div>`;
+  if (block.type === "columns") return renderColumnsBlock(block, theme, depth + 1);
+  if (block.type === "header") return `<div style="margin:8px 0;padding:${clamp(asNumber(block.paddingY, 16), 8, 56)}px 12px;background:${escapeHtml(asString(block.headerBackgroundColor).trim() || "#0f5c3c")};color:#fff;text-align:${block.align || "center"};border-radius:8px;"><strong>${escapeHtml(asString(block.headerTitle).trim() || "Your Organization")}</strong>${block.headerSubtitle ? `<div style="margin-top:4px;font-size:13px;">${escapeHtml(block.headerSubtitle)}</div>` : ""}</div>`;
+  if (block.type === "video") return `<div style="margin:10px 0;text-align:center;">${block.thumbnailUrl ? `<a href="${escapeHtml(asString(block.videoUrl).trim() || "#")}"><img src="${escapeHtml(block.thumbnailUrl)}" alt="${escapeHtml(asString(block.videoAlt).trim() || "Video thumbnail")}" style="max-width:100%;height:auto;border-radius:8px;" /></a>` : `<a href="${escapeHtml(asString(block.videoUrl).trim() || "#")}">${escapeHtml(asString(block.videoCtaLabel).trim() || "Watch Video")}</a>`}</div>`;
+  if (block.type === "fileLink") return `<p><a href="${escapeHtml(asString(block.fileUrl).trim() || "#")}" style="color:${escapeHtml(theme.linkColor)};font-weight:700;">${escapeHtml(asString(block.fileLabel).trim() || "Download Resource")}</a>${block.fileDescription ? `<br/><span style="font-size:12px;color:#64748b;">${escapeHtml(block.fileDescription)}</span>` : ""}</p>`;
+  if (block.type === "social") return `<p style="text-align:center;">${(block.links || []).map((link) => `<a href="${escapeHtml(link.url || "#")}" style="color:${escapeHtml(theme.linkColor)};margin:0 4px;">${escapeHtml(link.label || "Link")}</a>`).join("")}</p>`;
+  return "";
+}
+
+function renderColumnsBlock(block: OyamaEmailBlock, theme: RenderTheme, depth = 0): string {
+  const structured = depth < 3 && Array.isArray(block.columns)
+    ? [block.columns[0] || [], block.columns[1] || []]
+    : null;
+  const left = structured
+    ? structured[0].map((item) => renderColumnBlock(item, theme, depth)).join("") || "<p>Add left column content.</p>"
+    : formatEmailRichTextHtml(asString(block.leftHtml).trim() || "<p>Add left column content.</p>", theme);
+  const right = structured
+    ? structured[1].map((item) => renderColumnBlock(item, theme, depth)).join("") || "<p>Add right column content.</p>"
+    : formatEmailRichTextHtml(asString(block.rightHtml).trim() || "<p>Add right column content.</p>", theme);
 
   return `
 <tr>

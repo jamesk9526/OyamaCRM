@@ -57,6 +57,8 @@ interface BuilderBlock {
   height?: number;
   leftHtml?: string;
   rightHtml?: string;
+  /** Two block stacks rendered responsively by the server. Legacy HTML columns remain supported. */
+  columns?: BuilderBlock[][];
   links?: Array<{ label: string; url: string }>;
   socialMode?: "follow" | "share";
   socialLayout?: "row" | "column";
@@ -690,8 +692,10 @@ function createBlock(type: BuilderBlockType): BuilderBlock {
     return {
       id: createId(),
       type,
-      leftHtml: "<p>Left column</p>",
-      rightHtml: "<p>Right column</p>",
+      columns: [
+        [{ id: createId(), type: "text", content: "<p>Left column</p>" }],
+        [{ id: createId(), type: "text", content: "<p>Right column</p>" }],
+      ],
     };
   }
 
@@ -1511,6 +1515,19 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       setAutosaving(false);
     }
   }, [activeTemplateId, lastSavedAt, router, saveConflictModal, saving, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
+
+  const createLetterCompanion = useCallback(async () => {
+    const id = activeTemplateId ?? await saveTemplate(false);
+    if (!id) return;
+    setError(null);
+    try {
+      const result = await apiFetch<{ redirectTo: string }>(`/api/oyama-email/templates/${encodeURIComponent(id)}/create-letter-template`, { method: "POST", body: JSON.stringify({}) });
+      setNotice("Created a printable companion. The full email block document was retained for round-trip editing.");
+      router.push(result.redirectTo);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to create a letter companion.");
+    }
+  }, [activeTemplateId, router, saveTemplate]);
 
   const resolveSaveConflict = useCallback(async (options: SaveTemplateOptions) => {
     if (saving || autosaving || !saveConflictModal) return;
@@ -2647,6 +2664,15 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             >
               Docs
             </Link>
+            <button
+              type="button"
+              onClick={() => void createLetterCompanion()}
+              disabled={saving || autosaving}
+              className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 disabled:opacity-60"
+              title="Create a printable letter companion and retain every email block for a lossless return to this builder."
+            >
+              Create Letter
+            </button>
             <button
               type="button"
               onClick={() => void saveTemplate(false)}
@@ -4530,10 +4556,16 @@ function CanvasBlockPreview({ block }: { block: BuilderBlock }) {
   }
 
   if (block.type === "columns") {
+    const columns = block.columns;
     return (
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-md border border-slate-200 p-2 text-sm" dangerouslySetInnerHTML={{ __html: block.leftHtml || "<p>Left column</p>" }} />
-        <div className="rounded-md border border-slate-200 p-2 text-sm" dangerouslySetInnerHTML={{ __html: block.rightHtml || "<p>Right column</p>" }} />
+        {[0, 1].map((columnIndex) => (
+          <div key={columnIndex} className="space-y-2 rounded-md border border-slate-200 p-2 text-sm">
+            {columns?.[columnIndex]?.length
+              ? columns[columnIndex].map((child) => <CanvasBlockPreview key={child.id} block={child} />)
+              : <div dangerouslySetInnerHTML={{ __html: columnIndex === 0 ? block.leftHtml || "<p>Left column</p>" : block.rightHtml || "<p>Right column</p>" }} />}
+          </div>
+        ))}
       </div>
     );
   }
@@ -4603,6 +4635,98 @@ function CanvasBlockPreview({ block }: { block: BuilderBlock }) {
         </div>
       ) : null}
       <div className="text-sm" dangerouslySetInnerHTML={{ __html: block.html || "<p>Custom HTML block</p>" }} />
+    </div>
+  );
+}
+
+function ColumnBlockStackEditor({
+  block,
+  template,
+  branding,
+  mergeFieldGroups,
+  onChange,
+  depth = 0,
+}: {
+  block: BuilderBlock;
+  template: BuilderTemplateDocument;
+  branding: BrandingSettings;
+  mergeFieldGroups: MergeFieldGroup[];
+  onChange: (patch: Partial<BuilderBlock>) => void;
+  depth?: number;
+}) {
+  const [selected, setSelected] = useState<{ column: number; id: string } | null>(null);
+  const columns = block.columns?.length ? [block.columns[0] || [], block.columns[1] || []] : [
+    [{ id: createId(), type: "text" as const, content: block.leftHtml || "<p>Left column</p>" }],
+    [{ id: createId(), type: "text" as const, content: block.rightHtml || "<p>Right column</p>" }],
+  ];
+  const patchColumn = (column: number, updater: (items: BuilderBlock[]) => BuilderBlock[]) => {
+    const next = [columns[0], columns[1]] as BuilderBlock[][];
+    next[column] = updater(next[column]);
+    onChange({ columns: next, leftHtml: undefined, rightHtml: undefined });
+  };
+  const selectedBlock = selected ? columns[selected.column]?.find((item) => item.id === selected.id) : null;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs font-semibold text-slate-700">Block-based columns</p>
+        <p className="mt-1 text-[11px] leading-4 text-slate-500">Each column accepts the same content blocks as the main email canvas, including images, CTAs, video, social, files, and nested grids.</p>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {[0, 1].map((column) => (
+          <section key={column} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-800">{column === 0 ? "Left column" : "Right column"}</p>
+              <select
+                defaultValue=""
+                aria-label={`Add a block to the ${column === 0 ? "left" : "right"} column`}
+                onChange={(event) => {
+                  const type = event.target.value as BuilderBlockType;
+                  if (!type) return;
+                  patchColumn(column, (items) => [...items, createBlock(type)]);
+                  event.currentTarget.value = "";
+                }}
+                className="h-8 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-semibold text-slate-700"
+              >
+                <option value="">Add block…</option>
+                {BLOCK_CHOICES.map((choice) => <option key={choice.type} value={choice.type}>{choice.label}</option>)}
+              </select>
+            </div>
+            <div className="mt-2 space-y-2">
+              {columns[column].map((item) => (
+                <div key={item.id} className={["rounded-lg border bg-white p-2", selected?.column === column && selected.id === item.id ? "border-emerald-400 ring-2 ring-emerald-100" : "border-slate-200"].join(" ")}>
+                  <div className="flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => setSelected({ column, id: item.id })} className="min-w-0 flex-1 text-left text-[11px] font-bold uppercase tracking-wide text-slate-600 hover:text-emerald-800">{blockDisplayLabel(item)}</button>
+                    <button type="button" onClick={() => patchColumn(column, (items) => items.filter((candidate) => candidate.id !== item.id))} className="rounded px-1.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50" aria-label={`Remove ${blockDisplayLabel(item)}`}>Remove</button>
+                  </div>
+                  <div className="mt-2 pointer-events-none opacity-80"><CanvasBlockPreview block={item} /></div>
+                </div>
+              ))}
+              {columns[column].length === 0 ? <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500">Add a block to start this column.</p> : null}
+            </div>
+          </section>
+        ))}
+      </div>
+      {selectedBlock && selected && (
+        <div className="rounded-xl border border-emerald-200 bg-white p-3">
+          <BlockInspector
+            block={selectedBlock}
+            template={template}
+            branding={branding}
+            mergeFieldGroups={mergeFieldGroups}
+            onChange={(patch) => patchColumn(selected.column, (items) => items.map((item) => item.id === selectedBlock.id ? { ...item, ...patch } : item))}
+            onSetInsertTarget={() => undefined}
+            onUploadImage={() => undefined}
+            onGenerateAiSmartHtml={() => undefined}
+            aiSmartBusy={false}
+            aiSmartError={null}
+            uploadingImage={false}
+            canUpload={false}
+            className="mt-0"
+          />
+        </div>
+      )}
+      {depth >= 2 ? <p className="text-[11px] text-amber-700">Nested grids render up to three levels deep for reliable email-client layout.</p> : null}
     </div>
   );
 }
@@ -4995,40 +5119,13 @@ function BlockInspector({
       ) : null}
 
       {block.type === "columns" ? (
-        <>
-          <p className="text-xs font-semibold text-slate-700">Columns Editor</p>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <div>
-              <p className="mb-1 text-xs font-semibold text-slate-700">Left Column</p>
-              <div style={{ fontFamily: template.fontFamily, fontSize: `${template.baseFontSize}px`, lineHeight: String(template.lineHeight), color: template.textColor }}>
-                <RichTextEditor
-                  value={block.leftHtml || ""}
-                  onChange={(next) => onChange({ leftHtml: next })}
-                  onFocus={() => onSetInsertTarget("leftHtml")}
-                  placeholder="Left column content..."
-                  linkColor={template.linkColor}
-                  mergeFieldGroups={mergeFieldGroups}
-                  minHeight={160}
-                />
-              </div>
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-semibold text-slate-700">Right Column</p>
-              <div style={{ fontFamily: template.fontFamily, fontSize: `${template.baseFontSize}px`, lineHeight: String(template.lineHeight), color: template.textColor }}>
-                <RichTextEditor
-                  value={block.rightHtml || ""}
-                  onChange={(next) => onChange({ rightHtml: next })}
-                  onFocus={() => onSetInsertTarget("rightHtml")}
-                  placeholder="Right column content..."
-                  linkColor={template.linkColor}
-                  mergeFieldGroups={mergeFieldGroups}
-                  minHeight={160}
-                />
-              </div>
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-500">Formatting now renders live while you edit each column.</p>
-        </>
+        <ColumnBlockStackEditor
+          block={block}
+          template={template}
+          branding={branding}
+          mergeFieldGroups={mergeFieldGroups}
+          onChange={onChange}
+        />
       ) : null}
 
       {block.type === "social" ? (

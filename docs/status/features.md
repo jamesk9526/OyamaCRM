@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-19 (Donor dashboard and communication-studio visual modernization)_
+_Last focused audit: 2026-07-20 (Donor CRM campaign workspace visual and workflow audit)_
 
 ## Governance baseline for new feature claims
 
@@ -12,6 +12,23 @@ Feature claims in this file should follow the workspace-first governance baselin
 - Canonical route truth when compatibility redirects still exist
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
+
+## 2026-07-20 Donor Campaign Workspace Visual and Workflow Audit
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Campaign command center | Working | `app/campaigns/page.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Campaigns now uses the same donor-workspace visual hierarchy as the constituent directory and gift ledger: a scoped portfolio hero, readable health signal, compact metrics, and a clear active/inactive/time-window control surface. Existing API-backed create, load, filter, edit, and confirmed delete behavior is retained. |
+| Campaign portfolio cards | Working | `app/components/campaigns/CampaignCard.tsx` | Cards now make goal progress, remaining amount or completed-goal state, active status, donor count, scope, and next actions easier to scan. Detail, edit, delete confirmation, and Steward analysis actions remain intact. |
+| Donor UI source regression | Working | `tests/smoke/crm-visual-refresh-source.test.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/smoke/oyama-email-workspace-source.test.ts` | Focused donor dashboard, campaign, Letter, and Email source contracts passed 27/27. Web and server typechecks also passed. |
+| Live in-app visual walkthrough | Partially Working | `docs/status/audit-artifacts/2026-07-20-donor-campaign-workspace-audit.md` | The in-app browser target was not available in this environment. The refresh is source- and typecheck-validated; a live responsive viewport check remains a release follow-up. |
+
+## 2026-07-20 Email and Letter Block Round-Trip
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Structured email columns | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | Each column now persists a real block stack rather than flattened HTML. Text, images, buttons, dividers, spacers, grids, social links, videos, file links, headers, and HTML blocks render in the server preview/send pipeline. Legacy HTML-only columns remain compatible. |
+| Email → Letter template companion | Working | `server/src/routes/oyama-email.ts`, `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx` | Creating a printable companion saves a draft Letter template plus the original email document/settings in a private round-trip envelope; it does not send or publish either communication. |
+| Letter → Email template companion | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx` | Letters can create a reusable draft OyamaEmail companion. When the Letter originated from Email, the original structured email blocks are restored; ordinary Letters get a reviewable email document generated from their body. |
 
 ## 2026-07-19 Letters Generation Simplification and In-App Docs
 

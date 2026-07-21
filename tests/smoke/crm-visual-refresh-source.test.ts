@@ -167,6 +167,19 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(table).toContain("Letter Template");
   });
 
+  it("brings Campaigns into the donor workspace visual system without changing campaign actions", () => {
+    const page = read("app/campaigns/page.tsx");
+    const card = read("app/components/campaigns/CampaignCard.tsx");
+
+    expect(page).toContain("Campaign command center");
+    expect(page).toContain("Fundraising portfolio");
+    expect(page).toContain("Campaign view");
+    expect(page).toContain("CRMActionBar");
+    expect(card).toContain("Goal reached — review next stewardship move.");
+    expect(card).toContain("onDelete");
+    expect(card).toContain("StewardContextButton");
+  });
+
   it("applies the next visual pass to Meetings without replacing meeting behavior", () => {
     const page = read("app/meetings/page.tsx");
 
