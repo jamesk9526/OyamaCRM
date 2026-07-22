@@ -1667,6 +1667,8 @@ function headerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPrese
   return [
     (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
     (preset?.showTagline ?? false) ? branding.tagline : "",
+    (preset?.showAddress ?? true) ? branding.addressLine : "",
+    (preset?.showPhone ?? true) || (preset?.showWebsite ?? true) ? branding.contactLine : "",
   ].filter(Boolean);
 }
 
@@ -1769,12 +1771,12 @@ function drawPdfChrome(
   const pageCount = doc.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 54;
+  const marginX = 42;
   const footerY = pageHeight - 42;
-  const fallbackLogoWidth = 48;
-  const fallbackLogoHeight = 48;
-  const logoMaxWidth = 160;
-  const logoMaxHeight = 48;
+  const fallbackLogoWidth = 54;
+  const fallbackLogoHeight = 54;
+  const logoMaxWidth = 250;
+  const logoMaxHeight = 96;
   const normalizedLogoAlignment = String(presets.headerPreset?.logoAlignment ?? "LEFT").toUpperCase();
   const logoAlignment = normalizedLogoAlignment === "CENTER" || normalizedLogoAlignment === "RIGHT" || normalizedLogoAlignment === "NONE"
     ? normalizedLogoAlignment
@@ -1804,7 +1806,7 @@ function drawPdfChrome(
   const activeLogoWidth = hasFallbackLogo ? fallbackLogoWidth : renderedLogoWidth;
   const activeLogoHeight = hasFallbackLogo ? fallbackLogoHeight : renderedLogoHeight;
   const logoX = logoAlignment === "CENTER" ? (pageWidth - activeLogoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - activeLogoWidth : marginX;
-  const logoY = 24 + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
+  const logoY = 30 + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
   const header = headerLines(branding, presets.headerPreset);
   const recipientAddressLines = buildRecipientAddressLines(recipient);
   const footer = footerLines(branding, presets.footerPreset);
@@ -1845,15 +1847,15 @@ function drawPdfChrome(
             : marginX;
       const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
       const headerTextY = hasLogo || hasFallbackLogo ? logoY + activeLogoHeight / 2 + 5 : 48;
-      const detailColumnWidth = 230;
+      const detailColumnWidth = 196;
       const titleMaxWidth = logoAlignment === "LEFT"
         ? Math.max(96, pageWidth - marginX - headerTextX - detailColumnWidth - 18)
         : Math.max(160, pageWidth - marginX * 2);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.setTextColor(15, 23, 42);
-      // The uploaded organization logo is the wordmark. Keep the server PDF aligned
-      // with the browser print route by never repeating the organization name beside it.
+      // The uploaded organization logo is the wordmark. Keep the shared production
+      // print renderer clean by never repeating the organization name beside it.
       if (header[0] && !hasLogo) {
         const titleLines = doc.splitTextToSize(header[0], titleMaxWidth) as string[];
         const titleLineHeight = 14;
@@ -1863,36 +1865,37 @@ function drawPdfChrome(
         });
       }
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      const detailLines = header.slice(1, 2).flatMap((line) => doc.splitTextToSize(line, titleMaxWidth) as string[]);
-      detailLines.slice(0, 2).forEach((line, index) => {
-        doc.text(line, headerTextX, headerTextY + 12 + index * 10, { align: headerTextAlign });
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      const detailLines = header
+        .slice(hasLogo ? 2 : 1, 4)
+        .flatMap((line) => doc.splitTextToSize(line, detailColumnWidth) as string[]);
+      detailLines.slice(0, 5).forEach((line, index) => {
+        doc.text(line, pageWidth - marginX, 42 + index * 13, { align: "right" });
       });
       doc.setDrawColor(brandR, brandG, brandB);
-      doc.line(marginX, 94, pageWidth - marginX, 94);
+      doc.line(marginX, 144, pageWidth - marginX, 144);
     }
 
     if (page === firstPage) {
       const addressLines = recipientAddressLines.slice(0, 4);
-      const recipientX = pageWidth - marginX;
       const renderedDate = documentMeta?.generatedAt
         ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
         : "";
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(71, 85, 105);
-      if (renderedDate) doc.text(renderedDate, recipientX, 34, { align: "right" });
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      if (renderedDate) doc.text(renderedDate, pageWidth - marginX, 180, { align: "right" });
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
       addressLines.forEach((line, index) => {
-        doc.text(line, recipientX, 48 + index * 11, { align: "right" });
+        doc.text(line, marginX, 180 + index * 14);
       });
       const subject = recipientFacingLetterSubject(documentMeta?.subject);
       if (subject) {
-        const subjectY = 118;
+        const subjectY = 246;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(brandR, brandG, brandB);
@@ -1981,7 +1984,7 @@ export async function buildLetterPdfBodyBlocks(
 function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number; requireExplicitPageBreaks?: boolean }): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 54;
+  const marginX = 42;
   const marginBottom = 84;
   const contentTop = options.startY;
   const maxTextWidth = pageWidth - marginX * 2;
@@ -2225,9 +2228,8 @@ export async function renderGeneratedLetterPdf(params: {
 
   const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
-    startY: 152,
-    continuationStartY: 112,
-    requireExplicitPageBreaks: true,
+    startY: 270,
+    continuationStartY: 164,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
     subject: params.subject,
@@ -2297,9 +2299,8 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     const startPage = doc.getNumberOfPages();
     const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
-      startY: 152,
-      continuationStartY: 112,
-      requireExplicitPageBreaks: true,
+      startY: 270,
+      continuationStartY: 164,
     });
     const endPage = doc.getNumberOfPages();
     drawPdfChrome(doc, item.branding, item.presets, item.recipient, {

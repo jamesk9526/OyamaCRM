@@ -1170,7 +1170,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [selectedImageAlt, setSelectedImageAlt] = useState("");
   const [selectedImageAlign, setSelectedImageAlign] = useState<"left" | "center" | "right">("center");
   const [zoom, setZoom] = useState(100);
-  const [previewMode, setPreviewMode] = useState(false);
+  // The editable canvas is intentionally distinct from the production preview.
+  // All user-facing preview and print actions open the server-rendered PDF.
+  const previewMode = false;
   const [showMarginGuides, setShowMarginGuides] = useState(true);
   const [margins, setMargins] = useState({ top: 1, bottom: 1, left: 1, right: 1 });
   const [history, setHistory] = useState<string[]>([]);
@@ -1439,18 +1441,6 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     printWindow.document.close();
   }
 
-  async function openPrintRoute() {
-    const activeTemplateId = templateId || await save();
-    if (!activeTemplateId) return;
-    const printParams = new URLSearchParams();
-    if (testConstituentId) printParams.set("constituentId", testConstituentId);
-    const printHref = `/oyama-letters/templates/${encodeURIComponent(activeTemplateId)}/print${printParams.size ? `?${printParams.toString()}` : ""}`;
-    const opened = window.open(printHref, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      window.location.assign(printHref);
-    }
-  }
-
   async function save(nextStatus?: TemplateStatus) {
     const payload: TemplateDraft = { ...draft, status: nextStatus ?? draft.status };
     setSaving(true);
@@ -1692,6 +1682,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   function insertBlock(html: string) {
     const spacer = draft.printBody.trim() ? "\n\n" : "";
     replaceSelection(`${spacer}${html}\n`, true);
+  }
+
+  function addPage() {
+    if (!ensureEditableDocument()) return;
+    insertBlock('<div data-letter-page-break="true" style="break-after:page;page-break-after:always;">New page</div>');
+    setNotice("New page added. The production PDF also continues onto pages automatically when content reaches the end of a page.");
   }
 
   function insertToken(token: string) {
@@ -2328,10 +2324,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <IconButton label="Zoom in" onClick={() => setZoom((current) => Math.min(160, current + 10))}>+</IconButton>
             <IconButton label="Undo" onClick={undoBody} disabled={history.length === 0}>↶</IconButton>
             <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
-            <Button onClick={() => setPreviewMode((value) => !value)}>{previewMode ? "Edit" : "Preview"}</Button>
             <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test Constituent"}</Button>
-            <Button onClick={() => void openPrintRoute()} disabled={saving}>Print Route</Button>
-            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Live PDF"}</Button>
+            <Button onClick={addPage}>Add Page</Button>
+            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Production Preview"}</Button>
             <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
             <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Publish</Button>
           </div>
@@ -2342,7 +2337,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           <>
             <RibbonButton onClick={() => void save()}>Save Draft</RibbonButton>
             <RibbonButton onClick={() => void saveAndPublish()}>Continue to Publish</RibbonButton>
-            <RibbonButton onClick={() => void openPrintRoute()}>Open Print Route</RibbonButton>
+            <RibbonButton onClick={() => void openServerPdfPreview()}>Production Preview</RibbonButton>
             <RibbonButton onClick={() => setDraft(EMPTY_DRAFT)}>New Blank Template</RibbonButton>
           </>
         ) : null}
@@ -2379,7 +2374,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <RibbonGroup label="Tools">
               <RibbonToolButton iconName="pdf-preview" glyph="▣" label="Image" onClick={insertImage} />
               <RibbonToolButton iconName="canvas-builder" glyph="▦" label="Table" onClick={insertTable} />
-              <RibbonToolButton iconName="page-break" glyph="↵" label="Page Break" onClick={() => insertBlock('<div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div>')} />
+              <RibbonToolButton iconName="page-break" glyph="↵" label="Add Page" onClick={addPage} />
               <RibbonToolButton iconName="validation-check" glyph="✓" label="Spelling" onClick={runSpellCheck} />
             </RibbonGroup>
           </>
@@ -2458,9 +2453,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         ) : null}
         {activeRibbon === "View" ? (
           <RibbonGroup label="Tools">
-            <RibbonButton onClick={() => setPreviewMode(true)}>Preview</RibbonButton>
             <RibbonButton onClick={() => setTestConstituentLookupOpen(true)}>Test Constituent</RibbonButton>
-            <RibbonButton onClick={() => void openServerPdfPreview()}>Live PDF</RibbonButton>
+            <RibbonButton onClick={() => void openServerPdfPreview()}>Production Preview</RibbonButton>
             <RibbonButton onClick={() => setInspectorTab("Document")}>Document</RibbonButton>
             <RibbonButton onClick={() => setInspectorTab("Block Settings")}>Block Settings</RibbonButton>
           </RibbonGroup>
@@ -2628,22 +2622,22 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </div>
           </div>
           <div className="mx-auto mt-4 flex min-h-10 max-w-full flex-wrap items-center gap-2 rounded-xl border border-white bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur" style={{ width: editorFrameWidth }}>
-            <span className="font-semibold text-slate-700">Canvas preview</span>
+            <span className="font-semibold text-slate-700">Editor canvas</span>
             <span className="text-slate-300 select-none">·</span>
             <span>{pageSizeShort}</span>
             <span className="text-slate-300 select-none">·</span>
             <span>Words: {wordCount}</span>
             <span className="text-slate-300 select-none">·</span>
             <span className={canvasOverflowing ? "font-semibold text-red-700" : "font-semibold text-emerald-700"}>
-              {canvasOverflowing ? "Overflow blocked" : `${intendedPageCount} ${intendedPageCount === 1 ? "page" : "pages"} requested`}
+              {canvasOverflowing ? "Auto-flows in production" : `${intendedPageCount} ${intendedPageCount === 1 ? "planned page" : "planned pages"}`}
             </span>
             <span className="text-slate-300 select-none">·</span>
-            <span>{previewMode ? "Preview" : "Insert"}</span>
+            <span>Editor canvas</span>
             <span className="ml-auto">{zoom}%</span>
           </div>
           {canvasOverflowing ? (
             <div className="mx-auto mt-2 max-w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" style={{ width: editorFrameWidth }}>
-              This page is full. Server PDF output will stop here until you shorten the content or insert a Page Break before the next section.
+              This editor page is full. The production PDF automatically continues on the next page; use Add Page when you want to choose the break yourself.
             </div>
           ) : null}
         </section>
@@ -2823,7 +2817,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <Button onClick={() => formatBlock("h1")}>Insert Heading</Button>
                     <Button onClick={() => insertBlock("<hr />")}>Insert Divider</Button>
                     <Button onClick={insertFillSpace}>Push Content to Bottom</Button>
-                    <Button onClick={() => insertBlock('<div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div>')}>Insert Page Break</Button>
+                    <Button onClick={addPage}>Add Page</Button>
                     <Button onClick={() => insertSignature()}>Insert Signature</Button>
                   </div>
                 </InspectorCard>
@@ -3422,12 +3416,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
                     Inline PDF preview is unavailable in this browser. Use Open Sample Server PDF above.
                   </div>
                 </object>
-              ) : (
-                <>
-                  <MiniDocument html={template?.printBody || ""} branding={branding} />
-                  <p className="mt-3 text-xs text-amber-700">{savedPreviewPdfError || "Server preview unavailable, showing raw template body."}</p>
-                </>
-              )}
+              ) : <p className="py-12 text-center text-xs text-amber-700">{savedPreviewPdfError || "Prepare the server PDF to preview the saved template."}</p>}
             </div>
           </div>
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
@@ -4226,8 +4215,6 @@ function GenerateWorkspace() {
   }
 
   const selectedTemplate = templates.find((template) => template.id === templateId) ?? null;
-  const previewHeaderDraft = buildImportedHeaderPreset(branding);
-  const previewFooterDraft = buildImportedFooterPreset(branding);
   const selectedDirectRecipientId = constituentId || activeRecipientIds[0] || pendingRecipientIds[0] || "";
   const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   const effectiveRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
@@ -4587,8 +4574,8 @@ function GenerateWorkspace() {
           <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-lg font-semibold text-slate-900">Sample Letter Preview</p>
-                <p className="text-sm text-slate-600">This is a preview of how your letter will look.</p>
+                <p className="text-lg font-semibold text-slate-900">Production Preview</p>
+                <p className="text-sm text-slate-600">The server-rendered PDF is the printable source of truth.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => cyclePreviewRecipient("prev")} className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700">‹</button>
@@ -4596,12 +4583,10 @@ function GenerateWorkspace() {
                 <button type="button" onClick={() => cyclePreviewRecipient("next")} className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700">›</button>
               </div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-[#f3f5f8] p-3">
-              <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
-                <LetterPreviewHeader branding={branding} header={previewHeaderDraft} />
-                <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run review preview in Step 2 to load merged output." showLetterhead={false} />
-                <LetterPreviewFooter branding={branding} footer={previewFooterDraft} />
-              </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-center">
+              <p className="text-sm font-semibold text-slate-900">Production PDF is the single letter preview.</p>
+              <p className="mt-1 text-xs text-slate-600">Choose the recipient, then review the server-rendered PDF before generating.</p>
+              <div className="mt-3"><Button onClick={() => setWizardStep(4)}>Review Production PDF</Button></div>
             </div>
               <Button onClick={() => setWizardStep(2)} disabled={!canOpenRecipientsStep}>Edit Recipient Selection</Button>
           </aside>
@@ -5016,11 +5001,10 @@ function GenerateWorkspace() {
                 </object>
               ) : null}
               {!previewPdfLoading && !previewPdfUrl ? (
-                <div className="mx-auto min-h-[520px] max-w-[330px] bg-white px-8 py-7 text-[10px] leading-5 shadow-sm ring-1 ring-slate-200">
-                  {previewPdfError ? <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-800">{previewPdfError}</p> : null}
-                  <LetterPreviewHeader branding={branding} header={previewHeaderDraft} />
-                  <MiniDocument html={preview?.mergedPrintBody || ""} emptyText="Run preview to render the letter sample." showLetterhead={false} />
-                  <LetterPreviewFooter branding={branding} footer={previewFooterDraft} />
+                <div className="flex min-h-[520px] flex-col items-center justify-center rounded border border-dashed border-slate-300 bg-white p-6 text-center">
+                  {previewPdfError ? <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">{previewPdfError}</p> : null}
+                  <p className="text-sm font-semibold text-slate-800">Prepare the production PDF to preview this letter.</p>
+                  <p className="mt-1 text-xs text-slate-600">No HTML-only fallback is shown, so this always matches the printable output.</p>
                 </div>
               ) : null}
             </div>
@@ -5911,12 +5895,7 @@ function QueueWorkspace() {
                   Rendering server preview...
                 </div>
               ) : null}
-              {!previewPdfLoading && previewPdfError ? (
-                <div className="space-y-3">
-                  <Alert tone="amber">{previewPdfError}</Alert>
-                  <MiniDocument html={previewRow.mergedPrintBody || ""} emptyText="No generated print content is available for this letter." />
-                </div>
-              ) : null}
+              {!previewPdfLoading && previewPdfError ? <Alert tone="amber">{previewPdfError}</Alert> : null}
               {!previewPdfLoading && !previewPdfError && previewPdfUrl ? (
                 <object
                   aria-label="Queue preview PDF"
@@ -6069,19 +6048,9 @@ function LettersOrganizationSettingsPanel() {
         </div>
       </section>
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="font-semibold">Letters Default Preview</p>
-        <p className="mt-1 text-sm text-slate-600">This preview uses the global Communication Header + Footer from Branding Defaults.</p>
-        <div className="mt-5 rounded-md border border-slate-200 bg-[#f3f5f8] p-5">
-          <div className="mx-auto max-w-[640px] bg-white px-10 py-8 shadow-sm ring-1 ring-slate-200">
-            <LetterPreviewHeader branding={branding} header={buildImportedHeaderPreset(branding)} />
-            <div className="py-10 text-sm leading-7 text-slate-700">
-              <p>Dear {"{{donor.firstName}}"},</p>
-              <p className="mt-5">Your Letters templates use this organization identity and the global communication header/footer.</p>
-              <p className="mt-5">With gratitude,</p>
-            </div>
-            <LetterPreviewFooter branding={branding} footer={buildImportedFooterPreset(branding)} />
-          </div>
-        </div>
+        <p className="font-semibold">Production Preview</p>
+        <p className="mt-1 text-sm text-slate-600">Branding applies in the server-rendered production PDF. Open a template to preview the actual printable result with a real recipient.</p>
+        <div className="mt-5"><Button href="/oyama-letters">Open Template Library</Button></div>
       </section>
     </div>
   );
@@ -6257,14 +6226,8 @@ function LettersPresetManager({ mode }: { mode: "headers" | "footers" }) {
         )}
       </section>
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="font-semibold">Live Letter Preview</p>
-        <div className="mt-4 rounded-md border border-slate-200 bg-[#f3f5f8] p-4">
-          <div className="bg-white px-7 py-6 text-xs shadow-sm ring-1 ring-slate-200">
-            <LetterPreviewHeader branding={branding} header={headerDraft} />
-            <div className="py-10 leading-6 text-slate-600">Letter content preview</div>
-            <LetterPreviewFooter branding={branding} footer={footerDraft} />
-          </div>
-        </div>
+        <p className="font-semibold">Preview in a Template</p>
+        <p className="mt-1 text-sm text-slate-600">Save this preset, then open a template’s Production Preview to see the exact printed PDF. This avoids a second, non-production preview.</p>
       </section>
     </div>
   );
@@ -6309,51 +6272,6 @@ function FooterPresetEditor({ draft, setDraft, onSave, saving }: { draft: Footer
       <TextArea label="Custom Footer HTML" value={draft.customHtml} onChange={(value) => setDraft({ ...draft, customHtml: value })} />
       <Button onClick={onSave} tone="primary" disabled={saving || !draft.name.trim()}>{saving ? "Saving..." : "Save Footer"}</Button>
     </div>
-  );
-}
-
-function LetterPreviewHeader({ branding, header }: { branding: BrandingSettings; header: HeaderPresetDraft }) {
-  const logo = branding.logoUrl || branding.logoSquareUrl;
-  const orgName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization Name";
-  const align = header.logoAlignment === "CENTER" ? "text-center" : header.logoAlignment === "RIGHT" ? "text-right" : "text-left";
-
-  if (header.customHtml.trim()) {
-    return <div className="border-b border-slate-200 pb-4 text-slate-700 [&_img]:max-h-20 [&_img]:max-w-full [&_p]:my-1" dangerouslySetInnerHTML={{ __html: header.customHtml }} />;
-  }
-
-  return (
-    <header className={`border-b border-slate-200 pb-4 ${align}`}>
-      {header.logoAlignment !== "NONE" && logo ? <img src={logo} alt="" className="mb-2 inline-block max-h-16 max-w-48 object-contain" /> : null}
-      {header.logoAlignment !== "NONE" && !logo ? <LogoMark className="mb-2 inline-block h-10 w-10 text-emerald-800" /> : null}
-      {header.showOrganizationName ? <p className="text-lg font-semibold text-emerald-900">{orgName}</p> : null}
-      {header.showTagline && branding.tagline ? <p className="text-xs text-slate-500">{branding.tagline}</p> : null}
-      {header.showPhone && branding.contactPhone ? <p className="text-xs text-slate-500">{branding.contactPhone}</p> : null}
-      {header.showWebsite && branding.websiteUrl ? <p className="text-xs text-slate-500">{branding.websiteUrl}</p> : null}
-    </header>
-  );
-}
-
-function LetterPreviewFooter({ branding, footer }: { branding: BrandingSettings; footer: FooterPresetDraft }) {
-  const orgName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization Name";
-  const address = formatBrandingAddress(branding);
-  const contact = [
-    footer.showPhone ? branding.contactPhone : "",
-    footer.showEmail ? branding.contactEmail : "",
-    footer.showWebsite ? branding.websiteUrl : "",
-  ].filter(Boolean).join(" | ");
-
-  if (footer.customHtml.trim()) {
-    return <div className="border-t border-slate-200 pt-3 text-center text-xs text-slate-600 [&_img]:max-h-16 [&_img]:max-w-full [&_p]:my-1" dangerouslySetInnerHTML={{ __html: footer.customHtml }} />;
-  }
-
-  return (
-    <footer className="border-t border-slate-200 pt-3 text-center text-[11px] leading-5 text-slate-500">
-      {footer.showOrganizationName ? <p className="font-semibold text-slate-700">{orgName}</p> : null}
-      {footer.showAddress && address ? <p>{address}</p> : null}
-      {contact ? <p>{contact}</p> : null}
-      {footer.showTaxId && branding.taxId ? <p>Tax ID: {branding.taxId}</p> : null}
-      {footer.customText ? <p className="whitespace-pre-line">{footer.customText}</p> : null}
-    </footer>
   );
 }
 
@@ -6623,32 +6541,6 @@ function CategoryTabs({ category, setCategory }: { category: string; setCategory
     <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
       <div className="flex gap-4 overflow-x-auto">
         {tabs.map((tab) => <button key={tab} type="button" onClick={() => setCategory(tab)} className={["h-12 shrink-0 border-b-2 px-1 text-[11px] font-semibold uppercase tracking-wide", category === tab ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600 hover:text-slate-950"].join(" ")}>{tab === "ALL" ? "All Templates" : tab.replaceAll("_", " ")}</button>)}
-      </div>
-    </div>
-  );
-}
-
-function MiniDocument({ html, emptyText = "No document content available.", showLetterhead = true, branding = DEFAULT_BRANDING_SETTINGS }: { html: string; emptyText?: string; showLetterhead?: boolean; branding?: BrandingSettings }) {
-  if (!showLetterhead) {
-    // Used when wrapped by LetterPreviewHeader/Footer — no standalone card, no internal letterhead
-    if (!html.trim()) return <p className="py-8 text-center text-sm text-slate-500">{emptyText}</p>;
-    return <div className="prose prose-sm max-w-none [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: html }} />;
-  }
-  if (!html.trim()) return <div className="mx-auto flex min-h-[420px] max-w-[330px] items-center justify-center bg-white p-8 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">{emptyText}</div>;
-  return (
-    <div className="mx-auto h-[520px] max-w-[360px] overflow-hidden">
-      <div className="origin-top-left scale-[0.44]" style={{ width: 816 }}>
-        <LetterPage
-          branding={branding}
-          title="Mini letter preview"
-          subject=""
-          salutation={null}
-          bodyHtml={html}
-          marginTop={0.7}
-          marginRight={0.7}
-          marginBottom={0.6}
-          marginLeft={0.7}
-        />
       </div>
     </div>
   );

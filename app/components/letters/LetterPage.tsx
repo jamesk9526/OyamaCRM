@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   DEFAULT_BRANDING_SETTINGS,
+  formatBrandingAddress,
   type BrandingSettings,
 } from "@/app/lib/branding-settings";
 import type { LetterDocument } from "@/app/lib/letters/letter-document";
@@ -123,6 +124,9 @@ export default function LetterPage({
   const primaryColor = clean(resolvedBranding.primaryColor) || DEFAULT_BRANDING_SETTINGS.primaryColor;
   const accentColor = clean(resolvedBranding.accentColor) || DEFAULT_BRANDING_SETTINGS.accentColor;
   const logoUrl = clean(resolvedBranding.logoUrl) || clean(resolvedBranding.logoSquareUrl);
+  const organizationAddress = formatBrandingAddress(resolvedBranding);
+  const organizationPhone = clean(resolvedBranding.contactPhone);
+  const organizationEmail = clean(resolvedBranding.contactEmail);
   const senderName = clean(resolvedSender?.name) || clean(resolvedBranding.defaultLetterSignerName) || organizationName;
   const senderTitle = clean(resolvedSender?.title) || clean(resolvedBranding.defaultLetterSignerTitle);
   const senderEmail = clean(resolvedSender?.email) || clean(resolvedBranding.defaultLetterSignerEmail) || clean(resolvedBranding.contactEmail);
@@ -180,36 +184,45 @@ export default function LetterPage({
           }
         }
       `}</style>
-      <header className="letter-page-header flex items-start justify-between gap-5 border-b pb-3" style={{ borderColor: primaryColor }}>
+      <header className="letter-page-header flex items-start justify-between gap-6 border-b pb-5" style={{ borderColor: primaryColor }}>
         <div className="flex min-w-0 items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt="" className="max-h-14 max-w-40 object-contain" />
+            <img src={logoUrl} alt="" className="max-h-24 max-w-[310px] object-contain" />
           ) : (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] text-base font-semibold text-white" style={{ backgroundColor: primaryColor }}>
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[8px] text-xl font-semibold text-white" style={{ backgroundColor: primaryColor }}>
               {organizationName.slice(0, 2).toUpperCase()}
             </div>
           )}
           {!logoUrl || resolvedBranding.tagline ? (
             <div className="min-w-0">
-              {!logoUrl ? <p className="break-words text-xl font-semibold tracking-normal" style={{ color: primaryColor }}>{organizationName}</p> : null}
+              {!logoUrl ? <p className="break-words text-2xl font-semibold tracking-normal" style={{ color: primaryColor }}>{organizationName}</p> : null}
               {resolvedBranding.tagline ? <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{resolvedBranding.tagline}</p> : null}
             </div>
           ) : null}
         </div>
-        <div className="max-w-[250px] shrink-0 text-right text-[11px] leading-4 text-slate-700">
-          <p className="mb-1 whitespace-nowrap font-semibold text-slate-600">{displayDate}</p>
-          <p className="font-semibold text-slate-950">{recipientName}</p>
-          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
+        <div className="max-w-[235px] shrink-0 text-right text-[11px] leading-5 text-slate-700">
+          {organizationAddress ? <p>{organizationAddress}</p> : null}
+          {organizationPhone ? <p>{organizationPhone}</p> : null}
+          {organizationEmail ? <p>{organizationEmail}</p> : null}
+          {resolvedBranding.websiteUrl ? <p>{resolvedBranding.websiteUrl}</p> : null}
         </div>
       </header>
 
+      <section className="mt-7 grid gap-8 text-sm leading-6 text-slate-800 sm:grid-cols-[1fr_auto]">
+        <div>
+          <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
+          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
+        </div>
+        <p className="whitespace-nowrap font-semibold text-slate-700">{displayDate}</p>
+      </section>
+
       {displaySubject ? (
-        <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-slate-950">
+        <p className="mt-7 text-sm font-semibold uppercase tracking-wide text-slate-950">
           <span style={{ color: primaryColor }}>RE:</span> {displaySubject}
         </p>
       ) : null}
 
-      <section className="mt-4 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
+      <section className="mt-7 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()

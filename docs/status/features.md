@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-22 (OyamaEmail image delivery and compact recipient-address letter layout)_
+_Last focused audit: 2026-07-22 (OyamaEmail image delivery and unified production letter rendering)_
 
 ## Governance baseline for new feature claims
 
@@ -22,14 +22,16 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 
 Validation: focused renderer, source, merge-preview, and campaign API coverage passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors and 5 existing warnings in the large email builder.
 
-## 2026-07-22 Compact Letter Layout and Reviewed Validation Override
+## 2026-07-22 Unified Production Letter Layout and Reviewed Validation Override
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Compact recipient-address letter format | Working | `app/components/letters/LetterPage.tsx`, `app/lib/letters/letter-document.ts`, `server/src/routes/letters.ts` | The organization mailing address is removed from the top header. The client/donor name and mailing address, with the date, sit in the top-right header in browser and generated-PDF output. An uploaded logo is treated as the header wordmark, so its organization name is not repeated beside it. Reduced margins, header/footer spacing, body spacing, and signature spacing allow more content on one page. |
+| Reference-style final letter format | Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts` | The letterhead uses the uploaded logo as its wordmark, organization contact details at upper right, a divider, recipient address at left, and date at right. The duplicate organization name is never added beside a logo. |
+| Unified production preview and print | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts` | The print route, template/publish preview, generation preview, and queue preview all use the server-rendered production PDF; HTML-only fallback letter previews were removed. |
+| Automatic pages and deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` | Long content automatically continues on the next page with letter chrome. The editor exposes an Add Page action when staff want to choose the break point. |
 | Acknowledged generation validation override | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letters-printables-generate-source.test.ts` | Staff must explicitly select “I understand” to generate through reviewable missing-data/PDF-only address warnings. Each applied override is persisted on the generated letter and in the audit event. Do Not Mail and mail-queue missing-address protections cannot be bypassed. |
 
-Validation: focused Letter document/PDF/source suite passed 41/41; web and server typechecks passed; targeted ESLint completed with 0 errors and 20 existing warnings in the large Letters workspace.
+Validation: focused Letter document/PDF/source suite passed 42/42; web and server typechecks passed.
 
 ## 2026-07-20 Donor Campaign Workspace Visual and Workflow Audit
 
@@ -85,7 +87,7 @@ Validation: focused unit/source suite passed 84/84; database-backed donor, Lette
 |---|---|---|---|
 | OyamaEmail template review gate | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | The reusable-template path is now Save Draft -> resolve required compliance checks -> Send proof -> Mark Ready. Required sender, content, unsubscribe, address, and plain-text checks prevent Ready status until resolved. |
 | OyamaEmail proof-send interaction | Working | `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | The browser prompt was replaced with an in-workspace dialog that states it sends only to the supplied reviewer address; campaign audience sending remains in the campaign review route. |
-| Letter page-control and formatted PDF output | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `docs/status/audit-artifacts/2026-07-16-letters-email-production-readiness-pass.md` | Letters are one page unless staff insert Page Break; accidental overflow returns a clear 422 response. Quotes, lists, common font families, 8–28 pt sizes, and continuation-page chrome are rendered by the server path. |
+| Letter page-control and formatted PDF output | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `docs/status/audit-artifacts/2026-07-16-letters-email-production-readiness-pass.md` | Long letters flow to another page automatically; staff can add an intentional break from the editor. Quotes, lists, common font families, 8–28 pt sizes, and continuation-page chrome are rendered by the server path. |
 | Letter headers, centered footers, and signatures | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `tests/smoke/letters-printables-generate-source.test.ts` | Template presets are applied to sample, preview, individual, and batch PDFs; active defaults fill missing selections; wide wordmarks do not duplicate the organization name; footer lines are centered; signatures are appended once. |
 | Generated Letter to OyamaEmail conversion | Working | `server/src/routes/letters.ts`, `server/src/routes/email-campaigns.ts`, `tests/smoke/api-smoke.test.ts` | The handoff preserves rich HTML, generates plain text, creates one linked draft for the constituent, routes to the canonical review page, and reopens the existing draft instead of duplicating it. |
 
@@ -103,7 +105,7 @@ Validation: focused unit/source suite passed 84/84; database-backed donor, Lette
 | Letter list editing, preview, print, and PDF output | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` | Bullet and numbered markers are explicit instead of relying on reset browser defaults. Server PDFs preserve unordered/ordered semantics, `<ol start>`, nested depth, and hanging indentation for wrapped items. |
 | OyamaEmail rich-text list output | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | Builder markers are visible, sent HTML receives email-safe inline list styles, and plain-text fallback retains bullet/number markers plus nested indentation. |
 | Letter browser/PDF styling parity | Partially Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts`, `docs/status/audit-artifacts/2026-07-16-letters-email-production-readiness-pass.md` | Lists, spacing, tables, images, alignment, signature suppression, common font family, and font size have targeted coverage. Exact mixed bold/italic/underline/color runs remain limited by the jsPDF block renderer. |
-| Builder page-count truthfulness | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts` | The canvas is constrained to its paper height and visibly warns when content cannot fit. It shows author-requested Page Break count; server PDF output rejects accidental overflow instead of inventing another page. |
+| Builder page-flow guidance | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts` | The canvas identifies when content reaches its visible page, while the production PDF continues automatically. Add Page remains available for staff-controlled breaks. |
 
 ## 2026-07-14 OyamaLetters Batch Merge Context Fix
 

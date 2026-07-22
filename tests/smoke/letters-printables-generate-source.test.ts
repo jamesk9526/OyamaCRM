@@ -93,9 +93,9 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(lettersApi).toContain("footerPreset: generatedLetter.template?.footerPreset ?? defaultPresets.footerPreset");
     expect(lettersApi).toContain('doc.text(line, pageWidth / 2, footerY + index * 10, { align: "center" })');
     expect(lettersApi).toContain("LETTER_ONE_PAGE_LIMIT_EXCEEDED");
-    expect(lettersApi).toContain("requireExplicitPageBreaks: true");
+    expect(lettersApi).not.toContain("requireExplicitPageBreaks: true");
     expect(workspace).toContain('data-letter-page-break="true"');
-    expect(workspace).toContain("Overflow blocked");
+    expect(workspace).toContain("Auto-flows in production");
   });
 
   it("uses the uploaded organization logo as the header wordmark in print and PDF output", () => {
@@ -104,7 +104,7 @@ describe("OyamaLetters generate workspace source contract", () => {
 
     expect(letterPage).toContain("!logoUrl ? <p");
     expect(lettersApi).toContain("if (header[0] && !hasLogo)");
-    expect(lettersApi).toContain("browser print route by never repeating");
+    expect(lettersApi).toContain("print renderer clean by never repeating");
   });
 
   it("keeps operational PDF labels out of rendered letter output", () => {

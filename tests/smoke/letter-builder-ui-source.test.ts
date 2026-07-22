@@ -47,7 +47,7 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Generate Letters");
     expect(workspace).toContain("[&_ul]:list-disc");
     expect(workspace).toContain("[&_ol]:list-decimal");
-    expect(workspace).toContain("Canvas preview");
+    expect(workspace).toContain("Editor canvas");
     expect(workspace).not.toContain("Page 1 of 1");
     expect(letterPage).toContain("[&_ul]:list-disc");
     expect(letterPage).toContain("[&_ol]:list-decimal");
@@ -101,7 +101,7 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Step {activePublishTabIndex + 1} of {publishTabs.length}");
   });
 
-  it("uses a shared branded LetterPage for live preview output", () => {
+  it("uses the server-rendered production PDF as the one print and preview output", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
     const letterPage = read("app/components/letters/LetterPage.tsx");
     const printRoute = read("app/components/letters/LetterPrintRoute.tsx");
@@ -111,8 +111,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain('import LetterPage from "@/app/components/letters/LetterPage"');
     expect(workspace).toContain("<LetterPage");
     expect(workspace).toContain("bodySlot=");
-    expect(workspace).toContain("openPrintRoute");
-    expect(workspace).toContain("/print");
+    expect(workspace).toContain("Production Preview");
+    expect(workspace).toContain("Add Page");
     expect(letterPage).toContain("export default function LetterPage");
     expect(letterPage).toContain("document?: LetterDocument");
     expect(letterPage).toContain("@page { size: Letter portrait; margin: 0; }");
@@ -123,12 +123,10 @@ describe("letter builder UI redesign source contract", () => {
     expect(letterDocument).toContain("export interface LetterDocument");
     expect(letterDocument).toContain("buildLetterDocument");
     expect(letterDocument).toContain("brandingSnapshot");
-    expect(printRoute).toContain("<LetterPage");
-    expect(printRoute).toContain("buildLetterDocument");
-    expect(printRoute).toContain("/print-preview");
-    expect(printRoute).toContain("mergedPrintBody");
-    expect(printRoute).toContain("document={document}");
-    expect(printRoute).toContain("window.print()");
+    expect(printRoute).toContain("apiFetchResponse");
+    expect(printRoute).toContain("/sample-pdf?preview=1&inline=1");
+    expect(printRoute).toContain("same server-rendered PDF used by");
+    expect(printRoute).toContain('title="Production letter PDF"');
     expect(printPage).toContain("LetterPrintRoute");
   });
 

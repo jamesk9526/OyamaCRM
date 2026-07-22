@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-22 (OyamaEmail image delivery and compact letters update)
+Last updated: 2026-07-22 (OyamaEmail image delivery and unified production letter rendering)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -15,16 +15,18 @@ This file is the release-gate source of truth for production readiness.
 
 Validation: focused Email renderer/source/API suite passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors.
 
-## 2026-07-22 Compact Letter Layout and Reviewed Validation Override
+## 2026-07-22 Unified Production Letter Layout and Reviewed Validation Override
 
 | Release gate | Status | Evidence |
 |---|---|---|
-| Browser preview and server PDF use a compact donor-address letter format | Working | `app/components/letters/LetterPage.tsx`, `app/lib/letters/letter-document.ts`, `server/src/routes/letters.ts` |
-| The organization address is absent from the top header; recipient address is top-right with the date | Working | Shared browser preview plus `renderGeneratedLetterPdf` chrome rendering |
+| Final production PDF follows one reference-style letter format | Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts` |
+| Logo wordmark, organization contact details, recipient address, and date use the intended standard letter positions | Working | Uploaded logo at upper left; organization contacts upper right; recipient left and date right below the divider |
+| Every user-facing letter preview and print route uses the production PDF | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` |
+| Long letters auto-flow to the next page and the editor offers Add Page for deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` |
 | Staff can explicitly acknowledge reviewable generation validation notes | Working | `acknowledgeValidationOverride` is sent by the Generate workspace, recorded in generated-letter metadata and audit history |
 | Mailing safety remains server enforced | Working | `SUPPRESSED_DO_NOT_MAIL` and a missing mail-queue address remain non-bypassable in `canAcknowledgeGenerationValidation` |
 
-Validation: focused Letter document/PDF/source suite passed 41/41; `pnpm typecheck` passed; targeted ESLint completed with 0 errors and 20 existing warnings in the large Letters workspace.
+Validation: focused Letter document/PDF/source suite passed 42/42; `pnpm typecheck` passed.
 
 ## 2026-07-20 Donor Campaign Workspace Audit
 
@@ -186,8 +188,8 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 | Template Library, Canvas Builder, Publish Workspace, Generate Letters, queue, and settings routes use live letters APIs | Working | `app/oyama-letters/page.tsx`, `app/oyama-letters/templates/[templateId]/page.tsx`, `app/oyama-letters/templates/[templateId]/publish/page.tsx`, `app/oyama-letters/generate/page.tsx`, `app/oyama-letters/queue/page.tsx`, `app/oyama-letters/settings/page.tsx` |
 | Generate Letters multi-recipient batch flow validates, generates, opens PDFs, routes print queue metadata, and preserves recipient/campaign/event/year merge context | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/api/letters-merge-aliases.api.test.ts`, `tests/smoke/letters-printables-generate-source.test.ts`, `tests/e2e/oyama-letters-batch.e2e.mjs` |
 | Canvas Builder block, format, and layout controls update real template content, including line height, common font family/size, dividers, preserved white space, push-to-bottom layout, active-block justification, inspector-built tables, and intentional page breaks | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letter-builder-ui-source.test.ts`, `tests/unit/letters-pdf-layout.test.ts` |
-| Letter PDF pagination defaults to one page and requires a user-inserted Page Break for each additional page; canvas warns about overflow | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `tests/smoke/letters-printables-generate-source.test.ts` |
-| Shared branded letter document preview and print output use one typed client model | Partially Working | `app/lib/letters/letter-document.ts`, `app/components/letters/LetterPage.tsx`, `app/components/letters/LetterPrintRoute.tsx`, `app/oyama-letters/templates/[templateId]/print/page.tsx`, `tests/unit/letter-document.test.ts`, `tests/smoke/letter-builder-ui-source.test.ts` |
+| Letter PDF pagination automatically continues content and supports deliberate Add Page breaks | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts`, `tests/smoke/letters-printables-generate-source.test.ts` |
+| Letter preview and print output use one server-rendered production PDF | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letter-builder-ui-source.test.ts` |
 | Uploaded letter images resize and uploaded signature images render in server PDFs | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/letters/LetterSignaturesManager.tsx`, `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` |
 | Letter sample PDF preview remains available without a live sample recipient | Working | `server/src/routes/letters.ts`, `tests/smoke/letters-printables-generate-source.test.ts` |
 | Selected donations hand off to OyamaLetters as a temporary unique-donor list | Working | `app/donations/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
@@ -203,7 +205,7 @@ Notes:
 - 2026-06-13 PDF hardening update: template sample PDF preview falls back to a synthetic preview recipient when no live sample recipient is available, and publish validation notes are advisory rather than blocking.
 - 2026-06-13 PDF runtime fix: linked jsPDF's Node PNG dependency chain (`fast-png`, `iobuffer`, `pako`) and verified `pnpm test:e2e:letters` through batch PDF and individual PDF export.
 - 2026-06-09 formatting update: paragraph alignment now includes full justification and applies to selected/current blocks; saved sections carry chosen justification; table insertion uses an in-app builder and server PDFs preserve header rows, multiline cells, and basic cell alignment.
-- 2026-07-16 pagination and formatting update: server PDF output now fails safely on accidental overflow rather than silently creating a page. Staff must insert Page Break to request page two; the builder constrains its canvas and shows overflow. Common font family and size settings now have server-rendered equivalents.
+- 2026-07-22 pagination and formatting update: server PDF output continues overflowing content on a new page automatically. Staff can use Add Page to choose a specific break; the builder still signals when its visible canvas page is full. Common font family and size settings have server-rendered equivalents.
 - Validation evidence on 2026-05-28: `pnpm typecheck`, `pnpm typecheck:letters`, targeted ESLint for touched letters routes/components, focused Vitest source contracts, HTTP route sweep, and escalated `npm run build`. A later build rerun was declined after additional builder/settings changes; targeted typecheck, ESLint, Vitest, and route checks passed for those changes.
 
 ## OyamaEmail Standalone Workspace Snapshot (2026-05-29)

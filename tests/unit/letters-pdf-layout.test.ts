@@ -4,7 +4,6 @@ import {
   buildLetterPdfBodyBlocks,
   htmlToPdfBlocks,
   htmlToPlainText,
-  LetterPdfLayoutError,
   normalizeMergedDonationDateTextForPdfExport,
   recipientFacingLetterSubject,
   renderGeneratedLetterPdf,
@@ -270,8 +269,8 @@ describe("letters PDF layout parsing", () => {
     expect(blocks.some((block) => block.kind === "image")).toBe(false);
   });
 
-  it("blocks accidental overflow instead of silently creating a second PDF page", async () => {
-    await expect(renderGeneratedLetterPdf({
+  it("automatically continues overflowing content on another PDF page", async () => {
+    const pdf = await renderGeneratedLetterPdf({
       templateName: "One Page Limit",
       subject: "One Page Limit",
       constituentName: "Test Donor",
@@ -289,7 +288,10 @@ describe("letters PDF layout parsing", () => {
         primaryColor: "#0f766e",
       },
       presets: {},
-    })).rejects.toBeInstanceOf(LetterPdfLayoutError);
+    });
+
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(1);
   });
 
   it("creates another PDF page only for an explicit page break", async () => {
