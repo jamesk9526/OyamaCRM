@@ -26,12 +26,13 @@ Validation: focused renderer, source, merge-preview, and campaign API coverage p
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Reference-style final letter format | Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts` | The letterhead uses the uploaded logo as its wordmark, organization contact details at upper right, a divider, recipient address at left, and date at right. The duplicate organization name is never added beside a logo. |
+| Final letter hierarchy and default margins | Working | `app/components/letters/LetterPage.tsx`, `app/lib/letters/letter-document.ts`, `server/src/routes/letters.ts` | The upper-left header uses the uploaded logo and a real `RE:` subject; the internal “Printable Letter” placeholder is suppressed. Recipient details are upper right, and new editor/document layouts default to 0.25-inch margins. |
+| PDF table fidelity | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` | Server PDFs preserve table borders, header fill, padding, bold headers, and per-cell alignment for donation-summary and other editor tables. |
 | Unified production preview and print | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts` | The print route, template/publish preview, generation preview, and queue preview all use the server-rendered production PDF; HTML-only fallback letter previews were removed. |
 | Automatic pages and deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` | Long content automatically continues on the next page with letter chrome. The editor exposes an Add Page action when staff want to choose the break point. |
 | Acknowledged generation validation override | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letters-printables-generate-source.test.ts` | Staff must explicitly select “I understand” to generate through reviewable missing-data/PDF-only address warnings. Each applied override is persisted on the generated letter and in the audit event. Do Not Mail and mail-queue missing-address protections cannot be bypassed. |
 
-Validation: focused Letter document/PDF/source suite passed 42/42; web and server typechecks passed.
+Validation: focused Letter document/PDF/source suite passed 44/44, including the one-page donor-letter fit and table-format regressions; web and server typechecks passed.
 
 ## 2026-07-20 Donor Campaign Workspace Visual and Workflow Audit
 

@@ -65,6 +65,12 @@ describe("letter document model", () => {
     expect(document.sender.name).toBe("James");
     expect(document.content.subject).toBe("Thank you");
     expect(document.content.closing).toBe("In gratitude,");
+    expect(document.layout).toMatchObject({
+      marginTop: 0.25,
+      marginRight: 0.25,
+      marginBottom: 0.25,
+      marginLeft: 0.25,
+    });
     expect(document.footer.blocks).toContainEqual({ label: "Email", text: "james@example.org" });
     expect(document.diagnostics).toMatchObject({
       usesSampleRecipient: false,

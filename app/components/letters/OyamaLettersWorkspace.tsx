@@ -1174,7 +1174,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   // All user-facing preview and print actions open the server-rendered PDF.
   const previewMode = false;
   const [showMarginGuides, setShowMarginGuides] = useState(true);
-  const [margins, setMargins] = useState({ top: 1, bottom: 1, left: 1, right: 1 });
+  const [margins, setMargins] = useState({ top: 0.25, bottom: 0.25, left: 0.25, right: 0.25 });
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
   const [savedDraft, setSavedDraft] = useState<TemplateDraft>(EMPTY_DRAFT);

@@ -198,10 +198,10 @@ export function buildLetterDocument(input: BuildLetterDocumentInput): LetterDocu
     layout: {
       pageSize: "letter",
       orientation: "portrait",
-      marginTop: input.marginTop ?? 0.6,
-      marginRight: input.marginRight ?? 0.6,
-      marginBottom: input.marginBottom ?? 0.5,
-      marginLeft: input.marginLeft ?? 0.6,
+      marginTop: input.marginTop ?? 0.25,
+      marginRight: input.marginRight ?? 0.25,
+      marginBottom: input.marginBottom ?? 0.25,
+      marginLeft: input.marginLeft ?? 0.25,
     },
     diagnostics: {
       usesSampleRecipient: recipientName === sampleRecipientName,

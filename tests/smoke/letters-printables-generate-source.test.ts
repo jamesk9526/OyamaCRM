@@ -102,9 +102,10 @@ describe("OyamaLetters generate workspace source contract", () => {
     const letterPage = read("app/components/letters/LetterPage.tsx");
     const lettersApi = read("server/src/routes/letters.ts");
 
-    expect(letterPage).toContain("!logoUrl ? <p");
-    expect(lettersApi).toContain("if (header[0] && !hasLogo)");
-    expect(lettersApi).toContain("print renderer clean by never repeating");
+    expect(letterPage).toContain("recipientFacingSubject");
+    expect(letterPage).toContain("{recipientName}");
+    expect(lettersApi).toContain("const subject = recipientFacingLetterSubject(documentMeta?.subject)");
+    expect(lettersApi).toContain("RE: ${subject}");
   });
 
   it("keeps operational PDF labels out of rendered letter output", () => {

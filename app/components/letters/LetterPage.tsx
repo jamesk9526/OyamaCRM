@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   DEFAULT_BRANDING_SETTINGS,
-  formatBrandingAddress,
   type BrandingSettings,
 } from "@/app/lib/branding-settings";
 import type { LetterDocument } from "@/app/lib/letters/letter-document";
@@ -62,6 +61,11 @@ function clean(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
+function recipientFacingSubject(value: string | null | undefined): string {
+  const subject = clean(value);
+  return subject.toLowerCase() === "printable letter" ? "" : subject;
+}
+
 function formatRecipientAddress(recipient: LetterPageRecipient | null | undefined): string[] {
   if (!recipient) return [];
   return [
@@ -85,10 +89,10 @@ export default function LetterPage({
   sender,
   footerEnabled,
   footerBlocks = [],
-  marginTop = 0.6,
-  marginRight = 0.6,
-  marginBottom = 0.5,
-  marginLeft = 0.6,
+  marginTop = 0.25,
+  marginRight = 0.25,
+  marginBottom = 0.25,
+  marginLeft = 0.25,
   className = "",
   minHeight = LETTER_HEIGHT_PX,
   screenShadow = true,
@@ -124,9 +128,6 @@ export default function LetterPage({
   const primaryColor = clean(resolvedBranding.primaryColor) || DEFAULT_BRANDING_SETTINGS.primaryColor;
   const accentColor = clean(resolvedBranding.accentColor) || DEFAULT_BRANDING_SETTINGS.accentColor;
   const logoUrl = clean(resolvedBranding.logoUrl) || clean(resolvedBranding.logoSquareUrl);
-  const organizationAddress = formatBrandingAddress(resolvedBranding);
-  const organizationPhone = clean(resolvedBranding.contactPhone);
-  const organizationEmail = clean(resolvedBranding.contactEmail);
   const senderName = clean(resolvedSender?.name) || clean(resolvedBranding.defaultLetterSignerName) || organizationName;
   const senderTitle = clean(resolvedSender?.title) || clean(resolvedBranding.defaultLetterSignerTitle);
   const senderEmail = clean(resolvedSender?.email) || clean(resolvedBranding.defaultLetterSignerEmail) || clean(resolvedBranding.contactEmail);
@@ -136,7 +137,7 @@ export default function LetterPage({
   const recipientName = clean(resolvedRecipient?.displayName) || "Sample Preview Recipient";
   const recipientAddress = formatRecipientAddress(resolvedRecipient);
   const displayDate = clean(resolvedDate) || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const displaySubject = clean(resolvedSubject || resolvedTitle);
+  const displaySubject = recipientFacingSubject(resolvedSubject || resolvedTitle);
   const displaySalutation = resolvedSalutation === null ? "" : clean(resolvedSalutation) || `Dear ${recipientName},`;
   const displayFooterBlocks = resolvedFooterBlocks.length > 0
     ? resolvedFooterBlocks
@@ -193,36 +194,20 @@ export default function LetterPage({
               {organizationName.slice(0, 2).toUpperCase()}
             </div>
           )}
-          {!logoUrl || resolvedBranding.tagline ? (
+          {displaySubject ? (
             <div className="min-w-0">
-              {!logoUrl ? <p className="break-words text-2xl font-semibold tracking-normal" style={{ color: primaryColor }}>{organizationName}</p> : null}
-              {resolvedBranding.tagline ? <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{resolvedBranding.tagline}</p> : null}
+              <p className="break-words text-sm font-semibold uppercase tracking-wide text-slate-950"><span style={{ color: primaryColor }}>RE:</span> {displaySubject}</p>
             </div>
           ) : null}
         </div>
         <div className="max-w-[235px] shrink-0 text-right text-[11px] leading-5 text-slate-700">
-          {organizationAddress ? <p>{organizationAddress}</p> : null}
-          {organizationPhone ? <p>{organizationPhone}</p> : null}
-          {organizationEmail ? <p>{organizationEmail}</p> : null}
-          {resolvedBranding.websiteUrl ? <p>{resolvedBranding.websiteUrl}</p> : null}
+          <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
+          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
+          <p className="mt-1 font-semibold text-slate-700">{displayDate}</p>
         </div>
       </header>
 
-      <section className="mt-7 grid gap-8 text-sm leading-6 text-slate-800 sm:grid-cols-[1fr_auto]">
-        <div>
-          <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
-          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
-        </div>
-        <p className="whitespace-nowrap font-semibold text-slate-700">{displayDate}</p>
-      </section>
-
-      {displaySubject ? (
-        <p className="mt-7 text-sm font-semibold uppercase tracking-wide text-slate-950">
-          <span style={{ color: primaryColor }}>RE:</span> {displaySubject}
-        </p>
-      ) : null}
-
-      <section className="mt-7 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
+      <section className="mt-6 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()

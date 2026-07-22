@@ -123,6 +123,30 @@ describe("letters PDF layout parsing", () => {
     });
   });
 
+  it("preserves donation-table borders, header fill, padding, emphasis, and cell alignment for the PDF", () => {
+    const blocks = htmlToPdfBlocks([
+      '<table data-letter-table="donation-summary"><tbody>',
+      '<tr><th style="border:1px solid #cbd5e1; padding:8px; background:#f8fafc; text-align:left;">Gift Detail</th><th style="border:1px solid #cbd5e1; padding:8px; background:#f8fafc; text-align:right;">Value</th></tr>',
+      '<tr><td style="border:1px solid #cbd5e1; padding:8px;">Donation Amount</td><td style="border:1px solid #cbd5e1; padding:8px; text-align:right;">{{donation.amount}}</td></tr>',
+      '</tbody></table>',
+    ].join(""));
+
+    expect(blocks[0]).toMatchObject({
+      kind: "tableRow",
+      cells: [
+        { header: true, align: "left", borderStyle: "solid", borderColor: "#cbd5e1", backgroundColor: "#f8fafc", padding: 6, bold: true },
+        { header: true, align: "right", borderStyle: "solid", borderColor: "#cbd5e1", backgroundColor: "#f8fafc", padding: 6, bold: true },
+      ],
+    });
+    expect(blocks[1]).toMatchObject({
+      kind: "tableRow",
+      cells: [
+        { header: false, align: "left", borderStyle: "solid", borderColor: "#cbd5e1", padding: 6, bold: false },
+        { header: false, align: "right", borderStyle: "solid", borderColor: "#cbd5e1", padding: 6, bold: false },
+      ],
+    });
+  });
+
   it("preserves uploaded and resized images for PDF rendering", () => {
     const blocks = htmlToPdfBlocks([
       '<img src="/uploads/letter-media/org/photo.png" alt="Impact photo" data-letter-width="75" style="width:75%;height:auto;" />',
@@ -292,6 +316,47 @@ describe("letters PDF layout parsing", () => {
 
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
     expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(1);
+  });
+
+  it("keeps a full donor thank-you letter and gift table on one printed page", async () => {
+    const pdf = await renderGeneratedLetterPdf({
+      templateName: "July Donor Letter",
+      subject: "",
+      constituentName: "Elizabeth Brisindine",
+      recipient: {
+        fullName: "Elizabeth Brisindine",
+        addressLine1: "P.O. Box 403",
+        addressLine2: "",
+        city: "Marionville",
+        state: "MO",
+        zip: "65705",
+      },
+      generatedAt: new Date("2026-07-22T12:00:00.000Z"),
+      mergedPrintBody: [
+        "<p>July 22, 2026</p>",
+        "<p>Dear Elizabeth Brisindine,</p>",
+        "<p>July is a time when we celebrate the blessings of living in a nation founded on the principles of liberty and freedom. As we reflect on Independence Day, we are reminded how thankful we are for the freedoms we often take for granted—the freedom to gather, to worship, and to generously support causes that make a lasting difference in our communities.</p>",
+        "<p>At The Pregnancy Care Center, we are especially grateful for the freedom to extend hope, compassion, and practical support to women and families facing unexpected pregnancies. Every day, we have the privilege of serving without charge, because of you.</p>",
+        "<p>We are excited to share that construction of our Mobile Pregnancy Center continues to move forward with a delivery date tentatively in early September! This mobile ministry will help remove barriers allowing us to reach even more women and families.</p>",
+        "<p>Thank you for believing in this mission and for using your freedom to make a difference in the lives of others. May God continue to bless you, and may God continue to bless America.</p>",
+        '<table data-letter-table="true"><tbody><tr><th>Gift Detail</th><th>Value</th></tr><tr><td>Donation Amount</td><td>$50.00</td></tr><tr><td>Donation Date</td><td>July 22, 2026</td></tr></tbody></table>',
+      ].join(""),
+      branding: {
+        organizationName: "The Pregnancy Care Center",
+        tagline: "",
+        addressLine: "P.O. Box 107 · 315 S. Madison Ave. · Aurora, MO 65605",
+        contactLine: "417-678-0090 · contact@thepregnancycarecenter.com",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#6b2c73",
+      },
+      presets: {},
+    });
+
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? [])).toHaveLength(1);
   });
 
   it("creates another PDF page only for an explicit page break", async () => {

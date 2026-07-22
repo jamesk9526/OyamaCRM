@@ -1192,6 +1192,11 @@ interface PdfTableCell {
   text: string;
   header: boolean;
   align: PdfTextAlign;
+  borderStyle: "solid" | "dashed" | "none";
+  borderColor: string;
+  backgroundColor?: string;
+  padding: number;
+  bold: boolean;
 }
 
 function readHtmlAttribute(attributes: string, name: string): string {
@@ -1391,6 +1396,32 @@ function flattenHtmlListsForPdf(html: string): string {
   return output + html.slice(cursor);
 }
 
+function readPdfCssHexColor(attributes: string, property: "background" | "border", fallback?: string): string | undefined {
+  const propertyPattern = property === "background" ? "(?:background|background-color)" : "border(?:-color)?";
+  const match = attributes.match(new RegExp(`${propertyPattern}\\s*:\\s*[^;#]*?(#[0-9a-f]{6})`, "i"));
+  return match?.[1]?.toLowerCase() ?? fallback;
+}
+
+function parsePdfTableCellStyle(attributes: string, header: boolean): Pick<PdfTableCell, "borderStyle" | "borderColor" | "backgroundColor" | "padding" | "bold"> {
+  const borderDeclaration = attributes.match(/border(?:-[a-z]+)?\s*:\s*([^;"]+)/i)?.[1] ?? "";
+  const borderStyle = /(?:^|\s)0(?:\s|$)|\bnone\b/i.test(borderDeclaration)
+    ? "none"
+    : /\bdashed\b/i.test(borderDeclaration)
+      ? "dashed"
+      : "solid";
+  const rawPadding = Number.parseFloat(attributes.match(/padding\s*:\s*([0-9]+(?:\.[0-9]+)?)(?:px|pt)?/i)?.[1] ?? "");
+  const padding = Number.isFinite(rawPadding) ? Math.min(12, Math.max(2, rawPadding * 0.75)) : 6;
+  const backgroundColor = readPdfCssHexColor(attributes, "background", header ? "#f8fafc" : undefined);
+  const bold = header || /font-weight\s*:\s*(?:[6-9]00|bold|bolder)/i.test(attributes);
+  return {
+    borderStyle,
+    borderColor: readPdfCssHexColor(attributes, "border", "#cbd5e1") ?? "#cbd5e1",
+    backgroundColor,
+    padding,
+    bold,
+  };
+}
+
 function parsePdfFontSize(attributes: string, innerHtml = ""): number | undefined {
   const match = `${attributes} ${innerHtml}`.match(/font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(pt|px)?/i);
   if (!match) return undefined;
@@ -1443,7 +1474,8 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
           return {
             text,
             header: cellTag === "th",
-            align: parsePdfTextAlign(cellAttributes, cellInner) ?? parsePdfTextAlign(attributes, inner) ?? "left",
+            align: parsePdfTextAlign(cellAttributes, cellInner) ?? parsePdfTextAlign(attributes) ?? "left",
+            ...parsePdfTableCellStyle(cellAttributes, cellTag === "th"),
           } satisfies PdfTableCell;
         })
         .filter((cell) => cell.text);
@@ -1661,17 +1693,6 @@ export function recipientFacingLetterSubject(value: string | null | undefined): 
   return subject.toLowerCase() === "printable letter" ? "" : subject;
 }
 
-function headerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["headerPreset"]): string[] {
-  const customHeader = preset?.customHtml?.trim() || branding.globalHeaderHtml?.trim() || "";
-  if (customHeader) return [stripHtmlInline(customHeader)].filter(Boolean);
-  return [
-    (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
-    (preset?.showTagline ?? false) ? branding.tagline : "",
-    (preset?.showAddress ?? true) ? branding.addressLine : "",
-    (preset?.showPhone ?? true) || (preset?.showWebsite ?? true) ? branding.contactLine : "",
-  ].filter(Boolean);
-}
-
 function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["footerPreset"]): string[] {
   const customFooter = preset?.customHtml?.trim() || branding.globalFooterHtml?.trim() || "";
   if (customFooter) return [stripHtmlInline(customFooter)].filter(Boolean);
@@ -1807,9 +1828,9 @@ function drawPdfChrome(
   const activeLogoHeight = hasFallbackLogo ? fallbackLogoHeight : renderedLogoHeight;
   const logoX = logoAlignment === "CENTER" ? (pageWidth - activeLogoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - activeLogoWidth : marginX;
   const logoY = 30 + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
-  const header = headerLines(branding, presets.headerPreset);
   const recipientAddressLines = buildRecipientAddressLines(recipient);
   const footer = footerLines(branding, presets.footerPreset);
+  const subject = recipientFacingLetterSubject(documentMeta?.subject);
   const logoFormat = branding.logoFormat ?? "PNG";
   const [brandR, brandG, brandB] = normalizePdfHexColor(branding.primaryColor);
   const firstPage = Math.max(1, pageRange?.startPage ?? 1);
@@ -1837,7 +1858,7 @@ function drawPdfChrome(
       doc.setTextColor(15, 23, 42);
     }
 
-    if (header.length > 0 || hasLogo || hasFallbackLogo) {
+    if (subject || hasLogo || hasFallbackLogo) {
       const headerTextX = logoAlignment === "LEFT" && (hasLogo || hasFallbackLogo)
         ? logoX + activeLogoWidth + 12
         : logoAlignment === "CENTER"
@@ -1847,63 +1868,34 @@ function drawPdfChrome(
             : marginX;
       const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
       const headerTextY = hasLogo || hasFallbackLogo ? logoY + activeLogoHeight / 2 + 5 : 48;
-      const detailColumnWidth = 196;
+      const recipientColumnWidth = recipientAddressLines.length > 0 ? 214 : 0;
       const titleMaxWidth = logoAlignment === "LEFT"
-        ? Math.max(96, pageWidth - marginX - headerTextX - detailColumnWidth - 18)
+        ? Math.max(96, pageWidth - marginX - headerTextX - recipientColumnWidth)
         : Math.max(160, pageWidth - marginX * 2);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(15, 23, 42);
-      // The uploaded organization logo is the wordmark. Keep the shared production
-      // print renderer clean by never repeating the organization name beside it.
-      if (header[0] && !hasLogo) {
-        const titleLines = doc.splitTextToSize(header[0], titleMaxWidth) as string[];
+      if (subject) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(brandR, brandG, brandB);
+        const titleLines = doc.splitTextToSize(`RE: ${subject}`, titleMaxWidth) as string[];
         const titleLineHeight = 14;
         const titleStartY = headerTextY - ((Math.max(1, titleLines.length) - 1) * titleLineHeight) / 2;
         titleLines.slice(0, 2).forEach((line, index) => {
           doc.text(line, headerTextX, titleStartY + index * titleLineHeight, { align: headerTextAlign });
         });
       }
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(15, 23, 42);
-      const detailLines = header
-        .slice(hasLogo ? 2 : 1, 4)
-        .flatMap((line) => doc.splitTextToSize(line, detailColumnWidth) as string[]);
-      detailLines.slice(0, 5).forEach((line, index) => {
-        doc.text(line, pageWidth - marginX, 42 + index * 13, { align: "right" });
-      });
       doc.setDrawColor(brandR, brandG, brandB);
       doc.line(marginX, 144, pageWidth - marginX, 144);
     }
 
     if (page === firstPage) {
       const addressLines = recipientAddressLines.slice(0, 4);
-      const renderedDate = documentMeta?.generatedAt
-        ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
-        : "";
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
-      if (renderedDate) doc.text(renderedDate, pageWidth - marginX, 180, { align: "right" });
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
       addressLines.forEach((line, index) => {
-        doc.text(line, marginX, 180 + index * 14);
+        doc.setFont("helvetica", index === 0 ? "bold" : "normal");
+        doc.text(line, pageWidth - marginX, 42 + index * 14, { align: "right" });
       });
-      const subject = recipientFacingLetterSubject(documentMeta?.subject);
-      if (subject) {
-        const subjectY = 246;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(brandR, brandG, brandB);
-        doc.text("RE:", marginX, subjectY);
-        const subjectOffset = doc.getTextWidth("RE: ");
-        doc.setTextColor(15, 23, 42);
-        doc.text(subject, marginX + subjectOffset, subjectY);
-      }
     }
 
     doc.setDrawColor(226, 232, 240);
@@ -1985,7 +1977,9 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 42;
-  const marginBottom = 84;
+  // Keep the body compact enough for a standard donor thank-you letter and
+  // receipt table to remain on its first page without crowding the footer.
+  const marginBottom = 74;
   const contentTop = options.startY;
   const maxTextWidth = pageWidth - marginX * 2;
   let cursorY = contentTop;
@@ -2020,11 +2014,12 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
 
   const tableRowHeight = (block: Extract<PdfContentBlock, { kind: "tableRow" }>) => {
     const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
-    const lineCounts = block.cells.map((cell) => {
+    const contentHeights = block.cells.map((cell) => {
       doc.setFontSize(9);
-      return (doc.splitTextToSize(cell.text, Math.max(12, cellWidth - 10)) as string[]).length;
+      const lineCount = (doc.splitTextToSize(cell.text, Math.max(12, cellWidth - cell.padding * 2)) as string[]).length;
+      return Math.max(1, lineCount) * 11 + cell.padding * 2 + 4;
     });
-    return Math.max(24, Math.max(1, ...lineCounts) * 11 + 14);
+    return Math.max(22, Math.max(1, ...contentHeights));
   };
 
   const estimatedBlockHeight = (block: PdfContentBlock): number => {
@@ -2055,7 +2050,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       return block.aspectRatio ? width / block.aspectRatio + 8 : width * 0.35 + 8;
     }
     if (block.kind === "tableRow") return tableRowHeight(block);
-    return textHeight(block.text, 11, block.lineHeight) + 8;
+    return textHeight(block.text, 10.5, block.lineHeight ?? 1.32) + 7;
   };
 
   const writeText = (
@@ -2181,33 +2176,50 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       ensurePageSpace(rowHeight);
       const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
       doc.setFontSize(9);
-      doc.setDrawColor(203, 213, 225);
       block.cells.forEach((cell, index) => {
         const x = marginX + index * cellWidth;
-        if (block.header || cell.header) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(x, cursorY - 12, cellWidth, rowHeight, "FD");
-        } else {
-          doc.rect(x, cursorY - 12, cellWidth, rowHeight);
+        const cellTop = cursorY - 12;
+        const [borderR, borderG, borderB] = normalizePdfHexColor(cell.borderColor);
+        doc.setDrawColor(borderR, borderG, borderB);
+        doc.setLineWidth(0.55);
+        if (cell.borderStyle === "dashed") {
+          doc.setLineDashPattern([2, 1.5], 0);
         }
-        doc.setFont("helvetica", cell.header ? "bold" : "normal");
+        if (cell.borderStyle !== "none") {
+          if (cell.backgroundColor) {
+            const [fillR, fillG, fillB] = normalizePdfHexColor(cell.backgroundColor);
+            doc.setFillColor(fillR, fillG, fillB);
+            doc.rect(x, cellTop, cellWidth, rowHeight, "FD");
+          } else {
+            doc.rect(x, cellTop, cellWidth, rowHeight, "S");
+          }
+        } else if (cell.backgroundColor) {
+          const [fillR, fillG, fillB] = normalizePdfHexColor(cell.backgroundColor);
+          doc.setFillColor(fillR, fillG, fillB);
+          doc.rect(x, cellTop, cellWidth, rowHeight, "F");
+        }
+        if (cell.borderStyle === "dashed") {
+          doc.setLineDashPattern([], 0);
+        }
+        doc.setLineWidth(0.2);
+        doc.setFont("helvetica", cell.bold ? "bold" : "normal");
         doc.setTextColor(15, 23, 42);
-        const lines = doc.splitTextToSize(cell.text, Math.max(12, cellWidth - 10)) as string[];
+        const lines = doc.splitTextToSize(cell.text, Math.max(12, cellWidth - cell.padding * 2)) as string[];
         const textX = cell.align === "center"
           ? x + cellWidth / 2
           : cell.align === "right"
-            ? x + cellWidth - 5
-            : x + 5;
+            ? x + cellWidth - cell.padding
+            : x + cell.padding;
         const options = cell.align === "left"
           ? undefined
-          : { align: cell.align, maxWidth: cellWidth - 10 };
-        lines.slice(0, Math.max(1, Math.floor((rowHeight - 10) / 11))).forEach((line, lineIndex) => {
-          drawText(line, textX, cursorY + 2 + lineIndex * 11, options);
+          : { align: cell.align, maxWidth: cellWidth - cell.padding * 2 };
+        lines.slice(0, Math.max(1, Math.floor((rowHeight - cell.padding * 2) / 11))).forEach((line, lineIndex) => {
+          drawText(line, textX, cellTop + cell.padding + 9 + lineIndex * 11, options);
         });
       });
       cursorY += rowHeight;
     } else {
-      writeText(block.text, block.fontSize ?? 11, "normal", 8, 0, block.lineHeight, block.align, block.fontFamily);
+      writeText(block.text, block.fontSize ?? 10.5, "normal", 7, 0, block.lineHeight ?? 1.32, block.align, block.fontFamily);
     }
   });
 }
@@ -2228,8 +2240,8 @@ export async function renderGeneratedLetterPdf(params: {
 
   const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
-    startY: 270,
-    continuationStartY: 164,
+    startY: 168,
+    continuationStartY: 160,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
     subject: params.subject,
@@ -2299,8 +2311,8 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     const startPage = doc.getNumberOfPages();
     const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
-      startY: 270,
-      continuationStartY: 164,
+      startY: 168,
+      continuationStartY: 160,
     });
     const endPage = doc.getNumberOfPages();
     drawPdfChrome(doc, item.branding, item.presets, item.recipient, {

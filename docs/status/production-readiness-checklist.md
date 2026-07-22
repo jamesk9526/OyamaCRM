@@ -20,13 +20,14 @@ Validation: focused Email renderer/source/API suite passed 34/34; web and server
 | Release gate | Status | Evidence |
 |---|---|---|
 | Final production PDF follows one reference-style letter format | Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts` |
-| Logo wordmark, organization contact details, recipient address, and date use the intended standard letter positions | Working | Uploaded logo at upper left; organization contacts upper right; recipient left and date right below the divider |
+| Logo wordmark, recipient details, subject, and margins use the intended standard letter positions | Working | Uploaded logo and real `RE:` subject at upper left; recipient details upper right; the internal “Printable Letter” label is suppressed; new layouts default to 0.25-inch margins. |
+| Donation-summary and editor tables preserve their visual structure in PDF | Working | `server/src/routes/letters.ts` carries cell borders, fill, padding, emphasis, and alignment into the production renderer. |
 | Every user-facing letter preview and print route uses the production PDF | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` |
 | Long letters auto-flow to the next page and the editor offers Add Page for deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` |
 | Staff can explicitly acknowledge reviewable generation validation notes | Working | `acknowledgeValidationOverride` is sent by the Generate workspace, recorded in generated-letter metadata and audit history |
 | Mailing safety remains server enforced | Working | `SUPPRESSED_DO_NOT_MAIL` and a missing mail-queue address remain non-bypassable in `canAcknowledgeGenerationValidation` |
 
-Validation: focused Letter document/PDF/source suite passed 42/42; `pnpm typecheck` passed.
+Validation: focused Letter document/PDF/source suite passed 44/44, including the one-page donor-letter fit and table-format regressions; `pnpm typecheck` passed.
 
 ## 2026-07-20 Donor Campaign Workspace Audit
 
