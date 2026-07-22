@@ -117,6 +117,30 @@ describe("oyama email render service", () => {
     expect(rendered.text).toContain("4. Attend");
   });
 
+  it("formats bullets from Advanced Editor HTML blocks in the delivered email", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [
+        {
+          id: "advanced-html",
+          type: "html",
+          html: "<p>How you can help:</p><ul><li>Volunteer</li><li>Share this update</li></ul>",
+        },
+      ],
+    });
+    const settings = normalizeEmailTemplateSettings({
+      enablePlainTextVersion: true,
+      includeUnsubscribeLink: false,
+    });
+
+    const rendered = renderEmailTemplateDocument(template, settings);
+
+    expect(rendered.html).toContain("list-style-type:disc");
+    expect(rendered.html).toContain("display:list-item");
+    expect(rendered.html).toContain("Volunteer");
+    expect(rendered.text).toContain("- Volunteer");
+    expect(rendered.text).toContain("- Share this update");
+  });
+
   it("preserves nested list structure in plain-text fallback", () => {
     const text = htmlToPlainText("<ul><li>Parent<ol><li>First child</li><li>Second child</li></ol></li></ul>");
 

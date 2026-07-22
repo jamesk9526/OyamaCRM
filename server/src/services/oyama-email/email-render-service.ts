@@ -1044,8 +1044,10 @@ function renderFileLinkBlock(block: OyamaEmailBlock, theme: RenderTheme): string
 </tr>`;
 }
 
-function renderHtmlBlock(block: OyamaEmailBlock): string {
-  const html = sanitizeRichHtml(asString(block.html));
+function renderHtmlBlock(block: OyamaEmailBlock, theme: RenderTheme): string {
+  // Advanced Editor content is sent through the same email-safe rich-text
+  // formatter as ordinary text blocks so list semantics survive delivery.
+  const html = formatEmailRichTextHtml(asString(block.html), theme);
   return `
 <tr>
   <td style="padding:14px 24px;">${html}</td>
@@ -1205,7 +1207,7 @@ export function renderEmailTemplateDocument(
       if (block.type === "social") return renderSocialBlock(block, theme);
       if (block.type === "video") return renderVideoBlock(block, theme);
       if (block.type === "fileLink") return renderFileLinkBlock(block, theme);
-      return renderHtmlBlock(block);
+      return renderHtmlBlock(block, theme);
     })
     .join("\n");
 

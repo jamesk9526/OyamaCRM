@@ -10,6 +10,7 @@ This file is the release-gate source of truth for production readiness.
 |---|---|---|
 | Top-level and structured-column image blocks upload through the organization-scoped campaign media endpoint | Working | Recursive block updates and shared upload wiring in `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`; source contract coverage passed. |
 | Organization logos and uploaded images use absolute public URLs in recipient HTML | Working | Public-origin enrichment in `server/src/services/organization-branding.ts`; shared render-time URL resolution in `server/src/services/oyama-email/email-render-service.ts`; renderer coverage passed. |
+| Advanced Editor bullets and numbered lists remain formatted after delivery | Working | Top-level Advanced HTML uses the shared email-safe rich-text formatter, which inlines list markers and spacing and produces readable plain-text list fallbacks. |
 | Production public origin is configured and documented for self-hosted delivery | Working | `.env.production` points `NEXT_PUBLIC_APP_URL` / `FRONTEND_ORIGIN` at the public CRM host; `.env.example` and `docs/HOSTINGER_DEPLOY_README.md` document the requirement. |
 | Live Gmail/Outlook inbox image verification | Partially Working | Automated rendering confirms absolute image URLs; repeat one real proof send after deployment/restart to verify remote inbox access and any receiver-side image-proxy policy. |
 
