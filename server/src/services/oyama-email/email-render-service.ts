@@ -755,7 +755,42 @@ export type OyamaEmailGlobalChrome = {
   footerLegalText?: string;
   globalHeaderHtml?: string;
   globalFooterHtml?: string;
+  /** Public CRM origin used for relative uploaded images in delivered email. */
+  publicAssetBaseUrl?: string;
 };
+
+function resolvePublicEmailAssetUrl(value: string, publicAssetBaseUrl: string): string {
+  const candidate = value.trim();
+  if (!candidate || candidate.startsWith("#") || candidate.includes("{{") || candidate.includes("}}")) return value;
+  if (/^https?:\/\//i.test(candidate)) return value;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(candidate)) return value;
+
+  try {
+    return new URL(candidate, `${publicAssetBaseUrl.replace(/\/+$/, "")}/`).toString();
+  } catch {
+    return value;
+  }
+}
+
+/** Converts stored relative image attributes into absolute public URLs that inbox clients can request. */
+export function absolutizeEmailAssetUrls(html: string, publicAssetBaseUrl?: string): string {
+  const configuredBase = String(publicAssetBaseUrl || "").trim();
+  if (!configuredBase) return html;
+
+  try {
+    const parsed = new URL(configuredBase);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return html;
+  } catch {
+    return html;
+  }
+
+  return html.replace(
+    /\b(src|poster|background)\s*=\s*(["'])(.*?)\2/gi,
+    (_attribute, name: string, quote: string, value: string) => (
+      `${name}=${quote}${resolvePublicEmailAssetUrl(value, configuredBase)}${quote}`
+    ),
+  );
+}
 
 function themeFromTemplate(template: OyamaEmailTemplateDocument): RenderTheme {
   return {
@@ -1179,7 +1214,7 @@ export function renderEmailTemplateDocument(
   const bg = escapeHtml(asString(chrome?.emailBackgroundColor).trim() || template.backgroundColor || "#f3f7f5");
   const linkColor = escapeHtml(theme.linkColor);
 
-  const html = `<!doctype html>
+  const renderedHtml = `<!doctype html>
 <html>
   <body style="margin:0;padding:0;background:${bg};">
     <style>
@@ -1210,6 +1245,8 @@ export function renderEmailTemplateDocument(
     </table>
   </body>
 </html>`;
+
+  const html = absolutizeEmailAssetUrls(renderedHtml, chrome?.publicAssetBaseUrl);
 
   const plainTextOverride = asString(settings.plainTextOverride).trim();
   const text = settings.enablePlainTextVersion ? (plainTextOverride || htmlToPlainText(html)) : "";

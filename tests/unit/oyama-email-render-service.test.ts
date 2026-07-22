@@ -189,6 +189,42 @@ describe("oyama email render service", () => {
     expect(rendered.html).toContain("Impact caption");
   });
 
+  it("turns relative CRM uploads into public recipient-loadable image URLs at render time", () => {
+    const template = normalizeEmailTemplateDocument({
+      blocks: [
+        { id: "header", type: "header", logoUrl: "/uploads/branding/org/header.png" },
+        { id: "hero", type: "image", src: "/uploads/email-media/org/hero.jpg", alt: "Hero" },
+        {
+          id: "columns",
+          type: "columns",
+          columns: [
+            [{ id: "column-image", type: "image", src: "/uploads/email-media/org/column.png", alt: "Column" }],
+            [{ id: "hosted-image", type: "image", src: "https://cdn.example.org/hosted.png", alt: "Hosted" }],
+          ],
+        },
+        { id: "custom", type: "html", html: '<img src="/uploads/email-media/org/custom.gif" alt="Custom" />' },
+      ],
+    });
+
+    const rendered = renderEmailTemplateDocument(
+      template,
+      normalizeEmailTemplateSettings({ includeUnsubscribeLink: false }),
+      {
+        organizationName: "Public Image Test",
+        logoUrl: "/uploads/branding/org/global.png",
+        publicAssetBaseUrl: "https://crm.example.org",
+      },
+    );
+
+    expect(rendered.html).toContain('src="https://crm.example.org/uploads/branding/org/global.png"');
+    expect(rendered.html).toContain('src="https://crm.example.org/uploads/branding/org/header.png"');
+    expect(rendered.html).toContain('src="https://crm.example.org/uploads/email-media/org/hero.jpg"');
+    expect(rendered.html).toContain('src="https://crm.example.org/uploads/email-media/org/column.png"');
+    expect(rendered.html).toContain('src="https://crm.example.org/uploads/email-media/org/custom.gif"');
+    expect(rendered.html).toContain('src="https://cdn.example.org/hosted.png"');
+    expect(rendered.html).not.toContain('src="/uploads/');
+  });
+
   it("resolves compatibility merge aliases to canonical values", () => {
     const output = applyMergeTokens(
       "{{eventDate}} {{eventTime}} {{eventLocation}} {{donor.preferredName}}",

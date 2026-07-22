@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-20 (Donor CRM campaign workspace visual and workflow audit)_
+_Last focused audit: 2026-07-22 (OyamaEmail image upload and delivery hardening)_
 
 ## Governance baseline for new feature claims
 
@@ -12,6 +12,15 @@ Feature claims in this file should follow the workspace-first governance baselin
 - Canonical route truth when compatibility redirects still exist
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
+
+## 2026-07-22 OyamaEmail Image Upload and Delivery Hardening
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Image uploads inside structured columns | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Image and video-thumbnail controls at every nested column depth now use the same validated campaign-media uploader as top-level blocks. Nested updates traverse the saved block tree instead of stopping at the top-level canvas. |
+| Recipient-visible email images and organization logos | Working | `.env.production`, `server/src/services/organization-branding.ts`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | The shared preview, proof, scheduled-send, and immediate-send renderer converts stored relative CRM upload paths into absolute public URLs using `NEXT_PUBLIC_APP_URL` or `FRONTEND_ORIGIN`. Production now points both settings at the public CRM origin; hosted absolute URLs remain unchanged. |
+
+Validation: focused renderer, source, merge-preview, and campaign API coverage passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors and 5 existing warnings in the large email builder.
 
 ## 2026-07-20 Donor Campaign Workspace Visual and Workflow Audit
 

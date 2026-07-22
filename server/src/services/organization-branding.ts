@@ -24,6 +24,8 @@ export type OrganizationBrandingContext = {
   globalHeaderHtml: string;
   globalFooterHtml: string;
   defaultSignerTitle: string;
+  /** Public CRM origin used to turn stored /uploads paths into recipient-loadable email URLs. */
+  publicAssetBaseUrl: string;
 };
 
 function asObject(value: unknown): BrandingConfig {
@@ -44,6 +46,17 @@ function asWidth(value: unknown): number {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return 600;
   return Math.min(760, Math.max(420, parsed));
+}
+
+function publicAssetBaseUrl(): string {
+  const configured = String(process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "").trim();
+  try {
+    const parsed = new URL(configured || "http://localhost:3000");
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "http://localhost:3000";
+    return parsed.origin;
+  } catch {
+    return "http://localhost:3000";
+  }
 }
 
 function joinParts(parts: Array<string | null | undefined>, separator: string): string {
@@ -106,5 +119,6 @@ export async function loadOrganizationBrandingContext(
     globalHeaderHtml: asText(config.globalHeaderHtml),
     globalFooterHtml: asText(config.globalFooterHtml),
     defaultSignerTitle: asText(config.defaultLetterSignerTitle),
+    publicAssetBaseUrl: publicAssetBaseUrl(),
   };
 }

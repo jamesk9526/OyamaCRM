@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { loginAsAdmin } from "@/tests/helpers/auth";
 
 process.env.EMAIL_CAMPAIGN_WEBHOOK_SECRET ??= "test-webhook-secret";
+process.env.NEXT_PUBLIC_APP_URL = "https://crm.test.example";
 
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 let adminToken = "";
@@ -133,6 +134,7 @@ describe("email campaign workflow api", () => {
       .set(auth)
       .send({
         organizationDisplayName: "Hope Foundation",
+        logoUrl: "/uploads/branding/test/logo.png",
         contactPhone: "312-555-0100",
         websiteUrl: "https://hope.example.org/give",
         streetAddress1: "123 Main St",
@@ -154,7 +156,7 @@ describe("email campaign workflow api", () => {
         fromName: "Jamie Sender",
         fromEmail: "admin@hopefoundation.org",
         replyToEmail: "reply@hopefoundation.org",
-        bodyHtml: "<p>{{organization.address}}</p><p>{{organizationWebsite}}</p><p>{{organizationPhone}}</p><p>{{organizationTaxId}}</p><p>{{staffTitle}}</p>",
+        bodyHtml: '<img src="/uploads/email-media/test/body.png" alt="Campaign" /><p>{{organization.address}}</p><p>{{organizationWebsite}}</p><p>{{organizationPhone}}</p><p>{{organizationTaxId}}</p><p>{{staffTitle}}</p>',
         bodyText: "{{organization.address}} | {{organizationWebsite}} | {{organizationPhone}} | {{organizationTaxId}} | {{staffTitle}}",
       });
 
@@ -171,6 +173,9 @@ describe("email campaign workflow api", () => {
     expect(preview.body?.bodyHtml).toContain("312-555-0100");
     expect(preview.body?.bodyHtml).toContain("12-3456789");
     expect(preview.body?.bodyHtml).toContain("Development Director");
+    expect(preview.body?.bodyHtml).toContain('src="https://crm.test.example/uploads/branding/test/logo.png"');
+    expect(preview.body?.bodyHtml).toContain('src="https://crm.test.example/uploads/email-media/test/body.png"');
+    expect(preview.body?.bodyHtml).not.toContain('src="/uploads/');
 
     const invalid = await request(app)
       .post("/api/email-campaigns")

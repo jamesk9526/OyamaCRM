@@ -997,6 +997,35 @@ function cloneBlock(block: BuilderBlock): BuilderBlock {
   return copy;
 }
 
+/** Updates a block at any depth so column-contained image and video controls use the same upload path as top-level blocks. */
+function updateBlockTree(
+  blocks: BuilderBlock[],
+  blockId: string,
+  updater: (block: BuilderBlock) => BuilderBlock,
+): BuilderBlock[] {
+  let changed = false;
+  const next = blocks.map((block) => {
+    if (block.id === blockId) {
+      changed = true;
+      return updater(block);
+    }
+    if (block.type !== "columns" || !Array.isArray(block.columns)) return block;
+
+    let columnsChanged = false;
+    const columns = block.columns.map((column) => {
+      const updatedColumn = updateBlockTree(column, blockId, updater);
+      if (updatedColumn !== column) columnsChanged = true;
+      return updatedColumn;
+    });
+    if (!columnsChanged) return block;
+
+    changed = true;
+    return { ...block, columns };
+  });
+
+  return changed ? next : blocks;
+}
+
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -1637,10 +1666,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const updateBlock = useCallback((blockId: string, updater: (block: BuilderBlock) => BuilderBlock) => {
     setTemplateDocument({
       ...draftRef.current.template,
-      blocks: draftRef.current.template.blocks.map((block) => {
-        if (block.id !== blockId) return block;
-        return updater(block);
-      }),
+      blocks: updateBlockTree(draftRef.current.template.blocks, blockId, updater),
     });
   }, [setTemplateDocument]);
 
@@ -3521,7 +3547,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     mergeFieldGroups={mergeFieldGroups}
                     onChange={(patch) => updateBlock(selectedBlock.id, (current) => ({ ...current, ...patch }))}
                     onSetInsertTarget={(field) => setInsertTarget({ scope: "block", blockId: selectedBlock.id, field })}
-                    onUploadImage={(file) => void uploadImage(selectedBlock.id, file)}
+                    onUploadImage={(blockId, file) => void uploadImage(blockId, file)}
                     onGenerateAiSmartHtml={(description, tone, instruction, objective) => void generateAiSmartHtml(selectedBlock.id, description, tone, instruction, objective)}
                     aiSmartBusy={aiSmartBusyBlockId === selectedBlock.id}
                     aiSmartError={aiSmartBusyBlockId === selectedBlock.id ? aiSmartError : null}
@@ -4645,6 +4671,9 @@ function ColumnBlockStackEditor({
   branding,
   mergeFieldGroups,
   onChange,
+  onUploadImage,
+  uploadingImage,
+  canUpload,
   depth = 0,
 }: {
   block: BuilderBlock;
@@ -4652,6 +4681,9 @@ function ColumnBlockStackEditor({
   branding: BrandingSettings;
   mergeFieldGroups: MergeFieldGroup[];
   onChange: (patch: Partial<BuilderBlock>) => void;
+  onUploadImage: (blockId: string, file: File) => void;
+  uploadingImage: boolean;
+  canUpload: boolean;
   depth?: number;
 }) {
   const [selected, setSelected] = useState<{ column: number; id: string } | null>(null);
@@ -4716,12 +4748,12 @@ function ColumnBlockStackEditor({
             mergeFieldGroups={mergeFieldGroups}
             onChange={(patch) => patchColumn(selected.column, (items) => items.map((item) => item.id === selectedBlock.id ? { ...item, ...patch } : item))}
             onSetInsertTarget={() => undefined}
-            onUploadImage={() => undefined}
+            onUploadImage={onUploadImage}
             onGenerateAiSmartHtml={() => undefined}
             aiSmartBusy={false}
             aiSmartError={null}
-            uploadingImage={false}
-            canUpload={false}
+            uploadingImage={uploadingImage}
+            canUpload={canUpload}
             className="mt-0"
           />
         </div>
@@ -4752,7 +4784,7 @@ function BlockInspector({
   mergeFieldGroups: MergeFieldGroup[];
   onChange: (patch: Partial<BuilderBlock>) => void;
   onSetInsertTarget: (field: string) => void;
-  onUploadImage: (file: File) => void;
+  onUploadImage: (blockId: string, file: File) => void;
   onGenerateAiSmartHtml: (description: string, tone: WritingTone, instruction?: string, objective?: AiSmartObjective) => void;
   aiSmartBusy: boolean;
   aiSmartError: string | null;
@@ -5027,7 +5059,7 @@ function BlockInspector({
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
-                onUploadImage(file);
+                onUploadImage(block.id, file);
                 event.currentTarget.value = "";
               }}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-700 disabled:bg-slate-100"
@@ -5125,6 +5157,9 @@ function BlockInspector({
           branding={branding}
           mergeFieldGroups={mergeFieldGroups}
           onChange={onChange}
+          onUploadImage={onUploadImage}
+          uploadingImage={uploadingImage}
+          canUpload={canUpload}
         />
       ) : null}
 
@@ -5241,7 +5276,7 @@ function BlockInspector({
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
-                onUploadImage(file);
+                onUploadImage(block.id, file);
                 event.currentTarget.value = "";
               }}
               className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-700 disabled:bg-slate-100"

@@ -1,8 +1,19 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-20 (Donor campaign workspace visual and workflow audit)
+Last updated: 2026-07-22 (OyamaEmail image upload and delivery hardening)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-07-22 OyamaEmail Image Delivery Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Top-level and structured-column image blocks upload through the organization-scoped campaign media endpoint | Working | Recursive block updates and shared upload wiring in `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`; source contract coverage passed. |
+| Organization logos and uploaded images use absolute public URLs in recipient HTML | Working | Public-origin enrichment in `server/src/services/organization-branding.ts`; shared render-time URL resolution in `server/src/services/oyama-email/email-render-service.ts`; renderer coverage passed. |
+| Production public origin is configured and documented for self-hosted delivery | Working | `.env.production` points `NEXT_PUBLIC_APP_URL` / `FRONTEND_ORIGIN` at the public CRM host; `.env.example` and `docs/HOSTINGER_DEPLOY_README.md` document the requirement. |
+| Live Gmail/Outlook inbox image verification | Partially Working | Automated rendering confirms absolute image URLs; repeat one real proof send after deployment/restart to verify remote inbox access and any receiver-side image-proxy policy. |
+
+Validation: focused Email renderer/source/API suite passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors.
 
 ## 2026-07-20 Donor Campaign Workspace Audit
 

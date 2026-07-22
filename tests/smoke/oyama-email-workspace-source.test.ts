@@ -98,6 +98,9 @@ describe("OyamaEmail workspace source contract", () => {
     expect(builder).toContain("function UrlEditorDialog");
     expect(builder).toContain("Block-based columns");
     expect(builder).toContain("including images, CTAs, video, social, files, and nested grids");
+    expect(builder).toContain("updateBlockTree");
+    expect(builder).toContain("onUploadImage(block.id, file)");
+    expect(builder).not.toContain("onUploadImage={() => undefined}");
     expect(builder).toContain("create-letter-template");
     expect(builder).toContain("Create Letter");
     expect(builder).not.toContain("window.prompt(");
