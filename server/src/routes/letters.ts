@@ -478,6 +478,33 @@ function parseDonationDateRange(rawRange: unknown, legacyFrom?: unknown, legacyT
   return {};
 }
 
+/** Staff may acknowledge reviewable data warnings, but never override mailing safeguards. */
+function canAcknowledgeGenerationValidation(
+  reasons: GenerationValidationCode[],
+  deliveryTarget: (typeof LETTER_DELIVERY_TARGETS)[number],
+): boolean {
+  if (reasons.includes("SUPPRESSED_DO_NOT_MAIL")) return false;
+  if (deliveryTarget === "MAIL_QUEUE" && reasons.includes("MISSING_ADDRESS")) return false;
+  return true;
+}
+
+function buildMetadataWithGenerationValidationOverride(
+  existing: unknown,
+  reasons: GenerationValidationCode[],
+): Prisma.InputJsonValue {
+  const safeBase = existing && typeof existing === "object" && !Array.isArray(existing)
+    ? { ...(existing as Record<string, unknown>) }
+    : {};
+  return JSON.parse(JSON.stringify({
+    ...safeBase,
+    generationValidationOverride: {
+      acknowledged: true,
+      reasons: reasons.filter((reason) => reason !== "VALID"),
+      acknowledgedAt: new Date().toISOString(),
+    },
+  })) as Prisma.InputJsonValue;
+}
+
 /** Builds the qualifying donation filter shared by preview and batch generation. */
 function buildDonationContextFilter(body: unknown): Prisma.DonationWhereInput {
   const raw = body && typeof body === "object" && !Array.isArray(body)
@@ -1640,8 +1667,6 @@ function headerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPrese
   return [
     (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
     (preset?.showTagline ?? false) ? branding.tagline : "",
-    (preset?.showAddress ?? true) ? branding.addressLine : "",
-    (preset?.showPhone ?? true) || (preset?.showWebsite ?? true) ? branding.contactLine : "",
   ].filter(Boolean);
 }
 
@@ -1745,7 +1770,7 @@ function drawPdfChrome(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
-  const footerY = pageHeight - 54;
+  const footerY = pageHeight - 42;
   const fallbackLogoWidth = 48;
   const fallbackLogoHeight = 48;
   const logoMaxWidth = 160;
@@ -1820,17 +1845,16 @@ function drawPdfChrome(
             : marginX;
       const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
       const headerTextY = hasLogo || hasFallbackLogo ? logoY + activeLogoHeight / 2 + 5 : 48;
-      const detailColumnWidth = 248;
+      const detailColumnWidth = 230;
       const titleMaxWidth = logoAlignment === "LEFT"
         ? Math.max(96, pageWidth - marginX - headerTextX - detailColumnWidth - 18)
         : Math.max(160, pageWidth - marginX * 2);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.setTextColor(15, 23, 42);
-      // A wide wordmark already includes the organization name. Rendering the text
-      // again beside it causes the collision visible in exported PDFs.
-      const logoIncludesOrganizationName = hasLogo && renderedLogoWidth >= 104;
-      if (header[0] && !logoIncludesOrganizationName) {
+      // The uploaded organization logo is the wordmark. Keep the server PDF aligned
+      // with the browser print route by never repeating the organization name beside it.
+      if (header[0] && !hasLogo) {
         const titleLines = doc.splitTextToSize(header[0], titleMaxWidth) as string[];
         const titleLineHeight = 14;
         const titleStartY = headerTextY - ((Math.max(1, titleLines.length) - 1) * titleLineHeight) / 2;
@@ -1840,36 +1864,35 @@ function drawPdfChrome(
       }
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      doc.setTextColor(15, 23, 42);
-      const detailX = logoAlignment === "LEFT" ? pageWidth - marginX : headerTextX;
-      const detailAlign = logoAlignment === "LEFT" ? "right" : headerTextAlign;
-      const detailLines = header.slice(1, 4).flatMap((line) => doc.splitTextToSize(line, detailColumnWidth) as string[]);
-      detailLines.slice(0, 4).forEach((line, index) => {
-        doc.text(line, detailX, 42 + index * 10, { align: detailAlign });
+      doc.setTextColor(71, 85, 105);
+      const detailLines = header.slice(1, 2).flatMap((line) => doc.splitTextToSize(line, titleMaxWidth) as string[]);
+      detailLines.slice(0, 2).forEach((line, index) => {
+        doc.text(line, headerTextX, headerTextY + 12 + index * 10, { align: headerTextAlign });
       });
       doc.setDrawColor(brandR, brandG, brandB);
-      doc.line(marginX, 104, pageWidth - marginX, 104);
+      doc.line(marginX, 94, pageWidth - marginX, 94);
     }
 
-    if (recipientAddressLines.length > 0 && page === firstPage) {
-      const maxLines = 5;
-      const addressLines = recipientAddressLines.slice(0, maxLines);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      addressLines.forEach((line, index) => {
-        doc.text(line, marginX, 136 + index * 13);
-      });
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(71, 85, 105);
+    if (page === firstPage) {
+      const addressLines = recipientAddressLines.slice(0, 4);
+      const recipientX = pageWidth - marginX;
       const renderedDate = documentMeta?.generatedAt
         ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
         : "";
-      if (renderedDate) doc.text(renderedDate, pageWidth - marginX, 136, { align: "right" });
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      if (renderedDate) doc.text(renderedDate, recipientX, 34, { align: "right" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      addressLines.forEach((line, index) => {
+        doc.text(line, recipientX, 48 + index * 11, { align: "right" });
+      });
       const subject = recipientFacingLetterSubject(documentMeta?.subject);
       if (subject) {
-        const subjectY = 136 + addressLines.length * 13 + 22;
+        const subjectY = 118;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(brandR, brandG, brandB);
@@ -1959,7 +1982,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 54;
-  const marginBottom = 96;
+  const marginBottom = 84;
   const contentTop = options.startY;
   const maxTextWidth = pageWidth - marginX * 2;
   let cursorY = contentTop;
@@ -2202,8 +2225,8 @@ export async function renderGeneratedLetterPdf(params: {
 
   const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
-    startY: 230,
-    continuationStartY: 132,
+    startY: 152,
+    continuationStartY: 112,
     requireExplicitPageBreaks: true,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
@@ -2274,8 +2297,8 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     const startPage = doc.getNumberOfPages();
     const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
-      startY: 230,
-      continuationStartY: 132,
+      startY: 152,
+      continuationStartY: 112,
       requireExplicitPageBreaks: true,
     });
     const endPage = doc.getNumberOfPages();
@@ -4888,6 +4911,7 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
   const eventId = typeof req.body?.eventId === "string" ? req.body.eventId : undefined;
   const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
   const deliveryTarget = parseEnum(req.body?.deliveryTarget, LETTER_DELIVERY_TARGETS) ?? "PDF_ONLY";
+  const validationOverrideAcknowledged = req.body?.acknowledgeValidationOverride === true;
   const workflowPolicy = await getLettersWorkflowPolicy(organizationId);
   if (deliveryTarget === "MAIL_QUEUE" && !workflowPolicy.allowDirectMailQueue) {
     res.status(409).json({
@@ -4934,13 +4958,17 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
       allowPdfOnlyWithoutAddress: deliveryTarget === "PDF_ONLY" && !templateUsesAddressMergeFields(template),
     },
   });
-  if (!validation.valid) {
+  const validationOverrideApplied = !validation.valid
+    && validationOverrideAcknowledged
+    && canAcknowledgeGenerationValidation(validation.reasons, deliveryTarget);
+  if (!validation.valid && !validationOverrideApplied) {
     res.status(422).json({
       error: {
         code: "GENERATION_VALIDATION_FAILED",
         message: "Generation blocked by validation rules.",
       },
       reasons: validation.reasons,
+      canAcknowledgeValidationOverride: canAcknowledgeGenerationValidation(validation.reasons, deliveryTarget),
     });
     return;
   }
@@ -4970,11 +4998,17 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
     userId,
     constituent: targetConstituent,
   });
-  if (queueMetadata) {
+  const validationOverrideMetadata = validationOverrideApplied
+    ? buildMetadataWithGenerationValidationOverride(result.generated.metadataJson, validation.reasons)
+    : undefined;
+  const generatedMetadata = queueMetadata
+    ? buildMetadataWithQueue(validationOverrideMetadata ?? result.generated.metadataJson, queueMetadata)
+    : validationOverrideMetadata;
+  if (generatedMetadata) {
     await prisma.generatedLetter.update({
       where: { id: result.generated.id },
       data: {
-        metadataJson: buildMetadataWithQueue(result.generated.metadataJson, queueMetadata),
+        metadataJson: generatedMetadata,
       },
     });
   }
@@ -5000,6 +5034,8 @@ router.post("/generated", requirePermission("letters.generate"), async (req, res
       templateId: result.template.id,
       category: result.template.category,
       hasUnsupportedMergeFields: result.merged.unsupportedFields.length > 0,
+      validationOverrideAcknowledged: validationOverrideApplied,
+      validationOverrideReasons: validationOverrideApplied ? validation.reasons : [],
     },
   });
 
@@ -6164,6 +6200,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const dryRun = req.body?.dryRun === true;
   const deliveryTarget = parseEnum(req.body?.deliveryTarget, LETTER_DELIVERY_TARGETS)
     ?? (req.body?.addToPrintQueue === true ? "PRINT_QUEUE" : "PDF_ONLY");
+  const validationOverrideAcknowledged = req.body?.acknowledgeValidationOverride === true;
   if (deliveryTarget === "MAIL_QUEUE" && !workflowPolicy.allowDirectMailQueue) {
     res.status(409).json({
       error: {
@@ -6259,6 +6296,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   const generatedSample: Array<{ id: string; constituentId: string; constituentName: string }> = [];
   let queuedForPrintCount = 0;
   let queuedForMailCount = 0;
+  let validationOverrideCount = 0;
+  const validationOverrideReasons: Record<string, number> = {};
 
   for (const candidate of candidates) {
     if (dedupeHousehold && candidate.householdId) {
@@ -6301,10 +6340,22 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
         allowPdfOnlyWithoutAddress: deliveryTarget === "PDF_ONLY" && !templateNeedsAddress,
       },
     });
-    if (!validation.valid) {
+    const validationOverrideApplied = !validation.valid
+      && validationOverrideAcknowledged
+      && canAcknowledgeGenerationValidation(validation.reasons, deliveryTarget);
+    if (!validation.valid && !validationOverrideApplied) {
       const firstReason = validation.reasons.find((reason) => reason !== "VALID") ?? "MISSING_REQUIRED_MERGE_DATA";
       skipped.push({ constituentId: candidate.id, reason: toBatchSkipReason(firstReason) });
       continue;
+    }
+    if (validationOverrideApplied) {
+      validationOverrideCount += 1;
+      validation.reasons
+        .filter((reason) => reason !== "VALID")
+        .forEach((reason) => {
+          const key = toBatchSkipReason(reason);
+          validationOverrideReasons[key] = (validationOverrideReasons[key] ?? 0) + 1;
+        });
     }
 
     if (dryRun) {
@@ -6340,7 +6391,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       constituentName: `${candidate.firstName} ${candidate.lastName}`.trim(),
     });
 
-    if ((deliveryTarget === "PRINT_QUEUE" && workflowPolicy.autoQueueBatchToPrint) || deliveryTarget === "MAIL_QUEUE") {
+    const queueGeneration = (deliveryTarget === "PRINT_QUEUE" && workflowPolicy.autoQueueBatchToPrint) || deliveryTarget === "MAIL_QUEUE";
+    if (validationOverrideApplied || queueGeneration) {
       const queue = buildDeliveryQueueMetadata({
         deliveryTarget,
         workflowPolicy,
@@ -6348,16 +6400,23 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
         constituent: candidate,
       });
 
-      if (queue) {
+      const validationOverrideMetadata = validationOverrideApplied
+        ? buildMetadataWithGenerationValidationOverride(generated.generated.metadataJson, validation.reasons)
+        : undefined;
+      const generatedMetadata = queue
+        ? buildMetadataWithQueue(validationOverrideMetadata ?? generated.generated.metadataJson, queue)
+        : validationOverrideMetadata;
+
+      if (generatedMetadata) {
         await prisma.generatedLetter.update({
           where: { id: generated.generated.id },
           data: {
-            metadataJson: buildMetadataWithQueue(generated.generated.metadataJson, queue),
+            metadataJson: generatedMetadata,
           },
         });
 
-        if (deliveryTarget === "PRINT_QUEUE") queuedForPrintCount += 1;
-        if (deliveryTarget === "MAIL_QUEUE") queuedForMailCount += 1;
+        if (queue && deliveryTarget === "PRINT_QUEUE") queuedForPrintCount += 1;
+        if (queue && deliveryTarget === "MAIL_QUEUE") queuedForMailCount += 1;
       }
     }
   }
@@ -6386,6 +6445,9 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       generatedCount: generatedIds.length,
       skippedCount: skipped.length,
       skippedByReason,
+      validationOverrideAcknowledged,
+      validationOverrideCount,
+      validationOverrideReasons,
     },
   });
 
@@ -6398,6 +6460,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     generatedIds,
     skippedCount: skipped.length,
     skippedByReason,
+    validationOverrideCount,
+    validationOverrideReasons,
     skipped,
     generated: generatedSample.slice(0, 200),
     addToPrintQueue,

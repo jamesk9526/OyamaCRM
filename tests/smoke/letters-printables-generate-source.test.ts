@@ -14,8 +14,8 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("Preview Recipient");
     expect(workspace).toContain("Generate One Letter");
     expect(workspace).toContain("Generate Batch");
-    expect(workspace).toContain("Validate Batch");
-    expect(workspace).toContain("View Batch PDF");
+    expect(workspace).toContain("Validate without generating");
+    expect(workspace).toContain("Open Batch PDF");
     expect(workspace).toContain("Print Queue");
     expect(workspace).toContain("Mail Queue");
     expect(workspace).toContain("Bulk File Tool Strip");
@@ -98,6 +98,15 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("Overflow blocked");
   });
 
+  it("uses the uploaded organization logo as the header wordmark in print and PDF output", () => {
+    const letterPage = read("app/components/letters/LetterPage.tsx");
+    const lettersApi = read("server/src/routes/letters.ts");
+
+    expect(letterPage).toContain("!logoUrl ? <p");
+    expect(lettersApi).toContain("if (header[0] && !hasLogo)");
+    expect(lettersApi).toContain("browser print route by never repeating");
+  });
+
   it("keeps operational PDF labels out of rendered letter output", () => {
     const lettersApi = read("server/src/routes/letters.ts");
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
@@ -110,5 +119,17 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).not.toContain("<p>Page 1</p>");
     expect(brandingManager).not.toContain("Page Number");
     expect(brandingManager).not.toContain("<p>Page 1</p>");
+  });
+
+  it("requires explicit acknowledgement before reviewable generation validation is bypassed", () => {
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersApi = read("server/src/routes/letters.ts");
+
+    expect(workspace).toContain("I understand the validation notes and want to generate anyway.");
+    expect(workspace).toContain("acknowledgeValidationOverride: validationOverrideAcknowledged");
+    expect(lettersApi).toContain("canAcknowledgeGenerationValidation");
+    expect(lettersApi).toContain("SUPPRESSED_DO_NOT_MAIL");
+    expect(lettersApi).toContain('deliveryTarget === "MAIL_QUEUE" && reasons.includes("MISSING_ADDRESS")');
+    expect(lettersApi).toContain("generationValidationOverride");
   });
 });

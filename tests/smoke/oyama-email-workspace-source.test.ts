@@ -132,6 +132,9 @@ describe("OyamaEmail workspace source contract", () => {
     expect(editor).toContain('label="Signature image"');
     expect(editor).toContain('label="Headshot"');
     expect(editor).toContain('label="Contact image"');
+    expect(editor).toContain('Upload an image directly into this column or paste a hosted URL.');
+    expect(editor).toContain('No image blocks in this column yet.');
+    expect(editor).toContain('onUploadImage={onUploadImage}');
   });
 
   it("keeps legacy communications routes redirected into OyamaEmail", () => {

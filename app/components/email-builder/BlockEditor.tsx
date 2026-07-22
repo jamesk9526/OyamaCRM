@@ -49,7 +49,7 @@ import type {
   CustomHtmlBlock,
   SocialPlatform,
 } from '@/app/lib/email-builder-types';
-import { parseVideoUrl } from '@/app/lib/email-builder-utils';
+import { createDefaultBlock, parseVideoUrl } from '@/app/lib/email-builder-utils';
 import RichTextEditor from '@/app/components/email-builder/RichTextEditor';
 
 // ─── Shared field primitives ──────────────────────────────────────────────────
@@ -2450,9 +2450,13 @@ function SocialEditor({
 function ColumnsEditor({
   block,
   onUpdate,
+  onUploadImage,
+  imageUploadInProgress,
 }: {
   block: ColumnsBlock;
   onUpdate: (partial: Partial<ColumnsBlock>) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  imageUploadInProgress?: boolean;
 }) {
   const totalColumns = block.columnCount === 3 ? 3 : 2;
 
@@ -2512,6 +2516,22 @@ function ColumnsEditor({
     onUpdate({ columns: cols });
   };
 
+  const updateColumnChild = (columnIndex: number, childId: string, partial: Partial<EmailBlock>) => {
+    const columns = normalizeColumns(totalColumns as 2 | 3).map((column, index) => (
+      index === columnIndex
+        ? column.map((child) => child.id === childId ? { ...child, ...partial } as EmailBlock : child)
+        : column
+    ));
+    onUpdate({ columns });
+  };
+
+  const addImageToColumn = (columnIndex: number) => {
+    const columns = normalizeColumns(totalColumns as 2 | 3).map((column, index) => (
+      index === columnIndex ? [...column, createDefaultBlock('image')] : column
+    ));
+    onUpdate({ columns });
+  };
+
   const normalizedColumns = normalizeColumns(totalColumns as 2 | 3);
 
   return (
@@ -2541,15 +2561,48 @@ function ColumnsEditor({
       {normalizedColumns.map((column, index) => {
         const firstTextBlock = column.find((child): child is TextBlock => child.type === 'text');
         const columnText = firstTextBlock?.content ?? '';
+        const imageBlocks = column.filter((child): child is ImageBlock => child.type === 'image');
         return (
-          <Field key={`columns-editor-${index + 1}`} label={`Column ${index + 1} (HTML)`}>
-            <textarea
-              className={`${inputCls} font-mono text-xs`}
-              rows={4}
-              value={columnText}
-              onChange={(e) => updateColText(index, e.target.value)}
-            />
-          </Field>
+          <div key={`columns-editor-${index + 1}`} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+            <Field label={`Column ${index + 1} (HTML)`}>
+              <textarea
+                className={`${inputCls} font-mono text-xs`}
+                rows={4}
+                value={columnText}
+                onChange={(e) => updateColText(index, e.target.value)}
+              />
+            </Field>
+
+            <div className="space-y-3 border-t border-slate-200 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Image blocks</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Upload an image directly into this column or paste a hosted URL.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addImageToColumn(index)}
+                  className="shrink-0 rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                >
+                  Add Image
+                </button>
+              </div>
+
+              {imageBlocks.length === 0 ? (
+                <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-500">No image blocks in this column yet.</p>
+              ) : imageBlocks.map((imageBlock, imageIndex) => (
+                <div key={imageBlock.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold text-slate-600">Image {imageIndex + 1}</p>
+                  <ImageEditor
+                    block={imageBlock}
+                    onUpdate={(partial) => updateColumnChild(index, imageBlock.id, partial)}
+                    onUploadImage={onUploadImage}
+                    imageUploadInProgress={imageUploadInProgress}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         );
       })}
 
@@ -2899,6 +2952,8 @@ export default function BlockEditor({
               <ColumnsEditor
                 block={selectedBlock as ColumnsBlock}
                 onUpdate={update as (p: Partial<ColumnsBlock>) => void}
+                onUploadImage={onUploadImage}
+                imageUploadInProgress={imageUploadInProgress}
               />
             )}
             {selectedBlock.type === 'customHtml' && (

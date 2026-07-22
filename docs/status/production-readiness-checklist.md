@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-22 (OyamaEmail image upload and delivery hardening)
+Last updated: 2026-07-22 (OyamaEmail image delivery and compact letters update)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -14,6 +14,17 @@ This file is the release-gate source of truth for production readiness.
 | Live Gmail/Outlook inbox image verification | Partially Working | Automated rendering confirms absolute image URLs; repeat one real proof send after deployment/restart to verify remote inbox access and any receiver-side image-proxy policy. |
 
 Validation: focused Email renderer/source/API suite passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors.
+
+## 2026-07-22 Compact Letter Layout and Reviewed Validation Override
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Browser preview and server PDF use a compact donor-address letter format | Working | `app/components/letters/LetterPage.tsx`, `app/lib/letters/letter-document.ts`, `server/src/routes/letters.ts` |
+| The organization address is absent from the top header; recipient address is top-right with the date | Working | Shared browser preview plus `renderGeneratedLetterPdf` chrome rendering |
+| Staff can explicitly acknowledge reviewable generation validation notes | Working | `acknowledgeValidationOverride` is sent by the Generate workspace, recorded in generated-letter metadata and audit history |
+| Mailing safety remains server enforced | Working | `SUPPRESSED_DO_NOT_MAIL` and a missing mail-queue address remain non-bypassable in `canAcknowledgeGenerationValidation` |
+
+Validation: focused Letter document/PDF/source suite passed 41/41; `pnpm typecheck` passed; targeted ESLint completed with 0 errors and 20 existing warnings in the large Letters workspace.
 
 ## 2026-07-20 Donor Campaign Workspace Audit
 

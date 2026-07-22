@@ -162,6 +162,8 @@ interface BatchResult {
   donationMode?: DonationMode;
   queuedForPrintCount?: number;
   queuedForMailCount?: number;
+  validationOverrideCount?: number;
+  validationOverrideReasons?: Record<string, number>;
 }
 
 interface EmailDraftHandoffResult {
@@ -351,7 +353,7 @@ const EMPTY_HEADER_PRESET: HeaderPresetDraft = {
   logoAlignment: "LEFT",
   showOrganizationName: true,
   showTagline: true,
-  showAddress: true,
+  showAddress: false,
   showPhone: true,
   showWebsite: true,
   customHtml: "",
@@ -3647,6 +3649,7 @@ function GenerateWorkspace() {
   const [emailDraftWorkingId, setEmailDraftWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [validationOverrideAcknowledged, setValidationOverrideAcknowledged] = useState(false);
 
   useEffect(() => {
     const list = readTemporaryRecipientList(temporaryListId);
@@ -3725,6 +3728,10 @@ function GenerateWorkspace() {
     setGenerateMode(modeParam === "single" ? "single" : "batch");
     setDeliveryTarget(targetParam === "mail" ? "MAIL_QUEUE" : targetParam === "print" ? "PRINT_QUEUE" : "PDF_ONLY");
   }, [modeParam, targetParam]);
+
+  useEffect(() => {
+    setValidationOverrideAcknowledged(false);
+  }, [templateId, deliveryTarget, generateMode]);
 
   useEffect(() => {
     if (workflowPolicy && !workflowPolicy.allowDirectMailQueue && deliveryTarget === "MAIL_QUEUE") {
@@ -4157,6 +4164,7 @@ function GenerateWorkspace() {
           templateId,
           constituentId: targetRecipientId,
           deliveryTarget,
+          acknowledgeValidationOverride: validationOverrideAcknowledged,
           ...buildDonationContextPayload(),
           ...buildMergeContextPayload(),
         }),
@@ -4194,6 +4202,7 @@ function GenerateWorkspace() {
           constituentIds: runtimeRecipientIds.length > 0 ? runtimeRecipientIds : undefined,
           filterType: "ALL",
           deliveryTarget,
+          acknowledgeValidationOverride: validationOverrideAcknowledged,
           ...buildDonationContextPayload(),
           ...buildMergeContextPayload(),
         }),
@@ -5063,6 +5072,18 @@ function GenerateWorkspace() {
                   <p className="mt-2 text-xs text-slate-500">{queuePolicyMessage}</p>
                 </div>
               </div>
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                <input
+                  type="checkbox"
+                  checked={validationOverrideAcknowledged}
+                  onChange={(event) => setValidationOverrideAcknowledged(event.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-semibold">I understand the validation notes and want to generate anyway.</span>
+                  <span className="mt-0.5 block text-amber-800">Use this only after review. It can bypass missing merge-data and PDF-only address validation; Do Not Mail and mail-queue address protections remain enforced.</span>
+                </span>
+              </label>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   onClick={() => (generateMode === "single" ? void generateOne() : void runBatch(false))}
@@ -5098,6 +5119,11 @@ function GenerateWorkspace() {
                         <span key={reason} className="rounded border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">{reason}: {count}</span>
                       ))}
                     </div>
+                  ) : null}
+                  {(batch.validationOverrideCount ?? 0) > 0 ? (
+                    <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+                      Generated with acknowledged validation notes: {batch.validationOverrideCount}
+                    </p>
                   ) : null}
                 </div>
               ) : null}
@@ -6253,7 +6279,6 @@ function HeaderPresetEditor({ draft, setDraft, onSave, saving }: { draft: Header
       <div className="grid gap-2 sm:grid-cols-2">
         <CheckField label="Show organization name" checked={draft.showOrganizationName} onChange={(value) => setDraft({ ...draft, showOrganizationName: value })} />
         <CheckField label="Show tagline" checked={draft.showTagline} onChange={(value) => setDraft({ ...draft, showTagline: value })} />
-        <CheckField label="Show address" checked={draft.showAddress} onChange={(value) => setDraft({ ...draft, showAddress: value })} />
         <CheckField label="Show phone" checked={draft.showPhone} onChange={(value) => setDraft({ ...draft, showPhone: value })} />
         <CheckField label="Show website" checked={draft.showWebsite} onChange={(value) => setDraft({ ...draft, showWebsite: value })} />
         <CheckField label="Make default header" checked={draft.isDefault} onChange={(value) => setDraft({ ...draft, isDefault: value })} />
@@ -6290,7 +6315,6 @@ function FooterPresetEditor({ draft, setDraft, onSave, saving }: { draft: Footer
 function LetterPreviewHeader({ branding, header }: { branding: BrandingSettings; header: HeaderPresetDraft }) {
   const logo = branding.logoUrl || branding.logoSquareUrl;
   const orgName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization Name";
-  const address = formatBrandingAddress(branding);
   const align = header.logoAlignment === "CENTER" ? "text-center" : header.logoAlignment === "RIGHT" ? "text-right" : "text-left";
 
   if (header.customHtml.trim()) {
@@ -6303,7 +6327,6 @@ function LetterPreviewHeader({ branding, header }: { branding: BrandingSettings;
       {header.logoAlignment !== "NONE" && !logo ? <LogoMark className="mb-2 inline-block h-10 w-10 text-emerald-800" /> : null}
       {header.showOrganizationName ? <p className="text-lg font-semibold text-emerald-900">{orgName}</p> : null}
       {header.showTagline && branding.tagline ? <p className="text-xs text-slate-500">{branding.tagline}</p> : null}
-      {header.showAddress && address ? <p className="text-xs text-slate-500">{address}</p> : null}
       {header.showPhone && branding.contactPhone ? <p className="text-xs text-slate-500">{branding.contactPhone}</p> : null}
       {header.showWebsite && branding.websiteUrl ? <p className="text-xs text-slate-500">{branding.websiteUrl}</p> : null}
     </header>
@@ -6361,7 +6384,7 @@ function buildImportedHeaderPreset(branding: BrandingSettings): HeaderPresetDraf
     name: "Letters Default Header",
     customHtml: "",
     showTagline: Boolean(branding.tagline),
-    showAddress: Boolean(formatBrandingAddress(branding)),
+    showAddress: false,
     showPhone: Boolean(branding.contactPhone),
     showWebsite: Boolean(branding.websiteUrl),
   };

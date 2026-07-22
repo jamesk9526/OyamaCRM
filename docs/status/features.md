@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-22 (OyamaEmail image upload and delivery hardening)_
+_Last focused audit: 2026-07-22 (OyamaEmail image delivery and compact recipient-address letter layout)_
 
 ## Governance baseline for new feature claims
 
@@ -17,10 +17,19 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Image uploads inside structured columns | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Image and video-thumbnail controls at every nested column depth now use the same validated campaign-media uploader as top-level blocks. Nested updates traverse the saved block tree instead of stopping at the top-level canvas. |
+| Image uploads inside structured columns | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `app/components/email-builder/BlockEditor.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Image and video-thumbnail controls at every nested column depth use the same validated campaign-media uploader as top-level blocks. The Advanced Editor now also exposes each column image with a direct upload button and an Add Image action. Nested updates traverse the saved block tree instead of stopping at the top-level canvas. |
 | Recipient-visible email images and organization logos | Working | `.env.production`, `server/src/services/organization-branding.ts`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | The shared preview, proof, scheduled-send, and immediate-send renderer converts stored relative CRM upload paths into absolute public URLs using `NEXT_PUBLIC_APP_URL` or `FRONTEND_ORIGIN`. Production now points both settings at the public CRM origin; hosted absolute URLs remain unchanged. |
 
 Validation: focused renderer, source, merge-preview, and campaign API coverage passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors and 5 existing warnings in the large email builder.
+
+## 2026-07-22 Compact Letter Layout and Reviewed Validation Override
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Compact recipient-address letter format | Working | `app/components/letters/LetterPage.tsx`, `app/lib/letters/letter-document.ts`, `server/src/routes/letters.ts` | The organization mailing address is removed from the top header. The client/donor name and mailing address, with the date, sit in the top-right header in browser and generated-PDF output. An uploaded logo is treated as the header wordmark, so its organization name is not repeated beside it. Reduced margins, header/footer spacing, body spacing, and signature spacing allow more content on one page. |
+| Acknowledged generation validation override | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letters-printables-generate-source.test.ts` | Staff must explicitly select “I understand” to generate through reviewable missing-data/PDF-only address warnings. Each applied override is persisted on the generated letter and in the audit event. Do Not Mail and mail-queue missing-address protections cannot be bypassed. |
+
+Validation: focused Letter document/PDF/source suite passed 41/41; web and server typechecks passed; targeted ESLint completed with 0 errors and 20 existing warnings in the large Letters workspace.
 
 ## 2026-07-20 Donor Campaign Workspace Visual and Workflow Audit
 
