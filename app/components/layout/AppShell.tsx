@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
-import Sidebar from "./Sidebar";
 import DonorMegaMenu from "./DonorMegaMenu";
-import MobileSidebarDrawer from "./MobileSidebarDrawer";
 import { useDashboardChromeTint } from "./useDashboardChromeTint";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
@@ -135,7 +133,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [canPersistOrgShellSettings]);
 
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dockInsetPx, setDockInsetPx] = useState(0);
   const [shellScrolled, setShellScrolled] = useState(false);
   const [routeTransitioning, setRouteTransitioning] = useState(false);
@@ -207,18 +204,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/compassion/dashboard");
     }
   }, [loading, user, isPublic, isBoard, isOShareview, router, workspaceSettings]);
-
-  // Close mobile navigation drawer whenever route changes.
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
-
-  // Open mobile navigation from the TopBar hamburger button.
-  useEffect(() => {
-    function handleOpenNav() { setMobileNavOpen(true); }
-    window.addEventListener("crm:open-mobile-nav", handleOpenNav);
-    return () => window.removeEventListener("crm:open-mobile-nav", handleOpenNav);
-  }, []);
 
   useEffect(() => {
     function handleLayoutSwitch(event: Event) {
@@ -336,7 +321,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // sidebar preferences remain stored for backwards compatibility, but no longer
   // change the desktop shell or consume workspace width.
   const donorMegaMenuEnabled = donorShellVisible;
-  const donorSidebarDesktopEnabled = false;
   // Reserve a stable header + navigation footprint so content does not jump on scroll.
   const contentTopPaddingClass = donorShellVisible ? "pt-26" : "pt-14";
 
@@ -362,17 +346,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
-        {/* Mobile sidebar drawer kept for small-screen access */}
-        {!isOShareview ? (
-          <MobileSidebarDrawer
-            open={mobileNavOpen}
-            title="DonorCRM navigation"
-            onClose={() => setMobileNavOpen(false)}
-          >
-            <Sidebar forceExpanded donorAccentTone={workspaceSettings.donorAccentTone} donorChromeTint={dashboardChromeTint} />
-          </MobileSidebarDrawer>
-        ) : null}
-
         <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
           {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
           <main data-crm-scroll-root="true" className="h-full min-w-0 overscroll-contain overflow-x-hidden overflow-y-auto crm-page-surface px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-0 sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-0 xl:px-7 xl:pb-7 xl:pt-0 min-[1440px]:px-8 min-[1440px]:pt-0 2xl:px-9 2xl:pt-0">

@@ -1469,17 +1469,18 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 boxShadow: isDonorEnterpriseChrome ? "0 1px 4px rgba(15,23,42,0.05)" : moduleChromePalette.mobileShadow,
               }}
             >
-              {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
-              <button
-                type="button"
-                aria-label="Open navigation menu"
-                onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors max-[380px]:h-8 max-[380px]:w-8 lg:hidden ${isDonorEnterpriseChrome ? "text-slate-600 hover:bg-slate-100 hover:text-slate-950" : "text-white/88 hover:bg-white/10 hover:text-white active:bg-white/15"}`}
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+              {!isDonorEnterpriseChrome ? (
+                <button
+                  type="button"
+                  aria-label="Open navigation menu"
+                  onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/88 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15 max-[380px]:h-8 max-[380px]:w-8 lg:hidden"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              ) : null}
               {/* ── TopBar Brand ── */}
               <Link href={homeHref} className="flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1" aria-label="Go to OyamaCRM v1.3 home">
                 {isDonorEnterpriseChrome ? (
