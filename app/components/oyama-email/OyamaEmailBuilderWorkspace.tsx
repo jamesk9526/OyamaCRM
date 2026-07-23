@@ -2719,7 +2719,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-white/80 bg-white/90 shadow-[0_10px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         {/* Row 1: back + name + status + actions */}
-        <div className="flex min-h-[72px] flex-wrap items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6 lg:px-8">
+        <div className="flex min-h-[58px] flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => router.push("/oyama-email/templates")}
@@ -2740,14 +2740,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               onChange={(e) => setDraftField("name", e.target.value)}
               onBlur={() => setEditingName(false)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }}
-              className="h-9 flex-1 rounded-lg border border-emerald-400 bg-white px-2 text-lg font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="h-8 flex-1 rounded-lg border border-emerald-400 bg-white px-2 text-base font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               autoFocus
             />
           ) : (
             <button
               type="button"
               onClick={() => setEditingName(true)}
-              className="min-w-0 flex-1 truncate text-left text-xl font-semibold tracking-tight text-slate-950 transition hover:text-emerald-700 sm:text-2xl"
+              className="min-w-0 flex-1 truncate text-left text-base font-semibold tracking-tight text-slate-950 transition hover:text-emerald-700 sm:text-lg"
               title="Click to rename"
             >
               {draft.name || "Untitled Email Template"}
@@ -2762,7 +2762,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             <Link
               href="/oyama-email/docs"
-              className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+              className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
             >
               Docs
             </Link>
@@ -2770,7 +2770,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               type="button"
               onClick={() => void createLetterCompanion()}
               disabled={saving || autosaving}
-              className="h-10 rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 disabled:opacity-60"
+              className="h-8 rounded-lg border border-violet-200 bg-violet-50 px-2.5 text-xs font-semibold text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 disabled:opacity-60"
               title="Create a printable letter companion and retain every email block for a lossless return to this builder."
             >
               Create Letter
@@ -2779,21 +2779,21 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               type="button"
               onClick={() => void saveTemplate(false)}
               disabled={saving || autosaving}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md disabled:opacity-60"
+              className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow-md disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save Draft"}
             </button>
             <button
               type="button"
               onClick={() => setTestEmailDialogOpen(true)}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 hover:shadow-md"
+              className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 hover:shadow-md"
             >
               Send Test
             </button>
             {canPublish ? (
               <Link
                 href={publishHref}
-                className="inline-flex h-10 items-center rounded-xl border border-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-700 px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(5,150,105,0.22)] transition hover:-translate-y-0.5 hover:from-emerald-600 hover:to-teal-600 hover:shadow-[0_12px_26px_rgba(5,150,105,0.3)] sm:px-5"
+                className="inline-flex h-8 items-center rounded-lg border border-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-700 px-3 text-xs font-semibold text-white shadow-[0_6px_14px_rgba(5,150,105,0.18)] transition hover:from-emerald-600 hover:to-teal-600 sm:px-4"
               >
                 Next: Publish →
               </Link>
@@ -2802,7 +2802,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 type="button"
                 disabled
                 title="Save template first"
-                className="h-10 rounded-lg border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-400 sm:px-5"
+                className="h-8 rounded-lg border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-400 sm:px-4"
               >
                 Next: Publish →
               </button>
@@ -2811,7 +2811,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </div>
 
         {/* Row 2: Ribbon tabs + zoom + device toggle */}
-        <div className="flex min-h-14 flex-wrap items-center gap-2 overflow-x-auto border-t border-slate-100/80 px-3 sm:px-6 lg:px-8">
+        <div className="flex min-h-12 flex-wrap items-center gap-2 overflow-x-auto border-t border-slate-100/80 px-3 py-1.5 sm:px-6 lg:px-8">
           <div className="mr-2 flex min-w-max items-center gap-1 rounded-xl bg-slate-100/80 p-1 sm:mr-4">
             <button
               type="button"
@@ -2830,8 +2830,23 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               {previewRefreshing ? "Preparing preview..." : "Recipient Preview"}
             </button>
           </div>
-          <div className="hidden flex-1 sm:block" />
+          <div className="hidden min-w-[170px] flex-1 items-center gap-2 lg:flex">
+            <div className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-slate-200/80 xl:max-w-32">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500" style={{ width: `${readinessPercent}%` }} />
+            </div>
+            <span className="whitespace-nowrap text-[11px] font-semibold text-slate-700">{readinessPercent}% ready</span>
+            <span title="Select a block to edit · drag to reorder · double-click for advanced controls" className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 xl:inline">{draft.template.blocks.length} blocks · {builderWarnings.length ? `${builderWarnings.length} to review` : "Preflight clear"}</span>
+          </div>
           <div className="mb-1 flex min-w-max items-center gap-2">
+            <details className="relative hidden xl:block">
+              <summary className="cursor-pointer list-none rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100">Email chrome</summary>
+              <div className="absolute right-0 top-8 z-50 w-80 rounded-lg border border-emerald-200 bg-white p-3 text-xs text-emerald-950 shadow-xl">
+                <p className="font-semibold">{managedHeaderEnabled ? "Organization header is included automatically" : "Organization header is not configured"}</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{managedHeaderEnabled ? "It appears above your canvas in the sent email. Use In-body Header only when you intentionally want a second header." : "Set it in Branding Settings; an In-body Header is part of this email’s content."}</p>
+                <p className="mt-2 font-semibold">{managedFooterEnabled ? "Footer and compliance bar are managed automatically" : "Footer controls need configuration"}</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Manage footer text and address in Email Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
+              </div>
+            </details>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-1.5">
               <button
                 type="button"
@@ -2871,29 +2886,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 </svg>
               </button>
             </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 border-t border-slate-100/80 bg-gradient-to-r from-slate-50/90 via-white to-emerald-50/60 px-3 py-2 sm:px-6 lg:px-8">
-          <div className="flex min-w-[220px] flex-1 items-center gap-3">
-            <div className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-slate-200/80 sm:max-w-56">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500" style={{ width: `${readinessPercent}%` }} />
-            </div>
-            <span className="text-xs font-semibold text-slate-700">{readinessPercent}% ready</span>
-          </div>
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">{draft.template.blocks.length} block{draft.template.blocks.length === 1 ? "" : "s"}</span>
-          <span className={["rounded-full border px-2.5 py-1 text-[11px] font-semibold", builderWarnings.length ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"].join(" ")}>
-            {builderWarnings.length ? `${builderWarnings.length} item${builderWarnings.length === 1 ? "" : "s"} to review` : "Preflight clear"}
-          </span>
-          <span className="hidden text-[11px] font-medium text-slate-500 md:inline">Select a block to edit · drag to reorder · double-click for advanced controls</span>
-        </div>
-        <div className="grid gap-2 border-t border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-emerald-950 sm:grid-cols-2 sm:px-6 lg:px-8">
-          <div className="rounded-lg border border-emerald-200/80 bg-white/80 px-3 py-2">
-            <p className="font-semibold">{managedHeaderEnabled ? "Organization header is included automatically" : "Organization header is not configured"}</p>
-            <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{managedHeaderEnabled ? "It appears above your canvas in the sent email. Use In-body Header only when you intentionally want a second header." : "Set it in Branding Settings; an In-body Header is part of this email’s content."}</p>
-          </div>
-          <div className="rounded-lg border border-emerald-200/80 bg-white/80 px-3 py-2">
-            <p className="font-semibold">{managedFooterEnabled ? "Footer and compliance bar are managed automatically" : "Footer controls need configuration"}</p>
-            <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Manage footer text and address in Email Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
           </div>
         </div>
         {error ? <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}

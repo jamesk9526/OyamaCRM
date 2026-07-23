@@ -30,8 +30,10 @@ describe("letter builder UI redesign source contract", () => {
     expect(mergeService).toContain("{{donor.fullName}}");
     expect(workspace).toContain("Template Info");
     expect(workspace).toContain("Workflow Policy");
-    expect(workspace).toContain("Blocks & Snippets");
-    expect(workspace).toContain("Saved Sections");
+    expect(workspace).toContain("Letter Block Library");
+    expect(workspace).toContain("LETTER_BLOCK_LIBRARY");
+    expect(workspace).toContain("Data & Merge Fields");
+    expect(workspace).toContain("application/x-oyama-letter-block");
     expect(workspace).toContain("Ready for server preflight");
     expect(workspace).toContain("Click the page to write");
     expect(workspace).toContain("localChecklist.filter((item) => item.ok)");

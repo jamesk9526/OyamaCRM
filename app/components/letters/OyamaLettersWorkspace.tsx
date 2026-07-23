@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
@@ -35,6 +35,46 @@ type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
 type LetterTextAlign = "left" | "center" | "right" | "justify";
 type LetterTableBorderStyle = "solid" | "dashed" | "none";
 const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
+
+const LETTER_BLOCK_LIBRARY = [
+  {
+    id: "writing",
+    label: "Writing",
+    detail: "Start a message or add a donor-focused section.",
+    blocks: [
+      { id: "paragraph", label: "Text", glyph: "T" },
+      { id: "heading", label: "Heading", glyph: "H" },
+      { id: "salutation", label: "Salutation", glyph: "Hi" },
+      { id: "thankYou", label: "Thank You", glyph: "♥" },
+      { id: "impact", label: "Impact", glyph: "✦" },
+      { id: "postscript", label: "P.S.", glyph: "P" },
+    ],
+  },
+  {
+    id: "layout",
+    label: "Layout",
+    detail: "Structure a printable letter without hand-coding HTML.",
+    blocks: [
+      { id: "divider", label: "Divider", glyph: "—" },
+      { id: "spacer", label: "Space", glyph: "↕" },
+      { id: "table", label: "Table", glyph: "▦" },
+      { id: "pageBreak", label: "Page Break", glyph: "↵" },
+    ],
+  },
+  {
+    id: "stewardship",
+    label: "Giving & sign-off",
+    detail: "Use ready-made acknowledgment and signature blocks.",
+    blocks: [
+      { id: "donationSummary", label: "Gift Summary", glyph: "$" },
+      { id: "impactGrid", label: "Impact Grid", glyph: "▤" },
+      { id: "signature", label: "Signature", glyph: "✒" },
+      { id: "image", label: "Image", glyph: "▧" },
+    ],
+  },
+] as const;
+
+type LetterBlockTemplateId = typeof LETTER_BLOCK_LIBRARY[number]["blocks"][number]["id"];
 
 interface OyamaLettersWorkspaceProps {
   view?: WorkspaceView;
@@ -1694,6 +1734,66 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setNotice("New page added. The production PDF also continues onto pages automatically when content reaches the end of a page.");
   }
 
+  function insertLetterBlockTemplate(templateId: LetterBlockTemplateId) {
+    if (!ensureEditableDocument()) return;
+    switch (templateId) {
+      case "paragraph":
+        insertBlock("<p>Start writing your message here.</p>");
+        return;
+      case "heading":
+        insertBlock("<h2>Section heading</h2>");
+        return;
+      case "salutation":
+        insertBlock("<p>Dear {{donor.firstName}},</p>");
+        return;
+      case "thankYou":
+        insertCommonSection("thankYou");
+        return;
+      case "impact":
+        insertCommonSection("impact");
+        return;
+      case "postscript":
+        insertCommonSection("ps");
+        return;
+      case "divider":
+        insertBlock("<hr />");
+        return;
+      case "spacer":
+        insertWhiteSpace(18);
+        return;
+      case "table":
+        insertTable();
+        return;
+      case "pageBreak":
+        addPage();
+        return;
+      case "donationSummary":
+        insertTablePreset("donationSummary");
+        return;
+      case "impactGrid":
+        insertTablePreset("impactGrid");
+        return;
+      case "signature":
+        insertSignature();
+        return;
+      case "image":
+        insertImage();
+        return;
+    }
+  }
+
+  function handleLetterPaletteDragStart(event: DragEvent<HTMLButtonElement>, templateId: LetterBlockTemplateId) {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-oyama-letter-block", templateId);
+  }
+
+  function handleLetterPaletteDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    const templateId = event.dataTransfer.getData("application/x-oyama-letter-block");
+    if (!LETTER_BLOCK_LIBRARY.some((drawer) => drawer.blocks.some((block) => block.id === templateId))) return;
+    insertLetterBlockTemplate(templateId as LetterBlockTemplateId);
+  }
+
   function insertToken(token: string) {
     replaceSelection(token, true);
   }
@@ -2499,73 +2599,72 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       {error ? <Alert tone="amber">{error}</Alert> : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-3 lg:grid-cols-[288px_minmax(0,1fr)_364px] lg:gap-5 lg:overflow-hidden lg:p-5 xl:p-6">
         <aside className="order-1 max-h-[38dvh] min-h-0 overflow-y-auto rounded-[22px] border border-white/90 bg-white/90 p-4 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
-          <div className="space-y-5">
-            {/* Branding group */}
-            <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Branding</p>
-              <div className="space-y-2">
-                <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm">
-                  <p className="text-sm font-semibold text-slate-900">Global Header + Footer</p>
-                  <p className="mt-1 text-xs text-slate-600">Letters use the single communication header and footer from Branding Defaults.</p>
-                  <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
-                </div>
-                <details open className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <summary className="cursor-pointer text-sm font-semibold">Signature Blocks</summary>
-                  <div className="mt-3 space-y-2">
-                    {signatures.length === 0 ? (
-                      <div className="space-y-1.5">
-                        <p className="text-xs text-slate-500">No signature blocks found.</p>
-                        <Link href="/oyama-letters/settings?tab=signatures" className="text-xs font-semibold text-emerald-700 hover:underline">Add a signature in Settings →</Link>
-                      </div>
-                    ) : signatures.map((signature) => (
-                      <MiniPresetCard key={signature.id} title={signature.signerName} body={signature.signerTitle ?? signature.name} action={() => insertSignature(signature)} />
-                    ))}
-                    <Button onClick={() => insertSignature()}>Insert</Button>
-                  </div>
-                </details>
-              </div>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">Letter Block Library</p>
+              <p className="mt-1 text-xs leading-4 text-slate-600">Click to insert, or drag a block onto the letter. Keep CRM data in the separate drawer until you need it.</p>
             </div>
-            {/* Saved Sections group */}
-            <div>
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Blocks & Snippets</p>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Saved Sections</p>
-              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <div className="mb-3 grid grid-cols-4 gap-1" aria-label="Saved section justification settings">
-                  {(["left", "center", "right", "justify"] as const).map((align) => (
+            {LETTER_BLOCK_LIBRARY.map((drawer, drawerIndex) => (
+              <details key={drawer.id} open={drawerIndex === 0} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm open:border-emerald-200">
+                <summary className="cursor-pointer list-none">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-slate-900">{drawer.label}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{drawer.blocks.length} blocks</span>
+                  </div>
+                  <p className="mt-1 pr-5 text-[11px] leading-4 text-slate-500">{drawer.detail}</p>
+                </summary>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {drawer.blocks.map((block) => (
                     <button
-                      key={align}
+                      key={block.id}
                       type="button"
-                      onClick={() => setSnippetAlign(align)}
-                      className={["h-8 rounded border text-[10px] font-semibold uppercase", snippetAlign === align ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"].join(" ")}
+                      draggable
+                      onDragStart={(event) => handleLetterPaletteDragStart(event, block.id)}
+                      onClick={() => insertLetterBlockTemplate(block.id)}
+                      className="group flex min-h-16 flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-left transition hover:border-emerald-300 hover:bg-emerald-50 active:cursor-grabbing"
+                      title="Click to insert or drag onto the letter"
                     >
-                      {align === "justify" ? "Just" : align.charAt(0)}
+                      <span className="text-sm font-semibold text-emerald-700">{block.glyph}</span>
+                      <span className="text-[11px] font-semibold leading-4 text-slate-700 group-hover:text-emerald-900">{block.label}</span>
                     </button>
                   ))}
                 </div>
-                <div className="space-y-2">
-                  <SnippetButton onClick={() => insertCommonSection("thankYou")}>Thank You - General</SnippetButton>
-                  <SnippetButton onClick={() => insertCommonSection("closing")}>Closing - With Gratitude</SnippetButton>
-                  <SnippetButton onClick={() => insertCommonSection("ps")}>P.S. Line</SnippetButton>
-                  <SnippetButton onClick={() => insertCommonSection("impact")}>Donation Impact Statement</SnippetButton>
+              </details>
+            ))}
+            <details className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm open:border-emerald-200">
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-slate-900">Data & Merge Fields</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{allFields.length}</span>
                 </div>
+                <p className="mt-1 pr-5 text-[11px] leading-4 text-slate-500">Open a CRM data category only when you are ready to personalize this letter.</p>
+              </summary>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {["{first}", "{last}", "{name}", "{amount}", "{giftDate}", "{totalGiving}"].map((field) => (
+                  <button key={field} type="button" onClick={() => insertToken(field)} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-left font-mono text-[10px] font-semibold text-emerald-800 hover:bg-emerald-100">{field}</button>
+                ))}
               </div>
-            </div>
-            {/* Merge Fields group */}
-            {mergeSections.length > 0 && (
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Merge Fields</p>
-                <div className="space-y-2">
-                  {mergeSections.map((section) => (
-                    <details key={section.key} open={section.key === "donor" || section.key === "constituent"} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm open:border-emerald-200">
-                      <summary className="cursor-pointer text-sm font-semibold">{section.label}</summary>
-                      <div className="mt-3 space-y-2">
-                        {section.fields.map((field) => <button key={field} type="button" onClick={() => insertToken(field)} className="block w-full rounded-md border border-slate-200 px-2 py-1.5 text-left font-mono text-[11px] hover:bg-slate-50">{field}</button>)}
-                      </div>
-                    </details>
-                  ))}
-                </div>
+              <div className="mt-3 space-y-2">
+                {mergeSections.map((section) => (
+                  <details key={section.key} className="rounded-lg border border-slate-200 bg-slate-50 p-2 open:bg-white">
+                    <summary className="cursor-pointer text-[11px] font-semibold text-slate-700">{section.label} <span className="font-normal text-slate-400">({section.fields.length})</span></summary>
+                    <div className="mt-2 space-y-1">
+                      {section.fields.map((field) => <button key={field} type="button" onClick={() => insertToken(field)} className="block w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-left font-mono text-[10px] hover:border-emerald-200 hover:bg-emerald-50">{field}</button>)}
+                    </div>
+                  </details>
+                ))}
               </div>
-            )}
+              <button type="button" onClick={() => setInspectorTab("Merge Fields")} className="mt-3 text-xs font-semibold text-emerald-700 hover:underline">Open data review and live previews →</button>
+            </details>
+            <details className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-900">Branding & signatures</summary>
+              <p className="mt-2 text-xs leading-4 text-slate-600">The production header and footer come from Branding Defaults, outside the editable letter body.</p>
+              <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
+              <div className="mt-3 space-y-2">
+                {signatures.length === 0 ? <p className="text-xs text-slate-500">No signature blocks found.</p> : signatures.map((signature) => <MiniPresetCard key={signature.id} title={signature.signerName} body={signature.signerTitle ?? signature.name} action={() => insertSignature(signature)} />)}
+                <Button onClick={() => insertSignature()}>Insert default signature</Button>
+              </div>
+            </details>
           </div>
         </aside>
         <section className="order-2 min-w-0 overflow-auto rounded-[24px] border border-white/90 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.95),transparent_34%),linear-gradient(180deg,#edf3f6_0%,#e4ece9_100%)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_55px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 sm:p-5 lg:order-none">
@@ -2616,6 +2715,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                         onClick={handleEditorClick}
                         onKeyUp={rememberEditorSelection}
                         onKeyDown={handleEditorKeyDown}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={handleLetterPaletteDrop}
                         className="h-full min-h-0 max-h-full w-full overflow-y-auto border-0 bg-transparent pr-1 text-[14px] leading-7 text-slate-950 outline-none [&_p]:my-3 [&_li]:my-1 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-7 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-7 [&_h1]:my-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-semibold [&_hr]:my-6 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-slate-400 [&_[data-letter-spacer]]:my-1 [&_[data-letter-spacer]]:border [&_[data-letter-spacer]]:border-dashed [&_[data-letter-spacer]]:border-slate-300 [&_[data-letter-spacer]]:bg-slate-50/50 [&_[data-letter-page-break]]:my-4 [&_[data-letter-page-break]]:flex [&_[data-letter-page-break]]:items-center [&_[data-letter-page-break]]:gap-2 [&_[data-letter-page-break]]:text-[11px] [&_[data-letter-page-break]]:font-semibold [&_[data-letter-page-break]]:uppercase [&_[data-letter-page-break]]:tracking-wide [&_[data-letter-page-break]]:text-emerald-700 [&_[data-letter-page-break]]:before:h-px [&_[data-letter-page-break]]:before:flex-1 [&_[data-letter-page-break]]:before:bg-emerald-300 [&_[data-letter-page-break]]:after:h-px [&_[data-letter-page-break]]:after:flex-1 [&_[data-letter-page-break]]:after:bg-emerald-300"
                         spellCheck
                       />
