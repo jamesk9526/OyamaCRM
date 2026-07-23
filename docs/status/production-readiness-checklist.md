@@ -36,14 +36,14 @@ Validation: current focused Email renderer/source suite passed 24/24; web and se
 | Release gate | Status | Evidence |
 |---|---|---|
 | Final production PDF follows one reference-style letter format | Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts` |
-| Logo wordmark, configurable top-right content, and margins use the intended standard letter positions | Working | The logo is the upper-left wordmark without a duplicate name. Header presets support organization contact details, recipient name/address, or custom merge-field text in the upper right. In the standard organization layout the recipient and date sit below the divider; recipient/custom header modes do not repeat recipient address in the body. New layouts default to 0.25-inch margins. |
-| Donation-summary and editor tables preserve their visual structure in PDF | Working | `server/src/routes/letters.ts` carries cell borders, fill, padding, emphasis, and alignment into the production renderer. |
-| Every user-facing letter preview and print route uses the production PDF | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` |
+| Logo wordmark, configurable top-right content, and margins use the intended standard letter positions | Working | The logo is the upper-left wordmark without a duplicate name. Header presets support organization contact details, recipient name/address, or custom merge-field text in the upper right. The server separates header address/contact lines, right-aligns them, and uses the canvas's saved page size and 0.25-inch default margins. |
+| Donation-summary and editor tables preserve their visual structure in PDF | Working | `server/src/routes/letters.ts` extracts editor-wrapped tables before generic parsing and carries borders, fill, padding, emphasis, and alignment into the production renderer. |
+| Every user-facing letter preview and print route uses the production PDF | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`; generated layouts are snapshotted at creation for stable download and batch print. |
 | Long letters auto-flow to the next page and the editor offers Add Page for deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` |
 | Staff can explicitly acknowledge reviewable generation validation notes | Working | `acknowledgeValidationOverride` is sent by the Generate workspace, recorded in generated-letter metadata and audit history |
 | Mailing safety remains server enforced | Working | `SUPPRESSED_DO_NOT_MAIL` and a missing mail-queue address remain non-bypassable in `canAcknowledgeGenerationValidation` |
 
-Validation: focused Letter PDF/source suite passed 32/32, including the one-page donor-letter fit and table-format regressions; Prisma schema validation and `pnpm typecheck` passed. Full lint completed with 0 errors (existing workspace warnings remain).
+Validation: focused Letter PDF suite passed 26/26, including saved margin and editor-wrapped table regressions; `pnpm typecheck` passed. A full one-page donor-letter PDF was rendered and visually inspected for header, body, table, and footer parity.
 
 ## 2026-07-20 Donor Campaign Workspace Audit
 

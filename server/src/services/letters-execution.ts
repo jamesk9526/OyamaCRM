@@ -19,6 +19,7 @@ interface TemplateForMerge {
   emailBody: string | null;
   printSubject: string | null;
   emailSubject: string | null;
+  printLayoutJson: unknown;
 }
 
 export interface ResolveMergeContextInput {
@@ -428,6 +429,7 @@ export async function getTemplateForGeneration(
       emailBody: true,
       printSubject: true,
       emailSubject: true,
+      printLayoutJson: true,
       status: true,
     },
   });
@@ -474,6 +476,9 @@ export async function generateLetterFromTemplate(input: GenerateLetterInput) {
           unsupportedMergeFields: merged.unsupportedFields,
           missingMergeFields: merged.missingFields,
           templateStatusAtGeneration: template.status,
+          renderSnapshot: {
+            printLayoutJson: template.printLayoutJson ?? null,
+          },
         },
       },
     });

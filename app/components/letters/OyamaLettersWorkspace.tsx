@@ -91,6 +91,7 @@ interface LetterTemplateDetail extends LetterTemplateSummary {
   signatureBlockId?: string | null;
   logoMode?: string | null;
   customLogoUrl?: string | null;
+  printLayoutJson?: unknown | null;
   crmScope?: string | null;
   mergeFieldsUsed?: string[] | null;
   headerPreset?: HeaderPreset | null;
@@ -332,6 +333,7 @@ interface TemplateDraft {
   signatureBlockId: string;
   logoMode: string;
   customLogoUrl: string;
+  printLayoutJson: unknown | null;
 }
 
 interface TableBuilderDraft {
@@ -378,7 +380,55 @@ const EMPTY_DRAFT: TemplateDraft = {
   signatureBlockId: "",
   logoMode: "ORGANIZATION_DEFAULT",
   customLogoUrl: "",
+  printLayoutJson: null,
 };
+
+type LetterPageSize = "Letter (8.5 x 11 in)" | "Legal (8.5 x 14 in)" | "A4 (8.27 x 11.69 in)";
+type LetterMargins = { top: number; bottom: number; left: number; right: number };
+
+const DEFAULT_LETTER_PAGE_SIZE: LetterPageSize = "Letter (8.5 x 11 in)";
+const DEFAULT_LETTER_MARGINS: LetterMargins = { top: 0.25, bottom: 0.25, left: 0.25, right: 0.25 };
+
+function asPlainRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function asSavedMargin(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0.125 && parsed <= 1.5 ? parsed : fallback;
+}
+
+function readLetterPdfLayout(value: unknown): { pageSize: LetterPageSize; margins: LetterMargins } {
+  const root = asPlainRecord(value);
+  const layout = asPlainRecord(root.letterPdfLayout);
+  const rawPageSize = String(layout.pageSize ?? "");
+  const pageSize: LetterPageSize = rawPageSize === "Legal (8.5 x 14 in)" || rawPageSize === "A4 (8.27 x 11.69 in)"
+    ? rawPageSize
+    : DEFAULT_LETTER_PAGE_SIZE;
+  const rawMargins = asPlainRecord(layout.margins);
+  return {
+    pageSize,
+    margins: {
+      top: asSavedMargin(rawMargins.top, DEFAULT_LETTER_MARGINS.top),
+      bottom: asSavedMargin(rawMargins.bottom, DEFAULT_LETTER_MARGINS.bottom),
+      left: asSavedMargin(rawMargins.left, DEFAULT_LETTER_MARGINS.left),
+      right: asSavedMargin(rawMargins.right, DEFAULT_LETTER_MARGINS.right),
+    },
+  };
+}
+
+function withLetterPdfLayout(value: unknown, pageSize: LetterPageSize, margins: LetterMargins): Record<string, unknown> {
+  const root = asPlainRecord(value);
+  return {
+    ...root,
+    ...(Array.isArray(value) ? { legacyPrintLayout: value } : {}),
+    letterPdfLayout: {
+      version: 1,
+      pageSize,
+      margins,
+    },
+  };
+}
 
 const DEFAULT_TABLE_BUILDER: TableBuilderDraft = {
   rows: 3,
@@ -1139,7 +1189,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [mergeLinePreview, setMergeLinePreview] = useState<MergeLinePreviewResponse | null>(null);
   const [mergeLinePreviewLoading, setMergeLinePreviewLoading] = useState(false);
   const [mergeLinePreviewError, setMergeLinePreviewError] = useState<string | null>(null);
-  const [pageSize, setPageSize] = useState("Letter (8.5 x 11 in)");
+  const [pageSize, setPageSize] = useState<LetterPageSize>(DEFAULT_LETTER_PAGE_SIZE);
   const [fontFamily, setFontFamily] = useState("Calibri");
   const [fontSize, setFontSize] = useState("11");
   const [lineHeight, setLineHeight] = useState("1.5");
@@ -1153,7 +1203,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   // All user-facing preview and print actions open the server-rendered PDF.
   const previewMode = false;
   const [showMarginGuides, setShowMarginGuides] = useState(true);
-  const [margins, setMargins] = useState({ top: 0.25, bottom: 0.25, left: 0.25, right: 0.25 });
+  const [margins, setMargins] = useState<LetterMargins>(DEFAULT_LETTER_MARGINS);
   const [history, setHistory] = useState<string[]>([]);
   const [future, setFuture] = useState<string[]>([]);
   const [savedDraft, setSavedDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
@@ -1251,13 +1301,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           signatureBlockId: template.signatureBlockId ?? template.signatureBlock?.id ?? "",
           logoMode: template.logoMode ?? "ORGANIZATION_DEFAULT",
           customLogoUrl: template.customLogoUrl ?? "",
+          printLayoutJson: template.printLayoutJson ?? null,
         };
         const localRecovery = readTemplateRecoverySnapshot(templateId);
         const recoveredDraft = localRecovery?.draft && draftDiffers(localRecovery.draft, serverDraft)
           ? localRecovery.draft
           : null;
 
-        setDraft(recoveredDraft ?? serverDraft);
+        const activeDraft = recoveredDraft ?? serverDraft;
+        const savedLayout = readLetterPdfLayout(activeDraft.printLayoutJson);
+        setDraft(activeDraft);
+        setPageSize(savedLayout.pageSize);
+        setMargins(savedLayout.margins);
         setSavedDraft(serverDraft);
         setSaveFailure(localRecovery?.lastError ?? null);
         setInspectorPreflight(preflightResult);
@@ -1269,7 +1324,11 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       } else {
         const localRecovery = readTemplateRecoverySnapshot(null);
         const recoveredDraft = localRecovery?.draft ?? null;
-        setDraft(recoveredDraft ?? EMPTY_DRAFT);
+        const activeDraft = recoveredDraft ?? EMPTY_DRAFT;
+        const savedLayout = readLetterPdfLayout(activeDraft.printLayoutJson);
+        setDraft(activeDraft);
+        setPageSize(savedLayout.pageSize);
+        setMargins(savedLayout.margins);
         setSavedDraft(EMPTY_DRAFT);
         setSaveFailure(localRecovery?.lastError ?? null);
         setInspectorPreflight(null);
@@ -1332,6 +1391,23 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       ...draft,
       printBody: editorRef.current?.innerHTML ?? draft.printBody,
     };
+  }
+
+  function updatePageSize(nextPageSize: LetterPageSize) {
+    setPageSize(nextPageSize);
+    setDraft((current) => ({
+      ...current,
+      printLayoutJson: withLetterPdfLayout(current.printLayoutJson, nextPageSize, margins),
+    }));
+  }
+
+  function updateMargins(update: Partial<LetterMargins>) {
+    const nextMargins = { ...margins, ...update };
+    setMargins(nextMargins);
+    setDraft((current) => ({
+      ...current,
+      printLayoutJson: withLetterPdfLayout(current.printLayoutJson, pageSize, nextMargins),
+    }));
   }
 
   async function openServerPdfPreview(targetConstituentId = testConstituentId) {
@@ -2674,13 +2750,13 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   <TextArea label="Description" value={draft.description} onChange={(value) => setDraft((current) => ({ ...current, description: value }))} />
                 </InspectorCard>
                 <InspectorCard title="Page Setup" tooltip="Page size and margin guides control the printable canvas used for preview and server-rendered PDF output.">
-                  <LabeledSelect label="Page Size" value={pageSize} onChange={setPageSize} options={["Letter (8.5 x 11 in)", "Legal (8.5 x 14 in)", "A4 (8.27 x 11.69 in)"]} />
+                  <LabeledSelect label="Page Size" value={pageSize} onChange={(value) => updatePageSize(value as LetterPageSize)} options={["Letter (8.5 x 11 in)", "Legal (8.5 x 14 in)", "A4 (8.27 x 11.69 in)"]} />
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margins (inches)</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <NumberField label="Top" value={margins.top} onChange={(value) => setMargins((current) => ({ ...current, top: value }))} />
-                    <NumberField label="Bottom" value={margins.bottom} onChange={(value) => setMargins((current) => ({ ...current, bottom: value }))} />
-                    <NumberField label="Left" value={margins.left} onChange={(value) => setMargins((current) => ({ ...current, left: value }))} />
-                    <NumberField label="Right" value={margins.right} onChange={(value) => setMargins((current) => ({ ...current, right: value }))} />
+                    <NumberField label="Top" value={margins.top} onChange={(value) => updateMargins({ top: value })} />
+                    <NumberField label="Bottom" value={margins.bottom} onChange={(value) => updateMargins({ bottom: value })} />
+                    <NumberField label="Left" value={margins.left} onChange={(value) => updateMargins({ left: value })} />
+                    <NumberField label="Right" value={margins.right} onChange={(value) => updateMargins({ right: value })} />
                   </div>
                   <CheckField label="Show Margin Guides" checked={showMarginGuides} onChange={setShowMarginGuides} />
                 </InspectorCard>

@@ -7,6 +7,7 @@ import {
   normalizeMergedDonationDateTextForPdfExport,
   recipientFacingLetterSubject,
   renderGeneratedLetterPdf,
+  resolveLetterPdfPageLayout,
 } from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
@@ -145,6 +146,30 @@ describe("letters PDF layout parsing", () => {
         { header: false, align: "right", borderStyle: "solid", borderColor: "#cbd5e1", padding: 6, bold: false },
       ],
     });
+  });
+
+  it("keeps an editor-wrapped donation table as real PDF rows instead of flattening it into body text", () => {
+    const blocks = htmlToPdfBlocks([
+      "<p>Thank you for your support.</p>",
+      '<div class="ProseMirror-selectednode"><table style="border:1px solid #cbd5e1;"><tbody>',
+      '<tr><th>Gift Detail</th><th style="text-align:right;">Value</th></tr>',
+      '<tr><td>Donation Amount</td><td style="text-align:right;">$50.00</td></tr>',
+      '<tr><td>Donation Date</td><td style="text-align:right;">July 22, 2026</td></tr>',
+      "</tbody></table></div>",
+    ].join(""));
+
+    expect(blocks.map((block) => block.kind)).toEqual(["paragraph", "tableRow", "tableRow", "tableRow"]);
+    expect(blocks[1]).toMatchObject({ kind: "tableRow", header: true, cells: [{ text: "Gift Detail" }, { text: "Value", align: "right" }] });
+    expect(blocks[3]).toMatchObject({ kind: "tableRow", cells: [{ text: "Donation Date" }, { text: "July 22, 2026", align: "right" }] });
+  });
+
+  it("uses the canvas's persisted page size and 0.25-inch margins for the production PDF", () => {
+    expect(resolveLetterPdfPageLayout({
+      letterPdfLayout: {
+        pageSize: "Legal (8.5 x 14 in)",
+        margins: { top: 0.25, right: 0.25, bottom: 0.25, left: 0.25 },
+      },
+    })).toEqual({ format: "legal", marginTop: 18, marginRight: 18, marginBottom: 18, marginLeft: 18 });
   });
 
   it("preserves uploaded and resized images for PDF rendering", () => {

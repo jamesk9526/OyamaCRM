@@ -120,6 +120,8 @@ interface LetterPdfBrandingContext {
   organizationName: string;
   tagline: string;
   addressLine: string;
+  headerAddressLines?: string[];
+  headerContactLines?: string[];
   contactLine: string;
   taxId: string;
   footerLegalText: string;
@@ -293,6 +295,22 @@ function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T |
   return allowed.find((item) => item.toUpperCase() === normalized) ?? null;
 }
 
+interface LetterPdfPageLayout {
+  format: "letter" | "legal" | "a4";
+  marginTop: number;
+  marginRight: number;
+  marginBottom: number;
+  marginLeft: number;
+}
+
+const DEFAULT_LETTER_PDF_PAGE_LAYOUT: LetterPdfPageLayout = {
+  format: "letter",
+  marginTop: 18,
+  marginRight: 18,
+  marginBottom: 18,
+  marginLeft: 18,
+};
+
 /** Normalizes optional string id values and maps blank strings to null. */
 function normalizeOptionalId(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -304,6 +322,35 @@ function normalizeOptionalId(value: unknown): string | null {
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+/** Uses the saved editor page settings for the PDF; old templates stay on the compact Letter default. */
+export function resolveLetterPdfPageLayout(value: unknown): LetterPdfPageLayout {
+  const container = asRecord(value);
+  const saved = asRecord(container.letterPdfLayout);
+  const source = Object.keys(saved).length > 0 ? saved : container;
+  const rawMargins = asRecord(source.margins);
+  const pageSize = String(source.pageSize ?? source.format ?? "letter").trim().toLowerCase();
+  const format = pageSize.includes("legal") ? "legal" : pageSize.includes("a4") ? "a4" : "letter";
+  const marginInPoints = (candidate: unknown, fallback: number) => {
+    const inches = typeof candidate === "number" ? candidate : Number.parseFloat(String(candidate ?? ""));
+    if (!Number.isFinite(inches)) return fallback;
+    return Math.min(108, Math.max(9, inches * 72));
+  };
+
+  return {
+    format,
+    marginTop: marginInPoints(rawMargins.top ?? source.marginTop, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginTop),
+    marginRight: marginInPoints(rawMargins.right ?? source.marginRight, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginRight),
+    marginBottom: marginInPoints(rawMargins.bottom ?? source.marginBottom, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginBottom),
+    marginLeft: marginInPoints(rawMargins.left ?? source.marginLeft, DEFAULT_LETTER_PDF_PAGE_LAYOUT.marginLeft),
+  };
+}
+
+/** Generated letters retain the print settings used at generation; older records fall back to the current template. */
+function resolveGeneratedLetterPdfLayout(metadata: unknown, templateLayout: unknown): LetterPdfPageLayout {
+  const snapshot = asRecord(asRecord(metadata).renderSnapshot);
+  return resolveLetterPdfPageLayout(snapshot.printLayoutJson ?? templateLayout);
 }
 
 /** Converts unknown JSON input to a JSON-safe value for Prisma JSON storage. */
@@ -1425,6 +1472,32 @@ function parsePdfTableCellStyle(attributes: string, header: boolean): Pick<PdfTa
   };
 }
 
+/** Parses whole tables before generic block parsing so editor wrappers cannot flatten rows into body text. */
+function parsePdfTableRows(tableAttributes: string, tableInner: string): PdfContentBlock[] {
+  const rows: PdfContentBlock[] = [];
+  for (const row of tableInner.matchAll(/<\s*tr\b([^>]*)>([\s\S]*?)<\s*\/\s*tr\s*>/gi)) {
+    const rowAttributes = row[1] ?? "";
+    const cells = Array.from((row[2] ?? "").matchAll(/<\s*(td|th)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi))
+      .map((cell) => {
+        const cellTag = (cell[1] ?? "td").toLowerCase();
+        const cellAttributes = cell[2] ?? "";
+        const cellInner = cell[3] ?? "";
+        const inheritedAttributes = `${tableAttributes} ${rowAttributes} ${cellAttributes}`;
+        return {
+          text: stripHtmlInline(cellInner),
+          header: cellTag === "th",
+          align: parsePdfTextAlign(cellAttributes, cellInner)
+            ?? parsePdfTextAlign(rowAttributes)
+            ?? parsePdfTextAlign(tableAttributes)
+            ?? "left",
+          ...parsePdfTableCellStyle(inheritedAttributes, cellTag === "th"),
+        } satisfies PdfTableCell;
+      });
+    if (cells.length > 0) rows.push({ kind: "tableRow", cells, header: cells.some((cell) => cell.header) });
+  }
+  return rows;
+}
+
 function parsePdfFontSize(attributes: string, innerHtml = ""): number | undefined {
   const match = `${attributes} ${innerHtml}`.match(/font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(pt|px)?/i);
   if (!match) return undefined;
@@ -1451,7 +1524,13 @@ function isPdfPageBreak(attributes: string): boolean {
 /** Converts simple template HTML into PDF layout blocks while preserving common editor formatting. */
 export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   const blocks: PdfContentBlock[] = [];
-  const normalized = flattenHtmlListsForPdf(html)
+  const extractedTables: PdfContentBlock[][] = [];
+  const tableSafeHtml = flattenHtmlListsForPdf(html).replace(/<\s*table\b([^>]*)>([\s\S]*?)<\s*\/\s*table\s*>/gi, (_table, attributes: string, inner: string) => {
+    const tableIndex = extractedTables.length;
+    extractedTables.push(parsePdfTableRows(attributes ?? "", inner ?? ""));
+    return `<p data-letter-pdf-table-index="${tableIndex}"></p>`;
+  });
+  const normalized = tableSafeHtml
     .replace(/\r\n/g, "\n")
     .replace(/<\s*\/\s*(div|section|article)\s*>/gi, "</p>")
     .replace(/<\s*(div|section|article)\b([^>]*)>/gi, "<p$2>");
@@ -1468,26 +1547,17 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       const image = parsePdfImageBlock(attributes);
       if (image) blocks.push(image);
     } else if (tag === "tr") {
-      const cells = Array.from(inner.matchAll(/<\s*(td|th)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi))
-        .map((cell) => {
-          const cellTag = (cell[1] ?? "td").toLowerCase();
-          const cellAttributes = cell[2] ?? "";
-          const cellInner = cell[3] ?? "";
-          const text = stripHtmlInline(cellInner);
-          return {
-            text,
-            header: cellTag === "th",
-            align: parsePdfTextAlign(cellAttributes, cellInner) ?? parsePdfTextAlign(attributes) ?? "left",
-            ...parsePdfTableCellStyle(cellAttributes, cellTag === "th"),
-          } satisfies PdfTableCell;
-        })
-        .filter((cell) => cell.text);
-      if (cells.length > 0) {
-        blocks.push({ kind: "tableRow", cells, header: cells.some((cell) => cell.header) });
-      }
+      blocks.push(...parsePdfTableRows("", `<tr${attributes}>${inner}</tr>`));
     } else if (isPdfPageBreak(attributes)) {
       blocks.push({ kind: "pageBreak" });
     } else {
+      const nestedTableMarker = inner.match(/data-letter-pdf-table-index\s*=\s*["']?(\d+)/i)?.[1] ?? "";
+      const tableIndex = Number.parseInt(readHtmlAttribute(attributes, "data-letter-pdf-table-index") || nestedTableMarker, 10);
+      if (Number.isInteger(tableIndex) && extractedTables[tableIndex]) {
+        blocks.push(...extractedTables[tableIndex]);
+        match = pattern.exec(normalized);
+        continue;
+      }
       const text = stripHtmlInline(inner);
       const lineHeight = parsePdfLineHeight(attributes, inner);
       const align = parsePdfTextAlign(attributes, inner);
@@ -1567,6 +1637,29 @@ function buildAddressLineFromBranding(config: unknown): string {
     readTextConfig(config, "country"),
   ].filter(Boolean);
   return parts.join(" | ");
+}
+
+/** Keeps header contact details on intentional lines instead of wrapping separator characters in the PDF. */
+function buildHeaderAddressLinesFromBranding(config: unknown): string[] {
+  const city = readFirstTextConfig(config, ["city", "town"]);
+  const state = readFirstTextConfig(config, ["stateProvince", "state", "province"]);
+  const postalCode = readFirstTextConfig(config, ["postalCode", "zip", "zipCode"]);
+  const country = readTextConfig(config, "country");
+  const streetLine = [
+    readFirstTextConfig(config, ["streetAddress1", "addressLine1", "address1"]),
+    readFirstTextConfig(config, ["streetAddress2", "addressLine2", "address2"]),
+  ].filter(Boolean).join(" | ");
+  const cityStateZip = [[city, state].filter(Boolean).join(", "), postalCode].filter(Boolean).join(" ");
+  const locationLine = [cityStateZip, country].filter(Boolean).join(" | ");
+  return [streetLine, locationLine].filter(Boolean);
+}
+
+function buildHeaderContactLinesFromBranding(config: unknown, settings?: { smtpFromEmail?: string | null }): string[] {
+  return [
+    readFirstTextConfig(config, ["contactPhone", "phone"]),
+    readFirstTextConfig(config, ["contactEmail", "email"]) || settings?.smtpFromEmail || "",
+    readFirstTextConfig(config, ["websiteUrl", "website"]),
+  ];
 }
 
 function inferSupportedPdfLogoMime(filePath: string): "image/png" | "image/jpeg" | null {
@@ -1669,6 +1762,8 @@ async function getLetterPdfBrandingContext(organizationId: string): Promise<Lett
     organizationName,
     tagline: readTextConfig(branding, "tagline"),
     addressLine: buildAddressLineFromBranding(branding),
+    headerAddressLines: buildHeaderAddressLinesFromBranding(branding),
+    headerContactLines: buildHeaderContactLinesFromBranding(branding, settings ?? undefined),
     contactLine,
     taxId: readFirstTextConfig(branding, ["taxId", "ein"]),
     footerLegalText: readTextConfig(branding, "footerLegalText"),
@@ -1699,10 +1794,17 @@ export function recipientFacingLetterSubject(value: string | null | undefined): 
 function footerLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["footerPreset"]): string[] {
   const customFooter = preset?.customHtml?.trim() || branding.globalFooterHtml?.trim() || "";
   if (customFooter) return [stripHtmlInline(customFooter)].filter(Boolean);
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const legalText = branding.footerLegalText.trim();
+  const organizationAlreadyInLegalText = Boolean(
+    legalText
+    && branding.organizationName
+    && normalize(legalText).includes(normalize(branding.organizationName)),
+  );
   return [
     preset?.customText ?? "",
-    branding.footerLegalText,
-    (preset?.showOrganizationName ?? true) ? branding.organizationName : "",
+    legalText,
+    (preset?.showOrganizationName ?? true) && !organizationAlreadyInLegalText ? branding.organizationName : "",
     (preset?.showAddress ?? true) ? branding.addressLine : "",
     [
       (preset?.showPhone ?? true) ? branding.contactLine.split(" | ")[0] ?? "" : "",
@@ -1791,16 +1893,17 @@ function drawPdfChrome(
   recipient?: LetterPdfRecipientContext | null,
   pageRange?: { startPage?: number; endPage?: number },
   documentMeta?: { subject?: string; generatedAt?: Date },
+  layout: LetterPdfPageLayout = DEFAULT_LETTER_PDF_PAGE_LAYOUT,
 ): void {
   const pageCount = doc.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 42;
-  const footerY = pageHeight - 42;
-  const fallbackLogoWidth = 54;
-  const fallbackLogoHeight = 54;
-  const logoMaxWidth = 250;
-  const logoMaxHeight = 96;
+  const marginLeft = layout.marginLeft;
+  const marginRight = layout.marginRight;
+  const fallbackLogoWidth = 48;
+  const fallbackLogoHeight = 48;
+  const logoMaxWidth = 232;
+  const logoMaxHeight = 72;
   const normalizedLogoAlignment = String(presets.headerPreset?.logoAlignment ?? "LEFT").toUpperCase();
   const logoAlignment = normalizedLogoAlignment === "CENTER" || normalizedLogoAlignment === "RIGHT" || normalizedLogoAlignment === "NONE"
     ? normalizedLogoAlignment
@@ -1829,8 +1932,8 @@ function drawPdfChrome(
 
   const activeLogoWidth = hasFallbackLogo ? fallbackLogoWidth : renderedLogoWidth;
   const activeLogoHeight = hasFallbackLogo ? fallbackLogoHeight : renderedLogoHeight;
-  const logoX = logoAlignment === "CENTER" ? (pageWidth - activeLogoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginX - activeLogoWidth : marginX;
-  const logoY = 30 + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
+  const logoX = logoAlignment === "CENTER" ? (pageWidth - activeLogoWidth) / 2 : logoAlignment === "RIGHT" ? pageWidth - marginRight - activeLogoWidth : marginLeft;
+  const logoY = layout.marginTop + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
   const recipientAddressLines = buildRecipientAddressLines(recipient);
   const footer = footerLines(branding, presets.footerPreset);
   const rightColumnMode = headerRightColumnMode(presets.headerPreset);
@@ -1840,6 +1943,17 @@ function drawPdfChrome(
     recipient,
     generatedAt: documentMeta?.generatedAt,
   });
+  const headerColumnWidth = Math.min(188, Math.max(120, pageWidth - marginLeft - marginRight - 260));
+  const headerLineHeight = 11;
+  doc.setFontSize(8.25);
+  const wrappedHeaderLines = headerRightLines
+    .flatMap((line) => doc.splitTextToSize(line, headerColumnWidth) as string[])
+    .slice(0, 7);
+  const headerContentHeight = Math.max(
+    showLogoSlot ? activeLogoHeight : 0,
+    wrappedHeaderLines.length * headerLineHeight,
+  );
+  const headerDividerY = layout.marginTop + Math.max(36, headerContentHeight) + 9;
   const logoFormat = branding.logoFormat ?? "PNG";
   const [brandR, brandG, brandB] = normalizePdfHexColor(branding.primaryColor);
   const firstPage = Math.max(1, pageRange?.startPage ?? 1);
@@ -1867,19 +1981,16 @@ function drawPdfChrome(
       doc.setTextColor(15, 23, 42);
     }
 
-    if (headerRightLines.length > 0 || hasLogo || hasFallbackLogo) {
-      const headerColumnWidth = 208;
-      const headerColumnX = pageWidth - marginX - headerColumnWidth;
-      const wrappedLines = headerRightLines.flatMap((line) => doc.splitTextToSize(line, headerColumnWidth) as string[]).slice(0, 6);
-      wrappedLines.forEach((line, index) => {
+    if (wrappedHeaderLines.length > 0 || hasLogo || hasFallbackLogo) {
+      wrappedHeaderLines.forEach((line, index) => {
         doc.setFont("helvetica", rightColumnMode === "RECIPIENT" && index === 0 ? "bold" : "normal");
-        doc.setFontSize(9.5);
+        doc.setFontSize(8.25);
         doc.setTextColor(15, 23, 42);
-        doc.text(line, headerColumnX, 42 + index * 13);
+        doc.text(line, pageWidth - marginRight, layout.marginTop + 8 + index * headerLineHeight, { align: "right" });
       });
-      doc.setDrawColor(brandR, brandG, brandB);
-      doc.line(marginX, 144, pageWidth - marginX, 144);
     }
+    doc.setDrawColor(brandR, brandG, brandB);
+    doc.line(marginLeft, headerDividerY, pageWidth - marginRight, headerDividerY);
 
     if (page === firstPage && rightColumnMode === "ORGANIZATION") {
       const addressLines = recipientAddressLines.slice(0, 4);
@@ -1891,18 +2002,21 @@ function drawPdfChrome(
       doc.setTextColor(15, 23, 42);
       addressLines.forEach((line, index) => {
         doc.setFont("helvetica", index === 0 ? "bold" : "normal");
-        doc.text(line, marginX, 170 + index * 14);
+        doc.text(line, marginLeft, headerDividerY + 18 + index * 14);
       });
-      if (renderedDate) doc.text(renderedDate, pageWidth - marginX, 170, { align: "right" });
+      if (renderedDate) doc.text(renderedDate, pageWidth - marginRight, headerDividerY + 18, { align: "right" });
     }
 
+    const footerLinesToRender = footer.slice(0, 4);
+    const footerLineHeight = 9;
+    const footerFirstBaseline = pageHeight - layout.marginBottom - Math.max(0, footerLinesToRender.length - 1) * footerLineHeight;
     doc.setDrawColor(226, 232, 240);
-    doc.line(marginX, footerY - 16, pageWidth - marginX, footerY - 16);
+    doc.line(marginLeft, footerFirstBaseline - 11, pageWidth - marginRight, footerFirstBaseline - 11);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    footer.slice(0, 4).forEach((line, index) => {
+    doc.setFontSize(7.25);
+    footerLinesToRender.forEach((line, index) => {
       doc.setTextColor(71, 85, 105);
-      doc.text(line, pageWidth / 2, footerY + index * 10, { align: "center" });
+      doc.text(line, pageWidth / 2, footerFirstBaseline + index * footerLineHeight, { align: "center" });
     });
   }
 }
@@ -1917,8 +2031,15 @@ function buildHeaderOrganizationLines(branding: LetterPdfBrandingContext, preset
   // The supplied logo is the wordmark; do not repeat its organization name beside it.
   if ((preset?.showOrganizationName ?? false) && !branding.logoDataUrl) lines.push(branding.organizationName);
   if (preset?.showTagline ?? false) lines.push(branding.tagline);
-  if (preset?.showAddress ?? true) lines.push(branding.addressLine);
-  if ((preset?.showPhone ?? true) || (preset?.showWebsite ?? true)) lines.push(branding.contactLine);
+  if (preset?.showAddress ?? true) {
+    lines.push(...(branding.headerAddressLines?.length ? branding.headerAddressLines : [branding.addressLine]));
+  }
+  const fallbackContacts = branding.contactLine.split(" | ").filter(Boolean);
+  const contactLines = branding.headerContactLines?.length ? branding.headerContactLines : fallbackContacts;
+  const [phone = "", email = "", website = ""] = contactLines;
+  if (preset?.showPhone ?? true) lines.push(phone);
+  if (email) lines.push(email);
+  if (preset?.showWebsite ?? true) lines.push(website);
   return lines.filter(Boolean);
 }
 
@@ -1968,9 +2089,12 @@ function buildHeaderRightLines(options: {
   return buildHeaderOrganizationLines(options.branding, options.preset);
 }
 
-/** Keeps the first body line clear of the address/date row when that row is rendered. */
-function firstPageLetterBodyStartY(presets: LetterPdfPresetContext): number {
-  return headerRightColumnMode(presets.headerPreset) === "ORGANIZATION" ? 238 : 168;
+/** Keeps the first body line clear of the compact header, recipient address, and date row. */
+function firstPageLetterBodyStartY(presets: LetterPdfPresetContext, layout: LetterPdfPageLayout): number {
+  const headerDividerY = layout.marginTop + 72 + 9;
+  return headerRightColumnMode(presets.headerPreset) === "ORGANIZATION"
+    ? headerDividerY + 18 + 4 * 14 + 10
+    : headerDividerY + 18;
 }
 
 function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
@@ -2037,21 +2161,23 @@ export async function buildLetterPdfBodyBlocks(
   return hydratePdfImageBlocks(signedBlocks);
 }
 
-function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number; requireExplicitPageBreaks?: boolean }): void {
+function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], options: { startY: number; continuationStartY?: number; requireExplicitPageBreaks?: boolean; layout: LetterPdfPageLayout }): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 42;
+  const { layout } = options;
+  const marginLeft = layout.marginLeft;
+  const marginRight = layout.marginRight;
   // Keep the body compact enough for a standard donor thank-you letter and
   // receipt table to remain on its first page without crowding the footer.
-  const marginBottom = 74;
+  const marginBottom = layout.marginBottom + 56;
   const contentTop = options.startY;
-  const maxTextWidth = pageWidth - marginX * 2;
+  const maxTextWidth = pageWidth - marginLeft - marginRight;
   let cursorY = contentTop;
 
   const ensurePageSpace = (requiredHeight: number) => {
     if (cursorY + requiredHeight <= pageHeight - marginBottom) return;
     if (options.requireExplicitPageBreaks) throw new LetterPdfLayoutError();
-    doc.addPage();
+    doc.addPage(layout.format);
     cursorY = options.continuationStartY ?? contentTop;
   };
 
@@ -2138,10 +2264,10 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     for (const line of lines) {
       ensurePageSpace(lineHeight);
       const x = align === "center"
-        ? marginX + indent + width / 2
+        ? marginLeft + indent + width / 2
         : align === "right"
-          ? marginX + indent + width
-          : marginX + indent;
+          ? marginLeft + indent + width
+          : marginLeft + indent;
       const options = align === "left"
         ? undefined
         : { align, maxWidth: width };
@@ -2159,7 +2285,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     writeText(block.text, fontSize, "italic", 8, 18, block.lineHeight, block.align, block.fontFamily);
     doc.setDrawColor(148, 163, 184);
     doc.setLineWidth(1.5);
-    doc.line(marginX + 4, quoteTop, marginX + 4, Math.max(quoteTop + 14, cursorY - 8));
+    doc.line(marginLeft + 4, quoteTop, marginLeft + 4, Math.max(quoteTop + 14, cursorY - 8));
     doc.setLineWidth(0.2);
   };
 
@@ -2180,13 +2306,13 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     lines.forEach((line, lineIndex) => {
       ensurePageSpace(lineHeight);
       if (lineIndex === 0) {
-        drawText(marker, marginX + markerIndent, cursorY);
+        drawText(marker, marginLeft + markerIndent, cursorY);
       }
       const x = block.align === "center"
-        ? marginX + contentIndent + width / 2
+        ? marginLeft + contentIndent + width / 2
         : block.align === "right"
-          ? marginX + contentIndent + width
-          : marginX + contentIndent;
+          ? marginLeft + contentIndent + width
+          : marginLeft + contentIndent;
       const options = block.align && block.align !== "left"
         ? { align: block.align, maxWidth: width }
         : undefined;
@@ -2200,7 +2326,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   renderedBlocks.forEach((block, index) => {
     if (block.kind === "pageBreak") {
       if (index < renderedBlocks.length - 1) {
-        doc.addPage();
+        doc.addPage(layout.format);
         cursorY = options.continuationStartY ?? contentTop;
       }
     } else if (block.kind === "heading") {
@@ -2213,7 +2339,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     } else if (block.kind === "divider") {
       ensurePageSpace(18);
       doc.setDrawColor(203, 213, 225);
-      doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
+      doc.line(marginLeft, cursorY, pageWidth - marginRight, cursorY);
       cursorY += 18;
     } else if (block.kind === "spacer") {
       if (block.fill) {
@@ -2233,7 +2359,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       const imageWidth = maxTextWidth * (block.widthPercent / 100);
       const imageHeight = imageWidth * (sourceHeight / sourceWidth);
       ensurePageSpace(imageHeight + 8);
-      doc.addImage(block.dataUrl, block.format, marginX, cursorY, imageWidth, imageHeight);
+      doc.addImage(block.dataUrl, block.format, marginLeft, cursorY, imageWidth, imageHeight);
       cursorY += imageHeight + 8;
     } else if (block.kind === "tableRow") {
       const rowHeight = tableRowHeight(block);
@@ -2241,7 +2367,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
       doc.setFontSize(9);
       block.cells.forEach((cell, index) => {
-        const x = marginX + index * cellWidth;
+        const x = marginLeft + index * cellWidth;
         const cellTop = cursorY - 12;
         const [borderR, borderG, borderB] = normalizePdfHexColor(cell.borderColor);
         doc.setDrawColor(borderR, borderG, borderB);
@@ -2298,19 +2424,22 @@ export async function renderGeneratedLetterPdf(params: {
   mergedPrintBody: string;
   branding: LetterPdfBrandingContext;
   presets: LetterPdfPresetContext;
+  printLayout?: unknown;
 }): Promise<Buffer> {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
+  const layout = resolveLetterPdfPageLayout(params.printLayout);
+  const doc = new jsPDF({ unit: "pt", format: layout.format, compress: true });
 
   const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
-    startY: firstPageLetterBodyStartY(params.presets),
-    continuationStartY: 160,
+    startY: firstPageLetterBodyStartY(params.presets, layout),
+    continuationStartY: layout.marginTop + 72 + 27,
+    layout,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
     subject: params.subject,
     generatedAt: params.generatedAt,
-  });
+  }, layout);
 
   const pdfBytes = doc.output("arraybuffer");
   return Buffer.from(pdfBytes);
@@ -2364,19 +2493,23 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
   mergedPrintBody: string;
   branding: LetterPdfBrandingContext;
   presets: LetterPdfPresetContext;
+  printLayout?: unknown;
 }>): Promise<Buffer> {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "pt", format: "letter", compress: true });
+  const firstLayout = resolveLetterPdfPageLayout(items[0]?.printLayout);
+  const doc = new jsPDF({ unit: "pt", format: firstLayout.format, compress: true });
 
   for (const [index, item] of items.entries()) {
     if (index > 0) {
-      doc.addPage();
+      doc.addPage(resolveLetterPdfPageLayout(item.printLayout).format);
     }
+    const layout = resolveLetterPdfPageLayout(item.printLayout);
     const startPage = doc.getNumberOfPages();
     const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
-      startY: firstPageLetterBodyStartY(item.presets),
-      continuationStartY: 160,
+      startY: firstPageLetterBodyStartY(item.presets, layout),
+      continuationStartY: layout.marginTop + 72 + 27,
+      layout,
     });
     const endPage = doc.getNumberOfPages();
     drawPdfChrome(doc, item.branding, item.presets, item.recipient, {
@@ -2385,7 +2518,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     }, {
       subject: item.subject,
       generatedAt: item.generatedAt,
-    });
+    }, layout);
   }
 
   const pdfBytes = doc.output("arraybuffer");
@@ -3948,6 +4081,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       printBody: true,
       emailSubject: true,
       emailBody: true,
+      printLayoutJson: true,
       headerPreset: true,
       footerPreset: true,
       signatureBlock: true,
@@ -3971,6 +4105,9 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     printBody: typeof draftInput?.printBody === "string" ? draftInput.printBody : template.printBody,
     emailSubject: typeof draftInput?.emailSubject === "string" ? draftInput.emailSubject : template.emailSubject,
     emailBody: typeof draftInput?.emailBody === "string" ? draftInput.emailBody : template.emailBody,
+    printLayoutJson: draftInput && Object.prototype.hasOwnProperty.call(draftInput, "printLayoutJson")
+      ? draftInput.printLayoutJson
+      : template.printLayoutJson,
   };
 
   const sampleConstituent = await prisma.constituent.findFirst({
@@ -4063,6 +4200,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       generatedAt: new Date(),
       mergedPrintBody: merged.mergedPrintBody || "",
       branding,
+      printLayout: previewTemplate.printLayoutJson,
       presets: {
         headerPreset: template.headerPreset ?? defaultPresets.headerPreset,
         footerPreset: template.footerPreset ?? defaultPresets.footerPreset,
@@ -4846,7 +4984,7 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
   const [templateChrome, constituent] = await Promise.all([
     prisma.letterTemplate.findFirst({
       where: { id: templateId, organizationId, status: "ACTIVE" },
-      select: { headerPreset: true, footerPreset: true, signatureBlock: true },
+      select: { headerPreset: true, footerPreset: true, signatureBlock: true, printLayoutJson: true },
     }),
     prisma.constituent.findFirst({
       where: { id: constituentId, organizationId },
@@ -4905,6 +5043,7 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
       generatedAt: new Date(),
       mergedPrintBody: merged.mergedPrintBody || "",
       branding,
+      printLayout: templateChrome?.printLayoutJson ?? template.printLayoutJson,
       presets: {
         headerPreset: templateChrome?.headerPreset ?? defaultPresets.headerPreset,
         footerPreset: templateChrome?.footerPreset ?? defaultPresets.footerPreset,
@@ -5911,6 +6050,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       template: {
         select: {
           name: true,
+          printLayoutJson: true,
           headerPreset: true,
           footerPreset: true,
           signatureBlock: true,
@@ -5963,6 +6103,7 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       generatedAt: generatedLetter.generatedAt,
       mergedPrintBody: normalizeMergedDonationDateTextForPdfExport(generatedLetter.mergedPrintBody, generatedLetter.donation?.date),
       branding,
+      printLayout: resolveGeneratedLetterPdfLayout(generatedLetter.metadataJson, generatedLetter.template?.printLayoutJson),
       presets: {
         headerPreset: generatedLetter.template?.headerPreset ?? defaultPresets.headerPreset,
         footerPreset: generatedLetter.template?.footerPreset ?? defaultPresets.footerPreset,
@@ -6098,6 +6239,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
       template: {
         select: {
           name: true,
+          printLayoutJson: true,
           headerPreset: true,
           footerPreset: true,
           signatureBlock: true,
@@ -6166,6 +6308,7 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           generatedAt: row.generatedAt,
           mergedPrintBody: normalizeMergedDonationDateTextForPdfExport(row.mergedPrintBody, row.donation?.date),
           branding,
+          printLayout: resolveGeneratedLetterPdfLayout(row.metadataJson, row.template?.printLayoutJson),
           presets: {
             headerPreset: row.template?.headerPreset ?? defaultPresets.headerPreset,
             footerPreset: row.template?.footerPreset ?? defaultPresets.footerPreset,
