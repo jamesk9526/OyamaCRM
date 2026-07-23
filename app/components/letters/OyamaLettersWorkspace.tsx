@@ -1179,6 +1179,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [draft, setDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
   const [mergeSections, setMergeSections] = useState<MergeFieldSection[]>([]);
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
+  const [globalHeaderPresets, setGlobalHeaderPresets] = useState<HeaderPreset[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
   const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View" | "AI">("Insert");
@@ -1266,14 +1267,16 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setError(null);
     setLoading(Boolean(templateId));
     try {
-      const [fields, signatureRows, brandingRow, constituentRows] = await Promise.all([
+      const [fields, signatureRows, headerRows, brandingRow, constituentRows] = await Promise.all([
         apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
+        apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
         apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
       setSignatures(signatureRows);
+      setGlobalHeaderPresets(headerRows);
       setBranding(normalizeBrandingSettings(brandingRow));
       setConstituents(constituentRows);
       setTestConstituentId((current) => current || constituentRows.find((item) => !item.doNotMail)?.id || constituentRows[0]?.id || "");
@@ -2386,6 +2389,21 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const pageMetrics = pageSizeToMetrics(pageSize);
   const editorFrameWidth = pageMetrics.width + 84;
   const selectedTestConstituent = constituents.find((item) => item.id === testConstituentId) ?? null;
+  const globalHeaderPreset = globalHeaderPresets.find((item) => item.isDefault && item.isActive) ?? null;
+  const canvasHeaderMode = globalHeaderPreset?.rightColumnMode === "RECIPIENT" || globalHeaderPreset?.rightColumnMode === "CUSTOM"
+    ? globalHeaderPreset.rightColumnMode
+    : "ORGANIZATION";
+  const canvasRecipient = selectedTestConstituent
+    ? {
+        displayName: personName(selectedTestConstituent),
+        organization: selectedTestConstituent.organizationName,
+        addressLine1: selectedTestConstituent.addressLine1,
+        addressLine2: selectedTestConstituent.addressLine2,
+        city: selectedTestConstituent.city,
+        state: selectedTestConstituent.state,
+        postalCode: selectedTestConstituent.zip,
+      }
+    : null;
   const testConstituentResults = useMemo(() => {
     const needle = testConstituentSearch.trim().toLowerCase();
     const rows = needle
@@ -2665,6 +2683,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <div className="max-w-full" style={{ width: pageMetrics.width, transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}>
               <LetterPage
                 branding={branding}
+                recipient={canvasRecipient}
+                headerRightColumnMode={canvasHeaderMode}
+                headerRightColumnHtml={globalHeaderPreset?.rightColumnHtml}
                 title={draft.name || "Letter Preview"}
                 subject={draft.printSubject}
                 salutation={null}

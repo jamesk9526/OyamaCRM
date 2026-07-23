@@ -27,7 +27,8 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("Insert at Cursor");
     expect(workspace).toContain("Inline Suggestions");
     expect(workspace).toContain("sticky top-0 z-40");
-    expect(workspace).toContain("oyamaLetters.aiComposerOpen.v1");
+    expect(workspace).toContain("const [aiComposerOpen, setAiComposerOpen]");
+    expect(workspace).toContain('aria-label="Open Steward AI writer"');
     expect(workspace).toContain("oyamaLetters.inlineSuggestEnabled.v1");
     expect(workspace).toContain("Previous");
     expect(workspace).toContain("Next");
@@ -89,9 +90,11 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(lettersApi).toContain("Do not guess from the newest branding upload");
     expect(settingsApi).toContain("BRANDING_LOGO_UPLOADED_AND_SELECTED");
     expect(lettersApi).toContain("getDefaultLetterPdfPresets");
-    expect(lettersApi).toContain("headerPreset: generatedLetter.template?.headerPreset ?? defaultPresets.headerPreset");
-    expect(lettersApi).toContain("footerPreset: generatedLetter.template?.footerPreset ?? defaultPresets.footerPreset");
-    expect(lettersApi).toContain('doc.text(line, pageWidth / 2, footerY + index * 10, { align: "center" })');
+    expect(lettersApi).toContain("headerPreset: defaultPresets.headerPreset ?? generatedLetter.template?.headerPreset");
+    expect(lettersApi).toContain("footerPreset: defaultPresets.footerPreset ?? generatedLetter.template?.footerPreset");
+    expect(workspace).toContain("globalHeaderPresets");
+    expect(workspace).toContain("headerRightColumnMode={canvasHeaderMode}");
+    expect(lettersApi).toContain("footerFirstBaseline");
     expect(lettersApi).toContain("LETTER_ONE_PAGE_LIMIT_EXCEEDED");
     expect(lettersApi).not.toContain("requireExplicitPageBreaks: true");
     expect(workspace).toContain('data-letter-page-break="true"');
@@ -108,7 +111,7 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(lettersApi).toContain("buildHeaderRightLines");
     expect(lettersApi).toContain('rightColumnMode === "ORGANIZATION"');
     expect(lettersApi).toContain("firstPageLetterBodyStartY");
-    expect(brandingManager).toContain("Top-right header content");
+    expect(brandingManager).toContain("Upper-right letter header content");
     expect(brandingManager).toContain("{{donor.addressBlock}}");
   });
 
@@ -122,7 +125,6 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(lettersApi).not.toContain("itemLabel");
     expect(lettersApi).not.toContain("Page ${");
     expect(workspace).not.toContain("<p>Page 1</p>");
-    expect(brandingManager).not.toContain("Page Number");
     expect(brandingManager).not.toContain("<p>Page 1</p>");
   });
 

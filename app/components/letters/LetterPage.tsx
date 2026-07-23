@@ -53,6 +53,8 @@ export interface LetterPageProps {
   screenShadow?: boolean;
   fixedHeight?: boolean;
   autoSignature?: boolean;
+  headerRightColumnMode?: "ORGANIZATION" | "RECIPIENT" | "CUSTOM";
+  headerRightColumnHtml?: string | null;
 }
 
 const LETTER_WIDTH_PX = 816;
@@ -94,6 +96,8 @@ export default function LetterPage({
   screenShadow = true,
   fixedHeight = false,
   autoSignature = true,
+  headerRightColumnMode = "ORGANIZATION",
+  headerRightColumnHtml,
 }: LetterPageProps) {
   const resolvedBranding = document?.branding ?? branding;
   const resolvedTitle = title ?? document?.title;
@@ -139,6 +143,10 @@ export default function LetterPage({
     clean(resolvedBranding.contactEmail),
     clean(resolvedBranding.websiteUrl),
   ].filter(Boolean);
+  const usesRecipientHeader = headerRightColumnMode === "RECIPIENT";
+  const headerRightLines = usesRecipientHeader
+    ? [recipientName, ...recipientAddress]
+    : organizationHeaderLines;
   const displayFooterBlocks = resolvedFooterBlocks.length > 0
     ? resolvedFooterBlocks
     : [
@@ -196,19 +204,23 @@ export default function LetterPage({
           )}
         </div>
         <div className="max-w-[250px] shrink-0 text-right text-[11px] leading-4 text-slate-700">
-          {organizationHeaderLines.map((line) => <p key={line}>{line}</p>)}
+          {headerRightColumnMode === "CUSTOM" && clean(headerRightColumnHtml) ? (
+            <div className="[&_p]:my-0 [&_strong]:font-semibold" dangerouslySetInnerHTML={{ __html: headerRightColumnHtml ?? "" }} />
+          ) : headerRightLines.map((line, index) => <p key={`${line}-${index}`} className={usesRecipientHeader && index === 0 ? "font-semibold" : ""}>{line}</p>)}
         </div>
       </header>
 
-      <section className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-6 text-[12px] leading-5 text-slate-800">
-        <div>
-          <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
-          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
-        </div>
-        <p className="whitespace-nowrap text-right">{displayDate}</p>
-      </section>
+      {!usesRecipientHeader ? (
+        <section className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-6 text-[12px] leading-5 text-slate-800">
+          <div>
+            <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
+            {recipientAddress.map((line) => <p key={line}>{line}</p>)}
+          </div>
+          <p className="whitespace-nowrap text-right">{displayDate}</p>
+        </section>
+      ) : null}
 
-      <section className="mt-5 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
+      <section className={`${usesRecipientHeader ? "mt-5" : "mt-5"} flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950`}>
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()

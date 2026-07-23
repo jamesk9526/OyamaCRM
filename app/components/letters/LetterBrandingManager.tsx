@@ -215,6 +215,25 @@ export default function LetterBrandingManager() {
     }
   }
 
+  async function makeSelectedHeaderGlobal() {
+    if (!selectedHeaderId || !selectedHeader) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch<HeaderPreset>(`/api/letters/header-presets/${selectedHeaderId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isDefault: true, isActive: true }),
+      });
+      await load();
+      setMessage(`${selectedHeader.name} is now the global header for every letter preview and PDF.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to set the global letter header.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function startNewHeader() {
     setSelectedHeaderId(null);
     setHeaderForm({ ...EMPTY_HEADER, name: "New Header Preset" });
@@ -263,7 +282,14 @@ export default function LetterBrandingManager() {
 
         <section className="rounded-xl border border-gray-200 bg-white p-4">
           {tab === "headers" ? (
-            <HeaderEditor form={headerForm} setForm={setHeaderForm} saving={saving} onSave={() => void saveHeader()} />
+            <HeaderEditor
+              form={headerForm}
+              setForm={setHeaderForm}
+              saving={saving}
+              isGlobalDefault={selectedHeader?.isDefault ?? false}
+              onSave={() => void saveHeader()}
+              onMakeGlobal={() => void makeSelectedHeaderGlobal()}
+            />
           ) : (
             <FooterEditor form={footerForm} setForm={setFooterForm} saving={saving} onSave={() => void saveFooter()} />
           )}
@@ -275,7 +301,14 @@ export default function LetterBrandingManager() {
   );
 }
 
-function HeaderEditor({ form, setForm, saving, onSave }: { form: HeaderForm; setForm: (next: HeaderForm) => void; saving: boolean; onSave: () => void }) {
+function HeaderEditor({ form, setForm, saving, isGlobalDefault, onSave, onMakeGlobal }: {
+  form: HeaderForm;
+  setForm: (next: HeaderForm) => void;
+  saving: boolean;
+  isGlobalDefault: boolean;
+  onSave: () => void;
+  onMakeGlobal: () => void;
+}) {
   return (
     <div className="space-y-4">
       <h2 className="text-sm font-semibold text-gray-900">Header Editor</h2>
@@ -297,6 +330,14 @@ function HeaderEditor({ form, setForm, saving, onSave }: { form: HeaderForm; set
         {form.rightColumnMode === "RECIPIENT" ? "Shows the donor or recipient name and mailing address in the upper-right. The print renderer suppresses the duplicate recipient address in the letter body, leaving more room for message content." : null}
         {form.rightColumnMode === "CUSTOM" ? "Uses the merge fields and lines entered below in the upper-right of every printed letter." : null}
       </div>
+      {isGlobalDefault ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">This is the active global letter header. Canvas previews and generated PDFs use it.</div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          <span>This preset is saved, but another global header is still being used in previews and PDFs.</span>
+          <button type="button" onClick={onMakeGlobal} disabled={saving || !form.name.trim()} className="rounded-md bg-indigo-700 px-2.5 py-1.5 font-semibold text-white hover:bg-indigo-800 disabled:opacity-60">Use as global header</button>
+        </div>
+      )}
       {form.rightColumnMode === "CUSTOM" ? (
         <Field label="Top-right custom content">
           <textarea value={form.rightColumnHtml} onChange={(event) => setForm({ ...form, rightColumnHtml: event.target.value })} rows={4} placeholder={'{{donor.fullName}}\n{{donor.addressBlock}}'} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" />

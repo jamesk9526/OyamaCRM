@@ -4202,9 +4202,11 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       branding,
       printLayout: previewTemplate.printLayoutJson,
       presets: {
-        headerPreset: template.headerPreset ?? defaultPresets.headerPreset,
-        footerPreset: template.footerPreset ?? defaultPresets.footerPreset,
-        signatureBlock: previewSignatureBlock ?? defaultPresets.signatureBlock,
+        // Global Branding is the source of truth for shared letter chrome.
+        // Template-specific rows remain only as a compatibility fallback.
+        headerPreset: defaultPresets.headerPreset ?? template.headerPreset,
+        footerPreset: defaultPresets.footerPreset ?? template.footerPreset,
+        signatureBlock: defaultPresets.signatureBlock ?? previewSignatureBlock,
       },
     });
 
@@ -5045,9 +5047,9 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
       branding,
       printLayout: templateChrome?.printLayoutJson ?? template.printLayoutJson,
       presets: {
-        headerPreset: templateChrome?.headerPreset ?? defaultPresets.headerPreset,
-        footerPreset: templateChrome?.footerPreset ?? defaultPresets.footerPreset,
-        signatureBlock: templateChrome?.signatureBlock ?? defaultPresets.signatureBlock,
+        headerPreset: defaultPresets.headerPreset ?? templateChrome?.headerPreset,
+        footerPreset: defaultPresets.footerPreset ?? templateChrome?.footerPreset,
+        signatureBlock: defaultPresets.signatureBlock ?? templateChrome?.signatureBlock,
       },
     });
 
@@ -6105,9 +6107,9 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
       branding,
       printLayout: resolveGeneratedLetterPdfLayout(generatedLetter.metadataJson, generatedLetter.template?.printLayoutJson),
       presets: {
-        headerPreset: generatedLetter.template?.headerPreset ?? defaultPresets.headerPreset,
-        footerPreset: generatedLetter.template?.footerPreset ?? defaultPresets.footerPreset,
-        signatureBlock: generatedLetter.template?.signatureBlock ?? defaultPresets.signatureBlock,
+        headerPreset: defaultPresets.headerPreset ?? generatedLetter.template?.headerPreset,
+        footerPreset: defaultPresets.footerPreset ?? generatedLetter.template?.footerPreset,
+        signatureBlock: defaultPresets.signatureBlock ?? generatedLetter.template?.signatureBlock,
       },
     });
 
@@ -6310,9 +6312,9 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
           branding,
           printLayout: resolveGeneratedLetterPdfLayout(row.metadataJson, row.template?.printLayoutJson),
           presets: {
-            headerPreset: row.template?.headerPreset ?? defaultPresets.headerPreset,
-            footerPreset: row.template?.footerPreset ?? defaultPresets.footerPreset,
-            signatureBlock: row.template?.signatureBlock ?? defaultPresets.signatureBlock,
+            headerPreset: defaultPresets.headerPreset ?? row.template?.headerPreset,
+            footerPreset: defaultPresets.footerPreset ?? row.template?.footerPreset,
+            signatureBlock: defaultPresets.signatureBlock ?? row.template?.signatureBlock,
           },
         };
       }),
