@@ -2100,7 +2100,12 @@ function firstPageLetterBodyStartY(presets: LetterPdfPresetContext, layout: Lett
 function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
   if (!signature) return blocks;
   const next = [...blocks];
-  if (next.length > 0) next.push({ kind: "spacer", height: 10 });
+  if (next.length > 0) {
+    // Keep the sign-off visually anchored near the footer, like the editable
+    // canvas, without letting it collide with the reserved footer area.
+    next.push({ kind: "spacer", height: 10 });
+    next.push({ kind: "spacer", height: 0, fill: true });
+  }
   if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
   if (signature.signatureImageUrl) {
     next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 34 });

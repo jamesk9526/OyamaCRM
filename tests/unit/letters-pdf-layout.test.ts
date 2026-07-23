@@ -279,6 +279,7 @@ describe("letters PDF layout parsing", () => {
 
     expect(blocks).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "spacer", height: 10 }),
+      expect.objectContaining({ kind: "spacer", fill: true }),
       expect.objectContaining({ kind: "paragraph", text: "With gratitude," }),
       expect.objectContaining({ kind: "paragraph", text: "Jordan Lee" }),
     ]));
