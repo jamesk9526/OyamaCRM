@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLetterPdfBodyBlocks,
+  extractLeadingLetterDate,
   htmlToPdfBlocks,
   htmlToPlainText,
   normalizeMergedDonationDateTextForPdfExport,
@@ -26,6 +27,24 @@ describe("letters PDF layout parsing", () => {
 
     expect(blocks.map((block) => block.kind)).toEqual(["paragraph", "spacer", "spacer", "paragraph"]);
     expect(blocks[2]).toMatchObject({ kind: "spacer", height: 72 });
+  });
+
+  it("moves a leading gift date to the managed top-right PDF date position", () => {
+    const sourceBlocks = htmlToPdfBlocks([
+      "<p>May 28, 2019</p>",
+      "<p>Dear Elizabeth Brisindine,</p>",
+      "<p>Thank you for your support.</p>",
+    ].join(""));
+
+    const result = extractLeadingLetterDate(sourceBlocks);
+
+    expect(result.bodyDate).toBe("May 28, 2019");
+    expect(result.blocks.map((block) => block.kind === "paragraph" ? block.text : "")).toEqual([
+      "Dear Elizabeth Brisindine,",
+      "Thank you for your support.",
+    ]);
+
+    expect(extractLeadingLetterDate(htmlToPdfBlocks("<p>{giftDate}</p><p>Dear donor,</p>")).bodyDate).toBe("{giftDate}");
   });
 
   it("preserves push-to-bottom, dividers, and line height metadata", () => {

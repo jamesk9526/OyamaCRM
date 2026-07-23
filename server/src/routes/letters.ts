@@ -1886,13 +1886,34 @@ function stripLeadingRecipientAddressBlocks(blocks: PdfContentBlock[], recipient
   return blocks.slice(index);
 }
 
+function isStandaloneLetterDate(value: string): boolean {
+  const normalized = value.trim();
+  if (/^\{\{?\s*(?:giftDate|donation\.date)\s*\}\}?$/i.test(normalized)) return true;
+  if (/^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},\s+\d{4}$/i.test(normalized)) return true;
+  return /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(normalized);
+}
+
+/** Moves a template's leading gift/date line into the shared PDF body-date position. */
+export function extractLeadingLetterDate(blocks: PdfContentBlock[]): { bodyDate: string | null; blocks: PdfContentBlock[] } {
+  const firstContentIndex = blocks.findIndex((block) => block.kind !== "spacer");
+  if (firstContentIndex < 0) return { bodyDate: null, blocks };
+  const firstBlock = blocks[firstContentIndex];
+  if (!firstBlock || firstBlock.kind !== "paragraph" || !isStandaloneLetterDate(firstBlock.text)) {
+    return { bodyDate: null, blocks };
+  }
+  return {
+    bodyDate: firstBlock.text.trim(),
+    blocks: [...blocks.slice(0, firstContentIndex), ...blocks.slice(firstContentIndex + 1)],
+  };
+}
+
 function drawPdfChrome(
   doc: JsPdfDocument,
   branding: LetterPdfBrandingContext,
   presets: LetterPdfPresetContext,
   recipient?: LetterPdfRecipientContext | null,
   pageRange?: { startPage?: number; endPage?: number },
-  documentMeta?: { subject?: string; generatedAt?: Date },
+  documentMeta?: { subject?: string; generatedAt?: Date; bodyDate?: string | null },
   layout: LetterPdfPageLayout = DEFAULT_LETTER_PDF_PAGE_LAYOUT,
 ): void {
   const pageCount = doc.getNumberOfPages();
@@ -1995,8 +2016,8 @@ function drawPdfChrome(
     if (page === firstPage && rightColumnMode === "ORGANIZATION") {
       const addressLines = recipientAddressLines.slice(0, 4);
       const renderedDate = documentMeta?.generatedAt
-        ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
-        : "";
+          ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
+          : (documentMeta?.bodyDate?.trim() || "");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
@@ -2005,6 +2026,16 @@ function drawPdfChrome(
         doc.text(line, marginLeft, headerDividerY + 18 + index * 14);
       });
       if (renderedDate) doc.text(renderedDate, pageWidth - marginRight, headerDividerY + 18, { align: "right" });
+    } else if (page === firstPage) {
+      const renderedDate = documentMeta?.generatedAt
+          ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
+          : (documentMeta?.bodyDate?.trim() || "");
+      if (renderedDate) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        doc.text(renderedDate, pageWidth - marginRight, headerDividerY + 18, { align: "right" });
+      }
     }
 
     const footerLinesToRender = footer.slice(0, 4);
@@ -2094,7 +2125,7 @@ function firstPageLetterBodyStartY(presets: LetterPdfPresetContext, layout: Lett
   const headerDividerY = layout.marginTop + 72 + 9;
   return headerRightColumnMode(presets.headerPreset) === "ORGANIZATION"
     ? headerDividerY + 18 + 4 * 14 + 10
-    : headerDividerY + 18;
+    : headerDividerY + 18 + 24;
 }
 
 function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
@@ -2435,7 +2466,8 @@ export async function renderGeneratedLetterPdf(params: {
   const layout = resolveLetterPdfPageLayout(params.printLayout);
   const doc = new jsPDF({ unit: "pt", format: layout.format, compress: true });
 
-  const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
+  const builtBlocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
+  const { bodyDate, blocks } = extractLeadingLetterDate(builtBlocks);
   renderPdfContentBlocks(doc, blocks, {
     startY: firstPageLetterBodyStartY(params.presets, layout),
     continuationStartY: layout.marginTop + 72 + 27,
@@ -2444,6 +2476,7 @@ export async function renderGeneratedLetterPdf(params: {
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
     subject: params.subject,
     generatedAt: params.generatedAt,
+    bodyDate,
   }, layout);
 
   const pdfBytes = doc.output("arraybuffer");
@@ -2510,7 +2543,8 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     }
     const layout = resolveLetterPdfPageLayout(item.printLayout);
     const startPage = doc.getNumberOfPages();
-    const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
+    const builtBlocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
+    const { bodyDate, blocks } = extractLeadingLetterDate(builtBlocks);
     renderPdfContentBlocks(doc, blocks, {
       startY: firstPageLetterBodyStartY(item.presets, layout),
       continuationStartY: layout.marginTop + 72 + 27,
@@ -2523,6 +2557,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     }, {
       subject: item.subject,
       generatedAt: item.generatedAt,
+      bodyDate,
     }, layout);
   }
 
