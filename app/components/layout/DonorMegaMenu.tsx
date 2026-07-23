@@ -140,6 +140,12 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           description: "Letters, receipts, labels, and PDFs",
         },
         {
+          id: "oyama-email",
+          label: "OyamaEmail",
+          href: "/oyama-email",
+          description: "Email campaigns, templates, and delivery",
+        },
+        {
           id: "contacts-manager",
           label: "Contacts Manager",
           href: "/contacts-manager",

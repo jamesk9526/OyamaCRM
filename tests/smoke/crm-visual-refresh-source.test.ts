@@ -117,6 +117,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(globals).toContain(".crm-page-header-surface");
     expect(globals).toContain(".crm-filter-surface");
     expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
+    expect(megaMenu).toContain('label: "OyamaEmail"');
+    expect(megaMenu).toContain('href: "/oyama-email"');
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
     expect(megaMenu).toContain('bg-[#0a2140]/[0.98]');
