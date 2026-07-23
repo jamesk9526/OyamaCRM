@@ -122,8 +122,11 @@ body {
 }
 
 [data-topbar-root="true"][data-donor-topbar="true"] {
-  background: rgba(255, 255, 255, 0.98) !important;
-  border-bottom-color: #e2e8f0 !important;
+  /* The Donor CRM wordmark and its command controls use light foregrounds.
+     Keep this surface decisively navy so the brand is legible at a glance. */
+  background: linear-gradient(105deg, #061a36 0%, #09264c 54%, #0a315d 100%) !important;
+  border-bottom-color: rgba(191, 219, 254, 0.24) !important;
+  box-shadow: 0 10px 26px rgba(2, 10, 28, 0.26) !important;
 }
 
 /* Windows Explorer-inspired workspace command surfaces. */

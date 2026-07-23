@@ -422,7 +422,7 @@ Validation: focused unit/source suite passed 84/84; database-backed donor, Lette
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Global TopBar visual simplification | Working | `app/components/layout/TopBar.tsx` | Replaced the dark/glass topbar treatment with a calmer white CRM header, standard button surfaces, lighter search field, cleaner dividers, and less visual contrast between brand, module switcher, search, AI, notifications, and account controls. |
+| Global TopBar visual simplification | Working | `app/components/layout/TopBar.tsx`, `app/globals.css` | Shared CRM headers retain calm neutral surfaces; the DonorCRM command bar deliberately uses a deep navy treatment so its OyamaCRM v1.3 wordmark and light command controls remain clear at a glance. |
 | Sidebar and TopBar stability pass | Partially Working | `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/CrmSidebar.tsx`, `app/components/layout/MobileSidebarDrawer.tsx` | Shared navigation now uses the documented `<1024px` drawer breakpoint, compact sidebar preferences initialize before paint, headers reserve stable content space, and the drawer has keyboard focus management. Source smoke, typechecks, and focused lint passed; a live browser viewport pass remains pending because the local browser surface was unavailable. |
 
 ## 2026-05-14 Production Pass Phase 1/2 (Audit + IA Cleanup)
