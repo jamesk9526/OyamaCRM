@@ -59,6 +59,13 @@ describe("letters PDF layout parsing", () => {
     ]);
 
     expect(extractLeadingLetterDate(htmlToPdfBlocks("<p>{giftDate}</p><p>Dear donor,</p>")).bodyDate).toBe("{giftDate}");
+
+    const dateAfterSalutation = extractLeadingLetterDate(htmlToPdfBlocks("<p>Dear Elizabeth Brisindine,</p><p>{giftDate}</p><p>Thank you.</p>"));
+    expect(dateAfterSalutation.bodyDate).toBe("{giftDate}");
+    expect(dateAfterSalutation.blocks.map((block) => block.kind === "paragraph" ? block.text : "")).toEqual([
+      "Dear Elizabeth Brisindine,",
+      "Thank you.",
+    ]);
   });
 
   it("preserves push-to-bottom, dividers, and line height metadata", () => {

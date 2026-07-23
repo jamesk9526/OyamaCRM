@@ -53,6 +53,7 @@ export interface LetterPageProps {
   screenShadow?: boolean;
   fixedHeight?: boolean;
   autoSignature?: boolean;
+  suppressAutoSalutation?: boolean;
   headerRightColumnMode?: "ORGANIZATION" | "RECIPIENT" | "CUSTOM";
   headerRightColumnHtml?: string | null;
 }
@@ -96,6 +97,7 @@ export default function LetterPage({
   screenShadow = true,
   fixedHeight = false,
   autoSignature = true,
+  suppressAutoSalutation = false,
   headerRightColumnMode = "ORGANIZATION",
   headerRightColumnHtml,
 }: LetterPageProps) {
@@ -136,7 +138,7 @@ export default function LetterPage({
   const recipientName = clean(resolvedRecipient?.displayName) || "Sample Preview Recipient";
   const recipientAddress = formatRecipientAddress(resolvedRecipient);
   const displayDate = clean(resolvedDate) || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const displaySalutation = resolvedSalutation === null ? "" : clean(resolvedSalutation) || `Dear ${recipientName},`;
+  const displaySalutation = suppressAutoSalutation || resolvedSalutation === null ? "" : clean(resolvedSalutation) || `Dear ${recipientName},`;
   const organizationHeaderLines = [
     formatBrandingAddress(resolvedBranding),
     clean(resolvedBranding.contactPhone),
@@ -218,7 +220,11 @@ export default function LetterPage({
           </div>
           <p className="whitespace-nowrap text-right">{displayDate}</p>
         </section>
-      ) : null}
+      ) : (
+        <section className="mt-3 flex justify-end text-[12px] leading-5 text-slate-800">
+          <p className="whitespace-nowrap text-right">{displayDate}</p>
+        </section>
+      )}
 
       <section className="mt-5 flex-1 min-h-0 overflow-hidden text-[14px] leading-[18.5px] text-slate-950" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}

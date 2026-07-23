@@ -1289,7 +1289,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             body: JSON.stringify({ confirm: false }),
           }),
         ]);
-        const nextBody = template.printBody ?? "";
+        const nextBody = stripManagedLetterDateFromBody(template.printBody ?? "");
         const serverDraft: TemplateDraft = {
           name: template.name ?? "",
           description: template.description ?? "",
@@ -1307,8 +1307,11 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           printLayoutJson: template.printLayoutJson ?? null,
         };
         const localRecovery = readTemplateRecoverySnapshot(templateId);
-        const recoveredDraft = localRecovery?.draft && draftDiffers(localRecovery.draft, serverDraft)
-          ? localRecovery.draft
+        const recoveredCandidate = localRecovery?.draft
+          ? { ...localRecovery.draft, printBody: stripManagedLetterDateFromBody(localRecovery.draft.printBody) }
+          : null;
+        const recoveredDraft = recoveredCandidate && draftDiffers(recoveredCandidate, serverDraft)
+          ? recoveredCandidate
           : null;
 
         const activeDraft = recoveredDraft ?? serverDraft;
@@ -2689,6 +2692,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 title={draft.name || "Letter Preview"}
                 subject={draft.printSubject}
                 salutation={null}
+                suppressAutoSalutation
                 minHeight={pageMetrics.height}
                 marginTop={margins.top}
                 marginRight={margins.right}
@@ -7141,6 +7145,13 @@ function htmlToPlainTextClient(value: string): string {
     return (element.textContent ?? "").trim();
   }
   return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** The letter date is managed in the shared top-right chrome, not the editable body. */
+function stripManagedLetterDateFromBody(value: string): string {
+  const dateValue = String.raw`(?:\{\{?\s*(?:giftDate|donation\.date)\s*\}\}?|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})`;
+  const standaloneBlock = new RegExp(String.raw`<(p|div|h[1-3])\b[^>]*>\s*(?:<[^/][^>]*>\s*)*${dateValue}(?:\s*<\/[^>]+>)*\s*<\/\1>\s*`, "i");
+  return value.replace(standaloneBlock, "");
 }
 
 function sanitizeClientFileName(value: string): string {

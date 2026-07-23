@@ -1926,18 +1926,19 @@ function isStandaloneLetterDate(value: string): boolean {
   return /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(normalized);
 }
 
-/** Moves a template's leading gift/date line into the shared PDF body-date position. */
+/** Moves a standalone template date field into the shared PDF body-date position. */
 export function extractLeadingLetterDate(blocks: PdfContentBlock[]): { bodyDate: string | null; blocks: PdfContentBlock[] } {
-  const firstContentIndex = blocks.findIndex((block) => block.kind !== "spacer");
-  if (firstContentIndex < 0) return { bodyDate: null, blocks };
-  const firstBlock = blocks[firstContentIndex];
-  if (!firstBlock || firstBlock.kind !== "paragraph" || !isStandaloneLetterDate(firstBlock.text)) {
-    return { bodyDate: null, blocks };
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    if (block.kind !== "paragraph" && block.kind !== "heading" && block.kind !== "quote" && block.kind !== "list") continue;
+    if (isStandaloneLetterDate(block.text)) {
+      return {
+        bodyDate: block.text.trim(),
+        blocks: [...blocks.slice(0, index), ...blocks.slice(index + 1)],
+      };
+    }
   }
-  return {
-    bodyDate: firstBlock.text.trim(),
-    blocks: [...blocks.slice(0, firstContentIndex), ...blocks.slice(firstContentIndex + 1)],
-  };
+  return { bodyDate: null, blocks };
 }
 
 function drawPdfChrome(
@@ -2172,7 +2173,9 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   }
   if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
   if (signature.signatureImageUrl) {
-    next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 34 });
+    // A compact signature is more likely to stay with the closing/table on its
+    // intended page while still reading clearly in the printed letter.
+    next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 28 });
   } else {
     next.push({ kind: "paragraph", text: signature.typedSignature || signature.signerName });
   }
@@ -2295,16 +2298,17 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     if (block.kind === "pageBreak") return 0;
     if (block.kind === "spacer") return block.fill ? 0 : block.height;
     if (block.kind === "image") {
+      // An unresolved upload is not rendered, so it must not consume layout
+      // space or push the following signature onto a nearly empty page.
+      if (!block.dataUrl) return 0;
       const width = maxTextWidth * (block.widthPercent / 100);
-      if (block.dataUrl) {
-        try {
-          const properties = doc.getImageProperties(block.dataUrl) as { width?: number; height?: number };
-          const sourceWidth = Number(properties.width ?? 0);
-          const sourceHeight = Number(properties.height ?? 0);
-          if (sourceWidth > 0 && sourceHeight > 0) return width * (sourceHeight / sourceWidth) + 8;
-        } catch {
-          // Fall through to the conservative image-height estimate.
-        }
+      try {
+        const properties = doc.getImageProperties(block.dataUrl) as { width?: number; height?: number };
+        const sourceWidth = Number(properties.width ?? 0);
+        const sourceHeight = Number(properties.height ?? 0);
+        if (sourceWidth > 0 && sourceHeight > 0) return width * (sourceHeight / sourceWidth) + 8;
+      } catch {
+        // Fall through to the conservative image-height estimate.
       }
       return block.aspectRatio ? width / block.aspectRatio + 8 : width * 0.35 + 8;
     }
