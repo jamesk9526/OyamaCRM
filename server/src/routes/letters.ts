@@ -1290,6 +1290,33 @@ function parsePdfTextAlign(attributes: string, innerHtml = ""): PdfTextAlign | u
   return value === "left" || value === "center" || value === "right" || value === "justify" ? value : undefined;
 }
 
+function parsePdfCssLengthPoints(value: string | undefined): number | undefined {
+  const match = value?.trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*(px|pt|in)?$/i);
+  if (!match) return undefined;
+  const raw = Number.parseFloat(match[1]);
+  if (!Number.isFinite(raw)) return undefined;
+  const unit = match[2]?.toLowerCase();
+  const points = unit === "in" ? raw * 72 : unit === "px" ? raw * 0.75 : raw;
+  return Math.min(540, Math.max(0, points));
+}
+
+/** Reads persisted inline vertical margins so editor space survives PDF export. */
+function parsePdfVerticalMargins(attributes: string): { top: number; bottom: number } {
+  const shorthand = attributes.match(/\bmargin\s*:\s*([^;"']+)/i)?.[1]?.trim() ?? "";
+  const values = shorthand.split(/\s+/).map((value) => parsePdfCssLengthPoints(value));
+  let top = values[0] ?? 0;
+  let bottom = values.length === 1
+    ? top
+    : values.length === 2
+      ? (values[0] ?? 0)
+      : (values[2] ?? values[0] ?? 0);
+  const explicitTop = parsePdfCssLengthPoints(attributes.match(/\bmargin-top\s*:\s*([^;"']+)/i)?.[1]);
+  const explicitBottom = parsePdfCssLengthPoints(attributes.match(/\bmargin-bottom\s*:\s*([^;"']+)/i)?.[1]);
+  if (explicitTop !== undefined) top = explicitTop;
+  if (explicitBottom !== undefined) bottom = explicitBottom;
+  return { top, bottom };
+}
+
 function parsePdfSpacer(attributes: string, innerHtml: string): PdfContentBlock | null {
   const marker = attributes.match(/data-letter-spacer\s*=\s*["']([^"']+)["']/i)?.[1]?.trim().toLowerCase();
   if (marker === "fill") return { kind: "spacer", height: 0, fill: true };
@@ -1302,14 +1329,15 @@ function parsePdfSpacer(attributes: string, innerHtml: string): PdfContentBlock 
     ? styleUnit === "in" ? styleValue * 72 : styleUnit === "px" ? styleValue * 0.75 : styleValue
     : Number.NaN;
   const explicitHeight = Number.isFinite(markerHeight) ? markerHeight : stylePoints;
-  if (Number.isFinite(explicitHeight) && explicitHeight > 0) {
-    return { kind: "spacer", height: Math.min(540, Math.max(8, explicitHeight)) };
-  }
 
   const text = stripHtmlInline(innerHtml);
   if (text) return null;
   const breakCount = Array.from(innerHtml.matchAll(/<\s*br\s*\/?\s*>/gi)).length;
-  return { kind: "spacer", height: Math.max(16, breakCount * 16) };
+  const baseHeight = Number.isFinite(explicitHeight) && explicitHeight > 0
+    ? explicitHeight
+    : Math.max(16, breakCount * 16);
+  const margins = parsePdfVerticalMargins(attributes);
+  return { kind: "spacer", height: Math.min(540, Math.max(8, baseHeight + margins.top + margins.bottom)) };
 }
 
 function plainTextToPdfBlocks(value: string): PdfContentBlock[] {
@@ -1528,7 +1556,8 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   const tableSafeHtml = flattenHtmlListsForPdf(html).replace(/<\s*table\b([^>]*)>([\s\S]*?)<\s*\/\s*table\s*>/gi, (_table, attributes: string, inner: string) => {
     const tableIndex = extractedTables.length;
     extractedTables.push(parsePdfTableRows(attributes ?? "", inner ?? ""));
-    return `<p data-letter-pdf-table-index="${tableIndex}"></p>`;
+    const margins = parsePdfVerticalMargins(attributes ?? "");
+    return `<p data-letter-pdf-table-index="${tableIndex}" data-letter-pdf-table-before="${margins.top}" data-letter-pdf-table-after="${margins.bottom}"></p>`;
   });
   const normalized = tableSafeHtml
     .replace(/\r\n/g, "\n")
@@ -1554,7 +1583,11 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       const nestedTableMarker = inner.match(/data-letter-pdf-table-index\s*=\s*["']?(\d+)/i)?.[1] ?? "";
       const tableIndex = Number.parseInt(readHtmlAttribute(attributes, "data-letter-pdf-table-index") || nestedTableMarker, 10);
       if (Number.isInteger(tableIndex) && extractedTables[tableIndex]) {
+        const before = Number.parseFloat(readHtmlAttribute(attributes, "data-letter-pdf-table-before"));
+        const after = Number.parseFloat(readHtmlAttribute(attributes, "data-letter-pdf-table-after"));
+        if (Number.isFinite(before) && before > 0) blocks.push({ kind: "spacer", height: before });
         blocks.push(...extractedTables[tableIndex]);
+        if (Number.isFinite(after) && after > 0) blocks.push({ kind: "spacer", height: after });
         match = pattern.exec(normalized);
         continue;
       }

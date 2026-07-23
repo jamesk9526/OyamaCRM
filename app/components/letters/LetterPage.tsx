@@ -220,11 +220,11 @@ export default function LetterPage({
         </section>
       ) : null}
 
-      <section className={`${usesRecipientHeader ? "mt-5" : "mt-5"} flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950`}>
+      <section className="mt-5 flex-1 min-h-0 overflow-hidden text-[14px] leading-[18.5px] text-slate-950" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()
-            ? <div className="letter-page-body [&_h1]:my-3 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-2 [&_h2]:text-lg [&_h2]:font-semibold [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1.5 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-1.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: resolvedBodyHtml }} />
+            ? <div className="letter-page-body [&_h1]:my-[9px] [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-[9px] [&_h2]:text-lg [&_h2]:font-semibold [&_li]:my-[4px] [&_ol]:my-[9px] [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-[9px] [&_table]:my-0 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[12px] [&_table]:leading-[14.5px] [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2 [&_ul]:my-[9px] [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: resolvedBodyHtml }} />
             : <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">No document content available.</p>
         )}
       </section>

@@ -29,6 +29,20 @@ describe("letters PDF layout parsing", () => {
     expect(blocks[2]).toMatchObject({ kind: "spacer", height: 72 });
   });
 
+  it("preserves blank editor paragraphs and table margins between copy and a table", () => {
+    const blocks = htmlToPdfBlocks([
+      "<p>Thank you for your support.</p>",
+      "<p><br></p>",
+      '<table style="margin:24px 0 12px"><tbody><tr><td>Gift Detail</td><td>Value</td></tr></tbody></table>',
+      "<p>With gratitude,</p>",
+    ].join(""));
+
+    expect(blocks.map((block) => block.kind)).toEqual(["paragraph", "spacer", "spacer", "tableRow", "spacer", "paragraph"]);
+    expect(blocks[1]).toMatchObject({ kind: "spacer", height: 16 });
+    expect(blocks[2]).toMatchObject({ kind: "spacer", height: 18 });
+    expect(blocks[4]).toMatchObject({ kind: "spacer", height: 9 });
+  });
+
   it("moves a leading gift date to the managed top-right PDF date position", () => {
     const sourceBlocks = htmlToPdfBlocks([
       "<p>May 28, 2019</p>",
