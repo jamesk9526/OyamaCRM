@@ -1355,14 +1355,15 @@ function logEmailPublishDiagnostics({
       passed: issue.passed,
     })),
     mergeFields: extractMergeTokens(htmlOutput),
-    htmlLength: htmlOutput.length,
+    canvasHtmlLength: htmlOutput.length,
     plainTextLength: plainTextOutput.length,
+    renderAuthority: "server email render service",
   };
 
   console.groupCollapsed(`[OyamaEmail Publish Diagnostics] ${stage}: ${campaign.id}`);
   console.info("Summary", diagnostics);
-  console.info("Entire email HTML output", htmlOutput);
-  console.info("Plain-text output", plainTextOutput);
+  console.info("Builder canvas HTML only — the server adds managed branding, compliance, and recipient merge data before delivery.", htmlOutput);
+  console.info("Canvas plain-text output", plainTextOutput);
   console.groupEnd();
 }
 

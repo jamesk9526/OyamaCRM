@@ -223,8 +223,6 @@ export default function ConstituentDetailPage() {
   const organizationContact = [c.contactFirstName, c.contactLastName].filter(Boolean).join(" ").trim();
 
   // Giving analytics
-  const avgGift = c.giftCount > 0 ? Number(c.totalLifetimeGiving) / c.giftCount : 0;
-  const largestGift = c.donations.reduce((max, g) => Math.max(max, Number(g.amount ?? 0)), 0);
   const openTasks = c.tasks.filter((t) => t.status !== "COMPLETED");
   const overdueTasks = openTasks.filter((t) => t.dueDate && new Date(t.dueDate).getTime() < Date.now());
   const daysSinceLastGift = c.lastGiftDate
@@ -302,7 +300,7 @@ export default function ConstituentDetailPage() {
       <div className="space-y-4 pb-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm text-gray-500">
-          <Link href="/constituents" className="hover:text-emerald-600 transition-colors">Constituents</Link>
+          <Link href="/constituents" className="hover:text-indigo-600 transition-colors">Constituents</Link>
           <svg className="h-3 w-3 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
           <span className="font-medium text-gray-900 truncate">{fullName}</span>
         </nav>
@@ -334,7 +332,7 @@ export default function ConstituentDetailPage() {
         />
 
         {/* Profile Header */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_4%_0%,rgba(99,102,241,0.12),transparent_36%),linear-gradient(135deg,#f8f9ff_0%,#ffffff_58%,#f0f7ff_100%)] shadow-[0_12px_30px_rgba(15,23,42,0.055)]">
           {commRestrictions.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 bg-red-50 border-b border-red-200 px-5 py-2.5">
               <svg className="h-4 w-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -352,7 +350,7 @@ export default function ConstituentDetailPage() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
               {/* Avatar + Identity */}
               <div className="flex items-start gap-4 flex-1 min-w-0">
-                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-base font-bold select-none ${isHousehold ? "bg-blue-50 text-blue-700 ring-2 ring-blue-200" : "bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200"}`}>
+                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-base font-bold select-none ${isHousehold ? "bg-sky-50 text-sky-700 ring-2 ring-sky-200" : "bg-indigo-50 text-indigo-700 ring-2 ring-indigo-200"}`}>
                   {isHousehold ? (
                     <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -382,7 +380,7 @@ export default function ConstituentDetailPage() {
                   {c.household && !isHousehold && (
                     <p className="mt-0.5 text-xs text-gray-400">
                       Member of{" "}
-                      <Link href={`/constituents/${c.household.head?.id}`} className="font-semibold text-emerald-700 hover:underline">
+                      <Link href={`/constituents/${c.household.head?.id}`} className="font-semibold text-indigo-700 hover:underline">
                         {c.household.name}
                       </Link>
                     </p>
@@ -391,7 +389,7 @@ export default function ConstituentDetailPage() {
                   {/* Contact line */}
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
                     {c.email ? (
-                      <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-gray-600 hover:text-emerald-700 transition-colors">
+                      <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-gray-600 hover:text-indigo-700 transition-colors">
                         <svg className="h-3.5 w-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                         {c.email}
                       </a>
@@ -399,7 +397,7 @@ export default function ConstituentDetailPage() {
                       <span className="text-xs text-gray-400 italic">No email on file</span>
                     )}
                     {primaryPhone ? (
-                      <a href={`tel:${primaryPhone}`} className="flex items-center gap-1.5 text-gray-600 hover:text-emerald-700 transition-colors">
+                      <a href={`tel:${primaryPhone}`} className="flex items-center gap-1.5 text-gray-600 hover:text-indigo-700 transition-colors">
                         <svg className="h-3.5 w-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                         {primaryPhone}
                       </a>
@@ -428,11 +426,11 @@ export default function ConstituentDetailPage() {
               </div>
 
               {/* Quick action buttons */}
-              <div className="flex flex-row flex-wrap gap-2 lg:flex-col lg:items-stretch lg:min-w-[148px]">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:max-w-[390px] lg:justify-end">
                 <button
                   type="button"
                   onClick={() => setShowGiftModal(true)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
                   Record Gift
@@ -471,15 +469,10 @@ export default function ConstituentDetailPage() {
         </div>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           <KpiCard label="Lifetime Giving" value={formatCurrency(c.totalLifetimeGiving)} onClick={() => setTab("giving")} />
-          <KpiCard label="YTD Giving" value={formatCurrency(c.totalYtdGiving)} onClick={() => setTab("giving")} />
           <KpiCard label="Last Gift" value={c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "—"} sub={c.lastGiftDate ? formatDate(c.lastGiftDate) : undefined} onClick={() => setTab("giving")} />
-          <KpiCard label="Gift Count" value={String(c.giftCount)} sub={c.firstGiftDate ? `Since ${formatDate(c.firstGiftDate)}` : undefined} onClick={() => setTab("giving")} />
           <KpiCard label="Open Tasks" value={String(openTasks.length)} sub={overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : undefined} subColor={overdueTasks.length > 0 ? "text-red-600" : undefined} onClick={() => setTab("tasks")} />
-          <KpiCard label="Average Gift" value={formatCurrency(avgGift)} onClick={() => setTab("giving")} />
-          <KpiCard label="Largest Gift" value={formatCurrency(largestGift)} onClick={() => setTab("giving")} />
-          <KpiCard label="First Gift" value={c.firstGiftDate ? formatDate(c.firstGiftDate) : "—"} onClick={() => setTab("giving")} />
           <KpiCard label="Lapse Risk" value={lapseRisk} valueColor={lapseRiskColor} onClick={() => setTab("overview")} />
           <KpiCard label="Opportunity" value={`${opportunityScore}/100`} valueColor={engagementColor(opportunityScore)} onClick={() => setTab("overview")} />
         </div>
@@ -489,7 +482,7 @@ export default function ConstituentDetailPage() {
           {/* Left: Tabbed workspace */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             {/* Tab navigation */}
-            <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50/50 scrollbar-hide">
+            <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-50/70 scrollbar-hide">
               {tabs.map((tabItem) => {
                 const isActive = tab === tabItem.key;
                 return (
@@ -499,13 +492,13 @@ export default function ConstituentDetailPage() {
                     onClick={() => setTab(tabItem.key)}
                     className={`relative flex shrink-0 items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap focus:outline-none ${
                       isActive
-                        ? "text-emerald-700 border-b-2 border-emerald-600 -mb-px bg-white"
+                        ? "text-indigo-700 border-b-2 border-indigo-600 -mb-px bg-white"
                         : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
                     }`}
                   >
                     {tabItem.label}
                     {tabItem.count != null && tabItem.count > 0 && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-600"}`}>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${isActive ? "bg-indigo-100 text-indigo-700" : "bg-gray-200 text-gray-600"}`}>
                         {tabItem.count}
                       </span>
                     )}
@@ -684,8 +677,8 @@ export default function ConstituentDetailPage() {
 
 // ─── Shared style constants ───────────────────────────────────────────────────
 
-const QA_BTN = "inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm";
-const ACTION_BTN = "inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm";
+const QA_BTN = "inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 transition-colors shadow-sm";
+const ACTION_BTN = "inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 transition-colors shadow-sm";
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
@@ -704,7 +697,7 @@ function KpiCard({
   subColor?: string;
   onClick?: () => void;
 }) {
-  const base = "rounded-xl border border-gray-200 bg-white p-3.5 text-left transition-all hover:border-emerald-300 hover:shadow-sm";
+  const base = "rounded-xl border border-slate-200 bg-white p-3.5 text-left shadow-[0_5px_14px_rgba(15,23,42,0.035)] transition-all hover:border-indigo-300 hover:shadow-sm";
   const content = (
     <>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>

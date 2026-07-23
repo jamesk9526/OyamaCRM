@@ -415,6 +415,7 @@ const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
 
 export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMenuProps) {
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
   const [dropdownAnchor, setDropdownAnchor] = useState<DOMRect | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -443,9 +444,22 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
   // Close on route change.
   useEffect(() => {
     setOpenSection(null);
+    setMobileNavOpen(false);
     setMobileSectionId(null);
     setDropdownAnchor(null);
   }, [pathname]);
+
+  // The compact DonorCRM header owns the mobile trigger; keep the menu state here
+  // so the same information architecture is used on every donor route.
+  useEffect(() => {
+    function toggleMobileNavigation() {
+      setMobileNavOpen((current) => !current);
+      setMobileSectionId(null);
+    }
+
+    window.addEventListener("crm:toggle-donor-nav", toggleMobileNavigation);
+    return () => window.removeEventListener("crm:toggle-donor-nav", toggleMobileNavigation);
+  }, []);
 
   // Production polish: close transient panels when the viewport changes or Escape is pressed.
   useEffect(() => {
@@ -472,12 +486,13 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
     };
   }, [openSection]);
 
-  // Keep the mobile mega menu modal stable and dismissible on small screens.
+  // Keep mobile menus stable and dismissible on small screens.
   useEffect(() => {
-    if (!mobileSectionId) return;
+    if (!mobileNavOpen && !mobileSectionId) return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        setMobileNavOpen(false);
         setMobileSectionId(null);
       }
     }
@@ -489,7 +504,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [mobileSectionId]);
+  }, [mobileNavOpen, mobileSectionId]);
 
   /**
    * Returns true if the given section contains the current pathname
@@ -515,54 +530,85 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
 
   return (
     <>
-    <nav
-      aria-label="DonorCRM mobile workspace navigation"
-      className="fixed left-0 right-0 top-14 z-[19] flex h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 px-2 shadow-[0_10px_24px_rgba(15,23,42,0.055)] backdrop-blur-xl [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
-    >
-      {navSections.map((section) => {
-        const active = isSectionActive(section);
+    {mobileNavOpen ? (
+      <div className="fixed inset-0 z-[52] md:hidden" role="dialog" aria-modal="true" aria-label="DonorCRM navigation">
+        <button
+          type="button"
+          aria-label="Close DonorCRM navigation"
+          onClick={() => setMobileNavOpen(false)}
+          className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
+        />
+        <div className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b border-white/10 bg-[#071d3a] px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_24px_64px_rgba(2,10,28,0.36)]">
+          <div className="mx-auto max-w-xl">
+            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+              <div>
+                <p className="text-sm font-semibold text-white">DonorCRM</p>
+                <p className="mt-0.5 text-xs text-slate-300">Navigate records, fundraising, outreach, and administration.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setMobileNavOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200 transition-colors hover:bg-white/[0.12] hover:text-white"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {navSections.map((section) => {
+                const active = isSectionActive(section);
+                const sectionClass = active
+                  ? "border-emerald-300/45 bg-emerald-400/10 text-white"
+                  : "border-white/10 bg-white/[0.035] text-slate-100 hover:border-white/20 hover:bg-white/[0.08]";
 
-        if (section.href) {
-          return (
-            <Link
-              key={section.id}
-              href={section.href}
-              className={`flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
-                active
-                  ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-              }`}
-            >
-              <NavGlyph id={section.id} />
-              <span>{section.label}</span>
-            </Link>
-          );
-        }
+                if (section.href) {
+                  return (
+                    <Link
+                      key={section.id}
+                      href={section.href}
+                      onClick={() => setMobileNavOpen(false)}
+                      className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${sectionClass}`}
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-200">
+                        <NavGlyph id={section.id} />
+                      </span>
+                      <span className="text-sm font-semibold">{section.label}</span>
+                    </Link>
+                  );
+                }
 
-        return (
-          <button
-            key={section.id}
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={mobileSectionId === section.id}
-            onClick={() => setMobileSectionId(section.id)}
-            className={`flex h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
-              active || mobileSectionId === section.id
-                ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-            }`}
-          >
-            <NavGlyph id={section.id} />
-            <span>{section.label}</span>
-            <ChevronDown open={mobileSectionId === section.id} />
-          </button>
-        );
-      })}
-    </nav>
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => {
+                      setMobileNavOpen(false);
+                      setMobileSectionId(section.id);
+                    }}
+                    className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${sectionClass}`}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-200">
+                      <NavGlyph id={section.id} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm font-semibold">{section.label}</span>
+                    <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : null}
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className="fixed left-0 right-0 top-14 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/92 px-3 shadow-[0_10px_26px_rgba(15,23,42,0.055)] backdrop-blur-xl [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
+      className="fixed left-0 right-0 top-14 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-white/10 bg-[#0a2140]/[0.98] px-3 shadow-[0_10px_22px_rgba(2,10,28,0.16)] backdrop-blur-xl [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
     >
       {navSections.map((section) => {
         const active = isSectionActive(section);
@@ -574,10 +620,10 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
             <Link
               key={section.id}
               href={section.href}
-              className={`relative flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition-colors duration-150 ${
+              className={`relative flex h-full shrink-0 items-center gap-2 border-b-2 px-3.5 text-[13px] font-semibold transition-colors duration-150 ${
                 active
-                  ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                  ? "border-emerald-400 text-white"
+                  : "border-transparent text-slate-300 hover:border-white/20 hover:bg-white/[0.045] hover:text-white"
               }`}
             >
               <NavGlyph id={section.id} />
@@ -603,10 +649,10 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
               aria-expanded={open}
               aria-haspopup="menu"
               aria-controls={open ? `donor-mega-menu-${section.id}` : undefined}
-              className={`relative my-1.5 flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition-colors duration-150 ${
+              className={`relative flex h-full shrink-0 items-center gap-2 border-b-2 px-3.5 text-[13px] font-semibold transition-colors duration-150 ${
                 active || open
-                  ? `${accentTheme.navActive} ${accentTheme.navText} ${accentTheme.navRing}`
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                  ? "border-emerald-400 text-white"
+                  : "border-transparent text-slate-300 hover:border-white/20 hover:bg-white/[0.045] hover:text-white"
               }`}
             >
               <NavGlyph id={section.id} />
@@ -618,7 +664,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
           </div>
         );
       })}
-      <span className="ml-auto hidden shrink-0 text-[11px] font-medium text-slate-400 xl:inline">Ctrl K to search</span>
+      <span className="ml-auto hidden shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-2 py-1 text-[10px] font-medium text-slate-300 xl:inline">Ctrl K to search</span>
     </nav>
 
     {activeMobileSection?.columns ? (

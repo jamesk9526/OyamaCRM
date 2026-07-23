@@ -93,7 +93,9 @@ const CONSTITUENTS_CONFIG: CrmRibbonPageConfig = {
   workspaceLabel: "Donor CRM",
   pageLabel: "Constituents",
   statusLabel: "Working",
-  summaryText: "4,163 total  •  3,024 active donors  •  29 prospects",
+  // The actual totals come from the constituents API and are shown in the directory.
+  // Keep this shell-level context descriptive so it cannot drift from live data.
+  summaryText: "Directory, segmentation, and relationship management",
   primaryCommandId: "new-constituent",
   defaultTabId: "home",
   tabs: [
@@ -106,7 +108,6 @@ const CONSTITUENTS_CONFIG: CrmRibbonPageConfig = {
           label: "Create",
           commands: [
             { id: "new-constituent", label: "New Constituent", href: "/constituents/new" },
-            { id: "add-constituent", label: "Add Constituent", href: "/constituents/new" },
             { id: "import-constituents", label: "Import Constituents", href: "/data-tools/import?target=constituents" },
           ],
         },

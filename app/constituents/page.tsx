@@ -13,7 +13,6 @@ import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
-import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
 import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -32,6 +31,7 @@ type ConstituentsPageResponse = {
 };
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500];
+type DirectoryView = "all" | "active" | "lapsed" | "prospects";
 
 export default function ConstituentsPage() {
   const [constituents, setConstituents] = useState<ConstituentRow[]>([]);
@@ -190,6 +190,37 @@ export default function ConstituentsPage() {
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = total === 0 ? 0 : Math.min(page * pageSize, total);
   const filteredCountLabel = `${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} of ${total.toLocaleString()}`;
+  const activeDirectoryView: DirectoryView | null = search
+    ? null
+    : typeFilter === "PROSPECT"
+      ? "prospects"
+      : statusFilter === "ACTIVE"
+        ? "active"
+        : statusFilter === "LAPSED"
+          ? "lapsed"
+          : "all";
+
+  function applyDirectoryView(view: DirectoryView) {
+    setSearch("");
+    setPage(1);
+    if (view === "active") {
+      setTypeFilter("");
+      setStatusFilter("ACTIVE");
+      return;
+    }
+    if (view === "lapsed") {
+      setTypeFilter("");
+      setStatusFilter("LAPSED");
+      return;
+    }
+    if (view === "prospects") {
+      setTypeFilter("PROSPECT");
+      setStatusFilter("");
+      return;
+    }
+    setTypeFilter("");
+    setStatusFilter("");
+  }
 
   return (
     <EnterprisePageShell
@@ -234,53 +265,43 @@ export default function ConstituentsPage() {
       )}
     >
       <div className="space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f7fbf8_0%,#ffffff_58%,#eef6f2_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
-        <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:px-6">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
-                Constituent Directory
-              </span>
-              <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
-                {selectedIds.length > 0 ? `${selectedIds.length} selected` : "Compact table view"}
-              </span>
+      <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_4%_0%,rgba(99,102,241,0.12),transparent_36%),linear-gradient(135deg,#f7f8ff_0%,#ffffff_58%,#eff6ff_100%)] shadow-[0_12px_32px_rgba(15,23,42,0.055)]">
+        <div className="px-5 py-5 lg:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-800">
+                  Donor CRM / Directory
+                </span>
+                <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+                  {selectedIds.length > 0 ? `${selectedIds.length} selected` : "Live portfolio view"}
+                </span>
+              </div>
+              <div>
+                <h1 className="text-[30px] font-semibold tracking-tight text-slate-950 sm:text-[34px]">Constituents</h1>
+                <p className="mt-1 text-sm text-slate-600">Search, segment, and act on one live donor directory. The counts below are interactive views, not duplicated dashboard metrics.</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-[30px] font-semibold tracking-tight text-slate-950 sm:text-[34px]">Constituents</h1>
-              <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                One organized donor directory for portfolio review, segmentation, and fast record cleanup.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/constituents/new" className="inline-flex h-9 items-center rounded-lg bg-emerald-700 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800">
-                Add Constituent
-              </Link>
-              <Link href="/data-tools/import" className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Import Donors
-              </Link>
-            </div>
+            <Link href="/data-tools/import" className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800">
+              Import data
+            </Link>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
-            <CompactConstituentTile label="Records In View" value={loading ? "—" : stats.total.toLocaleString()} detail={hasFilters ? "Filtered directory scope" : "Current directory scope"} />
-            <CompactConstituentTile label="Active Donors" value={loading ? "—" : stats.active.toLocaleString()} detail="Currently engaged supporters" tone="green" />
-            <CompactConstituentTile label="Prospects + Lapsed" value={loading ? "—" : `${stats.prospects + stats.lapsed}`} detail="Reactivation and cultivation focus" tone="blue" />
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="Constituent directory quick views">
+            <DirectoryViewCard label="All records" value={loading ? "—" : stats.total.toLocaleString()} detail="Full directory" active={activeDirectoryView === "all"} onClick={() => applyDirectoryView("all")} />
+            <DirectoryViewCard label="Active donors" value={loading ? "—" : stats.active.toLocaleString()} detail="Engaged supporters" active={activeDirectoryView === "active"} tone="indigo" onClick={() => applyDirectoryView("active")} />
+            <DirectoryViewCard label="Lapsed" value={loading ? "—" : stats.lapsed.toLocaleString()} detail="Re-engagement queue" active={activeDirectoryView === "lapsed"} tone="amber" onClick={() => applyDirectoryView("lapsed")} />
+            <DirectoryViewCard label="Prospects" value={loading ? "—" : stats.prospects.toLocaleString()} detail="Cultivation queue" active={activeDirectoryView === "prospects"} tone="sky" onClick={() => applyDirectoryView("prospects")} />
           </div>
         </div>
       </section>
-
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <CRMMetricCard label="Total Constituents" value={loading ? "—" : stats.total.toLocaleString()} tone="green" icon={<PeopleIcon />} helper="All constituent records" />
-        <CRMMetricCard label="Active Donors" value={loading ? "—" : stats.active.toLocaleString()} tone="blue" icon={<PersonIcon />} helper="Currently engaged donors" />
-        <CRMMetricCard label="Lapsed" value={loading ? "—" : stats.lapsed.toLocaleString()} tone="orange" icon={<ClockIcon />} helper="Needs reactivation" />
-        <CRMMetricCard label="Prospects" value={loading ? "—" : stats.prospects.toLocaleString()} tone="purple" icon={<FlagIcon />} helper="Potential supporters" />
-      </div>
 
       <CRMFilterBar>
         <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Directory Filters</p>
-            <p className="text-xs text-slate-500">Narrow the directory, then use the table for quick edits and donor review.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Find and segment</p>
+            <p className="text-xs text-slate-500">Narrow the live directory, then select records for coordinated donor work.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
@@ -305,7 +326,7 @@ export default function ConstituentsPage() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <select
           value={typeFilter}
@@ -313,7 +334,7 @@ export default function ConstituentsPage() {
             setTypeFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="">All Types</option>
           {CONSTITUENT_TYPES.map((t) => (
@@ -326,7 +347,7 @@ export default function ConstituentsPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="">All Statuses</option>
           {DONOR_STATUSES.map((s) => (
@@ -339,7 +360,7 @@ export default function ConstituentsPage() {
             setPageSize(Number.parseInt(e.target.value, 10) || 100);
             setPage(1);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           aria-label="Rows per page"
         >
           {PAGE_SIZE_OPTIONS.map((size) => (
@@ -357,31 +378,31 @@ export default function ConstituentsPage() {
       )}
 
       {selectedIds.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">Selected Constituent Scope</p>
-            <p className="mt-1 text-sm font-semibold text-emerald-950">{selectedIds.length} constituent{selectedIds.length === 1 ? "" : "s"} selected</p>
-            <p className="text-xs text-emerald-800">Use the donor ribbon commands for the selected records, or clear this scope before changing filters.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-800">Selected constituent scope</p>
+            <p className="mt-1 text-sm font-semibold text-indigo-950">{selectedIds.length} constituent{selectedIds.length === 1 ? "" : "s"} selected</p>
+            <p className="text-xs text-indigo-800">Start a coordinated email or letter from this live selection, or clear it before changing filters.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => handleEmailTemplate(selectedIds)}
-              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+              className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
             >
               Email Template
             </button>
             <button
               type="button"
               onClick={() => handleLetterTemplate(selectedIds)}
-              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+              className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
             >
               Letter Template
             </button>
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+              className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
             >
               Clear Selection
             </button>
@@ -435,66 +456,39 @@ export default function ConstituentsPage() {
   );
 }
 
-function CompactConstituentTile({
+function DirectoryViewCard({
   label,
   value,
   detail,
-  tone = "emerald",
+  active,
+  onClick,
+  tone = "slate",
 }: {
   label: string;
   value: string;
   detail: string;
-  tone?: "emerald" | "green" | "blue";
+  active: boolean;
+  onClick: () => void;
+  tone?: "slate" | "indigo" | "amber" | "sky";
 }) {
-  const toneClass = tone === "blue"
-    ? "border-blue-200 bg-blue-50/80 text-blue-950"
-    : tone === "green"
-      ? "border-emerald-200 bg-emerald-50/80 text-emerald-950"
-      : "border-emerald-200 bg-white/85 text-slate-950";
+  const toneClass = tone === "indigo"
+    ? "border-indigo-100 bg-indigo-50/75 text-indigo-950 hover:border-indigo-300"
+    : tone === "amber"
+      ? "border-amber-100 bg-amber-50/80 text-amber-950 hover:border-amber-300"
+      : tone === "sky"
+        ? "border-sky-100 bg-sky-50/80 text-sky-950 hover:border-sky-300"
+        : "border-slate-200 bg-white/90 text-slate-950 hover:border-indigo-200";
 
   return (
-    <div className={`rounded-2xl border px-3.5 py-3 ${toneClass}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-xl border px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${toneClass} ${active ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
+    >
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-slate-600">{detail}</p>
-    </div>
-  );
-}
-
-function PeopleIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
-      <circle cx="9.5" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
-function PersonIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M5 21a7 7 0 0 1 14 0" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </svg>
-  );
-}
-
-function FlagIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 21V4" />
-      <path d="M5 4h12l-2 5 2 5H5" />
-    </svg>
+    </button>
   );
 }

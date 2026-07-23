@@ -31,6 +31,8 @@ describe("Donor CRM visual refresh foundation", () => {
     const naturalDashboard = read("app/components/dashboard/NaturalisticDonorDashboard.tsx");
     const dashboardService = read("app/features/donor-dashboard/services/dashboard-client-service.ts");
     const dashboardTypes = read("app/features/donor-dashboard/types.ts");
+    const dashboardConfig = read("app/components/dashboard/dashboardPageConfig.ts");
+    const campaignGoalHealth = read("app/components/dashboard/CampaignGoalHealthWidget.tsx");
     const donationsPage = read("app/donations/page.tsx");
     const donationsRoute = read("server/src/routes/donations.ts");
     const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
@@ -69,6 +71,11 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(donationsPage).toContain('searchParams.get("acknowledgment")');
     expect(donationsRoute).toContain('acknowledgment === "pending"');
     expect(dashboardTypes).toContain("DashboardData");
+    expect(dashboardConfig).toContain("DEFAULT_DASHBOARD_INSIGHT_WIDGETS");
+    expect(dashboardConfig).toContain("DEFAULT_HIDDEN_WIDGETS");
+    expect(dashboardConfig).toContain("DASHBOARD_WIDGET_DEFAULTS_VERSION");
+    expect(campaignGoalHealth).toContain("No active campaign goal is set");
+    expect(campaignGoalHealth).toContain("if (safeGoal === 0)");
     expect(monthlyDonations).toContain("/api/reports/donors-this-month");
     expect(monthlyDonations).toContain("/api/email-campaigns/lists");
     expect(monthlyDonations).toContain("Save task with selected donors");
@@ -94,6 +101,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain('aria-label="Open command search"');
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
+    expect(topBar).toContain('bg-[#061a36]');
+    expect(topBar).toContain("crm:toggle-donor-nav");
     expect(topBar).toContain('aria-haspopup="menu"');
     expect(topBar).toContain('aria-expanded={open}');
     expect(topBar).toContain('data-mobile-touch="true"');
@@ -110,22 +119,24 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
+    expect(megaMenu).toContain('bg-[#0a2140]/[0.98]');
+    expect(megaMenu).toContain("mobileNavOpen");
     expect(sidebar).toContain('label: "Overview"');
     expect(sidebar).toContain('label: "Donor Records"');
     expect(sidebar).toContain('label: "Constituents"');
     expect(sidebar).toContain('label: "Donations"');
   });
 
-  it("uses a stable full-width Donor CRM bar while preserving the mobile navigation fallback", () => {
+  it("uses a stable full-width Donor CRM bar at every breakpoint", () => {
     const appShell = read("app/components/layout/AppShell.tsx");
     const topBar = read("app/components/layout/TopBar.tsx");
-    const mobileDrawer = read("app/components/layout/MobileSidebarDrawer.tsx");
     const megaMenu = read("app/components/layout/DonorMegaMenu.tsx");
     const globals = read("app/globals.css");
 
     expect(appShell).toContain("const donorMegaMenuEnabled = donorShellVisible");
-    expect(appShell).toContain("const donorSidebarDesktopEnabled = false");
-    expect(appShell).toContain('const contentTopPaddingClass = donorShellVisible ? "pt-26" : "pt-14"');
+    expect(appShell).not.toContain("MobileSidebarDrawer");
+    expect(appShell).not.toContain('import Sidebar from "./Sidebar"');
+    expect(appShell).toContain('const contentTopPaddingClass = donorShellVisible ? "pt-14 md:pt-26" : "pt-14"');
     expect(appShell).toContain("useBrowserLayoutEffect");
     expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
@@ -133,9 +144,6 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain("Steward Workspace");
     expect(topBar).toContain("Quick Add");
     expect(topBar).toContain("lg:hidden");
-    expect(mobileDrawer).toContain('DESKTOP_NAVIGATION_MEDIA_QUERY = "(min-width: 1024px)"');
-    expect(mobileDrawer).toContain('aria-modal="true"');
-    expect(mobileDrawer).toContain("getFocusableElements");
     expect(megaMenu).toContain("top-14");
     expect(megaMenu).not.toContain("Use Sidebar");
     expect(globals).toContain("scrollbar-gutter: stable");
@@ -147,9 +155,10 @@ describe("Donor CRM visual refresh foundation", () => {
 
     expect(page).toContain("apiFetch<ConstituentsPageResponse | ConstituentRow[]>");
     expect(page).toContain("CRMActionBar");
-    expect(page).toContain("CRMMetricCard");
     expect(page).toContain("CRMFilterBar");
     expect(page).toContain("CRMDataTable");
+    expect(page).toContain("DirectoryViewCard");
+    expect(page).toContain("interactive views, not duplicated dashboard metrics");
     expect(table).toContain("CRMStatusBadge");
     expect(table).toContain("+{hiddenCount} more");
     expect(table).toContain("ConstituentRowMoreMenu");
@@ -222,5 +231,17 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(plan).toContain("Not Done");
     expect(agents).toContain("OyamaCRM Agent Guide");
     expect(agents).toContain("Use real data and working actions");
+  });
+
+  it("keeps communication rendering ownership on the server instead of a competing browser layout", () => {
+    const letters = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const emailWorkspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
+    const constituentRibbon = read("app/components/ui/crm/ribbon/config.ts");
+
+    expect(letters).not.toContain("buildLetterPublishHtml");
+    expect(letters).toContain('renderAuthority: "server-rendered production PDF"');
+    expect(emailWorkspace).toContain('renderAuthority: "server email render service"');
+    expect(constituentRibbon).toContain("Directory, segmentation, and relationship management");
+    expect(constituentRibbon).not.toContain("4,163 total");
   });
 });

@@ -450,7 +450,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#f5f7fa] text-slate-950">
+    <div className="min-h-[100dvh] bg-[linear-gradient(180deg,#f8faff_0%,#f3f6fb_100%)] text-slate-950">
       <div className="flex min-h-[100dvh]">
         <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -480,12 +480,12 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
   }
 
   return (
-    <div className="sticky top-0 z-40 border-b border-emerald-900/30 bg-[#06291f] px-3 py-2 text-white shadow-lg lg:hidden">
+    <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-3 py-2 text-slate-950 shadow-sm backdrop-blur lg:hidden">
       <div className="flex items-center gap-3">
-        <Link href="/oyama-letters" className="min-w-0 text-sm font-semibold tracking-wide">
-          OYAMA LETTERS
+        <Link href="/oyama-letters" className="min-w-0 text-sm font-semibold tracking-wide text-slate-900">
+          OyamaCRM Letters
         </Link>
-        <Link href="/constituents" className="ml-auto shrink-0 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-50">
+        <Link href="/constituents" className="ml-auto shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
           Donor CRM
         </Link>
       </div>
@@ -502,7 +502,7 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
               href={item.href}
               className={[
                 "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-semibold",
-                active ? "border-emerald-300 bg-emerald-500/80 text-white" : "border-white/15 bg-white/10 text-emerald-50",
+                active ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white text-slate-600",
               ].join(" ")}
             >
               {item.label}
@@ -534,11 +534,11 @@ function LettersSidebar({
 
   return (
     <aside className={[
-      "hidden shrink-0 flex-col bg-[radial-gradient(circle_at_18%_0%,#0d6b3b_0,#01402c_42%,#022b24_100%)] text-white shadow-xl transition-[width,padding] duration-300 lg:flex",
+      "hidden shrink-0 flex-col border-r border-slate-200 bg-white text-slate-950 shadow-[8px_0_28px_rgba(15,23,42,0.035)] transition-[width,padding] duration-300 lg:flex",
       collapsed ? "w-[88px] px-2 py-3" : "w-[246px] px-3 py-4",
     ].join(" ")}>
       <div className={[
-        "flex items-center rounded-2xl border border-white/15 bg-white/5",
+        "flex items-center rounded-2xl border border-slate-200 bg-slate-50",
         collapsed ? "justify-center p-3" : "justify-between px-4 py-3",
       ].join(" ")}>
         <Link href="/oyama-letters" className={[
@@ -547,7 +547,7 @@ function LettersSidebar({
         ].join(" ")}>
           <CrmBrandLockup
             moduleLabel="Letters CRM"
-            tone="light"
+            tone="dark"
             compact={collapsed}
             className={collapsed ? "" : "w-full"}
           />
@@ -557,7 +557,7 @@ function LettersSidebar({
             type="button"
             onClick={onToggle}
             aria-label="Collapse sidebar"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
           >
             <ChevronLeft />
           </button>
@@ -569,7 +569,7 @@ function LettersSidebar({
         href="/constituents"
         title={collapsed ? "Back to Donor CRM" : undefined}
         className={[
-          "mt-3 flex items-center rounded-2xl border border-white/20 bg-white/10 text-xs font-semibold text-emerald-100 transition hover:bg-white/20",
+          "mt-3 flex items-center rounded-2xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800",
           collapsed ? "h-10 w-10 justify-center self-center" : "gap-2 px-3 py-2",
         ].join(" ")}
       >
@@ -597,7 +597,7 @@ function LettersSidebar({
               className={[
                 "flex h-11 items-center rounded-2xl px-3 text-sm font-semibold transition",
                 collapsed ? "justify-center" : "gap-3",
-                active ? "bg-emerald-500/70 text-white shadow-inner" : "text-emerald-50 hover:bg-white/10",
+                active ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
               ].join(" ")}
             >
               <LineIcon name={item.label} />
@@ -609,10 +609,10 @@ function LettersSidebar({
 
       <div className="mt-3">
         {!collapsed ? (
-          <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
-            <p className="text-sm font-semibold">Need Help?</p>
-            <p className="mt-2 text-xs leading-5 text-emerald-50">Create, publish, generate, and queue letters.</p>
-            <Link href="/help?scope=donor&scopePath=/oyama-letters" className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Need help?</p>
+            <p className="mt-2 text-xs leading-5 text-slate-600">Create, publish, generate, and queue letters.</p>
+            <Link href="/help?scope=donor&scopePath=/oyama-letters" className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
               View Help Articles
             </Link>
           </div>
@@ -622,7 +622,7 @@ function LettersSidebar({
             type="button"
             onClick={onToggle}
             aria-label="Expand sidebar"
-            className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
+            className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
           >
             <ChevronRight />
           </button>
@@ -639,25 +639,25 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate" || view === "queue";
 
   return (
-    <header className="z-30 flex min-h-12 flex-wrap items-center gap-3 border-b border-[#0a4f2e] bg-[radial-gradient(circle_at_18%_0%,#0d6b3b_0,#01402c_42%,#022b24_100%)] px-3 py-2 sm:px-5 lg:sticky lg:top-0 xl:px-8">
+    <header className="z-30 flex min-h-12 flex-wrap items-center gap-3 border-b border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur sm:px-5 lg:sticky lg:top-0 xl:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Link href="/oyama-letters" className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white/10" aria-label="Back to letters home">
+        <Link href="/oyama-letters" className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700" aria-label="Back to letters home">
           <ChevronLeft />
         </Link>
         <div className="flex min-w-0 items-center gap-2 text-xs">
-          <Link href="/oyama-letters" className="shrink-0 text-emerald-200 hover:text-white">Template Library</Link>
+          <Link href="/oyama-letters" className="shrink-0 text-slate-500 hover:text-indigo-700">Template Library</Link>
           {view !== "library" ? <ChevronRight /> : null}
-          {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-white/90">{templateLabel}</span> : null}
+          {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-slate-700">{templateLabel}</span> : null}
           {view === "builder" || view === "publish" ? <ChevronRight /> : null}
-          <span className="shrink-0 font-semibold text-white">{viewLabel(view)}</span>
+          <span className="shrink-0 font-semibold text-slate-950">{viewLabel(view)}</span>
         </div>
       </div>
       {showProcessStepper ? <ProcessStepper view={view} templateId={templateId} /> : null}
-      <div className="hidden items-center gap-2.5 border-l border-white/20 pl-4 xl:flex">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600/80 text-xs font-semibold text-white ring-1 ring-white/20">{initials}</div>
+      <div className="hidden items-center gap-2.5 border-l border-slate-200 pl-4 xl:flex">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white ring-1 ring-indigo-100">{initials}</div>
         <div className="leading-tight">
-          <p className="max-w-36 truncate text-xs font-semibold text-white">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
-          <button type="button" onClick={() => void signOut()} className="text-[10px] text-emerald-200 hover:text-white">Sign out</button>
+          <p className="max-w-36 truncate text-xs font-semibold text-slate-800">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
+          <button type="button" onClick={() => void signOut()} className="text-[10px] text-slate-500 hover:text-indigo-700">Sign out</button>
         </div>
       </div>
     </header>
@@ -675,19 +675,19 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
   const activeIndex = steps.findIndex((step) => step.key === view);
 
   return (
-    <div className="hidden min-w-0 items-center justify-center gap-2 rounded-xl border border-white/20 bg-black/20 px-3 py-1.5 lg:flex">
+    <div className="hidden min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 lg:flex">
       {steps.map((step, index) => {
         const active = index === activeIndex;
         const complete = activeIndex >= 0 && index < activeIndex;
         return (
           <div key={step.key} className="flex items-center gap-2">
             <Link href={step.href} className="flex items-center gap-1.5">
-              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active || complete ? "border-emerald-400 bg-emerald-500 text-white" : "border-white/30 bg-white/10 text-emerald-200"].join(" ")}>
+              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active || complete ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-300 bg-white text-slate-500"].join(" ")}>
                 {complete ? <CheckIcon /> : index + 1}
               </span>
-              <span className={active ? "text-[11px] font-semibold text-white" : "text-[11px] font-medium text-emerald-200"}>{step.label}</span>
+              <span className={active ? "text-[11px] font-semibold text-slate-900" : "text-[11px] font-medium text-slate-500"}>{step.label}</span>
             </Link>
-            {index < steps.length - 1 ? <span className="h-px w-8 bg-white/20" /> : null}
+            {index < steps.length - 1 ? <span className="h-px w-8 bg-slate-200" /> : null}
           </div>
         );
       })}
@@ -3473,32 +3473,6 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   );
 }
 
-function buildLetterPublishHtml(template: LetterTemplateDetail | null, branding: BrandingSettings): string {
-  const organizationName = branding.organizationDisplayName || branding.legalOrganizationName || "Organization";
-  const headerHtml = branding.globalHeaderHtml
-    || `<div><strong>${escapeHtml(organizationName)}</strong>${branding.tagline ? `<div>${escapeHtml(branding.tagline)}</div>` : ""}</div>`;
-  const address = formatBrandingAddress(branding);
-  const footerHtml = branding.globalFooterHtml
-    || `<div>${escapeHtml(branding.footerLegalText || organizationName)}</div>${address ? `<div>${escapeHtml(address)}</div>` : ""}`;
-
-  return [
-    "<!doctype html>",
-    "<html>",
-    "<head>",
-    '<meta charset="utf-8" />',
-    `<title>${escapeHtml(template?.name || "Letter Template")}</title>`,
-    "</head>",
-    `<body style="margin:0;background:#f8fafc;color:#0f172a;font-family:Arial, Helvetica, sans-serif;">`,
-    '<main style="max-width:760px;margin:0 auto;background:#ffffff;padding:40px;">',
-    `<header data-oyama-global-letter-header="true">${headerHtml}</header>`,
-    `<article data-oyama-letter-body="true">${template?.printBody || ""}</article>`,
-    `<footer data-oyama-global-letter-footer="true">${footerHtml}</footer>`,
-    "</main>",
-    "</body>",
-    "</html>",
-  ].join("");
-}
-
 function ReviewFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -3561,7 +3535,6 @@ function logLetterPublishDiagnostics({
   unknownTokens: string[];
   validation: PublishValidationResult | null;
 }) {
-  const fullHtml = buildLetterPublishHtml(template, branding);
   const rawBodyHtml = template?.printBody || "";
   const diagnostics = {
     stage,
@@ -3576,16 +3549,15 @@ function logLetterPublishDiagnostics({
     validationWarnings: validation?.warnings ?? [],
     sampleValidation: validation?.sampleValidation ?? null,
     samplePdfPreflight: validation?.samplePdfPreflight ?? null,
-    fullHtmlLength: fullHtml.length,
     rawBodyHtmlLength: rawBodyHtml.length,
     globalHeaderConfigured: Boolean(branding.globalHeaderHtml.trim()),
     globalFooterConfigured: Boolean(branding.globalFooterHtml.trim()),
+    renderAuthority: "server-rendered production PDF",
   };
 
   console.groupCollapsed(`[OyamaLetters Publish Diagnostics] ${stage}: ${template?.id ?? "unsaved"}`);
   console.info("Summary", diagnostics);
-  console.info("Entire letter HTML output", fullHtml);
-  console.info("Raw letter body HTML", rawBodyHtml);
+  console.info("Template body HTML only — production layout, header, footer, and merge output are rendered by the server PDF route.", rawBodyHtml);
   console.groupEnd();
 }
 

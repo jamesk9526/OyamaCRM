@@ -81,7 +81,7 @@ function ConstituentRowMoreMenu({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Open constituent actions"
@@ -93,10 +93,10 @@ function ConstituentRowMoreMenu({
 
       {open && (
         <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-slate-100 bg-white p-1.5 text-xs shadow-xl shadow-slate-200/70">
-          <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+          <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
             View Details
           </Link>
-          <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+          <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
             Edit
           </Link>
           <button
@@ -107,7 +107,7 @@ function ConstituentRowMoreMenu({
                 onEmailTemplate(constituent.id);
               }
             }}
-            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
           >
             Email from Template
           </button>
@@ -119,7 +119,7 @@ function ConstituentRowMoreMenu({
                 onLetterTemplate(constituent.id);
               }
             }}
-            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
           >
             Letter from Template
           </button>
@@ -259,7 +259,7 @@ export default function ConstituentTable({
           <article key={c.id} className="p-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 transition-colors hover:text-green-600">
+                <Link href={`/constituents/${c.id}`} className="font-medium text-gray-900 transition-colors hover:text-indigo-600">
                   {getConstituentDisplayName(c)}
                 </Link>
                 {c.email ? <p className="mt-0.5 truncate text-xs text-slate-500">{c.email}</p> : null}
@@ -300,26 +300,26 @@ export default function ConstituentTable({
             <tr className="border-b border-slate-100 bg-slate-50/80">
               {selectable ? (
                 <th className="sticky left-0 top-0 z-20 w-10 border-b border-slate-100 bg-slate-50/95 px-3 py-2.5">
-                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible constituents" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible constituents" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                 </th>
               ) : null}
               {COLUMNS.map((col) => (
-                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-100 bg-slate-50/95 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 ${col.sortable ? "cursor-pointer select-none hover:text-emerald-700" : ""}`} onClick={() => col.sortable && handleSort(col.key)}>
-                  <span className="flex items-center gap-1">{col.label}{col.sortable && sortKey === col.key ? <span className="text-green-600">{sortDir === "asc" ? "↑" : "↓"}</span> : null}</span>
+                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-100 bg-slate-50/95 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 ${col.sortable ? "cursor-pointer select-none hover:text-indigo-700" : ""}`} onClick={() => col.sortable && handleSort(col.key)}>
+                  <span className="flex items-center gap-1">{col.label}{col.sortable && sortKey === col.key ? <span className="text-indigo-600">{sortDir === "asc" ? "↑" : "↓"}</span> : null}</span>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {sorted.map((c) => (
-              <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-emerald-50/35">
+              <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-indigo-50/45">
                 {selectable ? (
                   <td className="sticky left-0 z-[2] bg-inherit px-3 py-2.5 align-top">
-                    <input type="checkbox" checked={selectedSet.has(c.id)} onChange={() => toggleRow(c.id)} aria-label={`Select ${getConstituentDisplayName(c)}`} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    <input type="checkbox" checked={selectedSet.has(c.id)} onChange={() => toggleRow(c.id)} aria-label={`Select ${getConstituentDisplayName(c)}`} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                   </td>
                 ) : null}
                 <td className={`${selectable ? "" : "sticky left-0 z-[1]"} bg-inherit px-4 py-2.5 align-top`}>
-                  <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-emerald-700">{getConstituentDisplayName(c)}</Link>
+                  <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-indigo-700">{getConstituentDisplayName(c)}</Link>
                   {c.email ? <p className="mt-0.5 text-xs text-slate-400">{c.email}</p> : null}
                 </td>
                 <td className="px-4 py-2.5 whitespace-nowrap align-top text-gray-600">{typeLabel(c.type)}</td>

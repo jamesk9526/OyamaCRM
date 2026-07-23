@@ -80,6 +80,24 @@ export type WidgetId = (typeof DEFAULT_WIDGET_ORDER)[number];
 export type DashboardLayoutMode = "GRID" | "MASONRY";
 export type AutoArrangePreset = "BALANCED" | "ALTERNATING_WIDE" | "FEATURE_FIRST" | "COMPACT";
 
+/**
+ * The dashboard already gives staff a live operational summary above the
+ * configurable widget area. Keeping every optional widget expanded by default
+ * buried that summary under a second, competing dashboard. These are the
+ * deeper views that add context without repeating the command-center cards.
+ */
+export const DEFAULT_DASHBOARD_INSIGHT_WIDGETS: WidgetId[] = [
+  "giving-trend",
+  "stewardship-attention",
+  "top-donors",
+  "tasks",
+  "meetings",
+];
+
+export const DEFAULT_HIDDEN_WIDGETS: WidgetId[] = DEFAULT_WIDGET_ORDER.filter(
+  (widgetId) => !DEFAULT_DASHBOARD_INSIGHT_WIDGETS.includes(widgetId),
+);
+
 type WidgetMeta = {
   id: WidgetId;
   label: string;
@@ -126,6 +144,9 @@ export const LS_REVENUE_GOAL_MODE_KEY = "dashboard-revenue-goal-mode";
 export const LS_MANUAL_REVENUE_GOAL_KEY = "dashboard-manual-revenue-goal";
 /** Persists whether AI-specific dashboard widgets are enabled. */
 export const LS_AI_WIDGETS_ENABLED_KEY = "dashboard-ai-widgets-enabled";
+/** Tracks the one-time compact-default migration without overwriting choices made in Customize. */
+export const LS_WIDGET_DEFAULTS_VERSION_KEY = "dashboard-widget-defaults-version";
+export const DASHBOARD_WIDGET_DEFAULTS_VERSION = "2026-07-compact-insights";
 
 export const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   "actionable-insights": "wide",
@@ -201,7 +222,14 @@ export function loadHiddenWidgets(): WidgetId[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(LS_HIDDEN_WIDGETS_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      const defaultsVersion = localStorage.getItem(LS_WIDGET_DEFAULTS_VERSION_KEY);
+      if (defaultsVersion !== DASHBOARD_WIDGET_DEFAULTS_VERSION) {
+        localStorage.setItem(LS_WIDGET_DEFAULTS_VERSION_KEY, DASHBOARD_WIDGET_DEFAULTS_VERSION);
+        return [...DEFAULT_HIDDEN_WIDGETS];
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw) as WidgetId[];
     return parsed.filter((id) => DEFAULT_WIDGET_ORDER.includes(id));
   } catch {

@@ -7,6 +7,7 @@ _Last focused audit: 2026-07-22 (OyamaEmail builder, delivery, and configurable 
 | Capability | Status | Evidence | Notes |
 |---|---|---|---|
 | Full-width Donor CRM navigation | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | Desktop Donor CRM now uses one top-bar and top-navigation model; persisted sidebar preferences remain backwards-compatible data but no longer consume desktop workspace width. The responsive mobile navigation fallback remains available. |
+| Dark command bar and focused responsive menus | Working | `app/components/layout/TopBar.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/layout/AppShell.tsx` | DonorCRM now uses a restrained navy command surface with a high-contrast workspace switcher, search, notifications, quick add, and account controls. Desktop menus use a clear active underline; mobile uses a header-triggered navigation sheet, leaving record pages at the compact single-header height until a user asks to navigate. |
 | Simplified enterprise visual system | Working | `app/globals.css`, `app/components/layout/topbar/theme-tokens.ts`, `app/components/layout/TopBar.tsx` | Shared CRM surfaces now use lighter neutral backgrounds, restrained borders, indigo command/focus accents, and a compact command bar with global search, quick add, notifications, messages, Steward, help, and account tools. |
 | Product naming | Working | `app/layout.tsx`, `app/manifest.ts`, `app/components/layout/TopBar.tsx`, app/server user-facing copy | User-facing product identity and fallback outbound sender text now use OyamaCRM v1.3. Compatibility identifiers, asset paths, and public embed APIs retain their existing technical names. |
 
@@ -20,6 +21,18 @@ Feature claims in this file should follow the workspace-first governance baselin
 - Canonical route truth when compatibility redirects still exist
 
 Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Broken`, `Not Implemented`.
+
+## 2026-07-22 Donor CRM Focus and Source-of-Truth Audit
+
+| Area | Status | Evidence | Notes |
+|---|---|---|---|
+| Focused donor dashboard defaults | Working | `app/page.tsx`, `app/components/dashboard/dashboardPageConfig.ts`, `app/components/dashboard/NaturalisticDonorDashboard.tsx` | The live command center remains the primary dashboard. Only five deeper performance/pipeline insights are shown by default; staff can intentionally add the other widgets in Customize instead of landing on a long, duplicated widget wall. The designation chart now supplies explicit minimum dimensions to its responsive container. |
+| Truthful campaign-goal visualization | Working | `app/components/dashboard/CampaignGoalHealthWidget.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | An active campaign set with no configured goal now shows raised value and an explicit no-goal state. It no longer reports a false “Goal exceeded” result or a fabricated attainment percentage. |
+| Compact live constituent directory | Working | `app/constituents/page.tsx`, `app/components/constituents/ConstituentTable.tsx`, `app/components/ui/crm/ribbon/config.ts` | The directory replaces repeated metrics with four interactive, API-backed views: all records, active donors, lapsed donors, and prospects. The ribbon now uses descriptive context instead of stale hard-coded donor totals, and the duplicate new-constituent command was removed. |
+| Relationship-focused donor profile | Working | `app/constituents/[id]/page.tsx` | Profiles now foreground lifetime giving, last gift, open tasks, lapse risk, and opportunity in one compact KPI row. Primary actions wrap horizontally at wide sizes, preserving all existing email, letter, print, task, and edit routes while reducing vertical chrome. |
+| Communication render authority | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx` | Browser diagnostics now identify template/canvas HTML as diagnostic input only. The server-rendered production PDF remains authoritative for letters, and the server email renderer remains authoritative for managed branding, compliance, and recipient merge data. |
+
+Validation: `pnpm typecheck` passed; focused dashboard, letter-builder, and email-workspace source suites passed 30/30.
 
 ## 2026-07-22 OyamaEmail Image Upload and Delivery Hardening
 
@@ -80,10 +93,10 @@ Validation: focused Letter PDF/source suite passed 32/32, including the one-page
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Donor dashboard visual system | Working | `app/components/layout/CrmSidebar.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/GivingTrendChart.tsx`, `app/components/dashboard/DashboardLayoutModal.tsx` | Navigation, hero metrics, priority actions, cards, charts, configurable widgets, and customization controls now share a modern layered surface system with clearer hierarchy, focus states, responsive behavior, and live-data-only actions. |
+| Donor dashboard visual system | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/GivingTrendChart.tsx`, `app/components/dashboard/DashboardLayoutModal.tsx` | Navigation, hero metrics, priority actions, cards, charts, configurable widgets, and customization controls now share a modern layered surface system with clearer hierarchy, focus states, responsive behavior, and live-data-only actions. |
 | OyamaLetters canvas studio | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` | The working ribbon, document canvas, snippets, merge fields, inspector, save/recovery state, and publish controls are retained inside a calmer three-pane studio. A live readiness rail surfaces checklist progress, word count, and intended pages before server preflight. |
 | OyamaEmail template studio | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Block insertion, drag ordering, recipient preview, plain text, autosave, test send, advanced editing, compliance settings, and publish routing are retained. A live readiness score and warning summary make incomplete requirements visible without hiding the canvas. |
-| Browser-backed viewport inspection | Partially Working | `docs/status/audit-artifacts/2026-07-19-donor-dashboard-and-builder-visual-modernization.md` | The in-app browser surface was unavailable in this environment. Source contracts, lint, typecheck, and production build provide regression evidence; live desktop/tablet/mobile inspection remains a release follow-up. |
+| Browser-backed live workflow audit | Partially Working | Logged-in production DOM audit on 2026-07-22 | Dashboard, constituent directory, and donor profile were inspected with live data. A responsive screenshot capture timed out in the attached browser, so full visual matrix verification remains a release follow-up. |
 
 ## 2026-07-19 Donor System UX and Workflow Hardening
 
@@ -811,9 +824,9 @@ This document treats a feature as complete only when it uses real data, saves co
 
 | Area | Feature | Status | Data Source | Notes | Next Step |
 |---|---|---|---|---|---|
-| Donor CRM | Dashboard cards + KPI summary | Working | Real API Data | `app/page.tsx` loads `/api/reports/summary` and `/api/reports/donor-retention`. | Add explicit loading/error UI for every widget card. |
-| Donor CRM | Constituent list + search/filter | Working | Real API Data | `app/constituents/page.tsx` reads `/api/constituents` with query filters. | Add pagination + saved filters/segments. |
-| Donor CRM | Constituent profile + notes + timeline | Working | Real API Data | `app/constituents/[id]/page.tsx` reads `/api/constituents/:id`; notes saved through `POST /api/constituents/:id/notes`. | Add richer timeline grouping and event filtering. |
+| Donor CRM | Dashboard cards + KPI summary | Working | Real API Data | `app/page.tsx` loads `/api/reports/summary` and `/api/reports/donor-retention`; optional widgets now default to a focused operational set. | Add explicit loading/error UI for every widget card. |
+| Donor CRM | Constituent list + search/filter | Working | Real API Data | `app/constituents/page.tsx` reads `/api/constituents` with query filters and exposes interactive all/active/lapsed/prospect views. | Add saved filters/segments. |
+| Donor CRM | Constituent profile + notes + timeline | Working | Real API Data | `app/constituents/[id]/page.tsx` reads `/api/constituents/:id`; notes saved through `POST /api/constituents/:id/notes`; primary relationship KPIs are compact. | Add richer timeline grouping and event filtering. |
 | Donor CRM | Donations CRUD + donation import | Working | Real API Data | `app/donations/page.tsx`, `server/src/routes/donations.ts`, `/api/donations/import` are wired. | Add rollback support and receipt automation. |
 | Donor CRM | Campaign management | Working | Real API Data | `app/campaigns/page.tsx` now links to `app/campaigns/[id]/page.tsx` for campaign info, full edit, recent donations, and delete workflows backed by `/api/campaigns` CRUD. | Add campaign attribution reporting from events + communications and multi-campaign comparison analytics. |
 | Donor CRM | Grants research workspace | Partially Working | Real API Data | Grants route/module now supports case-file reminders/tasks/resources/requirements and donation handoff separation from grant records. | Add dedicated grant calendar view and expanded cross-grant workload/reporting surfaces. |

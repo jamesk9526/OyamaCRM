@@ -35,6 +35,27 @@ export default function CampaignGoalHealthWidget({
     return <div className="h-28 rounded-lg bg-gray-100 animate-pulse" />;
   }
 
+  if (safeGoal === 0) {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Active Campaigns</p>
+            <p className="mt-0.5 text-lg font-semibold text-slate-900">{activeCampaigns}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Raised</p>
+            <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(raisedAmount)}</p>
+          </div>
+        </div>
+        <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2.5">
+          <p className="text-xs font-semibold text-indigo-950">No active campaign goal is set</p>
+          <p className="mt-1 text-xs leading-5 text-indigo-800">Set a goal on an active campaign to see attainment and remaining funding need. Until then, raised value is shown without a percentage.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -58,7 +79,7 @@ export default function CampaignGoalHealthWidget({
         </div>
         <div className="flex items-center justify-between mt-2 text-xs">
           <span className="font-semibold text-gray-700">{progressPct}% attainment</span>
-          <span className={goalGap > 0 ? "text-amber-600 font-medium" : "text-green-700 font-medium"}>
+          <span className={goalGap > 0 ? "text-amber-600 font-medium" : "text-emerald-700 font-medium"}>
             {goalGap > 0 ? `${fmtCurrency(goalGap)} to goal` : "Goal exceeded"}
           </span>
         </div>

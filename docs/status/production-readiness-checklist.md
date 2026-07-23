@@ -10,6 +10,7 @@ This file is the release-gate source of truth for production readiness.
 |---|---|---|
 | Donor desktop navigation is full-width and does not consume content space with a sidebar | Working | `app/components/layout/AppShell.tsx` always renders the Donor mega menu for authenticated Donor CRM routes and disables the desktop sidebar path. |
 | Top bar provides central enterprise controls | Working | `app/components/layout/TopBar.tsx` combines record/tool command search, app launcher, quick add, notifications, messages, Steward, help, account controls, and reporting context. |
+| Donor command bar and menu states remain coherent at desktop and mobile widths | Working | `TopBar` provides the navy command surface and compact mobile navigation trigger; `DonorMegaMenu` supplies underline-selected desktop sections plus an accessible mobile navigation sheet, while `AppShell` reserves only the header height on mobile. |
 | Shared CRM surfaces are lighter and more functional | Working | `app/globals.css` moves shared page, card, header, border, selection, and focus surfaces to neutral/indigo tokens; individual workflow controls retain their semantic status colors. |
 | Product naming is consistently presented as OyamaCRM v1.3 | Working | Root metadata, manifest, login, settings/about, common user-facing messages, and outbound fallback identity have been updated. Existing technical API/asset/embed identifiers intentionally remain backwards compatible. |
 
@@ -86,10 +87,10 @@ Detailed evidence: `docs/status/audit-artifacts/2026-07-19-letters-email-workflo
 
 | Release gate | Status | Evidence |
 |---|---|---|
-| Dashboard sidebar, metrics, live charts, action cards, and customization controls use one responsive visual language | Working | `app/components/layout/CrmSidebar.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/GivingTrendChart.tsx`, `app/components/dashboard/DashboardLayoutModal.tsx` |
+| Dashboard top navigation, metrics, live charts, action cards, and customization controls use one responsive visual language | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/GivingTrendChart.tsx`, `app/components/dashboard/DashboardLayoutModal.tsx` |
 | Letter canvas preserves working edit, merge, preview, PDF, recovery, and publish paths while exposing live readiness | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` |
 | Email builder preserves block, preview, autosave, compliance, proof, and publish paths while exposing live readiness | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` |
-| Browser viewport and real inbox-client visual matrix | Partially Working | In-app browser access was unavailable. Repeat live desktop/tablet/mobile inspection and Gmail/Outlook rendering checks before the next production release. |
+| Browser viewport and real inbox-client visual matrix | Partially Working | Live dashboard, constituent-directory, and profile DOM inspection completed on 2026-07-22. Responsive screenshot capture and Gmail/Outlook rendering checks remain release follow-up work. |
 
 Validation evidence is recorded in `docs/status/audit-artifacts/2026-07-19-donor-dashboard-and-builder-visual-modernization.md`.
 
@@ -121,7 +122,7 @@ Validation for this pass: focused Letters/Email suite passed 52/52, TypeScript t
 
 | Item | Status | Evidence |
 |---|---|---|
-| Compact desktop and mobile Donor Dashboard layout | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/page.tsx`, `app/components/dashboard/DashboardWidget.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+| Compact desktop and mobile Donor Dashboard layout | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/dashboard/dashboardPageConfig.ts`, `app/page.tsx`, `app/components/dashboard/DashboardWidget.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
 | Dashboard responsive governance and office guidance | Working | `docs/architecture/workspace-layout-system.md`, `docs/DONOR_DASHBOARD.md`, `docs/howto/HOW_TO_USE.md` |
 | Browser screenshot verification in this environment | Partially Working | In-app browser was unavailable; focused source contracts, targeted ESLint, and web/server typechecks passed. Repeat live viewport inspection at `1280x720`, `1366x768`, tablet, and phone widths when browser access is restored. |
 
@@ -263,8 +264,8 @@ Use only these status labels:
 |---|---|---|
 | Donor dashboard uses live focus queues, working workflow launch actions, visible refresh, and shared DonorCRM theme surfaces | Working | `app/page.tsx`, `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `app/components/ui/crm/*`, `app/globals.css`, `tests/smoke/crm-visual-refresh-source.test.ts` |
 | DonorCRM high-traffic workspace commands use grouped Explorer-style ribbons | Working | `app/components/ui/crm/CRMActionBar.tsx`, `app/constituents/page.tsx`, `app/donations/page.tsx`, `app/meetings/page.tsx`, `app/tasks/page.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
-| Donor sidebar visually matches the dark green/teal top bar brand chrome on desktop | Working | `app/components/layout/CrmSidebar.tsx` |
-| Donor sidebar grouping exposes separate Home and Core CRM groups while keeping supporting tools in lower collapsible groups | Working | `app/components/layout/sidebar-configs.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
+| Donor top navigation replaces the desktop sidebar with grouped, full-width workspace access | Working | `app/components/layout/AppShell.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/layout/TopBar.tsx` |
+| Donor top navigation groups Home, Core CRM, Fundraising, Outreach, Insights, and Admin tools | Working | `app/components/layout/DonorMegaMenu.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` |
 
 ## Production Pass Phase 1/2 Snapshot (2026-05-14)
 

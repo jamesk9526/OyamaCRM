@@ -321,8 +321,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // sidebar preferences remain stored for backwards compatibility, but no longer
   // change the desktop shell or consume workspace width.
   const donorMegaMenuEnabled = donorShellVisible;
-  // Reserve a stable header + navigation footprint so content does not jump on scroll.
-  const contentTopPaddingClass = donorShellVisible ? "pt-26" : "pt-14";
+  // Desktop keeps the command bar and navigation row visible; mobile opens the
+  // workspace menu on demand so record pages retain their usable vertical space.
+  const contentTopPaddingClass = donorShellVisible ? "pt-14 md:pt-26" : "pt-14";
 
   const shellStyle: CSSProperties = {
     "--oyama-donor-chrome-start": dashboardChromeTint.dark,

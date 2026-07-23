@@ -24,15 +24,15 @@ export default function DashboardPage() {
   const name = user ? `${user.firstName} ${user.lastName}` : "…";
 
   const widgetArea = (
-    <section className="mt-4 min-w-0 rounded-[26px] border border-white/80 bg-white/60 p-3.5 shadow-[0_18px_48px_rgba(15,23,42,0.075),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl sm:p-5">
+    <section className="mt-4 min-w-0 rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3 px-1 sm:items-center">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Dashboard Widgets</h2>
-          <p className="text-xs text-slate-500">Organize, enable, and configure your personal dashboard layout.</p>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Performance &amp; pipeline</h2>
+          <p className="text-xs text-slate-500">Core donor insights stay focused here. Use Customize to add deeper analysis without turning the home screen into a report wall.</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/90">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-          {dashboardState.visibleWidgetOrder.length} active
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-[11px] font-semibold text-indigo-800 ring-1 ring-indigo-100">
+          <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" aria-hidden="true" />
+          {dashboardState.visibleWidgetOrder.length} insights
         </span>
       </div>
 
@@ -80,17 +80,17 @@ export default function DashboardPage() {
               window.location.href = "/constituents/new";
             },
             "needs-attention": () => {
-              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
             },
             "steward-recommendations": dashboardState.enableAiWidgets,
             "giving-trends": () => {
-              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
             },
             "donor-activity": () => {
-              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
             },
             "campaign-health": () => {
-              document.getElementById("dashboard-widgets")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
             },
             "card-layout": dashboardState.showAllWidgets,
             "compact-layout": dashboardState.openCustomizeModal,
@@ -114,13 +114,13 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={dashboardState.openCustomizeModal}
-            className="inline-flex min-h-10 items-center rounded-xl border border-emerald-200/90 bg-emerald-50/90 px-3.5 text-xs font-semibold text-emerald-800 shadow-[0_6px_16px_rgba(5,150,105,0.1)] transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100"
+            className="inline-flex min-h-10 items-center rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 text-xs font-semibold text-indigo-800 shadow-[0_6px_16px_rgba(79,70,229,0.1)] transition hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-100"
             aria-label="Customize dashboard"
           >
             Customize
           </button>
         )}
-        extraSections={<div id="dashboard-widgets">{widgetArea}</div>}
+        extraSections={<div id="dashboard-insights">{widgetArea}</div>}
       />
 
       {dashboardState.showCustomizeModal ? (
