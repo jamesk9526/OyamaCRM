@@ -61,7 +61,7 @@ export function Microsoft365SmtpSetupComponent({
           <div className="flex-1 text-sm text-blue-800">
             <p className="font-semibold mb-1">Microsoft 365 SMTP Configuration</p>
             <p className="mb-2">
-              OyamaCRM uses smtp.office365.com with port 587 and STARTTLS for secure, production-ready email delivery.
+              OyamaCRM v1.3 uses smtp.office365.com with port 587 and STARTTLS for secure, production-ready email delivery.
             </p>
             <p className="text-xs text-blue-700 mb-2">
               ⚠️ Before configuring: Enable Authenticated SMTP for your mailbox in Microsoft 365 Admin Center.{" "}

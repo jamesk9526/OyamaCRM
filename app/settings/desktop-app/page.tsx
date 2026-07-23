@@ -12,7 +12,7 @@ export default function DesktopAppSettingsPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Desktop App</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Download and install the OyamaCRM desktop shell for Windows.
+          Download and install the OyamaCRM v1.3 desktop shell for Windows.
         </p>
       </div>
 

@@ -9,7 +9,7 @@ import CustomFieldsManager from "@/app/components/settings/CustomFieldsManager";
 
 /** Page metadata for the browser tab. */
 export const metadata = {
-  title: "Custom Fields — OyamaCRM",
+  title: "Custom Fields — OyamaCRM v1.3",
 };
 
 /** /custom-fields page — custom field management UI. */

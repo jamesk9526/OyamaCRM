@@ -9,6 +9,7 @@ import {
   normalizeBrandingSettings,
   type BrandingSettings,
 } from "@/app/lib/branding-settings";
+import LetterBrandingManager from "@/app/components/letters/LetterBrandingManager";
 
 /** BrandingSettingsPage persists organization-level identity, color, and contact defaults. */
 export default function BrandingSettingsPage() {
@@ -212,7 +213,7 @@ export default function BrandingSettingsPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
+        <section id="email-defaults" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Theme + Email Defaults</h2>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Primary Color">
@@ -249,8 +250,12 @@ export default function BrandingSettingsPage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Communication Header + Footer</h2>
             <p className="mt-1 text-xs text-gray-500">
-              These are the only organization-level header and footer blocks. They apply to every OyamaEmail render and every OyamaLetters preview/output.
+              This is the single source of truth for organization branding. Email chrome is configured below; printable letter header and footer defaults are configured in the Letter Output Defaults panel on this same page.
             </p>
+          </div>
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs leading-5 text-indigo-950">
+            <p className="font-semibold">Email header and footer</p>
+            <p className="mt-0.5">These blocks appear outside every email template canvas. Do not add a second organization header or unsubscribe footer inside individual email templates unless the content is intentionally unique.</p>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <Field label="Global Header HTML">
@@ -278,6 +283,13 @@ export default function BrandingSettingsPage() {
               className="h-64 w-full rounded border border-gray-200 bg-white"
               srcDoc={`<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:${escapeAttribute(form.emailFontFamily)};"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${escapeAttribute(form.emailBackgroundColor)};"><tr><td align="center" style="padding:18px;"><table role="presentation" width="${form.emailContentWidth}" cellspacing="0" cellpadding="0" style="max-width:100%;background:#ffffff;border:1px solid #dbe5df;border-radius:10px;overflow:hidden;"><tr><td style="padding:18px 22px;border-bottom:1px solid #e5e7eb;">${form.globalHeaderHtml || `<strong>${escapeHtml(form.organizationDisplayName || "Organization Header")}</strong>`}</td></tr><tr><td style="padding:22px;color:#475569;">Recipient content renders between the global header and footer.</td></tr><tr><td style="padding:18px 22px;border-top:1px solid #e5e7eb;background:#f8fafc;color:#475569;">${form.globalFooterHtml || escapeHtml(form.footerLegalText || computedAddress || "Organization footer")}</td></tr></table></td></tr></table></body></html>`}
             />
+          </div>
+          <div id="letter-output-defaults" className="border-t border-gray-200 pt-5">
+            <div className="max-w-3xl">
+              <h3 className="text-sm font-semibold text-gray-900">Letter Output Defaults</h3>
+              <p className="mt-1 text-xs leading-5 text-gray-600">These defaults control the printed PDF header and footer for every letter. Set the upper-right header to organization details, recipient name and address, or custom merge fields. Choosing recipient details keeps the recipient address out of the letter body so the body has more room for content.</p>
+            </div>
+            <LetterBrandingManager />
           </div>
         </section>
 

@@ -112,8 +112,8 @@ export default function LetterBrandingManager() {
       setHeaders(headerRows);
       setFooters(footerRows);
       setBranding(brandingRows);
-      if (!selectedHeaderId && headerRows.length > 0) setSelectedHeaderId(headerRows[0].id);
-      if (!selectedFooterId && footerRows.length > 0) setSelectedFooterId(footerRows[0].id);
+      if (!selectedHeaderId && headerRows.length > 0) setSelectedHeaderId((headerRows.find((item) => item.isDefault && item.isActive) ?? headerRows[0]).id);
+      if (!selectedFooterId && footerRows.length > 0) setSelectedFooterId((footerRows.find((item) => item.isDefault && item.isActive) ?? footerRows[0]).id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load branding presets.");
     } finally {
@@ -285,13 +285,18 @@ function HeaderEditor({ form, setForm, saving, onSave }: { form: HeaderForm; set
           {["LEFT", "CENTER", "RIGHT", "NONE"].map((value) => <option key={value} value={value}>{value}</option>)}
         </select>
       </Field>
-      <Field label="Top-right header content">
+      <Field label="Upper-right letter header content">
         <select value={form.rightColumnMode} onChange={(event) => setForm({ ...form, rightColumnMode: event.target.value as HeaderForm["rightColumnMode"] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
           <option value="ORGANIZATION">Organization contact details</option>
-          <option value="RECIPIENT">Recipient name and address</option>
+          <option value="RECIPIENT">Donor / recipient name and address</option>
           <option value="CUSTOM">Custom text and merge fields</option>
         </select>
       </Field>
+      <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs leading-5 text-indigo-950">
+        {form.rightColumnMode === "ORGANIZATION" ? "Shows the organization contact information in the upper-right of every printed letter." : null}
+        {form.rightColumnMode === "RECIPIENT" ? "Shows the donor or recipient name and mailing address in the upper-right. The print renderer suppresses the duplicate recipient address in the letter body, leaving more room for message content." : null}
+        {form.rightColumnMode === "CUSTOM" ? "Uses the merge fields and lines entered below in the upper-right of every printed letter." : null}
+      </div>
       {form.rightColumnMode === "CUSTOM" ? (
         <Field label="Top-right custom content">
           <textarea value={form.rightColumnHtml} onChange={(event) => setForm({ ...form, rightColumnHtml: event.target.value })} rows={4} placeholder={'{{donor.fullName}}\n{{donor.addressBlock}}'} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" />
@@ -304,7 +309,7 @@ function HeaderEditor({ form, setForm, saving, onSave }: { form: HeaderForm; set
         <Toggle label="Address" checked={form.showAddress} onChange={(value) => setForm({ ...form, showAddress: value })} />
         <Toggle label="Phone" checked={form.showPhone} onChange={(value) => setForm({ ...form, showPhone: value })} />
         <Toggle label="Website" checked={form.showWebsite} onChange={(value) => setForm({ ...form, showWebsite: value })} />
-        <Toggle label="Default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
+        <Toggle label="Make the global letter-header default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
         <Toggle label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
       </ToggleGrid>
       <Field label="Legacy header HTML">
@@ -327,7 +332,8 @@ function FooterEditor({ form, setForm, saving, onSave }: { form: FooterForm; set
         <Toggle label="Email" checked={form.showEmail} onChange={(value) => setForm({ ...form, showEmail: value })} />
         <Toggle label="Website" checked={form.showWebsite} onChange={(value) => setForm({ ...form, showWebsite: value })} />
         <Toggle label="Tax ID" checked={form.showTaxId} onChange={(value) => setForm({ ...form, showTaxId: value })} />
-        <Toggle label="Default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
+        <Toggle label="Page Number" checked={form.showPageNumber} onChange={(value) => setForm({ ...form, showPageNumber: value })} />
+        <Toggle label="Make the global letter-footer default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
         <Toggle label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
       </ToggleGrid>
       <Field label="Custom Footer Text">

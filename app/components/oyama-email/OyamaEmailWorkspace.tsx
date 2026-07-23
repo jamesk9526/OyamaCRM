@@ -1003,144 +1003,66 @@ function TemplatesView({
 
   return (
     <section className="space-y-5 p-4 xl:p-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-[linear-gradient(120deg,#f8faff_0%,#f6f3ff_54%,#ffffff_100%)] px-5 py-5">
+          <div className="max-w-2xl">
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-semibold tracking-tight text-slate-900">Email Template Library</p>
-              <InfoTooltip label="About email templates">
-                Templates hold reusable content. Campaigns are separate send records so audience, compliance, queue history, and delivery results stay attached to one outbound run.
-              </InfoTooltip>
+              <p className="text-2xl font-semibold tracking-tight text-slate-950">Email templates</p>
+              <InfoTooltip label="About email templates">Templates are reusable content. Campaigns are governed delivery records with their own audience, review history, and results.</InfoTooltip>
             </div>
-            <p className="mt-1 text-sm text-slate-600">Choose a template to get started or create a new email from scratch.</p>
+            <p className="mt-1 text-sm text-slate-600">Build a reusable design once, then take a clean snapshot into each campaign.</p>
           </div>
-
-          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:min-w-[320px]">
-            <label className="relative min-w-0 flex-1 basis-full sm:min-w-[260px] sm:basis-auto md:max-w-[360px]">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.3-4.3m1.8-5.2a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
-                </svg>
-              </span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search templates..."
-                className="h-10 w-full rounded-lg border border-slate-300 pl-9 pr-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
-
-            <select
-              value={categorySort}
-              onChange={(event) => setCategorySort(event.target.value as "default" | "count")}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-              aria-label="Sort categories"
-            >
-              <option value="default">Sort Categories</option>
-              <option value="count">Most Used Categories</option>
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as "updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc")}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-              aria-label="Sort templates"
-            >
-              <option value="updatedDesc">Updated</option>
-              <option value="updatedAsc">Oldest Updated</option>
-              <option value="usedDesc">Most Used</option>
-              <option value="nameAsc">Name A-Z</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => importInputRef.current?.click()}
-              disabled={importingTemplate}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {importingTemplate ? "Importing..." : "Import Template"}
-            </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => importInputRef.current?.click()} disabled={importingTemplate} className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{importingTemplate ? "Importing..." : "Import backup"}</button>
             <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" />
-            <WorkspaceAction href="/oyama-email/templates/new" tone="primary">Start New Template</WorkspaceAction>
+            <WorkspaceAction href="/oyama-email/templates/new" tone="primary">Create email template</WorkspaceAction>
+          </div>
+        </header>
+        <div className="grid lg:grid-cols-[230px_minmax(0,1fr)]">
+          <aside className="border-b border-slate-100 bg-slate-50/70 p-4 lg:border-b-0 lg:border-r">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Browse library</p>
+            <div className="mt-3 space-y-1">
+              {([
+                { value: "MINE", label: "My templates", count: myCount },
+                { value: "SHARED", label: "Shared with me", count: sharedCount },
+                { value: "ALL", label: "All templates", count: campaigns.length },
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-indigo-700 text-white shadow-sm" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-indigo-100" : "text-slate-400"}>{option.count}</span></button>)}
+            </div>
+            <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Template type</p>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {([
+                { value: "ALL", label: "All" },
+                { value: "HUMAN", label: "Staff" },
+                { value: "AI", label: `AI ${aiCount}` },
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-md border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"].join(" ")}>{option.label}</button>)}
+            </div>
+            <div className="mt-5 border-t border-slate-200 pt-4">
+              <div className="flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Topics</p><select value={categorySort} onChange={(event) => setCategorySort(event.target.value as "default" | "count")} className="bg-transparent text-[10px] font-semibold text-slate-500 outline-none"><option value="default">A–Z</option><option value="count">Most used</option></select></div>
+              <div className="mt-2 flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
+                {visibleCategories.map((label) => <button key={label} type="button" onClick={() => setCategory(label)} className={["flex items-center justify-between rounded-md px-2 py-1.5 text-left text-xs", category === label ? "bg-indigo-50 font-semibold text-indigo-800" : "text-slate-600 hover:bg-white"].join(" ")}><span>{label}</span><span className="text-[10px] text-slate-400">{label === "All Templates" ? campaigns.length : categoryMap.get(label) ?? 0}</span></button>)}
+              </div>
+            </div>
+          </aside>
+          <div className="min-w-0 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative min-w-0 flex-1 basis-full sm:basis-auto">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by template name or email subject" className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+              </label>
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as "updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-indigo-500" aria-label="Sort templates"><option value="updatedDesc">Recently updated</option><option value="usedDesc">Most used</option><option value="nameAsc">Name A–Z</option><option value="updatedAsc">Oldest updated</option></select>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Showing", sortedRows.length, "text-slate-900"],
+                ["My templates", myCount, "text-indigo-800"],
+                ["Shared", sharedCount, "text-violet-800"],
+                ["AI-assisted", aiCount, "text-blue-800"],
+              ].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
+            </div>
+            <p className="mt-4 text-xs leading-5 text-slate-600">Choose <span className="font-semibold text-slate-800">Edit</span> to change reusable content, or <span className="font-semibold text-slate-800">Use in campaign</span> when you are ready to choose an audience.</p>
           </div>
         </div>
-
-        <div className="mt-4">
-          <WorkspaceHint title="Recommended Flow" tone="slate">
-            Start in templates when the content should be reused later. Start in campaign workflow when you already know the audience and need one governed send record.
-          </WorkspaceHint>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {([
-            { value: "MINE", label: "My Templates", count: myCount },
-            { value: "SHARED", label: "Shared Templates", count: sharedCount },
-            { value: "ALL", label: "All Templates", count: campaigns.length },
-          ] as const).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setOwnership(option.value)}
-              className={[
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                ownership === option.value ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <span>{option.label}</span>
-              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-slate-600">{option.count}</span>
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {([
-            { value: "ALL", label: "All Provenance" },
-            { value: "HUMAN", label: "User Created" },
-            { value: "AI", label: `AI-assisted (${aiCount})` },
-          ] as const).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setProvenance(option.value)}
-              className={[
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold",
-                provenance === option.value ? "border-sky-700 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {visibleCategories.map((label) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setCategory(label)}
-              className={[
-                "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold",
-                category === label
-                  ? "border-emerald-700 bg-emerald-50 text-emerald-800"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <span>{label}</span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{label === "All Templates" ? campaigns.length : categoryMap.get(label) ?? 0}</span>
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
-            Library opens on <span className="font-semibold">all reusable templates</span> so legacy and team-owned work stays visible after save.
-          </div>
-          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900">
-            <span className="font-semibold">AI-assisted</span> badges come from saved builder JSON, not guesswork from names or categories.
-          </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-            Builder autosave stays active, and unsaved templates warn before browser close to reduce lost work.
-          </div>
-        </div>
-      </div>
+      </section>
 
       {libraryNotice ? <Alert tone="success">{libraryNotice}</Alert> : null}
       {libraryError ? <Alert tone="error">{libraryError}</Alert> : null}
@@ -1167,7 +1089,7 @@ function TemplatesView({
                 <article key={row.id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-start justify-between px-4 pb-2 pt-4">
                     <div>
-                      <Link href={`/oyama-email/templates/${row.id}/builder`} className="line-clamp-1 text-[21px] font-semibold leading-snug tracking-tight text-slate-900 hover:text-emerald-700">{row.name}</Link>
+                      <Link href={`/oyama-email/templates/${row.id}/builder`} className="line-clamp-1 text-[21px] font-semibold leading-snug tracking-tight text-slate-900 hover:text-indigo-700">{row.name}</Link>
                       <span className="mt-1 inline-flex rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{categoryLabel}</span>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
@@ -1197,10 +1119,10 @@ function TemplatesView({
                         </svg>
                         Used {usedCount} time{usedCount === 1 ? "" : "s"}
                       </span>
-                      <Link href={`/oyama-email/templates/${row.id}/builder`} className="font-semibold text-slate-500 hover:text-emerald-700">Edit Content</Link>
+                      <Link href={`/oyama-email/templates/${row.id}/builder`} className="font-semibold text-slate-500 hover:text-indigo-700">Edit</Link>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => onUseTemplate(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600">Continue to Campaign Flow</button>
+                      <button type="button" onClick={() => onUseTemplate(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-indigo-700 bg-indigo-700 px-3 text-xs font-semibold text-white hover:bg-indigo-600">Use in campaign</button>
                       <button type="button" onClick={() => void exportTemplateBackup(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export</button>
                     </div>
                   </div>

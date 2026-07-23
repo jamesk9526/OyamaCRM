@@ -90,7 +90,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain("getDonorAccentTheme");
     expect(topBar).toContain("Switch Workspace");
     expect(topBar).toContain("bg-slate-950/25");
-    expect(topBar).toContain("Search constituents, campaigns, tools");
+    expect(topBar).toContain("Search records, workflows, reports, and tools");
     expect(topBar).toContain('aria-label="Open command search"');
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
@@ -116,22 +116,28 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(sidebar).toContain('label: "Donations"');
   });
 
-  it("keeps shared navigation stable and drawer-first below the desktop breakpoint", () => {
+  it("uses a stable full-width Donor CRM bar while preserving the mobile navigation fallback", () => {
     const appShell = read("app/components/layout/AppShell.tsx");
     const topBar = read("app/components/layout/TopBar.tsx");
     const mobileDrawer = read("app/components/layout/MobileSidebarDrawer.tsx");
     const megaMenu = read("app/components/layout/DonorMegaMenu.tsx");
     const globals = read("app/globals.css");
 
-    expect(appShell).toContain('hidden h-full lg:flex');
-    expect(appShell).toContain('const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-26" : "pt-14"');
+    expect(appShell).toContain("const donorMegaMenuEnabled = donorShellVisible");
+    expect(appShell).toContain("const donorSidebarDesktopEnabled = false");
+    expect(appShell).toContain('const contentTopPaddingClass = donorShellVisible ? "pt-26" : "pt-14"');
     expect(appShell).toContain("useBrowserLayoutEffect");
+    expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
+    expect(topBar).toContain("OyamaCRM v1.3 home");
+    expect(topBar).toContain("Steward Workspace");
+    expect(topBar).toContain("Quick Add");
     expect(topBar).toContain("lg:hidden");
     expect(mobileDrawer).toContain('DESKTOP_NAVIGATION_MEDIA_QUERY = "(min-width: 1024px)"');
     expect(mobileDrawer).toContain('aria-modal="true"');
     expect(mobileDrawer).toContain("getFocusableElements");
     expect(megaMenu).toContain("top-14");
+    expect(megaMenu).not.toContain("Use Sidebar");
     expect(globals).toContain("scrollbar-gutter: stable");
   });
 

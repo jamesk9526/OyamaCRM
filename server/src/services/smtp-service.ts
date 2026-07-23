@@ -285,7 +285,7 @@ export async function resolveOrganizationSmtpSettings(organizationId: string): P
     smtpSecure: settings?.smtpSecure ?? env.smtpSecure,
     smtpUser: settings?.smtpUser?.trim() || env.smtpUser,
     smtpPass: dbPass,
-    smtpFromName: settings?.smtpFromName?.trim() || env.smtpFromName || organization?.name || "OyamaCRM",
+    smtpFromName: settings?.smtpFromName?.trim() || env.smtpFromName || organization?.name || "OyamaCRM v1.3",
     smtpFromEmail: settings?.smtpFromEmail?.trim() || env.smtpFromEmail,
   };
 }
@@ -434,7 +434,7 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
     mode: provider.provider,
     async send(payload: SendEmailPayload): Promise<OrganizationSendResult> {
       const info = await transporter.sendMail({
-        from: `"${payload.fromNameOverride || effectiveSmtp.smtpFromName || "OyamaCRM"}" <${effectiveSmtp.smtpFromEmail}>`,
+        from: `"${payload.fromNameOverride || effectiveSmtp.smtpFromName || "OyamaCRM v1.3"}" <${effectiveSmtp.smtpFromEmail}>`,
         to: payload.to,
         subject: payload.subject,
         text: payload.text,

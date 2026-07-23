@@ -2738,7 +2738,7 @@ router.post("/ai-compose", requirePermission("letters.edit"), async (req, res) =
     {
       role: "system",
       content: [
-        "You are Steward AI writing one insertable section for an OyamaCRM donor letter template.",
+        "You are Steward AI writing one insertable section for an OyamaCRM v1.3 donor letter template.",
         "Return JSON only with keys: bodyText, bodyHtml, mergeFieldsUsed.",
         "Write warm, donor-first nonprofit stewardship copy for staff review.",
         "Do not invent donor facts, donation history, program outcomes, staff actions, or promises.",
@@ -2895,7 +2895,7 @@ router.post("/ai-suggest", requirePermission("letters.edit"), async (req, res) =
         "Do not repeat the same suggestion if a previous suggestion is provided.",
         "Do not invent donor facts, amounts, dates, or program outcomes.",
         payload.useMergeFields !== false
-          ? "You may use supported OyamaCRM merge fields only when naturally needed."
+          ? "You may use supported OyamaCRM v1.3 merge fields only when naturally needed."
           : "Do not include merge fields.",
       ].join("\n"),
     },
@@ -5247,7 +5247,7 @@ router.post("/templates/:id/create-email-draft", requirePermission("letters.crea
       name: `Letter Template Draft: ${template.name}`,
       subject: (template.emailSubject || template.printSubject || template.name).trim(),
       previewText: bodyText.slice(0, 120),
-      fromName: settings?.smtpFromName || "OyamaCRM",
+      fromName: settings?.smtpFromName || "OyamaCRM v1.3",
       fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
       bodyText,
       bodyHtml: htmlBody || `<p>${textToHtml(bodyText)}</p>`,
@@ -5310,7 +5310,7 @@ router.post("/templates/:id/create-oyama-email-template", requirePermission("let
       name: `Letter companion: ${template.name}`,
       subject: template.emailSubject || template.printSubject || template.name,
       previewText: rendered.text.slice(0, 120),
-      fromName: settings?.smtpFromName || "OyamaCRM",
+      fromName: settings?.smtpFromName || "OyamaCRM v1.3",
       fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
       bodyHtml: rendered.html,
       bodyText: rendered.text,
@@ -5410,7 +5410,7 @@ router.post("/generated/:id/create-email-draft", requirePermission("letters.crea
       name: `Letter Draft: ${generated.template.name} (${generated.constituent.firstName} ${generated.constituent.lastName})`,
       subject,
       previewText: bodyText.slice(0, 120),
-      fromName: settings?.smtpFromName || "OyamaCRM",
+      fromName: settings?.smtpFromName || "OyamaCRM v1.3",
       fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
       bodyText,
       bodyHtml,

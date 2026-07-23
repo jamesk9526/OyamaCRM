@@ -235,7 +235,7 @@ function DonorQuickAddButton() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Quick Add"
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-700 px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-emerald-800 hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-indigo-600 bg-indigo-600 px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-indigo-700 hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
       >
         <svg className="h-4 w-4 shrink-0 text-white/95" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
@@ -254,9 +254,9 @@ function DonorQuickAddButton() {
               href={item.href}
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
             >
-              <svg className="h-4 w-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="h-4 w-4 shrink-0 text-indigo-600" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
               </svg>
               {item.label}
@@ -677,7 +677,7 @@ function GlobalSearch({
             ? "focus:ring-teal-400/60"
           : moduleKey === "oshareview"
               ? "focus:ring-cyan-400/60"
-          : "focus:ring-green-400/60";
+          : "focus:ring-indigo-400/60";
   const activeResultBg = moduleKey === "compassion"
     ? "bg-blue-50"
     : moduleKey === "events"
@@ -690,7 +690,7 @@ function GlobalSearch({
             ? "bg-teal-50"
           : moduleKey === "oshareview"
               ? "bg-cyan-50"
-          : "bg-green-50";
+          : "bg-indigo-50";
   const spinnerColor = moduleKey === "compassion"
     ? "border-blue-400"
     : moduleKey === "events"
@@ -703,7 +703,7 @@ function GlobalSearch({
             ? "border-teal-500"
           : moduleKey === "oshareview"
               ? "border-cyan-500"
-          : "border-green-400";
+          : "border-indigo-400";
   const placeholder = moduleKey === "compassion"
     ? "Search clients, cases, tools..."
     : moduleKey === "events"
@@ -716,7 +716,7 @@ function GlobalSearch({
             ? "Search staff, schedules, locations..."
           : moduleKey === "oshareview"
               ? "Search reports, segments, analytics..."
-          : "Search constituents, campaigns, tools...";
+          : "Search records, workflows, reports, and tools...";
 
   return (
     <div className={`relative w-full min-w-0 ${wide ? "max-w-none" : "max-w-xl"}`}>
@@ -732,7 +732,7 @@ function GlobalSearch({
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
-          className={`w-full rounded-xl border border-slate-200 bg-white pl-8 pr-12 text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors duration-200 ease-out focus:border-emerald-200 focus:bg-white focus:outline-none focus:ring-1 ${focusRing} ${wide ? "h-12 text-sm" : "py-2 text-xs"}`}
+          className={`w-full rounded-xl border border-slate-200 bg-white pl-8 pr-12 text-slate-900 placeholder:text-slate-500 shadow-sm transition-colors duration-200 ease-out focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-1 ${focusRing} ${wide ? "h-12 text-sm" : "py-2 text-xs"}`}
         />
         <kbd className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition-colors duration-200 ease-out group-focus-within/search:bg-white group-focus-within/search:text-slate-700 min-[1120px]:block">
           Ctrl+K
@@ -915,7 +915,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       : "xl:pl-[284px]"
     : "";
   const darkIconButtonBase = isDonorEnterpriseChrome
-    ? "flex h-5.5 w-5.5 shrink-0 touch-manipulation items-center justify-center rounded-md border border-transparent bg-transparent text-emerald-50/80 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:scale-95"
+    ? "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 active:scale-95"
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
   const moduleChromePalette = resolveTopBarModuleChromePalette(moduleKey, donorChromeTint);
@@ -1398,7 +1398,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         </>
       )}
       <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[box-shadow,background-color,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome
-        ? "border-b border-emerald-200/15 bg-[radial-gradient(circle_at_12%_0%,#05412e_0,#032b21_44%,#011814_100%)] shadow-none xl:h-14"
+        ? "border-b border-slate-200 bg-white/96 shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-14"
         : (scrolled
           ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px]"
           : "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-[72px]")}`}
@@ -1433,25 +1433,30 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </svg>
           </div>
         ) : null}
-        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px transition-[left,opacity] ${shellMotionClass} xl:block ${isDonorEnterpriseChrome ? "bg-emerald-100/15" : "bg-slate-200/55"} ${scrolled ? (isDonorEnterpriseChrome ? "left-0 opacity-100" : "left-[280px] opacity-100") : (isDonorEnterpriseChrome ? "left-0 opacity-85" : "left-[480px] opacity-70")}`} />
+        <div aria-hidden="true" className={`pointer-events-none absolute bottom-0 right-0 z-0 hidden h-px transition-[left,opacity] ${shellMotionClass} xl:block ${isDonorEnterpriseChrome ? "bg-slate-200" : "bg-slate-200/55"} ${scrolled ? (isDonorEnterpriseChrome ? "left-0 opacity-100" : "left-[280px] opacity-100") : (isDonorEnterpriseChrome ? "left-0 opacity-85" : "left-[480px] opacity-70")}`} />
         <div
           aria-hidden="true"
           className={`absolute bottom-0 ${isDonorEnterpriseChrome ? "left-0" : "left-[280px]"} right-0 h-px pointer-events-none hidden transition-opacity ${shellMotionClass} xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
         />
 
-        <div className={`relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-[40px]" : "w-[520px]"} xl:block`}>
-          {!isDonorEnterpriseChrome ? (
+        <div className={`relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-[220px]" : "w-[520px]"} xl:block`}>
+          {isDonorEnterpriseChrome ? (
+            <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-lg px-1 py-1 text-slate-950 transition-colors hover:bg-slate-50" aria-label="Go to OyamaCRM v1.3 home">
+              <span className="text-[15px] font-bold tracking-[-0.035em]">OyamaCRM</span>
+              <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-indigo-700 ring-1 ring-indigo-100">v1.3</span>
+            </Link>
+          ) : (
           <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-2 py-1 transition-[top,opacity,background-color,border-color] ${shellMotionClass} hover:opacity-90 ${scrolled ? "top-2.5" : "top-4"}`} aria-label="Go to workspace home">
             <Image
               src={OYAMA_PRODUCT_LOGO}
-              alt="OyamaCRM"
+              alt="OyamaCRM v1.3"
               width={260}
               height={74}
               className={`object-contain object-left transition-[height,width,opacity] ${shellMotionClass} ${scrolled ? "h-9 w-[128px]" : "h-11 w-[166px]"}`}
               priority
             />
           </Link>
-          ) : null}
+          )}
         </div>
 
         <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-2 px-2 max-[380px]:gap-1.5 sm:px-3 xl:hidden">
@@ -1459,9 +1464,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             <div
               className="flex h-11 min-w-0 shrink items-center gap-1 rounded-2xl border px-1.5 max-[380px]:h-10 max-[380px]:rounded-xl max-[380px]:px-1"
               style={{
-                background: moduleChromePalette.mobileGradient,
-                borderColor: moduleChromePalette.mobileBorderColor,
-                boxShadow: moduleChromePalette.mobileShadow,
+                background: isDonorEnterpriseChrome ? "#ffffff" : moduleChromePalette.mobileGradient,
+                borderColor: isDonorEnterpriseChrome ? "#e2e8f0" : moduleChromePalette.mobileBorderColor,
+                boxShadow: isDonorEnterpriseChrome ? "0 1px 4px rgba(15,23,42,0.05)" : moduleChromePalette.mobileShadow,
               }}
             >
               {/* ── Mobile hamburger — opens sidebar drawer via CustomEvent ── */}
@@ -1469,22 +1474,26 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 type="button"
                 aria-label="Open navigation menu"
                 onClick={() => window.dispatchEvent(new CustomEvent("crm:open-mobile-nav"))}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/88 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15 max-[380px]:h-8 max-[380px]:w-8 lg:hidden"
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors max-[380px]:h-8 max-[380px]:w-8 lg:hidden ${isDonorEnterpriseChrome ? "text-slate-600 hover:bg-slate-100 hover:text-slate-950" : "text-white/88 hover:bg-white/10 hover:text-white active:bg-white/15"}`}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
               {/* ── TopBar Brand ── */}
-              <Link href={homeHref} className="flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1" aria-label="Go to workspace home">
-                <Image
-                  src={OYAMA_PRODUCT_LOGO}
-                  alt="OyamaCRM"
-                  width={144}
-                  height={48}
-                  className="block h-8 w-[116px] object-contain object-left transition-[width,height] duration-200 max-[430px]:w-[96px] max-[380px]:h-7 max-[380px]:w-[76px]"
-                  priority
-                />
+              <Link href={homeHref} className="flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1" aria-label="Go to OyamaCRM v1.3 home">
+                {isDonorEnterpriseChrome ? (
+                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-slate-950 max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-indigo-600">v1.3</span></span>
+                ) : (
+                  <Image
+                    src={OYAMA_PRODUCT_LOGO}
+                    alt="OyamaCRM v1.3"
+                    width={144}
+                    height={48}
+                    className="block h-8 w-[116px] object-contain object-left transition-[width,height] duration-200 max-[430px]:w-[96px] max-[380px]:h-7 max-[380px]:w-[76px]"
+                    priority
+                  />
+                )}
               </Link>
             </div>
 
@@ -1646,7 +1655,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? `pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? `pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
+        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? `pl-[230px] pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? `pl-[230px] pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
           <div className={`mx-auto flex min-w-0 w-full items-center ${isDonorEnterpriseChrome ? "max-w-[1480px] gap-2" : "gap-3"}`}>
           <div className={`flex min-w-0 flex-1 items-center ${isDonorEnterpriseChrome ? "gap-2 justify-start" : "gap-3 justify-end"}`}>
             {showModuleSwitcher && (
@@ -1662,14 +1671,14 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 title="Open app launcher"
                 aria-label="Open app launcher"
                 className={isDonorEnterpriseChrome
-                  ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] text-emerald-50 transition-colors hover:bg-white/[0.14] hover:text-white"
+                  ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
                   : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-[0_1px_4px_rgba(15,23,42,0.05)] transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"}
               >
                 <AppsGridIcon className="h-4 w-4" />
               </button>
             ) : null}
 
-            <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-8 border-white/20 bg-emerald-950/28 px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
+            <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-9 border-slate-200 bg-slate-50/90 px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
               <div className={`min-w-0 flex-1 ${isDonorEnterpriseChrome ? "px-1" : "px-1.5"}`}>
                 <GlobalSearch moduleKey={moduleKey} pathname={pathname} onNavigate={() => setNotificationsOpen(false)} />
               </div>
@@ -1691,7 +1700,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </button>
               )}
 
-              <div className={`mx-1 h-5 w-px shrink-0 ${isDonorEnterpriseChrome ? "bg-white/20" : "bg-slate-200"}`} />
+              <div className={`mx-1 h-5 w-px shrink-0 ${isDonorEnterpriseChrome ? "bg-slate-200" : "bg-slate-200"}`} />
 
               <div ref={desktopNotificationsRef} className="relative shrink-0">
                 <button
@@ -1724,7 +1733,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                                 ? "bg-teal-600"
                                 : moduleKey === "oshareview"
                                   ? "bg-cyan-600"
-                                  : "bg-green-600"
+                                  : "bg-indigo-600"
                     }`}>
                       {Math.min(unreadCount, 99)}
                     </span>
@@ -1830,13 +1839,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
               {isDonorEnterpriseChrome ? (
                 <>
-                  <div className="mx-1 h-5 w-px shrink-0 bg-white/20" />
+                  <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />
 
                   <Link
                     href="/steward-ai-workspace"
                     title="Open Steward Workspace"
                     aria-label="Open Steward Workspace"
-                    className="ml-0.5 inline-flex h-7 items-center gap-1.5 rounded-md border border-white/20 bg-emerald-950/32 px-2 text-[11px] font-semibold text-emerald-50 transition-colors hover:bg-emerald-900/45 hover:text-white"
+                    className="ml-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-semibold text-indigo-700 transition-colors hover:bg-indigo-100 hover:text-indigo-800"
                   >
                     <AiOrbIcon className="h-3.5 w-3.5" />
                     <span className="hidden min-[1400px]:inline">Steward Workspace</span>
@@ -2143,14 +2152,14 @@ function ModuleSwitcher({
           aria-hidden="true"
           className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${switcherTone.glow} transition-opacity duration-200 ${open ? "opacity-90" : "opacity-40 group-hover:opacity-60"}`}
         />
-        <span className={`relative flex items-center justify-center rounded-xl border transition-all duration-300 ${current.key === "donor" ? "border-white/20 bg-emerald-900/50 text-emerald-50" : "border-slate-200 bg-white text-slate-700"} ${scrolled ? "h-5 w-5 xl:h-5 xl:w-5" : "h-6 w-6 xl:h-6 xl:w-6"}`}>
+        <span className={`relative flex items-center justify-center rounded-xl border transition-all duration-300 ${current.key === "donor" ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700"} ${scrolled ? "h-5 w-5 xl:h-5 xl:w-5" : "h-6 w-6 xl:h-6 xl:w-6"}`}>
           {current.icon}
         </span>
         <div className="relative hidden min-w-0 text-left leading-tight min-[1180px]:block lg:block">
-          <p className={`max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.16em] ${current.key === "donor" ? "text-emerald-100/70" : "text-slate-500"}`}>Workspace</p>
-          <p className={`truncate font-semibold transition-[font-size,color] duration-300 ${scrolled ? "text-[10px]" : "text-[12px]"} ${current.key === "donor" ? "text-emerald-50" : "text-slate-800"}`}>{current.label}</p>
+          <p className={`max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.16em] ${current.key === "donor" ? "text-slate-500" : "text-slate-500"}`}>Workspace</p>
+          <p className={`truncate font-semibold transition-[font-size,color] duration-300 ${scrolled ? "text-[10px]" : "text-[12px]"} ${current.key === "donor" ? "text-slate-800" : "text-slate-800"}`}>{current.label}</p>
         </div>
-        <svg className={`relative h-3 w-3 transition-[transform,color] ${current.key === "donor" ? "text-emerald-100/80 group-hover:text-emerald-50" : "text-slate-500 group-hover:text-slate-700"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`relative h-3 w-3 transition-[transform,color] ${current.key === "donor" ? "text-slate-500 group-hover:text-slate-700" : "text-slate-500 group-hover:text-slate-700"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -2261,10 +2270,6 @@ function UserMenu({
     action();
   }
 
-  function switchDonorNavigationLayout(layout: "mega" | "sidebar") {
-    window.dispatchEvent(new CustomEvent("crm:set-donor-shell-layout", { detail: { layout } }));
-  }
-
   const avatarCls = moduleKey === "compassion"
     ? "bg-blue-700 border-blue-200"
     : moduleKey === "events"
@@ -2277,7 +2282,7 @@ function UserMenu({
             ? "bg-teal-700 border-teal-200"
             : moduleKey === "oshareview"
               ? "bg-cyan-700 border-cyan-200"
-          : "bg-emerald-700 border-emerald-200";
+          : "bg-indigo-700 border-indigo-200";
 
   return (
     <div className="relative shrink-0">
@@ -2289,18 +2294,18 @@ function UserMenu({
         aria-label={user ? `Open profile menu for ${user.firstName} ${user.lastName}` : "Open profile menu"}
         data-mobile-touch="true"
         title={user ? `${user.firstName} ${user.lastName}` : "Account"}
-        className={`inline-flex h-11 max-w-[12rem] shrink-0 items-center gap-2 rounded-[18px] border px-1.5 pr-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 max-[480px]:h-10 max-[480px]:w-10 max-[480px]:justify-center max-[480px]:rounded-full max-[480px]:p-0 ${moduleKey === "donor" ? "border-transparent text-emerald-50 hover:bg-white/10" : "border-transparent hover:bg-slate-50/90"}`}
+        className={`inline-flex h-11 max-w-[12rem] shrink-0 items-center gap-2 rounded-[18px] border px-1.5 pr-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 max-[480px]:h-10 max-[480px]:w-10 max-[480px]:justify-center max-[480px]:rounded-full max-[480px]:p-0 ${moduleKey === "donor" ? "border-transparent text-slate-900 hover:bg-slate-50" : "border-transparent hover:bg-slate-50/90"}`}
       >
         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] max-[480px]:h-9 max-[480px]:w-9 max-[480px]:text-xs ${avatarCls}`}>
           {initials}
         </span>
         <span className="hidden min-w-0 leading-tight min-[1400px]:block">
-          <span className={`block max-w-[132px] truncate text-sm font-semibold ${moduleKey === "donor" ? "text-emerald-50" : "text-slate-900"}`}>
+          <span className={`block max-w-[132px] truncate text-sm font-semibold ${moduleKey === "donor" ? "text-slate-900" : "text-slate-900"}`}>
             {user ? `${user.firstName} ${user.lastName}` : "Account"}
           </span>
-          <span className={`block max-w-[132px] truncate text-xs ${moduleKey === "donor" ? "text-emerald-100/70" : "text-slate-500"}`}>Oyama Organization</span>
+          <span className={`block max-w-[132px] truncate text-xs ${moduleKey === "donor" ? "text-slate-500" : "text-slate-500"}`}>Oyama Organization</span>
         </span>
-        <svg className={`hidden h-4 w-4 transition-transform xl:block ${moduleKey === "donor" ? "text-emerald-100/80" : "text-slate-500"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
+        <svg className={`hidden h-4 w-4 transition-transform xl:block ${moduleKey === "donor" ? "text-slate-500" : "text-slate-500"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -2401,18 +2406,6 @@ function UserMenu({
                   >
                     <span className="min-w-0 truncate">Reporting</span>
                     <span className="shrink-0 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px]">{reportingWindow.label}</span>
-                  </button>
-                ) : null}
-                {moduleKey === "donor" ? (
-                  <button
-                    type="button"
-                    onClick={() => runProfileAction(() => switchDonorNavigationLayout("mega"))}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                  >
-                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16M8 6v12" />
-                    </svg>
-                    <span className="min-w-0 truncate">Top Nav</span>
                   </button>
                 ) : null}
               </div>

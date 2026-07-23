@@ -185,7 +185,7 @@ export default function LiveComWidgetPanel({ settings, onChange }: LiveComWidget
             onChange={(event) => onChange({ ...settings, showBranding: event.target.checked })}
             className="rounded border-gray-300 text-green-600"
           />
-          Show "Powered by OyamaCRM" footer
+          Show "Powered by OyamaCRM v1.3" footer
         </label>
       </div>
 

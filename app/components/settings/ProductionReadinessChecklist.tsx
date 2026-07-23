@@ -15,7 +15,7 @@ export default function ProductionReadinessChecklist({ items }: { items: Readine
       <div className="border-b border-gray-200 px-5 py-4">
         <h2 className="text-sm font-semibold text-gray-900">Production Readiness Checklist</h2>
         <p className="mt-1 text-sm text-gray-500">
-          This checklist tracks the operational and security capabilities needed before calling OyamaCRM production-ready.
+          This checklist tracks the operational and security capabilities needed before calling OyamaCRM v1.3 production-ready.
         </p>
       </div>
       <div className="grid gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 sm:grid-cols-2">

@@ -4,6 +4,15 @@ Last updated: 2026-07-22 (OyamaEmail builder, image delivery, and configurable p
 
 This file is the release-gate source of truth for production readiness.
 
+## 2026-07-22 DonorCRM v1.3 Shell Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Donor desktop navigation is full-width and does not consume content space with a sidebar | Working | `app/components/layout/AppShell.tsx` always renders the Donor mega menu for authenticated Donor CRM routes and disables the desktop sidebar path. |
+| Top bar provides central enterprise controls | Working | `app/components/layout/TopBar.tsx` combines record/tool command search, app launcher, quick add, notifications, messages, Steward, help, account controls, and reporting context. |
+| Shared CRM surfaces are lighter and more functional | Working | `app/globals.css` moves shared page, card, header, border, selection, and focus surfaces to neutral/indigo tokens; individual workflow controls retain their semantic status colors. |
+| Product naming is consistently presented as OyamaCRM v1.3 | Working | Root metadata, manifest, login, settings/about, common user-facing messages, and outbound fallback identity have been updated. Existing technical API/asset/embed identifiers intentionally remain backwards compatible. |
+
 ## 2026-07-22 OyamaEmail Image Delivery Snapshot
 
 | Release gate | Status | Evidence |
@@ -13,7 +22,9 @@ This file is the release-gate source of truth for production readiness.
 | Advanced Editor bullets and numbered lists remain formatted after delivery | Working | Top-level Advanced HTML uses the shared email-safe rich-text formatter, which inlines list markers and spacing and produces readable plain-text list fallbacks. |
 | Builder distinguishes managed header/footer chrome from in-email content and provides uploadable image-column templates | Working | `OyamaEmailBuilderWorkspace` explicitly labels the organization header plus footer/unsubscribe bar as rendered outside the canvas. Responsive Two Image Cards and Image + Copy templates insert direct-upload image slots. |
 | Builder organizes authoring blocks and merge data into focused drawers | Working | `OyamaEmailBuilderWorkspace` provides collapsible Content, Layout, and Engagement drawers, a closed-by-default Merge Field Drawer, reusable email-section templates, and draggable palette blocks with canvas insertion targets. |
-| Email and letter authoring bars preserve canvas space | Working | The email workspace condenses workflow, readiness, zoom, preview, and managed-chrome guidance into a compact two-row bar. The letter workspace now has categorized Writing, Layout, Giving & sign-off, and Data & Merge Fields drawers with click-or-drag insertion into the printable document canvas. |
+| Email and letter authoring bars preserve canvas space | Working | The email workspace condenses workflow, readiness, zoom, preview, and managed-chrome guidance into a compact two-row indigo/blue bar. The letter workspace now has categorized Writing, Layout, Giving & sign-off, and Data & Merge Fields drawers with click-or-drag insertion into the printable document canvas; File, Insert, Format, Layout, Review, and View tools open on demand, and AI stays closed until staff choose the chat control. |
+| Template libraries provide focused, live-data organization | Working | Email and letter libraries expose real ownership, authoring-provenance, category, lifecycle, search, sort, import, export, and layout controls in dedicated browse rails rather than a generic template list. |
+| Communication branding has one discoverable source of truth | Working | Settings → Branding → Communication Header + Footer contains global email chrome plus a direct Letter Output Defaults panel. The printed-letter upper-right header can globally use organization information, donor/recipient name and address, or custom merge fields; logo, header, footer, default signature, page number, and footer contact options are controlled there. Email and letter editors link to these inherited values rather than duplicating the controls. |
 | Production public origin is configured and documented for self-hosted delivery | Working | `.env.production` points `NEXT_PUBLIC_APP_URL` / `FRONTEND_ORIGIN` at the public CRM host; `.env.example` and `docs/HOSTINGER_DEPLOY_README.md` document the requirement. |
 | Live Gmail/Outlook inbox image verification | Partially Working | Automated rendering confirms absolute image URLs; repeat one real proof send after deployment/restart to verify remote inbox access and any receiver-side image-proxy policy. |
 

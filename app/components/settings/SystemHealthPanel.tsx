@@ -156,7 +156,7 @@ export default function SystemHealthPanel({ buildInfo }: { buildInfo: PublicBuil
           <h2 className="text-sm font-semibold text-gray-900">Version & Build</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex items-start justify-between gap-4">
-              <dt className="text-gray-500">OyamaCRM Version</dt>
+              <dt className="text-gray-500">OyamaCRM v1.3 Version</dt>
               <dd className="font-medium text-gray-900">{runtime.version}</dd>
             </div>
             <div className="flex items-start justify-between gap-4">

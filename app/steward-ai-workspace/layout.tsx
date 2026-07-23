@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 
 /** PWA + mobile metadata for the Steward workspace route. */
 export const metadata: Metadata = {
-  title: "AGENTSteward — OyamaCRM",
+  title: "AGENTSteward — OyamaCRM v1.3",
   description: "AI-powered CRM assistant for donor intelligence and fundraising.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

@@ -118,7 +118,7 @@ export default function LoginPage() {
             <div className="rounded-[22px] border border-slate-200/90 bg-white px-6 py-7 shadow-[0_20px_52px_rgba(15,23,42,0.10)] backdrop-blur sm:px-8 sm:py-8">
               <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Secure workspace</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Sign in to OyamaCRM</h2>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Sign in to OyamaCRM v1.3</h2>
                 <p className="mt-1.5 text-sm text-slate-500">Enter your credentials to continue to your organization.</p>
               </div>
 
@@ -239,7 +239,7 @@ export default function LoginPage() {
             </div>
 
             <p className="mt-6 text-center text-[11px] text-slate-400">
-              © {new Date().getFullYear()} OyamaCRM · All rights reserved
+              © {new Date().getFullYear()} OyamaCRM v1.3 · All rights reserved
             </p>
           </div>
         </section>

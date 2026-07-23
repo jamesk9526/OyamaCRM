@@ -819,7 +819,7 @@ export async function executeStewardTool(
         organizationId: context.organizationId,
         organizationName: organization?.name ?? "Organization",
         senderIdentity: {
-          fromName: settings?.smtpFromName ?? organization?.name ?? "OyamaCRM Steward",
+          fromName: settings?.smtpFromName ?? organization?.name ?? "OyamaCRM v1.3 Steward",
           fromEmail: settings?.smtpFromEmail ?? null,
         },
         themeDefaults: {
@@ -1463,7 +1463,7 @@ export async function executeStewardTool(
           name: asText(input?.name, `Steward Draft: ${donorName}`, 180),
           subject,
           previewText,
-          fromName: settings?.smtpFromName || organization?.name || "OyamaCRM Steward",
+          fromName: settings?.smtpFromName || organization?.name || "OyamaCRM v1.3 Steward",
           fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
           replyToEmail: settings?.smtpFromEmail || "support@oyamacrm.org",
           bodyText: bodyPlainText,

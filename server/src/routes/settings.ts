@@ -1441,7 +1441,7 @@ router.post("/email/provider/test", requireAuth, requireRole("admin"), async (re
       await sendMicrosoftGraphMail({
         provider: activeProvider,
         toEmail,
-        organizationName: organization?.name ?? "OyamaCRM",
+        organizationName: organization?.name ?? "OyamaCRM v1.3",
         accessToken: activeProvider.graphAccessToken,
       });
 
@@ -1483,7 +1483,7 @@ router.post("/email/provider/test", requireAuth, requireRole("admin"), async (re
       : (settings?.smtpSecure ?? smtpSecureDefault);
     const smtpUser = valueOrEnv(settings?.smtpUser, envSmtp.smtpUser);
     const smtpPass = valueOrEnv(settings?.smtpPass, envSmtp.smtpPass);
-    const smtpFromName = valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || organization?.name || "OyamaCRM");
+    const smtpFromName = valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || organization?.name || "OyamaCRM v1.3");
     const smtpFromEmail = valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail);
 
     if (!smtpHost || !smtpPort || !smtpFromEmail) {
@@ -1507,9 +1507,9 @@ router.post("/email/provider/test", requireAuth, requireRole("admin"), async (re
     await transporter.sendMail({
       from: `"${smtpFromName}" <${smtpFromEmail}>`,
       to: toEmail,
-      subject: `${provider.provider === "microsoft_365_smtp" ? "Microsoft 365 SMTP" : "SMTP"} Provider Test - ${organization?.name ?? "OyamaCRM"}`,
-      text: `This is a provider test message from ${organization?.name ?? "OyamaCRM"}.`,
-      html: `<p>This is a provider test message from <strong>${organization?.name ?? "OyamaCRM"}</strong>.</p>`,
+      subject: `${provider.provider === "microsoft_365_smtp" ? "Microsoft 365 SMTP" : "SMTP"} Provider Test - ${organization?.name ?? "OyamaCRM v1.3"}`,
+      text: `This is a provider test message from ${organization?.name ?? "OyamaCRM v1.3"}.`,
+      html: `<p>This is a provider test message from <strong>${organization?.name ?? "OyamaCRM v1.3"}</strong>.</p>`,
     });
 
     await logAudit({
@@ -1558,7 +1558,7 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
         smtpSecure: envSmtp.smtpSecure,
         smtpUser: envSmtp.smtpUser,
         smtpPass: envSmtp.smtpPass,
-        smtpFromName: envSmtp.smtpFromName || "OyamaCRM",
+        smtpFromName: envSmtp.smtpFromName || "OyamaCRM v1.3",
         smtpFromEmail: envSmtp.smtpFromEmail,
       });
     }
@@ -1580,7 +1580,7 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
       smtpSecure: settings?.smtpSecure ?? envSmtp.smtpSecure,
       smtpUser: valueOrEnv(settings?.smtpUser, envSmtp.smtpUser),
       smtpPass: valueOrEnv(settings?.smtpPass, envSmtp.smtpPass),
-      smtpFromName: valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || org?.name || "OyamaCRM"),
+      smtpFromName: valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || org?.name || "OyamaCRM v1.3"),
       smtpFromEmail: valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail),
     });
   } catch {
@@ -1727,7 +1727,7 @@ router.post("/smtp/test", requireAuth, requireRole("admin"), async (req: Request
     const smtpPass = valueOrEnv(body.smtpPass, valueOrEnv(settings?.smtpPass, envSmtp.smtpPass));
     const smtpFromName = valueOrEnv(
       body.smtpFromName,
-      valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || organization?.name || "OyamaCRM"),
+      valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || organization?.name || "OyamaCRM v1.3"),
     );
     const smtpFromEmail = valueOrEnv(body.smtpFromEmail, valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail));
 
@@ -1752,9 +1752,9 @@ router.post("/smtp/test", requireAuth, requireRole("admin"), async (req: Request
     await transporter.sendMail({
       from: `"${smtpFromName}" <${smtpFromEmail}>`,
       to: toEmail,
-      subject: `SMTP Test - ${organization?.name ?? "OyamaCRM"}`,
-      text: `This is a live SMTP test from ${organization?.name ?? "OyamaCRM"}.`,
-      html: `<p>This is a live SMTP test from <strong>${organization?.name ?? "OyamaCRM"}</strong>.</p>`,
+      subject: `SMTP Test - ${organization?.name ?? "OyamaCRM v1.3"}`,
+      text: `This is a live SMTP test from ${organization?.name ?? "OyamaCRM v1.3"}.`,
+      html: `<p>This is a live SMTP test from <strong>${organization?.name ?? "OyamaCRM v1.3"}</strong>.</p>`,
     });
 
     logAudit({

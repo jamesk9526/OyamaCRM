@@ -29,7 +29,7 @@ export default function BoardShell({ children }: { children: React.ReactNode }) 
           <div className="w-7 h-7 rounded-md bg-green-600 flex items-center justify-center text-white font-bold text-sm select-none">
             O
           </div>
-          <span className="text-sm font-semibold text-gray-900">OyamaCRM</span>
+          <span className="text-sm font-semibold text-gray-900">OyamaCRM v1.3</span>
           {/* Board-only badge */}
           <span className="ml-2 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">
             Board View

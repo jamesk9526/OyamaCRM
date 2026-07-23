@@ -640,7 +640,7 @@ export default function CompassionClientImportWizard() {
                 <p className="text-sm text-yellow-700 mt-1">
                   The column <strong>&quot;SSN&quot;</strong> contains sensitive Social Security Numbers.
                   This field is <strong>blocked</strong> and will <strong>NOT</strong> be imported.
-                  For security, SSN values will never be stored in OyamaCRM.
+                  For security, SSN values will never be stored in OyamaCRM v1.3.
                   The column has been automatically set to &ldquo;Do Not Import&rdquo;.
                 </p>
                 <p className="text-xs text-yellow-600 mt-2">

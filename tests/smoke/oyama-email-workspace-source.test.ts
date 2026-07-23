@@ -76,8 +76,8 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Test Recipient Email");
     expect(workspace).toContain("Schedule Campaign");
     expect(workspace).toContain("Send Test Email");
-    expect(workspace).toContain("My Templates");
-    expect(workspace).toContain("Shared Templates");
+    expect(workspace).toContain("My templates");
+    expect(workspace).toContain("Shared with me");
     expect(workspace).toContain("AI-assisted");
     expect(builder).toContain("Recipient Preview");
     expect(builder).toContain('href="/oyama-email/docs"');

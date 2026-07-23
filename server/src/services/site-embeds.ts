@@ -2179,7 +2179,7 @@ export function buildSiteEmbedLoaderScript(args: {
 
     if (showBranding) {
       var bFoot = el('div', { padding: '8px 18px', borderTop: '1px solid ' + themeColor('borderColor', '#f3f4f6'), textAlign: 'center', fontSize: '11px', color: '#d1d5db', flexShrink: '0' },
-        { html: 'Powered by <a href="https://oyamacrm.com" target="_blank" rel="noopener" style="color:#d1d5db;text-decoration:none;font-weight:600">OyamaCRM</a>' });
+        { html: 'Powered by <a href="https://oyamacrm.com" target="_blank" rel="noopener" style="color:#d1d5db;text-decoration:none;font-weight:600">OyamaCRM v1.3</a>' });
       ap(panel, hdr, rBar, pBody, bFoot);
     } else {
       ap(panel, hdr, rBar, pBody);

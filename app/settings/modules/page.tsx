@@ -274,7 +274,7 @@ export default function ModulesSettingsPage() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">CRM Modules</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Feature status matrix for all OyamaCRM modules, data sources, and configuration areas.
+          Feature status matrix for all OyamaCRM v1.3 modules, data sources, and configuration areas.
         </p>
       </div>
 

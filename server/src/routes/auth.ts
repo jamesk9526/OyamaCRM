@@ -361,7 +361,7 @@ router.post("/login", async (req: Request, res: Response) => {
       await sendOrganizationEmail({
         organizationId: user.organizationId,
         to: user.email,
-        subject: "Your OyamaCRM sign-in code",
+        subject: "Your OyamaCRM v1.3 sign-in code",
         text: `Your sign-in code is ${code}. It expires in ${authSecurity.mfaCodeTtlMinutes} minutes.`,
         html: `<p>Your sign-in code is <strong>${code}</strong>.</p><p>This code expires in ${authSecurity.mfaCodeTtlMinutes} minutes.</p>`,
       });
@@ -575,7 +575,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     await sendOrganizationEmail({
       organizationId: user.organizationId,
       to: user.email,
-      subject: "Reset your OyamaCRM password",
+      subject: "Reset your OyamaCRM v1.3 password",
       text: `Use this link to reset your password: ${resetUrl}\n\nThis link expires in ${authSecurity.passwordResetTtlMinutes} minutes.`,
       html: `<p>Use this link to reset your password:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in ${authSecurity.passwordResetTtlMinutes} minutes.</p>`,
     });

@@ -618,22 +618,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
           </div>
         );
       })}
-      <button
-        type="button"
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent("crm:set-donor-shell-layout", { detail: { layout: "sidebar" } }));
-          setOpenSection(null);
-          setDropdownAnchor(null);
-        }}
-        className={`ml-auto flex h-8 shrink-0 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-semibold shadow-sm transition-colors ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint} hover:bg-slate-50`}
-        title="Switch to sidebar navigation"
-        aria-label="Switch to sidebar navigation"
-      >
-        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h4v12H4V6Zm6 0h10M10 12h10M10 18h10" />
-        </svg>
-        <span>Use Sidebar</span>
-      </button>
+      <span className="ml-auto hidden shrink-0 text-[11px] font-medium text-slate-400 xl:inline">Ctrl K to search</span>
     </nav>
 
     {activeMobileSection?.columns ? (

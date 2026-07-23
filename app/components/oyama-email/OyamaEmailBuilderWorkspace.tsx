@@ -364,15 +364,6 @@ const PREFERENCE_OPTIONS = [
   { value: "STEWARDSHIP", label: "Stewardship" },
 ];
 
-const FONT_FAMILY_OPTIONS = [
-  { value: "Arial, Helvetica, sans-serif", label: "Arial" },
-  { value: "'Helvetica Neue', Helvetica, Arial, sans-serif", label: "Helvetica Neue" },
-  { value: "Georgia, 'Times New Roman', serif", label: "Georgia" },
-  { value: "Tahoma, Geneva, sans-serif", label: "Tahoma" },
-  { value: "Verdana, Geneva, sans-serif", label: "Verdana" },
-  { value: "'Trebuchet MS', Helvetica, sans-serif", label: "Trebuchet" },
-];
-
 const PREMADE_SECTION_CHOICES = [
   {
     id: "brandHeader",
@@ -2715,7 +2706,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,0.12),transparent_28%),radial-gradient(circle_at_94%_8%,rgba(59,130,246,0.10),transparent_25%),linear-gradient(180deg,#f8fafc_0%,#eef3f7_100%)]">
+    <div className="flex min-h-[100dvh] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(129,140,248,0.13),transparent_28%),radial-gradient(circle_at_94%_8%,rgba(96,165,250,0.13),transparent_25%),linear-gradient(180deg,#fafbff_0%,#eef3fb_100%)]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-white/80 bg-white/90 shadow-[0_10px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         {/* Row 1: back + name + status + actions */}
@@ -2723,7 +2714,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           <button
             type="button"
             onClick={() => router.push("/oyama-email/templates")}
-            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-x-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-x-0.5 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800"
             title="Back to template library"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
@@ -2740,14 +2731,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               onChange={(e) => setDraftField("name", e.target.value)}
               onBlur={() => setEditingName(false)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingName(false); }}
-              className="h-8 flex-1 rounded-lg border border-emerald-400 bg-white px-2 text-base font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="h-8 flex-1 rounded-lg border border-indigo-400 bg-white px-2 text-base font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoFocus
             />
           ) : (
             <button
               type="button"
               onClick={() => setEditingName(true)}
-              className="min-w-0 flex-1 truncate text-left text-base font-semibold tracking-tight text-slate-950 transition hover:text-emerald-700 sm:text-lg"
+              className="min-w-0 flex-1 truncate text-left text-base font-semibold tracking-tight text-slate-950 transition hover:text-indigo-700 sm:text-lg"
               title="Click to rename"
             >
               {draft.name || "Untitled Email Template"}
@@ -2762,7 +2753,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             <Link
               href="/oyama-email/docs"
-              className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+              className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800"
             >
               Docs
             </Link>
@@ -2786,14 +2777,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             <button
               type="button"
               onClick={() => setTestEmailDialogOpen(true)}
-              className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 hover:shadow-md"
+              className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 hover:shadow-md"
             >
               Send Test
             </button>
             {canPublish ? (
               <Link
                 href={publishHref}
-                className="inline-flex h-8 items-center rounded-lg border border-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-700 px-3 text-xs font-semibold text-white shadow-[0_6px_14px_rgba(5,150,105,0.18)] transition hover:from-emerald-600 hover:to-teal-600 sm:px-4"
+                className="inline-flex h-8 items-center rounded-lg border border-indigo-700 bg-gradient-to-r from-indigo-700 to-blue-700 px-3 text-xs font-semibold text-white shadow-[0_6px_14px_rgba(67,56,202,0.18)] transition hover:from-indigo-600 hover:to-blue-600 sm:px-4"
               >
                 Next: Publish →
               </Link>
@@ -2817,7 +2808,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               type="button"
               onClick={() => setActiveTab("edit")}
               className={["h-9 rounded-lg px-3 text-sm font-semibold transition-all",
-                activeTab === "edit" ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+                activeTab === "edit" ? "bg-white text-indigo-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
               ].join(" ")}
             >
               Design
@@ -2832,19 +2823,19 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           </div>
           <div className="hidden min-w-[170px] flex-1 items-center gap-2 lg:flex">
             <div className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-slate-200/80 xl:max-w-32">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500" style={{ width: `${readinessPercent}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-500" style={{ width: `${readinessPercent}%` }} />
             </div>
             <span className="whitespace-nowrap text-[11px] font-semibold text-slate-700">{readinessPercent}% ready</span>
             <span title="Select a block to edit · drag to reorder · double-click for advanced controls" className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 xl:inline">{draft.template.blocks.length} blocks · {builderWarnings.length ? `${builderWarnings.length} to review` : "Preflight clear"}</span>
           </div>
           <div className="mb-1 flex min-w-max items-center gap-2">
             <details className="relative hidden xl:block">
-              <summary className="cursor-pointer list-none rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100">Email chrome</summary>
-              <div className="absolute right-0 top-8 z-50 w-80 rounded-lg border border-emerald-200 bg-white p-3 text-xs text-emerald-950 shadow-xl">
+              <summary className="cursor-pointer list-none rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-100">Email chrome</summary>
+              <div className="absolute right-0 top-8 z-50 w-80 rounded-lg border border-indigo-200 bg-white p-3 text-xs text-indigo-950 shadow-xl">
                 <p className="font-semibold">{managedHeaderEnabled ? "Organization header is included automatically" : "Organization header is not configured"}</p>
-                <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{managedHeaderEnabled ? "It appears above your canvas in the sent email. Use In-body Header only when you intentionally want a second header." : "Set it in Branding Settings; an In-body Header is part of this email’s content."}</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-indigo-800">{managedHeaderEnabled ? "It appears above your canvas in the sent email. Use In-body Header only when you intentionally want a second header." : "Set it in Branding Settings; an In-body Header is part of this email’s content."}</p>
                 <p className="mt-2 font-semibold">{managedFooterEnabled ? "Footer and compliance bar are managed automatically" : "Footer controls need configuration"}</p>
-                <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Manage footer text and address in Email Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-indigo-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Manage footer text and address in Email Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
               </div>
             </details>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-1.5">
@@ -2866,7 +2857,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 onClick={() => setActiveTab("edit")}
                 title="Desktop view"
                 className={["flex h-7 w-8 items-center justify-center text-slate-600 transition-colors",
-                  activeTab !== "mobilePreview" ? "bg-emerald-50 text-emerald-700" : "bg-white hover:bg-slate-50"
+                  activeTab !== "mobilePreview" ? "bg-indigo-50 text-indigo-700" : "bg-white hover:bg-slate-50"
                 ].join(" ")}
               >
                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
@@ -2878,7 +2869,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 onClick={() => setActiveTab("mobilePreview")}
                 title="Mobile view"
                 className={["flex h-7 w-8 items-center justify-center border-l border-slate-200 text-slate-600 transition-colors",
-                  activeTab === "mobilePreview" ? "bg-emerald-50 text-emerald-700" : "bg-white hover:bg-slate-50"
+                  activeTab === "mobilePreview" ? "bg-indigo-50 text-indigo-700" : "bg-white hover:bg-slate-50"
                 ].join(" ")}
               >
                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
@@ -2889,14 +2880,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           </div>
         </div>
         {error ? <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}
-        {notice ? <div className="border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{notice}</div> : null}
+        {notice ? <div className="border-t border-indigo-100 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">{notice}</div> : null}
       </header>
 
       {/* ── 3-col layout ─────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3 lg:flex-row lg:gap-5 lg:overflow-hidden lg:p-5 xl:p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
         {/* LEFT PANEL */}
-        <aside className="order-1 flex max-h-[42dvh] w-full flex-none flex-col overflow-hidden rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[320px]">
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+        <aside className="order-1 flex max-h-[36dvh] w-full flex-none flex-col overflow-hidden rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[272px]">
+          <div className="flex-1 overflow-y-auto px-3 py-3">
             {/* Block Library */}
             <div className="mb-4">
               <button
@@ -2935,7 +2926,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                                   draggable
                                   onDragStart={(event) => handlePaletteDragStart(event, choice.type)}
                                   onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)}
-                                  className="group flex min-h-[58px] cursor-grab items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-left text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 active:cursor-grabbing"
+                                  className="group flex min-h-[54px] cursor-grab items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-left text-[11px] font-semibold text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800 active:cursor-grabbing"
                                 >
                                   <BlockTypeIcon type={choice.type} />
                                   {choice.label}
@@ -2943,11 +2934,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                               ))}
                             </div>
                             {drawer.id === "layout" ? (
-                              <div className="mt-3 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">Ready-made layouts</p>
+                              <div className="mt-3 space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/70 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-800">Ready-made layouts</p>
                                 {COLUMN_TEMPLATE_CHOICES.map((template) => (
-                                  <button key={template.id} type="button" onClick={() => handleInsertColumnTemplate(template.id)} className="w-full rounded-md border border-emerald-200 bg-white px-2 py-2 text-left text-[11px] hover:border-emerald-400 hover:bg-emerald-50">
-                                    <span className="block font-semibold text-emerald-950">{template.label}</span><span className="block text-emerald-800">{template.description}</span>
+                                  <button key={template.id} type="button" onClick={() => handleInsertColumnTemplate(template.id)} className="w-full rounded-md border border-indigo-200 bg-white px-2 py-2 text-left text-[11px] hover:border-indigo-400 hover:bg-indigo-50">
+                                    <span className="block font-semibold text-indigo-950">{template.label}</span><span className="block text-indigo-800">{template.description}</span>
                                   </button>
                                 ))}
                               </div>
@@ -2956,7 +2947,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                               <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
                                 <summary className="cursor-pointer text-[11px] font-semibold text-slate-700">Browse reusable email sections</summary>
                                 <div className="mt-2 space-y-1.5">
-                                  {PREMADE_SECTION_CHOICES.map((preset) => <button key={preset.id} type="button" onClick={() => handleInsertPremadeSection(preset.id)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-[11px] hover:border-emerald-300 hover:bg-emerald-50"><span className="font-semibold text-slate-700">{preset.label}</span><span className="block text-slate-500">{preset.description}</span></button>)}
+                                  {PREMADE_SECTION_CHOICES.map((preset) => <button key={preset.id} type="button" onClick={() => handleInsertPremadeSection(preset.id)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-[11px] hover:border-indigo-300 hover:bg-indigo-50"><span className="font-semibold text-slate-700">{preset.label}</span><span className="block text-slate-500">{preset.description}</span></button>)}
                                 </div>
                               </details>
                             ) : null}
@@ -3305,7 +3296,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="order-3 flex max-h-[46dvh] w-full flex-none flex-col overflow-hidden rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[364px]">
+        <aside className="order-3 flex max-h-[40dvh] w-full flex-none flex-col overflow-hidden rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[320px]">
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <p className="text-base font-semibold text-slate-950">Email Settings</p>
             {builderWarnings.length > 0 ? (
@@ -3449,22 +3440,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               </select>
             </label>
 
-            {/* Background Color */}
             <div className="mt-4 border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold text-slate-700">Background Color</p>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="color"
-                  value={draft.template.backgroundColor}
-                  onChange={(e) => setTemplateDocument({ ...draftRef.current.template, backgroundColor: e.target.value })}
-                  className="h-8 w-10 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
-                />
-                <input
-                  value={draft.template.backgroundColor}
-                  onChange={(e) => setTemplateDocument({ ...draftRef.current.template, backgroundColor: e.target.value })}
-                  placeholder="#ffffff"
-                  className="h-8 flex-1 rounded-lg border border-slate-200 px-2 font-mono text-xs text-slate-800 focus:border-emerald-400 focus:outline-none"
-                />
+              <p className="text-xs font-semibold text-slate-700">Canvas Background</p>
+              <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] leading-5 text-indigo-950">
+                Canvas background is inherited from Branding Defaults so every sent email uses the same organization presentation.
+                <Link href="/settings/branding#email-defaults" className="ml-1 font-semibold text-indigo-700 hover:underline">Edit email defaults →</Link>
               </div>
             </div>
 
@@ -3672,50 +3652,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 {inspectorTab === "style" ? (
                   <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Email Typography Defaults</p>
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                      <p className="text-[11px] text-emerald-900">Use global branding to sync font, canvas width, sender identity, footer, and new header defaults.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = draftFromBranding(globalBranding);
-                          setTemplateDocument({
-                            ...draftRef.current.template,
-                            backgroundColor: next.template.backgroundColor,
-                            contentWidth: next.template.contentWidth,
-                            fontFamily: next.template.fontFamily,
-                            textColor: draftRef.current.template.textColor,
-                            linkColor: draftRef.current.template.linkColor,
-                            baseFontSize: draftRef.current.template.baseFontSize,
-                            lineHeight: draftRef.current.template.lineHeight,
-                          });
-                          if (!draftRef.current.fromName.trim()) {
-                            const orgName = globalBranding.organizationDisplayName || globalBranding.legalOrganizationName || next.fromName;
-                            setDraftField("fromName", composeFromName(currentUserDisplayName, orgName));
-                          }
-                          setDraftField("settings", {
-                            ...draftRef.current.settings,
-                            physicalAddress: next.settings.physicalAddress,
-                            footerBrandingText: next.settings.footerBrandingText,
-                          });
-                        }}
-                        className="h-7 rounded-md border border-emerald-600 bg-emerald-600 px-2.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
-                      >
-                        Apply Global Branding
-                      </button>
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
+                      <p className="text-[11px] text-indigo-950">Font family, canvas width, sender identity, organization header, and footer are inherited from global Branding Defaults.</p>
+                      <Link href="/settings/branding#communication-header-footer" className="text-[11px] font-semibold text-indigo-700 hover:underline">Edit Branding Defaults →</Link>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Font Family
-                        <select
-                          value={draft.template.fontFamily}
-                          onChange={(e) => setTemplateDocument({ ...draftRef.current.template, fontFamily: e.target.value })}
-                          className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-800"
-                        >
-                          {FONT_FAMILY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </label>
                       <label className="block text-xs font-semibold text-slate-700">
                         Base Font Size
                         <input
@@ -3736,17 +3677,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           step={0.1}
                           value={draft.template.lineHeight}
                           onChange={(e) => setTemplateDocument({ ...draftRef.current.template, lineHeight: clampNumber(Number(e.target.value) || 1.6, 1.2, 2.2) })}
-                          className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-800"
-                        />
-                      </label>
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Canvas Width
-                        <input
-                          type="number"
-                          min={420}
-                          max={760}
-                          value={draft.template.contentWidth}
-                          onChange={(e) => setTemplateDocument({ ...draftRef.current.template, contentWidth: clampNumber(Number(e.target.value) || 600, 420, 760) })}
                           className="mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-800"
                         />
                       </label>

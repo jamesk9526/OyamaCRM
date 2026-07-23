@@ -823,7 +823,7 @@ router.post("/actions/draft-thank-you-new-donors", requirePermission("edit:commu
         subject: "Thank you for your first gift",
         purpose: "THANK_YOU",
         previewText: `Stewardship thank-you draft for ${pluralizeDonor(emailable.length)} in ${scopeLabel}.`,
-        fromName: settings?.smtpFromName || "OyamaCRM",
+        fromName: settings?.smtpFromName || "OyamaCRM v1.3",
         fromEmail: settings?.smtpFromEmail || "noreply@oyamacrm.org",
         bodyText: [
           "Dear Friend,",

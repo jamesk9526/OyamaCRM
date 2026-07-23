@@ -2,18 +2,18 @@
 @import "./globals-animations.css";
 
 :root {
-  --background: #f6fbf8;
+  --background: #f7f8fc;
   --foreground: #0f172a;
-  --accent: #16a34a;
-  --accent-light: #f0fdf4;
+  --accent: #4f46e5;
+  --accent-light: #eef2ff;
   --crm-surface: #ffffff;
-  --crm-surface-subtle: #f8faf9;
-  --crm-border: #dce6e0;
-  --crm-border-strong: #c7d8ce;
+  --crm-surface-subtle: #f8fafc;
+  --crm-border: #e2e8f0;
+  --crm-border-strong: #cbd5e1;
   --crm-muted-text: #64748b;
-  --crm-accent: #047857;
-  --crm-accent-soft: #ecfdf5;
-  --crm-focus-ring: rgba(16, 185, 129, 0.28);
+  --crm-accent: #4f46e5;
+  --crm-accent-soft: #eef2ff;
+  --crm-focus-ring: rgba(99, 102, 241, 0.24);
 }
 
 @theme inline {
@@ -64,8 +64,8 @@ body {
 /* Shared CRM visual language primitives for calm, consistent page surfaces. */
 .crm-page-surface {
   background:
-    radial-gradient(circle at 8% 0%, rgba(209, 250, 229, 0.34), transparent 28rem),
-    linear-gradient(180deg, #f4f8f5 0%, #f8faf9 45%, #f3f6f4 100%);
+    radial-gradient(circle at 8% 0%, rgba(224, 231, 255, 0.42), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #ffffff 46%, #f8fafc 100%);
 }
 
 .crm-shell-surface {
@@ -86,7 +86,7 @@ body {
 }
 
 .crm-page-header-surface {
-  background: linear-gradient(135deg, #ffffff 0%, #ffffff 62%, #f0fdf4 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 62%, #f5f7ff 100%);
   border-color: var(--crm-border);
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
 }
@@ -98,13 +98,13 @@ body {
 
 .crm-fonts :is(input, textarea, select):focus-visible {
   outline: none;
-  border-color: #34d399;
+  border-color: #818cf8;
   box-shadow: 0 0 0 3px var(--crm-focus-ring);
 }
 
 .crm-fonts ::selection {
-  background: #a7f3d0;
-  color: #052e24;
+  background: #c7d2fe;
+  color: #1e1b4b;
 }
 
 .crm-soft-divider {
@@ -115,15 +115,15 @@ body {
   color: var(--crm-muted-text);
 }
 
-/* Global app chrome keeps the green accent while borrowing the reference titlebar feel. */
+/* Shared application chrome stays calm and functional so dense CRM work remains legible. */
 [data-topbar-root="true"] {
   background: #ffffff !important;
   border-bottom-color: #dbe4de !important;
 }
 
 [data-topbar-root="true"][data-donor-topbar="true"] {
-  background: radial-gradient(circle at 12% 0%, #05412e 0, #032b21 44%, #011814 100%) !important;
-  border-bottom-color: rgba(167, 243, 208, 0.2) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-bottom-color: #e2e8f0 !important;
 }
 
 /* Windows Explorer-inspired workspace command surfaces. */

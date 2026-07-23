@@ -98,7 +98,7 @@ function PresentationSummary({ result, onBack }: { result: ReportRunResult | nul
       <div className="mt-6 rounded-lg border border-slate-200 p-5">
         <h2 className="text-base font-semibold text-slate-950">Leadership Notes</h2>
         <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-          <li>Report generated from live OyamaCRM data on {new Date(result.generatedAt).toLocaleString()}.</li>
+          <li>Report generated from live OyamaCRM v1.3 data on {new Date(result.generatedAt).toLocaleString()}.</li>
           <li>Use this summary for board packet review, leadership prep, and donor follow-up planning.</li>
           <li>Exports are placeholders unless a live export action has a backing endpoint or browser CSV generation.</li>
         </ul>

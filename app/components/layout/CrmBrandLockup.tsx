@@ -29,7 +29,7 @@ export default function CrmBrandLockup({
       <div className={`inline-flex items-center justify-center ${compact ? "rounded-none px-0 py-0" : "rounded-xl px-3 py-1.5 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.8)]"} ${logoFrameClass}`}>
         <Image
           src={logoSrc}
-          alt={`OyamaCRM ${moduleLabel}`}
+          alt={`OyamaCRM v1.3 ${moduleLabel}`}
           width={compact ? 72 : 300}
           height={compact ? 72 : 100}
           className={compact ? "h-11 w-11 object-contain" : "h-11 w-auto object-contain"}

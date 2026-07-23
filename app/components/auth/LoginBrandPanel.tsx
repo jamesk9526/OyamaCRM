@@ -40,7 +40,7 @@ export function LoginMobileBrand() {
       <div className="relative z-10 flex min-h-28 items-center px-6">
         <Image
           src={OYAMA_PRODUCT_LOGO_LIGHT}
-          alt="OyamaCRM"
+          alt="OyamaCRM v1.3"
           width={220}
           height={62}
           priority
@@ -62,7 +62,7 @@ export default function LoginBrandPanel() {
         <div>
           <Image
             src={OYAMA_PRODUCT_LOGO_LIGHT}
-            alt="OyamaCRM"
+            alt="OyamaCRM v1.3"
             width={260}
             height={74}
             priority

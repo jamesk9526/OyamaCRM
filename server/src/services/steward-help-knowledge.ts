@@ -42,7 +42,7 @@ const HELP_GUIDES: StewardHelpGuide[] = [
   { slug: "compassion-client-import", title: "Import Clients Safely", scope: "compassion", summary: "Use validator-backed import with privacy safeguards.", tags: ["import", "clients", "privacy", "validation"] },
   { slug: "compassion-public-scheduling-widget", title: "Configure Public Scheduling Widget", scope: "compassion", summary: "Publish server-validated appointment booking slots.", tags: ["widget", "public", "appointments", "slots"] },
 
-  { slug: "global-getting-started", title: "Get Started With OyamaCRM", scope: "global", summary: "Navigate modules and core workspace patterns.", tags: ["getting-started", "modules", "navigation"] },
+  { slug: "global-getting-started", title: "Get Started With OyamaCRM v1.3", scope: "global", summary: "Navigate modules and core workspace patterns.", tags: ["getting-started", "modules", "navigation"] },
   { slug: "global-permissions-and-readiness", title: "Understand Roles, Permissions, And Feature Readiness", scope: "global", summary: "Understand role permissions and readiness labels.", tags: ["permissions", "security", "roles"] },
   { slug: "global-email-provider-setup", title: "Set Up System Email Provider", scope: "global", summary: "Configure SMTP or Microsoft provider and run tests.", tags: ["email", "smtp", "provider", "microsoft"] },
   { slug: "global-microsoft-graph-connect", title: "Connect Microsoft Graph For Outbound Email", scope: "global", summary: "Complete OAuth connection and verify Graph sends.", tags: ["microsoft-graph", "oauth", "email"] },

@@ -67,7 +67,7 @@ export async function maintenanceModeGuard(req: Request, res: Response, next: Ne
   res.status(503).json({
     error: {
       code: "MAINTENANCE_MODE",
-      message: "OyamaCRM is temporarily in maintenance mode for a system update.",
+      message: "OyamaCRM v1.3 is temporarily in maintenance mode for a system update.",
     },
   });
 }

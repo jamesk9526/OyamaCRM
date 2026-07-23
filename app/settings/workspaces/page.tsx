@@ -9,7 +9,6 @@ import {
   saveWorkspaceSettings,
   type WorkspaceSettings,
   type DonorAccentTone,
-  type DonorNavigationLayout,
   type WorkspaceKey,
 } from "@/app/lib/workspace-settings";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -158,19 +157,12 @@ export default function WorkspacesSettingsPage() {
       </section>
 
       <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-900">DonorCRM Shell</h2>
+        <h2 className="text-sm font-semibold text-gray-900">DonorCRM v1.3 Shell</h2>
 
-        <label className="text-sm text-gray-700 block">
-          Desktop navigation layout
-          <select
-            value={settings.donorNavigationLayout}
-            onChange={(e) => setField("donorNavigationLayout", e.target.value as DonorNavigationLayout)}
-            className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="mega">Mega menu bar</option>
-            <option value="sidebar">Sidebar navigation</option>
-          </select>
-        </label>
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 text-sm leading-6 text-indigo-950">
+          <p className="font-semibold">Full-width navigation is enabled</p>
+          <p className="mt-1 text-xs">The Donor CRM uses a consistent top bar with workspace navigation, advanced search, quick actions, tools, notifications, and account controls. It no longer uses a desktop sidebar.</p>
+        </div>
 
         <label className="text-sm text-gray-700 block">
           Accent color
@@ -190,7 +182,7 @@ export default function WorkspacesSettingsPage() {
           <p className="font-semibold text-slate-800">Preview</p>
           <div className="mt-2 flex items-center gap-2">
             <span className={`inline-flex h-2.5 w-8 rounded-full ${getDonorAccentTheme(settings.donorAccentTone).topBarAccentLine}`} />
-            <span>Current layout: {settings.donorNavigationLayout === "mega" ? "Mega menu" : "Sidebar"}</span>
+            <span>Layout: Full-width navigation</span>
           </div>
         </div>
       </section>

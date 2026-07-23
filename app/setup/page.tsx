@@ -410,7 +410,7 @@ export default function SetupPage() {
 
             {step.key === "welcome" && (
               <section className="space-y-4">
-                <h2 className="text-lg font-semibold text-gray-900">Welcome to OyamaCRM</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Welcome to OyamaCRM v1.3</h2>
                 <p className="text-sm text-gray-600">
                   This guided flow will set your organization profile, fundraising goals, core settings, workspace configuration,
                   and your first users.

@@ -67,7 +67,7 @@ export default function QBConnectionStatus({ onConnect, onDisconnect, loading = 
           <div>
             <p className="text-sm font-medium text-yellow-800">Not connected to QuickBooks</p>
             <p className="text-xs text-yellow-700 mt-0.5">
-              Authorize OyamaCRM to push donations to your QuickBooks {qbEnvironment} account.
+              Authorize OyamaCRM v1.3 to push donations to your QuickBooks {qbEnvironment} account.
               {qbRuntimeSource ? ` Runtime source: ${qbRuntimeSource}.` : ""}
             </p>
           </div>

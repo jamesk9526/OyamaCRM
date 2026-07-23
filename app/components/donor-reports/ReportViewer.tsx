@@ -777,7 +777,7 @@ export default function ReportViewer({ report, data, year, onClose }: ReportView
             )}
 
             <div className="border-t border-slate-200 pt-4 text-xs text-slate-400">
-              OyamaCRM · {reportTitle} · {year}
+              OyamaCRM v1.3 · {reportTitle} · {year}
             </div>
 
             <div className="flex justify-end gap-3 print:hidden">

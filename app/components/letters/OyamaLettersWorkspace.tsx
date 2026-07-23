@@ -422,7 +422,6 @@ const EMPTY_FOOTER_PRESET: FooterPresetDraft = {
 
 const RULER_PX_PER_INCH = 96;
 const LETTERS_TEMPLATE_RECOVERY_STORAGE_KEY = "oyamaLetters.templateRecovery.v1";
-const LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY = "oyamaLetters.aiComposerOpen.v1";
 const LETTERS_INLINE_SUGGEST_STORAGE_KEY = "oyamaLetters.inlineSuggestEnabled.v1";
 const LETTERS_TEMPLATE_SETUP_HINT_DISMISSED_KEY = "oyamaLetters.templateSetupHintDismissed.v1";
 const LETTERS_TEMPLATE_SETUP_HINT_COMPLETED_KEY = "oyamaLetters.templateSetupHintCompleted.v1";
@@ -998,112 +997,47 @@ function TemplateLibrary() {
         <Button href="/oyama-letters/templates/new" tone="primary">Create New Template</Button>
         <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" />
       </PageHero>
-      <div className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
-        <WorkspaceHint title="Recommended Flow" tone="slate">
-          Edit and publish the reusable template here first. Move into Generate Letters only when staff is ready to create a live recipient-specific batch.
-        </WorkspaceHint>
-        <div className="flex flex-wrap items-center gap-4">
-          <SearchBox value={search} onChange={setSearch} placeholder="Search templates..." />
-          <Select value={category} onChange={setCategory} options={["ALL", ...CATEGORIES]} />
-          <Select value={status} onChange={setStatus} options={["ALL", "DRAFT", "ACTIVE", "ARCHIVED"]} />
-          <Button onClick={() => void load()}>Apply Filters</Button>
-          <Button onClick={() => { setSearch(""); setCategory("ALL"); setStatus("ALL"); setOwnership("MINE"); setProvenance("ALL"); }}>Reset</Button>
-          <div className="ml-auto flex gap-2">
-            <IconToggle active={layout === "grid"} onClick={() => setLayout("grid")} label="Grid">▦</IconToggle>
-            <IconToggle active={layout === "list"} onClick={() => setLayout("list")} label="List">☷</IconToggle>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {([
-            { value: "MINE", label: "My Templates", count: myCount },
-            { value: "TEAM", label: "Team Templates", count: teamCount },
-            { value: "ALL", label: "All Templates", count: templates.length },
-          ] as const).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setOwnership(option.value)}
-              className={[
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                ownership === option.value ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <span>{option.label}</span>
-              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-slate-600">{option.count}</span>
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {([
-            { value: "ALL", label: "All Provenance" },
-            { value: "HUMAN", label: "User Created" },
-            { value: "AI", label: `AI-assisted (${aiCount})` },
-          ] as const).map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setProvenance(option.value)}
-              className={[
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold",
-                provenance === option.value ? "border-sky-700 bg-sky-50 text-sky-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{visibleTemplates.length}</p>
-          </div>
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Published</p>
-            <p className="mt-1 text-2xl font-semibold text-emerald-800">{activeCount}</p>
-          </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Draft</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-800">{draftCount}</p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Archived</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-700">{archivedCount}</p>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-3 lg:grid-cols-3">
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
-            Library opens on <span className="font-semibold">your templates</span> first so staff starts from owned drafts before shared content.
-          </div>
-          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900">
-            <span className="font-semibold">AI-assisted</span> appears only when the builder stored a real provenance marker.
-          </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-            Unsaved letter edits keep a <span className="font-semibold">local recovery copy</span> so save failures do not drop work.
-          </div>
-        </div>
-        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Canonical Workflow</p>
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-lg border border-emerald-200 bg-white px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">1. Build Template</p>
-              <p className="mt-1 text-xs text-slate-600">Create or revise reusable content in the builder first.</p>
+      <section className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
+        <div className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[235px_minmax(0,1fr)]">
+          <aside className="border-b border-slate-100 bg-[linear-gradient(160deg,#f6f5ff_0%,#f7faff_100%)] p-4 lg:border-b-0 lg:border-r">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Library views</p>
+            <div className="mt-3 space-y-1">
+              {([
+                { value: "MINE", label: "My templates", count: myCount },
+                { value: "TEAM", label: "Team templates", count: teamCount },
+                { value: "ALL", label: "All templates", count: templates.length },
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-indigo-700 text-white shadow-sm" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-indigo-100" : "text-slate-400"}>{option.count}</span></button>)}
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-white px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">2. Generate Letters</p>
-              <p className="mt-1 text-xs text-slate-600">Choose recipients, donation context, and preview output in one guided run.</p>
+            <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Authoring</p>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {([
+                { value: "ALL", label: "All" },
+                { value: "HUMAN", label: "Staff" },
+                { value: "AI", label: `AI ${aiCount}` },
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-md border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"].join(" ")}>{option.label}</button>)}
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-white px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">3. Process Queue</p>
-              <p className="mt-1 text-xs text-slate-600">Move completed output through print approval and mail handling.</p>
+            <div className="mt-5 border-t border-slate-200 pt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Categories</p>
+              <div className="mt-2 flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
+                {["ALL", ...CATEGORIES].map((value) => <button key={value} type="button" onClick={() => setCategory(value)} className={["flex items-center justify-between rounded-md px-2 py-1.5 text-left text-xs", category === value ? "bg-indigo-50 font-semibold text-indigo-800" : "text-slate-600 hover:bg-white"].join(" ")}><span>{value === "ALL" ? "All categories" : value.replaceAll("_", " ")}</span><span className="text-[10px] text-slate-400">{value === "ALL" ? templates.length : templates.filter((template) => template.category === value).length}</span></button>)}
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button href="/oyama-letters/templates/new" tone="primary">Start Step 1: New Template</Button>
-            <Button href="/oyama-letters/generate">Continue Step 2: Generate</Button>
+          </aside>
+          <div className="min-w-0 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by letter name, category, or content" className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" /></label>
+              <Select value={status} onChange={setStatus} options={["ALL", "DRAFT", "ACTIVE", "ARCHIVED"]} />
+              <Button onClick={() => void load()}>Refresh</Button>
+              <Button onClick={() => { setSearch(""); setCategory("ALL"); setStatus("ALL"); setOwnership("MINE"); setProvenance("ALL"); }}>Clear</Button>
+              <div className="ml-auto flex gap-1"><IconToggle active={layout === "grid"} onClick={() => setLayout("grid")} label="Grid">▦</IconToggle><IconToggle active={layout === "list"} onClick={() => setLayout("list")} label="List">☷</IconToggle></div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[["Showing", visibleTemplates.length, "text-slate-900"], ["Published", activeCount, "text-indigo-800"], ["Drafts", draftCount, "text-amber-800"], ["Archived", archivedCount, "text-slate-600"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
+            </div>
+            <p className="mt-4 text-xs leading-5 text-slate-600">Open a draft to edit it. Published templates continue to <span className="font-semibold text-slate-800">Generate Letters</span> for recipient-specific output.</p>
           </div>
         </div>
-      </div>
-      <CategoryTabs category={category} setCategory={setCategory} />
+      </section>
       {notice ? <Alert tone="green">{notice}</Alert> : null}
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {loading ? (
@@ -1111,7 +1045,7 @@ function TemplateLibrary() {
       ) : visibleTemplates.length === 0 ? (
         <EmptyState title="No templates found" body="No live templates match the current filters. Create a template to begin the OyamaLetters workflow." actionHref="/oyama-letters/templates/new" actionLabel="Create Template" />
       ) : layout === "grid" ? (
-        <div className="grid gap-5 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 xl:p-6">
+        <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 xl:p-6">
           {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       ) : (
@@ -1198,6 +1132,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
   const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View" | "AI">("Insert");
+  const [toolDrawerOpen, setToolDrawerOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<"Document" | "Merge Fields" | "Block Settings">("Document");
   const [mergeFieldSearch, setMergeFieldSearch] = useState("");
   const [mergeLinePreviewToken, setMergeLinePreviewToken] = useState<string | null>(null);
@@ -1258,26 +1193,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
 
   useEffect(() => {
     try {
-      const savedComposerOpen = window.localStorage.getItem(LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY) === "1";
       const savedInlineEnabled = window.localStorage.getItem(LETTERS_INLINE_SUGGEST_STORAGE_KEY) === "1";
-      setAiComposerOpen(savedComposerOpen);
+      setAiComposerOpen(false);
       setInlineSuggestEnabled(savedInlineEnabled);
-      if (savedComposerOpen || savedInlineEnabled) setActiveRibbon("AI");
     } catch {
       // Ignore storage failures in private mode or locked-down browsers.
     } finally {
       setAiPreferenceLoaded(true);
     }
   }, []);
-
-  useEffect(() => {
-    if (!aiPreferenceLoaded) return;
-    try {
-      window.localStorage.setItem(LETTERS_AI_COMPOSER_OPEN_STORAGE_KEY, aiComposerOpen ? "1" : "0");
-    } catch {
-      // Ignore storage failures in private mode or locked-down browsers.
-    }
-  }, [aiComposerOpen, aiPreferenceLoaded]);
 
   useEffect(() => {
     if (!aiPreferenceLoaded) return;
@@ -2397,7 +2321,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   if (loading) return <LoadingPage label="Loading canvas builder..." />;
 
   return (
-    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,0.12),transparent_26%),radial-gradient(circle_at_96%_8%,rgba(59,130,246,0.09),transparent_24%),linear-gradient(180deg,#f8fafc_0%,#eaf0f3_100%)]">
+    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(129,140,248,0.13),transparent_26%),radial-gradient(circle_at_96%_8%,rgba(96,165,250,0.12),transparent_24%),linear-gradient(180deg,#fafbff_0%,#edf2fb_100%)]">
       <input
         ref={imageInputRef}
         type="file"
@@ -2407,36 +2331,38 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       />
       <div className="sticky top-[89px] z-30 shrink-0 shadow-[0_12px_32px_rgba(15,23,42,0.08)] lg:top-0 lg:z-40">
       <div className="border-b border-white/80 bg-white/90 px-3 backdrop-blur-xl sm:px-4 xl:px-7">
-        <div className="flex min-h-14 flex-wrap items-center gap-3 py-2">
-          <div className="flex items-center gap-1 rounded-xl bg-slate-100/80 p-1">
-            {(["File", "Insert", "Format", "Layout", "Review", "View", "AI"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); if (tab === "AI") setAiComposerOpen(true); }} className={["h-9 rounded-lg px-3 text-sm font-semibold transition-all", activeRibbon === tab ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"].join(" ")}>{tab}</button>)}
+        <div className="flex min-h-12 flex-wrap items-center gap-2 py-1.5">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl bg-indigo-50/80 p-1">
+            {(["File", "Insert", "Format", "Layout", "Review", "View"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); setToolDrawerOpen((open) => activeRibbon === tab ? !open : true); }} className={["h-8 rounded-lg px-2.5 text-xs font-semibold transition-all", activeRibbon === tab && toolDrawerOpen ? "bg-white text-indigo-800 shadow-sm" : "text-slate-600 hover:bg-white/70 hover:text-slate-900"].join(" ")}>{tab}</button>)}
           </div>
-          <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 pb-2 sm:w-auto sm:gap-3">
-            <span className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
+          <button type="button" onClick={() => setAiComposerOpen(true)} title="Open Steward AI writer" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-sm font-bold text-violet-700 transition hover:bg-violet-100" aria-label="Open Steward AI writer">✦</button>
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+            <span title="Click the page to write · use Insert for fields and blocks · Preview before publish" className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
             <span className={[
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
-              saveFailure ? "text-red-700" : dirty ? "text-amber-700" : "text-emerald-700",
-              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50",
+              saveFailure ? "text-red-700" : dirty ? "text-amber-700" : "text-indigo-700",
+              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-amber-200 bg-amber-50" : "border-indigo-200 bg-indigo-50",
             ].join(" ")}
             >
-              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-amber-500" : "bg-emerald-500"].join(" ")} aria-hidden="true" />
+              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-amber-500" : "bg-indigo-500"].join(" ")} aria-hidden="true" />
               {saving ? "Saving..." : saveFailure ? "Save failed - recovery ready" : dirty ? "Unsaved changes" : "All changes saved"}
             </span>
-            {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-emerald-700 2xl:inline">{notice}</span> : null}
+            <span title={localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`} className={["hidden rounded-full border px-2 py-1 text-[11px] font-semibold xl:inline", localChecklistReady ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-amber-200 bg-amber-50 text-amber-700"].join(" ")}>{localChecklistReady ? "Ready" : "Review"}</span>
+            {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-indigo-700 2xl:inline">{notice}</span> : null}
             <IconButton label="Zoom out" onClick={() => setZoom((current) => Math.max(60, current - 10))}>-</IconButton>
             <span className="w-12 text-center text-xs font-semibold text-slate-600">{zoom}%</span>
             <IconButton label="Zoom in" onClick={() => setZoom((current) => Math.min(160, current + 10))}>+</IconButton>
             <IconButton label="Undo" onClick={undoBody} disabled={history.length === 0}>↶</IconButton>
             <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
-            <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test Constituent"}</Button>
+            <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test recipient"}</Button>
             <Button onClick={addPage}>Add Page</Button>
-            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Production Preview"}</Button>
+            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Preview"}</Button>
             <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
             <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Publish</Button>
           </div>
         </div>
       </div>
-      <div className="flex min-h-[88px] items-stretch gap-3 overflow-x-auto border-b border-slate-200/80 bg-gradient-to-r from-white via-slate-50/70 to-emerald-50/40 px-3 py-2 sm:min-h-[94px] sm:px-4 xl:px-7">
+      {toolDrawerOpen ? <div className="flex max-h-56 items-stretch gap-2 overflow-x-auto border-b border-indigo-100/80 bg-gradient-to-r from-white via-indigo-50/50 to-blue-50/70 px-3 py-2 shadow-inner sm:px-4 xl:px-7">
         {activeRibbon === "File" ? (
           <>
             <RibbonButton onClick={() => void save()}>Save Draft</RibbonButton>
@@ -2583,29 +2509,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </RibbonGroup>
           </>
         ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-200/70 bg-white/90 px-3 py-2 sm:px-5 xl:px-7">
-        <div className="flex min-w-[220px] flex-1 items-center gap-3">
-          <div className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-slate-200/80 sm:max-w-56">
-            <div className={["h-full rounded-full transition-all duration-500", localChecklistReady ? "bg-gradient-to-r from-emerald-500 to-teal-500" : "bg-gradient-to-r from-amber-400 to-orange-500"].join(" ")} style={{ width: `${Math.round((localChecklist.filter((item) => item.ok).length / localChecklist.length) * 100)}%` }} />
-          </div>
-          <span className="text-xs font-semibold text-slate-700">{localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`}</span>
-        </div>
-        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">{wordCount} words</span>
-        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">{intendedPageCount} {intendedPageCount === 1 ? "page" : "pages"}</span>
-        <span className="hidden text-[11px] font-medium text-slate-500 md:inline">Click the page to write · use Insert for fields and blocks · Preview before publish</span>
-      </div>
+      </div> : null}
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-3 lg:grid-cols-[288px_minmax(0,1fr)_364px] lg:gap-5 lg:overflow-hidden lg:p-5 xl:p-6">
-        <aside className="order-1 max-h-[38dvh] min-h-0 overflow-y-auto rounded-[22px] border border-white/90 bg-white/90 p-4 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
-          <div className="space-y-3">
-            <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[248px_minmax(0,1fr)_320px] lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
+        <aside className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
+          <div className="space-y-2.5">
+            <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-3 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Letter Block Library</p>
               <p className="mt-1 text-xs leading-4 text-slate-600">Click to insert, or drag a block onto the letter. Keep CRM data in the separate drawer until you need it.</p>
             </div>
             {LETTER_BLOCK_LIBRARY.map((drawer, drawerIndex) => (
-              <details key={drawer.id} open={drawerIndex === 0} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm open:border-emerald-200">
+              <details key={drawer.id} open={drawerIndex === 0} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm open:border-indigo-200">
                 <summary className="cursor-pointer list-none">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-slate-900">{drawer.label}</span>
@@ -2621,17 +2536,17 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                       draggable
                       onDragStart={(event) => handleLetterPaletteDragStart(event, block.id)}
                       onClick={() => insertLetterBlockTemplate(block.id)}
-                      className="group flex min-h-16 flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-left transition hover:border-emerald-300 hover:bg-emerald-50 active:cursor-grabbing"
+                      className="group flex min-h-14 flex-col justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-left transition hover:border-indigo-300 hover:bg-indigo-50 active:cursor-grabbing"
                       title="Click to insert or drag onto the letter"
                     >
-                      <span className="text-sm font-semibold text-emerald-700">{block.glyph}</span>
-                      <span className="text-[11px] font-semibold leading-4 text-slate-700 group-hover:text-emerald-900">{block.label}</span>
+                      <span className="text-sm font-semibold text-indigo-700">{block.glyph}</span>
+                      <span className="text-[11px] font-semibold leading-4 text-slate-700 group-hover:text-indigo-900">{block.label}</span>
                     </button>
                   ))}
                 </div>
               </details>
             ))}
-            <details className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm open:border-emerald-200">
+            <details className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm open:border-indigo-200">
               <summary className="cursor-pointer list-none">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-slate-900">Data & Merge Fields</span>
@@ -2641,7 +2556,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               </summary>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {["{first}", "{last}", "{name}", "{amount}", "{giftDate}", "{totalGiving}"].map((field) => (
-                  <button key={field} type="button" onClick={() => insertToken(field)} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-left font-mono text-[10px] font-semibold text-emerald-800 hover:bg-emerald-100">{field}</button>
+                  <button key={field} type="button" onClick={() => insertToken(field)} className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-left font-mono text-[10px] font-semibold text-indigo-800 hover:bg-indigo-100">{field}</button>
                 ))}
               </div>
               <div className="mt-3 space-y-2">
@@ -2649,14 +2564,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   <details key={section.key} className="rounded-lg border border-slate-200 bg-slate-50 p-2 open:bg-white">
                     <summary className="cursor-pointer text-[11px] font-semibold text-slate-700">{section.label} <span className="font-normal text-slate-400">({section.fields.length})</span></summary>
                     <div className="mt-2 space-y-1">
-                      {section.fields.map((field) => <button key={field} type="button" onClick={() => insertToken(field)} className="block w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-left font-mono text-[10px] hover:border-emerald-200 hover:bg-emerald-50">{field}</button>)}
+                      {section.fields.map((field) => <button key={field} type="button" onClick={() => insertToken(field)} className="block w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-left font-mono text-[10px] hover:border-indigo-200 hover:bg-indigo-50">{field}</button>)}
                     </div>
                   </details>
                 ))}
               </div>
-              <button type="button" onClick={() => setInspectorTab("Merge Fields")} className="mt-3 text-xs font-semibold text-emerald-700 hover:underline">Open data review and live previews →</button>
+              <button type="button" onClick={() => setInspectorTab("Merge Fields")} className="mt-3 text-xs font-semibold text-indigo-700 hover:underline">Open data review and live previews →</button>
             </details>
-            <details className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <details className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
               <summary className="cursor-pointer text-sm font-semibold text-slate-900">Branding & signatures</summary>
               <p className="mt-2 text-xs leading-4 text-slate-600">The production header and footer come from Branding Defaults, outside the editable letter body.</p>
               <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
@@ -2746,11 +2661,11 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </div>
           ) : null}
         </section>
-        <aside className="order-3 max-h-[46dvh] min-h-0 overflow-y-auto rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl xl:order-none xl:max-h-none">
+        <aside className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl xl:order-none xl:max-h-none">
           <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 p-2 backdrop-blur">
-            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-9 rounded-lg px-3 text-[12px] font-semibold transition-all", inspectorTab === tab ? "bg-emerald-50 text-emerald-800 shadow-sm ring-1 ring-emerald-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
+            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-8 rounded-lg px-2.5 text-[11px] font-semibold transition-all", inspectorTab === tab ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
           </div>
-          <div className="space-y-4 p-4">
+          <div className="space-y-3 p-3">
             {inspectorTab === "Document" ? (
               <>
                 <InspectorCard title="Template Info">
@@ -2769,13 +2684,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   </div>
                   <CheckField label="Show Margin Guides" checked={showMarginGuides} onChange={setShowMarginGuides} />
                 </InspectorCard>
-                <InspectorCard title="Global Branding" tooltip="Letters use the single communication header and footer from Branding Defaults. Only signatures are selected per template.">
+                <InspectorCard title="Global Branding" tooltip="Branding Defaults controls the shared printable logo, header, footer, recipient-header behavior, and default signature. Individual templates do not override those defaults.">
                   <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                    <p className="font-semibold text-slate-800">Header + footer</p>
-                    <p className="mt-1">Applied from Branding Defaults to every OyamaLetters preview and output.</p>
-                    <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex font-semibold text-emerald-700 hover:underline">Edit global header/footer</Link>
+                    <p className="font-semibold text-slate-800">Shared letter output defaults</p>
+                    <p className="mt-1">The printed logo, header, footer, upper-right organization/recipient information, and default signature come from Branding Defaults. This template only controls its letter body.</p>
+                    <Link href="/settings/branding#letter-output-defaults" className="mt-2 inline-flex font-semibold text-indigo-700 hover:underline">Edit global letter output defaults</Link>
                   </div>
-                  <LabeledSelect label="Signature (optional)" value={draft.signatureBlockId} onChange={(value) => setDraft((current) => ({ ...current, signatureBlockId: value }))} options={["", ...signatures.map((item) => item.id)]} labels={Object.fromEntries(signatures.map((item) => [item.id, item.name]))} />
                 </InspectorCard>
                 <InspectorCard title="Template Status">
                   <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2">
@@ -6532,13 +6446,13 @@ function CheckField({ label, checked, onChange }: { label: string; checked: bool
 function TemplateCard({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
-    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md">
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md">
       <Link href={`/oyama-letters/templates/${template.id}`} className="block">
         <DocumentThumb template={template} />
       </Link>
       <div className="space-y-3 border-t border-slate-200 p-4">
         <div>
-          <Link href={`/oyama-letters/templates/${template.id}`} className="text-[17px] font-semibold text-slate-950 hover:text-emerald-800">{template.name}</Link>
+          <Link href={`/oyama-letters/templates/${template.id}`} className="text-[17px] font-semibold text-slate-950 hover:text-indigo-800">{template.name}</Link>
           <p className="mt-1 text-sm text-slate-600">{template.category.replaceAll("_", " ")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -6574,7 +6488,7 @@ function TemplateCard({ template, currentUserId, onExport }: { template: LetterT
           </button>
           <Link
             href={template.status === "ACTIVE" ? `/oyama-letters/generate?templateId=${encodeURIComponent(template.id)}` : `/oyama-letters/templates/${template.id}/publish`}
-            className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-indigo-700 px-3 text-xs font-semibold text-white hover:bg-indigo-800"
           >
             {template.status === "ACTIVE" ? "Continue Workflow" : "Continue to Publish"}
           </Link>
@@ -6840,7 +6754,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -6848,7 +6762,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
 }
 
 function Button({ children, href, onClick, tone = "default", disabled = false }: { children: ReactNode; href?: string; onClick?: () => void; tone?: "default" | "primary"; disabled?: boolean }) {
-  const className = ["inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", tone === "primary" ? "bg-emerald-700 text-white hover:bg-emerald-800" : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"].join(" ");
+  const className = ["inline-flex h-9 items-center justify-center rounded-md px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", tone === "primary" ? "bg-indigo-700 text-white hover:bg-indigo-800" : "border border-slate-300 bg-white text-slate-800 hover:bg-indigo-50"].join(" ");
   if (href) return <Link href={href} className={className}>{children}</Link>;
   return <button type="button" onClick={onClick} disabled={disabled} className={className}>{children}</button>;
 }

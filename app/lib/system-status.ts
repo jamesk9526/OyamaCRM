@@ -54,7 +54,7 @@ export const OVERALL_READINESS_SCORE = 80;
  */
 export function getPublicBuildInfo(env: NodeJS.ProcessEnv = process.env): PublicBuildInfo {
   return {
-    appName: env.NEXT_PUBLIC_APP_NAME ?? env.APP_NAME ?? "OyamaCRM",
+    appName: env.NEXT_PUBLIC_APP_NAME ?? env.APP_NAME ?? "OyamaCRM v1.3",
     version: env.NEXT_PUBLIC_APP_VERSION ?? env.APP_VERSION ?? "0.1.0",
     buildDate: env.NEXT_PUBLIC_BUILD_DATE ?? env.BUILD_DATE ?? AUDIT_DATE,
     gitCommit: env.NEXT_PUBLIC_GIT_COMMIT ?? env.GIT_COMMIT ?? "local-dev",

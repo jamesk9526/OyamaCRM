@@ -40,7 +40,7 @@ export default function SystemStatusPage() {
       <section id="project-status" className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Project Status Audit</h2>
-          <p className="mt-0.5 text-sm text-gray-500">Real Data vs Demo Data audit matrix for OyamaCRM modules and platform surfaces.</p>
+          <p className="mt-0.5 text-sm text-gray-500">Real Data vs Demo Data audit matrix for OyamaCRM v1.3 modules and platform surfaces.</p>
           <p className="text-xs text-gray-400 mt-1">Last deep audit: {PROJECT_STATUS_AUDIT_DATE}</p>
         </div>
 

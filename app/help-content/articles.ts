@@ -206,7 +206,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   },
   {
     id: "help-global-login",
-    title: "Get Started With OyamaCRM",
+    title: "Get Started With OyamaCRM v1.3",
     slug: "global-getting-started",
     crmScope: "global",
     category: "Getting Started",
@@ -1105,7 +1105,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   // ── Global: Data export ───────────────────────────────────────────────────
   {
     id: "help-global-data-export",
-    title: "Export Data From OyamaCRM",
+    title: "Export Data From OyamaCRM v1.3",
     slug: "global-data-export",
     crmScope: "global",
     category: "Imports & Exports",

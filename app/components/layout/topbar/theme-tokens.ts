@@ -172,11 +172,11 @@ export function resolveTopBarHomeHref(moduleKey: TopBarModuleKey): string {
 export function resolveModuleSwitcherTone(moduleKey: TopBarModuleKey, scrolled: boolean): ModuleSwitcherTone {
   const baseTone = moduleKey === "donor"
     ? {
-      glow: "from-emerald-300/16 via-emerald-200/8 to-transparent",
+      glow: "from-indigo-200/45 via-sky-100/35 to-transparent",
       button: scrolled
-        ? "border-white/20 bg-emerald-950/30 text-emerald-50 shadow-[0_6px_16px_rgba(2,8,23,0.3)]"
-        : "border-white/20 bg-emerald-950/32 text-emerald-50 shadow-[0_8px_20px_rgba(2,8,23,0.32)]",
-      activeItem: "border-emerald-200/35 bg-emerald-50/55",
+        ? "border-slate-300/90 bg-white text-slate-800 shadow-[0_4px_14px_rgba(15,23,42,0.08)]"
+        : "border-slate-300/90 bg-white text-slate-800 shadow-[0_6px_18px_rgba(15,23,42,0.1)]",
+      activeItem: "border-indigo-200 bg-indigo-50",
     }
     : {
       glow: "from-slate-200/50 via-slate-100/40 to-transparent",
@@ -197,8 +197,8 @@ export function resolveModuleSwitcherTone(moduleKey: TopBarModuleKey, scrolled: 
         activePill: "bg-amber-100 text-amber-700",
       }
       : {
-        activeIcon: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        activePill: "bg-emerald-100 text-emerald-700",
+        activeIcon: "border-indigo-200 bg-indigo-50 text-indigo-700",
+        activePill: "bg-indigo-100 text-indigo-700",
       };
 
   return {

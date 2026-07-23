@@ -82,7 +82,7 @@ export default function RolesSettingsPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Roles &amp; Permissions</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          OyamaCRM uses a 5-tier role hierarchy. Higher roles inherit all permissions of lower roles.
+          OyamaCRM v1.3 uses a 5-tier role hierarchy. Higher roles inherit all permissions of lower roles.
           Fine-grained overrides can be set per user in Settings → Users.
         </p>
       </div>

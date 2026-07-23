@@ -1615,7 +1615,7 @@ function renderTemplate(template: string, enrollment: EnrollmentContext["enrollm
   const map: Record<string, string> = {
     firstName: c?.firstName ?? "Friend",
     lastName: c?.lastName ?? "",
-    organizationName: "OyamaCRM",
+    organizationName: "OyamaCRM v1.3",
     lastGiftAmount: numberString(c?.lastGiftAmount),
     lastGiftDate: c?.lastGiftDate ? c.lastGiftDate.toISOString().split("T")[0] : "",
     assignedStaffName: enrollment.ownerUserId ?? "",

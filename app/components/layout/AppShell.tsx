@@ -137,8 +137,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [dockInsetPx, setDockInsetPx] = useState(0);
-  const [compactDesktop, setCompactDesktop] = useState(false);
-  const [donorSidebarCollapsed, setDonorSidebarCollapsed] = useState(false);
   const [shellScrolled, setShellScrolled] = useState(false);
   const [routeTransitioning, setRouteTransitioning] = useState(false);
   const [displayedRoutePath, setDisplayedRoutePath] = useState(pathname);
@@ -274,47 +272,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  useBrowserLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
-    const updateCompactDesktop = () => setCompactDesktop(mediaQuery.matches);
-    updateCompactDesktop();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", updateCompactDesktop);
-      return () => mediaQuery.removeEventListener("change", updateCompactDesktop);
-    }
-
-    mediaQuery.addListener(updateCompactDesktop);
-    return () => mediaQuery.removeListener(updateCompactDesktop);
-  }, []);
-
-  useBrowserLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mediaQuery = window.matchMedia("(min-width: 1024px) and (max-width: 1439px)");
-    const updateInitialSidebarOffset = () => {
-      if (mediaQuery.matches) {
-        setDonorSidebarCollapsed(true);
-        return;
-      }
-
-      const stored = window.localStorage.getItem("oyamacrm.sidebar.donor.collapsed");
-      setDonorSidebarCollapsed(stored === "1" || stored === "true");
-    };
-
-    updateInitialSidebarOffset();
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", updateInitialSidebarOffset);
-      return () => mediaQuery.removeEventListener("change", updateInitialSidebarOffset);
-    }
-
-    mediaQuery.addListener(updateInitialSidebarOffset);
-    return () => mediaQuery.removeListener(updateInitialSidebarOffset);
-  }, []);
-
   useEffect(() => {
     if (typeof window !== "undefined") {
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -375,14 +332,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isShellBypass) return <>{children}</>;
 
   const donorShellVisible = !isOShareview && !isBoard;
-  const effectiveDonorLayout: DonorNavigationLayout =
-    compactDesktop && workspaceSettings.donorNavigationLayout === "mega"
-      ? "sidebar"
-      : workspaceSettings.donorNavigationLayout;
-  const donorMegaMenuEnabled = donorShellVisible && effectiveDonorLayout === "mega";
-  const donorSidebarDesktopEnabled = donorShellVisible && effectiveDonorLayout === "sidebar";
-  // Reserve a stable header + mega navigation footprint so content does not jump on scroll.
-  const contentTopPaddingClass = donorMegaMenuEnabled ? "pt-26" : "pt-14";
+  // DonorCRM v1.3 uses one consistent, full-width navigation model. Existing
+  // sidebar preferences remain stored for backwards compatibility, but no longer
+  // change the desktop shell or consume workspace width.
+  const donorMegaMenuEnabled = donorShellVisible;
+  const donorSidebarDesktopEnabled = false;
+  // Reserve a stable header + navigation footprint so content does not jump on scroll.
+  const contentTopPaddingClass = donorShellVisible ? "pt-26" : "pt-14";
 
   const shellStyle: CSSProperties = {
     "--oyama-donor-chrome-start": dashboardChromeTint.dark,
@@ -401,20 +357,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar
         scrolled={shellScrolled}
         donorChromeTint={dashboardChromeTint}
-        donorSidebarOffset={donorSidebarDesktopEnabled}
-        donorSidebarCollapsed={donorSidebarCollapsed}
+        donorSidebarOffset={false}
+        donorSidebarCollapsed={false}
       />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
-        {donorSidebarDesktopEnabled ? (
-          <div className="relative z-[60] hidden h-full lg:flex">
-            <Sidebar
-              donorAccentTone={workspaceSettings.donorAccentTone}
-              donorChromeTint={dashboardChromeTint}
-              onCollapsedChange={setDonorSidebarCollapsed}
-            />
-          </div>
-        ) : null}
         {/* Mobile sidebar drawer kept for small-screen access */}
         {!isOShareview ? (
           <MobileSidebarDrawer

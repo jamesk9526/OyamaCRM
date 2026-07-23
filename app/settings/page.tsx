@@ -13,7 +13,7 @@ const CARDS = [
   },
   {
     title: "Desktop App",
-    description: "Download the Windows one-click installer for the OyamaCRM desktop shell.",
+    description: "Download the Windows one-click installer for the OyamaCRM v1.3 desktop shell.",
     href: "/settings/desktop-app",
   },
   {

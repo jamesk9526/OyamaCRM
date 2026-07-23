@@ -19,14 +19,14 @@ const crmHeading = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "OyamaCRM",
+  title: "OyamaCRM v1.3",
   description: "Nonprofit Donor Management",
-  applicationName: "OyamaCRM",
+  applicationName: "OyamaCRM v1.3",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "OyamaCRM",
+    title: "OyamaCRM v1.3",
   },
   formatDetection: {
     telephone: false,
@@ -64,7 +64,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#16a34a",
+  themeColor: "#4f46e5",
 };
 
 export default function RootLayout({

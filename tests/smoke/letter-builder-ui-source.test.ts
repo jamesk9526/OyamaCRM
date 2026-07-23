@@ -36,7 +36,9 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("application/x-oyama-letter-block");
     expect(workspace).toContain("Ready for server preflight");
     expect(workspace).toContain("Click the page to write");
-    expect(workspace).toContain("localChecklist.filter((item) => item.ok)");
+    expect(workspace).toContain("localChecklistReady");
+    expect(workspace).toContain("toolDrawerOpen");
+    expect(workspace).toContain("Open Steward AI writer");
   });
 
   it("keeps primary builder and publishing actions in the new workspace shell", () => {
@@ -69,7 +71,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("applyLineHeight");
     expect(workspace).toContain("insertFillSpace");
     expect(workspace).toContain("Push to Bottom");
-    expect(workspace).toContain("Signature (optional)");
+    expect(workspace).toContain("Shared letter output defaults");
+    expect(workspace).toContain("/settings/branding#letter-output-defaults");
     expect(workspace).toContain("resizeSelectedImage");
     expect(workspace).toContain("updateSelectedImageAlt");
     expect(workspace).toContain("alignSelectedImage");
@@ -142,8 +145,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Generate Letters");
     expect(workspace).toContain("Print & Mail Queue");
     expect(workspace).toContain("Docs & Walkthroughs");
-    expect(workspace).toContain("My Templates");
-    expect(workspace).toContain("Team Templates");
+    expect(workspace).toContain("My templates");
+    expect(workspace).toContain("Team templates");
     expect(workspace).toContain("AI-assisted");
     expect(lettersRoute).toContain("SIMPLE_LETTER_MERGE_FIELDS");
     expect(lettersRoute).toContain('label: "Simple Fields"');
@@ -178,7 +181,7 @@ describe("letter builder UI redesign source contract", () => {
     const lettersRoute = read("server/src/routes/letters.ts");
     const donationModal = read("app/components/donations/LetterFromTemplateModal.tsx");
 
-    expect(workspace).toContain("Signature (optional)");
+    expect(workspace).toContain("Shared letter output defaults");
     expect(lettersRoute).not.toContain('blockers.push("Select a signature block before publishing.")');
     expect(lettersRoute).toContain("hasDraftSignatureOverride");
     expect(donationModal).not.toContain("Boolean(template.signatureBlockId)");
@@ -201,6 +204,21 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Search recipients by name, email, or address");
     expect(lettersRoute).toContain("signature.signatureImageUrl");
     expect(lettersRoute).toContain("UNSUPPORTED_PDF_IMAGE_TYPE");
+  });
+
+  it("makes communication branding the global source of truth for letter chrome", () => {
+    const brandingPage = read("app/settings/branding/page.tsx");
+    const brandingManager = read("app/components/letters/LetterBrandingManager.tsx");
+    const legacyPresetsPage = read("app/settings/branding/letter-presets/page.tsx");
+
+    expect(brandingPage).toContain("Letter Output Defaults");
+    expect(brandingPage).toContain("LetterBrandingManager");
+    expect(brandingPage).toContain('id="letter-output-defaults"');
+    expect(brandingManager).toContain("Donor / recipient name and address");
+    expect(brandingManager).toContain("Make the global letter-header default");
+    expect(brandingManager).toContain("Make the global letter-footer default");
+    expect(brandingManager).toContain("Page Number");
+    expect(legacyPresetsPage).toContain("/settings/branding#letter-output-defaults");
   });
 
   it("hands generated letters into reviewable canonical OyamaEmail drafts", () => {

@@ -10,7 +10,7 @@ export default function OfflinePage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">Offline Mode</p>
         <h1 className="mt-2 text-2xl font-semibold">You are currently offline</h1>
         <p className="mt-3 text-sm text-slate-600">
-          OyamaCRM could not reach the network. You can continue reviewing cached screens or reconnect and retry.
+          OyamaCRM v1.3 could not reach the network. You can continue reviewing cached screens or reconnect and retry.
         </p>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">

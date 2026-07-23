@@ -317,7 +317,7 @@ async function createPayPalCheckoutOrder(args: {
       application_context: {
         return_url: args.successUrl,
         cancel_url: args.cancelUrl,
-        brand_name: "OyamaCRM Donation",
+        brand_name: "OyamaCRM v1.3 Donation",
         user_action: "PAY_NOW",
       },
     }),

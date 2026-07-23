@@ -6,7 +6,7 @@
 import React from "react";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const VERSION = "1.1.0";
+const VERSION = "1.3";
 
 /** A soft-ruled section divider with a title. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -35,12 +35,12 @@ export default function AboutPage() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-start gap-5">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">OyamaCRM</h1>
+          <h1 className="text-2xl font-bold text-gray-900">OyamaCRM v1.3</h1>
           <p className="mt-1 text-sm text-gray-500">
             Version {VERSION} &nbsp;·&nbsp; Nonprofit CRM Platform
           </p>
           <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-            OyamaCRM is an integrated nonprofit management platform covering donor
+            OyamaCRM v1.3 is an integrated nonprofit management platform covering donor
             management, compassion client services, event management, and AI-powered
             stewardship — built to serve pregnancy centers and nonprofits of every size.
           </p>
@@ -52,7 +52,7 @@ export default function AboutPage() {
         <div className="bg-gray-50 rounded-lg p-4 space-y-1.5">
           <LicenseTerm label="Software Author" value="James Knox" />
           <LicenseTerm label="Copyright" value={`© ${CURRENT_YEAR} James Knox. All rights reserved.`} />
-          <LicenseTerm label="Platform" value="OyamaCRM — Nonprofit CRM Platform" />
+          <LicenseTerm label="Platform" value="OyamaCRM v1.3 — Nonprofit CRM Platform" />
           <LicenseTerm label="Version" value={VERSION} />
         </div>
       </Section>
@@ -62,7 +62,7 @@ export default function AboutPage() {
         <div className="bg-green-50 border border-green-200 rounded-lg p-5 space-y-4">
           <div>
             <p className="text-sm font-semibold text-green-800 uppercase tracking-wide">
-              OyamaCRM Free Use License — Nonprofit Edition
+              OyamaCRM v1.3 Free Use License — Nonprofit Edition
             </p>
             <p className="mt-1 text-xs text-green-700">Effective for all versions from 1.0.0 onwards</p>
           </div>
@@ -119,7 +119,7 @@ export default function AboutPage() {
               </li>
               <li>
                 You may not remove, obscure, or alter the authorship attribution, the
-                copyright notice, or any &ldquo;Powered by OyamaCRM&rdquo; notices
+                copyright notice, or any &ldquo;Powered by OyamaCRM v1.3&rdquo; notices
                 included in the platform.
               </li>
               <li>
@@ -149,7 +149,7 @@ export default function AboutPage() {
           Organizations that do not qualify for the free nonprofit license — including
           nonprofits with annual revenue exceeding US&nbsp;$1,000,000, for-profit
           businesses, SaaS providers, consultancies, and resellers — must obtain a
-          separate commercial license before using OyamaCRM.
+          separate commercial license before using OyamaCRM v1.3.
         </p>
         <p className="text-sm text-gray-600 leading-relaxed">
           To inquire about commercial licensing, custom development, or enterprise
@@ -160,7 +160,7 @@ export default function AboutPage() {
       {/* ── Third-Party Licenses ─────────────────────────────────────── */}
       <Section title="Open Source Components">
         <p className="text-sm text-gray-600 leading-relaxed">
-          OyamaCRM is built on open-source technologies. The following major components
+          OyamaCRM v1.3 is built on open-source technologies. The following major components
           are used under their respective licenses:
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -209,7 +209,7 @@ export default function AboutPage() {
               <p className="text-sm text-amber-800 leading-relaxed">
                 A heartfelt thank you to the dedicated team at the Pregnancy Care Center
                 in Aurora, Missouri. Their courageous, compassionate work serving women
-                and families in need was the direct inspiration for building OyamaCRM.
+                and families in need was the direct inspiration for building OyamaCRM v1.3.
                 Watching their staff navigate the day-to-day challenges of donor
                 stewardship, client care, and volunteer coordination with makeshift tools
                 planted the seed that grew into this platform.
