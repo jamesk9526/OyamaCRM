@@ -1,6 +1,6 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-22 (OyamaEmail image delivery and unified production letter rendering)_
+_Last focused audit: 2026-07-22 (OyamaEmail builder, delivery, and configurable production letter layout)_
 
 ## Governance baseline for new feature claims
 
@@ -20,20 +20,22 @@ Status labels remain locked to: `Working`, `Partially Working`, `Demo Only`, `Br
 | Image uploads inside structured columns | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `app/components/email-builder/BlockEditor.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | Image and video-thumbnail controls at every nested column depth use the same validated campaign-media uploader as top-level blocks. The Advanced Editor now also exposes each column image with a direct upload button and an Add Image action. Nested updates traverse the saved block tree instead of stopping at the top-level canvas. |
 | Recipient-visible email images and organization logos | Working | `.env.production`, `server/src/services/organization-branding.ts`, `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | The shared preview, proof, scheduled-send, and immediate-send renderer converts stored relative CRM upload paths into absolute public URLs using `NEXT_PUBLIC_APP_URL` or `FRONTEND_ORIGIN`. Production now points both settings at the public CRM origin; hosted absolute URLs remain unchanged. |
 | Advanced Editor bullet and numbered lists | Working | `server/src/services/oyama-email/email-render-service.ts`, `tests/unit/oyama-email-render-service.test.ts` | Top-level Advanced Editor HTML now goes through the same email-safe rich-text formatter as text and column blocks, preserving semantic list markers, spacing, and plain-text list fallbacks in sent email. |
+| Managed email chrome and image-column templates | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | The builder labels the organization header and footer/unsubscribe bar as sent-email chrome outside the canvas, so staff do not accidentally duplicate them with an in-body header. Two Image Cards and Image + Copy are responsive column templates with real image blocks and direct upload slots. |
+| Organized drag-and-drop email builder | Working | `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`, `tests/smoke/oyama-email-workspace-source.test.ts` | The flat block list is now a collapsible Block Library with Content, Layout, and Engagement drawers. A separate, initially closed Merge Field Drawer keeps CRM data categories out of the authoring flow until needed. Blocks can be clicked or dragged into explicit canvas insertion lines; Layout also groups ready-made column and reusable-section templates. |
 
-Validation: focused renderer, source, merge-preview, and campaign API coverage passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors and 5 existing warnings in the large email builder.
+Validation: current focused renderer/source coverage passed 24/24; web and server typechecks passed. The prior targeted ESLint pass completed with 0 errors and existing warnings in the large email builder.
 
 ## 2026-07-22 Unified Production Letter Layout and Reviewed Validation Override
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Final letter hierarchy and default margins | Working | `app/components/letters/LetterPage.tsx`, `app/lib/letters/letter-document.ts`, `server/src/routes/letters.ts` | The upper-left header uses the uploaded logo and a real `RE:` subject; the internal “Printable Letter” placeholder is suppressed. Recipient details are upper right, and new editor/document layouts default to 0.25-inch margins. |
+| Final letter hierarchy and configurable header | Working | `app/components/letters/LetterPage.tsx`, `app/components/letters/LetterBrandingManager.tsx`, `server/src/routes/letters.ts`, `prisma/migrations/20260722153000_letter_header_right_column/migration.sql` | The uploaded logo is the upper-left wordmark without a duplicate organization name. Header presets choose organization details, recipient details, or custom merge-field content for the upper right. The default organization layout places recipient address left and date right below the divider; recipient/custom header modes suppress the duplicate body address. New editor/document layouts default to 0.25-inch margins. |
 | PDF table fidelity | Working | `server/src/routes/letters.ts`, `tests/unit/letters-pdf-layout.test.ts` | Server PDFs preserve table borders, header fill, padding, bold headers, and per-cell alignment for donation-summary and other editor tables. |
 | Unified production preview and print | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts` | The print route, template/publish preview, generation preview, and queue preview all use the server-rendered production PDF; HTML-only fallback letter previews were removed. |
 | Automatic pages and deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` | Long content automatically continues on the next page with letter chrome. The editor exposes an Add Page action when staff want to choose the break point. |
 | Acknowledged generation validation override | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `tests/smoke/letters-printables-generate-source.test.ts` | Staff must explicitly select “I understand” to generate through reviewable missing-data/PDF-only address warnings. Each applied override is persisted on the generated letter and in the audit event. Do Not Mail and mail-queue missing-address protections cannot be bypassed. |
 
-Validation: focused Letter document/PDF/source suite passed 44/44, including the one-page donor-letter fit and table-format regressions; web and server typechecks passed.
+Validation: focused Letter PDF/source suite passed 32/32, including the one-page donor-letter fit and table-format regressions; Prisma schema validation and web/server typechecks passed. Full lint completed with 0 errors (existing workspace warnings remain).
 
 ## 2026-07-20 Donor Campaign Workspace Visual and Workflow Audit
 

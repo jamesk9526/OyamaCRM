@@ -92,6 +92,8 @@ export interface HeaderPreset {
   showAddress?: boolean;
   showPhone?: boolean;
   showWebsite?: boolean;
+  rightColumnMode?: "ORGANIZATION" | "RECIPIENT" | "CUSTOM" | string;
+  rightColumnHtml?: string | null;
   customHtml?: string | null;
 }
 

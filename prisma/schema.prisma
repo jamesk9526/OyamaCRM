@@ -2110,6 +2110,8 @@ model LetterHeaderPreset {
   showAddress          Boolean             @default(true)
   showPhone            Boolean             @default(true)
   showWebsite          Boolean             @default(true)
+  rightColumnMode      String              @default("ORGANIZATION")
+  rightColumnHtml      String?             @db.LongText
   customHtml           String?             @db.LongText
   isDefault            Boolean             @default(false)
   isActive             Boolean             @default(true)

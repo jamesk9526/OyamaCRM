@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   DEFAULT_BRANDING_SETTINGS,
+  formatBrandingAddress,
   type BrandingSettings,
 } from "@/app/lib/branding-settings";
 import type { LetterDocument } from "@/app/lib/letters/letter-document";
@@ -61,11 +62,6 @@ function clean(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
-function recipientFacingSubject(value: string | null | undefined): string {
-  const subject = clean(value);
-  return subject.toLowerCase() === "printable letter" ? "" : subject;
-}
-
 function formatRecipientAddress(recipient: LetterPageRecipient | null | undefined): string[] {
   if (!recipient) return [];
   return [
@@ -102,7 +98,6 @@ export default function LetterPage({
   const resolvedBranding = document?.branding ?? branding;
   const resolvedTitle = title ?? document?.title;
   const resolvedDate = date ?? document?.content.date;
-  const resolvedSubject = subject ?? document?.content.subject;
   const resolvedSalutation = salutation ?? document?.content.salutation;
   const resolvedBodyHtml = bodyHtml || document?.content.bodyHtml || "";
   const resolvedRecipient = recipient ?? document?.recipient;
@@ -137,8 +132,13 @@ export default function LetterPage({
   const recipientName = clean(resolvedRecipient?.displayName) || "Sample Preview Recipient";
   const recipientAddress = formatRecipientAddress(resolvedRecipient);
   const displayDate = clean(resolvedDate) || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const displaySubject = recipientFacingSubject(resolvedSubject || resolvedTitle);
   const displaySalutation = resolvedSalutation === null ? "" : clean(resolvedSalutation) || `Dear ${recipientName},`;
+  const organizationHeaderLines = [
+    formatBrandingAddress(resolvedBranding),
+    clean(resolvedBranding.contactPhone),
+    clean(resolvedBranding.contactEmail),
+    clean(resolvedBranding.websiteUrl),
+  ].filter(Boolean);
   const displayFooterBlocks = resolvedFooterBlocks.length > 0
     ? resolvedFooterBlocks
     : [
@@ -185,7 +185,7 @@ export default function LetterPage({
           }
         }
       `}</style>
-      <header className="letter-page-header flex items-start justify-between gap-6 border-b pb-5" style={{ borderColor: primaryColor }}>
+      <header className="letter-page-header flex items-start justify-between gap-6 border-b pb-4" style={{ borderColor: primaryColor }}>
         <div className="flex min-w-0 items-center gap-3">
           {logoUrl ? (
             <img src={logoUrl} alt="" className="max-h-24 max-w-[310px] object-contain" />
@@ -194,20 +194,21 @@ export default function LetterPage({
               {organizationName.slice(0, 2).toUpperCase()}
             </div>
           )}
-          {displaySubject ? (
-            <div className="min-w-0">
-              <p className="break-words text-sm font-semibold uppercase tracking-wide text-slate-950"><span style={{ color: primaryColor }}>RE:</span> {displaySubject}</p>
-            </div>
-          ) : null}
         </div>
-        <div className="max-w-[235px] shrink-0 text-right text-[11px] leading-5 text-slate-700">
-          <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
-          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
-          <p className="mt-1 font-semibold text-slate-700">{displayDate}</p>
+        <div className="max-w-[250px] shrink-0 text-right text-[11px] leading-4 text-slate-700">
+          {organizationHeaderLines.map((line) => <p key={line}>{line}</p>)}
         </div>
       </header>
 
-      <section className="mt-6 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
+      <section className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] gap-6 text-[12px] leading-5 text-slate-800">
+        <div>
+          <p className="font-semibold" style={{ color: primaryColor }}>{recipientName}</p>
+          {recipientAddress.map((line) => <p key={line}>{line}</p>)}
+        </div>
+        <p className="whitespace-nowrap text-right">{displayDate}</p>
+      </section>
+
+      <section className="mt-5 flex-1 min-h-0 overflow-hidden text-[14px] leading-6 text-slate-950">
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()

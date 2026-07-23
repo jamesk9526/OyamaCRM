@@ -256,6 +256,8 @@ interface HeaderPresetDraft {
   showAddress: boolean;
   showPhone: boolean;
   showWebsite: boolean;
+  rightColumnMode: "ORGANIZATION" | "RECIPIENT" | "CUSTOM";
+  rightColumnHtml: string;
   customHtml: string;
   isDefault: boolean;
   isActive: boolean;
@@ -351,11 +353,13 @@ const DEFAULT_TABLE_BUILDER: TableBuilderDraft = {
 const EMPTY_HEADER_PRESET: HeaderPresetDraft = {
   name: "Letters Default Header",
   logoAlignment: "LEFT",
-  showOrganizationName: true,
+  showOrganizationName: false,
   showTagline: true,
   showAddress: false,
   showPhone: true,
   showWebsite: true,
+  rightColumnMode: "ORGANIZATION",
+  rightColumnHtml: "",
   customHtml: "",
   isDefault: true,
   isActive: true,
@@ -6104,6 +6108,8 @@ function LettersPresetManager({ mode }: { mode: "headers" | "footers" }) {
       showAddress: row.showAddress ?? true,
       showPhone: row.showPhone ?? true,
       showWebsite: row.showWebsite ?? true,
+      rightColumnMode: row.rightColumnMode === "RECIPIENT" || row.rightColumnMode === "CUSTOM" ? row.rightColumnMode : "ORGANIZATION",
+      rightColumnHtml: row.rightColumnHtml ?? "",
       customHtml: row.customHtml ?? "",
       isDefault: row.isDefault,
       isActive: row.isActive,
@@ -6239,8 +6245,10 @@ function HeaderPresetEditor({ draft, setDraft, onSave, saving }: { draft: Header
       <p className="font-semibold">Header Setup</p>
       <TextField label="Preset Name" value={draft.name} onChange={(value) => setDraft({ ...draft, name: value })} />
       <LabeledSelect label="Logo Alignment" value={draft.logoAlignment} onChange={(value) => setDraft({ ...draft, logoAlignment: value })} options={["LEFT", "CENTER", "RIGHT", "NONE"]} />
+      <LabeledSelect label="Top-right header content" value={draft.rightColumnMode} onChange={(value) => setDraft({ ...draft, rightColumnMode: value as HeaderPresetDraft["rightColumnMode"] })} options={["ORGANIZATION", "RECIPIENT", "CUSTOM"]} />
+      {draft.rightColumnMode === "CUSTOM" ? <TextArea label="Top-right content (supports merge fields)" value={draft.rightColumnHtml} onChange={(value) => setDraft({ ...draft, rightColumnHtml: value })} /> : null}
       <div className="grid gap-2 sm:grid-cols-2">
-        <CheckField label="Show organization name" checked={draft.showOrganizationName} onChange={(value) => setDraft({ ...draft, showOrganizationName: value })} />
+        <CheckField label="Show organization name (without logo)" checked={draft.showOrganizationName} onChange={(value) => setDraft({ ...draft, showOrganizationName: value })} />
         <CheckField label="Show tagline" checked={draft.showTagline} onChange={(value) => setDraft({ ...draft, showTagline: value })} />
         <CheckField label="Show phone" checked={draft.showPhone} onChange={(value) => setDraft({ ...draft, showPhone: value })} />
         <CheckField label="Show website" checked={draft.showWebsite} onChange={(value) => setDraft({ ...draft, showWebsite: value })} />
@@ -6301,6 +6309,8 @@ function buildImportedHeaderPreset(branding: BrandingSettings): HeaderPresetDraf
     ...EMPTY_HEADER_PRESET,
     name: "Letters Default Header",
     customHtml: "",
+    rightColumnMode: "ORGANIZATION",
+    rightColumnHtml: "",
     showTagline: Boolean(branding.tagline),
     showAddress: false,
     showPhone: Boolean(branding.contactPhone),
@@ -7090,6 +7100,8 @@ function headerPresetToDraft(header: HeaderPreset | null): HeaderPresetDraft {
     showAddress: Boolean(header.showAddress),
     showPhone: Boolean(header.showPhone),
     showWebsite: Boolean(header.showWebsite),
+    rightColumnMode: header.rightColumnMode === "RECIPIENT" || header.rightColumnMode === "CUSTOM" ? header.rightColumnMode : "ORGANIZATION",
+    rightColumnHtml: header.rightColumnHtml ?? "",
     customHtml: header.customHtml ?? "",
     isDefault: Boolean(header.isDefault),
     isActive: Boolean(header.isActive),

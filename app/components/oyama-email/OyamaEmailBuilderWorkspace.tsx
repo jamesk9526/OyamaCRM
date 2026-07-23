@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import Color from "@tiptap/extension-color";
 import TiptapLink from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -317,7 +317,7 @@ function composeFromName(userDisplayName: string, orgName: string): string {
 }
 
 const BLOCK_CHOICES: Array<{ type: BuilderBlockType; label: string }> = [
-  { type: "header", label: "Header" },
+  { type: "header", label: "In-body Header" },
   { type: "text", label: "Text" },
   { type: "image", label: "Image" },
   { type: "button", label: "Button" },
@@ -332,6 +332,21 @@ const BLOCK_CHOICES: Array<{ type: BuilderBlockType; label: string }> = [
   { type: "aiSmart", label: "AI Smart Block" },
   { type: "html", label: "HTML Block" },
 ];
+
+const BLOCK_LIBRARY_DRAWERS: Array<{ id: "content" | "layout" | "engagement"; label: string; detail: string; types: BuilderBlockType[] }> = [
+  { id: "content", label: "Content", detail: "Text, images, calls to action", types: ["text", "image", "button", "divider", "spacer"] },
+  { id: "layout", label: "Layout", detail: "Structure and on-email hierarchy", types: ["columns", "header", "html"] },
+  { id: "engagement", label: "Engagement", detail: "Giving, events, media, social", types: ["donationButton", "eventButton", "video", "fileLink", "social", "aiSmart"] },
+];
+
+type BlockLibraryDrawerId = typeof BLOCK_LIBRARY_DRAWERS[number]["id"];
+
+const COLUMN_TEMPLATE_CHOICES = [
+  { id: "imageCards", label: "Two Image Cards", description: "Two upload-ready image slots with captions" },
+  { id: "imageAndCopy", label: "Image + Copy", description: "An upload-ready image beside supporting copy" },
+] as const;
+
+type ColumnTemplateId = typeof COLUMN_TEMPLATE_CHOICES[number]["id"];
 
 const PURPOSE_OPTIONS = [
   { value: "MARKETING", label: "Marketing" },
@@ -634,6 +649,42 @@ function createHeaderBlock(branding?: BrandingSettings): BuilderBlock {
   };
 }
 
+function createImageSlot(alt: string, caption = ""): BuilderBlock {
+  return {
+    id: createId(),
+    type: "image",
+    src: "",
+    alt,
+    imageWidthPercent: 100,
+    align: "center",
+    caption,
+    imageLinkUrl: "",
+  };
+}
+
+/** Ready-to-insert responsive column layouts; every image slot is uploadable. */
+function createColumnTemplate(template: ColumnTemplateId): BuilderBlock {
+  if (template === "imageAndCopy") {
+    return {
+      id: createId(),
+      type: "columns",
+      columns: [
+        [createImageSlot("Feature image", "Upload a feature image")],
+        [{ id: createId(), type: "text", content: "<h3>Tell the story</h3><p>Add a short message that explains this image and gives readers a clear next step.</p>" }],
+      ],
+    };
+  }
+
+  return {
+    id: createId(),
+    type: "columns",
+    columns: [
+      [createImageSlot("Left card image", "Upload the left image")],
+      [createImageSlot("Right card image", "Upload the right image")],
+    ],
+  };
+}
+
 function createBlock(type: BuilderBlockType): BuilderBlock {
   if (type === "header") {
     return createHeaderBlock();
@@ -648,16 +699,7 @@ function createBlock(type: BuilderBlockType): BuilderBlock {
   }
 
   if (type === "image") {
-    return {
-      id: createId(),
-      type,
-      src: "",
-      alt: "",
-      imageWidthPercent: 100,
-      align: "center",
-      caption: "",
-      imageLinkUrl: "",
-    };
+    return createImageSlot("");
   }
 
   if (type === "button" || type === "donationButton" || type === "eventButton") {
@@ -1216,7 +1258,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [collapsedMergeGroups, setCollapsedMergeGroups] = useState<Set<string>>(new Set());
   const [brandingExpanded, setBrandingExpanded] = useState(false);
   const [addContentExpanded, setAddContentExpanded] = useState(true);
-  const [mergeFieldsExpanded, setMergeFieldsExpanded] = useState(true);
+  const [activeBlockLibraryDrawer, setActiveBlockLibraryDrawer] = useState<BlockLibraryDrawerId | null>("content");
+  const [mergeFieldsExpanded, setMergeFieldsExpanded] = useState(false);
   const [insertAfterIndex, setInsertAfterIndex] = useState<number | null>(null);
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
@@ -2181,6 +2224,18 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setInsertAfterIndex(null);
   }, [globalBranding, setTemplateDocument]);
 
+  const handlePaletteDragStart = useCallback((event: DragEvent<HTMLButtonElement>, type: BuilderBlockType) => {
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-oyama-email-block", type);
+  }, []);
+
+  const handlePaletteDrop = useCallback((event: DragEvent<HTMLElement>, afterIndex?: number) => {
+    event.preventDefault();
+    const type = event.dataTransfer.getData("application/x-oyama-email-block") as BuilderBlockType;
+    if (!BLOCK_CHOICES.some((choice) => choice.type === type)) return;
+    handleInsertBlock(type, afterIndex);
+  }, [handleInsertBlock]);
+
   const insertBlocks = useCallback((newBlocks: BuilderBlock[], afterIndex?: number) => {
     const blocks = [...draftRef.current.template.blocks];
     if (afterIndex !== undefined && afterIndex >= 0) {
@@ -2192,6 +2247,12 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setSelectedBlockId(newBlocks[0]?.id || null);
     setInsertAfterIndex(null);
   }, [setTemplateDocument]);
+
+  const handleInsertColumnTemplate = useCallback((template: ColumnTemplateId) => {
+    const block = createColumnTemplate(template);
+    insertBlocks([block], insertAfterIndex ?? undefined);
+    setBlockInspectorModalOpen(true);
+  }, [insertAfterIndex, insertBlocks]);
 
   const handleInsertPremadeSection = useCallback((preset: PremadeSectionId) => {
     const address = formatBrandingAddress(globalBranding);
@@ -2628,6 +2689,21 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     builderWarnings.length === 0,
   ];
   const readinessPercent = Math.round((readinessChecks.filter(Boolean).length / readinessChecks.length) * 100);
+  const managedHeaderEnabled = Boolean(
+    globalBranding.globalHeaderHtml
+    || globalBranding.logoUrl
+    || globalBranding.logoSquareUrl
+    || globalBranding.organizationDisplayName
+    || globalBranding.legalOrganizationName
+    || globalBranding.tagline,
+  );
+  const managedFooterEnabled = Boolean(
+    globalBranding.globalFooterHtml
+    || globalBranding.footerLegalText
+    || draft.settings.footerBrandingText
+    || draft.settings.includePhysicalAddress
+    || draft.settings.includeUnsubscribeLink,
+  );
 
   if (loading) {
     return (
@@ -2810,6 +2886,16 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           </span>
           <span className="hidden text-[11px] font-medium text-slate-500 md:inline">Select a block to edit · drag to reorder · double-click for advanced controls</span>
         </div>
+        <div className="grid gap-2 border-t border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-xs text-emerald-950 sm:grid-cols-2 sm:px-6 lg:px-8">
+          <div className="rounded-lg border border-emerald-200/80 bg-white/80 px-3 py-2">
+            <p className="font-semibold">{managedHeaderEnabled ? "Organization header is included automatically" : "Organization header is not configured"}</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{managedHeaderEnabled ? "It appears above your canvas in the sent email. Use In-body Header only when you intentionally want a second header." : "Set it in Branding Settings; an In-body Header is part of this email’s content."}</p>
+          </div>
+          <div className="rounded-lg border border-emerald-200/80 bg-white/80 px-3 py-2">
+            <p className="font-semibold">{managedFooterEnabled ? "Footer and compliance bar are managed automatically" : "Footer controls need configuration"}</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Manage footer text and address in Email Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
+          </div>
+        </div>
         {error ? <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}
         {notice ? <div className="border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{notice}</div> : null}
       </header>
@@ -2819,67 +2905,93 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         {/* LEFT PANEL */}
         <aside className="order-1 flex max-h-[42dvh] w-full flex-none flex-col overflow-hidden rounded-[22px] border border-white/90 bg-white/90 shadow-[0_24px_55px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[320px]">
           <div className="flex-1 overflow-y-auto px-5 py-5">
-            {/* Add Content */}
+            {/* Block Library */}
             <div className="mb-4">
               <button
                 type="button"
                 onClick={() => setAddContentExpanded((v) => !v)}
                 className="flex w-full items-center justify-between text-base font-semibold text-slate-950"
               >
-                Add Content
+                Block Library
                 <svg viewBox="0 0 20 20" className={["h-4 w-4 transition-transform", addContentExpanded ? "rotate-180" : ""].join(" ")} fill="currentColor">
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
               {addContentExpanded ? (
                 <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    {BLOCK_CHOICES.map((choice) => (
-                      <button
-                        key={choice.type}
-                        type="button"
-                        onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)}
-                        className="group flex min-h-[64px] items-center gap-2.5 rounded-xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/70 px-3 py-2 text-left text-xs font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:from-emerald-50 hover:to-white hover:text-emerald-800 hover:shadow-md"
-                      >
-                        <BlockTypeIcon type={choice.type} />
-                        {choice.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
-                    <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Premade Sections</p>
-                    <div className="mt-2 space-y-1.5">
-                      {PREMADE_SECTION_CHOICES.map((preset) => (
+                  <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-4 text-slate-600">Click to insert or drag a block directly onto an insertion line in the canvas.</p>
+                  {BLOCK_LIBRARY_DRAWERS.map((drawer) => {
+                    const expanded = activeBlockLibraryDrawer === drawer.id;
+                    const choices = BLOCK_CHOICES.filter((choice) => drawer.types.includes(choice.type));
+                    return (
+                      <section key={drawer.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                         <button
-                          key={preset.id}
                           type="button"
-                          onClick={() => handleInsertPremadeSection(preset.id)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-left text-[11px] hover:border-emerald-300 hover:bg-emerald-50"
+                          onClick={() => setActiveBlockLibraryDrawer((current) => current === drawer.id ? null : drawer.id)}
+                          className="flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-slate-50"
                         >
-                          <p className="font-semibold text-slate-700">{preset.label}</p>
-                          <p className="text-slate-500">{preset.description}</p>
+                          <span><span className="block text-xs font-bold text-slate-900">{drawer.label}</span><span className="block text-[11px] text-slate-500">{drawer.detail}</span></span>
+                          <span className="text-base text-slate-400">{expanded ? "−" : "+"}</span>
                         </button>
-                      ))}
-                    </div>
-                  </div>
+                        {expanded ? (
+                          <div className="border-t border-slate-100 p-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              {choices.map((choice) => (
+                                <button
+                                  key={choice.type}
+                                  type="button"
+                                  draggable
+                                  onDragStart={(event) => handlePaletteDragStart(event, choice.type)}
+                                  onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)}
+                                  className="group flex min-h-[58px] cursor-grab items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-left text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 active:cursor-grabbing"
+                                >
+                                  <BlockTypeIcon type={choice.type} />
+                                  {choice.label}
+                                </button>
+                              ))}
+                            </div>
+                            {drawer.id === "layout" ? (
+                              <div className="mt-3 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">Ready-made layouts</p>
+                                {COLUMN_TEMPLATE_CHOICES.map((template) => (
+                                  <button key={template.id} type="button" onClick={() => handleInsertColumnTemplate(template.id)} className="w-full rounded-md border border-emerald-200 bg-white px-2 py-2 text-left text-[11px] hover:border-emerald-400 hover:bg-emerald-50">
+                                    <span className="block font-semibold text-emerald-950">{template.label}</span><span className="block text-emerald-800">{template.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                            {drawer.id === "layout" ? (
+                              <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                <summary className="cursor-pointer text-[11px] font-semibold text-slate-700">Browse reusable email sections</summary>
+                                <div className="mt-2 space-y-1.5">
+                                  {PREMADE_SECTION_CHOICES.map((preset) => <button key={preset.id} type="button" onClick={() => handleInsertPremadeSection(preset.id)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-[11px] hover:border-emerald-300 hover:bg-emerald-50"><span className="font-semibold text-slate-700">{preset.label}</span><span className="block text-slate-500">{preset.description}</span></button>)}
+                                </div>
+                              </details>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </section>
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
 
-            {/* Merge Fields */}
+            {/* Merge Field Drawer */}
             <div>
               <button
                 type="button"
                 onClick={() => setMergeFieldsExpanded((v) => !v)}
                 className="flex w-full items-center justify-between text-base font-semibold text-slate-950"
               >
-                Merge Fields
+                Merge Field Drawer
                 <svg viewBox="0 0 20 20" className={["h-4 w-4 transition-transform", mergeFieldsExpanded ? "rotate-180" : ""].join(" ")} fill="currentColor">
                   <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
               {mergeFieldsExpanded ? (
                 <div className="mt-3">
+                  <p className="mb-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-[11px] leading-4 text-sky-900">Choose a category, then insert only the field you need into the selected editor. Fields are grouped by live CRM data source.</p>
                   <input
                     value={mergeSearch}
                     onChange={(e) => setMergeSearch(e.target.value)}
@@ -3014,14 +3126,18 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               className="overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_30px_70px_rgba(15,23,42,0.16),0_0_0_1px_rgba(148,163,184,0.22)]"
             >
               {draft.template.blocks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-center">
+                <div
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => handlePaletteDrop(event)}
+                  className="flex min-h-64 flex-col items-center justify-center gap-3 border-2 border-dashed border-emerald-200 bg-emerald-50/30 px-8 py-16 text-center"
+                >
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                     <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                     </svg>
                   </div>
                   <p className="text-sm font-medium text-slate-500">No blocks yet</p>
-                  <p className="text-xs text-slate-400">Choose a block type from the left panel.</p>
+                  <p className="text-xs text-slate-500">Choose a block from the library or drop one here.</p>
                 </div>
               ) : (
                 <>
@@ -3030,9 +3146,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     return (
                       <div key={block.id}>
                         <div
-                          className="group relative h-1 hover:h-7 transition-all"
+                          className="group relative h-2 hover:h-8 transition-all"
                           onMouseEnter={() => setInsertAfterIndex(index - 1)}
                           onMouseLeave={() => setInsertAfterIndex(null)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => handlePaletteDrop(event, index - 1)}
                         >
                           {insertAfterIndex === index - 1 ? (
                             <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -3176,15 +3294,17 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     );
                   })}
                   <div
-                    className="flex cursor-pointer items-center gap-2 border-t border-dashed border-slate-200 px-6 py-3 hover:bg-slate-50 transition-colors"
+                    className="flex cursor-pointer items-center gap-2 border-t border-dashed border-emerald-200 px-6 py-4 hover:bg-emerald-50/60 transition-colors"
                     onClick={() => setAddContentExpanded(true)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => handlePaletteDrop(event, draft.template.blocks.length - 1)}
                   >
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-slate-500">
                       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
                         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                       </svg>
                     </div>
-                    <span className="text-xs font-medium text-slate-400">Add a block</span>
+                    <span className="text-xs font-medium text-slate-500">Add or drop a block</span>
                   </div>
                 </>
               )}
@@ -4559,7 +4679,7 @@ function CanvasBlockPreview({ block }: { block: BuilderBlock }) {
         {block.caption ? <figcaption className="mt-2 text-center text-xs text-slate-500">{block.caption}</figcaption> : null}
       </figure>
     ) : (
-      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-8 text-center text-sm text-slate-500">Image source not set</div>
+      <div className="rounded-md border border-dashed border-emerald-300 bg-emerald-50/60 px-3 py-8 text-center text-sm text-emerald-900">Image slot ready — upload an image in the Advanced Editor.</div>
     );
   }
 
@@ -4732,6 +4852,24 @@ function ColumnBlockStackEditor({
                     <button type="button" onClick={() => patchColumn(column, (items) => items.filter((candidate) => candidate.id !== item.id))} className="rounded px-1.5 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50" aria-label={`Remove ${blockDisplayLabel(item)}`}>Remove</button>
                   </div>
                   <div className="mt-2 pointer-events-none opacity-80"><CanvasBlockPreview block={item} /></div>
+                  {item.type === "image" && !item.src?.trim() ? (
+                    <label className="mt-2 block rounded-md border border-dashed border-emerald-300 bg-emerald-50 px-2 py-2 text-[11px] font-semibold text-emerald-900">
+                      Upload image for this slot
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={!canUpload || uploadingImage}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          onUploadImage(item.id, file);
+                          event.currentTarget.value = "";
+                        }}
+                        className="mt-1 block w-full text-[11px] font-normal text-slate-700 disabled:opacity-60"
+                      />
+                      {!canUpload ? <span className="mt-1 block font-normal text-slate-500">Save the template first to enable uploads.</span> : null}
+                    </label>
+                  ) : null}
                 </div>
               ))}
               {columns[column].length === 0 ? <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-xs text-slate-500">Add a block to start this column.</p> : null}

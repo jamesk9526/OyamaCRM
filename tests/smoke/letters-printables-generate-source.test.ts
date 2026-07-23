@@ -98,14 +98,18 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("Auto-flows in production");
   });
 
-  it("uses the uploaded organization logo as the header wordmark in print and PDF output", () => {
+  it("uses the uploaded organization logo with configurable production header columns", () => {
     const letterPage = read("app/components/letters/LetterPage.tsx");
     const lettersApi = read("server/src/routes/letters.ts");
+    const brandingManager = read("app/components/letters/LetterBrandingManager.tsx");
 
-    expect(letterPage).toContain("recipientFacingSubject");
+    expect(letterPage).toContain("organizationHeaderLines");
     expect(letterPage).toContain("{recipientName}");
-    expect(lettersApi).toContain("const subject = recipientFacingLetterSubject(documentMeta?.subject)");
-    expect(lettersApi).toContain("RE: ${subject}");
+    expect(lettersApi).toContain("buildHeaderRightLines");
+    expect(lettersApi).toContain('rightColumnMode === "ORGANIZATION"');
+    expect(lettersApi).toContain("firstPageLetterBodyStartY");
+    expect(brandingManager).toContain("Top-right header content");
+    expect(brandingManager).toContain("{{donor.addressBlock}}");
   });
 
   it("keeps operational PDF labels out of rendered letter output", () => {

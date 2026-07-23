@@ -22,6 +22,8 @@ interface HeaderForm {
   showAddress: boolean;
   showPhone: boolean;
   showWebsite: boolean;
+  rightColumnMode: "ORGANIZATION" | "RECIPIENT" | "CUSTOM";
+  rightColumnHtml: string;
   customHtml: string;
   isDefault: boolean;
   isActive: boolean;
@@ -45,11 +47,13 @@ interface FooterForm {
 const EMPTY_HEADER: HeaderForm = {
   name: "",
   logoAlignment: "LEFT",
-  showOrganizationName: true,
+  showOrganizationName: false,
   showTagline: false,
   showAddress: true,
   showPhone: true,
   showWebsite: true,
+  rightColumnMode: "ORGANIZATION",
+  rightColumnHtml: "",
   customHtml: "",
   isDefault: false,
   isActive: true,
@@ -134,6 +138,10 @@ export default function LetterBrandingManager() {
       showAddress: selectedHeader.showAddress ?? true,
       showPhone: selectedHeader.showPhone ?? true,
       showWebsite: selectedHeader.showWebsite ?? true,
+      rightColumnMode: selectedHeader.rightColumnMode === "RECIPIENT" || selectedHeader.rightColumnMode === "CUSTOM"
+        ? selectedHeader.rightColumnMode
+        : "ORGANIZATION",
+      rightColumnHtml: selectedHeader.rightColumnHtml ?? "",
       customHtml: selectedHeader.customHtml ?? "",
       isDefault: selectedHeader.isDefault,
       isActive: selectedHeader.isActive,
@@ -166,7 +174,11 @@ export default function LetterBrandingManager() {
     setError(null);
     setMessage(null);
     try {
-      const payload = { ...headerForm, customHtml: headerForm.customHtml || null };
+      const payload = {
+        ...headerForm,
+        rightColumnHtml: headerForm.rightColumnHtml || null,
+        customHtml: headerForm.customHtml || null,
+      };
       const result = selectedHeaderId
         ? await apiFetch<HeaderPreset>(`/api/letters/header-presets/${selectedHeaderId}`, { method: "PATCH", body: JSON.stringify(payload) })
         : await apiFetch<HeaderPreset>("/api/letters/header-presets", { method: "POST", body: JSON.stringify(payload) });
@@ -273,8 +285,21 @@ function HeaderEditor({ form, setForm, saving, onSave }: { form: HeaderForm; set
           {["LEFT", "CENTER", "RIGHT", "NONE"].map((value) => <option key={value} value={value}>{value}</option>)}
         </select>
       </Field>
+      <Field label="Top-right header content">
+        <select value={form.rightColumnMode} onChange={(event) => setForm({ ...form, rightColumnMode: event.target.value as HeaderForm["rightColumnMode"] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+          <option value="ORGANIZATION">Organization contact details</option>
+          <option value="RECIPIENT">Recipient name and address</option>
+          <option value="CUSTOM">Custom text and merge fields</option>
+        </select>
+      </Field>
+      {form.rightColumnMode === "CUSTOM" ? (
+        <Field label="Top-right custom content">
+          <textarea value={form.rightColumnHtml} onChange={(event) => setForm({ ...form, rightColumnHtml: event.target.value })} rows={4} placeholder={'{{donor.fullName}}\n{{donor.addressBlock}}'} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" />
+          <p className="mt-1 text-xs font-normal text-gray-500">{"Use {{organization.name}}, {{organization.address}}, {{organization.contact}}, {{donor.fullName}}, {{donor.addressBlock}}, or {{currentDate}}."}</p>
+        </Field>
+      ) : null}
       <ToggleGrid>
-        <Toggle label="Organization Name" checked={form.showOrganizationName} onChange={(value) => setForm({ ...form, showOrganizationName: value })} />
+        <Toggle label="Organization Name (without logo)" checked={form.showOrganizationName} onChange={(value) => setForm({ ...form, showOrganizationName: value })} />
         <Toggle label="Tagline" checked={form.showTagline} onChange={(value) => setForm({ ...form, showTagline: value })} />
         <Toggle label="Address" checked={form.showAddress} onChange={(value) => setForm({ ...form, showAddress: value })} />
         <Toggle label="Phone" checked={form.showPhone} onChange={(value) => setForm({ ...form, showPhone: value })} />
@@ -282,7 +307,7 @@ function HeaderEditor({ form, setForm, saving, onSave }: { form: HeaderForm; set
         <Toggle label="Default" checked={form.isDefault} onChange={(value) => setForm({ ...form, isDefault: value })} />
         <Toggle label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
       </ToggleGrid>
-      <Field label="Custom Header HTML">
+      <Field label="Legacy header HTML">
         <textarea value={form.customHtml} onChange={(event) => setForm({ ...form, customHtml: event.target.value })} rows={4} className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs" />
       </Field>
       <button type="button" onClick={onSave} disabled={saving || !form.name.trim()} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">{saving ? "Saving..." : "Save Header Preset"}</button>

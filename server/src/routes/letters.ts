@@ -58,6 +58,7 @@ const LETTER_GENERATED_STATUSES = ["DRAFT", "GENERATED", "PRINTED", "MAILED", "E
 const LETTER_LOGO_MODES = ["ORGANIZATION_DEFAULT", "CUSTOM", "NONE"] as const;
 const LETTER_CRM_SCOPES = ["DONOR", "EVENTS", "COMPASSION", "GLOBAL"] as const;
 const LETTER_ALIGNMENT = ["LEFT", "CENTER", "RIGHT", "NONE"] as const;
+const LETTER_HEADER_RIGHT_COLUMN_MODES = ["ORGANIZATION", "RECIPIENT", "CUSTOM"] as const;
 const PRINT_QUEUE_STATUSES = ["GENERATED", "NEEDS_REVIEW", "APPROVED", "QUEUED_FOR_PRINT", "PRINTED", "FAILED", "CANCELED", "ARCHIVED"] as const;
 const MAIL_QUEUE_STATUSES = ["QUEUED_FOR_MAIL", "MAILED", "RETURNED", "ADDRESS_ISSUE", "COMPLETED", "CANCELED", "ARCHIVED"] as const;
 const LETTER_PRIORITY = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
@@ -137,6 +138,8 @@ interface LetterPdfPresetContext {
     showAddress: boolean;
     showPhone: boolean;
     showWebsite: boolean;
+    rightColumnMode?: "ORGANIZATION" | "RECIPIENT" | "CUSTOM" | string | null;
+    rightColumnHtml?: string | null;
     customHtml?: string | null;
   } | null;
   footerPreset?: {
@@ -1721,9 +1724,9 @@ async function getDefaultLetterPdfPresets(organizationId: string): Promise<Lette
 
 function buildRecipientCityStateZip(recipient?: LetterPdfRecipientContext | null): string {
   if (!recipient) return "";
-  const city = recipient.city.trim();
-  const state = recipient.state.trim();
-  const zip = recipient.zip.trim();
+  const city = String(recipient.city ?? "").trim();
+  const state = String(recipient.state ?? "").trim();
+  const zip = String(recipient.zip ?? "").trim();
   const cityState = [city, state].filter(Boolean).join(", ");
   return [cityState, zip].filter(Boolean).join(" ").trim();
 }
@@ -1731,9 +1734,9 @@ function buildRecipientCityStateZip(recipient?: LetterPdfRecipientContext | null
 function buildRecipientAddressLines(recipient?: LetterPdfRecipientContext | null): string[] {
   if (!recipient) return [];
   const lines = [
-    recipient.fullName.trim(),
-    recipient.addressLine1.trim(),
-    recipient.addressLine2.trim(),
+    String(recipient.fullName ?? "").trim(),
+    String(recipient.addressLine1 ?? "").trim(),
+    String(recipient.addressLine2 ?? "").trim(),
     buildRecipientCityStateZip(recipient),
   ].filter((value) => value.length > 0);
   return lines;
@@ -1830,7 +1833,13 @@ function drawPdfChrome(
   const logoY = 30 + Math.max(0, (logoMaxHeight - activeLogoHeight) / 2);
   const recipientAddressLines = buildRecipientAddressLines(recipient);
   const footer = footerLines(branding, presets.footerPreset);
-  const subject = recipientFacingLetterSubject(documentMeta?.subject);
+  const rightColumnMode = headerRightColumnMode(presets.headerPreset);
+  const headerRightLines = buildHeaderRightLines({
+    branding,
+    preset: presets.headerPreset,
+    recipient,
+    generatedAt: documentMeta?.generatedAt,
+  });
   const logoFormat = branding.logoFormat ?? "PNG";
   const [brandR, brandG, brandB] = normalizePdfHexColor(branding.primaryColor);
   const firstPage = Math.max(1, pageRange?.startPage ?? 1);
@@ -1858,44 +1867,33 @@ function drawPdfChrome(
       doc.setTextColor(15, 23, 42);
     }
 
-    if (subject || hasLogo || hasFallbackLogo) {
-      const headerTextX = logoAlignment === "LEFT" && (hasLogo || hasFallbackLogo)
-        ? logoX + activeLogoWidth + 12
-        : logoAlignment === "CENTER"
-          ? pageWidth / 2
-          : logoAlignment === "RIGHT"
-            ? pageWidth - marginX
-            : marginX;
-      const headerTextAlign = logoAlignment === "CENTER" ? "center" : logoAlignment === "RIGHT" ? "right" : "left";
-      const headerTextY = hasLogo || hasFallbackLogo ? logoY + activeLogoHeight / 2 + 5 : 48;
-      const recipientColumnWidth = recipientAddressLines.length > 0 ? 214 : 0;
-      const titleMaxWidth = logoAlignment === "LEFT"
-        ? Math.max(96, pageWidth - marginX - headerTextX - recipientColumnWidth)
-        : Math.max(160, pageWidth - marginX * 2);
-      if (subject) {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(brandR, brandG, brandB);
-        const titleLines = doc.splitTextToSize(`RE: ${subject}`, titleMaxWidth) as string[];
-        const titleLineHeight = 14;
-        const titleStartY = headerTextY - ((Math.max(1, titleLines.length) - 1) * titleLineHeight) / 2;
-        titleLines.slice(0, 2).forEach((line, index) => {
-          doc.text(line, headerTextX, titleStartY + index * titleLineHeight, { align: headerTextAlign });
-        });
-      }
+    if (headerRightLines.length > 0 || hasLogo || hasFallbackLogo) {
+      const headerColumnWidth = 208;
+      const headerColumnX = pageWidth - marginX - headerColumnWidth;
+      const wrappedLines = headerRightLines.flatMap((line) => doc.splitTextToSize(line, headerColumnWidth) as string[]).slice(0, 6);
+      wrappedLines.forEach((line, index) => {
+        doc.setFont("helvetica", rightColumnMode === "RECIPIENT" && index === 0 ? "bold" : "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(line, headerColumnX, 42 + index * 13);
+      });
       doc.setDrawColor(brandR, brandG, brandB);
       doc.line(marginX, 144, pageWidth - marginX, 144);
     }
 
-    if (page === firstPage) {
+    if (page === firstPage && rightColumnMode === "ORGANIZATION") {
       const addressLines = recipientAddressLines.slice(0, 4);
+      const renderedDate = documentMeta?.generatedAt
+        ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
+        : "";
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
       addressLines.forEach((line, index) => {
         doc.setFont("helvetica", index === 0 ? "bold" : "normal");
-        doc.text(line, pageWidth - marginX, 42 + index * 14, { align: "right" });
+        doc.text(line, marginX, 170 + index * 14);
       });
+      if (renderedDate) doc.text(renderedDate, pageWidth - marginX, 170, { align: "right" });
     }
 
     doc.setDrawColor(226, 232, 240);
@@ -1907,6 +1905,72 @@ function drawPdfChrome(
       doc.text(line, pageWidth / 2, footerY + index * 10, { align: "center" });
     });
   }
+}
+
+function headerRightColumnMode(preset?: LetterPdfPresetContext["headerPreset"]): "ORGANIZATION" | "RECIPIENT" | "CUSTOM" {
+  const value = String(preset?.rightColumnMode ?? "ORGANIZATION").trim().toUpperCase();
+  return value === "RECIPIENT" || value === "CUSTOM" ? value : "ORGANIZATION";
+}
+
+function buildHeaderOrganizationLines(branding: LetterPdfBrandingContext, preset?: LetterPdfPresetContext["headerPreset"]): string[] {
+  const lines: string[] = [];
+  // The supplied logo is the wordmark; do not repeat its organization name beside it.
+  if ((preset?.showOrganizationName ?? false) && !branding.logoDataUrl) lines.push(branding.organizationName);
+  if (preset?.showTagline ?? false) lines.push(branding.tagline);
+  if (preset?.showAddress ?? true) lines.push(branding.addressLine);
+  if ((preset?.showPhone ?? true) || (preset?.showWebsite ?? true)) lines.push(branding.contactLine);
+  return lines.filter(Boolean);
+}
+
+function buildCustomHeaderRightLines(options: {
+  html: string;
+  branding: LetterPdfBrandingContext;
+  recipient?: LetterPdfRecipientContext | null;
+  generatedAt?: Date;
+}): string[] {
+  const recipientAddress = buildRecipientAddressLines(options.recipient);
+  const values: Record<string, string> = {
+    "donor.firstName": options.recipient?.fullName.trim().split(/\s+/)[0] ?? "",
+    "donor.fullName": options.recipient?.fullName ?? "",
+    "donor.addressLine1": options.recipient?.addressLine1 ?? "",
+    "donor.addressLine2": options.recipient?.addressLine2 ?? "",
+    "donor.city": options.recipient?.city ?? "",
+    "donor.state": options.recipient?.state ?? "",
+    "donor.zip": options.recipient?.zip ?? "",
+    "donor.addressBlock": recipientAddress.join("\n"),
+    "organization.name": options.branding.organizationName,
+    "organization.address": options.branding.addressLine,
+    "organization.contact": options.branding.contactLine,
+    currentDate: options.generatedAt
+      ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(options.generatedAt)
+      : "",
+  };
+  const merged = options.html.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_match, key: string) => values[key] ?? "");
+  return stripHtmlInline(merged).split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function buildHeaderRightLines(options: {
+  branding: LetterPdfBrandingContext;
+  preset?: LetterPdfPresetContext["headerPreset"];
+  recipient?: LetterPdfRecipientContext | null;
+  generatedAt?: Date;
+}): string[] {
+  const mode = headerRightColumnMode(options.preset);
+  if (mode === "RECIPIENT") return buildRecipientAddressLines(options.recipient);
+  if (mode === "CUSTOM") {
+    return buildCustomHeaderRightLines({
+      html: options.preset?.rightColumnHtml?.trim() || options.preset?.customHtml?.trim() || "",
+      branding: options.branding,
+      recipient: options.recipient,
+      generatedAt: options.generatedAt,
+    });
+  }
+  return buildHeaderOrganizationLines(options.branding, options.preset);
+}
+
+/** Keeps the first body line clear of the address/date row when that row is rendered. */
+function firstPageLetterBodyStartY(presets: LetterPdfPresetContext): number {
+  return headerRightColumnMode(presets.headerPreset) === "ORGANIZATION" ? 238 : 168;
 }
 
 function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
@@ -2240,7 +2304,7 @@ export async function renderGeneratedLetterPdf(params: {
 
   const blocks = await buildLetterPdfBodyBlocks(params.mergedPrintBody, params.presets.signatureBlock, params.recipient);
   renderPdfContentBlocks(doc, blocks, {
-    startY: 168,
+    startY: firstPageLetterBodyStartY(params.presets),
     continuationStartY: 160,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
@@ -2311,7 +2375,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     const startPage = doc.getNumberOfPages();
     const blocks = await buildLetterPdfBodyBlocks(item.mergedPrintBody, item.presets.signatureBlock, item.recipient);
     renderPdfContentBlocks(doc, blocks, {
-      startY: 168,
+      startY: firstPageLetterBodyStartY(item.presets),
       continuationStartY: 160,
     });
     const endPage = doc.getNumberOfPages();
@@ -4186,6 +4250,7 @@ router.post("/header-presets", requirePermission("letters.manage_branding"), asy
   }
 
   const logoAlignment = parseEnum(req.body?.logoAlignment, LETTER_ALIGNMENT) ?? "LEFT";
+  const rightColumnMode = parseEnum(req.body?.rightColumnMode, LETTER_HEADER_RIGHT_COLUMN_MODES) ?? "ORGANIZATION";
   const preset = await prisma.letterHeaderPreset.create({
     data: {
       organizationId,
@@ -4196,6 +4261,8 @@ router.post("/header-presets", requirePermission("letters.manage_branding"), asy
       showAddress: req.body?.showAddress !== false,
       showPhone: req.body?.showPhone !== false,
       showWebsite: req.body?.showWebsite !== false,
+      rightColumnMode,
+      rightColumnHtml: typeof req.body?.rightColumnHtml === "string" ? req.body.rightColumnHtml.slice(0, 4000) : null,
       customHtml: typeof req.body?.customHtml === "string" ? req.body.customHtml : null,
       isDefault: req.body?.isDefault === true,
       isActive: req.body?.isActive !== false,
@@ -4245,11 +4312,19 @@ router.patch("/header-presets/:id", requirePermission("letters.manage_branding")
   }
   if (logoAlignment) patch.logoAlignment = logoAlignment;
 
+  const rightColumnMode = parseEnum(req.body?.rightColumnMode, LETTER_HEADER_RIGHT_COLUMN_MODES);
+  if (req.body?.rightColumnMode !== undefined && !rightColumnMode) {
+    res.status(400).json({ error: { code: "INVALID_RIGHT_COLUMN_MODE", message: "Invalid header right-column mode." } });
+    return;
+  }
+  if (rightColumnMode) patch.rightColumnMode = rightColumnMode;
+
   if (typeof req.body?.showOrganizationName === "boolean") patch.showOrganizationName = req.body.showOrganizationName;
   if (typeof req.body?.showTagline === "boolean") patch.showTagline = req.body.showTagline;
   if (typeof req.body?.showAddress === "boolean") patch.showAddress = req.body.showAddress;
   if (typeof req.body?.showPhone === "boolean") patch.showPhone = req.body.showPhone;
   if (typeof req.body?.showWebsite === "boolean") patch.showWebsite = req.body.showWebsite;
+  if (req.body?.rightColumnHtml !== undefined) patch.rightColumnHtml = typeof req.body.rightColumnHtml === "string" ? req.body.rightColumnHtml.slice(0, 4000) : null;
   if (req.body?.customHtml !== undefined) patch.customHtml = typeof req.body.customHtml === "string" ? req.body.customHtml : null;
   if (typeof req.body?.isDefault === "boolean") patch.isDefault = req.body.isDefault;
   if (typeof req.body?.isActive === "boolean") patch.isActive = req.body.isActive;

@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-22 (OyamaEmail image delivery and unified production letter rendering)
+Last updated: 2026-07-22 (OyamaEmail builder, image delivery, and configurable production letter layout)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -11,24 +11,26 @@ This file is the release-gate source of truth for production readiness.
 | Top-level and structured-column image blocks upload through the organization-scoped campaign media endpoint | Working | Recursive block updates and shared upload wiring in `app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx`; source contract coverage passed. |
 | Organization logos and uploaded images use absolute public URLs in recipient HTML | Working | Public-origin enrichment in `server/src/services/organization-branding.ts`; shared render-time URL resolution in `server/src/services/oyama-email/email-render-service.ts`; renderer coverage passed. |
 | Advanced Editor bullets and numbered lists remain formatted after delivery | Working | Top-level Advanced HTML uses the shared email-safe rich-text formatter, which inlines list markers and spacing and produces readable plain-text list fallbacks. |
+| Builder distinguishes managed header/footer chrome from in-email content and provides uploadable image-column templates | Working | `OyamaEmailBuilderWorkspace` explicitly labels the organization header plus footer/unsubscribe bar as rendered outside the canvas. Responsive Two Image Cards and Image + Copy templates insert direct-upload image slots. |
+| Builder organizes authoring blocks and merge data into focused drawers | Working | `OyamaEmailBuilderWorkspace` provides collapsible Content, Layout, and Engagement drawers, a closed-by-default Merge Field Drawer, reusable email-section templates, and draggable palette blocks with canvas insertion targets. |
 | Production public origin is configured and documented for self-hosted delivery | Working | `.env.production` points `NEXT_PUBLIC_APP_URL` / `FRONTEND_ORIGIN` at the public CRM host; `.env.example` and `docs/HOSTINGER_DEPLOY_README.md` document the requirement. |
 | Live Gmail/Outlook inbox image verification | Partially Working | Automated rendering confirms absolute image URLs; repeat one real proof send after deployment/restart to verify remote inbox access and any receiver-side image-proxy policy. |
 
-Validation: focused Email renderer/source/API suite passed 34/34; web and server typechecks passed; targeted ESLint completed with 0 errors.
+Validation: current focused Email renderer/source suite passed 24/24; web and server typechecks passed. The prior targeted ESLint pass completed with 0 errors.
 
 ## 2026-07-22 Unified Production Letter Layout and Reviewed Validation Override
 
 | Release gate | Status | Evidence |
 |---|---|---|
 | Final production PDF follows one reference-style letter format | Working | `app/components/letters/LetterPage.tsx`, `server/src/routes/letters.ts` |
-| Logo wordmark, recipient details, subject, and margins use the intended standard letter positions | Working | Uploaded logo and real `RE:` subject at upper left; recipient details upper right; the internal “Printable Letter” label is suppressed; new layouts default to 0.25-inch margins. |
+| Logo wordmark, configurable top-right content, and margins use the intended standard letter positions | Working | The logo is the upper-left wordmark without a duplicate name. Header presets support organization contact details, recipient name/address, or custom merge-field text in the upper right. In the standard organization layout the recipient and date sit below the divider; recipient/custom header modes do not repeat recipient address in the body. New layouts default to 0.25-inch margins. |
 | Donation-summary and editor tables preserve their visual structure in PDF | Working | `server/src/routes/letters.ts` carries cell borders, fill, padding, emphasis, and alignment into the production renderer. |
 | Every user-facing letter preview and print route uses the production PDF | Working | `app/components/letters/LetterPrintRoute.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` |
 | Long letters auto-flow to the next page and the editor offers Add Page for deliberate breaks | Working | `server/src/routes/letters.ts`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/unit/letters-pdf-layout.test.ts` |
 | Staff can explicitly acknowledge reviewable generation validation notes | Working | `acknowledgeValidationOverride` is sent by the Generate workspace, recorded in generated-letter metadata and audit history |
 | Mailing safety remains server enforced | Working | `SUPPRESSED_DO_NOT_MAIL` and a missing mail-queue address remain non-bypassable in `canAcknowledgeGenerationValidation` |
 
-Validation: focused Letter document/PDF/source suite passed 44/44, including the one-page donor-letter fit and table-format regressions; `pnpm typecheck` passed.
+Validation: focused Letter PDF/source suite passed 32/32, including the one-page donor-letter fit and table-format regressions; Prisma schema validation and `pnpm typecheck` passed. Full lint completed with 0 errors (existing workspace warnings remain).
 
 ## 2026-07-20 Donor Campaign Workspace Audit
 
