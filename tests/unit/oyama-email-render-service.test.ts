@@ -242,8 +242,8 @@ describe("oyama email render service", () => {
 
     expect(rendered.html).toContain('src="https://crm.example.org/uploads/branding/org/global.png"');
     expect(rendered.html).toContain('src="https://crm.example.org/uploads/branding/org/header.png"');
-    expect(rendered.html).toContain('src="https://crm.example.org/uploads/email-media/org/hero.jpg"');
-    expect(rendered.html).toContain('src="https://crm.example.org/uploads/email-media/org/column.png"');
+    expect(rendered.html).toContain('src="https://crm.example.org/api/email-campaigns/media/org/hero.jpg"');
+    expect(rendered.html).toContain('src="https://crm.example.org/api/email-campaigns/media/org/column.png"');
     expect(rendered.html).toContain('src="https://crm.example.org/uploads/email-media/org/custom.gif"');
     expect(rendered.html).toContain('src="https://cdn.example.org/hosted.png"');
     expect(rendered.html).not.toContain('src="/uploads/');

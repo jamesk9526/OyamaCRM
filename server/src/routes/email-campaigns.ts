@@ -46,6 +46,9 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 
 const router = Router();
+const EMAIL_MEDIA_ROOT = path.resolve(process.cwd(), "public", "uploads", "email-media");
+const PUBLIC_EMAIL_MEDIA_FILE = /^[a-z0-9][a-z0-9._-]{0,200}\.(?:png|jpe?g|webp|gif)$/i;
+const PUBLIC_EMAIL_MEDIA_ORGANIZATION = /^[a-z0-9_-]{3,128}$/i;
 
 const EMAIL_CAMPAIGN_WEBHOOK_SECRET =
   process.env.EMAIL_CAMPAIGN_WEBHOOK_SECRET
@@ -367,6 +370,33 @@ router.post("/webhooks/delivery", async (req, res) => {
     rejected: errors.length,
     errors,
     campaignsUpdated: touchedCampaigns.size,
+  });
+});
+
+/** Public recipient-loadable campaign media. Kept outside authenticated routes for inbox clients. */
+router.get("/media/:organizationId/:fileName", (req, res) => {
+  const organizationId = String(req.params.organizationId ?? "");
+  const fileName = String(req.params.fileName ?? "");
+  if (!PUBLIC_EMAIL_MEDIA_ORGANIZATION.test(organizationId) || !PUBLIC_EMAIL_MEDIA_FILE.test(fileName)) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Media file not found" } });
+    return;
+  }
+
+  const organizationDirectory = path.resolve(EMAIL_MEDIA_ROOT, organizationId);
+  if (!organizationDirectory.startsWith(`${EMAIL_MEDIA_ROOT}${path.sep}`)) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Media file not found" } });
+    return;
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+  res.sendFile(fileName, { root: organizationDirectory, dotfiles: "deny" }, (error) => {
+    if (!error || res.headersSent) return;
+    if ("status" in error && error.status === 404) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Media file not found" } });
+      return;
+    }
+    console.error("[email-campaigns] Failed to serve public campaign media", error);
+    res.status(500).json({ error: { code: "MEDIA_UNAVAILABLE", message: "Media file is unavailable" } });
   });
 });
 
@@ -3026,7 +3056,7 @@ router.post("/:id/media", async (req, res) => {
   await mkdir(uploadDir, { recursive: true });
   await writeFile(targetPath, buffer);
 
-  const publicUrl = `/uploads/email-media/${organizationId}/${safeName}`;
+  const publicUrl = `/api/email-campaigns/media/${organizationId}/${safeName}`;
 
   await prisma.auditLog.create({
     data: {

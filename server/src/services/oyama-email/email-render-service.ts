@@ -473,6 +473,18 @@ function legacyBlockToHtml(input: Record<string, unknown>, legacyType: string): 
   return paragraphHtml(extractNestedText(input)) || "<p>Legacy content block</p>";
 }
 
+const EMAIL_MEDIA_UPLOAD_URL = /^(?:https?:\/\/[^/]+)?\/uploads\/email-media\/([a-z0-9_-]+)\/([a-z0-9][a-z0-9._-]{0,200}\.(?:png|jpe?g|webp|gif))$/i;
+
+/**
+ * Routes CRM-hosted email media through `/api`, which is available in every
+ * production deployment even when the frontend does not expose `/uploads`.
+ */
+export function normalizeEmailMediaUrl(value: string): string {
+  const match = value.trim().match(EMAIL_MEDIA_UPLOAD_URL);
+  if (!match) return value;
+  return `/api/email-campaigns/media/${match[1]}/${match[2]}`;
+}
+
 function normalizeBlock(raw: unknown, index: number, depth = 0): OyamaEmailBlock {
   const input = asObject(raw);
   const legacyType = asString(input.type).trim();
@@ -543,7 +555,7 @@ function normalizeBlock(raw: unknown, index: number, depth = 0): OyamaEmailBlock
     return {
       id,
       type,
-      src: asString(input.src).trim(),
+      src: normalizeEmailMediaUrl(asString(input.src).trim()),
       alt: asString(input.alt).trim(),
       imageWidthPercent: clamp(asNumber(input.imageWidthPercent, asNumber(input.width, 100)), 20, 100),
       imageLinkUrl: asString(input.imageLinkUrl).trim() || asString(input.link).trim(),
@@ -637,7 +649,7 @@ function normalizeBlock(raw: unknown, index: number, depth = 0): OyamaEmailBlock
     return {
       id,
       type,
-      thumbnailUrl: asString(input.thumbnailUrl).trim(),
+      thumbnailUrl: normalizeEmailMediaUrl(asString(input.thumbnailUrl).trim()),
       videoUrl: asString(input.videoUrl).trim() || asString(input.url).trim(),
       videoTitle: asString(input.videoTitle).trim(),
       videoCtaLabel: asString(input.videoCtaLabel).trim() || "Watch Video",

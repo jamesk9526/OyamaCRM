@@ -20,8 +20,8 @@ describe("public campaign media", () => {
     await rm(uploadDirectory, { recursive: true, force: true });
   });
 
-  it("serves uploaded campaign images without a CRM session", async () => {
-    const response = await request(app).get(`/uploads/email-media/${organizationId}/${fileName}`);
+  it("serves uploaded campaign images through the public API route without a CRM session", async () => {
+    const response = await request(app).get(`/api/email-campaigns/media/${organizationId}/${fileName}`);
 
     expect(response.status).toBe(200);
     expect(Buffer.from(response.body).toString()).toBe("email-image-fixture");
