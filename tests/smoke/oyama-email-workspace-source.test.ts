@@ -42,6 +42,7 @@ describe("OyamaEmail workspace source contract", () => {
   it("keeps the workspace API-backed and includes core sidebar navigation actions", () => {
     const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
     const builder = read("app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx");
+    const contactsManager = read("app/components/contacts-manager/ContactsManagerPage.tsx");
 
     expect(workspace).toContain("/api/email-campaigns?limit=100");
     expect(workspace).toContain("/api/oyama-email/templates?limit=100");
@@ -73,6 +74,10 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Select Audience");
     expect(workspace).toContain("Save Audience");
     expect(workspace).toContain("/oyama-email/campaigns/${row.id}?tab=audience");
+    expect(workspace).toContain("Open List Builder &amp; Contact Tags");
+    expect(workspace).toContain('type: "saved-list"');
+    expect(contactsManager).toContain('searchParams.get("campaignId")');
+    expect(contactsManager).toContain("audienceListId=");
     expect(workspace).toContain("About This Flow");
     expect(workspace).toContain("Templates are reusable content. Campaigns are send records that lock the audience, review state, queue history, and delivery results for one outbound run.");
     expect(workspace).toContain("Choose Audience Source");

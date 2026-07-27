@@ -52,6 +52,15 @@ describe("email campaign workflow api", () => {
 
   it("supports queue lifecycle controls, archive, and duplicate", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
+    const savedList = await request(app)
+      .post("/api/email-campaigns/lists")
+      .set(auth)
+      .send({
+        name: `Queue audience ${Date.now()}`,
+        recipientEmails: [`queue-audience-${Date.now()}@example.org`],
+      });
+
+    expect(savedList.status).toBe(201);
 
     const created = await request(app)
       .post("/api/email-campaigns")
@@ -73,11 +82,23 @@ describe("email campaign workflow api", () => {
           source: "oyama_email_template",
           sourceTemplateId: "template-lifecycle",
         },
+        audienceFilter: {
+          type: "saved-list",
+          recipientListId: savedList.body.id,
+        },
       });
 
     expect(created.status).toBe(201);
     expect(created.body?.templateSnapshot?.templateId).toBe("template-lifecycle");
     expect(created.body?.workflow?.sourceTemplateId).toBe("template-lifecycle");
+
+    const audienceValidation = await request(app)
+      .post(`/api/email-campaigns/${created.body.id}/validate`)
+      .set(auth)
+      .send({});
+
+    expect(audienceValidation.status).toBe(200);
+    expect(audienceValidation.body?.audience?.totalMatched).toBe(1);
 
     const ready = await request(app)
       .post(`/api/email-campaigns/${created.body.id}/ready`)

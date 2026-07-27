@@ -414,7 +414,11 @@ router.use((req, res, next) => {
   return next();
 });
 
-type AudienceFilter = { type?: string } | null;
+type AudienceFilter = {
+  type?: string;
+  recipientListId?: string;
+  recipientListIds?: string[];
+} | null;
 type AudienceConstituent = {
   id: string;
   email: string | null;
@@ -1439,6 +1443,15 @@ async function resolveRecipientPlan(
 
   // Handle MULTI_SEGMENT and SEGMENT/CAMPAIGN_AUDIENCE
   const stored = parseCampaignAudienceFilter(campaign.audienceFilter);
+  if (sendMode === "CAMPAIGN_AUDIENCE" && stored.filter?.type === "saved-list") {
+    const recipientListId = typeof stored.filter.recipientListId === "string"
+      ? stored.filter.recipientListId.trim()
+      : "";
+    if (!recipientListId) {
+      throw new CampaignSendError("The campaign's saved audience list is missing.", 400);
+    }
+    return resolveRecipientPlan(campaign, { sendMode: "SAVED_LIST", recipientListId });
+  }
   let types: string[] = [];
 
   if (sendMode === "MULTI_SEGMENT") {
@@ -3381,22 +3394,26 @@ router.post("/audience-preview", async (req, res) => {
 
   const filter = (req.body?.audienceFilter ?? null) as AudienceFilter;
   const purpose = parseEmailPurpose(req.body?.purpose);
-  const rows = await getAudienceConstituents(filter, organizationId);
-  const preview = await computeAudiencePreview(rows, organizationId, purpose);
+  const previewCampaign = {
+    organizationId,
+    purpose,
+    audienceFilter: serializeCampaignAudienceFilter(filter, "audience-preview", false, "DRAFT"),
+  };
+  const preview = await resolveRecipientPlan(previewCampaign);
 
   res.json({
     audience: {
-      totalMatched: preview.totalMatched,
-      validEmail: preview.validEmail,
-      missingEmail: preview.missingEmail,
-      optedOut: preview.optedOut,
-      duplicateEmails: preview.duplicateEmails,
-      suppressionCount: preview.suppressionCount,
-      categoryOptOut: preview.categoryOptOut,
-      doNotContact: preview.doNotContact,
-      invalidEmail: preview.invalidEmail,
-      suppressed: preview.suppressed,
-      finalSendCount: preview.finalSendCount,
+      totalMatched: preview.audience.totalMatched,
+      validEmail: preview.audience.validEmail,
+      missingEmail: preview.audience.missingEmail,
+      optedOut: preview.audience.optedOut,
+      duplicateEmails: preview.audience.duplicateEmails,
+      suppressionCount: preview.audience.suppressionCount,
+      categoryOptOut: preview.audience.categoryOptOut,
+      doNotContact: preview.audience.doNotContact,
+      invalidEmail: preview.audience.invalidEmail,
+      suppressed: preview.audience.suppressed,
+      finalSendCount: preview.audience.finalSendCount,
     },
     recipientsSample: preview.recipients.slice(0, 25),
   });

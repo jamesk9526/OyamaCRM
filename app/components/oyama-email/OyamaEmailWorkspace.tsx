@@ -1568,6 +1568,7 @@ function CampaignsView({
   onRefresh: () => Promise<void>;
 }) {
   const router = useRouter();
+  const campaignSearchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<(typeof CAMPAIGN_FILTER_CHIPS)[number]>("ALL");
   const [sortBy, setSortBy] = useState<string>("updatedAt");
@@ -1582,6 +1583,7 @@ function CampaignsView({
   const [calendarData, setCalendarData] = useState<CampaignCalendarResponse | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  const campaignAudienceListId = campaignSearchParams.get("audienceListId") ?? "";
 
   const selectedCampaign = useMemo(
     () => campaigns.find((row) => row.id === focusedCampaignId) ?? null,
@@ -1880,6 +1882,8 @@ function CampaignsView({
           activityRows={activityRows}
           queueRows={queueRows}
           audiencePreview={audiencePreview}
+          lists={lists}
+          audienceListId={campaignAudienceListId}
           onCampaignMutated={async () => {
             await onRefresh();
             if (viewMode === "calendar") {
@@ -2241,6 +2245,8 @@ function CampaignDetailWorkspace({
   activityRows,
   queueRows,
   audiencePreview,
+  lists,
+  audienceListId,
   onCampaignMutated,
 }: {
   campaign: OyamaEmailCampaign;
@@ -2251,6 +2257,8 @@ function CampaignDetailWorkspace({
   activityRows: CampaignActivityRow[];
   queueRows: CampaignQueueRow[];
   audiencePreview: CampaignAudiencePreviewResponse["audience"] | null;
+  lists: OyamaEmailRecipientList[];
+  audienceListId: string;
   onCampaignMutated: () => Promise<void>;
 }) {
   const workspaceStatus = effectiveCampaignStatus(campaign);
@@ -2271,10 +2279,22 @@ function CampaignDetailWorkspace({
   const [validation, setValidation] = useState<CampaignValidationResponse | null>(null);
   const [actionDialog, setActionDialog] = useState<CampaignActionDialogState | null>(null);
   const [selectedAudienceType, setSelectedAudienceType] = useState(() => audienceTypeFromCampaign(campaign));
+  const [selectedAudienceListId, setSelectedAudienceListId] = useState(() => audienceListFromCampaign(campaign));
+  const [audienceSource, setAudienceSource] = useState<"segment" | "list">(
+    () => audienceListFromCampaign(campaign) ? "list" : "segment",
+  );
 
   useEffect(() => {
     setSelectedAudienceType(audienceTypeFromCampaign(campaign));
+    setSelectedAudienceListId(audienceListFromCampaign(campaign));
+    setAudienceSource(audienceListFromCampaign(campaign) ? "list" : "segment");
   }, [campaign.audienceFilter, campaign.id]);
+
+  useEffect(() => {
+    if (!audienceListId || !lists.some((list) => list.id === audienceListId)) return;
+    setAudienceSource("list");
+    setSelectedAudienceListId(audienceListId);
+  }, [audienceListId, lists]);
 
   const summary = deliveryData?.summary;
   const queueStatusCounts = useMemo(() => buildQueueStatusCounts(queueRows), [queueRows]);
@@ -2338,17 +2358,26 @@ function CampaignDetailWorkspace({
   }, [campaign.id, runCampaignAction]);
 
   const saveAudience = useCallback(async () => {
-    if (!selectedAudienceType) {
+    if (audienceSource === "segment" && !selectedAudienceType) {
       setActionError("Choose an audience before saving.");
       return;
     }
+    if (audienceSource === "list" && !selectedAudienceListId) {
+      setActionError("Choose a saved Contact Manager list before saving.");
+      return;
+    }
+    const audienceFilter = audienceSource === "list"
+      ? { type: "saved-list", recipientListId: selectedAudienceListId }
+      : { type: selectedAudienceType };
     await runCampaignAction("audience", async () => {
       await apiFetch(`/api/email-campaigns/${campaign.id}`, {
         method: "PUT",
-        body: JSON.stringify({ audienceFilter: { type: selectedAudienceType } }),
+        body: JSON.stringify({ audienceFilter }),
       });
-    }, "Audience saved. Validation will run again before queueing or sending.");
-  }, [campaign.id, runCampaignAction, selectedAudienceType]);
+    }, audienceSource === "list"
+      ? "Contact Manager list attached. Validation will run again before queueing or sending."
+      : "Audience saved. Validation will run again before queueing or sending.");
+  }, [audienceSource, campaign.id, runCampaignAction, selectedAudienceListId, selectedAudienceType]);
 
   const runUnschedule = useCallback(async () => {
     await runCampaignAction("unschedule", async () => {
@@ -2733,23 +2762,48 @@ function CampaignDetailWorkspace({
 
           <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-base font-semibold text-slate-900">Select Audience</p>
-            <p className="mt-1 text-sm text-slate-600">Choose the live CRM audience for this campaign before queueing, scheduling, or sending.</p>
-            <label className="mt-4 block text-xs font-semibold text-slate-700">
-              Audience segment
-              <select
-                value={selectedAudienceType}
-                onChange={(event) => setSelectedAudienceType(event.target.value)}
-                disabled={!canEditCampaignAudience(campaign)}
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
-              >
-                <option value="">Choose an audience…</option>
-                {QUEUE_AUDIENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
+            <p className="mt-1 text-sm text-slate-600">Use a CRM segment or a saved list built in Contact Manager before queueing, scheduling, or sending.</p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => setAudienceSource("segment")} disabled={!canEditCampaignAudience(campaign)} className={["rounded-md border px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50", audienceSource === "segment" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>CRM Segment</button>
+              <button type="button" onClick={() => setAudienceSource("list")} disabled={!canEditCampaignAudience(campaign)} className={["rounded-md border px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50", audienceSource === "list" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Contact Manager List</button>
+            </div>
+            {audienceSource === "segment" ? (
+              <label className="mt-4 block text-xs font-semibold text-slate-700">
+                Audience segment
+                <select
+                  value={selectedAudienceType}
+                  onChange={(event) => setSelectedAudienceType(event.target.value)}
+                  disabled={!canEditCampaignAudience(campaign)}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  <option value="">Choose an audience…</option>
+                  {QUEUE_AUDIENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            ) : (
+              <div className="mt-4 space-y-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Saved Contact Manager list
+                  <select
+                    value={selectedAudienceListId}
+                    onChange={(event) => setSelectedAudienceListId(event.target.value)}
+                    disabled={!canEditCampaignAudience(campaign)}
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                    <option value="">Choose a saved list…</option>
+                    {lists.map((list) => <option key={list.id} value={list.id}>{list.name} ({list.recipientsCount})</option>)}
+                  </select>
+                </label>
+                <Link href={`/contacts-manager?campaignId=${encodeURIComponent(campaign.id)}`} className="inline-flex rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  Open List Builder &amp; Contact Tags
+                </Link>
+                <p className="text-xs text-slate-500">Use the row arrows in Contact Manager to build a list, filter by contact tags, then save it to return here.</p>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => void saveAudience()}
-              disabled={Boolean(actionBusy) || !canEditCampaignAudience(campaign) || !selectedAudienceType}
+              disabled={Boolean(actionBusy) || !canEditCampaignAudience(campaign) || (audienceSource === "segment" ? !selectedAudienceType : !selectedAudienceListId)}
               className="mt-3 rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {actionBusy === "audience" ? "Saving Audience..." : "Save Audience"}
@@ -3719,6 +3773,12 @@ function audienceTypeFromCampaign(campaign: OyamaEmailCampaign): string {
   const filter = parseAudienceFilterForPreview(campaign.audienceFilter);
   const type = typeof filter?.type === "string" ? filter.type.trim() : "";
   return QUEUE_AUDIENCE_OPTIONS.some((option) => option.value === type) ? type : "";
+}
+
+function audienceListFromCampaign(campaign: OyamaEmailCampaign): string {
+  const filter = parseAudienceFilterForPreview(campaign.audienceFilter);
+  if (filter?.type !== "saved-list" || typeof filter.recipientListId !== "string") return "";
+  return filter.recipientListId.trim();
 }
 
 function canEditCampaignAudience(campaign: OyamaEmailCampaign): boolean {

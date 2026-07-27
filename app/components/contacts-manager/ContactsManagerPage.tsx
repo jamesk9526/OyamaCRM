@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
@@ -111,6 +112,9 @@ interface ContactsManagerPageProps {
 
 /** ContactsManagerPage gives staff one place to build reusable audiences for email and print workflows. */
 export default function ContactsManagerPage({ fullscreen = false }: ContactsManagerPageProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const audienceCampaignId = searchParams.get("campaignId")?.trim() || "";
   const [constituents, setConstituents] = useState<ConstituentRow[]>([]);
   const [tags, setTags] = useState<TagCatalogItem[]>([]);
   const [lists, setLists] = useState<SavedAudienceList[]>([]);
@@ -369,6 +373,9 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       setSelectedListId(saved.id);
       await load();
       setMessage(`Audience list saved with ${recipientEmails.length} recipient emails.`);
+      if (audienceCampaignId) {
+        router.push(`/oyama-email/campaigns/${encodeURIComponent(audienceCampaignId)}?tab=audience&audienceListId=${encodeURIComponent(saved.id)}`);
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to save audience list.");
     } finally {
