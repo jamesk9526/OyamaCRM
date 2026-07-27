@@ -4005,8 +4005,12 @@ router.post("/", async (req, res) => {
       templateName: typeof req.body?.templateName === "string" ? req.body.templateName : null,
     },
   );
+  const requestedWorkflow = req.body?.workflow && typeof req.body.workflow === "object" && !Array.isArray(req.body.workflow)
+    ? req.body.workflow as Partial<CampaignWorkflowSettings>
+    : {};
 
   const workflow = withWorkflow({
+    ...requestedWorkflow,
     preparationStatus: normalizePreparationStatus(preparationStatus, defaultPreparationStatus),
     needsReview: false,
     templateSnapshot,

@@ -110,6 +110,13 @@ const CAMPAIGN_AUDIENCE_SOURCE_HELP: Record<(typeof CAMPAIGN_AUDIENCE_SOURCES)[n
   "Individual Search": "Search and check specific constituents when this is a one-off or temporary audience.",
 };
 
+const QUEUE_AUDIENCE_OPTIONS = [
+  { value: "active", label: "Active constituents" },
+  { value: "lapsed", label: "Lapsed donors" },
+  { value: "major", label: "Major donors" },
+  { value: "volunteers", label: "Volunteers" },
+] as const;
+
 interface DeliveryEventRow {
   id: string;
   recipientEmail: string;
@@ -620,21 +627,40 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     setError(null);
     setNotice(null);
     try {
-      const result = await apiFetch<OyamaEmailCampaign>(`/api/email-campaigns/${selectedCampaign.id}`, {
-        method: "PUT",
+      const publishedCopy = await apiFetch<OyamaEmailCampaign>("/api/email-campaigns", {
+        method: "POST",
         body: JSON.stringify({
+          name: `${selectedCampaign.name || "Untitled Email Template"} — Campaign Copy`,
+          subject: selectedCampaign.subject || builderDraft.subject,
+          previewText: selectedCampaign.previewText || builderDraft.previewText,
+          fromName: selectedCampaign.fromName || builderDraft.fromName,
+          fromEmail: selectedCampaign.fromEmail || builderDraft.fromEmail,
+          replyToEmail: selectedCampaign.replyToEmail || builderDraft.replyToEmail,
+          purpose: selectedCampaign.purpose,
+          bodyHtml: selectedCampaign.bodyHtml || builderDraft.bodyHtml,
+          bodyText: selectedCampaign.bodyText || htmlToText(selectedCampaign.bodyHtml || builderDraft.bodyHtml),
+          templateJson: selectedCampaign.templateJson,
+          templateSnapshot: {
+            templateId: selectedCampaign.id,
+            templateVersion: selectedCampaign.updatedAt,
+            templateName: selectedCampaign.name,
+          },
+          workflow: {
+            source: "oyama_email_template",
+            sourceTemplateId: selectedCampaign.id,
+          },
           preparationStatus: "READY",
-          status: "DRAFT",
         }),
       });
       logEmailPublishDiagnostics({
         stage: "after-publish",
-        campaign: result,
-        draft: { ...builderDraft, bodyHtml: result.bodyHtml || builderDraft.bodyHtml },
+        campaign: publishedCopy,
+        draft: { ...builderDraft, bodyHtml: publishedCopy.bodyHtml || builderDraft.bodyHtml },
         validationIssues: blockers,
       });
-      setNotice("Template marked Ready in publish workflow.");
+      setNotice("Campaign copy created. Your reusable template remains in the template library.");
       await load();
+      router.push(`/oyama-email/campaigns/${publishedCopy.id}?tab=settings`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to publish template.");
     } finally {
@@ -1246,7 +1272,7 @@ function PublishView({
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSave} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Save Draft</button>
             <button type="button" onClick={onSendTest} disabled={saving} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Send Test Email</button>
-            <button type="button" onClick={onPublish} disabled={saving || blockerCount > 0} title={blockerCount > 0 ? "Resolve required compliance checks before marking this template Ready." : undefined} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">Mark Ready</button>
+            <button type="button" onClick={onPublish} disabled={saving || blockerCount > 0} title={blockerCount > 0 ? "Resolve required compliance checks before creating a campaign copy." : undefined} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">Create Campaign Copy</button>
           </div>
         </div>
 
@@ -1265,7 +1291,7 @@ function PublishView({
         <KeyValue label="Plain Text" value={htmlToText(draft.bodyHtml).slice(0, 80) || "Auto-generated"} />
 
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-          Resolve every required check, then mark this reusable template Ready. Sending remains a separate campaign review workflow.
+          Resolve every required check, then create a ready-to-send campaign copy. The reusable template stays in the template library for future sends.
         </div>
       </aside>
     </section>
@@ -2244,6 +2270,11 @@ function CampaignDetailWorkspace({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [validation, setValidation] = useState<CampaignValidationResponse | null>(null);
   const [actionDialog, setActionDialog] = useState<CampaignActionDialogState | null>(null);
+  const [selectedAudienceType, setSelectedAudienceType] = useState(() => audienceTypeFromCampaign(campaign));
+
+  useEffect(() => {
+    setSelectedAudienceType(audienceTypeFromCampaign(campaign));
+  }, [campaign.audienceFilter, campaign.id]);
 
   const summary = deliveryData?.summary;
   const queueStatusCounts = useMemo(() => buildQueueStatusCounts(queueRows), [queueRows]);
@@ -2305,6 +2336,19 @@ function CampaignDetailWorkspace({
       });
     }, "Campaign scheduled.");
   }, [campaign.id, runCampaignAction]);
+
+  const saveAudience = useCallback(async () => {
+    if (!selectedAudienceType) {
+      setActionError("Choose an audience before saving.");
+      return;
+    }
+    await runCampaignAction("audience", async () => {
+      await apiFetch(`/api/email-campaigns/${campaign.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ audienceFilter: { type: selectedAudienceType } }),
+      });
+    }, "Audience saved. Validation will run again before queueing or sending.");
+  }, [campaign.id, runCampaignAction, selectedAudienceType]);
 
   const runUnschedule = useCallback(async () => {
     await runCampaignAction("unschedule", async () => {
@@ -2688,11 +2732,33 @@ function CampaignDetailWorkspace({
           </article>
 
           <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-base font-semibold text-slate-900">Audience Source</p>
-            <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              {campaign.audienceFilter ? campaign.audienceFilter : "No audience filter stored yet."}
-            </p>
-            <p className="mt-4 text-xs text-slate-500">Backend validation runs again immediately before queueing/sending so frontend settings cannot bypass compliance.</p>
+            <p className="text-base font-semibold text-slate-900">Select Audience</p>
+            <p className="mt-1 text-sm text-slate-600">Choose the live CRM audience for this campaign before queueing, scheduling, or sending.</p>
+            <label className="mt-4 block text-xs font-semibold text-slate-700">
+              Audience segment
+              <select
+                value={selectedAudienceType}
+                onChange={(event) => setSelectedAudienceType(event.target.value)}
+                disabled={!canEditCampaignAudience(campaign)}
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
+              >
+                <option value="">Choose an audience…</option>
+                {QUEUE_AUDIENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => void saveAudience()}
+              disabled={Boolean(actionBusy) || !canEditCampaignAudience(campaign) || !selectedAudienceType}
+              className="mt-3 rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {actionBusy === "audience" ? "Saving Audience..." : "Save Audience"}
+            </button>
+            {canEditCampaignAudience(campaign) ? (
+              <p className="mt-4 text-xs text-slate-500">Backend validation runs again immediately before queueing, scheduling, or sending so frontend settings cannot bypass compliance.</p>
+            ) : (
+              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">This campaign is already scheduled or in delivery, so its audience is locked.</p>
+            )}
           </article>
         </div>
       ) : null}
@@ -3649,6 +3715,16 @@ function parseAudienceFilterForPreview(value: string | null | undefined): Record
   }
 }
 
+function audienceTypeFromCampaign(campaign: OyamaEmailCampaign): string {
+  const filter = parseAudienceFilterForPreview(campaign.audienceFilter);
+  const type = typeof filter?.type === "string" ? filter.type.trim() : "";
+  return QUEUE_AUDIENCE_OPTIONS.some((option) => option.value === type) ? type : "";
+}
+
+function canEditCampaignAudience(campaign: OyamaEmailCampaign): boolean {
+  return ["DRAFT", "READY", "NEEDS_REVIEW", "CANCELLED"].includes(effectiveCampaignStatus(campaign));
+}
+
 function WorkflowHelpModal({ topic, onClose }: { topic: WorkflowHelpTopic | null; onClose: () => void }) {
   if (!topic) return null;
 
@@ -4240,7 +4316,12 @@ function EmailQueueView({ campaigns }: { campaigns: OyamaEmailCampaign[] }) {
                 <td className="px-3 py-2">{formatDateTime(row.scheduledAt || "")}</td>
                 <td className="px-3 py-2">{formatDateTime(row.sentAt || "")}</td>
                 <td className="px-3 py-2">{row.totalRecipients}</td>
-                <td className="px-3 py-2"><WorkspaceAction href={`/oyama-email/campaigns/${row.id}?tab=overview`}>Open</WorkspaceAction></td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap gap-2">
+                    {canEditCampaignAudience(row) ? <WorkspaceAction href={`/oyama-email/campaigns/${row.id}?tab=audience`}>Select Audience</WorkspaceAction> : null}
+                    <WorkspaceAction href={`/oyama-email/campaigns/${row.id}?tab=overview`}>Open</WorkspaceAction>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

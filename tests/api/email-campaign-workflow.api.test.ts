@@ -69,9 +69,15 @@ describe("email campaign workflow api", () => {
           templateName: "Lifecycle Template",
           templateVersion: "v1",
         },
+        workflow: {
+          source: "oyama_email_template",
+          sourceTemplateId: "template-lifecycle",
+        },
       });
 
     expect(created.status).toBe(201);
+    expect(created.body?.templateSnapshot?.templateId).toBe("template-lifecycle");
+    expect(created.body?.workflow?.sourceTemplateId).toBe("template-lifecycle");
 
     const ready = await request(app)
       .post(`/api/email-campaigns/${created.body.id}/ready`)
