@@ -19,6 +19,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
+import path from "node:path";
 
 dotenv.config();
 
@@ -183,6 +184,18 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use(cookieParser());
 app.disable("x-powered-by");
+
+// Campaign media is intentionally public: inbox clients fetch image sources
+// without a CRM session. Keep the surface narrow instead of exposing every
+// runtime upload directory (some, such as Messenger, are private).
+const publicUploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+const publicEmailAssetOptions = {
+  index: false,
+  fallthrough: true,
+  maxAge: "1d",
+};
+app.use("/uploads/email-media", express.static(path.join(publicUploadsRoot, "email-media"), publicEmailAssetOptions));
+app.use("/uploads/branding", express.static(path.join(publicUploadsRoot, "branding"), publicEmailAssetOptions));
 
 // ─── Health / readiness ───────────────────────────────────────────────────────
 

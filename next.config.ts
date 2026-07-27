@@ -26,6 +26,19 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return {
+      // Uploaded email assets live with the API process. Proxy them through the
+      // public app origin so builder previews and delivered email use the same
+      // stable URL, even when web and API run on separate hosts.
+      beforeFiles: [
+        {
+          source: "/uploads/email-media/:path*",
+          destination: `${apiProxyTarget}/uploads/email-media/:path*`,
+        },
+        {
+          source: "/uploads/branding/:path*",
+          destination: `${apiProxyTarget}/uploads/branding/:path*`,
+        },
+      ],
       fallback: [
         {
           source: "/api/:path*",
