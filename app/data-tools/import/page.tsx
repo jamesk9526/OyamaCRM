@@ -45,23 +45,24 @@ export default function ImportPage() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Import Constituents</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+    <div className="space-y-4 bg-[#f5f5f5] p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#d1d1d1] bg-white px-4 py-4">
+        <div className="border-l-4 border-[#0f6cbd] pl-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0f548c]">Data tools</p>
+          <h1 className="mt-0.5 text-xl font-semibold text-slate-900">Import center</h1>
+          <p className="mt-0.5 text-sm text-slate-600">
             Upload a donor, organization, church, business, or audience CSV file, map fields to your CRM, and review data quality before importing.
           </p>
         </div>
-        <Link
-          href="/data-tools"
-          className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-        >
-          ← Back to Data Tools
-        </Link>
+        <div className="flex flex-wrap gap-2 text-sm font-semibold">
+          <Link href="/data-tools/import/donation" className="border border-[#8a8886] bg-white px-3 py-2 text-slate-700 hover:bg-[#f3f2f1]">Donation import</Link>
+          <Link href="/data-tools/import/events-guests" className="border border-[#8a8886] bg-white px-3 py-2 text-slate-700 hover:bg-[#f3f2f1]">Event guests</Link>
+          <Link href="/data-tools/merge" className="border border-[#8a8886] bg-white px-3 py-2 text-slate-700 hover:bg-[#f3f2f1]">Resolve duplicates</Link>
+          <Link href="/data-tools" className="border border-transparent px-3 py-2 text-[#0f548c] hover:bg-[#eff6fc]">All data tools</Link>
+        </div>
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <div className="border border-[#e1b96a] bg-[#fff4ce] px-4 py-3 text-sm text-[#5c3b00]">
         Client files should not be imported here. Import Compassion client records in the Compassion CRM client workspace so they stay out of donor data. If a client is also a donor, import them in Compassion first, then intentionally tag or link them as a donor.
       </div>
 

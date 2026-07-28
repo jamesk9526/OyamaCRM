@@ -38,16 +38,16 @@ function PaletteDragCard({ item }: CardProps) {
       {...attributes}
       {...listeners}
       className={[
-        'group flex min-h-[5.35rem] flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-3 text-center',
+        'group flex min-h-[5.35rem] flex-col items-center justify-center gap-2 border border-[#d1d1d1] bg-white px-2.5 py-3 text-center',
         'cursor-grab select-none transition-all duration-150',
-        'hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-sm',
-        isDragging ? 'opacity-40 shadow-lg scale-105' : '',
+        'hover:border-[#0f6cbd] hover:bg-[#eff6fc]',
+        isDragging ? 'opacity-40 scale-105' : '',
       ].join(' ')}
       title={`Drag to add ${item.label} block`}
     >
       {/* Icon */}
       <span
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 text-sm font-bold text-blue-600"
+        className="flex h-8 w-8 shrink-0 items-center justify-center border border-[#9cc5e8] bg-[#eff6fc] text-sm font-bold text-[#0f548c]"
         aria-hidden
       >
         {item.icon}
@@ -121,9 +121,9 @@ export default function BlockPalette() {
   );
 
   return (
-    <aside className="h-full w-full border-r border-slate-200 bg-white flex flex-col overflow-y-auto">
+    <aside className="flex h-full w-full flex-col overflow-y-auto border-r border-[#d1d1d1] bg-white">
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-4 py-4 space-y-3">
+      <div className="space-y-3 border-b border-[#d1d1d1] bg-white px-4 py-4">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold tracking-[-0.02em] text-slate-900">Add Components</h2>

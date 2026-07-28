@@ -2417,7 +2417,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   if (loading) return <LoadingPage label="Loading canvas builder..." />;
 
   return (
-    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(129,140,248,0.13),transparent_26%),radial-gradient(circle_at_96%_8%,rgba(96,165,250,0.12),transparent_24%),linear-gradient(180deg,#fafbff_0%,#edf2fb_100%)]">
+    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[#f5f5f5]">
       <input
         ref={imageInputRef}
         type="file"
@@ -2425,26 +2425,26 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         className="hidden"
         onChange={handleImageFileSelected}
       />
-      <div className="sticky top-[89px] z-30 shrink-0 shadow-[0_12px_32px_rgba(15,23,42,0.08)] lg:top-0 lg:z-40">
-      <div className="border-b border-white/80 bg-white/90 px-3 backdrop-blur-xl sm:px-4 xl:px-7">
+      <div className="sticky top-[89px] z-30 shrink-0 border-b border-[#d1d1d1] lg:top-0 lg:z-40">
+      <div className="bg-white px-3 sm:px-4 xl:px-7">
         <div className="flex min-h-12 flex-wrap items-center gap-2 py-1.5">
-          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl bg-indigo-50/80 p-1">
-            {(["File", "Insert", "Format", "Layout", "Review", "View"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); setToolDrawerOpen((open) => activeRibbon === tab ? !open : true); }} className={["h-8 rounded-lg px-2.5 text-xs font-semibold transition-all", activeRibbon === tab && toolDrawerOpen ? "bg-white text-indigo-800 shadow-sm" : "text-slate-600 hover:bg-white/70 hover:text-slate-900"].join(" ")}>{tab}</button>)}
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto border border-[#d1d1d1] bg-[#f3f2f1] p-1">
+            {(["File", "Insert", "Format", "Layout", "Review", "View"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setActiveRibbon(tab); setToolDrawerOpen((open) => activeRibbon === tab ? !open : true); }} className={["h-8 px-2.5 text-xs font-semibold transition-all", activeRibbon === tab && toolDrawerOpen ? "bg-white text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]" : "text-slate-600 hover:bg-white hover:text-slate-900"].join(" ")}>{tab}</button>)}
           </div>
-          <button type="button" onClick={() => setAiComposerOpen(true)} title="Open Steward AI writer" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-sm font-bold text-violet-700 transition hover:bg-violet-100" aria-label="Open Steward AI writer">✦</button>
+          <button type="button" onClick={() => setAiComposerOpen(true)} title="Open Steward AI writer" className="flex h-8 w-8 shrink-0 items-center justify-center border border-[#9cc5e8] bg-[#eff6fc] text-sm font-bold text-[#0f548c] transition hover:bg-white" aria-label="Open Steward AI writer">✦</button>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <span title="Click the page to write · use Insert for fields and blocks · Preview before publish" className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
             <span className={[
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
-              saveFailure ? "text-red-700" : dirty ? "text-amber-700" : "text-indigo-700",
-              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-amber-200 bg-amber-50" : "border-indigo-200 bg-indigo-50",
+              saveFailure ? "text-red-700" : dirty ? "text-[#5c3b00]" : "text-[#0f548c]",
+              saveFailure ? "border-red-200 bg-red-50" : dirty ? "border-[#e1b96a] bg-[#fff4ce]" : "border-[#9cc5e8] bg-[#eff6fc]",
             ].join(" ")}
             >
-              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-amber-500" : "bg-indigo-500"].join(" ")} aria-hidden="true" />
+              <span className={["h-1.5 w-1.5 rounded-full", saveFailure ? "bg-red-500" : dirty ? "bg-[#d29200]" : "bg-[#0f6cbd]"].join(" ")} aria-hidden="true" />
               {saving ? "Saving..." : saveFailure ? "Save failed - recovery ready" : dirty ? "Unsaved changes" : "All changes saved"}
             </span>
-            <span title={localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`} className={["hidden rounded-full border px-2 py-1 text-[11px] font-semibold xl:inline", localChecklistReady ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-amber-200 bg-amber-50 text-amber-700"].join(" ")}>{localChecklistReady ? "Ready" : "Review"}</span>
-            {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-indigo-700 2xl:inline">{notice}</span> : null}
+            <span title={localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`} className={["hidden border px-2 py-1 text-[11px] font-semibold xl:inline", localChecklistReady ? "border-[#9cc5e8] bg-[#eff6fc] text-[#0f548c]" : "border-[#e1b96a] bg-[#fff4ce] text-[#5c3b00]"].join(" ")}>{localChecklistReady ? "Ready" : "Review"}</span>
+            {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-[#0f548c] 2xl:inline">{notice}</span> : null}
             <IconButton label="Zoom out" onClick={() => setZoom((current) => Math.max(60, current - 10))}>-</IconButton>
             <span className="w-12 text-center text-xs font-semibold text-slate-600">{zoom}%</span>
             <IconButton label="Zoom in" onClick={() => setZoom((current) => Math.min(160, current + 10))}>+</IconButton>
@@ -2458,7 +2458,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
         </div>
       </div>
-      {toolDrawerOpen ? <div className="flex max-h-56 items-stretch gap-2 overflow-x-auto border-b border-indigo-100/80 bg-gradient-to-r from-white via-indigo-50/50 to-blue-50/70 px-3 py-2 shadow-inner sm:px-4 xl:px-7">
+      {toolDrawerOpen ? <div className="flex max-h-56 items-stretch gap-2 overflow-x-auto border-b border-[#d1d1d1] bg-[#f3f2f1] px-3 py-2 sm:px-4 xl:px-7">
         {activeRibbon === "File" ? (
           <>
             <RibbonButton onClick={() => void save()}>Save Draft</RibbonButton>
@@ -6735,7 +6735,7 @@ function PanelTitle({ children }: { children: ReactNode }) {
 }
 
 function RibbonButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="h-10 shrink-0 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50">{children}</button>;
+  return <button type="button" onClick={onClick} className="h-10 shrink-0 border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#eff6fc] hover:text-[#0f548c]">{children}</button>;
 }
 
 function RibbonGroup({ label, children }: { label: string; children: ReactNode }) {
@@ -6753,7 +6753,7 @@ function RibbonToolButton({ glyph, iconName, label, onClick }: { glyph: string; 
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[58px] w-[64px] shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-1 text-[10px] font-semibold text-slate-700 hover:bg-emerald-50"
+      className="flex h-[58px] w-[64px] shrink-0 flex-col items-center justify-center gap-1 border border-[#c8c6c4] bg-white px-1 text-[10px] font-semibold text-slate-700 hover:bg-[#eff6fc] hover:text-[#0f548c]"
     >
       {iconName ? <LettersPackIcon name={iconName} className="h-[18px] w-[18px]" fallback={glyph} /> : <span className="text-base leading-none text-slate-800">{glyph}</span>}
       <span className="leading-none text-[10px]">{label}</span>
@@ -6833,7 +6833,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex h-8 w-8 items-center justify-center border border-[#c8c6c4] bg-white text-sm text-slate-700 hover:bg-[#eff6fc] disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -6847,11 +6847,11 @@ function Button({ children, href, onClick, tone = "default", disabled = false }:
 }
 
 function TopLink({ href, label, active = false }: { href: string; label: string; active?: boolean }) {
-  return <Link href={href} className={["inline-flex h-10 items-center rounded-md px-3 text-xs font-semibold", active ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200" : "text-slate-700 hover:bg-slate-50"].join(" ")}>{label}</Link>;
+  return <Link href={href} className={["inline-flex h-10 items-center px-3 text-xs font-semibold", active ? "bg-[#eff6fc] text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]" : "text-slate-700 hover:bg-[#f3f2f1]"].join(" ")}>{label}</Link>;
 }
 
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:w-80" />;
+  return <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full border border-[#8a8886] bg-white px-3 text-sm outline-none focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] sm:w-80" />;
 }
 
 function Select({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: string[] }) {

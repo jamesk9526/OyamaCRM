@@ -215,20 +215,20 @@ export default function EmailCanvas({
 
   return (
     <div
-      className="flex-1 overflow-auto bg-[linear-gradient(180deg,#f5f7fb_0%,#eef2f8_100%)]"
+      className="flex-1 overflow-auto bg-[#f5f5f5]"
       style={{ padding: '20px 28px' }}
       /* Deselect when clicking the raw canvas background */
       onClick={() => onSelectBlock(null)}
     >
-      <div className="mx-auto mb-3 flex max-w-[760px] items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
+      <div className="mx-auto mb-3 flex max-w-[760px] items-center justify-between border border-[#d1d1d1] bg-white px-3 py-2 text-xs text-slate-500">
         <span>Email width: {viewport === 'mobile' ? 380 : template.contentWidth}px · {viewport === 'mobile' ? 'Mobile Preview' : 'Desktop Preview'}</span>
-        <div className="inline-flex rounded-md border border-blue-100 bg-blue-50/60 p-0.5">
+        <div className="inline-flex border border-[#c8c6c4] bg-[#f3f2f1] p-0.5">
           <button
             type="button"
             onClick={() => setViewport('desktop')}
             className={[
-              'rounded px-2 py-1 font-semibold',
-              viewport === 'desktop' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200' : 'text-slate-500 hover:text-slate-800',
+              'px-2 py-1 font-semibold',
+              viewport === 'desktop' ? 'bg-white text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]' : 'text-slate-500 hover:text-slate-800',
             ].join(' ')}
           >
             Desktop
@@ -237,8 +237,8 @@ export default function EmailCanvas({
             type="button"
             onClick={() => setViewport('mobile')}
             className={[
-              'rounded px-2 py-1 font-semibold',
-              viewport === 'mobile' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-200' : 'text-slate-500 hover:text-slate-800',
+              'px-2 py-1 font-semibold',
+              viewport === 'mobile' ? 'bg-white text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]' : 'text-slate-500 hover:text-slate-800',
             ].join(' ')}
           >
             Mobile
@@ -253,8 +253,8 @@ export default function EmailCanvas({
           margin:          '0 auto',
           backgroundColor: '#ffffff',
           fontFamily:      template.fontFamily,
-          boxShadow:       '0 18px 42px rgba(15,23,42,0.08)',
-          borderRadius:    '6px',
+          boxShadow:       '0 1px 2px rgba(0,0,0,0.12)',
+          borderRadius:    '2px',
           overflow:        'hidden',
           border:          '1px solid #dfe5ef',
         }}

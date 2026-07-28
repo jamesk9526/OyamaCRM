@@ -32,6 +32,12 @@ type DuplicateResolution = "merge" | "skip";
 type RecordType = "individual" | "organization";
 type ImportPreset = "generic" | "ekyros" | "hubspot";
 
+const MAPPING_STORAGE_PREFIX = "oyama.import.column-mapping.v1";
+
+function mappingStorageKey(headers: string[]): string {
+  return `${MAPPING_STORAGE_PREFIX}:${headers.map((header) => header.trim().toLowerCase()).sort().join("|")}`;
+}
+
 /** Result of running validateAndTransform in Step 3 */
 interface ValidationResult {
   valid: MappedRow[];
@@ -350,7 +356,7 @@ function StatCard({
   label: string; value: string | number; sub?: string; accent?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center bg-white border border-gray-100 rounded-lg px-4 py-2 min-w-[80px] shadow-sm">
+    <div className="flex flex-col items-center justify-center border border-[#d1d1d1] border-t-2 border-t-[#0f6cbd] bg-[#fafafa] px-4 py-2 min-w-[80px]">
       <span className={`text-xl font-bold tabular-nums ${accent ?? "text-gray-800"}`}>{value}</span>
       <span className="text-[11px] font-medium text-gray-500 mt-0.5 text-center">{label}</span>
       {sub && <span className="text-[10px] text-gray-400">{sub}</span>}
@@ -364,23 +370,23 @@ function StatCard({
  */
 function StepperSidebar({ current }: { current: number }) {
   return (
-    <div className="flex flex-col gap-1 py-3 px-2 border-r border-gray-100 bg-gray-50 h-full">
+    <div className="flex h-full flex-col gap-1 border-r border-[#d1d1d1] bg-[#f3f2f1] px-2 py-3">
       {STEPS.map((s) => {
         const done = s.id < current;
         const active = s.id === current;
         return (
-          <div key={s.id} className="flex items-center gap-2 py-1.5 px-1.5 rounded-md">
-            <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+          <div key={s.id} className={`flex items-center gap-2 px-2 py-2 ${active ? "bg-white shadow-[inset_3px_0_0_#0f6cbd]" : ""}`}>
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[2px] text-xs font-bold ${
               done
-                ? "bg-green-600 text-white"
+                ? "bg-[#0f6cbd] text-white"
                 : active
-                  ? "bg-green-100 text-green-700 ring-2 ring-green-400"
-                  : "bg-gray-200 text-gray-400"
+                  ? "border border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]"
+                  : "bg-[#d1d1d1] text-slate-500"
             }`}>
               {done ? "✓" : s.id}
             </span>
             <span className={`text-xs font-medium leading-tight ${
-              active ? "text-green-700" : done ? "text-gray-600" : "text-gray-400"
+              active ? "text-[#0f548c]" : done ? "text-slate-700" : "text-slate-500"
             }`}>
               {s.label}
             </span>
@@ -507,6 +513,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
   // ── Step 2: Field mapping ────────────────────────────────────────────────
   const [mapping, setMapping] = useState<FieldMapping>({});
+  const [reusedMapping, setReusedMapping] = useState(false);
   const [selectedCol, setSelectedCol] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [colSearch, setColSearch] = useState("");
@@ -727,7 +734,23 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
         }
       }
 
-      setMapping(initialMapping);
+      // Reuse a prior mapping only when this file has the same set of headers.
+      // This keeps recurring exports fast without applying a mapping to an unrelated file.
+      let resolvedMapping = initialMapping;
+      let didReuseMapping = false;
+      try {
+        const savedRaw = window.localStorage.getItem(mappingStorageKey(result.headers));
+        const saved = savedRaw ? JSON.parse(savedRaw) as FieldMapping : null;
+        if (saved) {
+          resolvedMapping = Object.fromEntries(result.headers.map((header) => [header, saved[header] ?? initialMapping[header] ?? "skip"]));
+          didReuseMapping = true;
+        }
+      } catch {
+        // Browser storage is an optional convenience; imports remain fully usable without it.
+      }
+
+      setMapping(resolvedMapping);
+      setReusedMapping(didReuseMapping);
       setSelectedCol(result.headers[0] ?? null);
       // Reset downstream state when a new file is loaded
       setValidationResult(null);
@@ -736,6 +759,21 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
     };
     reader.readAsText(f);
   }, [churchDetectionMode]);
+
+  useEffect(() => {
+    if (!parseResult || Object.keys(mapping).length === 0) return;
+    try {
+      window.localStorage.setItem(mappingStorageKey(parseResult.headers), JSON.stringify(mapping));
+    } catch {
+      // Do not make browser-storage availability a prerequisite for importing.
+    }
+  }, [mapping, parseResult]);
+
+  function restoreSmartMapping() {
+    if (!parseResult) return;
+    setMapping(autoMap(parseResult.headers));
+    setReusedMapping(false);
+  }
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -854,9 +892,10 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
   function renderStep1() {
     return (
       <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-bold text-gray-800">Upload CSV File</h2>
-          <p className="text-sm text-gray-500 mt-1">
+        <div className="border-l-4 border-[#0f6cbd] pl-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0f548c]">Import workspace</p>
+          <h2 className="mt-0.5 text-lg font-semibold text-slate-900">Upload a constituent file</h2>
+          <p className="mt-1 text-sm text-slate-600">
             Supports eKYROS &ldquo;Donor File Address List&rdquo; exports and standard constituent CSVs.
             Column headers are auto-detected even when the file contains title rows above the data.
           </p>
@@ -868,7 +907,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Source preset</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-3">
             {([
               ["generic", "Generic CSV", "Standard donor/contact fields."],
               ["ekyros", "eKYROS", "Donor File Address List export."],
@@ -878,7 +917,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
                 key={preset}
                 type="button"
                 onClick={() => setImportPreset(preset)}
-                className={`rounded-lg border px-4 py-3 text-left ${importPreset === preset ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-green-300"}`}
+                className={`border px-4 py-3 text-left transition-colors ${importPreset === preset ? "border-[#0f6cbd] bg-[#eff6fc] shadow-[inset_3px_0_0_#0f6cbd]" : "border-[#d1d1d1] bg-white hover:border-[#0f6cbd]"}`}
               >
                 <span className="block text-sm font-semibold text-gray-900">{title}</span>
                 <span className="mt-0.5 block text-xs text-gray-500">{description}</span>
@@ -889,10 +928,10 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
         {/* Drop zone */}
         <div
-          className={`border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-12 px-6 cursor-pointer transition-colors ${
+          className={`flex cursor-pointer flex-col items-center justify-center border-2 border-dashed px-6 py-12 transition-colors ${
             dragOver
-              ? "border-green-500 bg-green-50"
-              : "border-gray-200 bg-gray-50 hover:border-green-400 hover:bg-green-50/40"
+              ? "border-[#0f6cbd] bg-[#eff6fc]"
+              : "border-[#8a8886] bg-[#faf9f8] hover:border-[#0f6cbd] hover:bg-[#eff6fc]"
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -954,7 +993,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
           <button
             disabled={!parseResult}
             onClick={() => setStep(2)}
-            className="px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="bg-[#0f6cbd] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f548c] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Next: Map Fields →
           </button>
@@ -976,7 +1015,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
     return (
       <div className="flex flex-col gap-4">
         {/* Header row with progress ring */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between border-l-4 border-[#0f6cbd] pl-3">
           <div>
             <h2 className="text-lg font-bold text-gray-800">Map Fields</h2>
             <p className="text-sm text-gray-500">
@@ -992,6 +1031,11 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-2 border border-[#c8c6c4] bg-[#f3f2f1] px-3 py-2 text-xs text-slate-700">
+          <span>{reusedMapping ? "A saved mapping was restored for these headers. Review it before validation." : "Smart suggestions are based on column names and can be adjusted below."}</span>
+          <button type="button" onClick={restoreSmartMapping} className="border border-[#8a8886] bg-white px-2.5 py-1 font-semibold text-[#0f548c] hover:bg-[#eff6fc]">Reset to smart mapping</button>
+        </div>
+
         {/* Status filter tabs + search */}
         <div className="flex gap-2 flex-wrap items-center">
           {(["all", "mapped", "required", "unmapped", "sensitive"] as const).map((f) => {
@@ -1002,10 +1046,10 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
               <button
                 key={f}
                 onClick={() => setStatusFilter(f)}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                className={`border px-3 py-1 text-xs font-semibold transition-colors ${
                   active
-                    ? "bg-green-600 text-white border-green-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-green-300"
+                    ? "border-[#0f6cbd] bg-[#0f6cbd] text-white"
+                    : "border-[#c8c6c4] bg-white text-slate-700 hover:border-[#0f6cbd]"
                 }`}
               >
                 {label} ({count})
@@ -1017,13 +1061,13 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
             placeholder="Search columns…"
             value={colSearch}
             onChange={(e) => setColSearch(e.target.value)}
-            className="ml-auto text-xs border border-gray-200 rounded-lg px-3 py-1 w-44 focus:outline-none focus:ring-1 focus:ring-green-400"
+            className="ml-auto w-44 border border-[#8a8886] bg-white px-3 py-1 text-xs outline-none focus:border-[#0f6cbd]"
           />
         </div>
 
         {/* 3-panel layout */}
         <div
-          className="flex rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+          className="flex overflow-hidden border border-[#d1d1d1] bg-white"
           style={{ height: "480px" }}
         >
           {/* Left: stepper sidebar */}
@@ -1113,7 +1157,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
         <div className="flex justify-between">
           <button
             onClick={() => setStep(1)}
-            className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+            className="border border-[#8a8886] bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#f3f2f1]"
           >
             ← Back
           </button>
@@ -1124,7 +1168,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
               setValidationResult(result);
               setStep(3);
             }}
-            className="px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="bg-[#0f6cbd] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0f548c] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Next: Validate →
           </button>
@@ -1727,33 +1771,33 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
   // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <div className="border border-[#d1d1d1] bg-white p-5 sm:p-6">
       {/* Progress bar across the top */}
-      <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
+      <div className="mb-6 flex items-center gap-2 border-b border-[#d1d1d1] pb-4">
         {STEPS.map((s, i) => (
           <Fragment key={s.id}>
             <div className="flex items-center gap-1.5">
               <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[2px] text-xs font-bold ${
                   s.id < step
-                    ? "bg-green-600 text-white"
+                    ? "bg-[#0f6cbd] text-white"
                     : s.id === step
-                      ? "bg-green-100 text-green-700 ring-2 ring-green-400"
-                      : "bg-gray-100 text-gray-400"
+                      ? "border border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]"
+                      : "bg-[#f3f2f1] text-slate-500"
                 }`}
               >
                 {s.id < step ? "✓" : s.id}
               </span>
               <span
                 className={`text-xs font-medium hidden sm:block ${
-                  s.id === step ? "text-green-700" : s.id < step ? "text-gray-600" : "text-gray-400"
+                  s.id === step ? "text-[#0f548c]" : s.id < step ? "text-slate-700" : "text-slate-500"
                 }`}
               >
                 {s.label}
               </span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 ${s.id < step ? "bg-green-300" : "bg-gray-100"}`} />
+              <div className={`h-0.5 flex-1 ${s.id < step ? "bg-[#0f6cbd]" : "bg-[#d1d1d1]"}`} />
             )}
           </Fragment>
         ))}

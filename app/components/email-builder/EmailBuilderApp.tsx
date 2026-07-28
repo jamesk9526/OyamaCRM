@@ -1864,9 +1864,9 @@ export default function EmailBuilderApp({
       <div
         className={[
           embedded
-            ? "h-[calc(100vh-130px)] min-h-[600px] rounded-xl border border-slate-200"
+            ? "h-[calc(100vh-130px)] min-h-[600px] border border-[#d1d1d1]"
             : "h-screen",
-          "min-w-0 flex flex-col overflow-hidden bg-[#f5f7fb]",
+          "min-w-0 flex flex-col overflow-hidden bg-[#f5f5f5]",
         ].join(" ")}
       >
 
@@ -1876,7 +1876,7 @@ export default function EmailBuilderApp({
             <span className="font-semibold">Campaign load issue:</span> {loadError} The editor is using the local draft blocks until the API reconnects.
           </div>
         ) : null}
-        <header className="z-30 shrink-0 border-b border-slate-200 bg-white px-4 shadow-sm" style={{ paddingTop: embedded ? '8px' : '10px', paddingBottom: embedded ? '8px' : '10px' }}>
+        <header className="z-30 shrink-0 border-b border-[#d1d1d1] bg-white px-4" style={{ paddingTop: embedded ? '8px' : '10px', paddingBottom: embedded ? '8px' : '10px' }}>
           {/* Compact single-row header in embedded mode */}
           {embedded ? (
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -1897,13 +1897,13 @@ export default function EmailBuilderApp({
                 <span className={dirty ? 'font-medium text-amber-700' : 'text-slate-400'}>{dirty ? 'Unsaved' : 'Saved'}</span>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                <a href={fullScreenBuilderHref} target="_self" className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Fullscreen</a>
-                <a href={fullScreenBuilderHref} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">New Tab</a>
-                <button type="button" onClick={openBuilderPopout} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Popout</button>
+                <a href={fullScreenBuilderHref} target="_self" className="border border-[#8a8886] bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]">Fullscreen</a>
+                <a href={fullScreenBuilderHref} target="_blank" rel="noopener noreferrer" className="border border-[#8a8886] bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]">New Tab</a>
+                <button type="button" onClick={openBuilderPopout} className="border border-[#8a8886] bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]">Popout</button>
                 <button
                   onClick={handleSave}
                   disabled={!canSaveDraftAction}
-                  className={['rounded-lg px-3 py-1 text-xs font-semibold transition-colors', saving ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 hover:bg-blue-700 text-white'].join(' ')}
+                  className={['px-3 py-1 text-xs font-semibold transition-colors', saving ? 'bg-blue-400 text-white cursor-wait' : 'bg-[#0f6cbd] hover:bg-[#0f548c] text-white'].join(' ')}
                   title={canSaveDraftAction ? 'Save draft (Ctrl/Cmd+S)' : 'Open this builder from a campaign route to save'}
                 >
                   {saving ? 'Saving…' : 'Save Draft'}
@@ -1932,10 +1932,10 @@ export default function EmailBuilderApp({
             </div>
 
             <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
-              <div className="hidden items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 lg:inline-flex">
-                <button type="button" className="rounded-md bg-blue-50 px-2.5 py-1.5 text-blue-700 ring-1 ring-blue-200" title="Desktop preview">▣</button>
-                <button type="button" className="rounded-md px-2.5 py-1.5 text-slate-500 hover:bg-white" title="Tablet preview">▯</button>
-                <button type="button" className="rounded-md px-2.5 py-1.5 text-slate-500 hover:bg-white" title="Mobile preview">▯</button>
+              <div className="hidden items-center border border-[#c8c6c4] bg-[#f3f2f1] p-0.5 lg:inline-flex">
+                <button type="button" className="bg-white px-2.5 py-1.5 text-[#0f548c] shadow-[inset_0_-2px_0_#0f6cbd]" title="Desktop preview">▣</button>
+                <button type="button" className="px-2.5 py-1.5 text-slate-500 hover:bg-white" title="Tablet preview">▯</button>
+                <button type="button" className="px-2.5 py-1.5 text-slate-500 hover:bg-white" title="Mobile preview">▯</button>
               </div>
 
               {embedded && (
@@ -1967,7 +1967,7 @@ export default function EmailBuilderApp({
 
               <button
                 onClick={() => setShowPreview(true)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                className="border border-[#8a8886] bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-[#f3f2f1]"
               >
                 Preview
               </button>
@@ -1975,7 +1975,7 @@ export default function EmailBuilderApp({
                 type="button"
                 onClick={() => void handleSendTest()}
                 disabled={sendingTest || !campaignId || authLoading || loading}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                className="border border-[#8a8886] bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-[#f3f2f1]"
                 title={campaignId ? `Send test to ${testEmail || 'your test address'}` : 'Open this builder from a campaign route to send tests'}
               >
                 {sendingTest ? 'Sending…' : 'Send Test'}
@@ -1985,10 +1985,10 @@ export default function EmailBuilderApp({
                 onClick={handleSave}
                 disabled={!canSaveDraftAction}
                 className={[
-                  'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                  'px-3 py-1.5 text-xs font-semibold transition-colors',
                   saving
                     ? 'bg-blue-400 text-white cursor-wait'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white',
+                    : 'bg-[#0f6cbd] hover:bg-[#0f548c] text-white',
                 ].join(' ')}
                 title={canSaveDraftAction ? 'Save draft (Ctrl/Cmd+S)' : 'Open this builder from a campaign route to save'}
               >
@@ -2005,7 +2005,7 @@ export default function EmailBuilderApp({
             </div>
           )}
 
-          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+          <div className="mt-3 border border-[#d1d1d1] bg-[#f3f2f1] px-2 py-2">
             <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Current stage: {BUILDER_JOURNEY_STEPS.find((step) => step.key === currentJourneyStep)?.label}
             </div>
@@ -2014,12 +2014,12 @@ export default function EmailBuilderApp({
                 const isCurrent = step.key === currentJourneyStep;
                 const isComplete = BUILDER_JOURNEY_ORDER[step.key] < BUILDER_JOURNEY_ORDER[currentJourneyStep];
                 const stepClassName = [
-                  "inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-colors",
+                  "inline-flex items-center border px-2 py-1 text-[11px] font-semibold transition-colors",
                   isCurrent
-                    ? "border border-blue-300 bg-blue-100 text-blue-800"
+                    ? "border-[#0f6cbd] bg-[#0f6cbd] text-white"
                     : isComplete
-                      ? "border border-blue-200 bg-blue-50 text-blue-700"
-                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                      ? "border-[#9cc5e8] bg-[#eff6fc] text-[#0f548c]"
+                      : "border-[#c8c6c4] bg-white text-slate-600 hover:bg-[#f3f2f1]",
                 ].join(" ");
 
                 let stageAction: React.ReactNode;
@@ -2090,11 +2090,11 @@ export default function EmailBuilderApp({
         </header>
 
         {!embedded && (
-          <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2">
+          <div className="shrink-0 border-b border-[#d1d1d1] bg-white px-4 py-2">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">✓ Saved</span>
-              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-600">{template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}</span>
-              <span className={dirty ? 'rounded-lg border border-amber-100 bg-amber-50 px-3 py-1.5 font-semibold text-amber-700' : 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-500'}>{dirty ? 'Unsaved changes' : 'All changes saved'}</span>
+              <span className="border border-[#9cc5e8] bg-[#eff6fc] px-3 py-1.5 font-semibold text-[#0f548c]">✓ Draft workspace</span>
+              <span className="border border-[#d1d1d1] bg-[#f3f2f1] px-3 py-1.5 font-semibold text-slate-600">{template.blocks.length} block{template.blocks.length !== 1 ? 's' : ''}</span>
+              <span className={dirty ? 'border border-[#e1b96a] bg-[#fff4ce] px-3 py-1.5 font-semibold text-[#5c3b00]' : 'border border-[#d1d1d1] bg-[#f3f2f1] px-3 py-1.5 font-semibold text-slate-500'}>{dirty ? 'Unsaved changes' : 'All changes saved'}</span>
               <span className={[
                 'rounded-lg px-3 py-1.5 font-semibold',
                 readinessLabel === 'Ready to Send'
@@ -2139,9 +2139,9 @@ export default function EmailBuilderApp({
           />
 
           {/* Right: tabbed sidebar */}
-          <aside className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col overflow-hidden">
-            <div className="border-b border-slate-200 bg-white px-3 py-3">
-              <div className="grid grid-cols-5 gap-1 border-b border-slate-200">
+          <aside className="flex w-[340px] shrink-0 flex-col overflow-hidden border-l border-[#d1d1d1] bg-white">
+            <div className="border-b border-[#d1d1d1] bg-white px-3 py-3">
+              <div className="grid grid-cols-5 gap-1 border-b border-[#d1d1d1]">
                 {SIDEBAR_TABS.map((tab) => (
                   <button
                     key={tab.key}

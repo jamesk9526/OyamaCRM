@@ -34,6 +34,13 @@ interface DonationStats {
   recurring: number;
 }
 
+interface BulkAcknowledgmentResponse {
+  acknowledgedCount: number;
+  from: string;
+  to: string;
+  acknowledgmentSentAt: string;
+}
+
 interface LoopActionResult {
   status: "CREATED" | "REUSED" | "SKIPPED";
   id?: string;
@@ -80,6 +87,9 @@ export default function DonationsPage() {
   const [apiDown, setApiDown] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [acknowledgingDonationId, setAcknowledgingDonationId] = useState<string | null>(null);
+  const [bulkAcknowledgmentOpen, setBulkAcknowledgmentOpen] = useState(false);
+  const [bulkAcknowledging, setBulkAcknowledging] = useState(false);
+  const [bulkAcknowledgmentNotice, setBulkAcknowledgmentNotice] = useState<string | null>(null);
   const [actionBusyDonationId, setActionBusyDonationId] = useState<string | null>(null);
   const [emailTemplateDonation, setEmailTemplateDonation] = useState<DonationRow | null>(null);
   const [letterTemplateDonation, setLetterTemplateDonation] = useState<DonationRow | null>(null);
@@ -228,6 +238,28 @@ export default function DonationsPage() {
       alert("Failed to mark this donation as thanked. Please try again.");
     } finally {
       setAcknowledgingDonationId(null);
+    }
+  }
+
+  async function handleBulkMarkThanked() {
+    if (!from || !to || allYears) return;
+    setBulkAcknowledging(true);
+    try {
+      const result = await apiFetch<BulkAcknowledgmentResponse>("/api/donations/acknowledgments/bulk", {
+        method: "PATCH",
+        body: JSON.stringify({ from, to, confirmed: true }),
+      });
+      setBulkAcknowledgmentNotice(
+        result.acknowledgedCount > 0
+          ? `${result.acknowledgedCount.toLocaleString()} completed gift${result.acknowledgedCount === 1 ? "" : "s"} marked as thanked for ${result.from} through ${result.to}. No communication was sent.`
+          : "No unthanked completed gifts matched that date range.",
+      );
+      setBulkAcknowledgmentOpen(false);
+      await load();
+    } catch (error) {
+      setBulkAcknowledgmentNotice(error instanceof Error ? error.message : "Could not bulk mark gifts as thanked.");
+    } finally {
+      setBulkAcknowledging(false);
     }
   }
 
@@ -469,10 +501,30 @@ export default function DonationsPage() {
 
       {acknowledgmentFilter ? (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950">
-          <p><span className="font-semibold">Acknowledgment queue:</span> showing completed gifts that still need a receipt or thank-you.</p>
-          <button type="button" onClick={clearFilters} className="shrink-0 text-xs font-semibold text-amber-800 hover:text-amber-950">
-            Clear queue filter
-          </button>
+          <div>
+            <p><span className="font-semibold">Acknowledgment queue:</span> showing completed gifts that still need a receipt or thank-you.</p>
+            <p className="mt-1 text-xs text-amber-800">For historic imports, mark an entire completed-gift date range as thanked without creating or sending communications.</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkAcknowledgmentOpen(true)}
+              disabled={allYears || !from || !to}
+              className="rounded-[2px] border border-amber-700 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Mark date range thanked
+            </button>
+            <button type="button" onClick={clearFilters} className="text-xs font-semibold text-amber-800 hover:text-amber-950">
+              Clear queue filter
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {bulkAcknowledgmentNotice ? (
+        <div className="flex items-start justify-between gap-3 rounded-[4px] border border-[#0f6cbd] bg-[#eff6fc] px-4 py-3 text-sm text-[#0f548c]">
+          <p>{bulkAcknowledgmentNotice}</p>
+          <button type="button" onClick={() => setBulkAcknowledgmentNotice(null)} className="shrink-0 text-xs font-semibold hover:underline">Dismiss</button>
         </div>
       ) : null}
 
@@ -694,7 +746,50 @@ export default function DonationsPage() {
         onSaved={load}
       />
     ) : null}
+    {bulkAcknowledgmentOpen ? (
+      <BulkAcknowledgmentDialog
+        from={from}
+        to={to}
+        busy={bulkAcknowledging}
+        onClose={() => setBulkAcknowledgmentOpen(false)}
+        onConfirm={() => void handleBulkMarkThanked()}
+      />
+    ) : null}
     </>
+  );
+}
+
+function BulkAcknowledgmentDialog({
+  from,
+  to,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  from: string;
+  to: string;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4" role="dialog" aria-modal="true" aria-labelledby="bulk-acknowledgment-title">
+      <div className="w-full max-w-lg border border-[#d1d1d1] bg-white">
+        <div className="border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#0f548c]">Historical acknowledgment</p>
+          <h2 id="bulk-acknowledgment-title" className="mt-1 text-lg font-semibold text-[#242424]">Mark completed gifts as thanked</h2>
+        </div>
+        <div className="space-y-3 px-5 py-4 text-sm text-[#424242]">
+          <p>Mark every currently unthanked <strong>completed</strong> gift dated from <strong>{from}</strong> through <strong>{to}</strong> as acknowledged.</p>
+          <p className="border-l-2 border-[#0f6cbd] bg-[#eff6fc] px-3 py-2 text-xs leading-5 text-[#0f548c]">This only updates the acknowledgment status. It does not send an email, generate a letter, or alter gift amounts.</p>
+          <p className="text-xs text-[#616161]">The exact date range and number of changed gifts are recorded in the audit log.</p>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-[#d1d1d1] px-5 py-3">
+          <button type="button" onClick={onClose} disabled={busy} className="h-9 border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-[#424242] hover:bg-[#f3f2f1] disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={busy} className="h-9 border border-[#0f6cbd] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3] disabled:opacity-50">{busy ? "Marking..." : "Mark range thanked"}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

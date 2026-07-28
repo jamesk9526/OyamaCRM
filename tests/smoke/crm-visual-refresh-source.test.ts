@@ -190,6 +190,41 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(table).toContain("Letter Template");
   });
 
+  it("keeps historic acknowledgment updates date-bounded, confirmed, and audited", () => {
+    const donationsPage = read("app/donations/page.tsx");
+    const donationsRoute = read("server/src/routes/donations.ts");
+    const reportsApp = read("app/components/reports-app/ReportsApp.tsx");
+
+    expect(donationsPage).toContain("Mark date range thanked");
+    expect(donationsPage).toContain("/api/donations/acknowledgments/bulk");
+    expect(donationsPage).toContain("No communication was sent.");
+    expect(donationsRoute).toContain('router.patch("/acknowledgments/bulk"');
+    expect(donationsRoute).toContain("CONFIRMATION_REQUIRED");
+    expect(donationsRoute).toContain("DONATION_ACKNOWLEDGMENT_BULK_MARKED");
+    expect(reportsApp).toContain("SAVED_REPORT_VIEWS_STORAGE_KEY");
+    expect(reportsApp).toContain("Print dialog opened for the current live report.");
+  });
+
+  it("keeps recurring imports and communication builders in the unified workspace style", () => {
+    const importPage = read("app/data-tools/import/page.tsx");
+    const guidedImport = read("app/components/data-tools/GuidedImportWizard.tsx");
+    const importWizard = read("app/data-tools/import/ImportWizard.tsx");
+    const emailBuilder = read("app/components/email-builder/EmailBuilderApp.tsx");
+    const emailCanvas = read("app/components/email-builder/EmailCanvas.tsx");
+    const lettersBuilder = read("app/components/letters/OyamaLettersWorkspace.tsx");
+
+    expect(importPage).toContain("Import center");
+    expect(importPage).toContain("Resolve duplicates");
+    expect(guidedImport).toContain("Route every file to the correct CRM");
+    expect(importWizard).toContain("MAPPING_STORAGE_PREFIX");
+    expect(importWizard).toContain("A saved mapping was restored for these headers.");
+    expect(importWizard).toContain("Reset to smart mapping");
+    expect(emailBuilder).toContain("bg-[#0f6cbd]");
+    expect(emailCanvas).toContain("bg-[#f5f5f5]");
+    expect(lettersBuilder).toContain("bg-[#f5f5f5]");
+    expect(lettersBuilder).toContain("shadow-[inset_0_-2px_0_#0f6cbd]");
+  });
+
   it("brings Campaigns into the donor workspace visual system without changing campaign actions", () => {
     const page = read("app/campaigns/page.tsx");
     const card = read("app/components/campaigns/CampaignCard.tsx");

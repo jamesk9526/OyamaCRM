@@ -134,23 +134,30 @@ function HeroMiniTile({
   value,
   detail,
   tone = "indigo",
+  href,
 }: {
   label: string;
   value: string;
   detail: string;
   tone?: "indigo" | "blue";
+  href?: string;
 }) {
   const toneClass = tone === "blue"
     ? "border-[#cfe4fa] bg-[#eff6fc]"
     : "border-[#d1d1d1] bg-white";
 
-  return (
-    <div className={`relative overflow-hidden rounded-[2px] border border-t-[3px] border-t-[#0f6cbd] px-4 py-3.5 ${toneClass}`}>
+  const content = (
+    <div className={`relative h-full overflow-hidden rounded-[2px] border border-t-[3px] border-t-[#0f6cbd] px-4 py-3.5 ${toneClass} ${href ? "transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa]" : ""}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
-      <p className="mt-1 text-xs text-slate-600">{detail}</p>
+      <div className="mt-1 flex items-end justify-between gap-2">
+        <p className="text-xs text-slate-600">{detail}</p>
+        {href ? <span className="shrink-0 text-[11px] font-semibold text-[#0f6cbd]">Open</span> : null}
+      </div>
     </div>
   );
+
+  return href ? <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd]">{content}</Link> : content;
 }
 
 function DashboardStatusPill({ children }: { children: ReactNode }) {
@@ -328,8 +335,8 @@ export default function NaturalisticDonorDashboard({
               </nav>
             </div>
             <div className="grid min-w-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
-              <HeroMiniTile label="Attention Queue" value={`${visibleAttentionItems.length} active`} detail={visibleAttentionItems.length > 0 ? `${unackedCount} unacknowledged gifts and ${summary?.overdueTasks ?? 0} overdue tasks` : "No current dashboard alerts"} />
-              <HeroMiniTile label="Coverage" value={totalDonorsValue} detail="Active donor records in current dashboard scope" tone="blue" />
+              <HeroMiniTile label="Attention Queue" value={`${visibleAttentionItems.length} active`} detail={visibleAttentionItems.length > 0 ? `${unackedCount} unacknowledged gifts and ${summary?.overdueTasks ?? 0} overdue tasks` : "No current dashboard alerts"} href="/donations?acknowledgment=pending" />
+              <HeroMiniTile label="Coverage" value={totalDonorsValue} detail="Active donor records in current dashboard scope" tone="blue" href="/constituents" />
             </div>
           </div>
         </section>

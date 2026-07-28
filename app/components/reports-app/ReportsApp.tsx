@@ -17,6 +17,7 @@ import { DEFAULT_REPORT_ID, REPORT_CATEGORIES, REPORT_DEFINITIONS } from "@/app/
 import type { BuilderDraft, ReportCategoryId, ReportFilters, ReportRunResult, SavedReportView } from "@/app/components/reports-app/report-types";
 
 type AppMode = "home" | "runner" | "builder" | "presentation";
+const SAVED_REPORT_VIEWS_STORAGE_KEY = "oyama-reports.saved-views.v1";
 
 function normalizeDownloadName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "report";
@@ -100,7 +101,7 @@ function PresentationSummary({ result, onBack }: { result: ReportRunResult | nul
         <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
           <li>Report generated from live OyamaCRM v1.3 data on {new Date(result.generatedAt).toLocaleString()}.</li>
           <li>Use this summary for board packet review, leadership prep, and donor follow-up planning.</li>
-          <li>Exports are placeholders unless a live export action has a backing endpoint or browser CSV generation.</li>
+          <li>Use CSV export for the live data grid or Print for a shareable meeting-ready copy.</li>
         </ul>
       </div>
     </section>
@@ -118,6 +119,26 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
   const [error, setError] = useState<string | null>(null);
   const [savedViews, setSavedViews] = useState<SavedReportView[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SAVED_REPORT_VIEWS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setSavedViews(parsed.filter((view): view is SavedReportView => Boolean(view && typeof view.id === "string" && typeof view.reportId === "string" && view.filters)).slice(0, 12));
+      }
+    } catch {
+      setSavedViews([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SAVED_REPORT_VIEWS_STORAGE_KEY, JSON.stringify(savedViews));
+    } catch {
+      // Saved views remain usable for this session when browser storage is unavailable.
+    }
+  }, [savedViews]);
 
   const activeReport = REPORT_DEFINITIONS.find((report) => report.id === activeReportId) ?? REPORT_DEFINITIONS[0];
 
@@ -169,7 +190,7 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
       filters,
     };
     setSavedViews((current) => [view, ...current].slice(0, 8));
-    setToast("Saved report view in this browser session.");
+    setToast("Saved report view. It will remain available in this browser.");
   }
 
   function exportCsv(reportId = activeReportId) {
@@ -183,17 +204,8 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
   }
 
   function exportPdf() {
-    setToast("PDF export placeholder opened. Use browser print until server-side PDF export is wired.");
+    setToast("Print dialog opened for the current live report.");
     window.print();
-  }
-
-  function createLetterList(reportId = activeReportId) {
-    const report = REPORT_DEFINITIONS.find((item) => item.id === reportId) ?? activeReport;
-    if (!report.outputs.includes("Letter List")) {
-      setToast("This report does not expose a letter-list output.");
-      return;
-    }
-    setToast("Letter-list handoff placeholder: live persistence route still needed.");
   }
 
   function saveBuilderDraft(draft: BuilderDraft) {
@@ -221,7 +233,7 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
   }
 
   return (
-    <div className="min-h-[calc(100dvh-7rem)] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
+    <div className="reports-enterprise-shell min-h-[calc(100dvh-7rem)] overflow-hidden border border-[#d1d1d1] bg-[#f5f5f5]">
       <div className="grid min-h-[calc(100dvh-7rem)] lg:grid-cols-[17rem_minmax(0,1fr)]">
         <ReportCategoryRail
           categories={REPORT_CATEGORIES}
@@ -243,8 +255,8 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
                   <span className="text-xs text-slate-300">/</span>
                   <span className="text-xs font-semibold text-blue-700">Reports</span>
                 </div>
-                <h1 className="mt-1 text-2xl font-semibold text-slate-950">Reports</h1>
-                <p className="mt-1 text-sm text-slate-500">Find, run, filter, export, and summarize donor reports using live CRM data.</p>
+                <h1 className="mt-1 text-2xl font-semibold text-slate-950">Reporting Hub</h1>
+                <p className="mt-1 text-sm text-slate-500">Run live donor reports, save a filter view, export the current grid, or print a meeting-ready report.</p>
               </div>
 
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
@@ -262,11 +274,14 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
                   <Icon name="presentation" />
                   Presentation
                 </button>
-                <button type="button" onClick={() => exportCsv()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <button type="button" onClick={() => exportCsv()} className="inline-flex h-9 items-center justify-center gap-2 border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]">
                   <Icon name="download" />
                   Export
                 </button>
-                <button type="button" onClick={() => void runReport(activeReportId)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">
+                <button type="button" onClick={exportPdf} className="inline-flex h-9 items-center justify-center gap-2 border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]">
+                  Print
+                </button>
+                <button type="button" onClick={() => void runReport(activeReportId)} className="inline-flex h-9 items-center justify-center gap-2 border border-[#0f6cbd] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3]">
                   <Icon name="external" />
                   Run Report
                 </button>
@@ -306,7 +321,6 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
                       onRun={(reportId) => void runReport(reportId)}
                       onExportCsv={exportCsv}
                       onExportPdf={exportPdf}
-                      onCreateLetterList={createLetterList}
                       onSaveView={saveView}
                     />
                   ))}
@@ -325,7 +339,6 @@ export default function ReportsApp({ initialMode = "home" }: { initialMode?: App
                 onExportCsv={() => exportCsv(activeReportId)}
                 onExportPdf={exportPdf}
                 onSaveView={() => saveView(activeReportId)}
-                onCreateLetterList={() => createLetterList(activeReportId)}
               />
             ) : null}
 

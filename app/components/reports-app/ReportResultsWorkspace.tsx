@@ -16,7 +16,6 @@ interface ReportResultsWorkspaceProps {
   onExportCsv: () => void;
   onExportPdf: () => void;
   onSaveView: () => void;
-  onCreateLetterList: () => void;
 }
 
 function formatCurrency(value: number): string {
@@ -194,7 +193,6 @@ export default function ReportResultsWorkspace({
   onExportCsv,
   onExportPdf,
   onSaveView,
-  onCreateLetterList,
 }: ReportResultsWorkspaceProps) {
   const report = result?.report;
 
@@ -212,7 +210,7 @@ export default function ReportResultsWorkspace({
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSaveView} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Save View</button>
             <button type="button" onClick={onExportCsv} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export CSV</button>
-            <button type="button" onClick={onExportPdf} className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export PDF</button>
+            <button type="button" onClick={onExportPdf} className="h-9 rounded-[2px] border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]">Print</button>
             <button type="button" onClick={onRun} className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700" data-testid="reports-run-report">Run Report</button>
           </div>
         </div>
@@ -266,9 +264,6 @@ export default function ReportResultsWorkspace({
                 <h2 className="text-sm font-semibold text-slate-950">Report Data Grid</h2>
                 <p className="text-xs text-slate-500">{result.rows.length.toLocaleString()} live rows returned</p>
               </div>
-              <button type="button" onClick={onCreateLetterList} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                Create Letter List
-              </button>
             </div>
             <ReportDataGrid rows={result.rows} />
           </section>

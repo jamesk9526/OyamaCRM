@@ -174,6 +174,47 @@ body {
   color: var(--crm-muted-text);
 }
 
+/* Reporting uses the same compact, operational hierarchy as the Donor CRM shell. */
+.reports-enterprise-shell :is(.rounded-xl, .rounded-lg, .rounded-md) {
+  border-radius: 2px;
+}
+
+.reports-enterprise-shell :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl) {
+  box-shadow: none;
+}
+
+.reports-enterprise-shell :is(button, input, select):focus-visible {
+  outline: 2px solid #0f6cbd;
+  outline-offset: -1px;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+
+  [data-topbar-root="true"],
+  nav,
+  aside,
+  button,
+  [data-testid="reports-filter-panel"] {
+    display: none !important;
+  }
+
+  .reports-enterprise-shell {
+    min-height: 0 !important;
+    border: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .reports-enterprise-shell main,
+  .reports-enterprise-shell main > div {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}
+
 /* Shared application chrome stays calm and functional so dense CRM work remains legible. */
 [data-topbar-root="true"] {
   background: #ffffff !important;

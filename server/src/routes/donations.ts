@@ -1271,6 +1271,69 @@ router.post(
 );
 
 /**
+ * PATCH /api/donations/acknowledgments/bulk — marks historical completed gifts as acknowledged in a bounded date range.
+ * This records stewardship state only; it never sends an email or creates a letter.
+ */
+router.patch("/acknowledgments/bulk", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const from = typeof req.body?.from === "string" ? req.body.from : "";
+  const to = typeof req.body?.to === "string" ? req.body.to : "";
+  if (!from || !to || req.body?.confirmed !== true) {
+    res.status(400).json({ error: { code: "CONFIRMATION_REQUIRED", message: "Choose a complete gift date range and confirm the bulk acknowledgment." } });
+    return;
+  }
+
+  const start = parseDateStart(from);
+  const end = parseDateEnd(to);
+  if (!start || !end || start > end) {
+    res.status(400).json({ error: { code: "INVALID_DATE_RANGE", message: "Enter a valid gift date range." } });
+    return;
+  }
+
+  const where: Prisma.DonationWhereInput = {
+    AND: [
+      donationOrgWhere(organizationId),
+      { status: "COMPLETED" },
+      { acknowledgmentSentAt: null },
+      { date: { gte: start, lte: end } },
+    ],
+  };
+  const acknowledgmentSentAt = new Date();
+  const result = await prisma.donation.updateMany({
+    where,
+    data: { acknowledgmentSentAt },
+  });
+
+  logAudit({
+    action: "DONATION_ACKNOWLEDGMENT_BULK_MARKED",
+    entity: "Donation",
+    entityId: `range:${from}:${to}`,
+    userId: req.user?.sub,
+    metadata: {
+      from,
+      to,
+      matchedCount: result.count,
+      acknowledgmentSentAt: acknowledgmentSentAt.toISOString(),
+      status: "COMPLETED",
+    },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({
+    acknowledgedCount: result.count,
+    from,
+    to,
+    acknowledgmentSentAt: acknowledgmentSentAt.toISOString(),
+  });
+});
+
+/**
  * PATCH /api/donations/:id/acknowledgment — Mark or reset donor acknowledgment state for one donation.
  *
  * Request body:

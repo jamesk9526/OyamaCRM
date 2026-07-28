@@ -12,7 +12,6 @@ interface ReportCardProps {
   onRun: (reportId: string) => void;
   onExportCsv: (reportId: string) => void;
   onExportPdf: (reportId: string) => void;
-  onCreateLetterList: (reportId: string) => void;
   onSaveView: (reportId: string) => void;
 }
 
@@ -58,7 +57,6 @@ export default function ReportCard({
   onRun,
   onExportCsv,
   onExportPdf,
-  onCreateLetterList,
   onSaveView,
 }: ReportCardProps) {
   const runnable = report.status !== "Coming Soon";
@@ -115,8 +113,7 @@ export default function ReportCard({
           </button>
           <SmallAction label="Preview" onClick={() => onPreview(report.id)} disabled={!runnable} />
           <SmallAction label="Export CSV" onClick={() => onExportCsv(report.id)} disabled={!runnable} />
-          <SmallAction label="Export PDF" onClick={() => onExportPdf(report.id)} disabled={!runnable} />
-          <SmallAction label="Create Letter List" onClick={() => onCreateLetterList(report.id)} disabled={!report.outputs.includes("Letter List")} />
+          <SmallAction label="Print" onClick={() => onExportPdf(report.id)} disabled={!runnable} />
           <SmallAction label="Save View" onClick={() => onSaveView(report.id)} disabled={!runnable} />
         </div>
       </div>
