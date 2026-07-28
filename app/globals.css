@@ -4,16 +4,16 @@
 :root {
   --background: #f7f8fc;
   --foreground: #0f172a;
-  --accent: #4f46e5;
-  --accent-light: #eef2ff;
+  --accent: #0f6cbd;
+  --accent-light: #eff6fc;
   --crm-surface: #ffffff;
   --crm-surface-subtle: #f8fafc;
   --crm-border: #e2e8f0;
   --crm-border-strong: #cbd5e1;
   --crm-muted-text: #64748b;
-  --crm-accent: #4f46e5;
-  --crm-accent-soft: #eef2ff;
-  --crm-focus-ring: rgba(99, 102, 241, 0.24);
+  --crm-accent: #0f6cbd;
+  --crm-accent-soft: #eff6fc;
+  --crm-focus-ring: rgba(15, 108, 189, 0.24);
 }
 
 @theme inline {
@@ -103,8 +103,43 @@ body {
 }
 
 .crm-fonts ::selection {
-  background: #c7d2fe;
-  color: #1e1b4b;
+  background: #cfe4fa;
+  color: #0f3b61;
+}
+
+/* Microsoft-style standalone workspace foundation for Letters and Email. */
+.microsoft-product-shell {
+  --ms-blue: #0f6cbd;
+  --ms-blue-hover: #115ea3;
+  --ms-page: #f5f5f5;
+  --ms-panel: #ffffff;
+  --ms-border: #d1d1d1;
+  --ms-muted: #616161;
+  background: var(--ms-page);
+  font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
+}
+
+.microsoft-product-shell :is(h1, h2, h3, h4) {
+  font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+.microsoft-product-shell :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+.microsoft-product-shell :is(.rounded-2xl, .rounded-xl) {
+  border-radius: 4px;
+}
+
+.microsoft-product-shell :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl) {
+  box-shadow: none;
+}
+
+.microsoft-product-shell :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--ms-blue);
+  outline-offset: -1px;
+  box-shadow: none;
 }
 
 .crm-soft-divider {

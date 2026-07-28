@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import MicrosoftProductBar from "@/app/components/layout/MicrosoftProductBar";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
@@ -677,8 +678,15 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#f5f7fa] text-slate-900">
-      <div className="flex min-h-[100dvh]">
+    <div className="microsoft-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-900">
+      <MicrosoftProductBar
+        productName="OyamaCRM Email"
+        homeHref="/oyama-email"
+        backHref="/"
+        backLabel="Back to CRM"
+        helpHref="/oyama-email/docs"
+      />
+      <div className="flex min-h-[calc(100dvh-52px)]">
         <OyamaEmailSidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((prev) => !prev)}
@@ -755,13 +763,13 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
 
 function OyamaEmailMobileNav({ pathname, activeView }: { pathname: string; activeView: OyamaEmailView }) {
   return (
-    <div className="sticky top-0 z-40 border-b border-emerald-900/30 bg-[#06291f] px-3 py-2 text-white shadow-lg lg:hidden">
+    <div className="sticky top-0 z-40 border-b border-[#d1d1d1] bg-white px-3 py-2 text-slate-950 lg:hidden">
       <div className="flex items-center gap-3">
         <Link href="/oyama-email" className="flex shrink-0 items-center gap-2">
-          <EmailLogo className="h-9 w-9" />
-          <span className="text-sm font-semibold tracking-wide">OYAMA EMAIL</span>
+          <span className="grid h-8 w-8 place-items-center bg-[#0f6cbd] text-sm font-semibold text-white" aria-hidden="true">O</span>
+          <span className="text-sm font-semibold">OyamaCRM Email</span>
         </Link>
-        <Link href="/" className="ml-auto shrink-0 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-50">
+        <Link href="/" className="ml-auto shrink-0 border border-[#c8c6c4] px-2.5 py-1.5 text-xs font-semibold text-slate-700">
           Back
         </Link>
       </div>
@@ -774,8 +782,8 @@ function OyamaEmailMobileNav({ pathname, activeView }: { pathname: string; activ
               key={item.href}
               href={item.href}
               className={[
-                "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-semibold",
-                active ? "border-emerald-300 bg-emerald-500/80 text-white" : "border-white/15 bg-white/10 text-emerald-50",
+                "inline-flex h-9 shrink-0 items-center border px-3 text-xs font-semibold",
+                active ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-[#d1d1d1] bg-white text-slate-600",
               ].join(" ")}
             >
               {item.label}
@@ -800,37 +808,21 @@ function OyamaEmailSidebar({
 }) {
   return (
     <aside className={[
-      "hidden shrink-0 flex-col bg-[radial-gradient(circle_at_20%_0%,#0b6c3a_0,#05402d_44%,#04271f_100%)] text-white shadow-xl transition-[width,padding] duration-300 lg:flex",
-      collapsed ? "w-[88px] px-2 py-3" : "w-[248px] px-3 py-4",
+      "hidden shrink-0 flex-col border-l-4 border-[#0f6cbd] bg-[#292929] text-white transition-[width] duration-200 lg:flex",
+      collapsed ? "w-[64px]" : "w-[284px]",
     ].join(" ")}>
-      <div className={[
-        "flex items-center rounded-2xl border border-white/15 bg-white/5",
-        collapsed ? "justify-center p-3" : "justify-between px-4 py-3",
-      ].join(" ")}>
-        <Link href="/oyama-email" className={["flex items-center", collapsed ? "justify-center" : "gap-3"].join(" ")}>
-          <EmailLogo className={collapsed ? "h-10 w-10" : "h-11 w-11"} />
-          {!collapsed ? (
-            <div>
-              <p className="text-[27px] leading-none font-semibold tracking-tight">OYAMA</p>
-              <p className="-mt-0.5 text-[13px] tracking-[0.22em] text-emerald-100">EMAIL</p>
-            </div>
-          ) : null}
-        </Link>
-        {!collapsed ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-label="Collapse sidebar"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
-          >
-            <ChevronLeft />
-          </button>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={["flex h-12 shrink-0 items-center text-white hover:bg-[#363636]", collapsed ? "justify-center" : "gap-3 px-4"].join(" ")}
+      >
+        <span className="text-xl leading-none" aria-hidden="true">☰</span>
+        {!collapsed ? <span className="text-sm font-semibold">Email</span> : null}
+      </button>
 
       <nav className={[
-        "flex-1 space-y-1.5 overflow-y-auto",
-        collapsed ? "mt-3" : "mt-4",
+        "mt-1 flex-1 overflow-y-auto",
       ].join(" ")}>
         {SIDEBAR_ITEMS.map((item) => {
           const active = Boolean(item.matchPrefix ? pathname.startsWith(item.matchPrefix) : pathname.startsWith(item.href))
@@ -841,9 +833,12 @@ function OyamaEmailSidebar({
               href={item.href}
               title={collapsed ? item.label : undefined}
               className={[
-                "flex h-11 items-center rounded-2xl px-3 text-sm font-semibold transition",
+                "relative flex h-10 items-center text-sm font-normal transition",
                 collapsed ? "justify-center" : "gap-3",
-                active ? "bg-emerald-500/70 text-white shadow-inner" : "text-emerald-50 hover:bg-white/10",
+                collapsed ? "px-2" : "px-4",
+                active
+                  ? "bg-[#333333] text-white before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:bg-[#3a96dd]"
+                  : "text-[#f5f5f5] hover:bg-[#363636]",
               ].join(" ")}
             >
               <SideIcon label={item.label} />
@@ -853,8 +848,8 @@ function OyamaEmailSidebar({
         })}
       </nav>
 
-      <div className="mt-3">
-        <Link href="/" className={["mt-3 flex items-center rounded-xl border border-white/20 bg-white/10 text-sm font-semibold text-emerald-50 hover:bg-white/20", collapsed ? "h-10 w-10 justify-center self-center" : "gap-2 px-3 py-2"].join(" ")}>
+      <div className="border-t border-[#4b4b4b]">
+        <Link href="/" className={["flex h-10 items-center text-sm text-[#f5f5f5] hover:bg-[#363636]", collapsed ? "justify-center" : "gap-3 px-4"].join(" ")}>
           <ChevronLeft />
           {!collapsed ? <span>Back to CRM</span> : null}
         </Link>
@@ -864,7 +859,7 @@ function OyamaEmailSidebar({
             type="button"
             onClick={onToggle}
             aria-label="Expand sidebar"
-            className="mx-auto mt-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
+            className="inline-flex h-10 w-full items-center justify-center text-white hover:bg-[#363636]"
           >
             <ChevronRight />
           </button>
@@ -876,11 +871,11 @@ function OyamaEmailSidebar({
 
 function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targetCampaign: OyamaEmailCampaign | null }) {
   return (
-    <header className="z-30 border-b border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4 lg:sticky lg:top-0 xl:px-8">
+    <header className="z-30 border-b border-[#d1d1d1] bg-white px-3 py-2.5 sm:px-5 lg:sticky lg:top-0 xl:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[31px]">{workspaceTitle(view)}</p>
-          <p className="text-sm text-slate-600">{workspaceSubtitle(view, targetCampaign)}</p>
+          <p className="text-[22px] font-semibold leading-7 text-slate-900">{workspaceTitle(view)}</p>
+          <p className="text-[13px] text-slate-600">{workspaceSubtitle(view, targetCampaign)}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -1028,9 +1023,9 @@ function TemplatesView({
   }
 
   return (
-    <section className="space-y-5 p-4 xl:p-6">
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 bg-[linear-gradient(120deg,#f8faff_0%,#f6f3ff_54%,#ffffff_100%)] px-5 py-5">
+    <section className="space-y-4 p-4 xl:p-6">
+      <section className="overflow-hidden rounded-[4px] border border-[#d1d1d1] bg-white">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#d1d1d1] bg-white px-5 py-4">
           <div className="max-w-2xl">
             <div className="flex items-center gap-2">
               <p className="text-2xl font-semibold tracking-tight text-slate-950">Email templates</p>
@@ -1045,14 +1040,14 @@ function TemplatesView({
           </div>
         </header>
         <div className="grid lg:grid-cols-[230px_minmax(0,1fr)]">
-          <aside className="border-b border-slate-100 bg-slate-50/70 p-4 lg:border-b-0 lg:border-r">
+          <aside className="border-b border-[#d1d1d1] bg-[#f3f2f1] p-4 lg:border-b-0 lg:border-r">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Browse library</p>
             <div className="mt-3 space-y-1">
               {([
                 { value: "MINE", label: "My templates", count: myCount },
                 { value: "SHARED", label: "Shared with me", count: sharedCount },
                 { value: "ALL", label: "All templates", count: campaigns.length },
-              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-indigo-700 text-white shadow-sm" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-indigo-100" : "text-slate-400"}>{option.count}</span></button>)}
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-[2px] px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-[#0f6cbd] text-white" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-blue-100" : "text-slate-400"}>{option.count}</span></button>)}
             </div>
             <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Template type</p>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -1060,12 +1055,12 @@ function TemplatesView({
                 { value: "ALL", label: "All" },
                 { value: "HUMAN", label: "Staff" },
                 { value: "AI", label: `AI ${aiCount}` },
-              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-md border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"].join(" ")}>{option.label}</button>)}
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-[2px] border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-[#c8c6c4] bg-white text-slate-600 hover:bg-[#faf9f8]"].join(" ")}>{option.label}</button>)}
             </div>
             <div className="mt-5 border-t border-slate-200 pt-4">
               <div className="flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Topics</p><select value={categorySort} onChange={(event) => setCategorySort(event.target.value as "default" | "count")} className="bg-transparent text-[10px] font-semibold text-slate-500 outline-none"><option value="default">A–Z</option><option value="count">Most used</option></select></div>
               <div className="mt-2 flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
-                {visibleCategories.map((label) => <button key={label} type="button" onClick={() => setCategory(label)} className={["flex items-center justify-between rounded-md px-2 py-1.5 text-left text-xs", category === label ? "bg-indigo-50 font-semibold text-indigo-800" : "text-slate-600 hover:bg-white"].join(" ")}><span>{label}</span><span className="text-[10px] text-slate-400">{label === "All Templates" ? campaigns.length : categoryMap.get(label) ?? 0}</span></button>)}
+                {visibleCategories.map((label) => <button key={label} type="button" onClick={() => setCategory(label)} className={["flex items-center justify-between rounded-[2px] px-2 py-1.5 text-left text-xs", category === label ? "bg-white font-semibold text-[#0f548c] shadow-[inset_3px_0_0_#0f6cbd]" : "text-slate-600 hover:bg-white"].join(" ")}><span>{label}</span><span className="text-[10px] text-slate-400">{label === "All Templates" ? campaigns.length : categoryMap.get(label) ?? 0}</span></button>)}
               </div>
             </div>
           </aside>
@@ -1073,7 +1068,7 @@ function TemplatesView({
             <div className="flex flex-wrap items-center gap-2">
               <label className="relative min-w-0 flex-1 basis-full sm:basis-auto">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by template name or email subject" className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by template name or email subject" className="h-10 w-full rounded-[2px] border border-[#8a8886] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0f6cbd]" />
               </label>
               <select value={sortBy} onChange={(event) => setSortBy(event.target.value as "updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-indigo-500" aria-label="Sort templates"><option value="updatedDesc">Recently updated</option><option value="usedDesc">Most used</option><option value="nameAsc">Name A–Z</option><option value="updatedAsc">Oldest updated</option></select>
             </div>
@@ -1083,7 +1078,7 @@ function TemplatesView({
                 ["My templates", myCount, "text-indigo-800"],
                 ["Shared", sharedCount, "text-violet-800"],
                 ["AI-assisted", aiCount, "text-blue-800"],
-              ].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
+              ].map(([label, value, color]) => <div key={String(label)} className="border border-[#d1d1d1] border-t-2 border-t-[#0f6cbd] bg-[#fafafa] px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
             </div>
             <p className="mt-4 text-xs leading-5 text-slate-600">Choose <span className="font-semibold text-slate-800">Edit</span> to change reusable content, or <span className="font-semibold text-slate-800">Use in campaign</span> when you are ready to choose an audience.</p>
           </div>
@@ -4675,22 +4670,6 @@ function SideIcon({ label }: { label: string }) {
   return (
     <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d={paths[label] ?? paths.Templates} />
-    </svg>
-  );
-}
-
-function EmailLogo({ className = "h-11 w-11" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 48 48" fill="none" aria-hidden="true">
-      <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#g)" />
-      <path d="M24 10c6.6 5.2 10.1 10 10.1 15 0 6.1-4.5 10.7-10.1 13-5.6-2.3-10.1-6.9-10.1-13 0-5 3.5-9.8 10.1-15Z" fill="white" fillOpacity="0.95" />
-      <path d="M24 16v19M14.7 24h18.6" stroke="#0c5134" strokeWidth="2.2" strokeLinecap="round" />
-      <defs>
-        <linearGradient id="g" x1="2" y1="2" x2="46" y2="46" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#0e7a45" />
-          <stop offset="1" stopColor="#04462f" />
-        </linearGradient>
-      </defs>
     </svg>
   );
 }

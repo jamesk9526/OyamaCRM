@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
+import MicrosoftProductBar from "@/app/components/layout/MicrosoftProductBar";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
@@ -500,8 +500,15 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[linear-gradient(180deg,#f8faff_0%,#f3f6fb_100%)] text-slate-950">
-      <div className="flex min-h-[100dvh]">
+    <div className="microsoft-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-950">
+      <MicrosoftProductBar
+        productName="OyamaCRM Letters"
+        homeHref="/oyama-letters"
+        backHref="/constituents"
+        backLabel="Donor CRM"
+        helpHref="/help?scope=donor&scopePath=/oyama-letters"
+      />
+      <div className="flex min-h-[calc(100dvh-52px)]">
         <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex min-w-0 flex-1 flex-col">
           <LettersMobileNav activeView={view} />
@@ -530,12 +537,12 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
   }
 
   return (
-    <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-3 py-2 text-slate-950 shadow-sm backdrop-blur lg:hidden">
+    <div className="sticky top-0 z-40 border-b border-[#d1d1d1] bg-white px-3 py-2 text-slate-950 lg:hidden">
       <div className="flex items-center gap-3">
         <Link href="/oyama-letters" className="min-w-0 text-sm font-semibold tracking-wide text-slate-900">
           OyamaCRM Letters
         </Link>
-        <Link href="/constituents" className="ml-auto shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+        <Link href="/constituents" className="ml-auto shrink-0 border border-[#c8c6c4] bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700">
           Donor CRM
         </Link>
       </div>
@@ -551,8 +558,8 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
               key={item.href}
               href={item.href}
               className={[
-                "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-semibold",
-                active ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white text-slate-600",
+                "inline-flex h-9 shrink-0 items-center border px-3 text-xs font-semibold",
+                active ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-[#d1d1d1] bg-white text-slate-600",
               ].join(" ")}
             >
               {item.label}
@@ -584,43 +591,26 @@ function LettersSidebar({
 
   return (
     <aside className={[
-      "hidden shrink-0 flex-col border-r border-slate-200 bg-white text-slate-950 shadow-[8px_0_28px_rgba(15,23,42,0.035)] transition-[width,padding] duration-300 lg:flex",
-      collapsed ? "w-[88px] px-2 py-3" : "w-[246px] px-3 py-4",
+      "hidden shrink-0 flex-col border-l-4 border-[#0f6cbd] bg-[#292929] text-white transition-[width] duration-200 lg:flex",
+      collapsed ? "w-[64px]" : "w-[284px]",
     ].join(" ")}>
-      <div className={[
-        "flex items-center rounded-2xl border border-slate-200 bg-slate-50",
-        collapsed ? "justify-center p-3" : "justify-between px-4 py-3",
-      ].join(" ")}>
-        <Link href="/oyama-letters" className={[
-          "flex min-w-0 items-center",
-          collapsed ? "justify-center" : "w-full",
-        ].join(" ")}>
-          <CrmBrandLockup
-            moduleLabel="Letters CRM"
-            tone="dark"
-            compact={collapsed}
-            className={collapsed ? "" : "w-full"}
-          />
-        </Link>
-        {!collapsed ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-label="Collapse sidebar"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-          >
-            <ChevronLeft />
-          </button>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={["flex h-12 shrink-0 items-center text-white hover:bg-[#363636]", collapsed ? "justify-center" : "gap-3 px-4"].join(" ")}
+      >
+        <span className="text-xl leading-none" aria-hidden="true">☰</span>
+        {!collapsed ? <span className="text-sm font-semibold">Letters</span> : null}
+      </button>
 
       {/* Back to Donor CRM */}
       <Link
         href="/constituents"
         title={collapsed ? "Back to Donor CRM" : undefined}
         className={[
-          "mt-3 flex items-center rounded-2xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800",
-          collapsed ? "h-10 w-10 justify-center self-center" : "gap-2 px-3 py-2",
+          "flex h-10 items-center text-xs font-semibold text-[#f5f5f5] hover:bg-[#363636]",
+          collapsed ? "justify-center" : "gap-3 px-4",
         ].join(" ")}
       >
         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -630,8 +620,8 @@ function LettersSidebar({
       </Link>
 
       <nav className={[
-        "flex-1 space-y-1.5 overflow-y-auto",
-        collapsed ? "mt-3" : "mt-4",
+        "flex-1 overflow-y-auto",
+        collapsed ? "mt-1" : "mt-1",
       ].join(" ")}>
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
@@ -645,9 +635,12 @@ function LettersSidebar({
               href={item.href}
               title={collapsed ? item.label : undefined}
               className={[
-                "flex h-11 items-center rounded-2xl px-3 text-sm font-semibold transition",
+                "relative flex h-10 items-center text-sm font-normal transition",
                 collapsed ? "justify-center" : "gap-3",
-                active ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+                collapsed ? "px-2" : "px-4",
+                active
+                  ? "bg-[#333333] text-white before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:bg-[#3a96dd]"
+                  : "text-[#f5f5f5] hover:bg-[#363636]",
               ].join(" ")}
             >
               <LineIcon name={item.label} />
@@ -657,22 +650,19 @@ function LettersSidebar({
         })}
       </nav>
 
-      <div className="mt-3">
+      <div className="border-t border-[#4b4b4b]">
         {!collapsed ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-900">Need help?</p>
-            <p className="mt-2 text-xs leading-5 text-slate-600">Create, publish, generate, and queue letters.</p>
-            <Link href="/help?scope=donor&scopePath=/oyama-letters" className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
-              View Help Articles
-            </Link>
-          </div>
+          <Link href="/help?scope=donor&scopePath=/oyama-letters" className="flex h-10 items-center gap-3 px-4 text-sm text-[#f5f5f5] hover:bg-[#363636]">
+            <span aria-hidden="true">?</span>
+            <span>Help</span>
+          </Link>
         ) : null}
         {collapsed ? (
           <button
             type="button"
             onClick={onToggle}
             aria-label="Expand sidebar"
-            className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+            className="inline-flex h-10 w-full items-center justify-center text-white hover:bg-[#363636]"
           >
             <ChevronRight />
           </button>
@@ -689,9 +679,9 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate" || view === "queue";
 
   return (
-    <header className="z-30 flex min-h-12 flex-wrap items-center gap-3 border-b border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur sm:px-5 lg:sticky lg:top-0 xl:px-8">
+    <header className="z-30 flex min-h-[52px] flex-wrap items-center gap-3 border-b border-[#d1d1d1] bg-white px-3 py-2 sm:px-5 lg:sticky lg:top-0 xl:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Link href="/oyama-letters" className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700" aria-label="Back to letters home">
+        <Link href="/oyama-letters" className="inline-flex h-8 w-8 items-center justify-center border border-[#c8c6c4] text-slate-600 hover:bg-[#f3f2f1] hover:text-[#0f6cbd]" aria-label="Back to letters home">
           <ChevronLeft />
         </Link>
         <div className="flex min-w-0 items-center gap-2 text-xs">
@@ -901,7 +891,7 @@ function TemplateLibrary() {
   const [category, setCategory] = useState("ALL");
   const [ownership, setOwnership] = useState<TemplateOwnershipScope>("MINE");
   const [provenance, setProvenance] = useState<TemplateProvenanceScope>("ALL");
-  const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [layout, setLayout] = useState<"grid" | "list">("list");
   const [setupHintOpen, setSetupHintOpen] = useState(false);
   const [setupHintStep, setSetupHintStep] = useState<0 | 1 | 2>(0);
   const [applyingDefaults, setApplyingDefaults] = useState(false);
@@ -1034,7 +1024,7 @@ function TemplateLibrary() {
   }
 
   return (
-    <main className="min-w-0 flex-1 bg-[#f5f7fa]">
+    <main className="min-w-0 flex-1 bg-[#f5f5f5]">
       <PageHero
         title="Template Library"
         subtitle="Create, edit, and manage your letter templates."
@@ -1047,16 +1037,16 @@ function TemplateLibrary() {
         <Button href="/oyama-letters/templates/new" tone="primary">Create New Template</Button>
         <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" />
       </PageHero>
-      <section className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
-        <div className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[235px_minmax(0,1fr)]">
-          <aside className="border-b border-slate-100 bg-[linear-gradient(160deg,#f6f5ff_0%,#f7faff_100%)] p-4 lg:border-b-0 lg:border-r">
+      <section className="border-b border-[#d1d1d1] bg-white px-4 py-4 xl:px-7">
+        <div className="grid overflow-hidden rounded-[4px] border border-[#d1d1d1] bg-white lg:grid-cols-[235px_minmax(0,1fr)]">
+          <aside className="border-b border-[#d1d1d1] bg-[#f3f2f1] p-4 lg:border-b-0 lg:border-r">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Library views</p>
             <div className="mt-3 space-y-1">
               {([
                 { value: "MINE", label: "My templates", count: myCount },
                 { value: "TEAM", label: "Team templates", count: teamCount },
                 { value: "ALL", label: "All templates", count: templates.length },
-              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-indigo-700 text-white shadow-sm" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-indigo-100" : "text-slate-400"}>{option.count}</span></button>)}
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-[2px] px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-[#0f6cbd] text-white" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-blue-100" : "text-slate-400"}>{option.count}</span></button>)}
             </div>
             <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Authoring</p>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -1064,25 +1054,25 @@ function TemplateLibrary() {
                 { value: "ALL", label: "All" },
                 { value: "HUMAN", label: "Staff" },
                 { value: "AI", label: `AI ${aiCount}` },
-              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-md border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"].join(" ")}>{option.label}</button>)}
+              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-[2px] border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-[#c8c6c4] bg-white text-slate-600 hover:bg-[#faf9f8]"].join(" ")}>{option.label}</button>)}
             </div>
             <div className="mt-5 border-t border-slate-200 pt-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Categories</p>
               <div className="mt-2 flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
-                {["ALL", ...CATEGORIES].map((value) => <button key={value} type="button" onClick={() => setCategory(value)} className={["flex items-center justify-between rounded-md px-2 py-1.5 text-left text-xs", category === value ? "bg-indigo-50 font-semibold text-indigo-800" : "text-slate-600 hover:bg-white"].join(" ")}><span>{value === "ALL" ? "All categories" : value.replaceAll("_", " ")}</span><span className="text-[10px] text-slate-400">{value === "ALL" ? templates.length : templates.filter((template) => template.category === value).length}</span></button>)}
+                {["ALL", ...CATEGORIES].map((value) => <button key={value} type="button" onClick={() => setCategory(value)} className={["flex items-center justify-between rounded-[2px] px-2 py-1.5 text-left text-xs", category === value ? "bg-white font-semibold text-[#0f548c] shadow-[inset_3px_0_0_#0f6cbd]" : "text-slate-600 hover:bg-white"].join(" ")}><span>{value === "ALL" ? "All categories" : value.replaceAll("_", " ")}</span><span className="text-[10px] text-slate-400">{value === "ALL" ? templates.length : templates.filter((template) => template.category === value).length}</span></button>)}
               </div>
             </div>
           </aside>
           <div className="min-w-0 p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by letter name, category, or content" className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" /></label>
+              <label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by letter name, category, or content" className="h-10 w-full rounded-[2px] border border-[#8a8886] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0f6cbd]" /></label>
               <Select value={status} onChange={setStatus} options={["ALL", "DRAFT", "ACTIVE", "ARCHIVED"]} />
               <Button onClick={() => void load()}>Refresh</Button>
               <Button onClick={() => { setSearch(""); setCategory("ALL"); setStatus("ALL"); setOwnership("MINE"); setProvenance("ALL"); }}>Clear</Button>
               <div className="ml-auto flex gap-1"><IconToggle active={layout === "grid"} onClick={() => setLayout("grid")} label="Grid">▦</IconToggle><IconToggle active={layout === "list"} onClick={() => setLayout("list")} label="List">☷</IconToggle></div>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[["Showing", visibleTemplates.length, "text-slate-900"], ["Published", activeCount, "text-indigo-800"], ["Drafts", draftCount, "text-amber-800"], ["Archived", archivedCount, "text-slate-600"]].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
+              {[["Showing", visibleTemplates.length, "text-slate-900"], ["Published", activeCount, "text-[#0f548c]"], ["Drafts", draftCount, "text-amber-800"], ["Archived", archivedCount, "text-slate-600"]].map(([label, value, color]) => <div key={String(label)} className="border border-[#d1d1d1] border-t-2 border-t-[#0f6cbd] bg-[#fafafa] px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
             </div>
             <p className="mt-4 text-xs leading-5 text-slate-600">Open a draft to edit it. Published templates continue to <span className="font-semibold text-slate-800">Generate Letters</span> for recipient-specific output.</p>
           </div>
@@ -1099,7 +1089,7 @@ function TemplateLibrary() {
           {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       ) : (
-        <div className="space-y-3 p-4 xl:p-6">
+        <div className="space-y-2 p-4 xl:p-6">
           {visibleTemplates.map((template) => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       )}
@@ -6576,10 +6566,10 @@ function TemplateCard({ template, currentUserId, onExport }: { template: LetterT
 function TemplateRow({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
-    <article className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+    <article className="flex items-center gap-4 border border-[#d1d1d1] bg-white p-3 hover:bg-[#fafafa]">
       <div className="w-24 shrink-0"><DocumentThumb template={template} small /></div>
       <div className="min-w-0 flex-1">
-        <Link href={`/oyama-letters/templates/${template.id}`} className="font-semibold text-slate-950 hover:text-emerald-800">{template.name}</Link>
+        <Link href={`/oyama-letters/templates/${template.id}`} className="font-semibold text-slate-950 hover:text-[#0f6cbd]">{template.name}</Link>
         <p className="mt-1 text-sm text-slate-600">{template.category.replaceAll("_", " ")} · {template.status}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{ownershipLabel}</span>
@@ -6617,13 +6607,12 @@ function DocumentThumb({ template, small = false }: { template: LetterTemplateSu
 
 function PageHero({ title, subtitle, tooltip, children }: { title: string; subtitle: string; tooltip?: ReactNode; children?: ReactNode }) {
   return (
-    <section className="border-b border-slate-200 bg-white px-4 py-5 xl:px-7">
+    <section className="border-b border-[#d1d1d1] bg-white px-4 py-4 xl:px-7">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-800"><BookIcon /></div>
+        <div className="flex min-w-0 items-center gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="truncate text-[32px] font-semibold leading-9 tracking-normal text-slate-950">{title}</h1>
+              <h1 className="truncate text-[28px] font-semibold leading-8 text-slate-950">{title}</h1>
               {tooltip ? <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip> : null}
             </div>
             <p className="mt-1 text-[13px] text-slate-600">{subtitle}</p>
@@ -6837,7 +6826,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
 }
 
 function Button({ children, href, onClick, tone = "default", disabled = false }: { children: ReactNode; href?: string; onClick?: () => void; tone?: "default" | "primary"; disabled?: boolean }) {
-  const className = ["inline-flex h-9 items-center justify-center rounded-md px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", tone === "primary" ? "bg-indigo-700 text-white hover:bg-indigo-800" : "border border-slate-300 bg-white text-slate-800 hover:bg-indigo-50"].join(" ");
+  const className = ["inline-flex h-9 items-center justify-center rounded-[2px] px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", tone === "primary" ? "bg-[#0f6cbd] text-white hover:bg-[#115ea3]" : "border border-[#c8c6c4] bg-white text-slate-800 hover:bg-[#f3f2f1]"].join(" ");
   if (href) return <Link href={href} className={className}>{children}</Link>;
   return <button type="button" onClick={onClick} disabled={disabled} className={className}>{children}</button>;
 }
@@ -6991,10 +6980,6 @@ function LineIcon({ name }: { name: string }) {
     Settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-12v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3",
   };
   return <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={paths[name] ?? paths["Template Library"]} /></svg>;
-}
-
-function BookIcon() {
-  return <svg className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Zm0 0A2.5 2.5 0 0 1 6.5 8H20M8 7v8l3-2 3 2V7" /></svg>;
 }
 
 function ChevronLeft() {
