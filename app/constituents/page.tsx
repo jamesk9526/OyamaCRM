@@ -107,6 +107,12 @@ export default function ConstituentsPage() {
     prospects: summary?.prospects ?? constituents.filter((c) => c.type === "PROSPECT").length,
   };
 
+  const selectedEmailCount = Array.from(new Set(
+    getSelectionByIds(selectedIds)
+      .map((row) => (row.email || "").trim().toLowerCase())
+      .filter(Boolean),
+  )).length;
+
   function getSelectionByIds(ids: string[]) {
     const idSet = new Set(ids);
     return constituents.filter((row) => idSet.has(row.id));
@@ -125,9 +131,10 @@ export default function ConstituentsPage() {
       : `segment-${Date.now()}`;
 
     const payload = {
-      name: `Constituent selection (${recipients.length})`,
-      recipients,
+      name: `Selected donors (${recipients.length})`,
+      recipientEmails: recipients,
       createdAt: new Date().toISOString(),
+      source: "constituent-directory",
     };
 
     window.sessionStorage.setItem(`oyama-email:temporary-recipient-segment:${segmentId}`, JSON.stringify(payload));
@@ -265,15 +272,15 @@ export default function ConstituentsPage() {
       )}
     >
       <div className="space-y-4">
-      <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_4%_0%,rgba(99,102,241,0.12),transparent_36%),linear-gradient(135deg,#f7f8ff_0%,#ffffff_58%,#eff6ff_100%)] shadow-[0_12px_32px_rgba(15,23,42,0.055)]">
+      <section className="overflow-hidden rounded-[4px] border border-[#d1d1d1] bg-white">
         <div className="px-5 py-5 lg:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-800">
+                <span className="inline-flex items-center rounded-[2px] bg-[#eff6fc] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0f548c]">
                   Donor CRM / Directory
                 </span>
-                <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+                <span className="inline-flex items-center rounded-[2px] bg-[#f3f2f1] px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-[#d1d1d1]">
                   {selectedIds.length > 0 ? `${selectedIds.length} selected` : "Live portfolio view"}
                 </span>
               </div>
@@ -282,7 +289,7 @@ export default function ConstituentsPage() {
                 <p className="mt-1 text-sm text-slate-600">Search, segment, and act on one live donor directory. The counts below are interactive views, not duplicated dashboard metrics.</p>
               </div>
             </div>
-            <Link href="/data-tools/import" className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800">
+            <Link href="/data-tools/import" className="inline-flex h-9 shrink-0 items-center justify-center rounded-[2px] border border-[#c8c6c4] bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-[#f3f2f1] hover:text-[#0f548c]">
               Import data
             </Link>
           </div>
@@ -304,13 +311,13 @@ export default function ConstituentsPage() {
             <p className="text-xs text-slate-500">Narrow the live directory, then select records for coordinated donor work.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+            <span className="inline-flex items-center rounded-[2px] bg-[#f3f2f1] px-2.5 py-1 text-[11px] font-medium text-slate-700">
               Showing {filteredCountLabel}
             </span>
             {hasFilters ? (
               <button
                 onClick={() => { setSearch(""); setTypeFilter(""); setStatusFilter(""); setPage(1); }}
-                className="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-8 items-center rounded-[2px] border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1]"
               >
                 Clear Filters
               </button>
@@ -326,7 +333,7 @@ export default function ConstituentsPage() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="min-w-0 rounded-[2px] border border-[#8a8886] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6cbd]"
         />
         <select
           value={typeFilter}
@@ -334,7 +341,7 @@ export default function ConstituentsPage() {
             setTypeFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="rounded-[2px] border border-[#8a8886] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6cbd]"
         >
           <option value="">All Types</option>
           {CONSTITUENT_TYPES.map((t) => (
@@ -347,7 +354,7 @@ export default function ConstituentsPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="rounded-[2px] border border-[#8a8886] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6cbd]"
         >
           <option value="">All Statuses</option>
           {DONOR_STATUSES.map((s) => (
@@ -360,7 +367,7 @@ export default function ConstituentsPage() {
             setPageSize(Number.parseInt(e.target.value, 10) || 100);
             setPage(1);
           }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="rounded-[2px] border border-[#8a8886] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6cbd]"
           aria-label="Rows per page"
         >
           {PAGE_SIZE_OPTIONS.map((size) => (
@@ -378,31 +385,35 @@ export default function ConstituentsPage() {
       )}
 
       {selectedIds.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[4px] border border-[#0f6cbd] bg-[#eff6fc] px-4 py-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-800">Selected constituent scope</p>
-            <p className="mt-1 text-sm font-semibold text-indigo-950">{selectedIds.length} constituent{selectedIds.length === 1 ? "" : "s"} selected</p>
-            <p className="text-xs text-indigo-800">Start a coordinated email or letter from this live selection, or clear it before changing filters.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0f548c]">Selected constituent scope</p>
+            <p className="mt-1 text-sm font-semibold text-[#242424]">{selectedIds.length} constituent{selectedIds.length === 1 ? "" : "s"} selected</p>
+              <p className="text-xs text-[#0f548c]">
+                {selectedEmailCount > 0
+                  ? `${selectedEmailCount} unique email recipient${selectedEmailCount === 1 ? " is" : "s are"} ready for a reviewed template campaign.`
+                  : "No email addresses are available in this selection. Add an email before starting a template campaign."}
+              </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => handleEmailTemplate(selectedIds)}
-              className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
+              className="rounded-[2px] border border-[#0f6cbd] bg-white px-3 py-2 text-xs font-semibold text-[#0f548c] hover:bg-[#deecf9]"
             >
-              Email Template
+              Use Email Template
             </button>
             <button
               type="button"
               onClick={() => handleLetterTemplate(selectedIds)}
-              className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
+              className="rounded-[2px] border border-[#0f6cbd] bg-white px-3 py-2 text-xs font-semibold text-[#0f548c] hover:bg-[#deecf9]"
             >
               Letter Template
             </button>
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
+              className="rounded-[2px] border border-[#0f6cbd] bg-white px-3 py-2 text-xs font-semibold text-[#0f548c] hover:bg-[#deecf9]"
             >
               Clear Selection
             </button>
@@ -423,7 +434,7 @@ export default function ConstituentsPage() {
       </CRMDataTable>
 
       {!loading && !error && total > 0 && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-[4px] border border-[#d1d1d1] bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <p>
             Showing <span className="font-semibold text-gray-900">{rangeStart.toLocaleString()}-{rangeEnd.toLocaleString()}</span> of <span className="font-semibold text-gray-900">{total.toLocaleString()}</span>
             {hasFilters ? <CRMStatusBadge tone="green" className="ml-2">Filtered</CRMStatusBadge> : null}
@@ -472,19 +483,19 @@ function DirectoryViewCard({
   tone?: "slate" | "indigo" | "amber" | "sky";
 }) {
   const toneClass = tone === "indigo"
-    ? "border-indigo-100 bg-indigo-50/75 text-indigo-950 hover:border-indigo-300"
+    ? "border-[#cfe4fa] bg-[#eff6fc] text-[#0f3b61] hover:border-[#0f6cbd]"
     : tone === "amber"
       ? "border-amber-100 bg-amber-50/80 text-amber-950 hover:border-amber-300"
       : tone === "sky"
         ? "border-sky-100 bg-sky-50/80 text-sky-950 hover:border-sky-300"
-        : "border-slate-200 bg-white/90 text-slate-950 hover:border-indigo-200";
+        : "border-[#d1d1d1] bg-white text-slate-950 hover:border-[#0f6cbd]";
 
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-xl border px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${toneClass} ${active ? "ring-2 ring-indigo-500 ring-offset-2" : ""}`}
+      className={`rounded-[4px] border border-t-2 px-3.5 py-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#0f6cbd] focus:ring-offset-1 ${toneClass} ${active ? "border-t-[#0f6cbd] ring-2 ring-[#0f6cbd] ring-offset-1" : "border-t-[#d1d1d1]"}`}
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>

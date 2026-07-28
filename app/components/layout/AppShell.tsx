@@ -317,13 +317,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isShellBypass) return <>{children}</>;
 
   const donorShellVisible = !isOShareview && !isBoard;
-  // DonorCRM v1.3 uses one consistent, full-width navigation model. Existing
-  // sidebar preferences remain stored for backwards compatibility, but no longer
-  // change the desktop shell or consume workspace width.
+  // DonorCRM uses a permanent desktop rail for faster movement between records,
+  // outreach, and reporting. The same information architecture collapses into
+  // the mobile menu so smaller screens keep their working area.
   const donorMegaMenuEnabled = donorShellVisible;
-  // Desktop keeps the command bar and navigation row visible; mobile opens the
-  // workspace menu on demand so record pages retain their usable vertical space.
-  const contentTopPaddingClass = donorShellVisible ? "pt-14 md:pt-26" : "pt-14";
+  const contentTopPaddingClass = "pt-14";
 
   const shellStyle: CSSProperties = {
     "--oyama-donor-chrome-start": dashboardChromeTint.dark,
@@ -346,7 +344,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         donorSidebarCollapsed={false}
       />
       {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
+      <div className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white ${donorShellVisible ? "md:pl-64" : ""}`}>
         <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
           {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
           <main data-crm-scroll-root="true" className="h-full min-w-0 overscroll-contain overflow-x-hidden overflow-y-auto crm-page-surface px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-0 sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-0 xl:px-7 xl:pb-7 xl:pt-0 min-[1440px]:px-8 min-[1440px]:pt-0 2xl:px-9 2xl:pt-0">

@@ -62,7 +62,7 @@ describe("OyamaEmail workspace source contract", () => {
     expect(workspace).toContain("Docs & Walkthroughs");
     expect(workspace).toContain("How to build, review, and send email");
     expect(workspace).toContain("Before a production send");
-    expect(workspace).toContain("Back to CRM");
+    expect(workspace).toContain("Communications hub");
 
     expect(workspace).toContain("Overview");
     expect(workspace).toContain("Audience");
@@ -161,16 +161,27 @@ expect(builder).toContain("Ready-made layouts");
     expect(editor).toContain('onUploadImage={onUploadImage}');
   });
 
-  it("keeps legacy communications routes redirected into OyamaEmail", () => {
+  it("uses Communications as the shared launchpad while keeping deep legacy routes compatible", () => {
     const communicationsRoot = read("app/communications/page.tsx");
     const communicationsNew = read("app/communications/new/page.tsx");
     const communicationsTemplateLibrary = read("app/communications/library/templates/page.tsx");
     const communicationsCampaign = read("app/communications/[campaignId]/page.tsx");
 
-    expect(communicationsRoot).toContain('redirect("/oyama-email/campaigns")');
+    expect(communicationsRoot).toContain("CommunicationsHub");
     expect(communicationsNew).toContain('redirect("/oyama-email/campaigns/new")');
     expect(communicationsTemplateLibrary).toContain('redirect("/oyama-email/templates")');
     expect(communicationsCampaign).toContain("/oyama-email/campaigns/");
+  });
+
+  it("makes email and print launchers available from one donor communications home", () => {
+    const hub = read("app/components/communications/CommunicationsHub.tsx");
+
+    expect(hub).toContain("One audience, two channels");
+    expect(hub).toContain("Start email campaign");
+    expect(hub).toContain("Generate letters");
+    expect(hub).toContain("Paired template tools");
+    expect(hub).toContain("/oyama-email/campaigns/new");
+    expect(hub).toContain("/oyama-letters/generate");
   });
 
   it("shows durable OyamaLetters source context in campaign review", () => {
@@ -210,6 +221,18 @@ expect(builder).toContain("Ready-made layouts");
     expect(workspace).toContain("Temporary segment from selected donations");
     expect(workspace).toContain("not stored on the campaign for queueing or scheduling yet");
     expect(workspace).toContain("recipientEmails");
+  });
+
+  it("hands selected donor-directory recipients into the reviewed template campaign workflow", () => {
+    const constituentsPage = read("app/constituents/page.tsx");
+    const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
+
+    expect(constituentsPage).toContain("recipientEmails: recipients");
+    expect(constituentsPage).toContain('source: "constituent-directory"');
+    expect(constituentsPage).toContain("Use Email Template");
+    expect(constituentsPage).toContain("unique email recipient");
+    expect(workspace).toContain('temporarySegment.source === "constituent-directory"');
+    expect(workspace).toContain("Choose a template, review the audience, then confirm the send.");
   });
 
   it("does not include fake/demo markers in the production OyamaEmail workspace source", () => {

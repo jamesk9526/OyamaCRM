@@ -117,11 +117,14 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(globals).toContain(".crm-page-header-surface");
     expect(globals).toContain(".crm-filter-surface");
     expect(megaMenu).toContain("LIGHT_ACCENT_THEMES");
-    expect(megaMenu).toContain('label: "OyamaEmail"');
-    expect(megaMenu).toContain('href: "/oyama-email"');
+    expect(megaMenu).toContain('label: "Communications"');
+    expect(megaMenu).toContain('href: "/communications"');
+    expect(megaMenu).toContain('label: "Donors"');
+    expect(megaMenu).toContain('label: "Operations"');
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
-    expect(megaMenu).toContain('bg-[#0a2140]/[0.98]');
+    expect(megaMenu).toContain('bg-[#292929]');
+    expect(megaMenu).toContain('border-[#3a96dd]');
     expect(megaMenu).toContain("mobileNavOpen");
     expect(sidebar).toContain('label: "Overview"');
     expect(sidebar).toContain('label: "Donor Records"');
@@ -129,7 +132,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(sidebar).toContain('label: "Donations"');
   });
 
-  it("uses a stable full-width Donor CRM bar at every breakpoint", () => {
+  it("uses a stable Donor CRM command bar with a desktop workspace rail", () => {
     const appShell = read("app/components/layout/AppShell.tsx");
     const topBar = read("app/components/layout/TopBar.tsx");
     const megaMenu = read("app/components/layout/DonorMegaMenu.tsx");
@@ -138,7 +141,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(appShell).toContain("const donorMegaMenuEnabled = donorShellVisible");
     expect(appShell).not.toContain("MobileSidebarDrawer");
     expect(appShell).not.toContain('import Sidebar from "./Sidebar"');
-    expect(appShell).toContain('const contentTopPaddingClass = donorShellVisible ? "pt-14 md:pt-26" : "pt-14"');
+    expect(appShell).toContain('const contentTopPaddingClass = "pt-14"');
+    expect(appShell).toContain('donorShellVisible ? "md:pl-64" : ""');
     expect(appShell).toContain("useBrowserLayoutEffect");
     expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
@@ -147,6 +151,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain("Quick Add");
     expect(topBar).toContain("lg:hidden");
     expect(megaMenu).toContain("top-14");
+    expect(megaMenu).toContain("w-64 flex-col");
+    expect(megaMenu).toContain("Search DonorCRM");
     expect(megaMenu).not.toContain("Use Sidebar");
     expect(globals).toContain("scrollbar-gutter: stable");
   });

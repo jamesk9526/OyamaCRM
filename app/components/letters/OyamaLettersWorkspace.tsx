@@ -504,8 +504,8 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
       <MicrosoftProductBar
         productName="OyamaCRM Letters"
         homeHref="/oyama-letters"
-        backHref="/constituents"
-        backLabel="Donor CRM"
+        backHref="/communications"
+        backLabel="Communications"
         helpHref="/help?scope=donor&scopePath=/oyama-letters"
       />
       <div className="flex min-h-[calc(100dvh-52px)]">
@@ -542,8 +542,8 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
         <Link href="/oyama-letters" className="min-w-0 text-sm font-semibold tracking-wide text-slate-900">
           OyamaCRM Letters
         </Link>
-        <Link href="/constituents" className="ml-auto shrink-0 border border-[#c8c6c4] bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-          Donor CRM
+        <Link href="/communications" className="ml-auto shrink-0 border border-[#c8c6c4] bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+          Communications
         </Link>
       </div>
       <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Oyama Letters mobile navigation">
@@ -604,10 +604,10 @@ function LettersSidebar({
         {!collapsed ? <span className="text-sm font-semibold">Letters</span> : null}
       </button>
 
-      {/* Back to Donor CRM */}
+      {/* Shared communication hub */}
       <Link
-        href="/constituents"
-        title={collapsed ? "Back to Donor CRM" : undefined}
+        href="/communications"
+        title={collapsed ? "Communications hub" : undefined}
         className={[
           "flex h-10 items-center text-xs font-semibold text-[#f5f5f5] hover:bg-[#363636]",
           collapsed ? "justify-center" : "gap-3 px-4",
@@ -616,7 +616,7 @@ function LettersSidebar({
         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
         </svg>
-        {!collapsed ? <span>Back to Donor CRM</span> : null}
+        {!collapsed ? <span>Communications hub</span> : null}
       </Link>
 
       <nav className={[
@@ -681,11 +681,13 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   return (
     <header className="z-30 flex min-h-[52px] flex-wrap items-center gap-3 border-b border-[#d1d1d1] bg-white px-3 py-2 sm:px-5 lg:sticky lg:top-0 xl:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Link href="/oyama-letters" className="inline-flex h-8 w-8 items-center justify-center border border-[#c8c6c4] text-slate-600 hover:bg-[#f3f2f1] hover:text-[#0f6cbd]" aria-label="Back to letters home">
+        <Link href="/communications" className="inline-flex h-8 w-8 items-center justify-center border border-[#c8c6c4] text-slate-600 hover:bg-[#f3f2f1] hover:text-[#0f6cbd]" aria-label="Back to communications home">
           <ChevronLeft />
         </Link>
         <div className="flex min-w-0 items-center gap-2 text-xs">
-          <Link href="/oyama-letters" className="shrink-0 text-slate-500 hover:text-indigo-700">Template Library</Link>
+          <Link href="/communications" className="shrink-0 text-slate-500 hover:text-[#0f6cbd]">Communications</Link>
+          <ChevronRight />
+          <Link href="/oyama-letters" className="shrink-0 text-slate-500 hover:text-[#0f6cbd]">Template Library</Link>
           {view !== "library" ? <ChevronRight /> : null}
           {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-slate-700">{templateLabel}</span> : null}
           {view === "builder" || view === "publish" ? <ChevronRight /> : null}
@@ -1089,7 +1091,14 @@ function TemplateLibrary() {
           {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       ) : (
-        <div className="space-y-2 p-4 xl:p-6">
+        <div className="m-4 overflow-hidden border border-[#d1d1d1] bg-white xl:m-6">
+          <div className="hidden grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_100px_110px_auto] gap-4 border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-2 text-xs font-semibold text-[#424242] md:grid">
+            <span>Template</span>
+            <span>Category</span>
+            <span>Status</span>
+            <span>Updated</span>
+            <span className="text-right">Actions</span>
+          </div>
           {visibleTemplates.map((template) => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
         </div>
       )}
@@ -6566,24 +6575,30 @@ function TemplateCard({ template, currentUserId, onExport }: { template: LetterT
 function TemplateRow({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
-    <article className="flex items-center gap-4 border border-[#d1d1d1] bg-white p-3 hover:bg-[#fafafa]">
-      <div className="w-24 shrink-0"><DocumentThumb template={template} small /></div>
+    <article className="grid gap-3 border-b border-[#e5e5e5] px-4 py-3 last:border-b-0 hover:bg-[#fafafa] md:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_100px_110px_auto] md:items-center md:gap-4">
       <div className="min-w-0 flex-1">
-        <Link href={`/oyama-letters/templates/${template.id}`} className="font-semibold text-slate-950 hover:text-[#0f6cbd]">{template.name}</Link>
-        <p className="mt-1 text-sm text-slate-600">{template.category.replaceAll("_", " ")} · {template.status}</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{ownershipLabel}</span>
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${template.aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
-            {template.aiAssisted ? "AI-assisted" : "User created"}
+        <Link href={`/oyama-letters/templates/${template.id}`} className="line-clamp-1 text-[15px] font-semibold text-[#242424] hover:text-[#0f6cbd] hover:underline">{template.name}</Link>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700">{ownershipLabel}</span>
+          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${template.aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+            {template.aiAssisted ? "AI-assisted" : "Staff created"}
           </span>
         </div>
       </div>
-      <p className="hidden text-sm text-slate-500 md:block">Updated {formatDate(template.updatedAt)}</p>
-      <p className="hidden text-sm text-slate-500 lg:block">Used {template._count?.generatedLetters ?? 0} times</p>
-      <button type="button" onClick={() => onExport(template)} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-        Export
-      </button>
-      <Button href={`/oyama-letters/templates/${template.id}`}>Open</Button>
+      <div>
+        <p className="text-sm text-[#424242]">{template.category.replaceAll("_", " ")}</p>
+        <p className="mt-0.5 text-xs text-[#616161]">Used {template._count?.generatedLetters ?? 0} time{template._count?.generatedLetters === 1 ? "" : "s"}</p>
+      </div>
+      <div><StatusPill label={template.status === "ACTIVE" ? "Published" : titleCase(template.status)} tone={template.status === "ACTIVE" ? "green" : template.status === "DRAFT" ? "orange" : "slate"} /></div>
+      <p className="text-xs text-[#616161]">{formatDate(template.updatedAt)}</p>
+      <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+        <button type="button" onClick={() => onExport(template)} className="inline-flex h-8 items-center justify-center rounded-[2px] px-2 text-xs font-semibold text-[#0f6cbd] hover:bg-[#eff6fc]">
+          Export
+        </button>
+        <Link href={`/oyama-letters/templates/${template.id}`} className="inline-flex h-8 items-center justify-center rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3]">
+          Open
+        </Link>
+      </div>
     </article>
   );
 }

@@ -82,14 +82,14 @@ function StatCard({
   compactValue?: boolean;
 }) {
   const tone = color === "indigo"
-    ? { chip: "bg-indigo-100 text-indigo-700", stroke: "#4f46e5" }
+    ? { chip: "bg-[#eff6fc] text-[#0f6cbd]", stroke: "#0f6cbd" }
     : color === "blue"
-      ? { chip: "bg-blue-100 text-blue-700", stroke: "#3b82f6" }
+      ? { chip: "bg-[#deecf9] text-[#115ea3]", stroke: "#115ea3" }
       : color === "violet"
-        ? { chip: "bg-violet-100 text-violet-700", stroke: "#a855f7" }
-        : color === "amber"
+        ? { chip: "bg-[#f3f2f1] text-[#424242]", stroke: "#616161" }
+      : color === "amber"
           ? { chip: "bg-amber-100 text-amber-700", stroke: "#d97706" }
-          : { chip: "bg-sky-100 text-sky-700", stroke: "#0284c7" };
+          : { chip: "bg-[#eff6fc] text-[#0f548c]", stroke: "#0f6cbd" };
 
   const icon = color === "indigo"
     ? <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
@@ -102,20 +102,20 @@ function StatCard({
           : <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.75h17a1.75 1.75 0 011.75 1.75v7a1.75 1.75 0 01-1.75 1.75h-17A1.75 1.75 0 011.75 15.5v-7A1.75 1.75 0 013.5 6.75zm.25 1.25 8.25 6 8.25-6" />;
 
   return (
-    <Link href={href} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
-    <article className="relative h-full overflow-hidden rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_8px_20px_rgba(15,23,42,0.045)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-indigo-200 group-hover:shadow-[0_12px_26px_rgba(15,23,42,0.09)]">
-      <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-current to-transparent opacity-70" style={{ color: tone.stroke }} aria-hidden="true" />
+    <Link href={href} className="group block rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd] focus-visible:ring-offset-2">
+    <article className="relative h-full overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white px-4 py-3.5 transition-colors group-hover:border-[#0f6cbd] group-hover:bg-[#fafafa]">
+      <span className="absolute inset-x-0 top-0 h-[3px] bg-[#0f6cbd]" aria-hidden="true" />
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-medium text-slate-600">{title}</p>
           <p className={`mt-1 font-bold leading-none tracking-tight text-slate-900 ${compactValue ? "text-[20px]" : "text-[28px]"}`}>{value}</p>
         </div>
-        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition-transform duration-300 group-hover:scale-105 ${tone.chip}`}>
+        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-[2px] ${tone.chip}`}>
           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">{icon}</svg>
         </span>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
-          <p className={`text-[11px] font-semibold ${trendPositive ? "text-indigo-700" : "text-slate-500"}`}>{trendText}</p>
+          <p className={`text-[11px] font-semibold ${trendPositive ? "text-[#0f6cbd]" : "text-slate-500"}`}>{trendText}</p>
         {sparkValues.length > 1 ? (
           <svg width="102" height="28" viewBox="0 0 102 28" aria-hidden="true" className="shrink-0">
             <defs><linearGradient id={`spark-${color}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={tone.stroke} stopOpacity="0.24" /><stop offset="100%" stopColor={tone.stroke} stopOpacity="0" /></linearGradient></defs>
@@ -141,12 +141,11 @@ function HeroMiniTile({
   tone?: "indigo" | "blue";
 }) {
   const toneClass = tone === "blue"
-    ? "border-blue-200 bg-blue-50/80"
-    : "border-indigo-200 bg-white/90";
+    ? "border-[#cfe4fa] bg-[#eff6fc]"
+    : "border-[#d1d1d1] bg-white";
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border px-4 py-3.5 shadow-[0_10px_26px_rgba(15,23,42,0.07)] ${toneClass}`}>
-      <span className={`absolute -right-6 -top-7 h-20 w-20 rounded-full blur-2xl ${tone === "blue" ? "bg-blue-300/35" : "bg-indigo-300/35"}`} aria-hidden="true" />
+    <div className={`relative overflow-hidden rounded-[2px] border border-t-[3px] border-t-[#0f6cbd] px-4 py-3.5 ${toneClass}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
       <p className="mt-1 text-xs text-slate-600">{detail}</p>
@@ -156,8 +155,8 @@ function HeroMiniTile({
 
 function DashboardStatusPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200/80 backdrop-blur-md">
-      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_0_3px_rgba(79,70,229,0.12)]" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1.5 rounded-[2px] bg-[#f3f2f1] px-3 py-1.5 text-[11px] font-medium text-slate-600 ring-1 ring-[#d1d1d1]">
+      <span className="h-1.5 w-1.5 rounded-full bg-[#0f6cbd]" aria-hidden="true" />
       {children}
     </span>
   );
@@ -270,13 +269,13 @@ export default function NaturalisticDonorDashboard({
   ];
 
   const weekLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date());
-  const widgetCardClass = "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.045)]";
-  const widgetHeaderClass = "flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-5 py-3.5";
+  const widgetCardClass = "overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white";
+  const widgetHeaderClass = "flex items-center justify-between border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3";
 
   const reportingPeriodLabel = reportingYearMode === "FISCAL" ? "Fiscal-year view" : "Calendar-year view";
 
   return (
-    <div className="min-h-screen min-w-0 bg-[radial-gradient(circle_at_8%_0%,rgba(99,102,241,0.1),transparent_28%),radial-gradient(circle_at_92%_8%,rgba(14,165,233,0.09),transparent_24%),linear-gradient(180deg,#f8faff_0%,#f4f7fc_42%,#f8fafc_100%)]">
+    <div className="min-h-screen min-w-0 bg-[#f5f5f5]">
       <div className="mx-auto min-w-0 max-w-[1580px] px-3 pb-8 pt-4 sm:px-5 xl:px-7">
         {sectionErrors.length > 0 ? (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-800">
@@ -284,16 +283,14 @@ export default function NaturalisticDonorDashboard({
           </div>
         ) : null}
 
-        <section className="relative mb-5 overflow-hidden rounded-[22px] border border-slate-200 bg-[linear-gradient(135deg,rgba(245,247,255,0.98)_0%,rgba(255,255,255,0.98)_54%,rgba(239,246,255,0.98)_100%)] shadow-[0_14px_35px_rgba(15,23,42,0.065)]">
-          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-300/20 blur-3xl" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-56 w-56 rounded-full bg-blue-300/15 blur-3xl" aria-hidden="true" />
+        <section className="relative mb-5 overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white">
           <div className="relative grid min-w-0 gap-5 px-5 py-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.95fr)] sm:px-6 sm:py-6">
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-800">
+              <div className="flex flex-wrap items-center gap-2 border-b border-[#e5e5e5] pb-3">
+                <span className="inline-flex items-center rounded-[2px] bg-[#eff6fc] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0f548c]">
                   Donor Command Center
                 </span>
-                <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+                <span className="inline-flex items-center rounded-[2px] bg-[#f3f2f1] px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-[#d1d1d1]">
                   {weekLabel} · {dataThroughLabel}
                 </span>
               </div>
@@ -310,7 +307,7 @@ export default function NaturalisticDonorDashboard({
                     void onRefresh?.();
                   }}
                   disabled={richLoading || summaryLoading}
-                  className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50 disabled:translate-y-0 disabled:opacity-60"
+                  className="inline-flex min-h-9 items-center rounded-[2px] border border-[#c8c6c4] bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1] disabled:opacity-60"
                 >
                   {richLoading || summaryLoading ? "Refreshing..." : "Refresh"}
                 </button>
@@ -322,8 +319,8 @@ export default function NaturalisticDonorDashboard({
                     key={action.id}
                     href={action.href}
                     className={index === 0
-                      ? "inline-flex min-h-10 items-center rounded-xl bg-[linear-gradient(135deg,#4338ca,#4f46e5)] px-3.5 text-xs font-semibold text-white shadow-[0_8px_18px_rgba(79,70,229,0.22)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(79,70,229,0.28)]"
-                      : "inline-flex min-h-10 items-center rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800"}
+                      ? "inline-flex min-h-9 items-center rounded-[2px] bg-[#0f6cbd] px-3.5 text-xs font-semibold text-white hover:bg-[#115ea3]"
+                      : "inline-flex min-h-9 items-center rounded-[2px] border border-[#c8c6c4] bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-[#f3f2f1] hover:text-[#0f548c]"}
                   >
                     {action.label}
                   </Link>
@@ -347,15 +344,15 @@ export default function NaturalisticDonorDashboard({
           </div>
         </div>
 
-        <section className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_8px_22px_rgba(15,23,42,0.045)]">
+        <section className="mb-5 rounded-[2px] border border-[#d1d1d1] bg-white px-4 py-3.5">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-800">Priority Tiles</h2>
-            <Link href="/steward-signals" className="text-xs font-semibold text-indigo-700 hover:text-indigo-800">View all</Link>
+            <Link href="/steward-signals" className="text-xs font-semibold text-[#0f6cbd] hover:underline">View all</Link>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {focusItems.map((item) => (
-              <Link key={item.id} href={item.href} className="group flex items-center gap-3 rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/60 px-3 py-2.5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
-                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition-transform group-hover:scale-105 ${item.tone === "indigo" ? "bg-indigo-100 text-indigo-700" : item.tone === "amber" ? "bg-amber-100 text-amber-700" : item.tone === "violet" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+              <Link key={item.id} href={item.href} className="group flex items-center gap-3 rounded-[2px] border border-[#e5e5e5] bg-white px-3 py-2.5 transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa]">
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-[2px] ${item.tone === "indigo" ? "bg-[#eff6fc] text-[#0f6cbd]" : item.tone === "amber" ? "bg-amber-100 text-amber-700" : item.tone === "violet" ? "bg-[#f3f2f1] text-[#424242]" : "bg-[#deecf9] text-[#115ea3]"}`}>
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
                   </svg>
@@ -392,7 +389,7 @@ export default function NaturalisticDonorDashboard({
                       {topDesignationRows.map((row, index) => (
                         <Cell
                           key={`${row.label}-${index}`}
-                          fill={["#4f46e5", "#0ea5e9", "#7c3aed", "#f59e0b", "#ec4899"][index % 5]}
+                          fill={["#0f6cbd", "#115ea3", "#616161", "#d97706", "#8764b8"][index % 5]}
                         />
                       ))}
                     </Pie>
@@ -404,7 +401,7 @@ export default function NaturalisticDonorDashboard({
                           : undefined;
                         return formatDashboardCurrency(toDashboardNumber(normalized));
                       }}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 12px 30px rgba(15,23,42,.12)", fontSize: 12 }}
+                      contentStyle={{ borderRadius: 2, border: "1px solid #d1d1d1", boxShadow: "none", fontSize: 12 }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -418,12 +415,12 @@ export default function NaturalisticDonorDashboard({
                   <div key={row.label} className="text-xs">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="inline-block h-2.5 w-2.5 rounded-full shadow-[0_0_0_3px_rgba(148,163,184,0.12)]" style={{ background: ["#4f46e5", "#0ea5e9", "#7c3aed", "#f59e0b", "#ec4899"][index % 5] }} />
+                        <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: ["#0f6cbd", "#115ea3", "#616161", "#d97706", "#8764b8"][index % 5] }} />
                         <span className="truncate font-medium text-slate-700">{row.label}</span>
                       </div>
                       <span className="shrink-0 whitespace-nowrap font-semibold text-slate-800">{formatDashboardCompactCurrency(row.value)} <span className="font-medium text-slate-400">{row.pct}%</span></span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${row.pct}%`, background: ["#4f46e5", "#0ea5e9", "#7c3aed", "#f59e0b", "#ec4899"][index % 5] }} /></div>
+                    <div className="h-1.5 overflow-hidden rounded-[1px] bg-slate-100"><div className="h-full rounded-[1px] transition-[width] duration-700" style={{ width: `${row.pct}%`, background: ["#0f6cbd", "#115ea3", "#616161", "#d97706", "#8764b8"][index % 5] }} /></div>
                   </div>
                 ))}
               </div>
@@ -439,8 +436,8 @@ export default function NaturalisticDonorDashboard({
               {stewardRecommendations.length === 0 ? (
                 <p className="text-sm text-slate-500">No recommendations yet.</p>
               ) : stewardRecommendations.map((item) => (
-                <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50/60 px-3 py-3 transition hover:border-emerald-200 hover:shadow-sm sm:grid-cols-[auto_minmax(0,1fr)_auto]">
-                  <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-[2px] border border-[#e5e5e5] bg-white px-3 py-3 transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa] sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+                    <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-[2px] ${item.urgency === "high" ? "bg-[#deecf9] text-[#115ea3]" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-[#eff6fc] text-[#0f6cbd]"}`}>
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
                     </svg>
@@ -449,7 +446,7 @@ export default function NaturalisticDonorDashboard({
                     <p className="text-sm font-semibold text-slate-800">{item.title}</p>
                     <p className="text-xs text-slate-500">{item.description}</p>
                   </div>
-                  <span className={`col-start-2 justify-self-start rounded-full px-2 py-0.5 text-[10px] font-semibold sm:col-auto sm:justify-self-auto ${item.urgency === "high" ? "bg-emerald-100 text-emerald-700" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                  <span className={`col-start-2 justify-self-start rounded-[2px] px-2 py-0.5 text-[10px] font-semibold sm:col-auto sm:justify-self-auto ${item.urgency === "high" ? "bg-[#deecf9] text-[#115ea3]" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-[#eff6fc] text-[#0f6cbd]"}`}>
                     {item.urgency === "high" ? "High Priority" : item.urgency === "medium" ? "Medium Priority" : "Low Priority"}
                   </span>
                 </div>
@@ -462,7 +459,7 @@ export default function NaturalisticDonorDashboard({
           <article className={`${widgetCardClass} min-w-0`}>
             <div className={widgetHeaderClass}>
               <h2 className="text-lg font-semibold text-slate-900">Recent Gifts</h2>
-              <Link href="/donations" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">Open donation ledger</Link>
+              <Link href="/donations" className="text-xs font-semibold text-[#0f6cbd] hover:text-[#115ea3]">Open donation ledger</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -478,12 +475,12 @@ export default function NaturalisticDonorDashboard({
                   {donations.length === 0 ? (
                     <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">No recent gifts are available for this dashboard period.</td></tr>
                   ) : donations.slice(0, 6).map((donation) => (
-                    <tr key={donation.id} className="border-t border-slate-100 transition-colors hover:bg-emerald-50/45">
+                    <tr key={donation.id} className="border-t border-[#e5e5e5] transition-colors hover:bg-[#f3f2f1]">
                       <td className="px-4 py-2.5">
                         <p className="font-semibold text-slate-800">{donation.constituent?.firstName ?? "Donor"} {donation.constituent?.lastName ?? ""}</p>
                         <p className="text-xs text-slate-500">{donation.campaign?.name ?? "General Giving"}</p>
                       </td>
-                      <td className="px-4 py-2.5 font-semibold text-emerald-700">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</td>
+                      <td className="px-4 py-2.5 font-semibold text-[#0f548c]">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</td>
                       <td className="px-4 py-2.5 text-slate-600">{donation.designation?.name ?? "General Fund"}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-500">{formatPanelDate(donation.date)} · {formatPanelTime(donation.date)}</td>
                     </tr>
@@ -500,8 +497,8 @@ export default function NaturalisticDonorDashboard({
             </div>
             <div className="space-y-3 px-4 py-3">
               {activityRows.length === 0 ? <p className="py-5 text-center text-sm text-slate-500">No recent donor activity is available.</p> : activityRows.map((row) => (
-                <div key={row.id} className="group flex items-start gap-3 rounded-xl px-2 py-1.5 transition hover:bg-slate-50">
-                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">•</span>
+                <div key={row.id} className="group flex items-start gap-3 rounded-[2px] px-2 py-1.5 transition-colors hover:bg-[#f3f2f1]">
+                  <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-[2px] bg-[#eff6fc] text-[#0f6cbd]">•</span>
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{row.title}</p>
                     <p className="text-xs text-slate-600">{row.detail}</p>
@@ -518,7 +515,7 @@ export default function NaturalisticDonorDashboard({
             </div>
             <div className="space-y-1.5 px-4 py-3">
               {visibleAttentionItems.length === 0 ? <p className="py-5 text-center text-sm text-slate-500">No dashboard work queues currently need attention.</p> : visibleAttentionItems.map((item) => (
-                <Link key={item.id} href={item.href} className="group grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50/55 px-3 py-2.5 transition hover:-translate-y-px hover:border-emerald-200 hover:shadow-sm">
+                <Link key={item.id} href={item.href} className="group grid grid-cols-[1fr_auto] items-center gap-2 rounded-[2px] border border-[#e5e5e5] bg-white px-3 py-2.5 transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa]">
                   <div>
                     <p className="text-sm font-semibold text-slate-800">{item.label}</p>
                     <p className="text-[11px] text-slate-500">{item.sub}</p>

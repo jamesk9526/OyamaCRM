@@ -99,16 +99,16 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        group/widget min-w-0 overflow-hidden bg-white/92 rounded-2xl border border-white/90 flex flex-col transition-all duration-300 shadow-[0_14px_36px_rgba(15,23,42,0.075),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-xl
+        group/widget min-w-0 overflow-hidden bg-white rounded-[4px] border border-[#d1d1d1] flex flex-col transition-colors
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
         ${editMode && isDragOver ? "ring-2 ring-emerald-400 ring-offset-1 border-transparent" : ""}
-        ${editMode ? "ring-2 ring-emerald-300/70 ring-offset-2 ring-offset-emerald-50/50" : "hover:-translate-y-0.5 hover:border-emerald-200/80 hover:shadow-[0_20px_46px_rgba(15,23,42,0.11)]"}
+        ${editMode ? "ring-2 ring-[#0f6cbd]/70 ring-offset-2 ring-offset-[#eff6fc]" : "hover:border-[#0f6cbd]"}
         ${layoutClassName}
         ${className}
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex min-w-0 min-h-14 items-center gap-2.5 border-b border-slate-100/90 bg-gradient-to-r from-white via-white to-slate-50/70 px-4 py-3 select-none">
+      <div className="flex min-w-0 min-h-14 items-center gap-2.5 border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-3 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (
@@ -185,7 +185,7 @@ export default function DashboardWidget({
       </div>
 
       {/* ── Card body ── */}
-      <div className="flex-1 overflow-auto bg-gradient-to-b from-white to-slate-50/25 p-4">
+      <div className="flex-1 overflow-auto bg-white p-4">
         {children}
       </div>
     </div>

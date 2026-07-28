@@ -297,14 +297,14 @@ export default function ConstituentTable({
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/80">
+            <tr className="border-b border-[#d1d1d1] bg-[#f3f2f1]">
               {selectable ? (
-                <th className="sticky left-0 top-0 z-20 w-10 border-b border-slate-100 bg-slate-50/95 px-3 py-2.5">
+                <th className="sticky left-0 top-0 z-20 w-10 border-b border-[#d1d1d1] bg-[#f3f2f1] px-3 py-2.5">
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible constituents" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                 </th>
               ) : null}
               {COLUMNS.map((col) => (
-                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-100 bg-slate-50/95 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 ${col.sortable ? "cursor-pointer select-none hover:text-indigo-700" : ""}`} onClick={() => col.sortable && handleSort(col.key)}>
+                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-2.5 text-left text-[11px] font-semibold text-[#424242] ${col.sortable ? "cursor-pointer select-none hover:text-[#0f6cbd]" : ""}`} onClick={() => col.sortable && handleSort(col.key)}>
                   <span className="flex items-center gap-1">{col.label}{col.sortable && sortKey === col.key ? <span className="text-indigo-600">{sortDir === "asc" ? "↑" : "↓"}</span> : null}</span>
                 </th>
               ))}
@@ -312,14 +312,14 @@ export default function ConstituentTable({
           </thead>
           <tbody>
             {sorted.map((c) => (
-              <tr key={c.id} className="border-b border-slate-100 bg-white transition-colors hover:bg-indigo-50/45">
+              <tr key={c.id} className="border-b border-[#e5e5e5] bg-white transition-colors hover:bg-[#fafafa]">
                 {selectable ? (
                   <td className="sticky left-0 z-[2] bg-inherit px-3 py-2.5 align-top">
                     <input type="checkbox" checked={selectedSet.has(c.id)} onChange={() => toggleRow(c.id)} aria-label={`Select ${getConstituentDisplayName(c)}`} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                   </td>
                 ) : null}
                 <td className={`${selectable ? "" : "sticky left-0 z-[1]"} bg-inherit px-4 py-2.5 align-top`}>
-                  <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-indigo-700">{getConstituentDisplayName(c)}</Link>
+                  <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-[#0f6cbd] hover:underline">{getConstituentDisplayName(c)}</Link>
                   {c.email ? <p className="mt-0.5 text-xs text-slate-400">{c.email}</p> : null}
                 </td>
                 <td className="px-4 py-2.5 whitespace-nowrap align-top text-gray-600">{typeLabel(c.type)}</td>

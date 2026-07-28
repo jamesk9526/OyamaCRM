@@ -27,6 +27,8 @@ interface NavSection {
   label: string;
   /** Direct link — renders as a simple link, no dropdown. */
   href?: string;
+  /** Route families that should keep a direct-link section visibly active. */
+  matchPrefixes?: string[];
   /** Dropdown columns. Each inner array is one column. */
   columns?: NavItem[][];
   /** If true, section is shown only when QB Sync plugin is enabled. */
@@ -63,8 +65,8 @@ const BASE_NAV_SECTIONS: NavSection[] = [
     href: "/",
   },
   {
-    id: "core-crm",
-    label: "Core CRM",
+    id: "donors",
+    label: "Donors",
     columns: [
       [
         {
@@ -79,8 +81,6 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           href: "/donations",
           description: "Gifts, giving history, and activity",
         },
-      ],
-      [
         {
           id: "tasks",
           label: "Tasks",
@@ -88,10 +88,10 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           description: "Follow-up tasks and stewardship",
         },
         {
-          id: "communications",
-          label: "Communications",
-          href: "/communications",
-          description: "Email projects and outreach work",
+          id: "contacts-manager",
+          label: "Audience Lists",
+          href: "/contacts-manager",
+          description: "Reusable donor audiences",
         },
       ],
     ],
@@ -106,6 +106,12 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           label: "Campaigns",
           href: "/campaigns",
           description: "Fundraising campaigns and appeals",
+        },
+        {
+          id: "reports",
+          label: "Reports",
+          href: "/reports",
+          description: "Giving, retention, and pipeline",
         },
         {
           id: "grants",
@@ -129,35 +135,15 @@ const BASE_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "outreach",
-    label: "Outreach",
+    id: "communications",
+    label: "Communications",
+    href: "/communications",
+    matchPrefixes: ["/communications", "/oyama-email", "/oyama-letters", "/livecom"],
+  },
+  {
+    id: "operations",
+    label: "Operations",
     columns: [
-      [
-        {
-          id: "letters",
-          label: "OyamaLetters",
-          href: "/oyama-letters",
-          description: "Letters, receipts, labels, and PDFs",
-        },
-        {
-          id: "oyama-email",
-          label: "OyamaEmail",
-          href: "/oyama-email",
-          description: "Email campaigns, templates, and delivery",
-        },
-        {
-          id: "contacts-manager",
-          label: "Contacts Manager",
-          href: "/contacts-manager",
-          description: "Reusable audiences for campaigns",
-        },
-        {
-          id: "livecom",
-          label: "LiveCom",
-          href: "/livecom/inbox",
-          description: "Live donor chat and inbox",
-        },
-      ],
       [
         {
           id: "meetings",
@@ -172,25 +158,10 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           description: "Engagement sequences and workflows",
         },
         {
-          id: "volunteers",
-          label: "Volunteers",
-          href: "/volunteers",
-          description: "Volunteer relationships",
-        },
-      ],
-    ],
-  },
-  {
-    id: "insights",
-    label: "Insights",
-    columns: [
-      [
-        {
-          id: "agent-steward",
-          label: "AGENTSteward AI",
-          href: "/steward-ai-workspace",
-          description: "AI-powered CRM assistant",
-          badge: "AI",
+          id: "livecom",
+          label: "LiveCom Inbox",
+          href: "/livecom/inbox",
+          description: "Live donor chat and inbox",
         },
         {
           id: "steward-signals",
@@ -199,18 +170,13 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           description: "Donor signals and opportunities",
         },
         {
-          id: "reports",
-          label: "Reports",
-          href: "/reports",
-          description: "Giving, retention, and analytics",
+          id: "agent-steward",
+          label: "AGENTSteward AI",
+          href: "/steward-ai-workspace",
+          description: "AI-powered CRM assistant",
+          badge: "AI",
         },
       ],
-    ],
-  },
-  {
-    id: "admin",
-    label: "Admin",
-    columns: [
       [
         {
           id: "settings",
@@ -224,8 +190,6 @@ const BASE_NAV_SECTIONS: NavSection[] = [
           href: "/data-tools/import",
           description: "Import constituents and records",
         },
-      ],
-      [
         {
           id: "data-tools",
           label: "Data Tools",
@@ -338,11 +302,10 @@ function ChevronDown({ open }: { open: boolean }) {
 function NavGlyph({ id }: { id: string }) {
   const slugById: Record<string, string> = {
     dashboard: "donor-dashboard",
-    "core-crm": "constituents",
+    donors: "constituents",
     fundraising: "campaigns",
-    outreach: "communications",
-    insights: "reports",
-    admin: "settings",
+    communications: "communications",
+    operations: "settings",
   };
 
   const slug = slugById[id];
@@ -518,7 +481,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
    */
   function isSectionActive(section: NavSection): boolean {
     if (section.href) {
-      return pathname === section.href;
+      return pathname === section.href || section.matchPrefixes?.some((prefix) => pathname.startsWith(prefix)) || false;
     }
     const allHrefs = section.columns?.flat().map((i) => i.href) ?? [];
     return allHrefs.some((h) => pathname === h || pathname.startsWith(h.split("?")[0] + "/"));
@@ -530,7 +493,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
   const portalColCount = activeSectionForPortal?.columns?.length ?? 1;
   const portalMinWidth = portalColCount > 1 ? 560 : 320;
   const portalLeft = dropdownAnchor
-    ? Math.max(8, Math.min(dropdownAnchor.left, window.innerWidth - portalMinWidth - 8))
+    ? Math.max(8, Math.min(dropdownAnchor.right + 8, window.innerWidth - portalMinWidth - 8))
     : 0;
   const portalId = activeSectionForPortal ? `donor-mega-menu-${activeSectionForPortal.id}` : undefined;
 
@@ -544,7 +507,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
           onClick={() => setMobileNavOpen(false)}
           className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
         />
-        <div className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b border-white/10 bg-[#071d3a] px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_24px_64px_rgba(2,10,28,0.36)]">
+        <div className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b border-[#4b4b4b] bg-[#292929] px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
           <div className="mx-auto max-w-xl">
             <div className="mb-3 flex items-center justify-between gap-3 px-1">
               <div>
@@ -566,7 +529,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
               {navSections.map((section) => {
                 const active = isSectionActive(section);
                 const sectionClass = active
-                  ? "border-emerald-300/45 bg-emerald-400/10 text-white"
+                  ? "border-[#3a96dd] bg-white/10 text-white"
                   : "border-white/10 bg-white/[0.035] text-slate-100 hover:border-white/20 hover:bg-white/[0.08]";
 
                 if (section.href) {
@@ -614,63 +577,72 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className="fixed left-0 right-0 top-14 z-[19] hidden h-12 items-center gap-1 overflow-x-auto border-b border-white/10 bg-[#0a2140]/[0.98] px-3 shadow-[0_10px_22px_rgba(2,10,28,0.16)] backdrop-blur-xl [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
+      className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r border-[#4b4b4b] bg-[#292929] md:flex"
     >
-      {navSections.map((section) => {
-        const active = isSectionActive(section);
-        const open = openSection === section.id;
+      <div className="border-b border-white/10 px-4 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">DonorCRM</p>
+        <p className="mt-1 text-sm font-semibold text-white">Fundraising workspace</p>
+      </div>
+      <div className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
+        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspaces</p>
+        {navSections.map((section) => {
+          const active = isSectionActive(section);
+          const open = openSection === section.id;
+          const itemClass = active || open
+            ? "border-[#3a96dd] bg-white/[0.1] text-white"
+            : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.06] hover:text-white";
 
-        /* ── Direct-link section ── */
-        if (section.href) {
+          if (section.href) {
+            return (
+              <Link
+                key={section.id}
+                href={section.href}
+                className={`relative flex min-h-10 items-center gap-3 rounded-[2px] border px-3 text-[13px] font-semibold transition-colors ${itemClass}`}
+              >
+                {active ? <span className="absolute inset-y-1 left-0 w-0.5 bg-[#3a96dd]" aria-hidden="true" /> : null}
+                <span className="text-slate-300"><NavGlyph id={section.id} /></span>
+                {section.label}
+              </Link>
+            );
+          }
+
           return (
-            <Link
-              key={section.id}
-              href={section.href}
-              className={`relative flex h-full shrink-0 items-center gap-2 border-b-2 px-3.5 text-[13px] font-semibold transition-colors duration-150 ${
-                active
-                  ? "border-emerald-400 text-white"
-                  : "border-transparent text-slate-300 hover:border-white/20 hover:bg-white/[0.045] hover:text-white"
-              }`}
-            >
-              <NavGlyph id={section.id} />
-              {section.label}
-            </Link>
-          );
-        }
-
-        /* ── Dropdown section ── */
-        return (
-          <div key={section.id} className="relative flex h-full shrink-0 items-stretch">
             <button
+              key={section.id}
               type="button"
-              onClick={(e) => {
+              onClick={(event) => {
                 if (open) {
                   setOpenSection(null);
                   setDropdownAnchor(null);
                 } else {
-                  setDropdownAnchor(e.currentTarget.getBoundingClientRect());
+                  setDropdownAnchor(event.currentTarget.getBoundingClientRect());
                   setOpenSection(section.id);
                 }
               }}
               aria-expanded={open}
               aria-haspopup="menu"
               aria-controls={open ? `donor-mega-menu-${section.id}` : undefined}
-              className={`relative flex h-full shrink-0 items-center gap-2 border-b-2 px-3.5 text-[13px] font-semibold transition-colors duration-150 ${
-                active || open
-                  ? "border-emerald-400 text-white"
-                  : "border-transparent text-slate-300 hover:border-white/20 hover:bg-white/[0.045] hover:text-white"
-              }`}
+              className={`relative flex min-h-10 w-full items-center gap-3 rounded-[2px] border px-3 text-left text-[13px] font-semibold transition-colors ${itemClass}`}
             >
-              <NavGlyph id={section.id} />
-              {section.label}
+              {active || open ? <span className="absolute inset-y-1 left-0 w-0.5 bg-[#3a96dd]" aria-hidden="true" /> : null}
+              <span className="text-slate-300"><NavGlyph id={section.id} /></span>
+              <span className="flex-1">{section.label}</span>
               <ChevronDown open={open} />
             </button>
-
-            {/* Dropdown panel is portaled — see below nav */}
-          </div>
-        );
-      })}
-      <span className="ml-auto hidden shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-2 py-1 text-[10px] font-medium text-slate-300 xl:inline">Ctrl K to search</span>
+          );
+        })}
+      </div>
+      <div className="border-t border-white/10 p-3">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("crm:focus-topbar-search"))}
+          className="flex w-full items-center gap-2 rounded-[2px] border border-white/10 bg-white/[0.05] px-3 py-2 text-left text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.1] hover:text-white"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" d="m20 20-4.2-4.2M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" /></svg>
+          Search DonorCRM
+          <span className="ml-auto text-[10px] text-slate-500">Ctrl K</span>
+        </button>
+      </div>
     </nav>
 
     {activeMobileSection?.columns ? (
@@ -755,7 +727,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
         <div
           style={{
             position: "fixed",
-            top: dropdownAnchor.bottom + 8,
+            top: dropdownAnchor.top,
             left: portalLeft,
             minWidth: portalMinWidth,
             maxWidth: "calc(100vw - 16px)",

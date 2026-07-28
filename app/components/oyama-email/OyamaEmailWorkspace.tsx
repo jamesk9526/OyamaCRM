@@ -682,8 +682,8 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
       <MicrosoftProductBar
         productName="OyamaCRM Email"
         homeHref="/oyama-email"
-        backHref="/"
-        backLabel="Back to CRM"
+        backHref="/communications"
+        backLabel="Communications"
         helpHref="/oyama-email/docs"
       />
       <div className="flex min-h-[calc(100dvh-52px)]">
@@ -769,8 +769,8 @@ function OyamaEmailMobileNav({ pathname, activeView }: { pathname: string; activ
           <span className="grid h-8 w-8 place-items-center bg-[#0f6cbd] text-sm font-semibold text-white" aria-hidden="true">O</span>
           <span className="text-sm font-semibold">OyamaCRM Email</span>
         </Link>
-        <Link href="/" className="ml-auto shrink-0 border border-[#c8c6c4] px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-          Back
+        <Link href="/communications" className="ml-auto shrink-0 border border-[#c8c6c4] px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+          Communications
         </Link>
       </div>
       <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Oyama Email mobile navigation">
@@ -849,9 +849,9 @@ function OyamaEmailSidebar({
       </nav>
 
       <div className="border-t border-[#4b4b4b]">
-        <Link href="/" className={["flex h-10 items-center text-sm text-[#f5f5f5] hover:bg-[#363636]", collapsed ? "justify-center" : "gap-3 px-4"].join(" ")}>
+        <Link href="/communications" className={["flex h-10 items-center text-sm text-[#f5f5f5] hover:bg-[#363636]", collapsed ? "justify-center" : "gap-3 px-4"].join(" ")}>
           <ChevronLeft />
-          {!collapsed ? <span>Back to CRM</span> : null}
+          {!collapsed ? <span>Communications hub</span> : null}
         </Link>
 
         {collapsed ? (
@@ -879,7 +879,7 @@ function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targ
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <WorkspaceAction href="/" tone="default">Back to CRM</WorkspaceAction>
+          <WorkspaceAction href="/communications" tone="default">Communications hub</WorkspaceAction>
           {view === "builder" ? (
             <WorkspaceAction href={targetCampaign?.id ? `/oyama-email/templates/${targetCampaign.id}/publish` : "/oyama-email/templates/new"} tone="primary">Next: Publish &amp; Compliance</WorkspaceAction>
           ) : null}
@@ -1100,52 +1100,53 @@ function TemplatesView({
 
       {sortedRows.length > 0 ? (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="overflow-hidden border border-[#d1d1d1] bg-white">
+            <div className="hidden grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_100px_110px_auto] gap-4 border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-2 text-xs font-semibold text-[#424242] md:grid">
+              <span>Template</span>
+              <span>Type</span>
+              <span>Status</span>
+              <span>Updated</span>
+              <span className="text-right">Actions</span>
+            </div>
             {pageRows.map((row) => {
               const categoryLabel = purposeLabel(row.purpose || "GENERAL");
               const usedCount = row.totalRecipients || 0;
               const isMine = row.ownerId === user?.id;
               const aiAssisted = isAiAssistedEmailTemplate(row);
               return (
-                <article key={row.id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                  <div className="flex items-start justify-between px-4 pb-2 pt-4">
-                    <div>
-                      <Link href={`/oyama-email/templates/${row.id}/builder`} className="line-clamp-1 text-[21px] font-semibold leading-snug tracking-tight text-slate-900 hover:text-indigo-700">{row.name}</Link>
-                      <span className="mt-1 inline-flex rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{categoryLabel}</span>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                          {isMine ? "Created by you" : row.sharedWithOrganization ? "Shared template" : "Team template"}
-                        </span>
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
-                          {aiAssisted ? "AI-assisted" : "User created"}
-                        </span>
-                      </div>
+                <article key={row.id} className="grid gap-3 border-b border-[#e5e5e5] px-4 py-3 last:border-b-0 hover:bg-[#fafafa] md:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_100px_110px_auto] md:items-center md:gap-4">
+                  <div className="min-w-0">
+                    <Link href={`/oyama-email/templates/${row.id}/builder`} className="line-clamp-1 text-[15px] font-semibold text-[#242424] hover:text-[#0f6cbd] hover:underline">{row.name}</Link>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-[#616161]">{row.subject || "No subject set"}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 md:hidden">
+                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                        {isMine ? "Created by you" : row.sharedWithOrganization ? "Shared" : "Team"}
+                      </span>
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                        {aiAssisted ? "AI-assisted" : "Staff created"}
+                      </span>
                     </div>
+                  </div>
+                  <div className="hidden min-w-0 md:block">
+                    <p className="truncate text-sm text-[#424242]">{categoryLabel}</p>
+                    <p className="mt-0.5 text-xs text-[#616161]">
+                      {aiAssisted ? "AI-assisted" : "Staff created"} · Used {usedCount} time{usedCount === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div>
                     <StatusBadge label={row.status === "SENT" ? "Published" : statusLabel(row.status)} tone={row.status === "SENT" ? "green" : "slate"} />
                   </div>
-
-                  <div className="px-4">
-                    <div className={["relative h-32 overflow-hidden rounded-lg border border-slate-200", templatePreviewClass(row.purpose || "GENERAL")].join(" ")}>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/10 to-transparent" />
-                      <p className="absolute bottom-2 left-2 right-2 line-clamp-2 text-sm font-semibold text-white">{row.subject || "Untitled subject"}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 p-4">
-                    <p className="text-xs text-slate-500">Updated {formatDate(row.updatedAt)}</p>
-                    <div className="flex items-center justify-between text-xs text-slate-600">
-                      <span className="inline-flex items-center gap-1.5">
-                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v5l3 3m6-4a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                        Used {usedCount} time{usedCount === 1 ? "" : "s"}
-                      </span>
-                      <Link href={`/oyama-email/templates/${row.id}/builder`} className="font-semibold text-slate-500 hover:text-indigo-700">Edit</Link>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => onUseTemplate(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-indigo-700 bg-indigo-700 px-3 text-xs font-semibold text-white hover:bg-indigo-600">Use in campaign</button>
-                      <button type="button" onClick={() => void exportTemplateBackup(row)} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Export</button>
-                    </div>
+                  <p className="text-xs text-[#616161]">{formatDate(row.updatedAt)}</p>
+                  <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+                    <Link href={`/oyama-email/templates/${row.id}/builder`} className="inline-flex h-8 items-center justify-center rounded-[2px] border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-[#424242] hover:bg-[#f3f2f1]">
+                      Edit
+                    </Link>
+                    <button type="button" onClick={() => onUseTemplate(row)} className="inline-flex h-8 items-center justify-center rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3]">
+                      Use
+                    </button>
+                    <button type="button" onClick={() => void exportTemplateBackup(row)} className="inline-flex h-8 items-center justify-center rounded-[2px] px-2 text-xs font-semibold text-[#0f6cbd] hover:bg-[#eff6fc]">
+                      Export
+                    </button>
                   </div>
                 </article>
               );
@@ -1191,16 +1192,6 @@ function TemplatesView({
       ) : null}
     </section>
   );
-}
-
-function templatePreviewClass(value: string): string {
-  const upper = value.trim().toUpperCase();
-  if (upper.includes("THANK")) return "bg-[linear-gradient(135deg,#c9b49b,#7a644f)]";
-  if (upper.includes("EVENT")) return "bg-[linear-gradient(135deg,#8c6f49,#3f2d1f)]";
-  if (upper.includes("RECEIPT")) return "bg-[linear-gradient(135deg,#c2ced9,#7c8da1)]";
-  if (upper.includes("APPEAL") || upper.includes("FUNDRAIS")) return "bg-[linear-gradient(135deg,#6a7f91,#2f4d66)]";
-  if (upper.includes("STEWARD")) return "bg-[linear-gradient(135deg,#89a8b7,#3a5f6b)]";
-  return "bg-[linear-gradient(135deg,#7da575,#2d6040)]";
 }
 
 function isAiAssistedEmailTemplate(campaign: OyamaEmailCampaign): boolean {
@@ -3128,7 +3119,7 @@ function NewCampaignWizardPanel({
     setLoadedTemporarySegmentId(temporarySegmentId);
     const segment = readTemporaryEmailSegment(temporarySegmentId);
     if (!segment) {
-      setNotice("The temporary donation email segment was not found. Re-select donations to rebuild it.");
+      setNotice("The temporary donor selection was not found. Return to Constituents and select the donors again.");
       return;
     }
 
@@ -3136,7 +3127,7 @@ function NewCampaignWizardPanel({
     setAudienceSource("Individual Search");
     setAudienceReviewConfirmed(false);
     setCampaignName((current) => current || segment.name);
-    setNotice(`Loaded temporary donation email segment with ${segment.recipientEmails.length} recipient${segment.recipientEmails.length === 1 ? "" : "s"}.`);
+    setNotice(`Loaded selected donors with ${segment.recipientEmails.length} unique email recipient${segment.recipientEmails.length === 1 ? "" : "s"}. Choose a template, review the audience, then confirm the send.`);
   }, [loadedTemporarySegmentId, temporarySegmentId]);
 
   useEffect(() => {
@@ -3567,7 +3558,7 @@ function NewCampaignWizardPanel({
                     <div>
                       <p className="font-semibold">{temporarySegment.name}</p>
                       <p className="mt-1">
-                        Temporary segment from selected donations. {temporarySegment.recipientEmails.length} email recipient{temporarySegment.recipientEmails.length === 1 ? "" : "s"} will be included with any checked individuals below.
+                        {temporarySegment.source === "constituent-directory" ? "Donor selection from the CRM directory." : "Temporary segment from selected donations."} {temporarySegment.recipientEmails.length} email recipient{temporarySegment.recipientEmails.length === 1 ? "" : "s"} will be included with any checked individuals below.
                       </p>
                     </div>
                     <button
@@ -4592,10 +4583,10 @@ function WorkspaceAction({
 }) {
   return (
     <Link href={href} className={[
-      "inline-flex h-9 items-center justify-center rounded-md border px-3 text-xs font-semibold",
+      "inline-flex h-9 items-center justify-center rounded-[2px] border px-3 text-xs font-semibold",
       tone === "primary"
-        ? "border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-600"
-        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+        ? "border-[#0f6cbd] bg-[#0f6cbd] text-white hover:bg-[#115ea3]"
+        : "border-[#c8c6c4] bg-white text-slate-700 hover:bg-[#f3f2f1]",
     ].join(" ")}>
       {children}
     </Link>

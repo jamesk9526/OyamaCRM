@@ -1,7 +1,6 @@
-/** Legacy communications route redirected to OyamaEmail. */
-import { redirect } from "next/navigation";
+import CommunicationsHub from "@/app/components/communications/CommunicationsHub";
 
-/** Sends communications traffic to the redesigned OyamaEmail campaigns workspace. */
+/** Shared launch point for email and print outreach work. */
 export default function CommunicationsPage() {
-  redirect("/oyama-email/campaigns");
+  return <CommunicationsHub />;
 }
