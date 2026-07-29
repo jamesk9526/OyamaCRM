@@ -233,8 +233,8 @@ export default function StewardAiRuntimePill({ canRunConnectionTest, onOpenSetti
       {open ? (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-[340px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+          <div className="absolute right-0 top-full z-50 mt-2 w-[340px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
+            <div className="border-b border-slate-200 bg-white px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Steward AI Runtime</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{tone.label}</p>
               <p className="mt-1 text-xs text-slate-500">{tone.helper}</p>

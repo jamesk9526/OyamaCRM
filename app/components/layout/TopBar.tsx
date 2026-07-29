@@ -1314,7 +1314,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         onMessagesOpenChange={setMessengerOpen}
         messengerUnread={messengerUnread}
         onMessengerUnreadChange={setMessengerUnread}
-        showLauncher={false}
+        showLauncher
       />
 
             {/* Incoming message toast — shown when panel is closed and a new message arrives */}

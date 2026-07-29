@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
+import StewardMetricsStrip from "@/app/components/ai/StewardMetricsStrip";
 import { STEWARD_OPEN_EVENT, type StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
 type DockTab = "steward" | "messages";
@@ -154,8 +155,9 @@ export default function StewardDockPanel({
   if (!hydrated) return null;
 
   const stewardModule = normalizeStewardModule(externalPrompt?.moduleKey ?? moduleKey);
-  const isDonorFloatingMode = normalizeStewardModule(moduleKey) === "donor";
-  const unreadLabel = messengerUnread > 0 ? `${Math.min(messengerUnread, 99)} unread` : "No unread";
+  // One companion surface is shared across every CRM workspace. Keeping the same
+  // head and dock behavior makes Steward feel like a Copilot instead of a module widget.
+  const isDonorFloatingMode = false;
 
   function sendFromPill() {
     const prompt = pillDraft.trim();
@@ -188,23 +190,22 @@ export default function StewardDockPanel({
           onClick={() => openDock("steward")}
           title="Open Steward and messages"
           style={{ bottom: "max(1rem, env(safe-area-inset-bottom))", right: "1rem" }}
-          className="group fixed z-[9990] flex w-[min(22rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left shadow-[0_18px_44px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_54px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+          className="group fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-[9990] flex h-14 w-14 items-center justify-center rounded-full border border-slate-300 bg-white text-left shadow-[0_10px_26px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-500 hover:shadow-[0_14px_32px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:right-6"
           aria-label="Open Steward and messages"
         >
-          <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50">
-            <StewardAvatarIcon size={30} alt="Steward" className="ring-2 ring-white" />
-            <span className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" />
+          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50">
+            <StewardAvatarIcon size={28} alt="Steward" className="ring-2 ring-white" />
+            <span className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-500" />
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-slate-900">Steward + Messages</span>
-            <span className="block truncate text-xs text-slate-500">Docked DM box · {unreadLabel}</span>
+          <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-md group-hover:block sm:block sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+            Ask Steward
           </span>
           {messengerUnread > 0 ? (
-            <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[11px] font-bold text-white">
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white">
               {Math.min(messengerUnread, 99)}
             </span>
           ) : (
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+            <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-blue-500" aria-hidden="true" />
           )}
         </button>
       ) : null}
@@ -357,15 +358,15 @@ export default function StewardDockPanel({
 
       {open && !isDonorFloatingMode ? (
         <section
-          className="fixed inset-x-2 bottom-2 top-[4.25rem] z-[9991] flex flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_26px_80px_rgba(15,23,42,0.24)] sm:inset-x-auto sm:left-auto sm:right-4 sm:top-auto sm:h-[min(720px,calc(100dvh-5rem))] sm:w-[min(760px,calc(100vw-2rem))]"
+          className="fixed inset-x-2 bottom-2 top-[4.25rem] z-[9991] flex flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_20px_54px_rgba(15,23,42,0.2)] sm:inset-x-auto sm:left-auto sm:right-4 sm:top-auto sm:h-[min(720px,calc(100dvh-5rem))] sm:w-[min(760px,calc(100vw-2rem))]"
           aria-label="Steward and messages dock"
         >
-          <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 py-2.5">
+          <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <StewardAvatarIcon size={28} alt="Steward" className="ring-2 ring-emerald-100" />
               <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold text-slate-900">Steward DM Dock</h2>
-                <p className="truncate text-[11px] text-slate-500">AI assistant and staff messages in one conversation box</p>
+                <h2 className="truncate text-sm font-semibold text-slate-900">Steward Copilot</h2>
+                <p className="truncate text-[11px] text-slate-500">Your workspace companion</p>
               </div>
             </div>
             <div className="flex rounded-full border border-slate-200 bg-slate-50 p-0.5">
@@ -400,6 +401,8 @@ export default function StewardDockPanel({
               </svg>
             </button>
           </header>
+
+          <StewardMetricsStrip />
 
           <div className="min-h-0 flex-1 overflow-hidden bg-white">
             {activeTab === "steward" ? (

@@ -13,6 +13,7 @@ import { getFiscalYearForDate, getFiscalYearEndMonth } from "@/app/lib/fiscal-ye
 import StewardResponseRenderer from "@/app/components/ai/StewardResponseRenderer";
 import { StewardThinkingPanel } from "@/app/components/ai/StewardThinkingPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
+import StewardMetricsStrip from "@/app/components/ai/StewardMetricsStrip";
 import type {
   StewardEmailDraftArtifact,
   StewardChartArtifact,
@@ -2972,6 +2973,8 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
           </div>
         )}
         {/* end dockMode ? dock-header : full-header */}
+
+        <StewardMetricsStrip />
 
         {/* ── Conversation ────────────────────────────────────────────────── */}
         <div className="relative min-h-0 flex-1 overflow-hidden">

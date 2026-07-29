@@ -1173,9 +1173,9 @@ export default function StewardChatPanel({
         onClick={() => onDisplayModeChange?.("dock-right")}
         aria-label="Open Steward AI Assistant"
         title="Open Steward AI Assistant"
-        className="fixed z-[96] right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-emerald-700 shadow-[0_16px_36px_rgba(15,23,42,0.18)] transition-all hover:scale-[1.03] hover:shadow-[0_20px_44px_rgba(15,23,42,0.22)]"
+        className="fixed z-[96] right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] flex h-14 w-14 items-center justify-center rounded-full border border-slate-300 bg-white text-blue-700 shadow-[0_10px_26px_rgba(15,23,42,0.16)] transition-all hover:scale-[1.03] hover:border-blue-500 hover:shadow-[0_14px_32px_rgba(15,23,42,0.2)]"
       >
-        <StewardAvatarIcon size={38} alt="Steward" className="ring-2 ring-emerald-200" />
+        <StewardAvatarIcon size={38} alt="Steward" className="ring-2 ring-blue-200" />
       </button>
     );
   }
@@ -1194,7 +1194,7 @@ export default function StewardChatPanel({
 
   const panelClassName = isWorkspaceMode
     ? "h-full rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col overflow-hidden"
-    : `pointer-events-auto border border-emerald-200 ring-1 ring-emerald-100 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.14)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode || isPopoutMode ? "rounded-none sm:rounded-[22px] w-full max-w-none h-full" : "rounded-[18px] sm:rounded-[22px] w-full max-w-[760px] h-[min(84dvh,760px)] sm:h-[min(78vh,760px)] max-h-full"}`;
+        : `pointer-events-auto border border-slate-300 bg-white shadow-[0_18px_46px_rgba(15,23,42,0.16)] flex flex-col overflow-hidden transition-[height,width] duration-200 ${isMaximizedMode || isPopoutMode ? "rounded-none sm:rounded-2xl w-full max-w-none h-full" : "rounded-xl sm:rounded-2xl w-full max-w-[760px] h-[min(84dvh,760px)] sm:h-[min(78vh,760px)] max-h-full"}`;
   const panelStyle = isWorkspaceMode
     ? undefined
     : isMaximizedMode
@@ -1392,7 +1392,7 @@ export default function StewardChatPanel({
                       <div
                         className={`rounded-2xl px-3 py-2 text-sm shadow-sm border ${
                           message.role === "user"
-                            ? "bg-emerald-600 text-white border-emerald-500"
+                            ? "bg-blue-600 text-white border-blue-500"
                             : (isWorkspaceMode ? "bg-white text-slate-700 border-slate-200" : "bg-white text-slate-700 border-slate-200")
                         }`}
                       >
@@ -1580,7 +1580,7 @@ export default function StewardChatPanel({
                           type="button"
                           onClick={() => void sendMessage()}
                           disabled={!aiConfig?.enabled || sending || draft.trim().length === 0}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                           title="Send (Enter)"
                         >
                           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" /></svg>
