@@ -341,14 +341,14 @@ interface LightAccentTheme {
 
 const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
   green: {
-    navActive: "bg-emerald-50",
-    navRing: "ring-1 ring-emerald-200/80 border-emerald-200",
-    navText: "text-emerald-800",
-    navTextStrong: "text-emerald-950",
-    iconTint: "text-emerald-700",
-    iconTintSoft: "bg-emerald-50",
-    iconBorder: "border-emerald-200",
-    badge: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
+    navActive: "bg-[#eff6fc]",
+    navRing: "ring-1 ring-[#cfe4fa] border-[#0f6cbd]",
+    navText: "text-[#0f548c]",
+    navTextStrong: "text-[#0f3b61]",
+    iconTint: "text-[#0f6cbd]",
+    iconTintSoft: "bg-[#eff6fc]",
+    iconBorder: "border-[#cfe4fa]",
+    badge: "bg-[#eff6fc] text-[#0f548c] ring-1 ring-[#cfe4fa]",
   },
   blue: {
     navActive: "bg-blue-50",
@@ -382,7 +382,7 @@ const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
   },
 };
 
-export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMenuProps) {
+export default function DonorMegaMenu({ donorAccentTone = "blue" }: DonorMegaMenuProps) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
@@ -390,7 +390,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const { qbEnabled } = usePlugins();
-  const accentTheme = LIGHT_ACCENT_THEMES[donorAccentTone] ?? LIGHT_ACCENT_THEMES.green;
+  const accentTheme = LIGHT_ACCENT_THEMES[donorAccentTone] ?? LIGHT_ACCENT_THEMES.blue;
 
   // Build the full nav sections, injecting QB Sync into Fundraising when enabled.
   const navSections: NavSection[] = useMemo(() => BASE_NAV_SECTIONS.map((section) => {
@@ -540,7 +540,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
                       onClick={() => setMobileNavOpen(false)}
                       className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${sectionClass}`}
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-200">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-[#cfe4fa]">
                         <NavGlyph id={section.id} />
                       </span>
                       <span className="text-sm font-semibold">{section.label}</span>
@@ -559,7 +559,7 @@ export default function DonorMegaMenu({ donorAccentTone = "green" }: DonorMegaMe
                     }}
                     className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${sectionClass}`}
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-200">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-[#cfe4fa]">
                       <NavGlyph id={section.id} />
                     </span>
                     <span className="min-w-0 flex-1 text-sm font-semibold">{section.label}</span>

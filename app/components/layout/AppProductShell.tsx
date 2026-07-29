@@ -36,10 +36,10 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
   }, [pathname]);
 
   return (
-    <div className="flex flex-col h-[100dvh] min-h-[100svh] bg-white">
-      <header className="h-14 shrink-0 w-full flex items-center justify-between px-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700/70">
+    <div className="microsoft-product-shell flex h-[100dvh] min-h-[100svh] flex-col bg-[#f5f5f5]">
+      <header className="flex h-14 w-full shrink-0 items-center justify-between border-b border-[#424242] bg-[#242424] px-4">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[3px] bg-[#0f6cbd] text-sm font-bold text-white">
             A
           </span>
           <div className="min-w-0">
@@ -49,7 +49,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
         </div>
         <Link
           href="/"
-          className="text-xs font-medium text-slate-200 hover:text-white border border-white/20 rounded-lg px-2.5 py-1.5"
+          className="border border-white/25 px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-[#60cdff] hover:text-white"
         >
           Back to CRM
         </Link>
@@ -69,7 +69,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
                   href={item.href}
                   className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      ? "border border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]"
                       : "text-slate-600 border border-transparent hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
@@ -103,7 +103,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
                       href={item.href}
                       className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         active
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          ? "border border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]"
                           : "text-slate-600 border border-transparent hover:bg-slate-50 hover:text-slate-900"
                       }`}
                     >
@@ -119,7 +119,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
           </div>
         )}
 
-        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#f5f5f5] p-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:p-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-4 lg:pb-4 min-[1440px]:p-5 2xl:p-6">
           <div className="mb-3 lg:hidden">
             <button
               type="button"

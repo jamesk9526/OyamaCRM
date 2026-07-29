@@ -490,7 +490,7 @@ export default function EventsShell({ children, selectedEventId, selectedTool }:
 
   // ── Full event workspace shell ─────────────────────────────────────────────
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
+    <div className="crm-fonts flex h-screen flex-col bg-[#f5f5f5]">
 
       {/* ── Top Bar ───────────────────────────────────────────────────────── */}
       {/*

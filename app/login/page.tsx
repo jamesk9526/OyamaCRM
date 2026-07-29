@@ -93,33 +93,33 @@ export default function LoginPage() {
   /* ── Loading state while setup check runs ──────────────────── */
   if (checkingSetup) {
     return (
-      <div className="h-screen w-screen bg-slate-950 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex h-screen w-screen items-center justify-center bg-[#f5f5f5]">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0f6cbd] border-t-transparent" />
       </div>
     );
   }
 
   /* ── Main login UI - split layout: curved brand left / form right ─────── */
   return (
-    <div className="min-h-screen w-screen overflow-x-hidden bg-[#f4f7f6]">
+    <div className="min-h-screen w-screen overflow-x-hidden bg-[#f5f5f5]">
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(430px,520px)]">
 
         {/* ── Left brand panel ── */}
         <LoginBrandPanel />
 
         {/* ── Right form panel ── */}
-        <section className="relative flex min-h-screen flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#ffffff,#f3f7f6)] px-4 py-8 sm:px-8 lg:px-10">
+        <section className="relative flex min-h-screen flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_0%,rgba(15,108,189,0.08),transparent_34%),linear-gradient(180deg,#ffffff,#f5f5f5)] px-4 py-8 sm:px-8 lg:px-10">
           <div className="w-full max-w-[400px]">
 
             {/* Mobile-only logo */}
             <LoginMobileBrand />
 
             {/* Form card */}
-            <div className="rounded-[22px] border border-slate-200/90 bg-white px-6 py-7 shadow-[0_20px_52px_rgba(15,23,42,0.10)] backdrop-blur sm:px-8 sm:py-8">
+            <div className="border border-[#d1d1d1] bg-white px-6 py-7 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:px-8 sm:py-8">
               <div className="mb-6">
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Secure workspace</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Sign in to OyamaCRM v1.3</h2>
-                <p className="mt-1.5 text-sm text-slate-500">Enter your credentials to continue to your organization.</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0f548c]">Secure organization workspace</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Welcome back</h2>
+                <p className="mt-1.5 text-sm text-slate-500">Sign in to continue to OyamaCRM.</p>
               </div>
 
             {!mfaChallenge ? (
@@ -133,7 +133,7 @@ export default function LoginPage() {
                     required
                     autoComplete="email"
                     placeholder="you@organization.org"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 placeholder:text-slate-400"
+                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-400"
                   />
                 </div>
 
@@ -146,7 +146,7 @@ export default function LoginPage() {
                     required
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 placeholder:text-slate-400"
+                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-400"
                   />
                 </div>
 
@@ -163,7 +163,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(5,150,105,0.22)] transition hover:bg-emerald-700 active:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 flex w-full items-center justify-center gap-2 bg-[#0f6cbd] py-3 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(15,108,189,0.22)] transition hover:bg-[#0f548c] active:bg-[#0c3b5e] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? (
                     <>
@@ -180,7 +180,7 @@ export default function LoginPage() {
 
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-[11px] text-slate-400">Need help signing in?</span>
-                  <Link href="/login/forgot-password" className="text-xs font-semibold text-emerald-700 transition-colors hover:text-emerald-800">
+                  <Link href="/login/forgot-password" className="text-xs font-semibold text-[#0f548c] transition-colors hover:text-[#0f6cbd]">
                     Forgot password?
                   </Link>
                 </div>
@@ -201,20 +201,20 @@ export default function LoginPage() {
                     onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     required
                     placeholder="123456"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 placeholder:text-slate-400"
+                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-400"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading || mfaCode.length !== 6}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(5,150,105,0.22)] transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 flex w-full items-center justify-center gap-2 bg-[#0f6cbd] py-3 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(15,108,189,0.22)] transition hover:bg-[#0f548c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "Verifying..." : "Verify and sign in"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMfaChallenge(null); setMfaCode(""); setError(null); }}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                  className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-[#f3f2f1]"
                 >
                   Back to login
                 </button>

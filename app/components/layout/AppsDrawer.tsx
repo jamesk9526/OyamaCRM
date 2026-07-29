@@ -50,7 +50,7 @@ const AVAILABLE_APPS: DrawerApp[] = [
     label: "Trivia Software",
     description: "Standalone trivia operations workspace.",
     href: "/apps/trivia",
-    tone: "green",
+    tone: "indigo",
     helper: "Standalone",
   },
   {
@@ -120,7 +120,7 @@ export default function AppsDrawer({ open, onClose }: AppsDrawerProps) {
     if (tone === "blue") return "border-blue-200 bg-blue-50/70 text-blue-700";
     if (tone === "slate") return "border-slate-300 bg-slate-100 text-slate-700";
     if (tone === "indigo") return "border-indigo-200 bg-indigo-50/70 text-indigo-700";
-    return "border-green-200 bg-green-50/70 text-green-700";
+    return "border-[#cfe4fa] bg-[#eff6fc] text-[#0f548c]";
   }
 
   return (
@@ -134,11 +134,11 @@ export default function AppsDrawer({ open, onClose }: AppsDrawerProps) {
 
       {/* Drawer panel — anchored to top-right */}
       <div
-        className="relative mt-16 mr-3 w-[360px] max-w-[calc(100vw-1rem)] rounded-[22px] bg-white/95 shadow-[0_18px_42px_rgba(15,23,42,0.18)] border border-slate-200/90 overflow-hidden backdrop-blur-xl"
+        className="relative mr-3 mt-16 w-[360px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-[4px] border border-[#d1d1d1] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.16)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-emerald-50/70">
+        <div className="border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 pb-3 pt-4">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.22em]">Hidden Apps</p>
           <p className="text-sm font-semibold text-slate-900 mt-1">App Launcher</p>
           <p className="text-xs text-slate-600 mt-0.5">Specialized apps and tools that stay out of the primary workspace switcher.</p>
@@ -155,7 +155,7 @@ export default function AppsDrawer({ open, onClose }: AppsDrawerProps) {
                 onClick={onClose}
                 target={app.openInNewTab ? "_blank" : undefined}
                 rel={app.openInNewTab ? "noopener noreferrer" : undefined}
-                className="block rounded-xl border border-slate-200 bg-white px-3 py-2.5 hover:border-slate-300 hover:bg-slate-50 transition-all"
+                className="block rounded-[2px] border border-[#d1d1d1] bg-white px-3 py-2.5 transition-colors hover:border-[#0f6cbd] hover:bg-[#eff6fc]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[13px] font-semibold text-slate-900">{app.label}</p>

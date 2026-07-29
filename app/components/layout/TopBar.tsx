@@ -235,7 +235,7 @@ function DonorQuickAddButton() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Quick Add"
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-400/70 bg-violet-600 px-2.5 text-[13px] font-semibold text-white shadow-[0_5px_14px_rgba(124,58,237,0.24)] transition-colors hover:border-violet-300 hover:bg-violet-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+        className="inline-flex h-8 items-center gap-1.5 rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-[#115ea3] hover:bg-[#115ea3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60cdff]"
       >
         <svg className="h-4 w-4 shrink-0 text-white/95" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />

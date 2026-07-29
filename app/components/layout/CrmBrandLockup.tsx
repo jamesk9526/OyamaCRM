@@ -17,11 +17,11 @@ export default function CrmBrandLockup({
   className = "",
 }: CrmBrandLockupProps) {
   const logoSrc = compact ? OYAMA_PRODUCT_LOGO_COLLAPSED : OYAMA_PRODUCT_LOGO;
-  const labelClass = tone === "light" ? "text-emerald-100/90" : "text-slate-500";
+  const labelClass = tone === "light" ? "text-slate-200" : "text-slate-500";
   const logoFrameClass = compact
     ? "bg-transparent ring-0 shadow-none"
     : tone === "light"
-      ? "bg-emerald-950/40 ring-1 ring-emerald-100/20"
+      ? "bg-white/[0.04] ring-1 ring-white/15"
       : "bg-slate-950 ring-1 ring-slate-900/10";
 
   return (

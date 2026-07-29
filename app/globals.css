@@ -101,9 +101,21 @@ body {
   box-shadow: 0 0 0 2px var(--crm-focus-ring);
 }
 
+.crm-fonts :is(button, input, select, textarea, a).rounded-2xl,
 .crm-fonts :is(button, input, select, textarea, a).rounded-xl,
-.crm-fonts :is(button, input, select, textarea, a).rounded-lg {
+.crm-fonts :is(button, input, select, textarea, a).rounded-lg,
+.crm-fonts :is(button, input, select, textarea, a).rounded-md {
   border-radius: 2px;
+}
+
+.crm-fonts :is(section, article, div).rounded-3xl,
+.crm-fonts :is(section, article, div).rounded-2xl,
+.crm-fonts :is(section, article, div).rounded-xl {
+  border-radius: 4px;
+}
+
+.crm-fonts :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
+  box-shadow: none;
 }
 
 .crm-fonts ::selection {
@@ -222,10 +234,71 @@ body {
 }
 
 [data-topbar-root="true"][data-donor-topbar="true"] {
-  background: #3b3a39 !important;
+  background: #242424 !important;
   border-top: 4px solid #0f6cbd !important;
-  border-bottom-color: #4b4b4b !important;
+  border-bottom-color: #424242 !important;
   box-shadow: none !important;
+}
+
+/* Trivia administration follows the shared Fluent surface language while
+   projector and remote routes remain intentionally presentation-focused. */
+.trivia-admin-shell {
+  --trivia-accent: #5b3f9b;
+  --trivia-accent-hover: #4a327f;
+  --trivia-surface: #ffffff;
+  --trivia-canvas: #f5f4f8;
+  --trivia-border: #d1c7e8;
+  font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
+}
+
+.trivia-admin-content :is(.rounded-3xl, .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md) {
+  border-radius: 3px;
+}
+
+.trivia-admin-content :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
+  box-shadow: none;
+}
+
+.trivia-admin-content [class*="bg-slate-900"],
+.trivia-admin-content [class*="bg-slate-950"] {
+  background-color: var(--trivia-surface) !important;
+}
+
+.trivia-admin-content [class*="border-slate-7"],
+.trivia-admin-content [class*="border-slate-6"] {
+  border-color: var(--trivia-border) !important;
+}
+
+.trivia-admin-content [class*="text-slate-100"],
+.trivia-admin-content [class*="text-slate-200"],
+.trivia-admin-content [class*="text-slate-300"],
+.trivia-admin-content [class~="text-white"] {
+  color: #242424 !important;
+}
+
+.trivia-admin-content :is(input, textarea, select)[class*="bg-slate-9"] {
+  border-color: #8a8886 !important;
+  background: #ffffff !important;
+  color: #242424 !important;
+}
+
+.trivia-admin-content :is(input, textarea, select):focus-visible {
+  outline: 2px solid var(--trivia-accent);
+  outline-offset: -1px;
+}
+
+.trivia-admin-content :is(button, a)[class*="bg-emerald"],
+.trivia-admin-content :is(button, a)[class*="bg-violet"],
+.trivia-admin-content :is(button, a)[class*="bg-cyan-6"] {
+  border-color: var(--trivia-accent) !important;
+  background: var(--trivia-accent) !important;
+  color: #ffffff !important;
+}
+
+.trivia-admin-content :is(button, a)[class*="bg-emerald"]:hover,
+.trivia-admin-content :is(button, a)[class*="bg-violet"]:hover,
+.trivia-admin-content :is(button, a)[class*="bg-cyan-6"]:hover {
+  background: var(--trivia-accent-hover) !important;
 }
 
 /* Windows Explorer-inspired workspace command surfaces. */

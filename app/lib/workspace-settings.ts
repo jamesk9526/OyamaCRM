@@ -40,7 +40,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   showModuleSwitcher: true,
   defaultWorkspace: "donor",
   donorNavigationLayout: "mega",
-  donorAccentTone: "green",
+  donorAccentTone: "blue",
 };
 
 const DONOR_ACCENT_THEMES: Record<DonorAccentTone, DonorAccentTheme> = {
