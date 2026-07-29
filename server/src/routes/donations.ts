@@ -22,6 +22,7 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { donationOrgWhere } from "../lib/donationScope.js";
 import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
+import { buildInclusiveCalendarDateFilter } from "../lib/dateOnlyRanges.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { sendCampaignNow } from "./email-campaigns.js";
 
@@ -340,38 +341,6 @@ async function recalculateConstituentGivingRollups(constituentId: string): Promi
   });
 }
 
-/** Parses a YYYY-MM-DD-like date string into start-of-day local time. */
-function parseDateStart(raw?: string): Date | undefined {
-  if (!raw) return undefined;
-  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (ymdMatch) {
-    const year = Number(ymdMatch[1]);
-    const month = Number(ymdMatch[2]);
-    const day = Number(ymdMatch[3]);
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed;
-}
-
-/** Parses a YYYY-MM-DD-like date string into end-of-day local time. */
-function parseDateEnd(raw?: string): Date | undefined {
-  if (!raw) return undefined;
-  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (ymdMatch) {
-    const year = Number(ymdMatch[1]);
-    const month = Number(ymdMatch[2]);
-    const day = Number(ymdMatch[3]);
-    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed;
-}
-
 /** Parses donation date inputs with date-only semantics for YYYY-MM-DD values. */
 function parseDonationDateInput(raw?: string): Date | undefined {
   if (!raw) return undefined;
@@ -397,16 +366,12 @@ async function buildDonationWhere(
   query: DonationFilterQuery
 ): Promise<Prisma.DonationWhereInput> {
   const keyword = query.search?.trim();
-  const start = parseDateStart(query.from);
-  const end = parseDateEnd(query.to);
+  const explicitDateFilter = buildInclusiveCalendarDateFilter(query.from, query.to);
   const acknowledgment = query.acknowledgment?.trim().toLowerCase();
 
   let dateFilter: Prisma.DateTimeFilter | undefined;
-  if (start || end) {
-    dateFilter = {
-      ...(start ? { gte: start } : {}),
-      ...(end ? { lte: end } : {}),
-    };
+  if (explicitDateFilter) {
+    dateFilter = explicitDateFilter;
   } else if (query.scope?.toUpperCase() === "CURRENT_YEAR") {
     if (query.dateBasis === "fiscal") {
       const settings = await prisma.organizationSettings.findUnique({
@@ -1328,9 +1293,8 @@ router.patch("/acknowledgments/bulk", async (req, res) => {
     return;
   }
 
-  const start = parseDateStart(from);
-  const end = parseDateEnd(to);
-  if (!start || !end || start > end) {
+  const dateFilter = buildInclusiveCalendarDateFilter(from, to);
+  if (!dateFilter?.gte || (!dateFilter.lt && !dateFilter.lte)) {
     res.status(400).json({ error: { code: "INVALID_DATE_RANGE", message: "Enter a valid gift date range." } });
     return;
   }
@@ -1340,7 +1304,7 @@ router.patch("/acknowledgments/bulk", async (req, res) => {
       donationOrgWhere(organizationId),
       { status: "COMPLETED" },
       { acknowledgmentSentAt: null },
-      { date: { gte: start, lte: end } },
+      { date: dateFilter },
     ],
   };
   const acknowledgmentSentAt = new Date();

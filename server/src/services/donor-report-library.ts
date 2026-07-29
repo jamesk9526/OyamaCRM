@@ -9,6 +9,7 @@ import {
   type ReportingYearBasis,
 } from "../lib/dateRanges.js";
 import { centsToMoney, moneyToCents } from "../lib/money.js";
+import { parseCalendarDateExclusiveEnd, parseCalendarDateStart } from "../lib/dateOnlyRanges.js";
 
 export const DONOR_LIBRARY_REPORT_KEYS = [
   "batch-receipts",
@@ -76,22 +77,13 @@ export interface DonorLibraryReportOptions {
 
 const PAYMENT_METHODS: PaymentMethod[] = ["CREDIT_CARD", "ACH", "CHECK", "WIRE", "STOCK", "IN_KIND", "CASH", "ONLINE"];
 
-function startOfDay(value: Date): Date {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-}
-
-function endOfDay(value: Date): Date {
-  const result = startOfDay(value);
-  result.setUTCDate(result.getUTCDate() + 1);
-  result.setUTCMilliseconds(-1);
-  return result;
-}
-
 function parseDate(value: unknown, fallback: Date, inclusiveEnd = false): Date {
   if (typeof value !== "string" || !value.trim()) return fallback;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return fallback;
-  return inclusiveEnd ? endOfDay(parsed) : startOfDay(parsed);
+  if (inclusiveEnd) {
+    const exclusiveEnd = parseCalendarDateExclusiveEnd(value);
+    if (exclusiveEnd) return new Date(exclusiveEnd.getTime() - 1);
+  }
+  return parseCalendarDateStart(value) ?? fallback;
 }
 
 function normalizedRange(from: Date, through: Date): { from: Date; through: Date } {

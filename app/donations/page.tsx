@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
@@ -103,6 +103,7 @@ export default function DonationsPage() {
   const [status, setStatus] = useState("");
   const [from,   setFrom]   = useState(defaultRange.from);
   const [to,     setTo]     = useState(defaultRange.to);
+  const latestLoadId = useRef(0);
 
   const recordGiftParams = new URLSearchParams(searchParams.toString());
   recordGiftParams.set("recordGift", "1");
@@ -114,6 +115,7 @@ export default function DonationsPage() {
   const recordGiftHref = `/donations?${recordGiftParams.toString()}`;
 
   const load = useCallback(async () => {
+    const loadId = ++latestLoadId.current;
     setLoading(true);
     try {
       const filterParams = new URLSearchParams();
@@ -142,6 +144,7 @@ export default function DonationsPage() {
         apiFetch<DonationStats>(`/api/donations/stats?${filterParams.toString()}`),
       ]);
 
+      if (loadId !== latestLoadId.current) return;
       setDonations(listData.items ?? []);
       setTotal(listData.total ?? (listData.items ?? []).length);
       setStats({
@@ -153,10 +156,11 @@ export default function DonationsPage() {
       setApiDown(false);
       setApiError(null);
     } catch (err) {
+      if (loadId !== latestLoadId.current) return;
       setApiDown(true);
       setApiError(err instanceof Error ? err.message : "Failed to load donations data.");
     } finally {
-      setLoading(false);
+      if (loadId === latestLoadId.current) setLoading(false);
     }
   }, [acknowledgmentFilter, allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setStats, setTotal, status, to]);
 

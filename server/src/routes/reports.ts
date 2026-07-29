@@ -38,6 +38,7 @@ import {
   calcYoYPercent,
 } from "../lib/dateRanges.js";
 import { centsToMoney, moneyToCents } from "../lib/money.js";
+import { buildInclusiveCalendarDateFilter } from "../lib/dateOnlyRanges.js";
 
 const router = Router();
 const OSHAREVIEW_NOTES_PLUGIN_KEY = "oshareview-notes";
@@ -84,34 +85,8 @@ function taskOrganizationWhere(organizationId: string) {
   };
 }
 
-function parseDateQueryValue(value: string | undefined): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-}
-
 function buildDateWindowFilter(fromDateRaw: string | undefined, toDateRaw: string | undefined): Prisma.DateTimeFilter | undefined {
-  let fromDate = parseDateQueryValue(fromDateRaw);
-  let toDate = parseDateQueryValue(toDateRaw);
-  if (!fromDate && !toDate) return undefined;
-
-  // Normalize accidental inverted windows by swapping endpoints.
-  if (fromDate && toDate && fromDate > toDate) {
-    const swap = fromDate;
-    fromDate = toDate;
-    toDate = swap;
-  }
-
-  const filter: Prisma.DateTimeFilter = {};
-  if (fromDate) {
-    filter.gte = fromDate;
-  }
-  if (toDate) {
-    // Treat "to" as inclusive of the selected day.
-    filter.lte = new Date(toDate.getTime() + (24 * 60 * 60 * 1000) - 1);
-  }
-  return filter;
+  return buildInclusiveCalendarDateFilter(fromDateRaw, toDateRaw);
 }
 
 function mergeDateFilters(base?: Prisma.DateTimeFilter, extra?: Prisma.DateTimeFilter): Prisma.DateTimeFilter | undefined {
