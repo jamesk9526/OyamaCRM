@@ -1162,7 +1162,12 @@ export function applyMergeTokens(value: string, vars: Record<string, string>): s
 
 export function htmlToPlainText(value: string): string {
   const listStack: Array<{ index: number; ordered: boolean }> = [];
-  const withListMarkers = value.replace(/<\s*(\/?)\s*(ul|ol|li)\b([^>]*)>/gi, (_tag, closingToken: string, rawTag: string, attributes: string) => {
+  // Email render documents include a scoped <style> block. It must never become
+  // visible prose when a rendered email is used as a printable-letter companion.
+  const contentOnly = value
+    .replace(/<\s*(style|script|noscript|template)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
+    .replace(/<!--([\s\S]*?)-->/g, "");
+  const withListMarkers = contentOnly.replace(/<\s*(\/?)\s*(ul|ol|li)\b([^>]*)>/gi, (_tag, closingToken: string, rawTag: string, attributes: string) => {
     const closing = closingToken === "/";
     const tag = rawTag.toLowerCase();
     if (tag === "ul" || tag === "ol") {

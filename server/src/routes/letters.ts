@@ -1238,6 +1238,13 @@ export class LetterPdfLayoutError extends Error {
   }
 }
 
+/** Removes a legacy email stylesheet that older conversions accidentally stored as visible letter text. */
+function removeLegacyEmailCssFromLetterBody(value: string | null): string | null {
+  if (!value || !value.trimStart().startsWith(".oyama-email-root")) return value;
+  const cleaned = value.replace(/^\s*\.oyama-email-root[\s\S]*?\}\s*(?=[A-Z<])/u, "");
+  return cleaned === value ? value : cleaned;
+}
+
 interface PdfTableCell {
   text: string;
   header: boolean;
@@ -3416,7 +3423,9 @@ router.get("/templates/:id", requirePermission("letters.view"), async (req, res)
       return;
     }
 
-    res.json(template);
+    // Older email-to-letter conversions could persist the email stylesheet as prose.
+    // Serve a safe repair immediately; saving the reviewed letter then persists the clean content.
+    res.json({ ...template, printBody: removeLegacyEmailCssFromLetterBody(template.printBody) });
   } catch (error) {
     if (isSchemaDriftError(error)) {
       res.status(503).json({
