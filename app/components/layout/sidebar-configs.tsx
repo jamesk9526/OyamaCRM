@@ -220,6 +220,14 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           description: "Create, print, and manage donor letters and printable mail workflows.",
         },
         {
+          id: "template-convert",
+          label: "Template Convert",
+          href: "/template-convert",
+          icon: DONOR_ICONS.letters,
+          kind: "communication_tool" as const,
+          description: "Review and create accurate email and letter companions without replacing the source template.",
+        },
+        {
           id: "steward-paths",
           label: "Steward Paths",
           href: "/steward-paths",

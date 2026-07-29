@@ -15,6 +15,7 @@ import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
 import CRMFilterBar from "@/app/components/ui/crm/CRMFilterBar";
 import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 import { apiFetch } from "@/app/lib/auth-client";
+import ConstituentMergeModal from "@/app/components/constituents/ConstituentMergeModal";
 
 type ConstituentsPageResponse = {
   items: ConstituentRow[];
@@ -46,6 +47,7 @@ export default function ConstituentsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [summary, setSummary] = useState<ConstituentsPageResponse["summary"]>(undefined);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showMergeModal, setShowMergeModal] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -229,6 +231,12 @@ export default function ConstituentsPage() {
     setStatusFilter("");
   }
 
+  function handleMerged(keepId: string) {
+    setShowMergeModal(false);
+    setSelectedIds([]);
+    window.location.href = `/constituents/${keepId}`;
+  }
+
   return (
     <EnterprisePageShell
       ribbon={(
@@ -410,6 +418,15 @@ export default function ConstituentsPage() {
             >
               Letter Template
             </button>
+            {selectedIds.length >= 2 ? (
+              <button
+                type="button"
+                onClick={() => setShowMergeModal(true)}
+                className="rounded-[2px] border border-[#0f6cbd] bg-white px-3 py-2 text-xs font-semibold text-[#0f548c] hover:bg-[#deecf9]"
+              >
+                Merge constituents
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setSelectedIds([])}
@@ -419,6 +436,14 @@ export default function ConstituentsPage() {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {showMergeModal ? (
+        <ConstituentMergeModal
+          constituents={getSelectionByIds(selectedIds)}
+          onClose={() => setShowMergeModal(false)}
+          onMerged={handleMerged}
+        />
       ) : null}
 
       <CRMDataTable>

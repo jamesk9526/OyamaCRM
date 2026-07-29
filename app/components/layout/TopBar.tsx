@@ -1446,7 +1446,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           {isDonorEnterpriseChrome ? (
             <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-[2px] px-1 py-1 text-white transition-colors hover:bg-white/[0.07]" aria-label="Go to OyamaCRM v1.3 home">
               <span className="text-[15px] font-bold tracking-[-0.035em]">OyamaCRM</span>
-              <span className="rounded-[2px] bg-white/[0.1] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-[#cfe4fa] ring-1 ring-white/10">v1.3</span>
+              <span className="rounded-[2px] bg-white/[0.1] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-[#cfe4fa] ring-1 ring-white/10">v1.31b</span>
             </Link>
           ) : (
           <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-2 py-1 transition-[top,opacity,background-color,border-color] ${shellMotionClass} hover:opacity-90 ${scrolled ? "top-2.5" : "top-4"}`} aria-label="Go to workspace home">
@@ -1485,7 +1485,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               {/* ── TopBar Brand ── */}
               <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v1.3 home">
                 {isDonorEnterpriseChrome ? (
-                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v1.3</span></span>
+                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v1.31b</span></span>
                 ) : (
                   <Image
                     src={OYAMA_PRODUCT_LOGO}

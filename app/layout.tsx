@@ -4,16 +4,17 @@ import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
 import { PluginProvider } from "./components/plugins/PluginProvider";
 import PWARegister from "./components/pwa/PWARegister";
+import ReleaseUpdateBanner from "./components/layout/ReleaseUpdateBanner";
 
 export const metadata: Metadata = {
-  title: "OyamaCRM v1.3",
+  title: "OyamaCRM v1.31b",
   description: "Nonprofit Donor Management",
-  applicationName: "OyamaCRM v1.3",
+  applicationName: "OyamaCRM v1.31b",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "OyamaCRM v1.3",
+    title: "OyamaCRM v1.31b",
   },
   formatDetection: {
     telephone: false,
@@ -66,6 +67,7 @@ export default function RootLayout({
         <AuthProvider>
           <PluginProvider>
             <AppShell>{children}</AppShell>
+            <ReleaseUpdateBanner />
           </PluginProvider>
         </AuthProvider>
       </body>

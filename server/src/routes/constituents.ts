@@ -2036,15 +2036,88 @@ router.post("/import/:runId/rollback", requirePermission("import:data"), async (
   res.json({ runId, rolledBackAt, ...rollbackSummary });
 });
 
-/** POST /api/constituents/merge — Review-approved merge of one duplicate constituent into a kept record. */
+type MergeSnapshot = {
+  record: Record<string, unknown>;
+  tagIds: string[];
+};
+
+const constituentMergeScalarFields = [
+  "id", "organizationId", "type", "donorStatus", "prefix", "firstName", "lastName", "displayName", "organizationName",
+  "contactFirstName", "contactLastName", "contactTitle", "entityKind", "organizationCategory", "email", "email2", "phone", "phone2",
+  "mobile", "addressLine1", "addressLine2", "city", "state", "zip", "country", "birthDate", "employer", "occupation", "notes",
+  "avatarUrl", "externalId", "householdId", "isPrimaryContact", "doNotEmail", "doNotCall", "doNotMail", "doNotContact", "emailOptOut",
+  "totalLifetimeGiving", "totalYtdGiving", "firstGiftDate", "lastGiftDate", "lastGiftAmount", "giftCount", "engagementScore", "createdAt",
+] as const;
+
+function createMergeSnapshot(constituent: Record<string, unknown> & { tags?: Array<{ tagId: string }> }): MergeSnapshot {
+  const record: Record<string, unknown> = {};
+  for (const key of constituentMergeScalarFields) {
+    const value = constituent[key];
+    record[key] = value instanceof Date ? value.toISOString() : value == null ? value : String(value);
+  }
+  for (const key of ["isPrimaryContact", "doNotEmail", "doNotCall", "doNotMail", "doNotContact", "emailOptOut", "giftCount", "engagementScore"] as const) {
+    record[key] = constituent[key];
+  }
+  return { record, tagIds: constituent.tags?.map((tag) => tag.tagId) ?? [] };
+}
+
+function mergeSnapshotToData(snapshot: MergeSnapshot, includeId: boolean): Prisma.ConstituentUncheckedCreateInput | Prisma.ConstituentUncheckedUpdateInput {
+  const record = snapshot.record;
+  const date = (key: string) => typeof record[key] === "string" ? new Date(record[key] as string) : null;
+  const amount = (key: string) => record[key] == null ? null : Number(record[key]);
+  const data: Record<string, unknown> = {};
+  for (const key of constituentMergeScalarFields) {
+    if (key === "id" || key === "createdAt") continue;
+    data[key] = record[key];
+  }
+  if (includeId) data.id = record.id;
+  for (const key of ["birthDate", "firstGiftDate", "lastGiftDate"] as const) data[key] = date(key);
+  data.lastGiftAmount = amount("lastGiftAmount");
+  data.totalLifetimeGiving = Number(record.totalLifetimeGiving ?? 0);
+  data.totalYtdGiving = Number(record.totalYtdGiving ?? 0);
+  return data as Prisma.ConstituentUncheckedCreateInput | Prisma.ConstituentUncheckedUpdateInput;
+}
+
+const mergeRelationNames = [
+  "donation", "pledge", "task", "meeting", "activity", "eventAttendance", "eventOrder", "eventGuest", "eventSponsor", "volunteerHour",
+  "stewardPathEnrollment", "stewardPathEmailDraft", "generatedLetter", "emailSubscription", "emailSuppression", "emailConsentEvent", "emailSendRecipient", "compassionClient",
+] as const;
+type MergeRelationName = typeof mergeRelationNames[number];
+type MergeRelationSnapshot = { sourceId: string; relation: MergeRelationName; ids: string[] };
+
+async function moveMergeRelations(tx: Prisma.TransactionClient, sourceId: string, targetId: string, onlyIds?: Partial<Record<MergeRelationName, string[]>>) {
+  const where = (relation: MergeRelationName) => ({ constituentId: sourceId, ...(onlyIds?.[relation] ? { id: { in: onlyIds[relation] } } : {}) });
+  await tx.donation.updateMany({ where: where("donation"), data: { constituentId: targetId } });
+  await tx.pledge.updateMany({ where: where("pledge"), data: { constituentId: targetId } });
+  await tx.task.updateMany({ where: where("task"), data: { constituentId: targetId } });
+  await tx.meeting.updateMany({ where: where("meeting"), data: { constituentId: targetId } });
+  await tx.activity.updateMany({ where: where("activity"), data: { constituentId: targetId } });
+  await tx.eventAttendance.updateMany({ where: where("eventAttendance"), data: { constituentId: targetId } });
+  await tx.eventOrder.updateMany({ where: where("eventOrder"), data: { constituentId: targetId } });
+  await tx.eventGuest.updateMany({ where: where("eventGuest"), data: { constituentId: targetId } });
+  await tx.eventSponsor.updateMany({ where: where("eventSponsor"), data: { constituentId: targetId } });
+  await tx.volunteerHour.updateMany({ where: where("volunteerHour"), data: { constituentId: targetId } });
+  await tx.stewardPathEnrollment.updateMany({ where: where("stewardPathEnrollment"), data: { constituentId: targetId } });
+  await tx.stewardPathEmailDraft.updateMany({ where: where("stewardPathEmailDraft"), data: { constituentId: targetId } });
+  await tx.generatedLetter.updateMany({ where: where("generatedLetter"), data: { constituentId: targetId } });
+  await tx.emailSubscription.updateMany({ where: where("emailSubscription"), data: { constituentId: targetId } });
+  await tx.emailSuppression.updateMany({ where: where("emailSuppression"), data: { constituentId: targetId } });
+  await tx.emailConsentEvent.updateMany({ where: where("emailConsentEvent"), data: { constituentId: targetId } });
+  await tx.emailSendRecipient.updateMany({ where: where("emailSendRecipient"), data: { constituentId: targetId } });
+  await tx.compassionClient.updateMany({ where: where("compassionClient"), data: { constituentId: targetId } });
+}
+
+/** POST /api/constituents/merge — review-approved, reversible merge of selected duplicates. */
 router.post("/merge", async (req, res) => {
-  const { keepId, mergeId, mergedFields } = req.body as {
+  const { keepId, mergeId, mergeIds, mergedFields } = req.body as {
     keepId?: string;
     mergeId?: string;
+    mergeIds?: string[];
     mergedFields?: Record<string, unknown>;
   };
-  if (!keepId || !mergeId || keepId === mergeId) {
-    res.status(400).json({ error: { code: "INVALID_MERGE", message: "Keep and merge constituent IDs are required." } });
+  const sourceIds = Array.from(new Set((Array.isArray(mergeIds) ? mergeIds : [mergeId]).filter((id): id is string => typeof id === "string" && id.length > 0)));
+  if (!keepId || sourceIds.length === 0 || sourceIds.includes(keepId)) {
+    res.status(400).json({ error: { code: "INVALID_MERGE", message: "Choose one record to keep and at least one different record to merge." } });
     return;
   }
 
@@ -2054,11 +2127,10 @@ router.post("/merge", async (req, res) => {
     return;
   }
 
-  const [keep, source] = await Promise.all([
-    prisma.constituent.findFirst({ where: { id: keepId, organizationId }, include: { tags: true } }),
-    prisma.constituent.findFirst({ where: { id: mergeId, organizationId }, include: { tags: true } }),
-  ]);
-  if (!keep || !source) {
+  const records = await prisma.constituent.findMany({ where: { id: { in: [keepId, ...sourceIds] }, organizationId }, include: { tags: true } });
+  const keep = records.find((record) => record.id === keepId);
+  const sources = sourceIds.map((sourceId) => records.find((record) => record.id === sourceId)).filter((record): record is NonNullable<typeof record> => Boolean(record));
+  if (!keep || sources.length !== sourceIds.length) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "One or both constituents were not found." } });
     return;
   }
@@ -2083,66 +2155,55 @@ router.post("/merge", async (req, res) => {
     return allowedStatuses.includes(normalized as DonorStatus) ? (normalized as DonorStatus) : undefined;
   })();
 
-  await prisma.$transaction(async (tx) => {
+  const mergeAuditId = await prisma.$transaction(async (tx) => {
     const fill = <T>(current: T | null | undefined, incoming: T | null | undefined): T | undefined => {
       if (current !== null && current !== undefined && String(current).trim() !== "") return undefined;
       return incoming !== null && incoming !== undefined && String(incoming).trim() !== "" ? incoming : undefined;
     };
 
-    await tx.constituent.update({
+    const keepSnapshot = createMergeSnapshot(keep as unknown as Record<string, unknown> & { tags: Array<{ tagId: string }> });
+    const sourceSnapshots = sources.map((source) => createMergeSnapshot(source as unknown as Record<string, unknown> & { tags: Array<{ tagId: string }> }));
+    const relationSnapshots: MergeRelationSnapshot[] = [];
+    for (const source of sources) {
+      const relationIds = await Promise.all([
+        tx.donation.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.pledge.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.task.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.meeting.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.activity.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.eventAttendance.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.eventOrder.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.eventGuest.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.eventSponsor.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.volunteerHour.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.stewardPathEnrollment.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.stewardPathEmailDraft.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.generatedLetter.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.emailSubscription.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.emailSuppression.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.emailConsentEvent.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.emailSendRecipient.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.compassionClient.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+      ]);
+      relationIds.forEach((ids, index) => relationSnapshots.push({ sourceId: source.id, relation: mergeRelationNames[index], ids: ids.map((item) => item.id) }));
+    }
+
+    let workingKeep = keep;
+    for (const source of sources) {
+      await tx.constituent.update({
       where: { id: keep.id },
       data: {
-        firstName: mergedString("firstName") ?? keep.firstName,
-        lastName: mergedString("lastName") ?? keep.lastName,
-        donorStatus: mergedDonorStatus ?? keep.donorStatus,
-        email2: fill(keep.email2, source.email2),
-        phone: mergedString("phone") ?? fill(keep.phone, source.phone),
-        phone2: fill(keep.phone2, source.phone2),
-        mobile: fill(keep.mobile, source.mobile),
-        addressLine1: fill(keep.addressLine1, source.addressLine1),
-        addressLine2: fill(keep.addressLine2, source.addressLine2),
-        city: mergedString("city") ?? fill(keep.city, source.city),
-        state: mergedString("state") ?? fill(keep.state, source.state),
-        zip: fill(keep.zip, source.zip),
-        employer: fill(keep.employer, source.employer),
-        occupation: fill(keep.occupation, source.occupation),
-        externalId: fill(keep.externalId, source.externalId),
-        email: mergedString("email") ?? fill(keep.email, source.email),
-        doNotEmail: keep.doNotEmail || source.doNotEmail,
-        doNotCall: keep.doNotCall || source.doNotCall,
-        doNotMail: keep.doNotMail || source.doNotMail,
-        doNotContact: keep.doNotContact || source.doNotContact,
-        emailOptOut: keep.emailOptOut || source.emailOptOut,
-        notes: [keep.notes, source.notes ? `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}):\n${source.notes}` : `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}).`].filter(Boolean).join("\n\n"),
+        firstName: mergedString("firstName") ?? workingKeep.firstName, lastName: mergedString("lastName") ?? workingKeep.lastName, donorStatus: mergedDonorStatus ?? workingKeep.donorStatus,
+        email2: fill(workingKeep.email2, source.email2), phone: mergedString("phone") ?? fill(workingKeep.phone, source.phone), phone2: fill(workingKeep.phone2, source.phone2), mobile: fill(workingKeep.mobile, source.mobile),
+        addressLine1: fill(workingKeep.addressLine1, source.addressLine1), addressLine2: fill(workingKeep.addressLine2, source.addressLine2), city: mergedString("city") ?? fill(workingKeep.city, source.city), state: mergedString("state") ?? fill(workingKeep.state, source.state), zip: fill(workingKeep.zip, source.zip), employer: fill(workingKeep.employer, source.employer), occupation: fill(workingKeep.occupation, source.occupation), externalId: fill(workingKeep.externalId, source.externalId), email: mergedString("email") ?? fill(workingKeep.email, source.email),
+        doNotEmail: workingKeep.doNotEmail || source.doNotEmail, doNotCall: workingKeep.doNotCall || source.doNotCall, doNotMail: workingKeep.doNotMail || source.doNotMail, doNotContact: workingKeep.doNotContact || source.doNotContact, emailOptOut: workingKeep.emailOptOut || source.emailOptOut,
+        totalLifetimeGiving: { increment: source.totalLifetimeGiving }, totalYtdGiving: { increment: source.totalYtdGiving }, giftCount: { increment: source.giftCount },
+        firstGiftDate: !workingKeep.firstGiftDate || (source.firstGiftDate && source.firstGiftDate < workingKeep.firstGiftDate) ? source.firstGiftDate ?? workingKeep.firstGiftDate : workingKeep.firstGiftDate,
+        lastGiftDate: !workingKeep.lastGiftDate || (source.lastGiftDate && source.lastGiftDate > workingKeep.lastGiftDate) ? source.lastGiftDate ?? workingKeep.lastGiftDate : workingKeep.lastGiftDate,
+        lastGiftAmount: !workingKeep.lastGiftDate || (source.lastGiftDate && source.lastGiftDate > workingKeep.lastGiftDate) ? source.lastGiftAmount : workingKeep.lastGiftAmount,
+        notes: [workingKeep.notes, source.notes ? `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}):\n${source.notes}` : `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}).`].filter(Boolean).join("\n\n"),
       },
     });
-
-    for (const tag of source.tags) {
+      for (const tag of source.tags) {
       await tx.constituentTag.upsert({
         where: { constituentId_tagId: { constituentId: keep.id, tagId: tag.tagId } },
         update: {},
         create: { constituentId: keep.id, tagId: tag.tagId },
       });
     }
-
-    await tx.donation.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.pledge.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.task.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.meeting.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.activity.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.eventAttendance.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.eventOrder.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.eventGuest.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.eventSponsor.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.volunteerHour.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.stewardPathEnrollment.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.stewardPathEmailDraft.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.generatedLetter.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.emailSubscription.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.emailSuppression.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.emailConsentEvent.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.emailSendRecipient.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
-    await tx.compassionClient.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+      await moveMergeRelations(tx, source.id, keep.id);
+      await tx.constituentGroupMember.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
     await tx.constituentTag.deleteMany({ where: { constituentId: source.id } });
     await tx.constituent.delete({ where: { id: source.id } });
     await tx.activity.create({
@@ -2153,6 +2214,10 @@ router.post("/merge", async (req, res) => {
         metadata: { source: "contacts-manager:duplicate-merge", mergedConstituentId: source.id },
       },
     });
+      workingKeep = { ...workingKeep, email: workingKeep.email || source.email, phone: workingKeep.phone || source.phone };
+    }
+    const audit = await tx.auditLog.create({ data: { organizationId, userId: req.user?.sub, action: "CONSTITUENT_MERGED", entity: "Constituent", entityId: keep.id, metadata: { version: 1, keepSnapshot, sourceSnapshots, relationSnapshots, sourceIds, undoAvailable: true } as unknown as Prisma.InputJsonValue } });
+    return audit.id;
   });
 
   logAudit({
@@ -2162,16 +2227,61 @@ router.post("/merge", async (req, res) => {
     userId: req.user?.sub,
     organizationId,
     metadata: {
-      mergedConstituentId: source.id,
+      mergedConstituentIds: sourceIds,
       keptName: `${keep.firstName} ${keep.lastName}`,
-      mergedName: `${source.firstName} ${source.lastName}`,
+      mergedCount: sourceIds.length,
       mergedFieldKeys: Object.keys(mergedFieldValues),
     },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
 
-  res.json({ merged: true, keepId: keep.id, mergeId: source.id });
+  res.json({ merged: true, keepId: keep.id, mergeIds: sourceIds, mergeAuditId });
+});
+
+/** GET /api/constituents/merge-history/:id — most recent reversible merge for the profile. */
+router.get("/merge-history/:id", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) return res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+  const merge = await prisma.auditLog.findFirst({ where: { organizationId, entity: "Constituent", entityId: req.params.id, action: "CONSTITUENT_MERGED" }, orderBy: { createdAt: "desc" } });
+  const metadata = merge?.metadata as { undoAvailable?: boolean; sourceIds?: string[]; undoneAt?: string } | null;
+  if (!merge || !metadata?.undoAvailable || metadata.undoneAt) return res.json({ merge: null });
+  return res.json({ merge: { id: merge.id, sourceCount: metadata.sourceIds?.length ?? 0, mergedAt: merge.createdAt } });
+});
+
+/** POST /api/constituents/merge-history/:mergeAuditId/undo — restore the profiles and linked history from the merge snapshot. */
+router.post("/merge-history/:mergeAuditId/undo", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) return res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+  const audit = await prisma.auditLog.findFirst({ where: { id: req.params.mergeAuditId, organizationId, action: "CONSTITUENT_MERGED", entity: "Constituent" } });
+  const metadata = audit?.metadata as { keepSnapshot?: MergeSnapshot; sourceSnapshots?: MergeSnapshot[]; relationSnapshots?: MergeRelationSnapshot[]; undoAvailable?: boolean; undoneAt?: string } | null;
+  if (!audit || !metadata?.undoAvailable || metadata.undoneAt || !metadata.keepSnapshot || !Array.isArray(metadata.sourceSnapshots) || !Array.isArray(metadata.relationSnapshots)) {
+    return res.status(404).json({ error: { code: "MERGE_NOT_REVERSIBLE", message: "This merge is not available to undo." } });
+  }
+  const keepId = String(metadata.keepSnapshot.record.id ?? audit.entityId ?? "");
+  const sourceIds = metadata.sourceSnapshots.map((snapshot) => String(snapshot.record.id)).filter(Boolean);
+  const existingSources = await prisma.constituent.count({ where: { id: { in: sourceIds }, organizationId } });
+  if (existingSources > 0) return res.status(409).json({ error: { code: "UNDO_CONFLICT", message: "One or more original profiles already exist. The merge cannot be safely undone." } });
+
+  await prisma.$transaction(async (tx) => {
+    const keep = await tx.constituent.findFirst({ where: { id: keepId, organizationId } });
+    if (!keep) throw new Error("The resulting constituent profile no longer exists.");
+    await tx.constituent.update({ where: { id: keepId }, data: mergeSnapshotToData(metadata.keepSnapshot!, false) as Prisma.ConstituentUncheckedUpdateInput });
+    for (const snapshot of metadata.sourceSnapshots!) {
+      await tx.constituent.create({ data: mergeSnapshotToData(snapshot, true) as Prisma.ConstituentUncheckedCreateInput });
+    }
+    await tx.constituentTag.deleteMany({ where: { constituentId: { in: [keepId, ...sourceIds] } } });
+    const tagRows = [metadata.keepSnapshot!, ...metadata.sourceSnapshots!].flatMap((snapshot) => snapshot.tagIds.map((tagId) => ({ constituentId: String(snapshot.record.id), tagId })));
+    if (tagRows.length) await tx.constituentTag.createMany({ data: tagRows, skipDuplicates: true });
+    for (const sourceId of sourceIds) {
+      const relationIds = Object.fromEntries(metadata.relationSnapshots!.filter((item) => item.sourceId === sourceId).map((item) => [item.relation, item.ids])) as Partial<Record<MergeRelationName, string[]>>;
+      await moveMergeRelations(tx, keepId, sourceId, relationIds);
+    }
+    await tx.auditLog.update({ where: { id: audit.id }, data: { metadata: { ...metadata, undoAvailable: false, undoneAt: new Date().toISOString(), undoneByUserId: req.user?.sub } as unknown as Prisma.InputJsonValue } });
+    await tx.activity.create({ data: { constituentId: keepId, type: "NOTE", description: `Restored ${sourceIds.length} constituent profile${sourceIds.length === 1 ? "" : "s"} by undoing a duplicate merge.`, metadata: { source: "contacts-manager:duplicate-merge-undo", mergeAuditId: audit.id } } });
+  });
+  logAudit({ action: "CONSTITUENT_MERGE_UNDONE", entity: "Constituent", entityId: keepId, userId: req.user?.sub, organizationId, metadata: { mergeAuditId: audit.id, restoredConstituentIds: sourceIds }, ipAddress: req.ip, userAgent: req.headers["user-agent"] });
+  return res.json({ undone: true, keepId, restoredConstituentIds: sourceIds });
 });
 
 

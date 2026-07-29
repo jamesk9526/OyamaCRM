@@ -6,7 +6,7 @@
 import React from "react";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const VERSION = "1.3";
+const VERSION = "1.31b";
 
 /** A soft-ruled section divider with a title. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

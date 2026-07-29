@@ -7,6 +7,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { recordWatchdogSecurityEvent } from "../services/watchdog-store.js";
+import { sendOrganizationEmail } from "../services/smtp-service.js";
 
 const router = Router();
 
@@ -333,6 +334,31 @@ router.post("/submit", requireAuth, requirePermission("feedback.submit"), async 
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
+
+  // Support notification is deliberately best-effort: ticket persistence and the in-app queue
+  // remain the source of truth if an organization has not configured an email provider yet.
+  try {
+    await sendOrganizationEmail({
+      organizationId,
+      to: "contact@jamesnox.com",
+      subject: `[OyamaCRM ${created.priority}] ${created.ticketNumber}: ${created.type}`,
+      text: [
+        `A new OyamaCRM feedback ticket was submitted: ${created.ticketNumber}`,
+        `Type: ${created.type}`,
+        `Priority: ${created.priority}`,
+        `Scope: ${created.crmScope}`,
+        `Page: ${created.pageUrl}`,
+        `Submitted by: ${submittedByName || "Unknown"} (${user?.email ?? "no email"})`,
+        "",
+        normalized.whatHappened || normalized.featureProblem || "No description provided.",
+        "",
+        "Review the ticket in OyamaWatchdog for its full, auditable context.",
+      ].join("\n"),
+      fromNameOverride: "OyamaCRM Support",
+    });
+  } catch (notificationError) {
+    console.warn(`[feedback] Ticket ${created.ticketNumber} saved, but support notification could not be sent.`, notificationError instanceof Error ? notificationError.message : notificationError);
+  }
 
   try {
     await recordWatchdogSecurityEvent({

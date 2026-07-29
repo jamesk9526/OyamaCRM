@@ -138,6 +138,8 @@ interface ConstituentDetail {
   household?: HouseholdData;
 }
 
+type ReversibleMerge = { id: string; sourceCount: number; mergedAt: string };
+
 type TabKey =
   | "overview"
   | "giving"
@@ -158,6 +160,8 @@ export default function ConstituentDetailPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [deletingDonationId, setDeletingDonationId] = useState<string | null>(null);
+  const [reversibleMerge, setReversibleMerge] = useState<ReversibleMerge | null>(null);
+  const [undoingMerge, setUndoingMerge] = useState(false);
 
   const isHousehold = constituent?.type === "HOUSEHOLD";
 
@@ -189,6 +193,27 @@ export default function ConstituentDetailPage() {
     }
     load();
   }, [id]);
+
+  useEffect(() => {
+    apiFetch<{ merge: ReversibleMerge | null }>(`/api/constituents/merge-history/${id}`)
+      .then((data) => setReversibleMerge(data.merge))
+      .catch(() => setReversibleMerge(null));
+  }, [id]);
+
+  async function handleUndoMerge() {
+    if (!reversibleMerge || !confirm("Undo this merge? The original constituent profiles and their linked records will be restored.")) return;
+    setUndoingMerge(true);
+    try {
+      await apiFetch(`/api/constituents/merge-history/${reversibleMerge.id}/undo`, { method: "POST" });
+      setReversibleMerge(null);
+      const refreshed = await apiFetch<ConstituentDetail>(`/api/constituents/${id}`);
+      setConstituent(refreshed);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "The merge could not be undone.");
+    } finally {
+      setUndoingMerge(false);
+    }
+  }
 
   async function handleDeleteDonation(donationId: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
@@ -298,6 +323,15 @@ export default function ConstituentDetailPage() {
       description={`${typeLabel(c.type)} · ${statusLabel(c.donorStatus)}`}
     >
       <div className="space-y-4 pb-8">
+        {reversibleMerge ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">This profile includes a recently merged duplicate record.</p>
+              <p className="mt-0.5 text-xs text-amber-800">{reversibleMerge.sourceCount} original profile{reversibleMerge.sourceCount === 1 ? " is" : "s are"} recoverable with linked history intact.</p>
+            </div>
+            <button type="button" onClick={handleUndoMerge} disabled={undoingMerge} className="shrink-0 rounded-[3px] border border-amber-700 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60">{undoingMerge ? "Restoring…" : "Undo merge"}</button>
+          </div>
+        ) : null}
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm text-gray-500">
           <Link href="/constituents" className="hover:text-indigo-600 transition-colors">Constituents</Link>

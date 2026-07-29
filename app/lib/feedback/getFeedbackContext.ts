@@ -27,7 +27,8 @@ function readBrowserDescriptor(): string {
 function readDeviceDescriptor(): string {
   if (typeof navigator === "undefined" || typeof window === "undefined") return "unknown";
   const platform = navigator.platform || "unknown";
-  return `${platform}; viewport=${window.innerWidth}x${window.innerHeight}`.slice(0, 380);
+  const connection = "connection" in navigator ? (navigator as Navigator & { connection?: { effectiveType?: string } }).connection?.effectiveType : undefined;
+  return `${platform}; viewport=${window.innerWidth}x${window.innerHeight}; dpr=${window.devicePixelRatio || 1}${connection ? `; network=${connection}` : ""}`.slice(0, 380);
 }
 
 /**
@@ -46,7 +47,7 @@ export function getFeedbackContext(params: {
     pageUrl: href || `https://oyamacrm.local${params.pathname || "/"}`,
     routePath: params.pathname || "/",
     pageTitle: pageTitle || "Untitled page",
-    browserInfo: readBrowserDescriptor(),
+    browserInfo: `${readBrowserDescriptor()}; language=${typeof navigator !== "undefined" ? navigator.language : "unknown"}`.slice(0, 380),
     deviceInfo: readDeviceDescriptor(),
     appVersion: process.env.NEXT_PUBLIC_APP_VERSION ?? "dev",
     environment: process.env.NODE_ENV ?? "development",
