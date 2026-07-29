@@ -1,166 +1,78 @@
-// ProjectorDisplayView renders audience-safe content for the trivia display window.
+// Audience-safe animated display package for live Trivia events.
 
+import type { ReactNode } from "react";
 import type { TriviaEvent, TriviaLiveState } from "@/app/apps/trivia/lib/trivia-types";
 import { getActiveQuestion, getActiveRound, getSortedTeams, getWinnerTeam } from "@/app/apps/trivia/lib/trivia-selectors";
 
 interface ProjectorDisplayViewProps {
-  /** Event data used for display-safe rendering. */
   event: TriviaEvent;
-  /** Live runtime state controlled by host actions. */
   live: TriviaLiveState;
 }
 
-/**
- * ProjectorDisplayView intentionally excludes host-only data such as notes and scoring controls.
- * It is optimized for high-contrast, large-screen readability.
- */
+function ProjectorFrame({ event, live, eyebrow, children, tone = "cyan" }: { event: TriviaEvent; live: TriviaLiveState; eyebrow: string; children: ReactNode; tone?: "cyan" | "violet" | "amber" | "rose" }) {
+  return (
+    <main className={`trivia-projector trivia-projector-${tone} ${event.displaySettings.highContrast ? "is-high-contrast" : ""}`}>
+      <div className="trivia-projector-grid" aria-hidden="true" />
+      <div className="trivia-projector-orb trivia-projector-orb-one" aria-hidden="true" />
+      <div className="trivia-projector-orb trivia-projector-orb-two" aria-hidden="true" />
+      <header className="trivia-projector-brand"><div className="trivia-projector-mark">T</div><div><strong>{event.name}</strong><span>{event.venue || "Live trivia event"}</span></div><p>{eyebrow}</p></header>
+      <section key={`${live.stage}-${live.activeRoundId}-${live.activeQuestionIndex}`} className="trivia-projector-stage">{children}</section>
+      <footer className="trivia-projector-footer"><span>OYAMA TRIVIA</span><i /><span>{live.projectorConnectionStatus === "connected" ? "LIVE DISPLAY" : "EVENT DISPLAY"}</span></footer>
+    </main>
+  );
+}
+
+function Timer({ live, compact = false }: { live: TriviaLiveState; compact?: boolean }) {
+  const urgent = live.timerRemainingSec <= 10;
+  return <div className={`trivia-projector-timer ${compact ? "is-compact" : ""} ${urgent ? "is-urgent" : ""} ${live.timerRunning ? "is-running" : ""}`}><span>Time</span><strong>{live.timerRemainingSec}</strong><small>seconds</small></div>;
+}
+
+/** Excludes scoring answers and host notes while rendering every public stage. */
 export default function ProjectorDisplayView({ event, live }: ProjectorDisplayViewProps) {
   const round = getActiveRound(event, live);
   const question = getActiveQuestion(event, live);
   const teams = getSortedTeams(event.teams);
   const winner = getWinnerTeam(event, live);
-  const showTimer = event.displaySettings.showTimerOnQuestion;
-  const showTeamColors = event.displaySettings.showTeamColors;
 
-  if (live.stage === "blank") {
-    return <section className="min-h-screen bg-black" />;
-  }
+  if (live.stage === "blank") return <main className="min-h-screen bg-black" aria-label="Projector intentionally blank" />;
 
   if (live.stage === "welcome") {
-    return (
-      <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-emerald-950 via-slate-950 to-black text-white">
-        <p className="text-sm uppercase tracking-[0.2em] text-emerald-300">Welcome</p>
-        <h1 className="text-6xl font-bold mt-4">{event.name}</h1>
-        <p className="text-2xl mt-4 text-slate-300">Hosted by {event.hostName || "Trivia Host"}</p>
-        <p className="text-lg mt-2 text-slate-400">Venue: {event.venue || "Main Room"}</p>
-      </section>
-    );
+    return <ProjectorFrame event={event} live={live} eyebrow="Welcome"><div className="trivia-projector-hero"><p>Tonight&apos;s event</p><h1>{event.name}</h1><div className="trivia-projector-rule" /><h2>Hosted by {event.hostName || "Your trivia host"}</h2><span>{event.venue || "Please find your table and get ready"}</span></div></ProjectorFrame>;
   }
 
   if (live.stage === "check_in_open" || live.stage === "check_in_closed") {
     const checkedIn = event.teams.filter((team) => team.checkInStatus === "checked_in" || team.checkInStatus === "late").length;
-    return <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-[#251b3f] via-[#3b2768] to-[#101018] text-white"><p className="text-sm uppercase tracking-[0.2em] text-[#d9cffa]">{live.stage === "check_in_open" ? "Check-in is open" : "Check-in is closed"}</p><h1 className="mt-4 text-6xl font-bold">{event.name}</h1><p className="mt-5 text-2xl text-[#f0ebff]">{live.stage === "check_in_open" ? "Please check in with the welcome table." : "Please take your seats. We begin shortly."}</p><div className="mt-10 border border-[#a78bfa]/50 bg-white/10 px-8 py-5"><p className="text-sm uppercase tracking-[0.16em] text-[#d9cffa]">Teams checked in</p><p className="mt-2 text-6xl font-bold">{checkedIn} / {event.teams.length}</p></div></section>;
+    return <ProjectorFrame event={event} live={live} eyebrow="Arrival" tone="violet"><div className="trivia-projector-hero"><p>{live.stage === "check_in_open" ? "Check-in is open" : "Check-in complete"}</p><h1>{live.stage === "check_in_open" ? "Welcome, teams" : "Take your seats"}</h1><h2>{live.stage === "check_in_open" ? "Please visit the welcome table before finding your seat." : "The first round begins shortly."}</h2><div className="trivia-projector-count"><strong>{checkedIn}</strong><span>of {event.teams.length} teams checked in</span></div></div></ProjectorFrame>;
   }
 
   if (live.stage === "round_intro") {
-    return (
-      <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-sky-950 via-slate-950 to-black text-white">
-        <p className="text-sm uppercase tracking-[0.2em] text-sky-300">Round Intro</p>
-        <h1 className="text-6xl font-bold mt-4">{round?.title || "Next Round"}</h1>
-        <p className="text-2xl mt-4 text-slate-200">{round?.description || "Get ready for the next set of questions."}</p>
-        <p className="text-lg mt-2 text-slate-400">Round type: {round?.roundType || "normal"}</p>
-      </section>
-    );
+    const roundNumber = Math.max(1, event.rounds.findIndex((item) => item.id === round?.id) + 1);
+    return <ProjectorFrame event={event} live={live} eyebrow={`Round ${roundNumber}`}><div className="trivia-projector-hero"><p>Up next</p><span className="trivia-projector-round-number">{String(roundNumber).padStart(2, "0")}</span><h1>{round?.title || "Next round"}</h1><h2>{round?.description || "Get ready for the next set of questions."}</h2><span>{round?.questions.length ?? 0} questions · {(round?.roundType || "normal").replaceAll("_", " ")}</span></div></ProjectorFrame>;
   }
 
   if (live.stage === "timer_only") {
-    return (
-      <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-slate-950 text-white">
-        <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Timer</p>
-        <h1 className="text-8xl font-bold mt-4 text-cyan-100">{live.timerRemainingSec}s</h1>
-        <p className="text-xl mt-4 text-slate-300">Time remaining</p>
-      </section>
-    );
+    return <ProjectorFrame event={event} live={live} eyebrow="Countdown"><div className="trivia-projector-timer-stage"><p>Answers in</p><Timer live={live} /></div></ProjectorFrame>;
   }
 
   if (live.stage === "break") {
-    return (
-      <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-black text-white">
-        <p className="text-sm uppercase tracking-[0.2em] text-emerald-300">Intermission</p>
-        <h1 className="text-6xl font-bold mt-4">Short Break</h1>
-        <p className="text-2xl mt-4 text-slate-300">Get ready for the next round.</p>
-      </section>
-    );
+    return <ProjectorFrame event={event} live={live} eyebrow="Intermission" tone="violet"><div className="trivia-projector-hero"><p>Take a moment</p><h1>Short break</h1><div className="trivia-projector-rule" /><h2>Refresh your drinks, check your scores, and get ready for the next round.</h2></div></ProjectorFrame>;
   }
 
   if (live.stage === "winner") {
-    return (
-      <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-fuchsia-900 via-indigo-900 to-black text-white">
-        <p className="text-sm uppercase tracking-[0.2em] text-fuchsia-200">Final Results</p>
-        <h1 className="text-6xl font-bold mt-4">{winner ? winner.name : "No Winner Yet"}</h1>
-        <p className="text-2xl mt-4 text-fuchsia-100">Champion of {event.name}</p>
-      </section>
-    );
+    return <ProjectorFrame event={event} live={live} eyebrow="Final results" tone="rose"><div className="trivia-projector-confetti" aria-hidden="true">{Array.from({ length: 18 }, (_, index) => <i key={index} style={{ "--confetti-index": index } as React.CSSProperties} />)}</div><div className="trivia-projector-winner"><p>Tonight&apos;s champions</p><div className="trivia-projector-crown">♛</div><h1>{winner?.name || "Winner pending"}</h1><h2>{winner ? `${winner.score} points` : "Select the winning team from the host panel"}</h2><span>{event.name}</span></div></ProjectorFrame>;
   }
 
   if (live.stage === "leaderboard") {
-    return (
-      <section className="min-h-screen p-10 bg-slate-950 text-white">
-        <header className="text-center mb-8">
-          <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Live Rankings</p>
-          <h1 className="text-5xl font-bold mt-3">Leaderboard</h1>
-        </header>
-        <div className="max-w-5xl mx-auto space-y-3">
-          {teams.map((team, index) => (
-            <div
-              key={team.id}
-              className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-6 py-4 flex items-center justify-between"
-              style={showTeamColors ? { borderColor: `${team.color}88`, backgroundColor: `${team.color}22` } : undefined}
-            >
-              <p className="text-2xl font-semibold">#{index + 1} {team.name}</p>
-              <p className="text-3xl font-bold text-cyan-200">{team.score}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
+    return <ProjectorFrame event={event} live={live} eyebrow="Live standings"><div className="trivia-projector-board"><div className="trivia-projector-title"><p>Current rankings</p><h1>Leaderboard</h1></div><div className="trivia-projector-rankings">{teams.length ? teams.slice(0, 10).map((team, index) => <div key={team.id} className={`trivia-projector-ranking ${index < 3 ? "is-podium" : ""}`} style={{ "--rank-delay": `${index * 70}ms`, ...(event.displaySettings.showTeamColors ? { borderColor: team.color } : {}) } as React.CSSProperties}><span>{index + 1}</span><strong>{team.name}</strong><em>{team.score}<small> pts</small></em></div>) : <div className="trivia-projector-empty">Teams will appear here after check-in.</div>}</div></div></ProjectorFrame>;
   }
 
-  if (live.stage === "answer") {
-    return (
-      <section className="min-h-screen flex flex-col justify-center p-10 bg-slate-950 text-white">
-        <div className="max-w-6xl mx-auto w-full">
-          <p className="text-sm uppercase tracking-[0.2em] text-emerald-300">Answer Reveal</p>
-          <h1 className="text-5xl font-bold mt-3">{question?.prompt || "No active question"}</h1>
-          <div className="mt-8 rounded-2xl border border-emerald-400/40 bg-emerald-500/15 p-6">
-            <p className="text-lg text-emerald-200">Answer</p>
-            <p className="text-4xl font-bold text-emerald-100 mt-2">{question?.audienceAnswer || "Not available"}</p>
-            {question?.revealText ? <p className="text-xl text-emerald-50 mt-3">{question.revealText}</p> : null}
-            {question?.explanation ? <p className="text-lg text-emerald-100/90 mt-3">{question.explanation}</p> : null}
-          </div>
-        </div>
-      </section>
-    );
+  if (live.stage === "answer" || live.stage === "explanation") {
+    return <ProjectorFrame event={event} live={live} eyebrow="Answer reveal" tone="violet"><div className="trivia-projector-answer"><p>{round?.title || "Current round"} · Question {live.activeQuestionIndex + 1}</p><h1>{question?.prompt || "No active question"}</h1><div className="trivia-projector-answer-card"><span>Correct answer</span><strong>{question?.audienceAnswer || question?.scoringAnswer || "Answer not available"}</strong>{question?.revealText ? <p>{question.revealText}</p> : null}{question?.explanation ? <small>{question.explanation}</small> : null}</div></div></ProjectorFrame>;
   }
 
-  const isFinalStyle = live.stage === "final_question";
-  const isTieBreakerStyle = live.stage === "tiebreaker";
+  const finalQuestion = live.stage === "final_question";
+  const tieBreaker = live.stage === "tiebreaker";
+  const questionLabel = finalQuestion ? "Final question" : tieBreaker ? "Tie breaker" : `Question ${live.activeQuestionIndex + 1}`;
 
-  return (
-    <section className="min-h-screen flex flex-col justify-center p-10 bg-slate-950 text-white">
-      <div className="max-w-6xl mx-auto w-full">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-emerald-300">{event.name}</p>
-            <h1 className="text-4xl font-semibold mt-2">
-              {isFinalStyle ? "Final Question" : isTieBreakerStyle ? "Tiebreaker" : round?.title || "Awaiting round"}
-            </h1>
-          </div>
-          {showTimer ? (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-5 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-emerald-200">Timer</p>
-              <p className="text-4xl font-bold text-emerald-100">{live.timerRemainingSec}s</p>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-10 rounded-3xl border border-slate-700 bg-slate-900/70 p-8">
-          <p className="text-sm text-slate-400">Question {live.activeQuestionIndex + 1} • {question?.questionType || "text"}</p>
-          <p className="text-5xl font-semibold mt-3 leading-tight">{question?.prompt || "No active question selected."}</p>
-          {question?.mediaUrl && question.questionType === "image" ? <img src={question.mediaUrl} alt="Question media" className="mt-6 max-h-[42vh] w-full rounded-xl border border-emerald-400/30 object-contain" /> : null}
-          {question?.mediaUrl && question.questionType === "audio" ? <div className="mt-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-5"><p className="text-lg font-semibold text-emerald-100">Listen to the audio clue</p><audio controls autoPlay src={question.mediaUrl} className="mt-3 w-full" /></div> : null}
-          {question?.mediaUrl && question.questionType === "video" ? <video controls autoPlay src={question.mediaUrl} className="mt-6 max-h-[42vh] w-full rounded-xl border border-emerald-400/30 bg-black" /> : null}
-          {question?.options?.length ? (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {question.options.map((option) => (
-                <div key={option} className="rounded-xl border border-slate-600 bg-slate-800/70 px-4 py-3 text-xl">
-                  {option}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
+  return <ProjectorFrame event={event} live={live} eyebrow={questionLabel} tone={finalQuestion || tieBreaker ? "amber" : "cyan"}><div className="trivia-projector-question"><header><div><p>{round?.title || "Awaiting round"}</p><h1>{questionLabel}</h1></div>{event.displaySettings.showTimerOnQuestion ? <Timer live={live} compact /> : null}</header><article className={question?.mediaUrl ? "has-media" : ""}><div><span>{question?.questionType?.replaceAll("_", " ") || "text"}</span><h2>{question?.prompt || "No active question selected."}</h2>{question?.options?.length ? <div className="trivia-projector-options">{question.options.map((option, index) => <div key={`${index}-${option}`}><b>{String.fromCharCode(65 + index)}</b><p>{option}</p></div>)}</div> : null}</div>{question?.mediaUrl ? <div className="trivia-projector-media">{question.questionType === "image" ? <img src={question.mediaUrl} alt="Question visual clue" /> : null}{question.questionType === "audio" ? <div className="trivia-projector-audio"><span>♫</span><p>Listen to the audio clue</p><audio controls autoPlay src={question.mediaUrl} /></div> : null}{question.questionType === "video" ? <video controls autoPlay src={question.mediaUrl} /> : null}</div> : null}</article></div></ProjectorFrame>;
 }

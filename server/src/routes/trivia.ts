@@ -29,6 +29,11 @@ interface OrganizationTriviaStore {
 
 type TriviaAccessRole = "host" | "checkin" | "scorekeeper";
 
+const TRIVIA_DISPLAY_STAGES = new Set([
+  "welcome", "check_in_open", "check_in_closed", "round_intro", "question", "timer_only",
+  "answer", "explanation", "leaderboard", "break", "final_question", "tiebreaker", "winner", "blank",
+]);
+
 interface TriviaAccessPass {
   id: string;
   label: string;
@@ -295,9 +300,13 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
     const delta = Math.max(-100, Math.min(100, Number(payload.delta) || 0));
     if (index < 0 || delta === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a team and a non-zero score adjustment." } }); return; }
     const previousScore = Number(teams[index].score) || 0;
-    teams[index] = { ...teams[index], score: previousScore + delta };
+    const scoringRules = isObject(event.scoringRules) ? event.scoringRules : {};
+    const nextScore = scoringRules.allowNegativeScores === true ? previousScore + delta : Math.max(0, previousScore + delta);
+    const appliedDelta = nextScore - previousScore;
+    if (appliedDelta === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "That adjustment would not change the score." } }); return; }
+    teams[index] = { ...teams[index], score: nextScore };
     event.teams = teams;
-    pushAudit(access.orgStore, eventId, "score", `Remote score adjustment ${delta >= 0 ? "+" : ""}${delta}`, { teamId: String(payload.teamId), delta });
+    pushAudit(access.orgStore, eventId, "score", `Remote score adjustment ${appliedDelta >= 0 ? "+" : ""}${appliedDelta}`, { teamId: String(payload.teamId), delta: appliedDelta, previousScore, nextScore });
   } else if (action === "check_in" && (access.pass.role === "checkin" || access.pass.role === "host")) {
     const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
     const index = teams.findIndex((team) => team.id === payload.teamId);
@@ -309,10 +318,25 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
   } else if (["set_stage", "set_round", "next_question", "previous_question", "timer_start", "timer_pause", "timer_reset"].includes(action) && access.pass.role === "host") {
     const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject) : [];
     const nextLive: JsonObject = { ...live };
-    if (action === "set_stage" && typeof payload.stage === "string") nextLive.stage = payload.stage;
-    if (action === "set_round" && typeof payload.roundId === "string" && rounds.some((round) => round.id === payload.roundId)) { nextLive.activeRoundId = payload.roundId; nextLive.activeQuestionIndex = 0; }
-    if (action === "next_question") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); nextLive.activeQuestionIndex = Math.min(Math.max((Array.isArray(round?.questions) ? round.questions.length : 1) - 1, 0), Number(nextLive.activeQuestionIndex ?? 0) + 1); nextLive.stage = "question"; }
-    if (action === "previous_question") nextLive.activeQuestionIndex = Math.max(0, Number(nextLive.activeQuestionIndex ?? 0) - 1);
+    if (action === "set_stage") {
+      if (typeof payload.stage !== "string" || !TRIVIA_DISPLAY_STAGES.has(payload.stage)) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid projector stage." } }); return; }
+      nextLive.stage = payload.stage;
+    }
+    if (action === "set_round") {
+      if (typeof payload.roundId !== "string" || !rounds.some((round) => round.id === payload.roundId)) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid round." } }); return; }
+      nextLive.activeRoundId = payload.roundId; nextLive.activeQuestionIndex = 0; nextLive.stage = "round_intro"; nextLive.timerRunning = false; nextLive.answerRevealed = false;
+    }
+    if (action === "next_question" || action === "previous_question") {
+      const round = rounds.find((item) => item.id === nextLive.activeRoundId);
+      const questions = Array.isArray(round?.questions) ? round.questions.filter(isObject) : [];
+      if (questions.length === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The active round has no questions." } }); return; }
+      const currentIndex = Number(nextLive.activeQuestionIndex ?? 0);
+      nextLive.activeQuestionIndex = action === "next_question" ? Math.min(questions.length - 1, currentIndex + 1) : Math.max(0, currentIndex - 1);
+      nextLive.stage = round?.roundType === "final_wager" ? "final_question" : round?.roundType === "tiebreaker" ? "tiebreaker" : "question";
+      const question = questions[Number(nextLive.activeQuestionIndex)];
+      const seconds = Number(question?.timeLimitSec) || 30;
+      nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; nextLive.answerRevealed = false;
+    }
     if (action === "timer_start") nextLive.timerRunning = true;
     if (action === "timer_pause") nextLive.timerRunning = false;
     if (action === "timer_reset") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); const question = Array.isArray(round?.questions) ? round.questions[Number(nextLive.activeQuestionIndex ?? 0)] : null; const seconds = Number(isObject(question) ? question.timeLimitSec : 30) || 30; nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; }
