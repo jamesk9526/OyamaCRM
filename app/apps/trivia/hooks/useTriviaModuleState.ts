@@ -587,6 +587,62 @@ export function useTriviaModuleState() {
     replaceStateWithEvent(nextEvent);
   }
 
+  /** Reorders a round by dropping it before another round in the visual builder. */
+  function reorderRound(eventId: string, roundId: string, targetRoundId: string) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event || roundId === targetRoundId) return;
+    const sourceIndex = event.rounds.findIndex((round) => round.id === roundId);
+    const targetIndex = event.rounds.findIndex((round) => round.id === targetRoundId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const rounds = [...event.rounds];
+    const [movedRound] = rounds.splice(sourceIndex, 1);
+    const adjustedTarget = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    rounds.splice(adjustedTarget, 0, movedRound);
+    replaceStateWithEvent({ ...event, rounds, updatedAt: new Date().toISOString() });
+  }
+
+  /** Moves or reorders a question while preserving the currently displayed question when possible. */
+  function moveQuestion(eventId: string, questionId: string, sourceRoundId: string, targetRoundId: string, targetIndex: number) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const sourceRound = event.rounds.find((round) => round.id === sourceRoundId);
+    const targetRound = event.rounds.find((round) => round.id === targetRoundId);
+    const question = sourceRound?.questions.find((item) => item.id === questionId);
+    if (!sourceRound || !targetRound || !question) return;
+
+    const live = state.liveByEventId[eventId];
+    const activeQuestionId = live
+      ? event.rounds.find((round) => round.id === live.activeRoundId)?.questions[live.activeQuestionIndex]?.id ?? null
+      : null;
+    const rounds = event.rounds.map((round) => ({ ...round, questions: [...round.questions] }));
+    const nextSource = rounds.find((round) => round.id === sourceRoundId);
+    const nextTarget = rounds.find((round) => round.id === targetRoundId);
+    if (!nextSource || !nextTarget) return;
+
+    const sourceIndex = nextSource.questions.findIndex((item) => item.id === questionId);
+    if (sourceIndex < 0) return;
+    nextSource.questions.splice(sourceIndex, 1);
+    const insertionIndex = Math.max(0, Math.min(targetIndex, nextTarget.questions.length));
+    nextTarget.questions.splice(insertionIndex, 0, question);
+
+    const nextEvent = { ...event, rounds, updatedAt: new Date().toISOString() };
+    const nextState = replaceEvent(state, nextEvent);
+    if (live) {
+      const activeRound = rounds.find((round) => round.id === live.activeRoundId);
+      const preservedIndex = activeQuestionId ? activeRound?.questions.findIndex((item) => item.id === activeQuestionId) ?? -1 : -1;
+      nextState.liveByEventId[eventId] = {
+        ...live,
+        activeQuestionIndex: preservedIndex >= 0
+          ? preservedIndex
+          : Math.max(0, Math.min(live.activeQuestionIndex, Math.max(0, (activeRound?.questions.length ?? 1) - 1))),
+        updatedAt: new Date().toISOString(),
+        lastHostAction: `Question moved to ${nextTarget.title}`,
+      };
+    }
+    commit(nextState);
+  }
+
   function applyScoreAction(eventId: string, input: ApplyScoreActionInput) {
     const event = state.events.find((item) => item.id === eventId);
     const live = state.liveByEventId[eventId];
@@ -1080,6 +1136,8 @@ export function useTriviaModuleState() {
       removeTeam,
       addRound,
       addQuestion,
+      reorderRound,
+      moveQuestion,
       applyScoreAction,
       undoScoreActionById,
       undoLastScoreAction,

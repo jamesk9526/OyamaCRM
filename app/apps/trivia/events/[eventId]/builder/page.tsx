@@ -17,9 +17,11 @@ import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleSta
  */
 export default function TriviaEventBuilderPage() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, updateEventSettings, applyGameTemplate, importEventsFromJson } = useTriviaModuleState();
+  const { state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, reorderRound, moveQuestion, updateEventSettings, applyGameTemplate, importEventsFromJson } = useTriviaModuleState();
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState("");
+  const [questionRoundRequest, setQuestionRoundRequest] = useState<string | null>(null);
+  const [roundCreatorRequest, setRoundCreatorRequest] = useState(false);
 
   const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [state.events, eventId]);
 
@@ -61,7 +63,13 @@ export default function TriviaEventBuilderPage() {
         )}
       />
 
-      <TriviaGameMap event={event} />
+      <TriviaGameMap
+        event={event}
+        onReorderRound={(roundId, targetRoundId) => reorderRound(event.id, roundId, targetRoundId)}
+        onMoveQuestion={(questionId, sourceRoundId, targetRoundId, targetIndex) => moveQuestion(event.id, questionId, sourceRoundId, targetRoundId, targetIndex)}
+        onAddQuestion={setQuestionRoundRequest}
+        onAddRound={() => setRoundCreatorRequest(true)}
+      />
 
       <TriviaGameTemplateLibrary event={event} onApply={(template) => applyGameTemplate(event.id, template)} />
 
@@ -81,6 +89,10 @@ export default function TriviaEventBuilderPage() {
           onAddQuestion={(roundId, payload) => addQuestion(event.id, roundId, payload)}
           defaultPoints={event.gameTemplate?.defaultQuestionPoints ?? event.scoringRules.defaultQuestionPoints}
           defaultTimeLimitSec={event.gameTemplate?.defaultTimeLimitSec ?? 30}
+          openQuestionForRoundId={questionRoundRequest}
+          onQuestionRequestHandled={() => setQuestionRoundRequest(null)}
+          openRoundCreator={roundCreatorRequest}
+          onRoundRequestHandled={() => setRoundCreatorRequest(false)}
         />
       </div>
 

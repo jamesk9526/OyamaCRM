@@ -1,7 +1,7 @@
 // RoundQuestionBuilderPanel provides real round/question creation for trivia event setup.
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TriviaQuestionType, TriviaRound, TriviaRoundType } from "@/app/apps/trivia/lib/trivia-types";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -30,6 +30,10 @@ interface RoundQuestionBuilderPanelProps {
   ) => void;
   defaultPoints?: number;
   defaultTimeLimitSec?: number;
+  openQuestionForRoundId?: string | null;
+  onQuestionRequestHandled?: () => void;
+  openRoundCreator?: boolean;
+  onRoundRequestHandled?: () => void;
 }
 
 const ROUND_TYPES: Array<{ value: TriviaRoundType; label: string }> = [
@@ -64,12 +68,13 @@ const QUESTION_TYPE_HELP: Record<TriviaQuestionType, string> = {
  * RoundQuestionBuilderPanel handles core content authoring for trivia events.
  * It writes directly to persisted state so host and display routes are immediately usable.
  */
-export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQuestion, defaultPoints = 10, defaultTimeLimitSec = 30 }: RoundQuestionBuilderPanelProps) {
+export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQuestion, defaultPoints = 10, defaultTimeLimitSec = 30, openQuestionForRoundId = null, onQuestionRequestHandled, openRoundCreator = false, onRoundRequestHandled }: RoundQuestionBuilderPanelProps) {
   const [roundTitle, setRoundTitle] = useState("");
   const [roundDescription, setRoundDescription] = useState("");
   const [roundType, setRoundType] = useState<TriviaRoundType>("normal");
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [isQuestionModalOpen, setQuestionModalOpen] = useState(false);
+  const [isRoundModalOpen, setRoundModalOpen] = useState(false);
 
   const [questionPrompt, setQuestionPrompt] = useState("");
   const [questionOptions, setQuestionOptions] = useState("");
@@ -88,6 +93,19 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
 
   const selectedRound = useMemo(() => rounds.find((round) => round.id === selectedRoundId) ?? null, [rounds, selectedRoundId]);
 
+  useEffect(() => {
+    if (!openQuestionForRoundId || !rounds.some((round) => round.id === openQuestionForRoundId)) return;
+    setSelectedRoundId(openQuestionForRoundId);
+    setQuestionModalOpen(true);
+    onQuestionRequestHandled?.();
+  }, [onQuestionRequestHandled, openQuestionForRoundId, rounds]);
+
+  useEffect(() => {
+    if (!openRoundCreator) return;
+    setRoundModalOpen(true);
+    onRoundRequestHandled?.();
+  }, [onRoundRequestHandled, openRoundCreator]);
+
   function handleAddRound(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!roundTitle.trim()) return;
@@ -98,6 +116,7 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
     setRoundType("normal");
     if (newRound) {
       setSelectedRoundId(newRound.id);
+      setRoundModalOpen(false);
     }
   }
 
@@ -164,34 +183,25 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
         <p className="mt-1 text-sm text-slate-300">Use the same simple sequence every time: choose a round, choose the question type, add the host answer, then check the projector copy.</p>
       </div>
 
-      <form onSubmit={handleAddRound} className="grid grid-cols-1 md:grid-cols-4 gap-2">
-        <input
-          value={roundTitle}
-          onChange={(event) => setRoundTitle(event.target.value)}
-          placeholder="Round title"
-          className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
-        />
-        <input
-          value={roundDescription}
-          onChange={(event) => setRoundDescription(event.target.value)}
-          placeholder="Round description"
-          className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white md:col-span-2"
-        />
-        <select
-          value={roundType}
-          onChange={(event) => setRoundType(event.target.value as TriviaRoundType)}
-          className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
-        >
-          {ROUND_TYPES.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-        <button className="md:col-span-4 bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-semibold text-white" type="submit">
-          Add Round
-        </button>
-      </form>
+      <div className="flex flex-col justify-between gap-3 border border-[#d1c7e8] bg-[#f6f2ff] p-4 sm:flex-row sm:items-center">
+        <div><p className="text-sm font-semibold text-slate-900">Round structure</p><p className="mt-1 text-xs text-slate-600">{rounds.length} round{rounds.length === 1 ? "" : "s"} currently define the game.</p></div>
+        <button type="button" onClick={() => setRoundModalOpen(true)} className="shrink-0 border border-[#5b3f9b] bg-white px-4 py-2 text-sm font-semibold text-[#5b3f9b] hover:bg-[#f0eaff]">Add round</button>
+      </div>
+
+      {isRoundModalOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-trivia-round-title">
+          <button type="button" aria-label="Close add round dialog" onClick={() => setRoundModalOpen(false)} className="absolute inset-0 cursor-default" />
+          <form onSubmit={handleAddRound} className="relative w-full max-w-xl border border-[#d1c7e8] bg-white shadow-2xl">
+            <header className="flex items-start justify-between gap-3 border-b border-[#d1c7e8] bg-[#f6f2ff] px-5 py-4"><div><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Game structure</p><h2 id="add-trivia-round-title" className="mt-1 text-xl font-semibold text-slate-950">Add a round</h2><p className="mt-1 text-sm text-slate-600">Name the section and choose how it will run.</p></div><button type="button" onClick={() => setRoundModalOpen(false)} className="flex h-9 w-9 items-center justify-center border border-[#8a8886] bg-white text-lg text-slate-600" aria-label="Close">×</button></header>
+            <div className="grid grid-cols-1 gap-3 p-5">
+              <label className="text-xs font-semibold text-slate-700">Round title<input value={roundTitle} onChange={(event) => setRoundTitle(event.target.value)} placeholder="Example: Movies and music" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white" /></label>
+              <label className="text-xs font-semibold text-slate-700">Description<input value={roundDescription} onChange={(event) => setRoundDescription(event.target.value)} placeholder="Optional host or theme description" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white" /></label>
+              <label className="text-xs font-semibold text-slate-700">Round type<select value={roundType} onChange={(event) => setRoundType(event.target.value as TriviaRoundType)} className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white">{ROUND_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+              <div className="flex justify-end gap-2 border-t border-[#d1c7e8] pt-4"><button type="button" onClick={() => setRoundModalOpen(false)} className="border border-[#8a8886] bg-white px-3 py-2 text-sm font-semibold text-slate-700">Cancel</button><button className="bg-[#5b3f9b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4a327f] disabled:opacity-50" type="submit" disabled={!roundTitle.trim()}>Add round</button></div>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <div className="border border-slate-700 bg-slate-950 p-3 space-y-2">
         <label className="text-xs uppercase tracking-wide text-slate-400" htmlFor="round-select">
