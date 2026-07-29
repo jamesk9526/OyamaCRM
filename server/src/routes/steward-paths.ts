@@ -25,7 +25,7 @@ import {
 const router = Router();
 
 const PATH_STATUS_VALUES: StewardPathStatus[] = ["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"];
-const CRM_SCOPE_VALUES: StewardPathCrmScope[] = ["DONOR", "COMPASSION", "EVENTS", "HRM", "GLOBAL"];
+const CRM_SCOPE_VALUES: StewardPathCrmScope[] = ["DONOR", "COMPASSION", "EVENTS", "GLOBAL"];
 const TARGET_VALUES: StewardPathTarget[] = ["CONSTITUENT", "DONOR", "CLIENT", "EVENT_ATTENDEE", "SPONSOR", "GRANT", "STAFF", "CUSTOM"];
 const STEP_TYPE_VALUES: StewardPathStepType[] = [
   "DELAY",

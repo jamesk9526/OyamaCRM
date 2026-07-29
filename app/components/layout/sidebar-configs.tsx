@@ -1,4 +1,4 @@
-// Central sidebar configuration maps for Donor, Compassion, Events, HRM, and Watchdog modules.
+// Central sidebar configuration maps for Donor, Compassion, Events, and Watchdog modules.
 
 import type { CrmSidebarGroup, SidebarItemBadge } from "@/app/components/layout/CrmSidebar";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
@@ -514,34 +514,6 @@ export function buildEventsSidebarGroups(activeEvent: EventsSidebarContext | nul
   }
 
   return [...baseGroups, ...buildEventWorkspaceGroups(activeEvent)];
-}
-
-/** Returns OyamaHRM sidebar groups with shared item metadata and collapsible system tools. */
-export function buildHrmSidebarGroups(): CrmSidebarGroup[] {
-  return [
-    {
-      id: "hrm-workforce",
-      label: "Workforce",
-      defaultOpen: true,
-      items: [
-        { id: "dashboard", label: "Dashboard", href: "/hrm", exact: true, icon: DONOR_ICONS.dashboard, kind: "workspace", description: "Internal workforce dashboard and staffing snapshot." },
-        { id: "people", label: "People", href: "/hrm/people", icon: DONOR_ICONS.constituents, kind: "people", description: "Manage internal staff and board-member records." },
-        { id: "scheduling", label: "Scheduling", href: "/hrm/scheduling", icon: DONOR_ICONS.meetings, kind: "daily_tool", description: "Manage schedules and shift assignments." },
-        { id: "locations", label: "Locations", href: "/hrm/locations", icon: DONOR_ICONS.campaigns, kind: "system", description: "Manage office and site locations." },
-        { id: "messages", label: "Messages", href: "/hrm/messages", icon: DONOR_ICONS.communications, kind: "communication_tool", description: "Send and review internal HRM communication threads." },
-      ],
-    },
-    {
-      id: "hrm-system",
-      label: "System",
-      defaultOpen: false,
-      collapsible: true,
-      items: [
-        { id: "settings", label: "Settings", href: "/hrm/settings", icon: DONOR_ICONS.settings, kind: "system", description: "Manage HRM configuration and defaults." },
-        { id: "help", label: "Help", href: "/help?scope=global&scopePath=/hrm", icon: DONOR_ICONS.help, kind: "system", description: "Open HRM how-to guidance." },
-      ],
-    },
-  ];
 }
 
 /** Returns OyamaWatchdog sidebar groups with role-aware security navigation. */

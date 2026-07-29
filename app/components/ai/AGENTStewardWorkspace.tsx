@@ -34,7 +34,6 @@ type ModuleKey =
   | "events"
   | "watchdog"
   | "webmaster"
-  | "hrm"
   | "all";
 
 type ChatMode = "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
@@ -594,7 +593,6 @@ const SCOPE_OPTIONS: Array<{ key: ModuleKey; label: string; description: string;
   { key: "donor",      label: "Donor CRM",      description: "Donors, donations, campaigns, grants, stewardship", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { key: "compassion", label: "Compassion CRM",  description: "Client care, cases, appointments, services",       color: "bg-blue-50 text-blue-700 border-blue-200" },
   { key: "events",     label: "Events CRM",      description: "Events, guests, tables, check-in, tickets",        color: "bg-amber-50 text-amber-700 border-amber-200" },
-  { key: "hrm",        label: "HRM",             description: "Staff, scheduling, HR records",                    color: "bg-purple-50 text-purple-700 border-purple-200" },
   { key: "webmaster",  label: "Webmaster",        description: "Sites, pages, publishing, CMS",                   color: "bg-rose-50 text-rose-700 border-rose-200" },
   { key: "watchdog",   label: "Watchdog",         description: "Security events, alerts, audit logs",             color: "bg-slate-50 text-slate-700 border-slate-200" },
   { key: "all",        label: "All CRM Data",     description: "All modules where you have permission",           color: "bg-slate-50 text-slate-700 border-slate-200" },
@@ -662,11 +660,6 @@ const STARTER_PROMPTS: Record<ModuleKey, string[]> = {
     "What check-in risks should staff watch today?",
     "Draft a post-event thank-you message.",
     "Show me ticket sales breakdown.",
-  ],
-  hrm: [
-    "Summarize internal staffing priorities for today.",
-    "Draft an internal announcement for all staff.",
-    "What schedule conflicts should HRM resolve this week?",
   ],
   webmaster: [
     "Propose a nonprofit website information architecture.",
@@ -737,7 +730,7 @@ function readThreads(): ChatThread[] {
         title:     typeof t.title === "string" && t.title.trim() ? t.title.trim() : `Chat ${i + 1}`,
         createdAt: typeof t.createdAt === "string" ? t.createdAt : now,
         updatedAt: typeof t.updatedAt === "string" ? t.updatedAt : now,
-        moduleKey: (["donor","compassion","events","hrm","webmaster","watchdog","all"].includes(String(t.moduleKey))
+        moduleKey: (["donor","compassion","events","webmaster","watchdog","all"].includes(String(t.moduleKey))
           ? t.moduleKey : "donor") as ModuleKey,
         messages: normalizeMessages(t.messages),
       }))
@@ -2834,7 +2827,6 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                 t.moduleKey === "compassion" ? "bg-blue-400" :
                 t.moduleKey === "events"     ? "bg-amber-400" :
-                t.moduleKey === "hrm"        ? "bg-purple-400" :
                 t.moduleKey === "webmaster"  ? "bg-rose-400" :
                 t.moduleKey === "watchdog"   ? "bg-slate-400" :
                 t.moduleKey === "all"        ? "bg-slate-700" : "bg-emerald-500"

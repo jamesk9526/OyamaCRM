@@ -28,7 +28,6 @@ export function resolveTopBarModuleAccentClass(moduleKey: TopBarModuleKey, donor
   if (moduleKey === "events") return "bg-violet-500";
   if (moduleKey === "watchdog") return "bg-red-600";
   if (moduleKey === "webmaster") return "bg-indigo-600";
-  if (moduleKey === "hrm") return "bg-teal-600";
   if (moduleKey === "oshareview") return "bg-cyan-600";
   return donorAccentLineClass;
 }
@@ -98,21 +97,6 @@ export function resolveTopBarModuleChromePalette(
     };
   }
 
-  if (moduleKey === "hrm") {
-    return {
-      scoopStart: "#115e59",
-      scoopMid: "#0f766e",
-      scoopEnd: "#0d9488",
-      scoopStroke: "#0f766e",
-      glowStart: "#99f6e4",
-      glowMid: "#2dd4bf",
-      glowEnd: "#115e59",
-      mobileGradient: "radial-gradient(circle at 8% 0%, rgba(153,246,228,0.22), transparent 42%), linear-gradient(135deg, #115e59, #0f766e 58%, #0d9488)",
-      mobileBorderColor: "rgba(153,246,228,0.22)",
-      mobileShadow: "0 10px 26px rgba(17,94,89,0.24)",
-    };
-  }
-
   if (moduleKey === "oshareview") {
     return {
       scoopStart: "#0e7490",
@@ -163,7 +147,6 @@ export function resolveTopBarHomeHref(moduleKey: TopBarModuleKey): string {
   if (moduleKey === "events") return "/events/events";
   if (moduleKey === "watchdog") return "/watchdog";
   if (moduleKey === "webmaster") return "/webmaster";
-  if (moduleKey === "hrm") return "/hrm";
   if (moduleKey === "oshareview") return "/reports";
   return "/";
 }

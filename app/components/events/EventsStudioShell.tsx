@@ -248,7 +248,6 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
                     { label: "Compassion CRM", href: "/compassion/dashboard" },
                     { label: "EventSTUDIO", href: "/events/events" },
                     { label: "Steward AI", href: "/steward-ai-workspace" },
-                    { label: "HRM", href: "/hrm" },
                     { label: "Webmaster", href: "/webmaster" },
                     { label: "Watchdog", href: "/watchdog" },
                   ].map((workspace) => (

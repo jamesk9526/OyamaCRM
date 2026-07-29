@@ -10,7 +10,6 @@ export function mapModuleKeyToHelpScope(moduleKey: TopBarModuleKey): HelpCrmScop
   if (moduleKey === "password") return "global";
   if (moduleKey === "letters") return "donor";
   if (moduleKey === "donor") return "donor";
-  if (moduleKey === "hrm") return "global";
   return "global";
 }
 

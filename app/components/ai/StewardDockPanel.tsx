@@ -21,7 +21,6 @@ type StewardChatModuleKey =
   | "watchdog"
   | "webmaster"
   | "oshareview"
-  | "hrm"
   | "password";
 
 interface StewardDockPanelProps {
@@ -54,7 +53,6 @@ function normalizeStewardModule(moduleKey?: string): StewardChatModuleKey {
     "watchdog",
     "webmaster",
     "oshareview",
-    "hrm",
     "password",
   ]);
   return moduleKey && valid.has(moduleKey as StewardChatModuleKey)

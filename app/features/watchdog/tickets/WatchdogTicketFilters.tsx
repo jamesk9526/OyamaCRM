@@ -102,7 +102,6 @@ export function WatchdogTicketFilters({ value, developers, onChange, onReset }: 
             <option value="events">Events CRM</option>
             <option value="watchdog">Watchdog</option>
             <option value="webmaster">Webmaster</option>
-            <option value="hrm">HRM</option>
             <option value="reportit">ReportIT</option>
             <option value="other">Other</option>
             <option value="unknown">Unknown</option>

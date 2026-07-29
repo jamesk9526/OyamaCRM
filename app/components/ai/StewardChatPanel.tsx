@@ -18,7 +18,7 @@ import type { StewardStructuredResponse } from "@/app/components/ai/steward-arti
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 import type { StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
+type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
 type ChatMode = "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
 export type StewardPanelMode = "collapsed" | "dock-right" | "popout" | "maximized";
 type StewardChatDisplayMode = "dock" | "dock-right" | "popout" | "maximized" | "workspace";
@@ -325,14 +325,6 @@ function promptsForModule(moduleKey: ModuleKey): string[] {
       "Summarize the most important reporting KPI changes.",
       "Which report tab should I review first this week?",
       "Draft a board-ready reporting summary.",
-    ];
-  }
-
-  if (moduleKey === "hrm") {
-    return [
-      "Summarize internal staffing priorities for today.",
-      "Draft an internal announcement for all staff locations.",
-      "What schedule conflicts should HRM resolve this week?",
     ];
   }
 

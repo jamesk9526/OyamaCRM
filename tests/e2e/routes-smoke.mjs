@@ -21,7 +21,6 @@ const ROUTES = [
   "/compassion/clients",
   "/events/workspace",
   "/events/events",
-  "/hrm",
   "/watchdog",
   "/watchdog/backups",
   "/watchdog/restore",

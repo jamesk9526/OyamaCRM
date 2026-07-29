@@ -5,14 +5,13 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import AGENTStewardWorkspace from "@/app/components/ai/AGENTStewardWorkspace";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "hrm" | "all";
+type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "all";
 
 function resolveModuleKey(raw: string | null): ModuleKey {
   if (raw === "compassion") return "compassion";
   if (raw === "events")     return "events";
   if (raw === "watchdog")   return "watchdog";
   if (raw === "webmaster")  return "webmaster";
-  if (raw === "hrm")        return "hrm";
   if (raw === "all")        return "all";
   return "donor";
 }

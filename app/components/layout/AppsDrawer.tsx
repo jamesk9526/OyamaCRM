@@ -158,7 +158,7 @@ export default function AppsDrawer({ open, onClose }: AppsDrawerProps) {
             ))}
           </div>
           <p className="mt-3 text-[11px] text-slate-500">
-            DonorCRM, Compassion CRM, EventSTUDIO, and HRM remain in the primary workspace switcher. Donor reports are available from DonorCRM.
+            DonorCRM, Compassion CRM, and EventSTUDIO remain in the primary workspace switcher. Donor reports are available from DonorCRM.
           </p>
         </div>
 

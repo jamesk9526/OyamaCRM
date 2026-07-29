@@ -19,7 +19,7 @@ const FEEDBACK_TYPES = [
   "data_issue",
   "general_feedback",
 ] as const;
-const CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "hrm", "reportit", "other", "unknown"] as const;
+const CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "reportit", "other", "unknown"] as const;
 const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 const IMPORTANCE = ["low", "helpful", "important", "urgent"] as const;
 

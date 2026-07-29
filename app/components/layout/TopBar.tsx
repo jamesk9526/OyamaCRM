@@ -53,7 +53,7 @@ interface SearchResult {
 }
 
 interface SearchResponse {
-  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm";
+  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
   query: string;
   results: SearchResult[];
 }
@@ -179,15 +179,6 @@ function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey
       <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
         <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5h17M8.5 4.5v4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "hrm") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.25a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 19.25a7 7 0 0 1 14 0" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 7.75h3M16 7.75h3" />
       </svg>
     );
   }
@@ -326,13 +317,6 @@ function GlobalSearch({
             { id: "quick-webmaster-pages", type: "tool", label: "Open Pages", sublabel: "Content and structure", href: "/webmaster/pages", group: "tools" },
             { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=global&scopePath=${encodeURIComponent(pathname || "/webmaster")}`, group: "tools" },
           ]
-          : moduleKey === "hrm"
-            ? [
-              { id: "quick-hrm-home", type: "tool", label: "Open HRM Dashboard", sublabel: "Internal operations home", href: "/hrm", group: "tools" },
-              { id: "quick-hrm-people", type: "tool", label: "Open People", sublabel: "Staff and board records", href: "/hrm/people", group: "tools" },
-              { id: "quick-hrm-scheduling", type: "tool", label: "Open Scheduling", sublabel: "Availability and schedule rules", href: "/hrm/scheduling", group: "tools" },
-              { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=global&scopePath=${encodeURIComponent(pathname || "/hrm")}`, group: "tools" },
-            ]
           : moduleKey === "oshareview"
             ? [
               { id: "quick-donor-reports", type: "tool", label: "Open donor reports", sublabel: "Month-to-date giving workbook", href: "/reports", group: "tools" },
@@ -467,7 +451,7 @@ function GlobalSearch({
     const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
-      const searchModule = moduleKey === "oshareview" || moduleKey === "hrm" || moduleKey === "letters" ? "donor" : moduleKey;
+      const searchModule = moduleKey === "oshareview" || moduleKey === "letters" ? "donor" : moduleKey;
       const params = new URLSearchParams({
         module: searchModule,
         q: normalized,
@@ -674,8 +658,6 @@ function GlobalSearch({
         ? "focus:ring-red-400/60"
         : moduleKey === "webmaster"
           ? "focus:ring-indigo-400/60"
-          : moduleKey === "hrm"
-            ? "focus:ring-teal-400/60"
           : moduleKey === "oshareview"
               ? "focus:ring-cyan-400/60"
           : "focus:ring-indigo-400/60";
@@ -687,8 +669,6 @@ function GlobalSearch({
         ? "bg-red-50"
         : moduleKey === "webmaster"
           ? "bg-indigo-50"
-          : moduleKey === "hrm"
-            ? "bg-teal-50"
           : moduleKey === "oshareview"
               ? "bg-cyan-50"
           : "bg-indigo-50";
@@ -700,8 +680,6 @@ function GlobalSearch({
         ? "border-red-400"
         : moduleKey === "webmaster"
           ? "border-indigo-400"
-          : moduleKey === "hrm"
-            ? "border-teal-500"
           : moduleKey === "oshareview"
               ? "border-cyan-500"
           : "border-indigo-400";
@@ -713,8 +691,6 @@ function GlobalSearch({
         ? "Search alerts, vault, security tools..."
         : moduleKey === "webmaster"
           ? "Search sites, pages, publish tools..."
-          : moduleKey === "hrm"
-            ? "Search staff, schedules, locations..."
           : moduleKey === "oshareview"
               ? "Search reports, segments, analytics..."
           : "Search records, workflows, reports, and tools...";
@@ -1059,7 +1035,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     setNotificationsLoading(true);
     setNotificationsError(null);
     try {
-      const notificationModule = moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey;
+      const notificationModule = moduleKey === "oshareview" ? "donor" : moduleKey;
       const data = await apiFetch<{ items: TopBarNotification[]; unreadCount: number }>(
         `/api/notifications?module=${notificationModule}`
       );
@@ -1076,7 +1052,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
   const loadUnreadCount = useCallback(async () => {
     try {
-      const notificationModule = moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey;
+      const notificationModule = moduleKey === "oshareview" ? "donor" : moduleKey;
       const data = await apiFetch<{ unreadCount: number }>(`/api/notifications/unread-count?module=${notificationModule}`);
       setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
     } catch {
@@ -1555,9 +1531,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                           ? "bg-red-600"
                           : moduleKey === "webmaster"
                             ? "bg-indigo-600"
-                            : moduleKey === "hrm"
-                              ? "bg-teal-600"
-                              : moduleKey === "oshareview"
+                            : moduleKey === "oshareview"
                                 ? "bg-cyan-600"
                                 : "bg-green-600"
                   }`}>
@@ -1729,9 +1703,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                             ? "bg-red-600"
                             : moduleKey === "webmaster"
                               ? "bg-indigo-600"
-                              : moduleKey === "hrm"
-                                ? "bg-teal-600"
-                                : moduleKey === "oshareview"
+                              : moduleKey === "oshareview"
                                   ? "bg-cyan-600"
                                   : "bg-indigo-600"
                     }`}>
@@ -1747,7 +1719,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                         <p className="text-sm font-semibold text-gray-900">Notifications</p>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => void apiFetch("/api/notifications/mark-all-read", { method: "POST", body: JSON.stringify({ module: moduleKey === "oshareview" || moduleKey === "hrm" ? "donor" : moduleKey }) }).then(() => loadNotifications())}
+                            onClick={() => void apiFetch("/api/notifications/mark-all-read", { method: "POST", body: JSON.stringify({ module: moduleKey === "oshareview" ? "donor" : moduleKey }) }).then(() => loadNotifications())}
                             className="text-xs text-slate-600 hover:text-slate-800"
                           >
                             Mark all read
@@ -2067,7 +2039,6 @@ function ModuleSwitcher({
   const pathname = usePathname();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const canViewHrm = user?.permissions?.includes("hrm.view") ?? user?.role !== "report_viewer";
 
   const modules = useMemo(() => [
     {
@@ -2102,20 +2073,11 @@ function ModuleSwitcher({
       icon: <WorkspaceSwitcherIcon moduleKey="events" />,
       active: moduleKey === "events",
     },
-    {
-      key: "hrm",
-      label: "OyamaHRM",
-      helper: "HRM",
-      href: "/hrm",
-      icon: <WorkspaceSwitcherIcon moduleKey="hrm" />,
-      active: moduleKey === "hrm",
-    },
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
     if (module.key === "compassion") return settings.compassionEnabled;
-    if (module.key === "hrm") return canViewHrm;
     return true;
-  }), [moduleKey, pathname, settings.compassionEnabled, settings.donorEnabled, canViewHrm]);
+  }), [moduleKey, pathname, settings.compassionEnabled, settings.donorEnabled]);
 
   const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
 
@@ -2271,9 +2233,7 @@ function UserMenu({
         ? "bg-red-700 border-red-200"
         : moduleKey === "webmaster"
           ? "bg-indigo-700 border-indigo-200"
-          : moduleKey === "hrm"
-            ? "bg-teal-700 border-teal-200"
-            : moduleKey === "oshareview"
+          : moduleKey === "oshareview"
               ? "bg-cyan-700 border-cyan-200"
           : "bg-indigo-700 border-indigo-200";
 

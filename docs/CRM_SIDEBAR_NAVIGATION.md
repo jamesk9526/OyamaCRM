@@ -11,7 +11,7 @@ Specific donor issues addressed in this pass:
 - Steward Paths appeared too low in Engagement despite being a major workspace.
 - Letters and LiveCom appeared as peers with core action workflows without clear tool classification.
 - Steward Signals was grouped with daily action tools instead of intelligence workflows.
-- Sidebar collapse behavior was inconsistent across Donor, Compassion, Events, HRM, and Watchdog.
+- Sidebar collapse behavior was inconsistent across Donor, Compassion, Events, and Watchdog.
 
 ## New Donor CRM Group Structure
 
@@ -71,7 +71,7 @@ Badges are optional and should only be used when they improve orientation.
 
 ## Collapsed Mode Behavior
 
-Shared collapsed mode now exists across Donor, Compassion, Events, HRM, and Watchdog sidebars.
+Shared collapsed mode now exists across Donor, Compassion, Events, and Watchdog sidebars.
 
 Expanded mode:
 
@@ -92,7 +92,6 @@ Collapse state persists in localStorage per module:
 - oyamacrm.sidebar.donor.collapsed
 - oyamacrm.sidebar.compassion.collapsed
 - oyamacrm.sidebar.events.collapsed
-- oyamacrm.sidebar.hrm.collapsed
 - oyamacrm.sidebar.watchdog.collapsed
 
 Mobile drawers force expanded mode to avoid icon-only navigation on touch screens.
@@ -141,7 +140,5 @@ Current module wrappers:
 3. Assign a module-specific storage key for collapse persistence.
 4. Provide a module variant style or extend CrmSidebar variants as needed.
 5. Update module layout mobile drawer to pass forceExpanded.
-
-## Volunteer And HRM Coordination Note
 
 Volunteers remain in Donor CRM under People & Service for now. Future volunteer/staff data governance should coordinate with OyamaHRM ownership to avoid duplicate people-source logic.

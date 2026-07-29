@@ -52,8 +52,6 @@ Primary home for:
 - Internal announcements and interoffice communication scaffolding
 
 Defaults:
-- Avoid surfacing donor giving data in HRM unless there is a deliberate approved use case.
-- Avoid surfacing compassion client/case sensitive data in HRM unless there is a deliberate approved use case.
 - Prefer safe staff/schedule references to other CRMs via IDs instead of direct record merges.
 
 ### Communications (Shared)

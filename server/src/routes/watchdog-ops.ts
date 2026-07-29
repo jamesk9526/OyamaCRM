@@ -69,7 +69,7 @@ const BACKUP_SCOPES: WatchdogBackupScope[] = [
   "MODULE",
 ];
 
-const MODULE_SCOPES = ["donor", "compassion", "events", "hrm", "webmaster", "watchdog", "apps"] as const;
+const MODULE_SCOPES = ["donor", "compassion", "events", "webmaster", "watchdog", "apps"] as const;
 
 type RestoreRiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -403,7 +403,6 @@ const DEFAULT_WATCHDOG_SETTINGS: Record<string, unknown> = {
     donor: true,
     compassion: true,
     events: true,
-    hrm: true,
     webmaster: true,
     watchdog: true,
     apps: true,
@@ -484,7 +483,6 @@ function sourceModuleFromAudit(action: string, entity: string | null): string {
   if (a.includes("EVENT") || e.includes("EVENT") || e.includes("GUEST") || e.includes("TICKET")) return "events";
   if (a.includes("WATCHDOG") || e.includes("WATCHDOG")) return "watchdog";
   if (a.includes("WEBMASTER") || e.includes("WEBMASTER")) return "webmaster";
-  if (a.includes("HRM") || e.includes("HRM")) return "hrm";
   return "donor";
 }
 

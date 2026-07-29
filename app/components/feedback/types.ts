@@ -17,7 +17,7 @@ export const FEEDBACK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export const FEATURE_IMPORTANCE_LEVELS = ["low", "helpful", "important", "urgent"] as const;
 
 /** Topbar module keys that can be attached to one feedback ticket as source scope. */
-export const FEEDBACK_CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "hrm", "reportit", "other", "unknown"] as const;
+export const FEEDBACK_CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "reportit", "other", "unknown"] as const;
 
 /** Feedback type value union. */
 export type FeedbackType = (typeof FEEDBACK_TYPES)[number];

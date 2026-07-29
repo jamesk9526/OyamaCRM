@@ -66,7 +66,7 @@ export interface WatchdogFeedbackTicketItem {
   type: "bug_report" | "feature_request" | "feature_change" | "confusing_ui" | "data_issue" | "general_feedback";
   status: "new" | "in_review" | "in_progress" | "waiting_on_user" | "resolved" | "closed";
   priority: "low" | "normal" | "high" | "urgent";
-  crmScope: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "hrm" | "reportit" | "other" | "unknown";
+  crmScope: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "other" | "unknown";
   pageUrl: string;
   routePath: string | null;
   pageTitle: string | null;

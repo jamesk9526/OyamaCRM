@@ -95,7 +95,7 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "API Status",
     status: "Working",
-    summary: "Core donor, compassion, events, HRM, and settings routes are mounted behind shared middleware.",
+    summary: "Core donor, compassion, events, and settings routes are mounted behind shared middleware.",
   },
   {
     title: "Authentication Status",
@@ -130,7 +130,7 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "Scheduling Status",
     status: "Partially Working",
-    summary: "Compassion appointments and HRM scheduling flows are live; unified calendar and policy hardening are not complete.",
+    summary: "Compassion appointments are live; unified calendar and policy hardening are not complete.",
   },
   {
     title: "Reports Status",
@@ -313,19 +313,6 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
     copilotPrompt: "Complete Compassion CRM partial areas with privacy-first guards. Use app/compassion/clients/[clientId] and server/src/routes/compassion.ts as anchors. Ensure each service tab is scoped by clientId, remove scaffold warnings only after endpoint + UI + happy-path test exist, and enforce workspace permissions. Preserve donor/client separation rules and keep SSN stripping behavior intact.",
   },
   {
-    feature: "HRM Workspace",
-    workspace: "HRM",
-    status: "Partially Working",
-    lastVerified: AUDIT_DATE,
-    workingPieces: "Dashboard, people, scheduling, locations, messages, and settings are API-backed and persisted.",
-    missingPieces: "Payroll, time-off policy automation, and richer workforce analytics are not yet implemented.",
-    nextAction: "Expand HRM planning scope with payroll/time-off milestones.",
-    linkedPlanFile: "docs/OYAMA_HRM.md",
-    priority: "P2",
-    successCriteria: "HRM has documented and tracked milestones for payroll and time-off automation with initial API contracts.",
-    copilotPrompt: "Create implementation-ready HRM milestones for payroll and time-off automation. Update docs/OYAMA_HRM.md with phased deliverables, API contracts, and status labels. Scaffold backend endpoints with TODO backend markers where needed and wire minimal UI placeholders that clearly indicate in-development state.",
-  },
-  {
     feature: "Integrations Workspace",
     workspace: "Core",
     status: "Partially Working",
@@ -344,12 +331,12 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
     status: "Broken",
     lastVerified: AUDIT_DATE,
     workingPieces: "Unit coverage and many route-level checks are available.",
-    missingPieces: "Typecheck currently fails in tests/smoke/hrm-api-smoke.test.ts and lint lane is too noisy/slow because reference software artifacts are included.",
-    nextAction: "Fix the two TypeScript errors and scope lint excludes for reference software artifacts before re-running release gates.",
+    missingPieces: "Lint scope still needs to exclude reference software artifacts so it remains focused and fast.",
+    nextAction: "Scope lint excludes for reference software artifacts before re-running release gates.",
     linkedPlanFile: "docs/status/production-readiness-checklist.md",
     priority: "P0",
     successCriteria: "pnpm typecheck, pnpm build, and pnpm test:smoke pass together, and lint completes with a bounded project scope.",
-    copilotPrompt: "Stabilize release-gate validation lanes. Fix TypeScript errors in tests/smoke/hrm-api-smoke.test.ts where unknown is passed to APIs expecting string or object. Update ESLint scope or ignore config so large reference software build artifacts under REFERANCE_SOFTWARE do not dominate lint runs. Re-run pnpm typecheck, pnpm build, and pnpm test:smoke and update readiness docs with exact outcomes.",
+    copilotPrompt: "Stabilize release-gate validation lanes. Update ESLint scope or ignore config so large reference software build artifacts under REFERANCE_SOFTWARE do not dominate lint runs. Re-run pnpm typecheck, pnpm build, and pnpm test:smoke and update readiness docs with exact outcomes.",
   },
 ];
 

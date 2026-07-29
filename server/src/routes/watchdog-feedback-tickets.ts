@@ -22,7 +22,7 @@ const FEEDBACK_TYPES = [
 ] as const;
 const TICKET_STATUSES = ["new", "in_review", "in_progress", "waiting_on_user", "resolved", "closed"] as const;
 const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
-const CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "hrm", "reportit", "other", "unknown"] as const;
+const CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "reportit", "other", "unknown"] as const;
 
 const TICKET_SELECT = {
   id: true,

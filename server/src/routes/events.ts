@@ -83,7 +83,6 @@ const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "grants",
   "help",
   "help-content",
-  "hrm",
   "icons",
   "letters-printables",
   "livecom",

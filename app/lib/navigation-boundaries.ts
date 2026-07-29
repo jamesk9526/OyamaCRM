@@ -1,6 +1,6 @@
 /** Shared navigation boundary helpers for module routing and role-aware app launch visibility. */
 
-export type TopBarModuleKey = "donor" | "letters" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "hrm" | "password";
+export type TopBarModuleKey = "donor" | "letters" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
 
 /** Maps pathname values to the owning CRM module key used by TopBar and scoped search. */
 export function resolveTopBarModuleKey(pathname: string): TopBarModuleKey {
@@ -11,7 +11,6 @@ export function resolveTopBarModuleKey(pathname: string): TopBarModuleKey {
   if (pathname.startsWith("/password")) return "password";
   if (pathname.startsWith("/webmaster")) return "webmaster";
   if (pathname.startsWith("/reports")) return "donor";
-  if (pathname.startsWith("/hrm")) return "hrm";
   return "donor";
 }
 

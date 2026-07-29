@@ -615,7 +615,7 @@ Notes:
 5. Shared CRM sidebar navigation architecture implemented for core modules.
    - Shared renderer: app/components/layout/CrmSidebar.tsx
    - Config map: app/components/layout/sidebar-configs.tsx
-   - Module wrappers: Donor, Compassion, Events, HRM, Watchdog now use grouped config metadata and icon-only collapsed mode
+   - Module wrappers: Donor, Compassion, Events, and Watchdog use grouped config metadata and icon-only collapsed mode
    - Persisted state keys: oyamacrm.sidebar.<module>.collapsed
    - Current status: Partially Working (role-aware visibility is active; front-end fine-grained permission overrides are still TODO)
 6. DonorCRM stabilization and command-center hardening pass (safe-scope updates).

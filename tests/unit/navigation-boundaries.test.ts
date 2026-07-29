@@ -19,7 +19,6 @@ describe("resolveTopBarModuleKey", () => {
     expect(resolveTopBarModuleKey("/webmaster/pages")).toBe("webmaster");
     expect(resolveTopBarModuleKey("/ogentic")).toBe("donor");
     expect(resolveTopBarModuleKey("/reports")).toBe("donor");
-    expect(resolveTopBarModuleKey("/hrm/people")).toBe("hrm");
   });
 
   it("defaults unknown paths to donor module", () => {

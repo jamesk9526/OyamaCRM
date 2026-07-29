@@ -35,7 +35,7 @@ const MEMORY_CATEGORIES = [
   "other",
 ];
 
-const WORKSPACE_SCOPES = ["global", "donor", "events", "compassion", "hrm", "watchdog", "webmaster", "steward"];
+const WORKSPACE_SCOPES = ["global", "donor", "events", "compassion", "watchdog", "webmaster", "steward"];
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" });

@@ -67,15 +67,6 @@ function getAccentTheme(moduleKey: TopBarModuleKey): AccentTheme {
       focusRing: "ring-indigo-500/20",
     };
   }
-  if (moduleKey === "hrm") {
-    return {
-      badgeBg: "bg-cyan-50",
-      badgeText: "text-cyan-700",
-      iconBg: "bg-cyan-100",
-      iconText: "text-cyan-700",
-      focusRing: "ring-cyan-500/20",
-    };
-  }
   if (moduleKey === "oshareview") {
     return {
       badgeBg: "bg-sky-50",

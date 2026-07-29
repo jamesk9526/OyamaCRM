@@ -124,7 +124,6 @@ export default function WatchdogAuditPage() {
               <option value="compassion">compassion</option>
               <option value="events">events</option>
               <option value="webmaster">webmaster</option>
-              <option value="hrm">hrm</option>
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-700">

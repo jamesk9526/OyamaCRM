@@ -37,7 +37,6 @@ const ROUTES = [
   "/watchdog",
   "/watchdog/feedback-tickets",
   "/webmaster",
-  "/hrm",
   "/apps",
 ];
 
