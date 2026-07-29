@@ -1,7 +1,7 @@
 // Projector display route for audience-safe trivia rendering.
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 import ProjectorDisplayView from "@/app/components/trivia/ProjectorDisplayView";
@@ -12,7 +12,12 @@ import ProjectorDisplayView from "@/app/components/trivia/ProjectorDisplayView";
  */
 export default function TriviaProjectorDisplayPage() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { state } = useTriviaModuleState();
+  const { state, syncMode, setSyncMode } = useTriviaModuleState();
+
+  // A projector must follow the server-backed event state, even when it opens in a fresh browser profile.
+  useEffect(() => {
+    if (syncMode !== "server") setSyncMode("server");
+  }, [setSyncMode, syncMode]);
 
   const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [state.events, eventId]);
   const live = event ? state.liveByEventId[event.id] : null;

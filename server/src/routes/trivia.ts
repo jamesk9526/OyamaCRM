@@ -2,13 +2,15 @@
  * Oyama Trivia standalone API routes.
  * Stores module state per organization in a JSON file for night-of operations recovery.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import express, { type Request } from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = express.Router();
+const publicRouter = express.Router();
+router.use("/public", publicRouter);
 router.use(requireAuth);
 
 type JsonObject = Record<string, unknown>;
@@ -21,7 +23,21 @@ interface OrganizationTriviaStore {
   state: JsonObject;
   snapshotsByEventId: Record<string, JsonObject[]>;
   auditByEventId: Record<string, JsonObject[]>;
+  accessPassesByEventId?: Record<string, TriviaAccessPass[]>;
   updatedAt: string;
+}
+
+type TriviaAccessRole = "host" | "checkin" | "scorekeeper";
+
+interface TriviaAccessPass {
+  id: string;
+  label: string;
+  role: TriviaAccessRole;
+  codeHash: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  sessions: Array<{ tokenHash: string; expiresAt: string }>;
+  createdAt: string;
 }
 
 const STORE_DIR = path.resolve(process.cwd(), "server", ".data");
@@ -62,10 +78,60 @@ function ensureOrgStore(store: StoreShape, organizationId: string): Organization
     state: createEmptyState(),
     snapshotsByEventId: {},
     auditByEventId: {},
+    accessPassesByEventId: {},
     updatedAt: nowIso(),
   };
   store.organizations[organizationId] = created;
   return created;
+}
+
+function hashSecret(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function makeAccessCode(): string {
+  return randomBytes(4).toString("hex").toUpperCase();
+}
+
+function isAccessRole(value: unknown): value is TriviaAccessRole {
+  return value === "host" || value === "checkin" || value === "scorekeeper";
+}
+
+function getAccessPasses(orgStore: OrganizationTriviaStore, eventId: string): TriviaAccessPass[] {
+  if (!orgStore.accessPassesByEventId) orgStore.accessPassesByEventId = {};
+  return orgStore.accessPassesByEventId[eventId] ?? [];
+}
+
+function publicEventSnapshot(event: JsonObject, live: JsonObject): JsonObject {
+  const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject).map((round) => ({
+    id: round.id, title: round.title, description: round.description, roundType: round.roundType,
+    questions: Array.isArray(round.questions) ? round.questions.filter(isObject).map((question) => ({
+      id: question.id, prompt: question.prompt, options: Array.isArray(question.options) ? question.options : [],
+      questionType: question.questionType, mediaUrl: question.mediaUrl, timeLimitSec: question.timeLimitSec,
+    })) : [],
+  })) : [];
+  const teams = Array.isArray(event.teams) ? event.teams.filter(isObject).map((team) => ({
+    id: team.id, name: team.name, players: team.players, playerCount: team.playerCount, active: team.active,
+    color: team.color, icon: team.icon, sortOrder: team.sortOrder, checkInStatus: team.checkInStatus, checkedInAt: team.checkedInAt,
+    tableNumber: team.tableNumber, captainName: team.captainName, contactName: team.contactName, contactPhone: team.contactPhone,
+    notes: team.notes, score: team.score, bonusPoints: team.bonusPoints,
+  })) : [];
+  return { id: event.id, name: event.name, venue: event.venue, hostName: event.hostName, status: event.status, rounds, teams, displaySettings: event.displaySettings, live };
+}
+
+async function resolvePublicPass(req: Request, eventId: string): Promise<{ store: StoreShape; orgStore: OrganizationTriviaStore; pass: TriviaAccessPass } | null> {
+  const token = String(req.header("x-trivia-access") ?? "").trim();
+  if (!token) return null;
+  const store = await loadStore();
+  const tokenHash = hashSecret(token);
+  const now = Date.now();
+  for (const orgStore of Object.values(store.organizations)) {
+    const pass = getAccessPasses(orgStore, eventId).find((candidate) =>
+      !candidate.revokedAt && new Date(candidate.expiresAt).getTime() > now && candidate.sessions.some((session) => session.tokenHash === tokenHash && new Date(session.expiresAt).getTime() > now),
+    );
+    if (pass) return { store, orgStore, pass };
+  }
+  return null;
 }
 
 async function loadStore(): Promise<StoreShape> {
@@ -168,6 +234,95 @@ function setLive(orgStore: OrganizationTriviaStore, eventId: string, value: Json
   liveById[eventId] = value;
 }
 
+/** Claims a short-lived event-night access pass without exposing CRM credentials. */
+publicRouter.post("/events/:eventId/claim", async (req, res) => {
+  const store = await loadStore();
+  const eventId = String(req.params.eventId ?? "");
+  const codeHash = hashSecret(String(req.body?.code ?? "").trim().toUpperCase());
+  const now = Date.now();
+  for (const orgStore of Object.values(store.organizations)) {
+    const pass = getAccessPasses(orgStore, eventId).find((candidate) => candidate.codeHash === codeHash && !candidate.revokedAt && new Date(candidate.expiresAt).getTime() > now);
+    if (!pass) continue;
+    const token = randomBytes(24).toString("base64url");
+    pass.sessions = [...pass.sessions.filter((session) => new Date(session.expiresAt).getTime() > now), { tokenHash: hashSecret(token), expiresAt: pass.expiresAt }].slice(-8);
+    orgStore.updatedAt = nowIso();
+    await persistStore(store);
+    res.json({ accessToken: token, role: pass.role, label: pass.label, expiresAt: pass.expiresAt });
+    return;
+  }
+  res.status(401).json({ error: { code: "INVALID_EVENT_ACCESS", message: "That temporary access code is invalid or expired." } });
+});
+
+publicRouter.get("/events/:eventId/session", async (req, res) => {
+  const eventId = String(req.params.eventId ?? "");
+  const access = await resolvePublicPass(req, eventId);
+  if (!access) {
+    res.status(401).json({ error: { code: "INVALID_EVENT_ACCESS", message: "Temporary event access is required." } });
+    return;
+  }
+  const event = getStateEvents(access.orgStore).find((item) => item.id === eventId);
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Trivia event not found." } });
+    return;
+  }
+  res.json({ role: access.pass.role, label: access.pass.label, expiresAt: access.pass.expiresAt, event: publicEventSnapshot(event, getLive(access.orgStore, eventId)) });
+});
+
+publicRouter.post("/events/:eventId/actions", async (req, res) => {
+  const eventId = String(req.params.eventId ?? "");
+  const access = await resolvePublicPass(req, eventId);
+  if (!access) {
+    res.status(401).json({ error: { code: "INVALID_EVENT_ACCESS", message: "Temporary event access is required." } });
+    return;
+  }
+  const event = getStateEvents(access.orgStore).find((item) => item.id === eventId);
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Trivia event not found." } });
+    return;
+  }
+  const action = String(req.body?.action ?? "");
+  const payload = isObject(req.body?.payload) ? req.body.payload : {};
+  const live = getLive(access.orgStore, eventId);
+  if (action === "score_adjust" && (access.pass.role === "scorekeeper" || access.pass.role === "host")) {
+    const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
+    const index = teams.findIndex((team) => team.id === payload.teamId);
+    const delta = Math.max(-100, Math.min(100, Number(payload.delta) || 0));
+    if (index < 0 || delta === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a team and a non-zero score adjustment." } }); return; }
+    const previousScore = Number(teams[index].score) || 0;
+    teams[index] = { ...teams[index], score: previousScore + delta };
+    event.teams = teams;
+    pushAudit(access.orgStore, eventId, "score", `Remote score adjustment ${delta >= 0 ? "+" : ""}${delta}`, { teamId: String(payload.teamId), delta });
+  } else if (action === "check_in" && (access.pass.role === "checkin" || access.pass.role === "host")) {
+    const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
+    const index = teams.findIndex((team) => team.id === payload.teamId);
+    if (index < 0) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Team not found." } }); return; }
+    const status = payload.status === "late" ? "late" : "checked_in";
+    teams[index] = { ...teams[index], checkInStatus: status, active: true, checkedInAt: nowIso() };
+    event.teams = teams;
+    pushAudit(access.orgStore, eventId, "check_in", `${teams[index].name ?? "Team"} checked in`, { teamId: String(payload.teamId), status });
+  } else if (["set_stage", "set_round", "next_question", "previous_question", "timer_start", "timer_pause", "timer_reset"].includes(action) && access.pass.role === "host") {
+    const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject) : [];
+    const nextLive: JsonObject = { ...live };
+    if (action === "set_stage" && typeof payload.stage === "string") nextLive.stage = payload.stage;
+    if (action === "set_round" && typeof payload.roundId === "string" && rounds.some((round) => round.id === payload.roundId)) { nextLive.activeRoundId = payload.roundId; nextLive.activeQuestionIndex = 0; }
+    if (action === "next_question") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); nextLive.activeQuestionIndex = Math.min(Math.max((Array.isArray(round?.questions) ? round.questions.length : 1) - 1, 0), Number(nextLive.activeQuestionIndex ?? 0) + 1); nextLive.stage = "question"; }
+    if (action === "previous_question") nextLive.activeQuestionIndex = Math.max(0, Number(nextLive.activeQuestionIndex ?? 0) - 1);
+    if (action === "timer_start") nextLive.timerRunning = true;
+    if (action === "timer_pause") nextLive.timerRunning = false;
+    if (action === "timer_reset") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); const question = Array.isArray(round?.questions) ? round.questions[Number(nextLive.activeQuestionIndex ?? 0)] : null; const seconds = Number(isObject(question) ? question.timeLimitSec : 30) || 30; nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; }
+    nextLive.lastHostAction = `Remote ${action.replace(/_/g, " ")}`;
+    nextLive.updatedAt = nowIso();
+    setLive(access.orgStore, eventId, nextLive);
+    pushAudit(access.orgStore, eventId, "manual", `Remote control: ${action}`, { accessPassId: access.pass.id });
+  } else {
+    res.status(403).json({ error: { code: "EVENT_ACCESS_DENIED", message: "This temporary sign-in cannot perform that action." } });
+    return;
+  }
+  access.orgStore.updatedAt = nowIso();
+  await persistStore(access.store);
+  res.json({ event: publicEventSnapshot(event, getLive(access.orgStore, eventId)) });
+});
+
 router.get("/state", async (req, res) => {
   const store = await loadStore();
   const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
@@ -234,6 +389,61 @@ router.get("/events/:eventId", async (req, res) => {
   }
 
   res.json({ event, live: getLive(orgStore, eventId), scoreHistory: getScoreHistory(orgStore, eventId) });
+});
+
+/** Creates a revocable temporary sign-in for an event-night role. The code is returned only once. */
+router.post("/events/:eventId/access-passes", async (req, res) => {
+  const store = await loadStore();
+  const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
+  const eventId = String(req.params.eventId ?? "");
+  if (!getStateEvents(orgStore).some((item) => item.id === eventId)) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Trivia event not found." } });
+    return;
+  }
+  const role = req.body?.role;
+  if (!isAccessRole(role)) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "role must be host, checkin, or scorekeeper." } });
+    return;
+  }
+  const durationHours = Math.min(24, Math.max(1, Number(req.body?.durationHours) || 12));
+  const code = makeAccessCode();
+  const pass: TriviaAccessPass = {
+    id: `trivia-pass-${randomUUID().slice(0, 12)}`,
+    label: String(req.body?.label ?? `${role} temporary sign-in`).trim().slice(0, 80) || `${role} temporary sign-in`,
+    role,
+    codeHash: hashSecret(code),
+    expiresAt: new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString(),
+    revokedAt: null,
+    sessions: [],
+    createdAt: nowIso(),
+  };
+  if (!orgStore.accessPassesByEventId) orgStore.accessPassesByEventId = {};
+  orgStore.accessPassesByEventId[eventId] = [pass, ...getAccessPasses(orgStore, eventId)].slice(0, 30);
+  orgStore.updatedAt = nowIso();
+  pushAudit(orgStore, eventId, "manual", `Temporary ${role} sign-in created`, { passId: pass.id, expiresAt: pass.expiresAt });
+  await persistStore(store);
+  res.status(201).json({ pass: { id: pass.id, label: pass.label, role: pass.role, expiresAt: pass.expiresAt, createdAt: pass.createdAt, code } });
+});
+
+router.get("/events/:eventId/access-passes", async (req, res) => {
+  const store = await loadStore();
+  const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
+  const eventId = String(req.params.eventId ?? "");
+  res.json({ passes: getAccessPasses(orgStore, eventId).map((pass) => ({ id: pass.id, label: pass.label, role: pass.role, expiresAt: pass.expiresAt, revokedAt: pass.revokedAt, createdAt: pass.createdAt, activeSessions: pass.sessions.filter((session) => new Date(session.expiresAt).getTime() > Date.now()).length })) });
+});
+
+router.delete("/events/:eventId/access-passes/:passId", async (req, res) => {
+  const store = await loadStore();
+  const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
+  const eventId = String(req.params.eventId ?? "");
+  const pass = getAccessPasses(orgStore, eventId).find((item) => item.id === String(req.params.passId ?? ""));
+  if (!pass) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Temporary sign-in not found." } }); return; }
+  pass.revokedAt = nowIso();
+  pass.sessions = [];
+  orgStore.updatedAt = nowIso();
+  pushAudit(orgStore, eventId, "manual", `Temporary ${pass.role} sign-in revoked`, { passId: pass.id });
+  await persistStore(store);
+  res.json({ ok: true });
 });
 
 router.patch("/events/:eventId", async (req, res) => {

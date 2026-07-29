@@ -48,6 +48,15 @@ const QUESTION_TYPES: Array<{ value: TriviaQuestionType; label: string }> = [
   { value: "host_prompt", label: "Host Prompt" },
 ];
 
+const QUESTION_TYPE_HELP: Record<TriviaQuestionType, string> = {
+  text: "A written or spoken answer. Add alternates for fair judging.",
+  multiple_choice: "Show up to four choices on the projector. Put one choice on each line.",
+  image: "Show an image prompt. Add the image link before event night.",
+  audio: "Play an audio clue. Test the venue sound before doors open.",
+  video: "Play a video clue. Keep a backup link ready.",
+  host_prompt: "A host-only cue, useful for announcements or live activities.",
+};
+
 /**
  * RoundQuestionBuilderPanel handles core content authoring for trivia events.
  * It writes directly to persisted state so host and display routes are immediately usable.
@@ -128,10 +137,11 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
   }
 
   return (
-    <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 space-y-5">
+    <section className="space-y-5 border border-slate-700 bg-slate-900/70 p-4">
       <div>
-        <h2 className="text-lg font-semibold text-white">Round and Question Builder</h2>
-        <p className="text-sm text-slate-300 mt-1">Build event content with separate scoring answers, reveal copy, media fields, and host-only guidance.</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">Content studio</p>
+        <h2 className="mt-1 text-lg font-semibold text-white">Build rounds, then add questions</h2>
+        <p className="mt-1 text-sm text-slate-300">Use the same simple sequence every time: choose a round, choose the question type, add the host answer, then check the projector copy.</p>
       </div>
 
       <form onSubmit={handleAddRound} className="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -158,12 +168,12 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
             </option>
           ))}
         </select>
-        <button className="md:col-span-4 rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-semibold text-white" type="submit">
+        <button className="md:col-span-4 bg-cyan-600 hover:bg-cyan-500 px-3 py-2 text-sm font-semibold text-white" type="submit">
           Add Round
         </button>
       </form>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 space-y-2">
+      <div className="border border-slate-700 bg-slate-950 p-3 space-y-2">
         <label className="text-xs uppercase tracking-wide text-slate-400" htmlFor="round-select">
           Question Target Round
         </label>
@@ -182,7 +192,17 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
         </select>
       </div>
 
-      <form onSubmit={handleAddQuestion} className="grid grid-cols-1 gap-2">
+      {!selectedRound ? <div className="border-l-4 border-amber-400 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">Choose a round above before adding questions. This keeps every question in the right place for the host.</div> : null}
+
+      <form onSubmit={handleAddQuestion} className="grid grid-cols-1 gap-3 border border-slate-700 bg-slate-950/70 p-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">1. Choose question type</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
+            {QUESTION_TYPES.map((item) => <button key={item.value} type="button" onClick={() => setQuestionType(item.value)} className={questionType === item.value ? "border border-cyan-400 bg-cyan-500/20 px-3 py-2 text-left text-sm font-semibold text-cyan-100" : "border border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm text-slate-200 hover:border-slate-500"}>{item.label}</button>)}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">{QUESTION_TYPE_HELP[questionType]}</p>
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">2. Write the question and answer key</p>
         <input
           value={questionPrompt}
           onChange={(event) => setQuestionPrompt(event.target.value)}
@@ -218,12 +238,12 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
             placeholder="Time limit (sec)"
           />
         </div>
-        <textarea
+        {questionType === "multiple_choice" ? <textarea
           value={questionOptions}
           onChange={(event) => setQuestionOptions(event.target.value)}
-          placeholder="Answer options (one per line). Optional for text questions."
+          placeholder="Answer choices (one per line, ideally 2–4 choices)"
           className="min-h-[92px] rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
-        />
+        /> : null}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input
             value={scoringAnswer}
@@ -244,13 +264,14 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
           placeholder="Accepted alternate answers (comma separated)"
           className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
         />
+        <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">3. Optional reveal details</p>
         <textarea
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
           placeholder="Optional explanation"
           className="min-h-[72px] rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
         />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {(["image", "audio", "video"] as TriviaQuestionType[]).includes(questionType) ? <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input
             value={mediaUrl}
             onChange={(event) => setMediaUrl(event.target.value)}
@@ -263,15 +284,15 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
             placeholder="Reveal text shown on projector"
             className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
           />
-        </div>
+        </div> : <input value={revealText} onChange={(event) => setRevealText(event.target.value)} placeholder="Optional projector reveal text" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white" />}
         <textarea
           value={hostNotes}
           onChange={(event) => setHostNotes(event.target.value)}
           placeholder="Host notes (private answer-key only)"
           className="min-h-[80px] rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
         />
-        <button className="rounded-lg bg-emerald-500 hover:bg-emerald-400 px-3 py-2 text-sm font-semibold text-black" type="submit" disabled={!selectedRoundId}>
-          Add Question
+        <button className="bg-emerald-500 hover:bg-emerald-400 px-3 py-2 text-sm font-semibold text-black disabled:opacity-50" type="submit" disabled={!selectedRoundId || !questionPrompt.trim() || !scoringAnswer.trim()}>
+          Save Question to {selectedRound?.title || "Round"}
         </button>
       </form>
 
