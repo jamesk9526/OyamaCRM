@@ -154,7 +154,13 @@ describe("getMTDRange", () => {
 
   it("starts on the 1st of the current month", () => {
     const range = getMTDRange();
-    expect(range.gte).toEqual(new Date(2025, 5, 1));
+    expect(range.gte).toEqual(new Date(Date.UTC(2025, 5, 1)));
+  });
+
+  it("includes a UTC-midnight donation on the first day", () => {
+    const range = getMTDRange();
+    const jun1AtUtcMidnight = new Date(Date.UTC(2025, 5, 1));
+    expect(jun1AtUtcMidnight >= range.gte && jun1AtUtcMidnight <= range.lte).toBe(true);
   });
 
   it("includes June 1 donation", () => {
@@ -165,7 +171,7 @@ describe("getMTDRange", () => {
 
   it("excludes May 31 donation", () => {
     const range = getMTDRange();
-    const may31 = new Date(2025, 4, 31, 23, 59, 59);
+    const may31 = new Date(Date.UTC(2025, 4, 31, 23, 59, 59));
     expect(may31 >= range.gte).toBe(false);
   });
 });

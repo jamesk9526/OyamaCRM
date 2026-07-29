@@ -101,10 +101,14 @@ export function getYTDRange(now = new Date()): { gte: Date; lte: Date } {
   };
 }
 
-/** Prisma-compatible MTD filter: 1st of current month through right now. */
+/**
+ * Prisma-compatible MTD filter: first calendar day of the current month through right now.
+ * Donation-only imports are normalized to UTC midnight, so this boundary must also be UTC;
+ * a server-local midnight (for example America/Chicago) silently excludes gifts on the 1st.
+ */
 export function getMTDRange(now = new Date()): { gte: Date; lte: Date } {
   return {
-    gte: new Date(now.getFullYear(), now.getMonth(), 1),
+    gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
     lte: now,
   };
 }
