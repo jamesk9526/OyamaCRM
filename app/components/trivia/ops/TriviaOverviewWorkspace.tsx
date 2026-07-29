@@ -13,10 +13,24 @@ interface TriviaOverviewWorkspaceProps {
 /** Presents mission-control quick actions and event-night situational metrics. */
 export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: TriviaOverviewWorkspaceProps) {
   const base = `/apps/trivia/events/${event.id}`;
+  const questions = event.rounds.flatMap((round) => round.questions);
+  const missingAnswers = questions.filter((question) => !question.scoringAnswer.trim()).length;
+  const mediaQuestions = questions.filter((question) => ["image", "audio", "video"].includes(question.questionType));
+  const missingMedia = mediaQuestions.filter((question) => !question.mediaUrl.trim()).length;
+  const readiness = [
+    { label: "Rounds planned", detail: `${event.rounds.length} configured`, ready: event.rounds.length > 0 },
+    { label: "Questions written", detail: `${questions.length} total`, ready: questions.length > 0 },
+    { label: "Answer key", detail: missingAnswers ? `${missingAnswers} answer${missingAnswers === 1 ? "" : "s"} missing` : "Complete", ready: missingAnswers === 0 && questions.length > 0 },
+    { label: "Media checks", detail: missingMedia ? `${missingMedia} media link${missingMedia === 1 ? "" : "s"} missing` : mediaQuestions.length ? "Media linked" : "No media questions", ready: missingMedia === 0 },
+    { label: "Teams", detail: `${event.teams.length} configured`, ready: event.teams.length > 0 },
+    { label: "Projector", detail: live.displayOpenedAt ? "Opened this session" : "Not tested yet", ready: Boolean(live.displayOpenedAt) },
+  ];
 
   return (
     <section className="space-y-4">
       <TriviaEventOpsHeader event={event} live={live} scoreHistory={scoreHistory} />
+
+      <section className="border border-[#d1c7e8] bg-white"><header className="border-b border-[#d1c7e8] bg-[#f6f2ff] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Event readiness</p><h2 className="mt-1 text-lg font-semibold text-slate-900">What to finish before doors open</h2></header><div className="grid gap-px bg-[#d1c7e8] sm:grid-cols-2 xl:grid-cols-3">{readiness.map((item) => <div key={item.label} className="bg-white px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.label}</p><span className={item.ready ? "border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800" : "border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800"}>{item.ready ? "Ready" : "Review"}</span></div><p className="mt-1 text-xs text-slate-600">{item.detail}</p></div>)}</div></section>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Link href={`${base}/check-in`} className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/15 p-4 hover:bg-fuchsia-500/25 transition-colors">
@@ -74,9 +88,9 @@ export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: T
         </Link>
       </div>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
-        <h3 className="text-sm font-semibold text-white">Quick Operational Warnings</h3>
-        <ul className="mt-2 space-y-1 text-xs text-slate-200">
+      <div className="border border-[#d1c7e8] bg-white p-4">
+        <h3 className="text-sm font-semibold text-slate-900">Operational status</h3>
+        <ul className="mt-2 space-y-1 text-xs text-slate-700">
           <li>{event.teams.length === 0 ? "No teams configured yet." : `${event.teams.length} teams configured.`}</li>
           <li>{event.rounds.length === 0 ? "No rounds configured yet." : `${event.rounds.length} rounds configured.`}</li>
           <li>{live.displayOpenedAt ? "Projector has been opened during this session." : "Projector has not been opened yet."}</li>

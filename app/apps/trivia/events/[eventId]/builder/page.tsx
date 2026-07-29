@@ -51,10 +51,10 @@ export default function TriviaEventBuilderPage() {
         event={event}
         actions={(
           <>
-            <Link href={`/apps/trivia/events/${event.id}/host`} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-semibold text-black">
+            <Link href={`/apps/trivia/events/${event.id}/host`} className="bg-[#5b3f9b] px-3 py-2 text-xs font-semibold text-white hover:bg-[#4a327f]">
               Open Host Panel
             </Link>
-            <Link href={`/apps/trivia/display/${event.id}`} target="_blank" className="rounded-lg bg-cyan-700 hover:bg-cyan-600 px-3 py-2 text-xs text-white">
+            <Link href={`/apps/trivia/display/${event.id}`} target="_blank" className="bg-[#0078a0] px-3 py-2 text-xs font-semibold text-white hover:bg-[#006a8e]">
               Open Display
             </Link>
           </>
