@@ -5,11 +5,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { DonorDashboardOverviewSections, type DashboardAttentionItem } from "./DonorDashboardOverviewSections";
+import { DashboardMetricCard, DashboardMiniTile, DashboardStatusPill } from "./shared/DashboardPrimitives";
 import { DASHBOARD_APPEARANCE_DEFAULTS, DASHBOARD_HERO_ACTIONS } from "@/app/features/donor-dashboard/dashboard-config";
-import { formatDashboardCompactCurrency, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
+import { formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/dashboard-client-service";
 import type { CampaignImpact, DashboardData, DonationPreview, DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 
@@ -25,148 +26,6 @@ interface NaturalisticDonorDashboardProps {
   headerActions?: ReactNode;
   extraSections?: ReactNode;
   onRefresh?: () => void | Promise<void>;
-}
-
-function formatRelativeTime(dateValue: string): string {
-  const date = new Date(dateValue);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
-  if (diffHours < 1) return "just now";
-  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-}
-
-function formatPanelDate(dateValue: string): string {
-  const date = new Date(dateValue);
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
-}
-
-function formatPanelTime(dateValue: string): string {
-  const date = new Date(dateValue);
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
-}
-
-function sparklinePath(values: number[], width = 102, height = 28): string {
-  if (values.length <= 1) return `M0 ${height - 3} L${width} ${height - 3}`;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const spread = Math.max(1, max - min);
-  return values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
-      const y = height - ((value - min) / spread) * (height - 5) - 2;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
-function StatCard({
-  title,
-  value,
-  trendText,
-  trendPositive,
-  color,
-  sparkValues,
-  href,
-  compactValue = false,
-}: {
-  title: string;
-  value: string;
-  trendText: string;
-  trendPositive: boolean;
-  color: "indigo" | "blue" | "violet" | "amber" | "sky";
-  sparkValues: number[];
-  href: string;
-  compactValue?: boolean;
-}) {
-  const tone = color === "indigo"
-    ? { chip: "bg-[#eff6fc] text-[#0f6cbd]", stroke: "#0f6cbd" }
-    : color === "blue"
-      ? { chip: "bg-[#deecf9] text-[#115ea3]", stroke: "#115ea3" }
-      : color === "violet"
-        ? { chip: "bg-[#f3f2f1] text-[#424242]", stroke: "#616161" }
-      : color === "amber"
-          ? { chip: "bg-amber-100 text-amber-700", stroke: "#d97706" }
-          : { chip: "bg-[#eff6fc] text-[#0f548c]", stroke: "#0f6cbd" };
-
-  const icon = color === "indigo"
-    ? <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-    : color === "blue"
-      ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5v14" />
-      : color === "violet"
-        ? <path strokeLinecap="round" strokeLinejoin="round" d="M12 4a4 4 0 100 8 4 4 0 000-8zM5 20a7 7 0 0114 0" />
-        : color === "amber"
-          ? <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.5v4M16 3.5v4M4.5 9h15M5.5 6.5h13a1 1 0 011 1v11a2 2 0 01-2 2h-11a2 2 0 01-2-2v-11a1 1 0 011-1z" />
-          : <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.75h17a1.75 1.75 0 011.75 1.75v7a1.75 1.75 0 01-1.75 1.75h-17A1.75 1.75 0 011.75 15.5v-7A1.75 1.75 0 013.5 6.75zm.25 1.25 8.25 6 8.25-6" />;
-
-  return (
-    <Link href={href} className="group block rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd] focus-visible:ring-offset-2">
-    <article className="relative h-full overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white px-4 py-3.5 transition-colors group-hover:border-[#0f6cbd] group-hover:bg-[#fafafa]">
-      <span className="absolute inset-x-0 top-0 h-[3px] bg-[#0f6cbd]" aria-hidden="true" />
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-medium text-slate-600">{title}</p>
-          <p className={`mt-1 font-bold leading-none tracking-tight text-slate-900 ${compactValue ? "text-[20px]" : "text-[28px]"}`}>{value}</p>
-        </div>
-        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-[2px] ${tone.chip}`}>
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">{icon}</svg>
-        </span>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-          <p className={`text-[11px] font-semibold ${trendPositive ? "text-[#0f6cbd]" : "text-slate-500"}`}>{trendText}</p>
-        {sparkValues.length > 1 ? (
-          <svg width="102" height="28" viewBox="0 0 102 28" aria-hidden="true" className="shrink-0">
-            <defs><linearGradient id={`spark-${color}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={tone.stroke} stopOpacity="0.24" /><stop offset="100%" stopColor={tone.stroke} stopOpacity="0" /></linearGradient></defs>
-            <path d={`${sparklinePath(sparkValues, 102, 28)} L102 28 L0 28 Z`} fill={`url(#spark-${color})`} stroke="none" />
-            <path d={sparklinePath(sparkValues, 102, 28)} fill="none" stroke={tone.stroke} strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        ) : <span className="text-[10px] font-medium text-slate-400">Open details</span>}
-      </div>
-    </article>
-    </Link>
-  );
-}
-
-function HeroMiniTile({
-  label,
-  value,
-  detail,
-  tone = "indigo",
-  href,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  tone?: "indigo" | "blue";
-  href?: string;
-}) {
-  const toneClass = tone === "blue"
-    ? "border-[#cfe4fa] bg-[#eff6fc]"
-    : "border-[#d1d1d1] bg-white";
-
-  const content = (
-    <div className={`relative h-full overflow-hidden rounded-[2px] border border-t-[3px] border-t-[#0f6cbd] px-4 py-3.5 ${toneClass} ${href ? "transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa]" : ""}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</p>
-      <div className="mt-1 flex items-end justify-between gap-2">
-        <p className="text-xs text-slate-600">{detail}</p>
-        {href ? <span className="shrink-0 text-[11px] font-semibold text-[#0f6cbd]">Open</span> : null}
-      </div>
-    </div>
-  );
-
-  return href ? <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd]">{content}</Link> : content;
-}
-
-function DashboardStatusPill({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-[2px] bg-[#f3f2f1] px-3 py-1.5 text-[11px] font-medium text-slate-600 ring-1 ring-[#d1d1d1]">
-      <span className="h-1.5 w-1.5 rounded-full bg-[#0f6cbd]" aria-hidden="true" />
-      {children}
-    </span>
-  );
 }
 
 export default function NaturalisticDonorDashboard({
@@ -223,33 +82,6 @@ export default function NaturalisticDonorDashboard({
   const sparkValues = trendPoints.map((point) => point.amount);
   const unackedCount = pendingAcknowledgmentCount;
 
-  const topDesignationRows = useMemo(() => {
-    const total = designationSlices.reduce((sum, slice) => sum + slice.amount, 0);
-    return designationSlices.slice(0, 5).map((slice) => ({
-      label: slice.name,
-      value: slice.amount,
-      pct: total > 0 ? Math.round((slice.amount / total) * 100) : 0,
-    }));
-  }, [designationSlices]);
-
-  const activityRows = useMemo(() => {
-    const rows = donations.slice(0, 5).map((donation) => ({
-      id: donation.id,
-      title: "Gift received",
-      detail: `${donation.constituent?.firstName ?? "Donor"} ${donation.constituent?.lastName ?? ""} gave ${formatDashboardCurrency(toDashboardNumber(donation.amount))}`,
-      at: formatRelativeTime(donation.date),
-    }));
-    if (summary && summary.newDonorsThisMonth > 0) {
-      rows.unshift({
-        id: "new-donors",
-        title: "New donor activity",
-        detail: `${summary.newDonorsThisMonth.toLocaleString()} new donor${summary.newDonorsThisMonth === 1 ? "" : "s"} added this month`,
-        at: "this month",
-      });
-    }
-    return rows.slice(0, 5);
-  }, [donations, summary]);
-
   const stewardRecommendations = suggestions.slice(0, 4);
 
   const highPriorityRecommendationCount = stewardRecommendations.filter((item) => item.urgency === "high").length;
@@ -260,12 +92,12 @@ export default function NaturalisticDonorDashboard({
     { id: "recommendations", label: `${highPriorityRecommendationCount} high-priority signals`, sub: "Review steward recommendations", tone: "blue", href: "/steward-signals" },
   ] as const;
 
-  const attentionItems = [
+  const attentionItems: DashboardAttentionItem[] = [
     { id: "overdue", label: "Overdue donor tasks", sub: "Work due or overdue follow-ups", count: summary?.overdueTasks ?? 0, href: "/tasks", tone: "rose" },
     { id: "receipts", label: "Unacknowledged gifts", sub: "Review acknowledgment status", count: unackedCount, href: "/donations?acknowledgment=pending", tone: "amber" },
     { id: "signals", label: "High-priority signals", sub: "Steward recommendations requiring review", count: highPriorityRecommendationCount, href: "/steward-signals", tone: "orange" },
     { id: "tasks", label: "Open donor tasks", sub: "Current stewardship work queue", count: summary?.pendingTasks ?? 0, href: "/tasks", tone: "violet" },
-  ] as const;
+  ];
   const visibleAttentionItems = attentionItems.filter((item) => item.count > 0);
 
   const quickActions = [
@@ -276,10 +108,7 @@ export default function NaturalisticDonorDashboard({
   ];
 
   const weekLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date());
-  const widgetCardClass = "overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white";
-  const widgetHeaderClass = "flex items-center justify-between border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3";
-
-  const reportingPeriodLabel = reportingYearMode === "FISCAL" ? "Fiscal-year view" : "Calendar-year view";
+  const reportingPeriodLabel = reportingYearMode.toLowerCase() === "fiscal" ? "Fiscal-year view" : "Calendar-year view";
 
   return (
     <div className="min-h-screen min-w-0 bg-[#f5f5f5]">
@@ -335,8 +164,8 @@ export default function NaturalisticDonorDashboard({
               </nav>
             </div>
             <div className="grid min-w-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
-              <HeroMiniTile label="Attention Queue" value={`${visibleAttentionItems.length} active`} detail={visibleAttentionItems.length > 0 ? `${unackedCount} unacknowledged gifts and ${summary?.overdueTasks ?? 0} overdue tasks` : "No current dashboard alerts"} href="/donations?acknowledgment=pending" />
-              <HeroMiniTile label="Coverage" value={totalDonorsValue} detail="Active donor records in current dashboard scope" tone="blue" href="/constituents" />
+              <DashboardMiniTile label="Attention Queue" value={`${visibleAttentionItems.length} active`} detail={visibleAttentionItems.length > 0 ? `${unackedCount} unacknowledged gifts and ${summary?.overdueTasks ?? 0} overdue tasks` : "No current dashboard alerts"} href="/donations?acknowledgment=pending" />
+              <DashboardMiniTile label="Coverage" value={totalDonorsValue} detail="Active donor records in current dashboard scope" highlighted href="/constituents" />
             </div>
           </div>
         </section>
@@ -374,11 +203,11 @@ export default function NaturalisticDonorDashboard({
         </section>
 
         <section className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-          <StatCard title="Total Donors" value={totalDonorsValue} trendText="Open donor records" trendPositive color="indigo" sparkValues={[]} href="/constituents" />
-          <StatCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "No comparison"} vs same point last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} color="blue" sparkValues={sparkValues} href="/donations" />
-          <StatCard title="New Donors" value={newDonorsValue} trendText="Review welcome follow-up" trendPositive color="violet" sparkValues={[]} href="/constituents" />
-          <StatCard title="Active Campaigns" value={activeCampaignCount.toLocaleString()} trendText="Review fundraising work" trendPositive={false} color="amber" sparkValues={[]} href="/campaigns" />
-          <StatCard title="Retention Rate" value={retention ? `${Math.round(retention.rate)}%` : "—"} trendText="Open donor reporting" trendPositive={(retention?.rate ?? 0) >= 50} color="sky" compactValue sparkValues={[]} href="/reports" />
+          <DashboardMetricCard title="Total Donors" value={totalDonorsValue} trendText="Open donor records" trendPositive tone="indigo" sparkValues={[]} href="/constituents" />
+          <DashboardMetricCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "No comparison"} vs same point last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} tone="blue" sparkValues={sparkValues} href="/donations" />
+          <DashboardMetricCard title="New Donors" value={newDonorsValue} trendText="Review welcome follow-up" trendPositive tone="violet" sparkValues={[]} href="/constituents" />
+          <DashboardMetricCard title="Active Campaigns" value={activeCampaignCount.toLocaleString()} trendText="Review fundraising work" trendPositive={false} tone="amber" sparkValues={[]} href="/campaigns" />
+          <DashboardMetricCard title="Retention Rate" value={retention ? `${Math.round(retention.rate)}%` : "—"} trendText="Open donor reporting" trendPositive={(retention?.rate ?? 0) >= 50} tone="sky" compactValue sparkValues={[]} href="/reports" />
         </section>
 
         <section className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1.45fr]">
