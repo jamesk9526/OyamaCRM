@@ -25,6 +25,7 @@ import {
   normalizeEmailTemplateDocument,
   normalizeEmailTemplateSettings,
   renderEmailTemplateDocument,
+  renderEmailTemplateBody,
   renderEmailTemplateDocumentWithMerge,
   type OyamaEmailGlobalChrome,
   type OyamaEmailTemplateDocument,
@@ -1167,6 +1168,11 @@ router.post("/templates/:id/create-letter-template", requirePermission("letters.
   const stored = parseStoredTemplateJson(campaign.templateJson, { bodyHtml: campaign.bodyHtml, bodyText: campaign.bodyText });
   const branding = await loadOrganizationBrandingContext(organizationId);
   const rendered = renderEmailTemplateDocument(stored.template, stored.settings, branding);
+  const printableBlocks = renderEmailTemplateBody(stored.template)
+    // These links are mandatory email compliance controls, not letter merge fields.
+    .replace(/<[^>]+(?:unsubscribeUrl|managePreferencesUrl)[^>]*>[\s\S]*?<\/[^>]+>/gi, "")
+    .replace(/\{\{(?:unsubscribeUrl|managePreferencesUrl)\}\}/g, "")
+    .replace(/\s*(?:·|\||-)\s*(?=<\/)/g, "");
   const created = await prisma.letterTemplate.create({
     data: {
       organizationId,
@@ -1175,7 +1181,7 @@ router.post("/templates/:id/create-letter-template", requirePermission("letters.
       description: "Printable companion created from an OyamaEmail template. The original block document is retained for a lossless return to Email.",
       status: "DRAFT",
       printSubject: campaign.subject,
-      printBody: rendered.text || campaign.bodyText || campaign.name,
+      printBody: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tbody>${printableBlocks}</tbody></table>`,
       emailSubject: campaign.subject,
       emailBody: rendered.html,
       printLayoutJson: {

@@ -1212,22 +1212,7 @@ export function renderEmailTemplateDocument(
     linkColor: asString(chrome?.primaryColor).trim() || baseTheme.linkColor,
   };
   const globalHeader = renderGlobalHeader(chrome, theme);
-  const body = template.blocks
-    .map((block) => {
-      if (block.type === "header") return renderHeaderBlock(block, theme);
-      if (block.type === "text") return renderTextBlock(block, theme);
-      if (block.type === "image") return renderImageBlock(block);
-      if (block.type === "button" || block.type === "donationButton" || block.type === "eventButton") return renderButtonBlock(block);
-      if (block.type === "divider") return renderDividerBlock(block);
-      if (block.type === "spacer") return renderSpacerBlock(block);
-      if (block.type === "columns") return renderColumnsBlock(block, theme);
-      if (block.type === "social") return renderSocialBlock(block, theme);
-      if (block.type === "video") return renderVideoBlock(block, theme);
-      if (block.type === "fileLink") return renderFileLinkBlock(block, theme);
-      return renderHtmlBlock(block, theme);
-    })
-    .join("\n");
-
+  const body = renderEmailTemplateBody(template, theme);
   const footer = renderFooter(settings, theme, chrome);
   const contentWidth = clamp(asNumber(chrome?.emailContentWidth, template.contentWidth), 420, 760);
   const bg = escapeHtml(asString(chrome?.emailBackgroundColor).trim() || template.backgroundColor || "#f3f7f5");
@@ -1252,30 +1237,34 @@ export function renderEmailTemplateDocument(
       .oyama-email-root li { display: list-item; margin: 0 0 0.35em 0; padding: 0; }
     </style>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bg};">
-      <tr>
-        <td align="center" style="padding:24px 12px;">
-          <table class="oyama-email-root" role="presentation" width="${contentWidth}" cellpadding="0" cellspacing="0" border="0" style="width:${contentWidth}px;max-width:100%;background:#ffffff;border:1px solid #dbe5df;border-radius:14px;overflow:hidden;">
-            ${globalHeader}
-            ${body}
-            ${footer}
-          </table>
-        </td>
-      </tr>
+      <tr><td align="center" style="padding:24px 12px;"><table class="oyama-email-root" role="presentation" width="${contentWidth}" cellpadding="0" cellspacing="0" border="0" style="width:${contentWidth}px;max-width:100%;background:#ffffff;border:1px solid #dbe5df;border-radius:14px;overflow:hidden;">${globalHeader}${body}${footer}</table></td></tr>
     </table>
   </body>
 </html>`;
 
   const html = absolutizeEmailAssetUrls(renderedHtml, chrome?.publicAssetBaseUrl);
-
   const plainTextOverride = asString(settings.plainTextOverride).trim();
   const text = settings.enablePlainTextVersion ? (plainTextOverride || htmlToPlainText(html)) : "";
-  const mergeFieldsUsed = extractMergeFieldsFromContent(html);
+  return { html, text, mergeFieldsUsed: extractMergeFieldsFromContent(html) };
+}
 
-  return {
-    html,
-    text,
-    mergeFieldsUsed,
-  };
+/** Renders just the authored blocks, suitable for a printable companion without email chrome. */
+export function renderEmailTemplateBody(template: OyamaEmailTemplateDocument, theme: RenderTheme = themeFromTemplate(template)): string {
+  return template.blocks
+    .map((block) => {
+      if (block.type === "header") return renderHeaderBlock(block, theme);
+      if (block.type === "text") return renderTextBlock(block, theme);
+      if (block.type === "image") return renderImageBlock(block);
+      if (block.type === "button" || block.type === "donationButton" || block.type === "eventButton") return renderButtonBlock(block);
+      if (block.type === "divider") return renderDividerBlock(block);
+      if (block.type === "spacer") return renderSpacerBlock(block);
+      if (block.type === "columns") return renderColumnsBlock(block, theme);
+      if (block.type === "social") return renderSocialBlock(block, theme);
+      if (block.type === "video") return renderVideoBlock(block, theme);
+      if (block.type === "fileLink") return renderFileLinkBlock(block, theme);
+      return renderHtmlBlock(block, theme);
+    })
+    .join("\n");
 }
 
 export function renderEmailTemplateDocumentWithMerge(
