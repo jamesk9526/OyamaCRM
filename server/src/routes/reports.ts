@@ -20,6 +20,11 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import { completedDonationWhere } from "../lib/donationScope.js";
 import { generateLetterFromTemplate } from "../services/letters-execution.js";
 import {
+  buildDonorLibraryReport,
+  isDonorLibraryReportKey,
+  parseDonorLibraryReportOptions,
+} from "../services/donor-report-library.js";
+import {
   getYearRange,
   getFiscalYearForDate,
   getFiscalYearRange,
@@ -1244,6 +1249,71 @@ router.get("/exports/donors-by-designation.csv", requirePermission("export:data"
 
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename=donors-by-designation-mtd-${stamp}.csv`);
+  res.status(200).send(csv);
+});
+
+/**
+ * GET /api/reports/library/:reportKey
+ *
+ * Shared live-data contract for the Donor CRM report library. The card gallery,
+ * grid, print view, and CSV export all use this same report builder so staff do
+ * not review one number and export another.
+ */
+router.get("/library/:reportKey", async (req, res) => {
+  const reportKey = Array.isArray(req.params.reportKey) ? req.params.reportKey[0] ?? "" : req.params.reportKey;
+  if (!isDonorLibraryReportKey(reportKey)) {
+    res.status(404).json({ error: { code: "REPORT_NOT_FOUND", message: "That donor report is not available." } });
+    return;
+  }
+  const organizationId = await resolveOrganizationId({ req });
+  const options = parseDonorLibraryReportOptions(reportKey, req.query as Record<string, unknown>);
+  res.json(await buildDonorLibraryReport(organizationId, reportKey, options));
+});
+
+/** Exports the exact live report rows shown by the donor report library. */
+router.get("/exports/library/:reportKey.csv", requirePermission("export:data"), async (req, res) => {
+  const reportKey = Array.isArray(req.params.reportKey) ? req.params.reportKey[0] ?? "" : req.params.reportKey;
+  if (!isDonorLibraryReportKey(reportKey)) {
+    res.status(404).json({ error: { code: "REPORT_NOT_FOUND", message: "That donor report is not available." } });
+    return;
+  }
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+  const report = await buildDonorLibraryReport(
+    organizationId,
+    reportKey,
+    parseDonorLibraryReportOptions(reportKey, req.query as Record<string, unknown>),
+  );
+  const matrixHeaders = report.comparisonMatrix
+    ? {
+      current: `Current year (${report.comparisonMatrix.columns.currentYear})`,
+      prior: `Prior year (${report.comparisonMatrix.columns.priorYear})`,
+      twoYearsPrior: `Two years prior (${report.comparisonMatrix.columns.twoYearsPrior})`,
+    }
+    : null;
+  const exportRows = report.comparisonMatrix
+    ? report.comparisonMatrix.sections.flatMap((section) => section.rows.map((row) => ({
+      "Donor group": section.label,
+      Metric: row.label,
+      [matrixHeaders?.current ?? "Current year"]: row.type === "currency" ? row.current.toFixed(2) : row.current,
+      [matrixHeaders?.prior ?? "Prior year"]: row.type === "currency" ? row.prior.toFixed(2) : row.prior,
+      [matrixHeaders?.twoYearsPrior ?? "Two years prior"]: row.type === "currency" ? row.twoYearsPrior.toFixed(2) : row.twoYearsPrior,
+      "vs. prior year": row.difference == null ? "" : row.type === "currency" ? row.difference.toFixed(2) : row.difference,
+    })))
+    : report.rows.map((row) => Object.fromEntries(report.columns.map((column) => {
+      const value = row[column.key];
+      return [column.label, column.type === "currency" && typeof value === "number" ? value.toFixed(2) : value ?? ""];
+    })));
+  const headers = report.comparisonMatrix
+    ? ["Donor group", "Metric", matrixHeaders?.current ?? "Current year", matrixHeaders?.prior ?? "Prior year", matrixHeaders?.twoYearsPrior ?? "Two years prior", "vs. prior year"]
+    : report.columns.map((column) => column.label);
+  const csv = exportRows.length > 0 ? buildCsv(exportRows) : headers.map(csvCell).join(",");
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=${reportKey}-${stamp}.csv`);
   res.status(200).send(csv);
 });
 

@@ -140,6 +140,74 @@ describe("GET /api/reports/donors-by-designation", () => {
   });
 });
 
+// ─── /api/reports/library/:reportKey ────────────────────────────────────────
+
+describe("GET /api/reports/library/:reportKey", () => {
+  const reportKeys = [
+    "batch-receipts",
+    "donations",
+    "donations-by-designation",
+    "lifetime-giving",
+    "monthly-giving",
+    "comprehensive-donor-analysis",
+    "donor-files",
+    "giving-capacity-interest",
+    "donor-follow-up",
+    "donor-notes",
+    "first-time-donors",
+    "lapsed-donors",
+    "never-given",
+    "top-donors",
+  ];
+
+  it("serves every visible donor report card from one live report contract", async () => {
+    for (const reportKey of reportKeys) {
+      const res = await authGet(`/api/reports/library/${reportKey}?from=2025-01-01&through=2026-12-31&year=2026`);
+      expect(res.status, reportKey).toBe(200);
+      expect(res.body).toEqual(expect.objectContaining({
+        report: reportKey,
+        title: expect.any(String),
+        description: expect.any(String),
+        summary: expect.any(Array),
+        columns: expect.any(Array),
+        rows: expect.any(Array),
+        notices: expect.any(Array),
+      }));
+    }
+  }, 20_000);
+
+  it("builds the comprehensive analysis as a three-year active/new/repeat matrix", async () => {
+    const res = await authGet("/api/reports/library/comprehensive-donor-analysis?year=2026");
+    expect(res.status).toBe(200);
+    expect(res.body.comparisonMatrix).toEqual(expect.objectContaining({
+      columns: { currentYear: 2026, priorYear: 2025, twoYearsPrior: 2024 },
+      sections: expect.any(Array),
+    }));
+    expect(res.body.comparisonMatrix.sections.map((section: { label: string }) => section.label)).toEqual([
+      "Active donors",
+      "New donors",
+      "Repeat donors",
+    ]);
+  });
+
+  it("exports both a grid report and comparison matrix as CSV", async () => {
+    const donationCsv = await authGet("/api/reports/exports/library/donations.csv?from=2025-01-01&through=2026-12-31");
+    expect(donationCsv.status).toBe(200);
+    expect(donationCsv.headers["content-type"]).toContain("text/csv");
+    expect(donationCsv.headers["content-disposition"]).toContain("donations-");
+    expect(donationCsv.text).toContain("Gift date,Donor,Email,Designation,Payment method,Amount,Receipt #");
+
+    const analysisCsv = await authGet("/api/reports/exports/library/comprehensive-donor-analysis.csv?year=2026");
+    expect(analysisCsv.status).toBe(200);
+    expect(analysisCsv.text).toContain("Donor group,Metric,Current year (2026),Prior year (2025),Two years prior (2024),vs. prior year");
+  });
+
+  it("rejects an unknown report rather than serving an empty placeholder", async () => {
+    const res = await authGet("/api/reports/library/not-a-report");
+    expect(res.status).toBe(404);
+  });
+});
+
 // ─── /api/reports/giving-by-month ────────────────────────────────────────────
 
 describe("GET /api/reports/giving-by-month", () => {
