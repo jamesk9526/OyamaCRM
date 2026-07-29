@@ -30,7 +30,7 @@ export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: T
     <section className="space-y-4">
       <TriviaEventOpsHeader event={event} live={live} scoreHistory={scoreHistory} />
 
-      <section className="border border-[#d1c7e8] bg-white"><header className="border-b border-[#d1c7e8] bg-[#f6f2ff] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Event readiness</p><h2 className="mt-1 text-lg font-semibold text-slate-900">What to finish before doors open</h2></header><div className="grid gap-px bg-[#d1c7e8] sm:grid-cols-2 xl:grid-cols-3">{readiness.map((item) => <div key={item.label} className="bg-white px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.label}</p><span className={item.ready ? "border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800" : "border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800"}>{item.ready ? "Ready" : "Review"}</span></div><p className="mt-1 text-xs text-slate-600">{item.detail}</p></div>)}</div></section>
+      <section className="trivia-dark-card border border-[#d1c7e8] bg-white"><header className="border-b border-[#d1c7e8] bg-[#f6f2ff] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Event readiness</p><h2 className="mt-1 text-lg font-semibold text-slate-900">What to finish before doors open</h2></header><div className="grid gap-px bg-[#d1c7e8] sm:grid-cols-2 xl:grid-cols-3">{readiness.map((item) => <div key={item.label} className="bg-white px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.label}</p><span className={item.ready ? "border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800" : "border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800"}>{item.ready ? "Ready" : "Review"}</span></div><p className="mt-1 text-xs text-slate-600">{item.detail}</p></div>)}</div></section>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Link href={`${base}/check-in`} className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/15 p-4 hover:bg-fuchsia-500/25 transition-colors">
@@ -88,7 +88,7 @@ export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: T
         </Link>
       </div>
 
-      <div className="border border-[#d1c7e8] bg-white p-4">
+      <div className="trivia-dark-card border border-[#d1c7e8] bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Operational status</h3>
         <ul className="mt-2 space-y-1 text-xs text-slate-700">
           <li>{event.teams.length === 0 ? "No teams configured yet." : `${event.teams.length} teams configured.`}</li>

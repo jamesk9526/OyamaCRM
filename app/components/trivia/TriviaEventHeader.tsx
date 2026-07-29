@@ -15,7 +15,7 @@ interface TriviaEventHeaderProps {
  */
 export default function TriviaEventHeader({ event, actions }: TriviaEventHeaderProps) {
   return (
-    <div className="border border-[#d1c7e8] bg-white p-4">
+    <div className="trivia-dark-card border border-[#d1c7e8] bg-white p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-[#5b3f9b]">Oyama Trivia Event</p>

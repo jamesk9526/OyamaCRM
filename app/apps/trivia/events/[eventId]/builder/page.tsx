@@ -96,7 +96,7 @@ export default function TriviaEventBuilderPage() {
         />
       </div>
 
-      <details className="border border-[#d1c7e8] bg-white">
+      <details className="trivia-dark-card border border-[#d1c7e8] bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-[#f6f2ff] px-4 py-3 text-slate-900 marker:hidden">
           <span><span className="block text-sm font-semibold">Scoring and display rules</span><span className="mt-0.5 block text-xs text-slate-600">Default points, judging rules, and projector preferences.</span></span>
           <span className="text-xs font-semibold text-[#5b3f9b]">Configure</span>
@@ -268,7 +268,7 @@ export default function TriviaEventBuilderPage() {
         </div>
       </details>
 
-      <details className="border border-[#d1c7e8] bg-white">
+      <details className="trivia-dark-card border border-[#d1c7e8] bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-[#f6f2ff] px-4 py-3 text-slate-900 marker:hidden">
           <span><span className="block text-sm font-semibold">Import and export</span><span className="mt-0.5 block text-xs text-slate-600">Copy a backup or import a prepared trivia pack.</span></span>
           <span className="text-xs font-semibold text-[#5b3f9b]">Open tools</span>
@@ -290,7 +290,7 @@ export default function TriviaEventBuilderPage() {
         </div>
       </details>
 
-      <details className="border border-[#d1c7e8] bg-white">
+      <details className="trivia-dark-card border border-[#d1c7e8] bg-white">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-[#f6f2ff] px-4 py-3 text-slate-900 marker:hidden">
           <span><span className="block text-sm font-semibold">Night-of checklist</span><span className="mt-0.5 block text-xs text-slate-600">A step-by-step runbook for the event team.</span></span>
           <span className="text-xs font-semibold text-[#5b3f9b]">View checklist</span>

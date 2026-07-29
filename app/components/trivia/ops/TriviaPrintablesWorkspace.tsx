@@ -157,32 +157,32 @@ export default function TriviaPrintablesWorkspace({ event, live, scoreHistory }:
     <section className="space-y-4">
       <TriviaEventOpsHeader event={event} live={live} scoreHistory={scoreHistory} />
 
-      <section className="border border-[#d1c7e8] bg-white p-4">
+      <section className="trivia-dark-card border border-[#d1c7e8] bg-white p-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Print center</p>
         <h2 className="mt-1 text-lg font-semibold text-slate-900">Prepare paper backups before doors open</h2>
         <p className="mt-1 text-sm text-slate-600">Each action opens a print-ready page. Keep the host packet and a manual score sheet at the scorer table.</p>
       </section>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <button type="button" onClick={printHostPacket} className="border border-[#d1c7e8] bg-white p-4 text-left hover:border-[#5b3f9b] hover:bg-[#f6f2ff]">
+        <button type="button" onClick={printHostPacket} className="trivia-dark-card border border-[#d1c7e8] bg-white p-4 text-left hover:border-[#5b3f9b] hover:bg-[#f6f2ff]">
           <p className="text-[11px] uppercase tracking-wide text-[#5b3f9b]">Operations Packet</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-900">Print Host Packet</h2>
           <p className="mt-1 text-sm text-slate-600">Round-by-round prompts with scoring answers and speaking flow notes.</p>
         </button>
 
-        <button type="button" onClick={printAnswerKey} className="border border-[#d1c7e8] bg-white p-4 text-left hover:border-[#5b3f9b] hover:bg-[#f6f2ff]">
+        <button type="button" onClick={printAnswerKey} className="trivia-dark-card border border-[#d1c7e8] bg-white p-4 text-left hover:border-[#5b3f9b] hover:bg-[#f6f2ff]">
           <p className="text-[11px] uppercase tracking-wide text-[#5b3f9b]">Judge Packet</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-900">Print Answer Key</h2>
           <p className="mt-1 text-sm text-slate-600">Private accepted answers and alternates by question.</p>
         </button>
 
-        <button type="button" onClick={printCheckInRoster} className="border border-[#d1c7e8] bg-white p-4 text-left hover:border-[#5b3f9b] hover:bg-[#f6f2ff]">
+        <button type="button" onClick={printCheckInRoster} className="trivia-dark-card border border-[#d1c7e8] bg-white p-4 text-left hover:border-[#5b3f9b] hover:bg-[#f6f2ff]">
           <p className="text-[11px] uppercase tracking-wide text-[#5b3f9b]">Front Desk</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-900">Print Check-In Roster</h2>
           <p className="mt-1 text-sm text-slate-600">Expected teams with captain, table, status, and contact notes.</p>
         </button>
 
-        <div className="border border-[#d1c7e8] bg-[#f6f2ff] p-4"><p className="text-[11px] uppercase tracking-wide text-[#5b3f9b]">Scoring Backup</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Print Manual Score Sheet</h2><p className="mt-1 text-sm text-slate-600">A paper fallback with one column for every question in the chosen round.</p><label className="mt-3 block text-xs font-semibold text-slate-700">Round<select value={scoreRoundId} onChange={(input) => setScoreRoundId(input.target.value)} className="mt-1 h-9 w-full border border-[#a99ad0] bg-white px-2 text-sm">{event.rounds.map((round) => <option key={round.id} value={round.id}>{round.title} · {round.questions.length} questions</option>)}</select></label><button type="button" onClick={printScoreSheet} className="mt-3 w-full bg-[#5b3f9b] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4a327f]">Print selected score sheet</button></div>
+        <div className="trivia-dark-card border border-[#d1c7e8] bg-[#f6f2ff] p-4"><p className="text-[11px] uppercase tracking-wide text-[#5b3f9b]">Scoring Backup</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Print Manual Score Sheet</h2><p className="mt-1 text-sm text-slate-600">A paper fallback with one column for every question in the chosen round.</p><label className="mt-3 block text-xs font-semibold text-slate-700">Round<select value={scoreRoundId} onChange={(input) => setScoreRoundId(input.target.value)} className="mt-1 h-9 w-full border border-[#a99ad0] bg-white px-2 text-sm">{event.rounds.map((round) => <option key={round.id} value={round.id}>{round.title} · {round.questions.length} questions</option>)}</select></label><button type="button" onClick={printScoreSheet} className="mt-3 w-full bg-[#5b3f9b] px-3 py-2 text-sm font-semibold text-white hover:bg-[#4a327f]">Print selected score sheet</button></div>
       </div>
     </section>
   );
