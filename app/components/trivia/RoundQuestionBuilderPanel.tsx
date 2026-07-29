@@ -183,13 +183,13 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
         <p className="mt-1 text-sm text-slate-300">Use the same simple sequence every time: choose a round, choose the question type, add the host answer, then check the projector copy.</p>
       </div>
 
-      <div className="flex flex-col justify-between gap-3 border border-[#d1c7e8] bg-[#f6f2ff] p-4 sm:flex-row sm:items-center">
-        <div><p className="text-sm font-semibold text-slate-900">Round structure</p><p className="mt-1 text-xs text-slate-600">{rounds.length} round{rounds.length === 1 ? "" : "s"} currently define the game.</p></div>
-        <button type="button" onClick={() => setRoundModalOpen(true)} className="shrink-0 border border-[#5b3f9b] bg-white px-4 py-2 text-sm font-semibold text-[#5b3f9b] hover:bg-[#f0eaff]">Add round</button>
+      <div className="flex flex-col justify-between gap-3 border border-[#4b3975] bg-[#211833] p-4 sm:flex-row sm:items-center">
+        <div><p className="text-sm font-semibold text-white">Round structure</p><p className="mt-1 text-xs text-[#d9cffa]">{rounds.length} round{rounds.length === 1 ? "" : "s"} currently define the game.</p></div>
+        <button type="button" onClick={() => setRoundModalOpen(true)} className="shrink-0 border border-[#8067b7] bg-[#161126] px-4 py-2 text-sm font-semibold text-[#d9cffa] hover:bg-[#372957] hover:text-white">Add round</button>
       </div>
 
       {isRoundModalOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-trivia-round-title">
+        <div className="trivia-editor-modal fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-trivia-round-title">
           <button type="button" aria-label="Close add round dialog" onClick={() => setRoundModalOpen(false)} className="absolute inset-0 cursor-default" />
           <form onSubmit={handleAddRound} className="relative w-full max-w-xl border border-[#d1c7e8] bg-white shadow-2xl">
             <header className="flex items-start justify-between gap-3 border-b border-[#d1c7e8] bg-[#f6f2ff] px-5 py-4"><div><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Game structure</p><h2 id="add-trivia-round-title" className="mt-1 text-xl font-semibold text-slate-950">Add a round</h2><p className="mt-1 text-sm text-slate-600">Name the section and choose how it will run.</p></div><button type="button" onClick={() => setRoundModalOpen(false)} className="flex h-9 w-9 items-center justify-center border border-[#8a8886] bg-white text-lg text-slate-600" aria-label="Close">×</button></header>
@@ -223,17 +223,17 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
       </div>
 
       {!selectedRound ? <div className="border-l-4 border-amber-400 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">Choose a round above before adding questions. This keeps every question in the right place for the host.</div> : (
-        <div className="flex flex-col justify-between gap-3 border border-[#d1c7e8] bg-white p-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-3 border border-[#4b3975] bg-[#161126] p-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-sm font-semibold text-slate-900">{selectedRound.title}</p>
-            <p className="mt-1 text-xs text-slate-600">{selectedRound.questions.length} question{selectedRound.questions.length === 1 ? "" : "s"} in this round. Add one question at a time so every host and projector detail is checked.</p>
+            <p className="text-sm font-semibold text-white">{selectedRound.title}</p>
+            <p className="mt-1 text-xs text-[#d9cffa]">{selectedRound.questions.length} question{selectedRound.questions.length === 1 ? "" : "s"} in this round. Add one question at a time so every host and projector detail is checked.</p>
           </div>
           <button type="button" onClick={() => setQuestionModalOpen(true)} className="shrink-0 bg-[#5b3f9b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4a327f]">Add question</button>
         </div>
       )}
 
       {isQuestionModalOpen && selectedRound ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-trivia-question-title">
+        <div className="trivia-editor-modal fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-trivia-question-title">
           <button type="button" aria-label="Close add question dialog" onClick={() => setQuestionModalOpen(false)} className="absolute inset-0 cursor-default" />
           <div className="relative flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden border border-[#d1c7e8] bg-[#f5f4f8] shadow-2xl">
             <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#d1c7e8] bg-white px-5 py-4">

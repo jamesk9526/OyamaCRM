@@ -105,17 +105,17 @@ export default function TriviaOpsShell({ children }: TriviaOpsShellProps) {
   }
 
   return (
-    <div className="trivia-admin-shell min-h-screen h-screen overflow-hidden bg-[#f5f4f8] text-slate-900">
-      <header className="relative z-10 flex h-16 items-center justify-between border-b border-[#d9d2e8] bg-white px-4 shadow-[0_1px_2px_rgba(31,20,55,0.08)]">
+    <div className="trivia-admin-shell min-h-screen h-screen overflow-hidden bg-[#0d0a16] text-slate-100">
+      <header className="relative z-10 flex h-16 items-center justify-between border-b border-[#4b3975] bg-[#161126] px-4 shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3 min-w-0">
           <span className="flex h-9 w-9 items-center justify-center rounded-[4px] bg-[#5b3f9b] font-bold text-white">T</span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">Oyama Trivia</p>
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#5b3f9b] truncate">Event Operations</p>
+            <p className="text-sm font-semibold text-white truncate">Oyama Trivia</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#cbbef0] truncate">Event Operations</p>
           </div>
-          {activeEvent ? <div className="hidden border-l border-[#d9d2e8] pl-3 sm:block"><p className="text-xs text-slate-500">Current event</p><p className="max-w-48 truncate text-sm font-semibold text-slate-800">{activeEvent.name}</p></div> : null}
+          {activeEvent ? <div className="hidden border-l border-[#4b3975] pl-3 sm:block"><p className="text-xs text-[#cbbef0]">Current event</p><p className="max-w-48 truncate text-sm font-semibold text-white">{activeEvent.name}</p></div> : null}
         </div>
-        <div className="flex items-center gap-2">{activeEvent ? <Link href={`/apps/trivia/events/${activeEvent.id}/host`} className="hidden bg-[#5b3f9b] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4a327f] sm:inline-flex">Host panel</Link> : null}<Link href="/apps" className="border border-[#a99ad0] bg-white px-3 py-1.5 text-xs font-semibold text-[#4a327f] hover:bg-[#f6f2ff]">Apps Home</Link></div>
+        <div className="flex items-center gap-2">{activeEvent ? <Link href={`/apps/trivia/events/${activeEvent.id}/host`} className="hidden bg-[#5b3f9b] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4a327f] sm:inline-flex">Host panel</Link> : null}<Link href="/apps" className="border border-[#8067b7] bg-[#211833] px-3 py-1.5 text-xs font-semibold text-[#e9e2ff] hover:bg-[#372957]">Apps Home</Link></div>
       </header>
 
       <div className="relative z-10 flex h-[calc(100%-4rem)]">
@@ -175,7 +175,7 @@ export default function TriviaOpsShell({ children }: TriviaOpsShellProps) {
           </div>
         </aside>
 
-        <main className="trivia-admin-content flex-1 overflow-auto bg-[#f5f4f8] p-4 sm:p-6 xl:p-8">{children}</main>
+        <main className="trivia-admin-content flex-1 overflow-auto bg-[#0d0a16] p-4 sm:p-6 xl:p-8">{children}</main>
       </div>
     </div>
   );

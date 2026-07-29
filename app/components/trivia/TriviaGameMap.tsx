@@ -48,7 +48,7 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
   }
 
   return (
-    <section className="border border-[#d1c7e8] bg-white">
+    <section className="trivia-game-map border border-[#4b3975] bg-[#161126]">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#d1c7e8] bg-[#f6f2ff] px-4 py-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Visual game builder</p>

@@ -26,41 +26,41 @@ export default function TriviaDashboardPage() {
 
   return (
     <section className="space-y-4">
-      <header className="border border-[#d1c7e8] bg-white p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#5b3f9b]">Standalone Oyama Add-on</p>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-950">Trivia Command Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-600">
+      <header className="border border-slate-700 bg-slate-900/70 p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-300">Standalone Oyama Add-on</p>
+        <h1 className="mt-2 text-3xl font-semibold text-white">Trivia Command Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-300">
           Production working mode: create events, run host controls, and launch projector-safe display.
         </p>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <article className="border border-[#d1c7e8] bg-white p-4">
-          <p className="text-xs font-medium text-slate-600">Total Events</p>
-          <p className="mt-1 text-2xl font-bold text-slate-950">{stats.totalEvents}</p>
+        <article className="border border-slate-700 bg-slate-900/60 p-4">
+          <p className="text-xs font-medium text-slate-400">Total Events</p>
+          <p className="mt-1 text-2xl font-bold text-white">{stats.totalEvents}</p>
         </article>
-        <article className="border border-[#d1c7e8] bg-white p-4">
-          <p className="text-xs font-medium text-slate-600">Live Events</p>
-          <p className="mt-1 text-2xl font-bold text-[#137333]">{stats.liveEvents}</p>
+        <article className="border border-slate-700 bg-slate-900/60 p-4">
+          <p className="text-xs font-medium text-slate-400">Live Events</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-300">{stats.liveEvents}</p>
         </article>
-        <article className="border border-[#d1c7e8] bg-white p-4">
-          <p className="text-xs font-medium text-slate-600">Registered Teams</p>
-          <p className="mt-1 text-2xl font-bold text-[#0f6cbd]">{stats.totalTeams}</p>
+        <article className="border border-slate-700 bg-slate-900/60 p-4">
+          <p className="text-xs font-medium text-slate-400">Registered Teams</p>
+          <p className="mt-1 text-2xl font-bold text-cyan-300">{stats.totalTeams}</p>
         </article>
-        <article className="border border-[#d1c7e8] bg-white p-4">
-          <p className="text-xs font-medium text-slate-600">Questions Built</p>
-          <p className="mt-1 text-2xl font-bold text-[#8a3ffc]">{stats.totalQuestions}</p>
+        <article className="border border-slate-700 bg-slate-900/60 p-4">
+          <p className="text-xs font-medium text-slate-400">Questions Built</p>
+          <p className="mt-1 text-2xl font-bold text-fuchsia-300">{stats.totalQuestions}</p>
         </article>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Link href="/apps/trivia/events/new" className="border border-[#5b3f9b] bg-[#5b3f9b] p-4 transition-colors hover:bg-[#4a327f]">
+        <Link href="/apps/trivia/events/new" className="border border-emerald-400/40 bg-emerald-500/15 p-4 transition-colors hover:bg-emerald-500/25">
           <h2 className="text-lg font-semibold text-white">Create Trivia Event</h2>
-          <p className="mt-1 text-sm text-[#f3f0ff]">Set host, venue, rounds, and teams for your next game night.</p>
+          <p className="mt-1 text-sm text-emerald-100">Set host, venue, rounds, and teams for your next game night.</p>
         </Link>
-        <Link href="/apps/trivia/events" className="border border-[#cfe4fa] bg-[#eff6fc] p-4 transition-colors hover:border-[#0f6cbd] hover:bg-[#deecf9]">
-          <h2 className="text-lg font-semibold text-[#0f548c]">Manage Existing Events</h2>
-          <p className="mt-1 text-sm text-[#3d5f7a]">Open builder, host panel, scoring, answer keys, and display routes.</p>
+        <Link href="/apps/trivia/events" className="border border-cyan-400/40 bg-cyan-500/15 p-4 transition-colors hover:bg-cyan-500/25">
+          <h2 className="text-lg font-semibold text-cyan-100">Manage Existing Events</h2>
+          <p className="mt-1 text-sm text-cyan-100">Open builder, host panel, scoring, answer keys, and display routes.</p>
         </Link>
       </div>
     </section>
