@@ -4,8 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import DonorMegaMenu from "./DonorMegaMenu";
-import { useDashboardChromeTint } from "./useDashboardChromeTint";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { apiFetch } from "@/app/lib/auth-client";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -15,6 +15,36 @@ import {
   type DonorNavigationLayout,
 } from "@/app/lib/workspace-settings";
 import type { CSSProperties } from "react";
+
+type DonorAppearanceTheme = "light-green" | "blue" | "violet" | "slate";
+type DonorAppearanceDensity = "comfortable" | "compact";
+
+interface DonorAppearanceSettings {
+  theme: DonorAppearanceTheme;
+  density: DonorAppearanceDensity;
+}
+
+const DEFAULT_DONOR_APPEARANCE: DonorAppearanceSettings = {
+  theme: "light-green",
+  density: "comfortable",
+};
+
+// Each theme keeps the same enterprise command-bar layout. Only the colors
+// change, so a personal preference never makes navigation unfamiliar.
+const DONOR_APPEARANCE_CHROME: Record<DonorAppearanceTheme, {
+  dark: string;
+  mid: string;
+  base: string;
+  border: string;
+  shadowRgb: string;
+  light: string;
+  soft: string;
+}> = {
+  "light-green": { dark: "#0b1b27", mid: "#102b35", base: "#176b57", light: "#9be1b7", soft: "#eaf7ee", border: "rgba(111, 215, 169, 0.28)", shadowRgb: "7, 37, 45" },
+  blue: { dark: "#0b1b31", mid: "#123d64", base: "#0f6cbd", light: "#9ccdf5", soft: "#eaf4fd", border: "rgba(119, 191, 255, 0.30)", shadowRgb: "7, 29, 58" },
+  violet: { dark: "#17112e", mid: "#342163", base: "#6f42c1", light: "#c7a9fb", soft: "#f1ebff", border: "rgba(195, 161, 255, 0.30)", shadowRgb: "26, 16, 54" },
+  slate: { dark: "#111827", mid: "#263447", base: "#475569", light: "#cbd5e1", soft: "#edf2f7", border: "rgba(203, 213, 225, 0.28)", shadowRgb: "15, 23, 42" },
+};
 
 // Module routes render their own shells — bypass AppShell wrapper.
 // /steward-ai-workspace uses its own standalone PWA layout.
@@ -144,7 +174,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [incomingRouteContent, setIncomingRouteContent] = useState<React.ReactNode | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const routeTransitionTimeoutRef = useRef<number | null>(null);
-  const dashboardChromeTint = useDashboardChromeTint(user?.id);
+  const [donorAppearance, setDonorAppearance] = useState<DonorAppearanceSettings>(DEFAULT_DONOR_APPEARANCE);
+  const donorChromeTint = DONOR_APPEARANCE_CHROME[donorAppearance.theme];
 
   // Apply the user's persisted navigation preference before paint; organization settings
   // still load afterward and are only used when no local preference exists.
@@ -174,6 +205,40 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, [loading, user]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user || isPublic || isShellBypass || isBoard) {
+      delete document.documentElement.dataset.donorAppearance;
+      delete document.documentElement.dataset.donorDensity;
+      return;
+    }
+    let active = true;
+    const applyAppearance = (settings: DonorAppearanceSettings) => {
+      if (!active) return;
+      setDonorAppearance(settings);
+      document.documentElement.dataset.donorAppearance = settings.theme;
+      document.documentElement.dataset.donorDensity = settings.density;
+    };
+    const normalizeAppearance = (value: Partial<DonorAppearanceSettings> | null | undefined): DonorAppearanceSettings => ({
+      theme: value?.theme === "blue" || value?.theme === "violet" || value?.theme === "slate" || value?.theme === "light-green"
+        ? value.theme
+        : DEFAULT_DONOR_APPEARANCE.theme,
+      density: value?.density === "compact" ? "compact" : "comfortable",
+    });
+    void apiFetch<Partial<DonorAppearanceSettings>>("/api/settings/donor-appearance")
+      .then((settings) => applyAppearance(normalizeAppearance(settings)))
+      .catch(() => applyAppearance(DEFAULT_DONOR_APPEARANCE));
+    const handleAppearanceChange = (event: Event) => {
+      const settings = (event as CustomEvent<Partial<DonorAppearanceSettings>>).detail;
+      applyAppearance(normalizeAppearance(settings));
+    };
+    window.addEventListener("crm:donor-appearance", handleAppearanceChange);
+    return () => {
+      active = false;
+      window.removeEventListener("crm:donor-appearance", handleAppearanceChange);
+    };
+  }, [loading, user, isPublic, isShellBypass, isBoard]);
 
   useEffect(() => {
     if (loading) return;
@@ -327,11 +392,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const contentTopPaddingClass = "pt-14";
 
   const shellStyle: CSSProperties = {
-    "--oyama-donor-chrome-start": dashboardChromeTint.dark,
-    "--oyama-donor-chrome-mid": dashboardChromeTint.mid,
-    "--oyama-donor-chrome-end": dashboardChromeTint.base,
-    "--oyama-donor-chrome-border": dashboardChromeTint.border,
-    "--oyama-donor-chrome-shadow-rgb": dashboardChromeTint.shadowRgb,
+    "--oyama-donor-chrome-start": donorChromeTint.dark,
+    "--oyama-donor-chrome-mid": donorChromeTint.mid,
+    "--oyama-donor-chrome-end": donorChromeTint.base,
+    "--oyama-donor-chrome-border": donorChromeTint.border,
+    "--oyama-donor-chrome-shadow-rgb": donorChromeTint.shadowRgb,
     ...(dockInsetPx > 0 ? { paddingRight: `${dockInsetPx}px` } : {}),
   } as CSSProperties;
 
@@ -339,10 +404,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div
       className="crm-fonts flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface"
       style={shellStyle}
+      data-donor-appearance={donorAppearance.theme}
+      data-donor-density={donorAppearance.density}
     >
       <TopBar
         scrolled={shellScrolled}
-        donorChromeTint={dashboardChromeTint}
+        donorChromeTint={donorChromeTint}
         donorSidebarOffset={false}
         donorSidebarCollapsed={false}
       />

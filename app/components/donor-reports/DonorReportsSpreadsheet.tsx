@@ -7,6 +7,11 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import {
+  getStoredReportingYearMode,
+  setStoredReportingYearMode,
+  type ReportingYearMode,
+} from "@/app/lib/fiscal-year";
 
 type ReportKey =
   | "batch-receipts"
@@ -38,6 +43,7 @@ interface ReportDefinition {
   supportsPayment?: boolean;
   supportsDesignation?: boolean;
   supportsLimit?: boolean;
+  defaultRange?: "month-to-date";
 }
 
 interface ReportColumn {
@@ -74,10 +80,10 @@ interface DesignationOption {
 const REPORTS: ReportDefinition[] = [
   { key: "batch-receipts", title: "Batch Receipts", description: "Review a receipt-ready register grouped by donor before creating receipt communications.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations", title: "Donations", description: "Print or export a detailed list of completed gifts in a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
-  { key: "donations-by-designation", title: "Donations by Designation", description: "See completed giving grouped by donor and designation.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
+  { key: "donations-by-designation", title: "Donations by Designation", description: "See completed giving grouped by donor and designation.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true, defaultRange: "month-to-date" },
   { key: "lifetime-giving", title: "Lifetime Giving Report", description: "See every giving donor’s lifetime total, first, last, and largest completed gift.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "none", group: "Gift reports" },
-  { key: "monthly-giving", title: "Monthly Giving Report", description: "Summarize donor giving for a month or any chosen date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports" },
-  { key: "comprehensive-donor-analysis", title: "Comprehensive Donor Analysis", description: "Compare active, new, and repeat donor giving across three calendar years.", source: "Completed donations + first-gift dates", capabilities: "Grid, CSV, Print", scope: "year", group: "Donor reports" },
+  { key: "monthly-giving", title: "Monthly Giving Report", description: "Summarize donor giving for a month or any chosen date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", defaultRange: "month-to-date" },
+  { key: "comprehensive-donor-analysis", title: "Comprehensive Donor Analysis", description: "Compare active, new, and repeat donor giving across three reporting years.", source: "Completed donations + first-gift dates", capabilities: "Grid, CSV, Print", scope: "year", group: "Donor reports" },
   { key: "donor-files", title: "Donor Files", description: "A contact and mailing-preference directory for current donor files.", source: "Donor files", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "giving-capacity-interest", title: "Donor Files by Giving Capacity and Interest", description: "Review donor tags alongside lifetime giving. Capacity is shown only when stored as a tag.", source: "Donor tags + completed donations", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "donor-follow-up", title: "Donor Follow-up", description: "Open follow-up tasks tied to donor records, ordered for staff review.", source: "Tasks", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
@@ -163,6 +169,14 @@ export default function DonorReportsSpreadsheet() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportingMode, setReportingMode] = useState<ReportingYearMode>("calendar");
+
+  useEffect(() => {
+    setReportingMode(getStoredReportingYearMode());
+    const syncMode = () => setReportingMode(getStoredReportingYearMode());
+    window.addEventListener("reporting-year-mode:changed", syncMode);
+    return () => window.removeEventListener("reporting-year-mode:changed", syncMode);
+  }, []);
 
   useEffect(() => {
     void apiFetch<DesignationOption[]>("/api/designations")
@@ -173,6 +187,7 @@ export default function DonorReportsSpreadsheet() {
   const query = useMemo(() => {
     const params = new URLSearchParams();
     if (!selected) return params;
+    params.set("dateBasis", reportingMode);
     if (selected.scope === "date") {
       params.set("from", from);
       params.set("through", through);
@@ -182,7 +197,7 @@ export default function DonorReportsSpreadsheet() {
     if (selected.supportsDesignation && designationId) params.set("designationId", designationId);
     if (selected.supportsLimit) params.set("limit", limit);
     return params;
-  }, [selected, from, through, year, paymentMethod, designationId, limit]);
+  }, [selected, from, through, year, paymentMethod, designationId, limit, reportingMode]);
 
   const loadReport = useCallback(async (definition: ReportDefinition, mode: "open" | "refresh" = "open") => {
     if (mode === "open") setSelected(definition);
@@ -190,8 +205,13 @@ export default function DonorReportsSpreadsheet() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      params.set("dateBasis", reportingMode);
       if (definition.scope === "date") {
-        params.set("from", from);
+        const effectiveFrom = mode === "open" && definition.defaultRange === "month-to-date"
+          ? localDateInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+          : from;
+        if (effectiveFrom !== from) setFrom(effectiveFrom);
+        params.set("from", effectiveFrom);
         params.set("through", through);
       }
       if (definition.scope === "year") params.set("year", year);
@@ -209,7 +229,7 @@ export default function DonorReportsSpreadsheet() {
     } finally {
       setLoading(false);
     }
-  }, [from, through, year, paymentMethod, designationId, limit]);
+  }, [from, through, year, paymentMethod, designationId, limit, reportingMode]);
 
   useEffect(() => {
     if (typeof window === "undefined" || selected) return;
@@ -292,6 +312,11 @@ export default function DonorReportsSpreadsheet() {
           loading={loading}
           exporting={exporting}
           error={error}
+          reportingMode={reportingMode}
+          onReportingModeChange={(mode) => {
+            setStoredReportingYearMode(mode);
+            setReportingMode(mode);
+          }}
           onBack={backToLibrary}
           onFromChange={setFrom}
           onThroughChange={setThrough}
@@ -356,6 +381,8 @@ function ReportRunner({
   loading,
   exporting,
   error,
+  reportingMode,
+  onReportingModeChange,
   onBack,
   onFromChange,
   onThroughChange,
@@ -379,6 +406,8 @@ function ReportRunner({
   loading: boolean;
   exporting: boolean;
   error: string | null;
+  reportingMode: ReportingYearMode;
+  onReportingModeChange: (mode: ReportingYearMode) => void;
   onBack: () => void;
   onFromChange: (value: string) => void;
   onThroughChange: (value: string) => void;
@@ -401,6 +430,18 @@ function ReportRunner({
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{definition.description}</p>
           </div>
           <p className="text-xs text-slate-500">Source: {definition.source}</p>
+        </div>
+        <div className="mt-4 inline-flex rounded-lg border border-slate-300 bg-white p-1" aria-label="Reporting year basis">
+          {(["calendar", "fiscal"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onReportingModeChange(mode)}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${reportingMode === mode ? "bg-[#0f6cbd] text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            >
+              {mode === "calendar" ? "Calendar year" : "Fiscal year"}
+            </button>
+          ))}
         </div>
       </div>
 

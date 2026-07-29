@@ -415,7 +415,8 @@ async function buildDonationWhere(
       });
       dateFilter = getFiscalYTDRange(normalizeFiscalYearStart(settings?.fiscalYearStart));
     } else {
-      dateFilter = { gte: new Date(new Date().getFullYear(), 0, 1) };
+      const now = new Date();
+      dateFilter = { gte: new Date(now.getFullYear(), 0, 1), lte: now };
     }
   }
 

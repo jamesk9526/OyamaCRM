@@ -49,6 +49,11 @@ const USER_SELECT = {
   email: true,
   firstName: true,
   lastName: true,
+  preferredName: true,
+  phone: true,
+  jobTitle: true,
+  timezone: true,
+  bio: true,
   role: true,
   avatarUrl: true,
   active: true,
@@ -56,6 +61,113 @@ const USER_SELECT = {
   createdAt: true,
   updatedAt: true,
 };
+
+function optionalProfileText(value: unknown, maxLength: number): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized.slice(0, maxLength) : null;
+}
+
+/**
+ * GET /api/users/me/profile — Personal profile and real, user-scoped usage history.
+ * This route must remain before /:id so "me" is never treated as a user id.
+ */
+router.get("/me/profile", async (req: Request, res: Response) => {
+  const userId = req.user!.sub;
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const [user, recentActivity, actionCount, loginCount, sessions] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT }),
+    prisma.auditLog.findMany({
+      where: { userId, organizationId: req.user!.orgId },
+      select: { id: true, action: true, entity: true, entityId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    prisma.auditLog.count({ where: { userId, organizationId: req.user!.orgId, createdAt: { gte: since } } }),
+    prisma.auditLog.count({
+      where: {
+        userId,
+        organizationId: req.user!.orgId,
+        createdAt: { gte: since },
+        action: { in: ["LOGIN", "LOGIN_MFA"] },
+      },
+    }),
+    prisma.refreshToken.count({ where: { userId, expiresAt: { gt: new Date() } } }),
+  ]);
+
+  if (!user) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found" } });
+    return;
+  }
+
+  const activeDays = new Set(recentActivity
+    .filter((entry) => entry.createdAt >= since)
+    .map((entry) => entry.createdAt.toISOString().slice(0, 10))).size;
+
+  res.json({
+    profile: user,
+    usage: {
+      periodDays: 30,
+      actionCount,
+      loginCount,
+      activeDays,
+      activeSessions: sessions,
+      lastActivityAt: recentActivity[0]?.createdAt ?? null,
+      recentActivity,
+    },
+  });
+});
+
+/** PUT /api/users/me/profile — Safely update personal, non-authorization profile fields. */
+router.put("/me/profile", async (req: Request, res: Response) => {
+  const firstName = optionalProfileText(req.body?.firstName, 100);
+  const lastName = optionalProfileText(req.body?.lastName, 100);
+  if (!firstName || !lastName) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "First and last name are required." } });
+    return;
+  }
+
+  const timezone = optionalProfileText(req.body?.timezone, 100);
+  if (timezone) {
+    try {
+      Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    } catch {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Select a valid timezone." } });
+      return;
+    }
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user!.sub },
+    data: {
+      firstName,
+      lastName,
+      preferredName: optionalProfileText(req.body?.preferredName, 100),
+      phone: optionalProfileText(req.body?.phone, 40),
+      jobTitle: optionalProfileText(req.body?.jobTitle, 120),
+      timezone,
+      bio: optionalProfileText(req.body?.bio, 1_000),
+      avatarUrl: optionalProfileText(req.body?.avatarUrl, 1_000),
+    },
+    select: USER_SELECT,
+  });
+
+  logAudit({
+    action: "PROFILE_UPDATED",
+    entity: "User",
+    entityId: user.id,
+    userId: user.id,
+    organizationId: req.user!.orgId,
+    metadata: { fields: ["firstName", "lastName", "preferredName", "phone", "jobTitle", "timezone", "bio", "avatarUrl"] },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ profile: user });
+});
 
 /**
  * GET /api/users — List all users in the authenticated admin's organization.

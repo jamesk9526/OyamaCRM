@@ -537,6 +537,11 @@ model User {
   email          String    @unique
   firstName      String
   lastName       String
+  preferredName  String?
+  phone          String?
+  jobTitle       String?
+  timezone       String?   @default("America/Chicago")
+  bio            String?   @db.Text
   role           String    @default("staff") // admin | manager | staff | readonly | report_viewer
   avatarUrl      String?
   active         Boolean   @default(true)

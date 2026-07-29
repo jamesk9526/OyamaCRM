@@ -1,6 +1,6 @@
 # OyamaWatchdog Status
 
-Last updated: 2026-05-10
+Last updated: 2026-07-29
 
 ## Purpose
 
@@ -59,6 +59,8 @@ Permission keys currently used include watchdog-prefixed scopes (for example `wa
 - `GET /api/watchdog/backups/:id`
 - `GET /api/watchdog/backups/:id/sql`
 - `POST /api/watchdog/backups/import`
+- `POST /api/watchdog/ops/backups/package/export`
+- `POST /api/watchdog/ops/backups/package/import`
 - `GET /api/watchdog/security-feed`
 - `POST /api/watchdog/security-feed/actions`
 - `POST /api/watchdog/security-events`
@@ -73,12 +75,16 @@ Watchdog now owns full CRM backup operations:
 - Export captures complete CRM data as both SQL dump text and JSON table payloads.
 - Backup bundles are stored in the Watchdog external store (`watchdog_crm_backups`).
 - SQL dump can be downloaded per backup (`/api/watchdog/backups/:id/sql`).
-- Import restores the CRM back to a selected backup ID to continue from that point.
+- Stored-backup restore uses the guarded dry-run/execute flow under `/api/watchdog/ops/restore/*`; the old one-step import endpoint intentionally rejects requests.
+- The Portable Full CRM Package control downloads a re-importable `.zip` containing the SQL dump, JSON database snapshot, database-stored configuration, and every local file under `public/uploads` (including email, letter, branding, messenger, and trivia media).
+- Package import validates a SHA-256 manifest for the database payload and every asset before restoring. It requires admin restore permission, a typed `RESTORE` confirmation, and an audit reason.
+- Package restore creates a pre-restore database snapshot and retains the replaced uploads directory as a server-side recovery copy until verification is complete.
 
 Operational details:
 
 - In non-production environments, Watchdog DB can fall back to `DATABASE_URL` when `WATCHDOG_DATABASE_URL` is not set.
 - For MySQL compatibility, schema backfills avoid `ADD COLUMN IF NOT EXISTS` and use `INFORMATION_SCHEMA` checks.
+- Environment secrets and provider-hosted assets are intentionally excluded from portable packages; secrets remain environment-managed and external providers retain their own archival responsibility.
 
 ## Known Gaps
 

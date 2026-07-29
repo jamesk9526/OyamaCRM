@@ -29,11 +29,15 @@ import {
   getFiscalYearForDate,
   getFiscalYearRange,
   getFiscalYTDRange,
+  getMTDRange,
+  getPriorMonthComparableRange,
+  getReportingPeriod,
   normalizeFiscalYearStart,
   getStartOfWeek,
   calcRetentionRate,
   calcYoYPercent,
 } from "../lib/dateRanges.js";
+import { centsToMoney, moneyToCents } from "../lib/money.js";
 
 const router = Router();
 const OSHAREVIEW_NOTES_PLUGIN_KEY = "oshareview-notes";
@@ -157,7 +161,8 @@ async function buildDonorsByDesignationMtdReport(
   organizationId: string | null,
   now = new Date(),
 ): Promise<DonorsByDesignationMtdReport> {
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthRange = getMTDRange(now);
+  const startOfMonth = monthRange.gte;
   const period = {
     key: "month-to-date" as const,
     label: now.toLocaleString("en-US", { month: "long", year: "numeric" }),
@@ -198,7 +203,7 @@ async function buildDonorsByDesignationMtdReport(
   const rowsByPair = new Map<string, DonorDesignationRow>();
   const donorIds = new Set<string>();
   const designationKeys = new Set<string>();
-  let totalAmount = 0;
+  let totalCents = 0;
 
   for (const donation of donations) {
     const donor = donation.constituent;
@@ -210,15 +215,16 @@ async function buildDonorsByDesignationMtdReport(
       || donor.email
       || "Unnamed donor";
     const pairKey = `${donor.id}:${designationId ?? "general"}`;
-    const amount = Number(donation.amount ?? 0);
-    totalAmount += amount;
+    const amountCents = moneyToCents(donation.amount);
+    const amount = centsToMoney(amountCents);
+    totalCents += amountCents;
     donorIds.add(donor.id);
     designationKeys.add(designationId ?? "general");
 
     const existing = rowsByPair.get(pairKey);
     if (existing) {
       existing.giftCount += 1;
-      existing.totalAmount += amount;
+      existing.totalAmount = centsToMoney(moneyToCents(existing.totalAmount) + amountCents);
       continue;
     }
 
@@ -246,7 +252,7 @@ async function buildDonorsByDesignationMtdReport(
     report: "donors-by-designation",
     period,
     summary: {
-      totalAmount,
+      totalAmount: centsToMoney(totalCents),
       giftCount: donations.length,
       donorCount: donorIds.size,
       designationCount: designationKeys.size,
@@ -278,6 +284,12 @@ async function parseReportScope(rawQuery: unknown, organizationId?: string | nul
   const year = Number.isFinite(parsedYear) ? parsedYear : currentYear;
   const useAllYears = scopeQuery?.toUpperCase() === "ALL_YEARS";
   const fullYearRange = useFiscalYear ? getFiscalYearRange(year, fiscalYearStart) : getYearRange(year);
+  const reportingPeriod = getReportingPeriod({
+    basis: useFiscalYear ? "fiscal" : "calendar",
+    year,
+    fiscalYearStart,
+    now,
+  });
   const customDateFilter = buildDateWindowFilter(fromDateQuery, toDateQuery);
   // For the active reporting year, use true YTD so dashboard values match the current topbar reporting mode.
   const ytdRange = useFiscalYear ? getFiscalYTDRange(fiscalYearStart, now) : { gte: new Date(year, 0, 1), lte: now };
@@ -294,6 +306,7 @@ async function parseReportScope(rawQuery: unknown, organizationId?: string | nul
     donationDateFilter: mergeDateFilters(scopedDonationFilter, customDateFilter),
     grantAwardedAtFilter: mergeDateFilters(scopedGrantFilter, customDateFilter),
     customDateFilter,
+    reportingPeriod,
   };
 }
 
@@ -683,7 +696,7 @@ router.delete("/oshareview-blueprints/:id", async (req, res) => {
  */
 router.get("/summary", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { useAllYears, yearRange, donationDateFilter, grantAwardedAtFilter } = await parseReportScope(req.query, organizationId);
+  const { useAllYears, yearRange, donationDateFilter, grantAwardedAtFilter, reportingPeriod } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json({
       totalConstituents: 0,
@@ -709,9 +722,10 @@ router.get("/summary", async (req, res) => {
   }
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const startOfWeek = getStartOfWeek();
+  const monthRange = getMTDRange(now);
+  const priorMonthComparable = getPriorMonthComparableRange(now);
+  const startOfMonth = monthRange.gte;
+  const startOfWeek = getStartOfWeek(now);
 
   const [
     totalConstituents,
@@ -750,13 +764,13 @@ router.get("/summary", async (req, res) => {
     // Month-to-date donations (for trend comparison). Do not include a gift
     // dated later in the current calendar month.
     prisma.donation.aggregate({
-      where: completedDonationWhere(organizationId, { gte: startOfMonth, lte: now }),
+      where: completedDonationWhere(organizationId, monthRange),
       _sum: { amount: true },
       _count: true,
     }),
-    // Last month's donations (for MoM trend) — exclusive end = start of current month
+    // Prior month through the same day/time, making the comparison like-for-like.
     prisma.donation.aggregate({
-      where: completedDonationWhere(organizationId, { gte: startOfLastMonth, lt: startOfMonth }),
+      where: completedDonationWhere(organizationId, { gte: priorMonthComparable.gte, lte: priorMonthComparable.lte }),
       _sum: { amount: true },
       _count: true,
     }),
@@ -811,21 +825,21 @@ router.get("/summary", async (req, res) => {
     }),
   ]);
 
-  const weekAmt = Number(weekDonations._sum.amount ?? 0);
+  const weekAmt = centsToMoney(moneyToCents(weekDonations._sum.amount));
   const weekCount = weekDonations._count;
-  const monthAmt = Number(monthDonations._sum.amount ?? 0);
-  const lastMonthAmt = Number(lastMonthDonations._sum.amount ?? 0);
+  const monthAmt = centsToMoney(moneyToCents(monthDonations._sum.amount));
+  const lastMonthAmt = centsToMoney(moneyToCents(lastMonthDonations._sum.amount));
   // Month-over-month trend using safe division (null when no prior-month data)
   const momTrend = calcYoYPercent(monthAmt, lastMonthAmt);
 
   res.json({
     totalConstituents,
     activeDonors: activeDonorGroups.length,
-    ytdAmount: Number(ytdDonations._sum.amount ?? 0),
+    ytdAmount: centsToMoney(moneyToCents(ytdDonations._sum.amount)),
     ytdCount: ytdDonations._count,
     // ytdGrantAmount is always returned separately so the UI can decide whether to include it
-    ytdGrantAmount: Number(ytdGrants._sum.amountAwarded ?? 0),
-    activeCampaignRaisedAmount: Number(activeCampaignRaised._sum.amount ?? 0),
+    ytdGrantAmount: centsToMoney(moneyToCents(ytdGrants._sum.amountAwarded)),
+    activeCampaignRaisedAmount: centsToMoney(moneyToCents(activeCampaignRaised._sum.amount)),
     weekAmount: weekAmt,
     weekCount,
     weekAvg: weekCount > 0 ? weekAmt / weekCount : 0,
@@ -835,10 +849,22 @@ router.get("/summary", async (req, res) => {
     // reporting surfaces while preserving existing dashboard integrations.
     mtdAmount: monthAmt,
     mtdCount: monthDonations._count,
+    priorMonthComparableAmount: lastMonthAmt,
+    period: {
+      basis: reportingPeriod.basis,
+      year: reportingPeriod.year,
+      label: reportingPeriod.label,
+      from: reportingPeriod.start.toISOString(),
+      through: reportingPeriod.through.toISOString(),
+      monthFrom: monthRange.gte.toISOString(),
+      monthThrough: monthRange.lte.toISOString(),
+      comparisonFrom: priorMonthComparable.gte.toISOString(),
+      comparisonThrough: priorMonthComparable.lte.toISOString(),
+    },
     momTrend,
     newDonorsThisMonth,
     activeCampaigns,
-    activeGoalTotal: Number(activeCampaignGoal._sum.goal ?? 0),
+    activeGoalTotal: centsToMoney(moneyToCents(activeCampaignGoal._sum.goal)),
     pendingTasks,
     overdueTasks,
     freshness: buildFreshnessMetadata(new Date()),
@@ -1142,18 +1168,23 @@ router.post("/actions/draft-thank-you-new-donors", requirePermission("edit:commu
  */
 router.get("/donors-this-month", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
+  const now = new Date();
+  const monthRange = getMTDRange(now);
   if (!organizationId) {
-    res.json({ total: 0, count: 0, donors: [] });
+    res.json({
+      total: 0,
+      count: 0,
+      giftCount: 0,
+      donors: [],
+      period: { from: monthRange.gte.toISOString(), through: monthRange.lte.toISOString() },
+    });
     return;
   }
-
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   // Fetch completed donations month-to-date with basic constituent info.
   // Future-dated gifts belong to a later operational total, not this one.
   const donations = await prisma.donation.findMany({
-    where: completedDonationWhere(organizationId, { gte: startOfMonth, lte: now }),
+    where: completedDonationWhere(organizationId, monthRange),
     select: {
       id: true,
       amount: true,
@@ -1172,15 +1203,16 @@ router.get("/donors-this-month", async (req, res) => {
 
   // Aggregate per-donor totals (a single donor may have multiple gifts this month)
   const donorMap = new Map<string, { id: string; firstName: string; lastName: string; email: string | null; amount: number; lastDate: string; giftCount: number }>();
-  let total = 0;
+  let totalCents = 0;
 
   for (const d of donations) {
-    const amount = Number(d.amount ?? 0);
-    total += amount;
+    const amountCents = moneyToCents(d.amount);
+    const amount = centsToMoney(amountCents);
+    totalCents += amountCents;
     if (!d.constituent) continue;
     const existing = donorMap.get(d.constituent.id);
     if (existing) {
-      existing.amount += amount;
+      existing.amount = centsToMoney(moneyToCents(existing.amount) + amountCents);
       existing.giftCount += 1;
     } else {
       donorMap.set(d.constituent.id, {
@@ -1199,10 +1231,11 @@ router.get("/donors-this-month", async (req, res) => {
   const donors = Array.from(donorMap.values()).sort((a, b) => b.amount - a.amount);
 
   res.json({
-    total,
+    total: centsToMoney(totalCents),
     count: donors.length,
     giftCount: donations.length,
     monthLabel: now.toLocaleString("en-US", { month: "long", year: "numeric" }),
+    period: { from: monthRange.gte.toISOString(), through: monthRange.lte.toISOString() },
     donors,
   });
 });
@@ -1266,7 +1299,15 @@ router.get("/library/:reportKey", async (req, res) => {
     return;
   }
   const organizationId = await resolveOrganizationId({ req });
-  const options = parseDonorLibraryReportOptions(reportKey, req.query as Record<string, unknown>);
+  const settings = organizationId && req.query.dateBasis === "fiscal"
+    ? await prisma.organizationSettings.findUnique({ where: { organizationId }, select: { fiscalYearStart: true } })
+    : null;
+  const options = parseDonorLibraryReportOptions(
+    reportKey,
+    req.query as Record<string, unknown>,
+    new Date(),
+    { fiscalYearStart: settings?.fiscalYearStart },
+  );
   res.json(await buildDonorLibraryReport(organizationId, reportKey, options));
 });
 
@@ -1282,10 +1323,18 @@ router.get("/exports/library/:reportKey.csv", requirePermission("export:data"), 
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
     return;
   }
+  const settings = req.query.dateBasis === "fiscal"
+    ? await prisma.organizationSettings.findUnique({ where: { organizationId }, select: { fiscalYearStart: true } })
+    : null;
   const report = await buildDonorLibraryReport(
     organizationId,
     reportKey,
-    parseDonorLibraryReportOptions(reportKey, req.query as Record<string, unknown>),
+    parseDonorLibraryReportOptions(
+      reportKey,
+      req.query as Record<string, unknown>,
+      new Date(),
+      { fiscalYearStart: settings?.fiscalYearStart },
+    ),
   );
   const matrixHeaders = report.comparisonMatrix
     ? {
@@ -1345,7 +1394,7 @@ router.get("/exports/summary.csv", requirePermission("export:data"), async (req,
   const csv = buildCsv([
     {
       year: thisYear,
-      ytdAmount: Number(ytd._sum.amount ?? 0),
+      ytdAmount: centsToMoney(moneyToCents(ytd._sum.amount)),
       ytdCount: ytd._count,
       activeCampaigns,
       pendingTasks,
@@ -1384,8 +1433,8 @@ router.get("/exports/giving-by-month.csv", requirePermission("export:data"), asy
     const month = monthIndex + 1;
     const amount = donations
       .filter((donation) => donation.date.getMonth() + 1 === month)
-      .reduce((sum, donation) => sum + Number(donation.amount), 0);
-    return { month, amount };
+      .reduce((sum, donation) => sum + moneyToCents(donation.amount), 0);
+    return { month, amount: centsToMoney(amount) };
   });
 
   const freshness = buildFreshnessMetadata(new Date());
@@ -1441,20 +1490,20 @@ router.get("/giving-by-month", async (req, res) => {
   const byMonth: Record<number, number> = {};
   donations.forEach((d) => {
     const month = new Date(d.date).getMonth() + 1;
-    byMonth[month] = (byMonth[month] ?? 0) + Number(d.amount);
+    byMonth[month] = (byMonth[month] ?? 0) + moneyToCents(d.amount);
   });
 
   const grantByMonth: Record<number, number> = {};
   grants.forEach((g) => {
     if (!g.awardedAt) return;
     const month = new Date(g.awardedAt).getMonth() + 1;
-    grantByMonth[month] = (grantByMonth[month] ?? 0) + Number(g.amountAwarded ?? 0);
+    grantByMonth[month] = (grantByMonth[month] ?? 0) + moneyToCents(g.amountAwarded);
   });
 
   const result = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
-    amount: byMonth[i + 1] ?? 0,
-    grantAmount: grantByMonth[i + 1] ?? 0,
+    amount: centsToMoney(byMonth[i + 1] ?? 0),
+    grantAmount: centsToMoney(grantByMonth[i + 1] ?? 0),
   }));
 
   res.json(result);
@@ -1585,7 +1634,7 @@ router.get("/top-donors", async (req, res) => {
  */
 router.get("/board-summary", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year, useAllYears, yearRange, donationDateFilter, grantAwardedAtFilter } = await parseReportScope(req.query, organizationId);
+  const { year, dateBasis, fiscalYearStart, useAllYears, yearRange, donationDateFilter, grantAwardedAtFilter } = await parseReportScope(req.query, organizationId);
   const empty = {
     summary: {
       ytdRevenue: 0,
@@ -1643,13 +1692,15 @@ router.get("/board-summary", async (req, res) => {
     }),
   ]);
 
-  const ytdRevenue = ytdDonations.reduce((sum, d) => sum + Number(d.amount), 0);
-  const ytdGoal = activeCampaigns.reduce((sum, c) => sum + Number(c.goal ?? 0), 0);
+  const ytdRevenue = centsToMoney(ytdDonations.reduce((sum, d) => sum + moneyToCents(d.amount), 0));
+  const ytdGoal = centsToMoney(activeCampaigns.reduce((sum, c) => sum + moneyToCents(c.goal), 0));
   const majorGiftCount = ytdDonations.filter((d) => Number(d.amount) >= 1000).length;
   const averageGift = ytdDonations.length > 0 ? ytdRevenue / ytdDonations.length : 0;
 
   // Full cohort retention using the shared helper
-  const lastYearRange = getYearRange(year - 1);
+  const lastYearRange = dateBasis === "fiscal"
+    ? getFiscalYearRange(year - 1, fiscalYearStart)
+    : getYearRange(year - 1);
   const [lastYearDonorIds, thisYearDonorIds] = await Promise.all([
     prisma.donation.findMany({
       where: {
@@ -1664,7 +1715,7 @@ router.get("/board-summary", async (req, res) => {
       where: {
         constituent: { organizationId },
         status: "COMPLETED",
-        date: getYearRange(year),
+        date: yearRange,
       },
       select: { constituentId: true },
       distinct: ["constituentId"],
@@ -1678,29 +1729,36 @@ router.get("/board-summary", async (req, res) => {
 
   // Build monthly trend: sum donations for each month Jan–current
   const now = new Date();
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const trendMap: Record<number, number> = {};
+  const trendMap = new Map<string, number>();
   for (const d of ytdDonations) {
-    const m = new Date(d.date).getMonth();
-    trendMap[m] = (trendMap[m] ?? 0) + Number(d.amount);
+    const key = `${d.date.getFullYear()}-${d.date.getMonth()}`;
+    trendMap.set(key, (trendMap.get(key) ?? 0) + moneyToCents(d.amount));
   }
-  const monthsToShow = useAllYears ? 12 : (year === now.getFullYear() ? now.getMonth() + 1 : 12);
-  const monthlyTrend = MONTHS.slice(0, monthsToShow).map((label, i) => ({
-    label,
-    amount: Math.round(trendMap[i] ?? 0),
-  }));
+  const monthlyTrend: Array<{ label: string; amount: number }> = [];
+  const trendCursor = new Date(yearRange.gte.getFullYear(), yearRange.gte.getMonth(), 1);
+  const trendThrough = (yearRange as { lt?: Date; lte?: Date }).lt
+    ?? (yearRange as { lte?: Date }).lte
+    ?? now;
+  while (trendCursor <= trendThrough && monthlyTrend.length < 12) {
+    const key = `${trendCursor.getFullYear()}-${trendCursor.getMonth()}`;
+    monthlyTrend.push({
+      label: trendCursor.toLocaleDateString("en-US", { month: "short" }),
+      amount: centsToMoney(trendMap.get(key) ?? 0),
+    });
+    trendCursor.setMonth(trendCursor.getMonth() + 1);
+  }
 
   res.json({
     summary: {
-      ytdRevenue: Math.round(ytdRevenue),
-      ytdGoal: Math.round(ytdGoal),
+      ytdRevenue,
+      ytdGoal,
       // ytdGrantRevenue is always returned so the board view can optionally surface it
-      ytdGrantRevenue: Math.round(Number(ytdGrants._sum.amountAwarded ?? 0)),
+      ytdGrantRevenue: centsToMoney(moneyToCents(ytdGrants._sum.amountAwarded)),
       donorRetentionRate,
       totalDonors,
       newDonorsYtd,
       totalGiftsYtd: ytdDonations.length,
-      averageGift: Math.round(averageGift),
+      averageGift: centsToMoney(moneyToCents(averageGift)),
       majorGiftCount,
     },
     monthlyTrend,
@@ -1714,23 +1772,26 @@ router.get("/board-summary", async (req, res) => {
  */
 router.get("/lybunt", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year: thisYear } = await parseReportScope(req.query, organizationId);
+  const { year: thisYear, dateBasis, fiscalYearStart, yearRange: thisYearRange } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
   }
 
   const lastYear = thisYear - 1;
+  const lastYearRange = dateBasis === "fiscal"
+    ? getFiscalYearRange(lastYear, fiscalYearStart)
+    : getYearRange(lastYear);
 
   // Fetch distinct constituent IDs from both years in parallel
   const [lastYearDonors, thisYearDonors] = await Promise.all([
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: getYearRange(lastYear), constituent: { organizationId } },
+      where: { status: "COMPLETED", date: lastYearRange, constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: getYearRange(thisYear), constituent: { organizationId } },
+      where: { status: "COMPLETED", date: thisYearRange, constituent: { organizationId } },
       select: { constituentId: true },
       distinct: ["constituentId"],
     }),
@@ -1773,15 +1834,16 @@ router.get("/lybunt", async (req, res) => {
  */
 router.get("/sybunt", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
-  const { year: thisYear } = await parseReportScope(req.query, organizationId);
+  const { year: thisYear, dateBasis, fiscalYearStart, yearRange: thisYearRange } = await parseReportScope(req.query, organizationId);
   if (!organizationId) {
     res.json([]);
     return;
   }
 
   const lastYear = thisYear - 1;
-  const lastYearRange = getYearRange(lastYear);
-  const thisYearRange = getYearRange(thisYear);
+  const lastYearRange = dateBasis === "fiscal"
+    ? getFiscalYearRange(lastYear, fiscalYearStart)
+    : getYearRange(lastYear);
 
   // Fetch donors who gave before lastYear, in lastYear, and in thisYear
   const [beforeLastYear, lastYearDonors, thisYearDonors] = await Promise.all([
@@ -1850,17 +1912,23 @@ router.get("/year-comparison", async (req, res) => {
     return;
   }
 
-  const yearParam = String(req.query.year ?? new Date().getFullYear());
-  const thisYear = parseInt(yearParam, 10);
+  const scope = await parseReportScope(req.query, organizationId);
+  const thisYear = scope.year;
   const lastYear = thisYear - 1;
+  const thisYearRange = scope.dateBasis === "fiscal"
+    ? getFiscalYearRange(thisYear, scope.fiscalYearStart)
+    : getYearRange(thisYear);
+  const lastYearRange = scope.dateBasis === "fiscal"
+    ? getFiscalYearRange(lastYear, scope.fiscalYearStart)
+    : getYearRange(lastYear);
 
   const [thisYearDonations, lastYearDonations] = await Promise.all([
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: getYearRange(thisYear), constituent: { organizationId } },
+      where: { status: "COMPLETED", date: thisYearRange, constituent: { organizationId } },
       select: { date: true, amount: true },
     }),
     prisma.donation.findMany({
-      where: { status: "COMPLETED", date: getYearRange(lastYear), constituent: { organizationId } },
+      where: { status: "COMPLETED", date: lastYearRange, constituent: { organizationId } },
       select: { date: true, amount: true },
     }),
   ]);
@@ -1871,17 +1939,17 @@ router.get("/year-comparison", async (req, res) => {
 
   thisYearDonations.forEach((d) => {
     const m = new Date(d.date).getMonth() + 1;
-    thisYearByMonth[m] = (thisYearByMonth[m] ?? 0) + Number(d.amount);
+    thisYearByMonth[m] = (thisYearByMonth[m] ?? 0) + moneyToCents(d.amount);
   });
   lastYearDonations.forEach((d) => {
     const m = new Date(d.date).getMonth() + 1;
-    lastYearByMonth[m] = (lastYearByMonth[m] ?? 0) + Number(d.amount);
+    lastYearByMonth[m] = (lastYearByMonth[m] ?? 0) + moneyToCents(d.amount);
   });
 
   const result = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
-    thisYear: Math.round((thisYearByMonth[i + 1] ?? 0) * 100) / 100,
-    lastYear: Math.round((lastYearByMonth[i + 1] ?? 0) * 100) / 100,
+    thisYear: centsToMoney(thisYearByMonth[i + 1] ?? 0),
+    lastYear: centsToMoney(lastYearByMonth[i + 1] ?? 0),
   }));
 
   res.json(result);
@@ -1918,7 +1986,7 @@ router.get("/campaign-performance", async (req, res) => {
 
   const result = campaigns
     .map((c) => {
-      const raised = c.donations.reduce((sum, d) => sum + Number(d.amount), 0);
+      const raised = centsToMoney(c.donations.reduce((sum, d) => sum + moneyToCents(d.amount), 0));
       const giftCount = c.donations.length;
       const uniqueDonors = new Set(c.donations.map((d) => d.constituentId)).size;
       const avgGift = giftCount > 0 ? raised / giftCount : 0;
@@ -1929,10 +1997,10 @@ router.get("/campaign-performance", async (req, res) => {
         active: c.active,
         startDate: c.startDate.toISOString(),
         endDate: c.endDate?.toISOString() ?? null,
-        raised: Math.round(raised * 100) / 100,
+        raised,
         giftCount,
         uniqueDonors,
-        avgGift: Math.round(avgGift * 100) / 100,
+        avgGift: centsToMoney(moneyToCents(avgGift)),
       };
     })
     .sort((a, b) => b.raised - a.raised);
@@ -1967,7 +2035,7 @@ router.get("/giving-by-tier", async (req, res) => {
   const tiers = { micro: { count: 0, amount: 0 }, small: { count: 0, amount: 0 }, mid: { count: 0, amount: 0 }, major: { count: 0, amount: 0 } };
 
   donations.forEach((d) => {
-    const amt = Number(d.amount);
+    const amt = centsToMoney(moneyToCents(d.amount));
     if (amt < 50) {
       tiers.micro.count++;
       tiers.micro.amount += amt;
@@ -2020,14 +2088,14 @@ router.get("/payment-breakdown", async (req, res) => {
     const m = d.paymentMethod;
     if (!breakdown[m]) breakdown[m] = { count: 0, amount: 0 };
     breakdown[m].count++;
-    breakdown[m].amount += Number(d.amount);
+    breakdown[m].amount = centsToMoney(moneyToCents(breakdown[m].amount) + moneyToCents(d.amount));
   });
 
   const result = Object.entries(breakdown)
     .map(([paymentMethod, { count, amount }]) => ({
       paymentMethod,
       count,
-      amount: Math.round(amount * 100) / 100,
+      amount: centsToMoney(moneyToCents(amount)),
     }))
     .sort((a, b) => b.amount - a.amount);
 
@@ -2082,9 +2150,7 @@ router.get("/new-vs-returning", async (req, res) => {
     return;
   }
 
-  const yearParam = String(req.query.year ?? new Date().getFullYear());
-  const year = parseInt(yearParam, 10);
-  const yearRange = getYearRange(year);
+  const { year, yearRange } = await parseReportScope(req.query, organizationId);
   const yearStart = yearRange.gte;
 
   // Fetch new donors (firstGiftDate in this year) and all donations this year in parallel
@@ -2146,8 +2212,8 @@ router.get("/admin-summary", async (req, res) => {
     return;
   }
 
-  const { year, useAllYears, yearRange, donationDateFilter } = await parseReportScope(req.query, organizationId);
-  const strictYearRange = getYearRange(year);
+  const { year, dateBasis, fiscalYearStart, useAllYears, yearRange, donationDateFilter } = await parseReportScope(req.query, organizationId);
+  const strictYearRange = dateBasis === "fiscal" ? getFiscalYearRange(year, fiscalYearStart) : getYearRange(year);
 
   const [
     totalConstituents,
@@ -2276,7 +2342,7 @@ router.get("/admin-summary", async (req, res) => {
       .map(([email]) => email),
   );
 
-  const totalGiftVolume = donationRows.reduce((sum, donation) => sum + Number(donation.amount ?? 0), 0);
+  const totalGiftVolume = centsToMoney(donationRows.reduce((sum, donation) => sum + moneyToCents(donation.amount), 0));
   const averageGift = donationRows.length > 0 ? totalGiftVolume / donationRows.length : 0;
 
   const trendStart = new Date(year, 0, 1);
@@ -2324,7 +2390,9 @@ router.get("/admin-summary", async (req, res) => {
   });
   donationTrendRows.forEach((row) => {
     const month = row.date.getMonth();
-    monthlyTrend[month].donations += Number(row.amount ?? 0);
+    monthlyTrend[month].donations = centsToMoney(
+      moneyToCents(monthlyTrend[month].donations) + moneyToCents(row.amount),
+    );
   });
   caseTrendRows.forEach((row) => {
     const month = row.openedAt.getMonth();
@@ -2481,14 +2549,14 @@ router.get("/giving-trend", async (req, res) => {
     const m = cursor.getMonth();
     const y = cursor.getFullYear();
     const label = MONTH_LABELS[m] ?? "";
-    const amount = donations
+    const amount = centsToMoney(donations
       .filter((d) => d.date.getFullYear() === y && d.date.getMonth() === m)
-      .reduce((sum, d) => sum + Number(d.amount), 0);
+      .reduce((sum, d) => sum + moneyToCents(d.amount), 0));
     points.push({ label, amount });
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  const total = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+  const total = centsToMoney(donations.reduce((sum, d) => sum + moneyToCents(d.amount), 0));
   const giftCount = donations.length;
 
   // YoY comparison: same period one year prior
@@ -2500,7 +2568,7 @@ router.get("/giving-trend", async (req, res) => {
     where: completedDonationWhere(organizationId, { gte: lastYearStart, lte: lastYearEnd }),
     _sum: { amount: true },
   });
-  const lastYearTotal = Number(lastYearAgg._sum.amount ?? 0);
+  const lastYearTotal = centsToMoney(moneyToCents(lastYearAgg._sum.amount));
   const trendPercent = calcYoYPercent(total, lastYearTotal);
 
   const rangeLabel = dateBasis === "fiscal" ? `FY ${year}` : String(year);
@@ -2532,12 +2600,12 @@ router.get("/designations-summary", async (req, res) => {
   const buckets = new Map<string, number>();
   for (const d of donations) {
     const name = d.designation?.name ?? "General Fund";
-    buckets.set(name, (buckets.get(name) ?? 0) + Number(d.amount));
+    buckets.set(name, (buckets.get(name) ?? 0) + moneyToCents(d.amount));
   }
 
   // Sort by amount descending, cap at top 8 + "Other"
   const sorted = Array.from(buckets.entries())
-    .map(([name, amount]) => ({ name, amount }))
+    .map(([name, amount]) => ({ name, amount: centsToMoney(amount) }))
     .sort((a, b) => b.amount - a.amount);
 
   const TOP_SLICES = 8;
@@ -2552,7 +2620,7 @@ router.get("/designations-summary", async (req, res) => {
           },
         ];
 
-  const total = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+  const total = centsToMoney(donations.reduce((sum, d) => sum + moneyToCents(d.amount), 0));
   res.json({ slices, total });
 });
 

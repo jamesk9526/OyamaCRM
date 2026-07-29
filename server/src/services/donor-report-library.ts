@@ -1,6 +1,14 @@
 import type { PaymentMethod, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { completedDonationWhere } from "../lib/donationScope.js";
+import {
+  getFiscalYearForDate,
+  getFiscalYearRange,
+  getYearRange,
+  normalizeFiscalYearStart,
+  type ReportingYearBasis,
+} from "../lib/dateRanges.js";
+import { centsToMoney, moneyToCents } from "../lib/money.js";
 
 export const DONOR_LIBRARY_REPORT_KEYS = [
   "batch-receipts",
@@ -62,6 +70,8 @@ export interface DonorLibraryReportOptions {
   designationId?: string;
   limit: number;
   selectedYear: number;
+  dateBasis: ReportingYearBasis;
+  fiscalYearStart: number;
 }
 
 const PAYMENT_METHODS: PaymentMethod[] = ["CREDIT_CARD", "ACH", "CHECK", "WIRE", "STOCK", "IN_KIND", "CASH", "ONLINE"];
@@ -103,6 +113,7 @@ export function parseDonorLibraryReportOptions(
   report: DonorLibraryReportKey,
   query: Record<string, unknown>,
   now = new Date(),
+  configuration: { fiscalYearStart?: number } = {},
 ): DonorLibraryReportOptions {
   const defaultFrom = reportDefaultFrom(report, now);
   const range = normalizedRange(
@@ -111,6 +122,11 @@ export function parseDonorLibraryReportOptions(
   );
   const paymentCandidate = typeof query.paymentMethod === "string" ? query.paymentMethod.toUpperCase() : "";
   const requestedLimit = Number.parseInt(typeof query.limit === "string" ? query.limit : "", 10);
+  const dateBasis: ReportingYearBasis = query.dateBasis === "fiscal" ? "fiscal" : "calendar";
+  const fiscalYearStart = normalizeFiscalYearStart(configuration.fiscalYearStart);
+  const currentReportingYear = dateBasis === "fiscal"
+    ? getFiscalYearForDate(now, fiscalYearStart)
+    : now.getFullYear();
   const requestedYear = Number.parseInt(typeof query.year === "string" ? query.year : "", 10);
 
   return {
@@ -118,7 +134,9 @@ export function parseDonorLibraryReportOptions(
     paymentMethod: PAYMENT_METHODS.includes(paymentCandidate as PaymentMethod) ? paymentCandidate as PaymentMethod : undefined,
     designationId: typeof query.designationId === "string" && query.designationId.trim() ? query.designationId.trim() : undefined,
     limit: Number.isFinite(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 1_000)) : 100,
-    selectedYear: Number.isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : now.getUTCFullYear(),
+    selectedYear: Number.isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : currentReportingYear,
+    dateBasis,
+    fiscalYearStart,
   };
 }
 
@@ -131,12 +149,23 @@ function donorName(donor: { displayName?: string | null; organizationName?: stri
 }
 
 function cents(value: unknown): number {
-  const numberValue = Number(value ?? 0);
-  return Number.isFinite(numberValue) ? Math.round(numberValue * 100) : 0;
+  return moneyToCents(value);
 }
 
 function dollars(value: number): number {
-  return value / 100;
+  return centsToMoney(value);
+}
+
+function selectedYearRange(options: DonorLibraryReportOptions, year: number) {
+  return options.dateBasis === "fiscal"
+    ? getFiscalYearRange(year, options.fiscalYearStart)
+    : getYearRange(year);
+}
+
+function reportingYearForDate(options: DonorLibraryReportOptions, value: Date): number {
+  return options.dateBasis === "fiscal"
+    ? getFiscalYearForDate(value, options.fiscalYearStart)
+    : value.getFullYear();
 }
 
 function iso(value: Date | null | undefined): string | null {
@@ -508,8 +537,10 @@ async function comprehensiveDonorReport(organizationId: string, options: DonorLi
   const currentYear = options.selectedYear;
   const priorYear = currentYear - 1;
   const twoYearsPrior = currentYear - 2;
-  const start = new Date(Date.UTC(twoYearsPrior, 0, 1));
-  const through = new Date(Date.UTC(currentYear + 1, 0, 1));
+  const earliestRange = selectedYearRange(options, twoYearsPrior);
+  const currentRange = selectedYearRange(options, currentYear);
+  const start = earliestRange.gte;
+  const through = currentRange.lt;
   const donations = await prisma.donation.findMany({
     where: completedDonationWhere(organizationId, { gte: start, lt: through }),
     select: {
@@ -521,7 +552,7 @@ async function comprehensiveDonorReport(organizationId: string, options: DonorLi
   const byYear = new Map<number, Map<string, { totalCents: number; giftCount: number; firstGiftDate: Date | null }>>();
   for (const year of [twoYearsPrior, priorYear, currentYear]) byYear.set(year, new Map());
   for (const donation of donations) {
-    const year = donation.date.getUTCFullYear();
+    const year = reportingYearForDate(options, donation.date);
     const entries = byYear.get(year);
     if (!entries) continue;
     const entry = entries.get(donation.constituent.id) ?? { totalCents: 0, giftCount: 0, firstGiftDate: donation.constituent.firstGiftDate };
@@ -531,8 +562,8 @@ async function comprehensiveDonorReport(organizationId: string, options: DonorLi
   }
   const sections = [
     { label: "Active donors", select: (_entry: { firstGiftDate: Date | null }) => true },
-    { label: "New donors", select: (entry: { firstGiftDate: Date | null }, year: number) => entry.firstGiftDate?.getUTCFullYear() === year },
-    { label: "Repeat donors", select: (entry: { firstGiftDate: Date | null }, year: number) => entry.firstGiftDate?.getUTCFullYear() !== year },
+    { label: "New donors", select: (entry: { firstGiftDate: Date | null }, year: number) => entry.firstGiftDate ? reportingYearForDate(options, entry.firstGiftDate) === year : false },
+    { label: "Repeat donors", select: (entry: { firstGiftDate: Date | null }, year: number) => entry.firstGiftDate ? reportingYearForDate(options, entry.firstGiftDate) !== year : true },
   ].map((section) => {
     const metricsFor = (year: number) => cohortMetrics(Array.from(byYear.get(year)?.values() ?? []).filter((entry) => section.select(entry, year)));
     return {
@@ -543,7 +574,7 @@ async function comprehensiveDonorReport(organizationId: string, options: DonorLi
   const activeCurrent = sections[0].rows;
   return {
     ...emptyReport("comprehensive-donor-analysis", "Comprehensive donor analysis", "Three-year active, new, and repeat donor comparison based on completed gifts and each donor’s first-gift date.", options),
-    period: { from: start.toISOString(), through: new Date(through.getTime() - 1).toISOString(), label: `${twoYearsPrior}–${currentYear}` },
+    period: { from: start.toISOString(), through: new Date(through.getTime() - 1).toISOString(), label: `${options.dateBasis === "fiscal" ? "FY " : ""}${twoYearsPrior}–${currentYear}` },
     summary: [
       { label: "Current-year donors", value: activeCurrent[0]?.current ?? 0, type: "number" },
       { label: "Current-year revenue", value: activeCurrent[1]?.current ?? 0, type: "currency" },
@@ -552,7 +583,7 @@ async function comprehensiveDonorReport(organizationId: string, options: DonorLi
     columns: [],
     rows: [],
     comparisonMatrix: { columns: { currentYear, priorYear, twoYearsPrior }, sections },
-    notices: ["New donors made their first completed gift in the displayed year. Repeat donors gave in that year and had an earlier first gift."],
+    notices: [`New donors made their first completed gift in the displayed ${options.dateBasis} year. Repeat donors gave in that year and had an earlier first gift.`],
   };
 }
 
@@ -719,9 +750,11 @@ async function firstTimeDonorsReport(organizationId: string, options: DonorLibra
 }
 
 async function lapsedDonorsReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
-  const selectedStart = new Date(Date.UTC(options.selectedYear, 0, 1));
-  const selectedEnd = new Date(Date.UTC(options.selectedYear + 1, 0, 1));
-  const priorStart = new Date(Date.UTC(options.selectedYear - 1, 0, 1));
+  const selectedRange = selectedYearRange(options, options.selectedYear);
+  const priorRange = selectedYearRange(options, options.selectedYear - 1);
+  const selectedStart = selectedRange.gte;
+  const selectedEnd = selectedRange.lt;
+  const priorStart = priorRange.gte;
   const priorGiving = await donorGivingRows(organizationId, { gte: priorStart, lt: selectedStart });
   const currentDonorIds = new Set((await prisma.donation.findMany({
     where: completedDonationWhere(organizationId, { gte: selectedStart, lt: selectedEnd }),
@@ -741,8 +774,8 @@ async function lapsedDonorsReport(organizationId: string, options: DonorLibraryR
       selectedYear: options.selectedYear,
     }));
   return {
-    ...emptyReport("lapsed-donors", `Lapsed donors (SYBUNTY) · ${options.selectedYear}`, "Donors who gave in the prior calendar year but have not given in the selected calendar year.", options),
-    period: { from: selectedStart.toISOString(), through: new Date(selectedEnd.getTime() - 1).toISOString(), label: String(options.selectedYear) },
+    ...emptyReport("lapsed-donors", `Lapsed donors (SYBUNTY) · ${options.dateBasis === "fiscal" ? "FY " : ""}${options.selectedYear}`, `Donors who gave in the prior ${options.dateBasis} year but have not given in the selected ${options.dateBasis} year.`, options),
+    period: { from: selectedStart.toISOString(), through: new Date(selectedEnd.getTime() - 1).toISOString(), label: `${options.dateBasis === "fiscal" ? "FY " : ""}${options.selectedYear}` },
     summary: [{ label: "Lapsed donors", value: rows.length, type: "number" }],
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },

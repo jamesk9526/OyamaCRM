@@ -15,6 +15,11 @@ import { requirePermission } from "../middleware/requirePermission.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { exportFullCrmBackup, restoreFullCrmBackup, type CrmBackupBundle } from "../services/crm-backup.js";
 import {
+  createCrmBackupPackage,
+  parseCrmBackupPackage,
+  restoreCrmBackupAssets,
+} from "../services/crm-backup-package.js";
+import {
   createWatchdogCrmBackup,
   getWatchdogCrmBackup,
   getWatchdogHealth,
@@ -756,16 +761,16 @@ router.get("/ops/backups/coverage", requirePermission("watchdog.backups.view"), 
       {
         scope: "FILES_MEDIA",
         label: "File/media backup",
-        status: "Partially Working",
-        implemented: false,
-        reason: "Storage archive hooks are planned but not yet wired in this pass.",
+        status: "Working",
+        implemented: true,
+        reason: "Portable full-CRM packages include every local file in public/uploads with SHA-256 integrity checks.",
       },
       {
         scope: "CONFIGURATION",
         label: "Configuration backup",
-        status: "Partially Working",
-        implemented: false,
-        reason: "Configuration persistence export is not fully implemented yet.",
+        status: "Working",
+        implemented: true,
+        reason: "Configuration stored in the CRM database is included in the portable package. Secrets remain environment-managed and are excluded.",
       },
       {
         scope: "ENVIRONMENT_MANIFEST",
@@ -783,6 +788,156 @@ router.get("/ops/backups/coverage", requirePermission("watchdog.backups.view"), 
     ],
     moduleScopes: MODULE_SCOPES,
   });
+});
+
+/** POST /api/watchdog/ops/backups/package/export - download a complete portable CRM backup package. */
+router.post("/ops/backups/package/export", requirePermission("watchdog.backups.create"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const userId = req.user!.sub;
+  const includeWatchdogDatabase = (req.body as { includeWatchdogDatabase?: boolean } | undefined)?.includeWatchdogDatabase !== false;
+
+  try {
+    const backup = await exportFullCrmBackup({
+      organizationId,
+      generatedBy: userId,
+      appVersion: getAppInfo().version,
+      includeWatchdogDatabase,
+    });
+    const { archive, manifest } = await createCrmBackupPackage(backup);
+    await logAudit({
+      action: "WATCHDOG_PORTABLE_BACKUP_EXPORTED",
+      entity: "CrmBackupPackage",
+      entityId: manifest.packageId,
+      userId,
+      organizationId,
+      metadata: {
+        assetCount: manifest.assets.length,
+        packageBytes: archive.length,
+        includesWatchdogDatabase: manifest.includesWatchdogDatabase,
+      },
+    });
+    const filenameTimestamp = manifest.generatedAt.replace(/[:.]/g, "-");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Length", archive.length);
+    res.setHeader("Content-Disposition", `attachment; filename=oyamacrm-full-backup-${filenameTimestamp}.zip`);
+    res.send(archive);
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: "WATCHDOG_PORTABLE_BACKUP_EXPORT_FAILED",
+        message: error instanceof Error ? error.message : "Could not create the portable CRM backup package.",
+      },
+    });
+  }
+});
+
+/**
+ * POST /api/watchdog/ops/backups/package/import - guarded, direct restore of a portable CRM backup package.
+ * This is deliberately separate from the stored-backup restore flow: a package has its own integrity manifest
+ * and its media contents are atomically staged before replacing the current upload library.
+ */
+router.post("/ops/backups/package/import", requirePermission("watchdog.restore.execute"), async (req, res) => {
+  const organizationId = req.user!.orgId;
+  const userId = req.user!.sub;
+  const confirmation = String(req.headers["x-oyama-restore-confirmation"] ?? "").trim();
+  const reason = String(req.headers["x-oyama-restore-reason"] ?? "").trim();
+  const execute = String(req.headers["x-oyama-restore-execute"] ?? "").toLowerCase() === "true";
+
+  if (!execute || confirmation !== "RESTORE" || reason.length < 12) {
+    res.status(400).json({
+      error: {
+        code: "WATCHDOG_PORTABLE_RESTORE_CONFIRMATION_REQUIRED",
+        message: "Set X-Oyama-Restore-Execute: true, type RESTORE, and provide a reason of at least 12 characters before restoring a package.",
+      },
+    });
+    return;
+  }
+  if (!Buffer.isBuffer(req.body)) {
+    res.status(400).json({
+      error: { code: "WATCHDOG_PORTABLE_RESTORE_FILE_REQUIRED", message: "Upload an OyamaCRM .zip backup package." },
+    });
+    return;
+  }
+
+  let parsed: ReturnType<typeof parseCrmBackupPackage>;
+  try {
+    parsed = parseCrmBackupPackage(req.body);
+  } catch (error) {
+    res.status(400).json({
+      error: {
+        code: "WATCHDOG_PORTABLE_RESTORE_INVALID_PACKAGE",
+        message: error instanceof Error ? error.message : "The uploaded backup package is invalid.",
+      },
+    });
+    return;
+  }
+  if (parsed.manifest.organizationId !== organizationId) {
+    res.status(403).json({
+      error: { code: "WATCHDOG_PORTABLE_RESTORE_ORGANIZATION_MISMATCH", message: "This package belongs to a different organization." },
+    });
+    return;
+  }
+
+  let preRestoreBackupId: string | null = null;
+  try {
+    const preRestoreBundle = await exportFullCrmBackup({
+      organizationId,
+      generatedBy: userId,
+      appVersion: getAppInfo().version,
+      includeWatchdogDatabase: true,
+    });
+    const preRestoreRecord = await createWatchdogCrmBackup({
+      organizationId,
+      label: `pre-portable-restore-${parsed.manifest.packageId}-${new Date().toISOString()}`,
+      sourceVersion: preRestoreBundle.appVersion,
+      primaryTableCount: preRestoreBundle.primaryDatabase.tableCount,
+      primaryRowCount: preRestoreBundle.primaryDatabase.rowCount,
+      watchdogTableCount: preRestoreBundle.watchdogDatabase?.tableCount ?? 0,
+      watchdogRowCount: preRestoreBundle.watchdogDatabase?.rowCount ?? 0,
+      backupJson: JSON.stringify(preRestoreBundle),
+      createdBy: userId,
+    });
+    preRestoreBackupId = preRestoreRecord.id;
+  } catch (error) {
+    watchdogStoreUnavailable(res, error);
+    return;
+  }
+
+  try {
+    const databaseReport = await restoreFullCrmBackup({
+      bundle: parsed.bundle,
+      includeWatchdogDatabase: parsed.manifest.includesWatchdogDatabase,
+    });
+    const assetReport = await restoreCrmBackupAssets({ assets: parsed.assets });
+    await logAudit({
+      action: "WATCHDOG_PORTABLE_RESTORE_EXECUTED",
+      entity: "CrmBackupPackage",
+      entityId: parsed.manifest.packageId,
+      userId,
+      organizationId,
+      metadata: {
+        reason,
+        preRestoreBackupId,
+        restoredAssetCount: assetReport.restoredAssetCount,
+        assetRecoveryDirectory: assetReport.recoveryDirectory,
+      },
+    });
+    res.status(201).json({
+      success: true,
+      packageId: parsed.manifest.packageId,
+      preRestoreBackupId,
+      databaseReport,
+      restoredAssetCount: assetReport.restoredAssetCount,
+      assetRecoveryDirectory: assetReport.recoveryDirectory,
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: {
+        code: "WATCHDOG_PORTABLE_RESTORE_FAILED",
+        message: error instanceof Error ? error.message : "The package could not be restored.",
+      },
+    });
+  }
 });
 
 /** GET /api/watchdog/ops/backups/policies - list backup policies. */

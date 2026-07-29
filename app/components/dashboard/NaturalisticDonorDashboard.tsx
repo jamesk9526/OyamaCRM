@@ -375,7 +375,7 @@ export default function NaturalisticDonorDashboard({
 
         <section className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
           <StatCard title="Total Donors" value={totalDonorsValue} trendText="Open donor records" trendPositive color="indigo" sparkValues={[]} href="/constituents" />
-          <StatCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "No comparison"} vs last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} color="blue" sparkValues={sparkValues} href="/donations" />
+          <StatCard title="Gifts This Month" value={monthGivingValue} trendText={`${summary?.momTrend != null ? (summary.momTrend >= 0 ? "↑" : "↓") : ""} ${summary?.momTrend != null ? `${Math.abs(Math.round(summary.momTrend))}%` : "No comparison"} vs same point last month`} trendPositive={(summary?.momTrend ?? 0) >= 0} color="blue" sparkValues={sparkValues} href="/donations" />
           <StatCard title="New Donors" value={newDonorsValue} trendText="Review welcome follow-up" trendPositive color="violet" sparkValues={[]} href="/constituents" />
           <StatCard title="Active Campaigns" value={activeCampaignCount.toLocaleString()} trendText="Review fundraising work" trendPositive={false} color="amber" sparkValues={[]} href="/campaigns" />
           <StatCard title="Retention Rate" value={retention ? `${Math.round(retention.rate)}%` : "—"} trendText="Open donor reporting" trendPositive={(retention?.rate ?? 0) >= 50} color="sky" compactValue sparkValues={[]} href="/reports" />

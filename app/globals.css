@@ -2,12 +2,12 @@
 @import "./globals-animations.css";
 
 :root {
-  --background: #f5f5f5;
+  --background: #f2faf4;
   --foreground: #0f172a;
   --accent: #0f6cbd;
   --accent-light: #eff6fc;
   --crm-surface: #ffffff;
-  --crm-surface-subtle: #f8fafc;
+  --crm-surface-subtle: #f7fbf8;
   --crm-border: #d1d1d1;
   --crm-border-strong: #a19f9d;
   --crm-muted-text: #616161;
@@ -63,7 +63,44 @@ body {
 
 /* Shared Fluent-style primitives: flat hierarchy, quiet borders, compact depth. */
 .crm-page-surface {
-  background: #f5f5f5;
+  background: var(--background);
+}
+
+/* Personal DonorCRM appearance palettes. The command-bar structure stays
+   constant; only its approved color tokens and the workspace canvas change. */
+[data-donor-appearance="light-green"] {
+  --background: #f2faf4;
+  --crm-surface: #ffffff;
+  --crm-surface-subtle: #f7fbf8;
+  --crm-border: #d2e2d7;
+  --crm-border-strong: #9bbcab;
+  --crm-accent-soft: #eaf7ee;
+  --crm-focus-ring: rgba(15, 108, 87, 0.22);
+}
+
+[data-donor-appearance="blue"] {
+  --background: #f2f8fd;
+  --crm-surface-subtle: #f7fbff;
+  --crm-border: #d5e2ef;
+  --crm-border-strong: #9ebbd7;
+  --crm-accent-soft: #eaf4fd;
+}
+
+[data-donor-appearance="violet"] {
+  --background: #f8f5ff;
+  --crm-surface-subtle: #fbf9ff;
+  --crm-border: #e1d9f0;
+  --crm-border-strong: #bfb1db;
+  --crm-accent-soft: #f1ebff;
+  --crm-focus-ring: rgba(111, 66, 193, 0.24);
+}
+
+[data-donor-appearance="slate"] {
+  --background: #f7f9fb;
+  --crm-surface-subtle: #fafbfd;
+  --crm-border: #d7dee7;
+  --crm-border-strong: #aab7c6;
+  --crm-accent-soft: #edf2f7;
 }
 
 .crm-shell-surface {
@@ -121,6 +158,33 @@ body {
 .crm-fonts ::selection {
   background: #cfe4fa;
   color: #0f3b61;
+}
+
+/* Spreadsheet-style report controls share the normal CRM field hierarchy. */
+.report-input {
+  min-height: 2.25rem;
+  border: 1px solid var(--crm-border);
+  border-radius: 2px;
+  background: var(--crm-surface);
+  color: #0f172a;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.report-input:focus-visible {
+  outline: none;
+  border-color: var(--crm-accent);
+  box-shadow: 0 0 0 2px var(--crm-focus-ring);
+}
+
+[data-donor-density="compact"] .crm-page-surface :is(input, select, textarea) {
+  line-height: 1.2;
+}
+
+[data-donor-density="compact"] .report-input {
+  min-height: 2rem;
+  padding-block: 0.25rem;
 }
 
 /* Microsoft-style standalone workspace foundation for Letters and Email. */

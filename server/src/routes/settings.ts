@@ -1872,6 +1872,32 @@ router.post("/reset", requireAuth, requireRole("admin"), async (req: Request, re
 // ─── Dashboard Appearance Settings ────────────────────────────────────────────
 
 const DASHBOARD_APPEARANCE_PLUGIN_KEY = "donor-dashboard-appearance";
+const DONOR_USER_APPEARANCE_PLUGIN_PREFIX = "donor-user-appearance:";
+
+type DonorAppearanceTheme = "light-green" | "blue" | "violet" | "slate";
+
+interface DonorUserAppearanceSettings {
+  theme: DonorAppearanceTheme;
+  density: "comfortable" | "compact";
+}
+
+const DONOR_USER_APPEARANCE_DEFAULTS: DonorUserAppearanceSettings = {
+  theme: "light-green",
+  density: "comfortable",
+};
+
+function donorUserAppearancePluginKey(userId: string): string {
+  return `${DONOR_USER_APPEARANCE_PLUGIN_PREFIX}${userId}`;
+}
+
+function normalizeDonorUserAppearance(input: unknown): DonorUserAppearanceSettings {
+  const source = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
+  const theme = ["light-green", "blue", "violet", "slate"].includes(String(source.theme))
+    ? source.theme as DonorAppearanceTheme
+    : DONOR_USER_APPEARANCE_DEFAULTS.theme;
+  const density = source.density === "compact" ? "compact" : "comfortable";
+  return { theme, density };
+}
 
 interface DashboardAppearanceSettings {
   headerImageUrl: string;
@@ -1979,6 +2005,57 @@ function normalizeDashboardAppearancePayload(input: unknown): DashboardAppearanc
     showProjectsAndInitiatives: src.showProjectsAndInitiatives !== false,
   };
 }
+
+/** GET /api/settings/donor-appearance — returns the authenticated user's DonorCRM shell preference. */
+router.get("/donor-appearance", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) return res.json(DONOR_USER_APPEARANCE_DEFAULTS);
+    const pluginKey = donorUserAppearancePluginKey(req.user!.sub);
+    const record = await prisma.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId, pluginKey } },
+      select: { config: true },
+    });
+    return res.json(record?.config ? normalizeDonorUserAppearance(record.config) : DONOR_USER_APPEARANCE_DEFAULTS);
+  } catch {
+    return res.json(DONOR_USER_APPEARANCE_DEFAULTS);
+  }
+});
+
+/** PUT /api/settings/donor-appearance — saves an individual, non-organizational DonorCRM appearance preference. */
+router.put("/donor-appearance", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ success: false, error: "No organization has been configured yet." });
+    }
+    const settings = normalizeDonorUserAppearance(req.body);
+    const pluginKey = donorUserAppearancePluginKey(req.user!.sub);
+    await prisma.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId, pluginKey } },
+      update: { enabled: true, config: settings as unknown as Prisma.InputJsonObject },
+      create: {
+        organizationId,
+        pluginKey,
+        enabled: true,
+        config: settings as unknown as Prisma.InputJsonObject,
+      },
+    });
+    await logAudit({
+      action: "UPDATE_DONOR_USER_APPEARANCE",
+      entity: "PluginSetting",
+      entityId: pluginKey,
+      userId: req.user!.sub,
+      organizationId,
+      metadata: { ...settings },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+    return res.json({ success: true, settings });
+  } catch {
+    return res.status(500).json({ success: false, error: "Failed to save DonorCRM appearance settings." });
+  }
+});
 
 /** GET /api/settings/dashboard-appearance — returns current or default settings */
 router.get("/dashboard-appearance", requireAuth, async (req: Request, res: Response) => {

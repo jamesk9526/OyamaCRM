@@ -305,15 +305,18 @@ Use only these status labels:
 
 ## Production Pass Phase 1/2 Snapshot (2026-05-14)
 
-## Donor CRM Reporting Workbook Snapshot (2026-07-29)
+## Donor CRM Reporting And Recovery Snapshot (2026-07-29)
 
 | Item | Status | Evidence |
 |---|---|---|
 | Canonical `/reports` route is part of the Donor CRM shell | Working | `app/reports/page.tsx`, `app/components/layout/AppShell.tsx`, `app/reports/builder/page.tsx`, `app/reports/manager/page.tsx`, `app/reports/donor-crm/page.tsx` |
-| Live month-to-date giving worksheet | Working | `app/components/donor-reports/DonorReportsSpreadsheet.tsx`, `GET /api/reports/donors-by-designation` in `server/src/routes/reports.ts` |
-| Donor-by-designation grid | Working | The API groups completed gifts from the first day of the current month through now by donor and designation. The grid supports in-place sorting and links each donor name to the live constituent record. |
-| Export and print | Working | `GET /api/reports/exports/donors-by-designation.csv` enforces `export:data`, protects CSV cells from formula injection, and produces the same MTD report dataset. The workbook opens a focused printable sheet rather than printing CRM chrome. |
-| Additional report sheets | Partially Working | The workbook is intentionally limited to two complete sheets; future campaign, retention, and custom date-range sheets require their own live API and authorized export contract. |
+| Live donor report library | Working | `app/components/donor-reports/DonorReportsSpreadsheet.tsx`, `server/src/services/donor-report-library.ts`, `GET /api/reports/library/:reportKey` |
+| Three-year donor analysis grid | Working | The comprehensive donor analysis compares active, new, and repeat donors across current, prior, and two-prior calendar or fiscal years with counts, giving, gift count, averages, two-plus-gift donors, and prior-year deltas. |
+| Dashboard/report month reconciliation | Working | Dashboard MTD, monthly donor detail, and MTD report defaults share the same server period and integer-cents arithmetic; partial-month trends use a like-for-like prior-month cutoff. |
+| Self-service staff profiles and usage history | Working | `/settings/profile` saves personal contact/profile fields and displays user-scoped audit usage. Email, role, permissions, and account status remain governed separately. |
+| Export and print | Working | `GET /api/reports/exports/library/:reportKey.csv` enforces `export:data`, protects CSV cells from formula injection, and exports the same live dataset shown in the grid. Printing opens a focused worksheet rather than CRM chrome. |
+| Portable full CRM backup and re-import | Working | `server/src/services/crm-backup-package.ts`, `server/src/routes/watchdog-ops.ts`, `app/components/watchdog/ops/WatchdogBackupsPage.tsx` exports SQL, JSON, and local uploads as an integrity-checked ZIP. Restore is admin-gated, requires typed confirmation/reason, writes an audit record, takes a pre-restore database snapshot, and leaves the replaced uploads directory available for recovery verification. |
+| Personal DonorCRM appearance | Working | `GET/PUT /api/settings/donor-appearance`, `app/settings/appearance/page.tsx`, `app/components/layout/AppShell.tsx` persists a per-user light-green/default, blue, violet, or slate command-bar palette and density without changing organization/public branding. |
 
 ## Donation Import Reconciliation Safeguards (2026-07-29)
 

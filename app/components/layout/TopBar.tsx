@@ -2335,6 +2335,16 @@ function UserMenu({
                 <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-100">Workspace</span>
               </div>
               <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+                <Link
+                  href="/settings/profile"
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 00-16 0m12-13a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  <span className="min-w-0 truncate">My profile</span>
+                </Link>
                 {showApps ? (
                   <button
                     type="button"
@@ -2355,6 +2365,18 @@ function UserMenu({
                   </svg>
                   <span className="min-w-0 truncate">Feedback</span>
                 </button>
+                {moduleKey === "donor" ? (
+                  <Link
+                    href="/settings/appearance"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
+                  >
+                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2m0 14v2M3 12h2m14 0h2m-3.64-5.64 1.42-1.42M5.22 18.78l1.42-1.42m0-10.72L5.22 5.22m13.56 13.56-1.42-1.42M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span className="min-w-0 truncate">My appearance</span>
+                  </Link>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => runProfileAction(onToggleMessages)}

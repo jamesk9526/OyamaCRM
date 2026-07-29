@@ -7,6 +7,11 @@ import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRib
 
 const CARDS = [
   {
+    title: "My Profile",
+    description: "Update your name, phone, job details, timezone, profile image, and review your account usage.",
+    href: "/settings/profile",
+  },
+  {
     title: "Organization",
     description: "Profile, timezone, fiscal year, and primary nonprofit details.",
     href: "/settings/organization",
@@ -57,9 +62,19 @@ const CARDS = [
     href: "/settings/dashboard-appearance",
   },
   {
+    title: "My DonorCRM Appearance",
+    description: "Choose your personal DonorCRM command-bar color and workspace density. This does not affect other users.",
+    href: "/settings/appearance",
+  },
+  {
     title: "Integrations",
     description: "Unified integration readiness and plugin controls for QuickBooks, embeds, SMTP, and AI.",
     href: "/settings/integrations",
+  },
+  {
+    title: "Import & Export",
+    description: "Open reviewed imports, data tools, and the admin-only portable full CRM backup workspace.",
+    href: "/settings/import-export",
   },
   {
     title: "Payments",
@@ -92,6 +107,7 @@ export default function SettingsOverviewPage() {
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Core">
+          <WorkspaceRibbonButton label="My Profile" href="/settings/profile" />
           <WorkspaceRibbonButton label="Organization" href="/settings/organization" />
           <WorkspaceRibbonButton label="Users" href="/settings/users" />
           <WorkspaceRibbonButton label="Roles" href="/settings/roles" />
@@ -101,7 +117,9 @@ export default function SettingsOverviewPage() {
           <WorkspaceRibbonButton label="Modules" href="/settings/modules" />
           <WorkspaceRibbonButton label="AI" href="/settings/ai" />
           <WorkspaceRibbonButton label="Dashboard Appearance" href="/settings/dashboard-appearance" />
+          <WorkspaceRibbonButton label="My Appearance" href="/settings/appearance" />
           <WorkspaceRibbonButton label="Integrations" href="/settings/integrations" />
+          <WorkspaceRibbonButton label="Import & Export" href="/settings/import-export" />
           <WorkspaceRibbonButton label="Payments" href="/settings/payments" />
           <WorkspaceRibbonButton label="System Updates" href="/settings/system-updates" />
           <WorkspaceRibbonButton label="System Status" href="/settings/system-status" />

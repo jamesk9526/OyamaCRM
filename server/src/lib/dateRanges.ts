@@ -94,8 +94,7 @@ export function getQuarterRange(
 }
 
 /** Prisma-compatible YTD filter: Jan 1 of current year through right now. */
-export function getYTDRange(): { gte: Date; lte: Date } {
-  const now = new Date();
+export function getYTDRange(now = new Date()): { gte: Date; lte: Date } {
   return {
     gte: new Date(now.getFullYear(), 0, 1),
     lte: now,
@@ -103,8 +102,7 @@ export function getYTDRange(): { gte: Date; lte: Date } {
 }
 
 /** Prisma-compatible MTD filter: 1st of current month through right now. */
-export function getMTDRange(): { gte: Date; lte: Date } {
-  const now = new Date();
+export function getMTDRange(now = new Date()): { gte: Date; lte: Date } {
   return {
     gte: new Date(now.getFullYear(), now.getMonth(), 1),
     lte: now,
@@ -112,8 +110,7 @@ export function getMTDRange(): { gte: Date; lte: Date } {
 }
 
 /** Prisma-compatible QTD filter: start of current quarter through right now. */
-export function getQTDRange(): { gte: Date; lte: Date } {
-  const now = new Date();
+export function getQTDRange(now = new Date()): { gte: Date; lte: Date } {
   const q = Math.floor(now.getMonth() / 3) as 0 | 1 | 2 | 3;
   return {
     gte: new Date(now.getFullYear(), q * 3, 1),
@@ -125,11 +122,72 @@ export function getQTDRange(): { gte: Date; lte: Date } {
  * Return the start of the current week (Sunday, midnight local time).
  * Used for the "This Week" dashboard card.
  */
-export function getStartOfWeek(): Date {
-  const now = new Date();
+export function getStartOfWeek(now = new Date()): Date {
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   d.setDate(d.getDate() - d.getDay()); // rewind to Sunday
   return d;
+}
+
+export type ReportingYearBasis = "calendar" | "fiscal";
+
+export interface ReportingPeriod {
+  basis: ReportingYearBasis;
+  year: number;
+  label: string;
+  start: Date;
+  endExclusive: Date;
+  through: Date;
+  isCurrent: boolean;
+}
+
+/** One canonical calendar/fiscal reporting-year contract for dashboards and reports. */
+export function getReportingPeriod(options: {
+  basis?: ReportingYearBasis;
+  year?: number;
+  fiscalYearStart?: number;
+  now?: Date;
+} = {}): ReportingPeriod {
+  const now = options.now ?? new Date();
+  const basis = options.basis ?? "calendar";
+  const fiscalYearStart = normalizeFiscalYearStart(options.fiscalYearStart);
+  const currentYear = basis === "fiscal"
+    ? getFiscalYearForDate(now, fiscalYearStart)
+    : now.getFullYear();
+  const year = options.year ?? currentYear;
+  const range = basis === "fiscal"
+    ? getFiscalYearRange(year, fiscalYearStart)
+    : getYearRange(year);
+  const isCurrent = year === currentYear;
+  return {
+    basis,
+    year,
+    label: basis === "fiscal" ? `FY ${year}` : `Calendar ${year}`,
+    start: range.gte,
+    endExclusive: range.lt,
+    through: isCurrent ? now : new Date(range.lt.getTime() - 1),
+    isCurrent,
+  };
+}
+
+/**
+ * Prior-month comparison through the same day and time as the current MTD
+ * window. This avoids comparing a partial month with a full prior month.
+ */
+export function getPriorMonthComparableRange(now = new Date()): { gte: Date; lte: Date; fullMonthEnd: Date } {
+  const gte = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const fullMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+  const daysInPriorMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  const comparableDay = Math.min(now.getDate(), daysInPriorMonth);
+  const lte = new Date(
+    gte.getFullYear(),
+    gte.getMonth(),
+    comparableDay,
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds(),
+  );
+  return { gte, lte: lte < fullMonthEnd ? lte : new Date(fullMonthEnd.getTime() - 1), fullMonthEnd };
 }
 
 /**

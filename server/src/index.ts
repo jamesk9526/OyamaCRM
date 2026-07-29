@@ -178,6 +178,10 @@ app.use(
 
 // Capture raw body for Stripe webhook signature verification before JSON parsing.
 app.use("/api/site-embeds/public/stripe-webhook", express.raw({ type: "application/json" }));
+// A portable full-CRM package can include media, so it intentionally bypasses
+// the ordinary JSON payload limit. The route remains admin-only and validates
+// a constrained ZIP format before any restore action is considered.
+app.use("/api/watchdog/ops/backups/package/import", express.raw({ type: "application/zip", limit: "1gb" }));
 
 // Import endpoint can receive 800+ records as JSON — raise the limit to 20 MB.
 app.use(express.json({ limit: "20mb" }));

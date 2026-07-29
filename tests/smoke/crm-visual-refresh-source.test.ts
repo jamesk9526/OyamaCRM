@@ -201,8 +201,9 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(donationsRoute).toContain('router.patch("/acknowledgments/bulk"');
     expect(donationsRoute).toContain("CONFIRMATION_REQUIRED");
     expect(donationsRoute).toContain("DONATION_ACKNOWLEDGMENT_BULK_MARKED");
-    expect(reportsWorkbook).toContain("/api/reports/donors-by-designation");
-    expect(reportsWorkbook).toContain("/api/reports/exports/donors-by-designation.csv");
+    expect(reportsWorkbook).toContain("/api/reports/library/${definition.key}");
+    expect(reportsWorkbook).toContain("/api/reports/exports/library/${selected.key}.csv");
+    expect(reportsWorkbook).toContain("comprehensive-donor-analysis");
     expect(reportsWorkbook).toContain("handlePrint");
   });
 
