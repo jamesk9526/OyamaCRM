@@ -1,21 +1,12 @@
 /** CampaignGoalHealthWidget summarizes campaign goal attainment and funding gap health. */
 "use client";
+import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface CampaignGoalHealthWidgetProps {
   activeCampaigns: number;
   activeGoalTotal: number;
   raisedAmount: number;
   loading?: boolean;
-}
-
-/** Formats a USD value for compact widget display. */
-function fmtCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 /** CampaignGoalHealthWidget renders compact campaign attainment diagnostics for staff. */
@@ -45,7 +36,7 @@ export default function CampaignGoalHealthWidget({
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Raised</p>
-            <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(raisedAmount)}</p>
+            <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatDashboardCurrency(raisedAmount)}</p>
           </div>
         </div>
         <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2.5">
@@ -65,14 +56,14 @@ export default function CampaignGoalHealthWidget({
         </div>
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Avg Raised</p>
-          <p className="text-lg font-semibold text-gray-900 mt-0.5">{fmtCurrency(avgRaisedPerCampaign)}</p>
+          <p className="text-lg font-semibold text-gray-900 mt-0.5">{formatDashboardCurrency(avgRaisedPerCampaign)}</p>
         </div>
       </div>
 
       <div className="rounded-lg border border-gray-200 px-3 py-2.5">
         <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-          <span>{fmtCurrency(raisedAmount)} raised</span>
-          <span>{fmtCurrency(safeGoal)} goal</span>
+          <span>{formatDashboardCurrency(raisedAmount)} raised</span>
+          <span>{formatDashboardCurrency(safeGoal)} goal</span>
         </div>
         <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
           <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${clampedPct}%` }} />
@@ -80,7 +71,7 @@ export default function CampaignGoalHealthWidget({
         <div className="flex items-center justify-between mt-2 text-xs">
           <span className="font-semibold text-gray-700">{progressPct}% attainment</span>
           <span className={goalGap > 0 ? "text-amber-600 font-medium" : "text-emerald-700 font-medium"}>
-            {goalGap > 0 ? `${fmtCurrency(goalGap)} to goal` : "Goal exceeded"}
+            {goalGap > 0 ? `${formatDashboardCurrency(goalGap)} to goal` : "Goal exceeded"}
           </span>
         </div>
       </div>

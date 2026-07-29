@@ -53,7 +53,7 @@ export function buildStewardshipSuggestions(
       type: "retention",
       title: "Retention Needs Attention",
       description: `${Math.max(0, retention.total - retention.retained).toLocaleString()} prior-period donors have not given again in the current period.`,
-      action: { label: "Open Lapsed Report", href: "/reports?report=lapsed-donor-report" },
+      action: { label: "Open Lapsed Report", href: "/reports?report=lapsed-donors" },
       count: Math.max(0, retention.total - retention.retained),
       urgency: "high",
     });
@@ -65,7 +65,7 @@ export function buildStewardshipSuggestions(
       type: "welcome",
       title: `${summary.newDonorsThisMonth} First-Time Donor${summary.newDonorsThisMonth === 1 ? "" : "s"}`,
       description: "New donors should receive a welcome or thank-you follow-up.",
-      action: { label: "Open Segment", href: "/reports?report=new-donor" },
+      action: { label: "Open Segment", href: "/reports?report=first-time-donors" },
       count: summary.newDonorsThisMonth,
       urgency: "medium",
     });

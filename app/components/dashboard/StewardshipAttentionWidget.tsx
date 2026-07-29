@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface StewardshipAttentionWidgetProps {
   newDonorsThisMonth: number;
@@ -104,7 +105,7 @@ export default function StewardshipAttentionWidget({
     },
     {
       label: "Unthanked Value",
-      value: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(unthankedGiftTotal),
+      value: formatDashboardCurrency(unthankedGiftTotal),
       tone: unthankedGiftTotal > 0 ? "text-amber-700 bg-amber-50 border-amber-200" : "text-green-700 bg-green-50 border-green-200",
       href: "/oyama-letters/generate",
     },

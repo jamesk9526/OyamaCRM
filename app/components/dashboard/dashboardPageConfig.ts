@@ -6,40 +6,6 @@
 import type { DashboardWidgetSize } from "./DashboardWidget";
 import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutModal";
 
-/** Shape returned by /api/reports/summary (extended) */
-export interface Summary {
-  totalConstituents: number;
-  /** Unique constituents with completed gifts in the selected reporting scope. */
-  activeDonors: number;
-  ytdAmount: number;
-  ytdCount: number;
-  /** YTD awarded grant total - always returned; added to ytdAmount when includeGrants=true */
-  ytdGrantAmount: number;
-  /** YTD completed donations linked to active campaigns only. */
-  activeCampaignRaisedAmount: number;
-  weekAmount: number;
-  weekCount: number;
-  weekAvg: number;
-  monthAmount: number;
-  monthCount: number;
-  momTrend: number | null;
-  newDonorsThisMonth: number;
-  activeCampaigns: number;
-  activeGoalTotal: number;
-  pendingTasks: number;
-  overdueTasks: number;
-  freshness?: {
-    generatedAt: string;
-    dataThrough: string;
-  };
-}
-
-export interface RetentionData {
-  total: number;
-  retained: number;
-  rate: number;
-}
-
 /** Previous shipped default order (kept to support one-time migration logic). */
 export const PREVIOUS_DEFAULT_WIDGET_ORDER = [
   "giving-trend",

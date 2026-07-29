@@ -10,6 +10,7 @@
  */
 
 import React from "react";
+import { DASHBOARD_PANEL_CLASS } from "./shared/DashboardPrimitives";
 
 export type DashboardWidgetSize = "compact" | "standard" | "wide" | "hero";
 
@@ -99,7 +100,7 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        group/widget min-w-0 overflow-hidden bg-white rounded-[4px] border border-[#d1d1d1] flex flex-col transition-colors
+        group/widget ${DASHBOARD_PANEL_CLASS} flex flex-col transition-colors
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
         ${editMode && isDragOver ? "ring-2 ring-emerald-400 ring-offset-1 border-transparent" : ""}
         ${editMode ? "ring-2 ring-[#0f6cbd]/70 ring-offset-2 ring-offset-[#eff6fc]" : "hover:border-[#0f6cbd]"}

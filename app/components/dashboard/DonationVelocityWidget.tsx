@@ -1,5 +1,6 @@
 /** DonationVelocityWidget shows short-horizon giving speed and ticket-size movement. */
 "use client";
+import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface DonationVelocityWidgetProps {
   weekAmount: number;
@@ -7,15 +8,6 @@ interface DonationVelocityWidgetProps {
   monthAmount: number;
   monthCount: number;
   loading?: boolean;
-}
-
-function fmtCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 export default function DonationVelocityWidget({
@@ -38,12 +30,12 @@ export default function DonationVelocityWidget({
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">This Week</p>
-          <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(weekAmount)}</p>
+          <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatDashboardCurrency(weekAmount)}</p>
           <p className="text-[11px] text-slate-500">{weekCount.toLocaleString()} gifts</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">This Month</p>
-          <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(monthAmount)}</p>
+          <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatDashboardCurrency(monthAmount)}</p>
           <p className="text-[11px] text-slate-500">{monthCount.toLocaleString()} gifts</p>
         </div>
       </div>
@@ -62,7 +54,7 @@ export default function DonationVelocityWidget({
           />
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Week avg {fmtCurrency(avgWeekGift)} vs month avg {fmtCurrency(avgMonthGift)}
+          Week avg {formatDashboardCurrency(avgWeekGift)} vs month avg {formatDashboardCurrency(avgMonthGift)}
         </p>
       </div>
     </div>

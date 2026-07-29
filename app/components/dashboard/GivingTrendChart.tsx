@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getFiscalYearForDate, normalizeFiscalYearStart } from "@/app/lib/fiscal-year";
+import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface MonthData {
   month: number;       // 1-12
@@ -38,16 +39,6 @@ interface GivingTrendChartProps {
 }
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-/** Exact currency formatting for trend tooltips (no K/M shorthand). */
-function formatCurrencyExact(n: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(n);
-}
 
 export default function GivingTrendChart({ includeGrants = false, dateBasis = "calendar" }: GivingTrendChartProps) {
   const [currentData, setCurrentData] = useState<MonthData[]>([]);
@@ -193,7 +184,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
         <div>
           <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{dateBasis === "fiscal" ? "Fiscal YTD Total" : "YTD Total"}</span>
           <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
-            {loading ? "—" : formatCurrencyExact(totalYTD)}
+            {loading ? "—" : formatDashboardCurrency(totalYTD)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -227,8 +218,8 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
           {hovered ? (
             <div className="absolute left-3 top-2 z-10 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-[11px] shadow-[0_12px_28px_rgba(15,23,42,0.13)] backdrop-blur-md">
               <p className="font-semibold text-slate-800">{hovered.label}</p>
-              <p className="text-emerald-700">This year: {formatCurrencyExact(hovered.current)}</p>
-              <p className="text-slate-500">Prior year: {formatCurrencyExact(hovered.previous)}</p>
+              <p className="text-emerald-700">This year: {formatDashboardCurrency(hovered.current)}</p>
+              <p className="text-slate-500">Prior year: {formatDashboardCurrency(hovered.previous)}</p>
             </div>
           ) : null}
 

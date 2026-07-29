@@ -1,5 +1,6 @@
 /** FundraisingForecastWidget projects end-of-year pacing against the current revenue goal. */
 "use client";
+import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface FundraisingForecastWidgetProps {
   ytdAmount: number;
@@ -11,15 +12,6 @@ interface FundraisingForecastWidgetProps {
 // Dampens month-over-month uplift so projections stay realistic instead of overreacting to one strong month.
 // 250 keeps momentum influence modest (roughly low single-digit uplift over remaining-month baseline at common dashboard ranges).
 const MOMENTUM_DAMPENING_FACTOR = 250;
-
-function fmtCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 /** Provides a simple projection using current YTD pace and recent monthly momentum. */
 export default function FundraisingForecastWidget({
@@ -50,12 +42,12 @@ export default function FundraisingForecastWidget({
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white px-3 py-2.5 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Projected EOY</p>
-          <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(projectedWithMomentum)}</p>
+          <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatDashboardCurrency(projectedWithMomentum)}</p>
           <p className="text-[11px] text-slate-500">{monthsRemaining} month{monthsRemaining === 1 ? "" : "s"} remaining</p>
         </div>
         <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white px-3 py-2.5 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Monthly Pace</p>
-          <p className="mt-0.5 text-lg font-semibold text-slate-900">{fmtCurrency(avgPerMonth)}</p>
+          <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatDashboardCurrency(avgPerMonth)}</p>
           <p className="text-[11px] text-slate-500">Current run-rate</p>
         </div>
       </div>
@@ -75,8 +67,8 @@ export default function FundraisingForecastWidget({
         </div>
         <p className="mt-2 text-xs text-slate-500">
           {gapToGoal > 0
-            ? `${fmtCurrency(gapToGoal)} projected shortfall`
-            : `${fmtCurrency(surplus)} projected above goal`}
+            ? `${formatDashboardCurrency(gapToGoal)} projected shortfall`
+            : `${formatDashboardCurrency(surplus)} projected above goal`}
         </p>
       </div>
     </div>

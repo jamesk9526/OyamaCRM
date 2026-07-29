@@ -4,8 +4,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
-import { apiFetch } from "@/app/lib/auth-client";
 import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
+import type { DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
+import { loadDonorDashboardCoreMetrics } from "@/app/features/donor-dashboard/services/dashboard-client-service";
 import type { DashboardWidgetSize } from "./DashboardWidget";
 import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutModal";
 import {
@@ -46,8 +47,6 @@ import {
   loadWidgetSizes,
   type AutoArrangePreset,
   type DashboardLayoutMode,
-  type RetentionData,
-  type Summary,
   type WidgetId,
 } from "./dashboardPageConfig";
 
@@ -86,7 +85,7 @@ function isWidgetId(value: string): value is WidgetId {
 }
 
 export function useDashboardPageState() {
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [summary, setSummary] = useState<DonorDashboardSummary | null>(null);
   const [retention, setRetention] = useState<RetentionData | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -123,13 +122,9 @@ export function useDashboardPageState() {
     setLoading(true);
     setLoadError(null);
     try {
-      const dateBasisQuery = reportingYearMode === "fiscal" ? "?dateBasis=fiscal" : "";
-      const [summaryResult, retentionResult] = await Promise.all([
-        apiFetch<Summary>(`/api/reports/summary${dateBasisQuery}`),
-        apiFetch<RetentionData>(`/api/reports/donor-retention${dateBasisQuery}`),
-      ]);
-      setSummary(summaryResult);
-      setRetention(retentionResult);
+      const metrics = await loadDonorDashboardCoreMetrics(reportingYearMode);
+      setSummary(metrics.summary);
+      setRetention(metrics.retention);
       setLastRefreshed(new Date());
     } catch (requestError) {
       setLoadError(requestError instanceof Error ? requestError.message : "Failed to load dashboard metrics.");

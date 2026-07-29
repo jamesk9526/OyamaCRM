@@ -5,6 +5,9 @@ import { useId, type ReactNode } from "react";
 
 export type DashboardMetricTone = "indigo" | "blue" | "violet" | "amber" | "sky";
 
+export const DASHBOARD_PANEL_CLASS = "min-w-0 overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white";
+export const DASHBOARD_PANEL_HEADER_CLASS = "flex items-center justify-between gap-3 border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3";
+
 const METRIC_TONES: Record<DashboardMetricTone, { chip: string; stroke: string; iconPath: string }> = {
   indigo: { chip: "bg-[#eff6fc] text-[#0f6cbd]", stroke: "#0f6cbd", iconPath: "M12 5v14M5 12h14" },
   blue: { chip: "bg-[#deecf9] text-[#115ea3]", stroke: "#115ea3", iconPath: "M5 12h14M12 5v14" },
@@ -114,8 +117,8 @@ export function DashboardPanel({ title, meta, action, children, className = "" }
   className?: string;
 }) {
   return (
-    <article className={`min-w-0 overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white ${className}`}>
-      <div className="flex items-center justify-between gap-3 border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3">
+    <article className={`${DASHBOARD_PANEL_CLASS} ${className}`}>
+      <div className={DASHBOARD_PANEL_HEADER_CLASS}>
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
         {action ?? (meta ? <span className="text-[11px] font-medium text-slate-500">{meta}</span> : null)}
       </div>

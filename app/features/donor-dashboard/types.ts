@@ -81,15 +81,39 @@ export interface StewardSuggestion {
 
 export interface DonorDashboardSummary {
   totalConstituents: number;
-  activeDonors?: number;
-  ytdAmount?: number;
-  ytdCount?: number;
+  activeDonors: number;
+  ytdAmount: number;
+  ytdCount: number;
+  ytdGrantAmount: number;
+  activeCampaignRaisedAmount: number;
+  weekAmount: number;
+  weekCount: number;
+  weekAvg: number;
   monthAmount: number;
+  monthCount: number;
+  mtdAmount?: number;
+  mtdCount?: number;
   momTrend: number | null;
   pendingTasks: number;
   overdueTasks: number;
   activeCampaigns: number;
+  activeGoalTotal: number;
   newDonorsThisMonth: number;
+  freshness?: {
+    generatedAt: string;
+    dataThrough: string;
+  };
+  period?: {
+    basis: "calendar" | "fiscal";
+    year: number;
+    label: string;
+    from: string;
+    through: string;
+    monthFrom: string;
+    monthThrough: string;
+    comparisonFrom: string;
+    comparisonThrough: string;
+  };
 }
 
 export interface RetentionData {

@@ -7,6 +7,7 @@
 "use client";
 
 import CircularProgress from "@/app/components/ui/CircularProgress";
+import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface RevenueProgressProps {
   /** Donation-only YTD amount */
@@ -20,16 +21,6 @@ interface RevenueProgressProps {
   /** Called when the user toggles the "Include Grants" switch */
   onToggleGrants?: () => void;
   loading?: boolean;
-}
-
-/** Exact USD formatter for dashboard amounts (no compact K/M shorthand). */
-function fmtCurrency(n: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(n);
 }
 
 export default function RevenueProgress({
@@ -46,8 +37,8 @@ export default function RevenueProgress({
   const percentage = Math.max(0, Math.min(100, rawPercentage));
   const overGoalAmount = goal > 0 ? Math.max(displayedTotal - goal, 0) : 0;
   const breakdown = includeGrants && grantAmount > 0
-    ? `${fmtCurrency(current)} donations + ${fmtCurrency(grantAmount)} grants`
-    : `${fmtCurrency(current)} donations`;
+    ? `${formatDashboardCurrency(current)} donations + ${formatDashboardCurrency(grantAmount)} grants`
+    : `${formatDashboardCurrency(current)} donations`;
 
   return (
     <div className="h-full">
@@ -89,7 +80,7 @@ export default function RevenueProgress({
             <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="bg-slate-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow">
                 <div>{breakdown}</div>
-                <div>Goal {fmtCurrency(goal)}</div>
+                <div>Goal {formatDashboardCurrency(goal)}</div>
               </div>
             </div>
           </div>
@@ -101,22 +92,22 @@ export default function RevenueProgress({
           ) : (
             <>
               <p className="text-2xl font-bold text-slate-900">
-                {fmtCurrency(displayedTotal)}
+                {formatDashboardCurrency(displayedTotal)}
               </p>
               {/* Grant breakdown line — visible only when grants are included */}
               {includeGrants && grantAmount > 0 && (
                 <p className="text-[11px] text-emerald-600 font-medium mt-0.5">
-                  incl. {fmtCurrency(grantAmount)} in grants
+                  incl. {formatDashboardCurrency(grantAmount)} in grants
                 </p>
               )}
             </>
           )}
           <p className="text-sm text-slate-500 mt-1">
-            {rawPercentage}% of {fmtCurrency(goal)} goal
+            {rawPercentage}% of {formatDashboardCurrency(goal)} goal
           </p>
           {overGoalAmount > 0 && (
             <p className="text-[11px] text-green-700 font-semibold mt-1">
-              +{fmtCurrency(overGoalAmount)} above goal
+              +{formatDashboardCurrency(overGoalAmount)} above goal
             </p>
           )}
         </div>

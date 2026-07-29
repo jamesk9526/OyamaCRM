@@ -1,5 +1,5 @@
 /** Source-level smoke checks for the non-breaking Donor CRM visual refresh foundation. */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 function read(path: string): string {
@@ -29,6 +29,8 @@ describe("Donor CRM visual refresh foundation", () => {
     const page = read("app/page.tsx");
     const dashboardState = read("app/components/dashboard/useDashboardPageState.ts");
     const naturalDashboard = read("app/components/dashboard/NaturalisticDonorDashboard.tsx");
+    const overviewSections = read("app/components/dashboard/DonorDashboardOverviewSections.tsx");
+    const dashboardPrimitives = read("app/components/dashboard/shared/DashboardPrimitives.tsx");
     const dashboardService = read("app/features/donor-dashboard/services/dashboard-client-service.ts");
     const dashboardTypes = read("app/features/donor-dashboard/types.ts");
     const dashboardConfig = read("app/components/dashboard/dashboardPageConfig.ts");
@@ -42,21 +44,25 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(page).toContain("NaturalisticDonorDashboard");
     expect(page).toContain("useDashboardPageState");
     expect(page).not.toContain("WorkspaceRibbonGroup");
-    expect(dashboardState).toContain("/api/reports/summary");
-    expect(dashboardState).toContain("/api/reports/donor-retention");
+    expect(dashboardState).toContain("loadDonorDashboardCoreMetrics");
+    expect(dashboardService).toContain("/api/reports/summary");
+    expect(dashboardService).toContain("/api/reports/donor-retention");
     expect(naturalDashboard).toContain("loadDonorDashboardData");
     expect(naturalDashboard).toContain("setSuggestions(data.stewardshipAlerts)");
-    expect(naturalDashboard).toContain("Recent Gifts");
-    expect(naturalDashboard).toContain("Giving Overview");
-    expect(naturalDashboard).toContain("Steward Recommendations");
-    expect(naturalDashboard).toContain("Recent Activity");
-    expect(naturalDashboard).toContain("Needs Attention");
+    expect(naturalDashboard).toContain("DonorDashboardOverviewSections");
+    expect(overviewSections).toContain("Recent Gifts");
+    expect(overviewSections).toContain("Giving Overview");
+    expect(overviewSections).toContain("Steward Recommendations");
+    expect(overviewSections).toContain("Recent Activity");
+    expect(overviewSections).toContain("Needs Attention");
     expect(naturalDashboard).toContain("Active Campaigns");
     expect(naturalDashboard).toContain("Dashboard quick actions");
     expect(naturalDashboard).toContain("xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.95fr)]");
-    expect(naturalDashboard).toContain("sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]");
+    expect(overviewSections).toContain("sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]");
     expect(naturalDashboard).toContain("min-w-0");
-    expect(naturalDashboard).toContain("sm:grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(overviewSections).toContain("sm:grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(dashboardPrimitives).toContain("DashboardMetricCard");
+    expect(dashboardPrimitives).toContain("DashboardPanel");
     expect(naturalDashboard).toContain("Calendar-year view");
     expect(naturalDashboard).toContain("Create Email");
     expect(naturalDashboard).toContain("Create Letter");
@@ -130,6 +136,20 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(sidebar).toContain('label: "Donor Records"');
     expect(sidebar).toContain('label: "Constituents"');
     expect(sidebar).toContain('label: "Donations"');
+  });
+
+  it("keeps one mounted donor dashboard implementation and shared primitives", () => {
+    expect(existsSync("app/components/dashboard/DonorDashboardVisualRefresh.tsx")).toBe(false);
+    expect(existsSync("app/components/dashboard/DashboardCommandCenter.tsx")).toBe(false);
+    expect(existsSync("app/components/dashboard/DashboardCustomizerPanel.tsx")).toBe(false);
+    const primitives = read("app/components/dashboard/shared/DashboardPrimitives.tsx");
+    const service = read("app/features/donor-dashboard/services/dashboard-client-service.ts");
+    const calculations = read("app/features/donor-dashboard/calculations/dashboard-calculations.ts");
+    expect(primitives).toContain("DASHBOARD_PANEL_CLASS");
+    expect(primitives).toContain("DashboardMetricCard");
+    expect(service).toContain("loadDonorDashboardCoreMetrics");
+    expect(calculations).toContain("/reports?report=lapsed-donors");
+    expect(calculations).toContain("/reports?report=first-time-donors");
   });
 
   it("uses a stable Donor CRM command bar with a desktop workspace rail", () => {

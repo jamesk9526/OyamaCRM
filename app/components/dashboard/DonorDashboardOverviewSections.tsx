@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { DashboardPanel } from "./shared/DashboardPrimitives";
+import { DashboardPanel, DASHBOARD_PANEL_CLASS } from "./shared/DashboardPrimitives";
 import { formatDashboardCompactCurrency, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import type { DashboardData, DonationPreview, DonorDashboardSummary } from "@/app/features/donor-dashboard/types";
 
@@ -80,7 +80,7 @@ export function DonorDashboardOverviewSections({
   return (
     <>
       <section className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[1.15fr_1.45fr]">
-        <article className="min-w-0 overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white p-5">
+        <article className={`${DASHBOARD_PANEL_CLASS} p-5`}>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-900">Giving Overview</h2>
             <span className="text-[11px] font-medium text-slate-500">Live dashboard breakdown</span>

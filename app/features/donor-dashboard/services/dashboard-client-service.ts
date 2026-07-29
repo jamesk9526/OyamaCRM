@@ -16,6 +16,26 @@ import type {
   RetentionData,
   TrendPoint,
 } from "../types";
+import type { ReportingYearMode } from "@/app/lib/fiscal-year";
+
+export interface DashboardCoreMetrics {
+  summary: DonorDashboardSummary;
+  retention: RetentionData;
+}
+
+function reportingBasisQuery(mode: ReportingYearMode | string): string {
+  return mode.toLowerCase() === "fiscal" ? "?dateBasis=fiscal" : "";
+}
+
+/** Loads the two canonical metric contracts used by every dashboard surface. */
+export async function loadDonorDashboardCoreMetrics(mode: ReportingYearMode): Promise<DashboardCoreMetrics> {
+  const query = reportingBasisQuery(mode);
+  const [summary, retention] = await Promise.all([
+    apiFetch<DonorDashboardSummary>(`/api/reports/summary${query}`),
+    apiFetch<RetentionData>(`/api/reports/donor-retention${query}`),
+  ]);
+  return { summary, retention };
+}
 
 interface DonationListResponse {
   items?: DonationPreview[];
@@ -70,8 +90,8 @@ export async function loadDonorDashboardData(input: {
     apiFetch<Partial<DashboardAppearanceSettings>>("/api/settings/dashboard-appearance"),
     apiFetch<DonationListResponse | DonationPreview[]>("/api/donations?limit=20&status=COMPLETED"),
     apiFetch<DonationListResponse>("/api/donations?limit=1&status=COMPLETED&acknowledgment=pending"),
-    apiFetch<TrendResponse>(`/api/reports/giving-trend?dateBasis=${encodeURIComponent(input.reportingYearMode)}`),
-    apiFetch<DesignationResponse>(`/api/reports/designations-summary?dateBasis=${encodeURIComponent(input.reportingYearMode)}`),
+    apiFetch<TrendResponse>(`/api/reports/giving-trend?dateBasis=${encodeURIComponent(input.reportingYearMode.toLowerCase())}`),
+    apiFetch<DesignationResponse>(`/api/reports/designations-summary?dateBasis=${encodeURIComponent(input.reportingYearMode.toLowerCase())}`),
     apiFetch<CampaignImpact[] | { campaigns?: CampaignImpact[]; items?: CampaignImpact[] }>("/api/campaigns?active=true&limit=6"),
   ]);
 

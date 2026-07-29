@@ -25,8 +25,9 @@ import AiOpportunityWidget from "./AiOpportunityWidget";
 import AiChatWidget from "./AiChatWidget";
 import MonthlyDonationsWidget from "./MonthlyDonationsWidget";
 import type { ReportingYearMode } from "@/app/lib/fiscal-year";
+import type { DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutModal";
-import type { RetentionData, Summary, WidgetId } from "./dashboardPageConfig";
+import type { WidgetId } from "./dashboardPageConfig";
 import type { DashboardWidgetFrameProps } from "./useDashboardPageState";
 
 export interface DashboardWidgetRendererData {
@@ -38,7 +39,7 @@ export interface DashboardWidgetRendererData {
   onToggleGrants: () => void;
   revenueGoalMode: RevenueGoalMode;
   revenueProgressSource: RevenueProgressSource;
-  summary: Summary | null;
+  summary: DonorDashboardSummary | null;
   retention: RetentionData | null;
   loading: boolean;
   revenueGoal: number;
@@ -73,7 +74,7 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
           subtitle="Cross-workspace priorities with direct action links"
           {...editProps}
         >
-          <ActionableInsightsWidget />
+          <ActionableInsightsWidget summary={data.summary} />
         </DashboardWidget>
       );
     case "ai-insights":

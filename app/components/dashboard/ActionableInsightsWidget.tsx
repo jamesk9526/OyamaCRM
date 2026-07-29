@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-
-interface ReportsSummary {
-  overdueTasks: number;
-  pendingTasks: number;
-  monthAmount: number;
-  activeCampaigns: number;
-}
+import type { DonorDashboardSummary } from "@/app/features/donor-dashboard/types";
 
 interface StewardSummary {
   highOpportunityDonors: number;
@@ -38,10 +32,9 @@ function toneClass(tone: InsightItem["tone"]): string {
 }
 
 /** ActionableInsightsWidget surfaces quick cross-workspace insights with direct action links. */
-export default function ActionableInsightsWidget() {
+export default function ActionableInsightsWidget({ summary }: { summary: DonorDashboardSummary | null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<ReportsSummary | null>(null);
   const [stewardSummary, setStewardSummary] = useState<StewardSummary | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -52,14 +45,12 @@ export default function ActionableInsightsWidget() {
       setLoading(true);
       setError(null);
       try {
-        const [reports, steward, notifications] = await Promise.all([
-          apiFetch<ReportsSummary>("/api/reports/summary"),
+        const [steward, notifications] = await Promise.all([
           apiFetch<StewardSummary>("/api/steward-signals/summary"),
           apiFetch<NotificationCount>("/api/notifications/unread-count?module=donor"),
         ]);
 
         if (cancelled) return;
-        setSummary(reports);
         setStewardSummary(steward);
         setNotificationCount(notifications.unreadCount ?? 0);
       } catch (requestError) {
