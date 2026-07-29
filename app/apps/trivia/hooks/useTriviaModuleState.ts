@@ -77,6 +77,9 @@ interface AddQuestionInput {
   hostNotes: string;
 }
 
+/** Edits made from the visual builder inspector. Identity is intentionally immutable. */
+type UpdateQuestionInput = Partial<Omit<TriviaQuestion, "id">>;
+
 interface UpdateEventSettingsInput {
   defaultQuestionPoints: number;
   allowPartialCredit: boolean;
@@ -585,6 +588,22 @@ export function useTriviaModuleState() {
     };
 
     replaceStateWithEvent(nextEvent);
+  }
+
+  /** Updates an existing question without disturbing its round order or live selection. */
+  function updateQuestion(eventId: string, roundId: string, questionId: string, input: UpdateQuestionInput) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+
+    const rounds = event.rounds.map((round) => {
+      if (round.id !== roundId) return round;
+      return {
+        ...round,
+        questions: round.questions.map((question) => question.id === questionId ? { ...question, ...input } : question),
+      };
+    });
+
+    replaceStateWithEvent({ ...event, rounds, updatedAt: new Date().toISOString() });
   }
 
   /** Reorders a round by dropping it before another round in the visual builder. */
@@ -1136,6 +1155,7 @@ export function useTriviaModuleState() {
       removeTeam,
       addRound,
       addQuestion,
+      updateQuestion,
       reorderRound,
       moveQuestion,
       applyScoreAction,
