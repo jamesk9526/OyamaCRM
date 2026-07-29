@@ -32,7 +32,7 @@ export interface ProjectStatusItem {
 }
 
 /** Last deep-audit date for this matrix. */
-export const PROJECT_STATUS_AUDIT_DATE = "2026-05-10";
+export const PROJECT_STATUS_AUDIT_DATE = "2026-07-29";
 
 /** Evidence-backed cross-module status matrix for production-readiness work. */
 export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [

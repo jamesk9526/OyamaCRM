@@ -45,7 +45,7 @@ export interface ReadinessChecklistItem {
   note: string;
 }
 
-export const AUDIT_DATE = "2026-05-24";
+export const AUDIT_DATE = "2026-07-29";
 export const OVERALL_READINESS_SCORE = 80;
 
 /**
@@ -55,7 +55,7 @@ export const OVERALL_READINESS_SCORE = 80;
 export function getPublicBuildInfo(env: NodeJS.ProcessEnv = process.env): PublicBuildInfo {
   return {
     appName: env.NEXT_PUBLIC_APP_NAME ?? env.APP_NAME ?? "OyamaCRM v1.31b",
-    version: env.NEXT_PUBLIC_APP_VERSION ?? env.APP_VERSION ?? "0.1.0",
+    version: env.NEXT_PUBLIC_APP_VERSION ?? env.APP_VERSION ?? "1.31b",
     buildDate: env.NEXT_PUBLIC_BUILD_DATE ?? env.BUILD_DATE ?? AUDIT_DATE,
     gitCommit: env.NEXT_PUBLIC_GIT_COMMIT ?? env.GIT_COMMIT ?? "local-dev",
     releaseChannel: env.NEXT_PUBLIC_RELEASE_CHANNEL ?? env.RELEASE_CHANNEL ?? "development",
@@ -155,12 +155,12 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "AI Runtime Status",
     status: "Partially Working",
-    summary: "Steward AI now has live runtime status telemetry and TopBar visibility, while governance hardening and full workflow coverage are still in progress.",
+    summary: "Steward now provides a persistent Copilot-style companion, live runtime metrics, active-task visibility, and current-workspace context. Governance hardening and broader workflow coverage remain in progress.",
   },
   {
     title: "Validation Pipeline Status",
-    status: "Broken",
-    summary: "Build and smoke lanes are passing, while typecheck still fails and lint lane needs scoped stabilization for release confidence.",
+    status: "Partially Working",
+    summary: "Web and server typechecks pass. Broader build, smoke, and lint evidence still needs to stay current for release confidence.",
   },
 ];
 
@@ -362,8 +362,8 @@ export const PRODUCTION_READINESS_CHECKLIST: ReadinessChecklistItem[] = [
   { item: "Background jobs have retry/failure handling", status: "Partially Working", note: "In-process workers exist, but durable retries and operations runbooks are incomplete." },
   { item: "Reports are permission-gated", status: "Partially Working", note: "Report routes are active, but deeper scope-level authorization is still in progress." },
   { item: "Exports are permission-gated", status: "Not Implemented", note: "Export workflows and export authorization layer are not complete." },
-  { item: "Tests cover critical workflows", status: "Partially Working", note: "Current smoke and e2e checks pass, but broader regression depth and consistency still need expansion." },
-  { item: "Lint/type/build pipelines are green", status: "Partially Working", note: "Validated 2026-07-13: lint has zero errors, typecheck passes, and the 198-route production build succeeds. Full tests pass 638/639 under parallel load; the one Compassion scheduling failure passes 8/8 when isolated. Lint reports 125 non-blocking warnings." },
+  { item: "Tests cover critical workflows", status: "Partially Working", note: "Focused unit checks and web/server typechecks pass; broader smoke, end-to-end, and regression evidence still needs ongoing release validation." },
+  { item: "Lint/type/build pipelines are green", status: "Partially Working", note: "Validated 2026-07-29: web and server typechecks pass. Lint, production build, smoke, and full regression evidence must be refreshed together before a release is marked green." },
   { item: "Deployment scripts are documented", status: "Partially Working", note: "PM2 and setup guidance exist, but full release runbook coverage is incomplete." },
   { item: "Environment variables are documented", status: "Partially Working", note: "Env documentation exists, but deployment-grade docs need expansion." },
   { item: "Backup/restore process is documented", status: "Not Implemented", note: "Backup and restore runbooks are still missing." },

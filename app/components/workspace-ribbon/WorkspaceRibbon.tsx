@@ -1,6 +1,10 @@
-/** Wrapping grouped ribbon toolbar for project-library-first workspaces. */
-import Link from "next/link";
+/** Registers legacy workspace actions with the compact top-bar status control. */
+"use client";
+
+import { Children, isValidElement, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { publishWorkspaceCommandContext, type WorkspaceCommandEntry } from "@/app/lib/workspace-command-context";
 
 export interface WorkspaceRibbonTab {
   label: string;
@@ -16,53 +20,45 @@ interface WorkspaceRibbonProps {
   sticky?: boolean;
 }
 
-function tabAccentClass(accentTone: WorkspaceRibbonProps["accentTone"]): string {
-  if (accentTone === "blue") return "border-blue-600 text-blue-800";
-  if (accentTone === "purple") return "border-violet-600 text-violet-800";
-  if (accentTone === "amber") return "border-amber-500 text-amber-800";
-  return "border-emerald-600 text-emerald-800";
+function collectActions(children: ReactNode): WorkspaceCommandEntry[] {
+  const actions: WorkspaceCommandEntry[] = [];
+  Children.forEach(children, (group, groupIndex) => {
+    if (!isValidElement<{ children?: ReactNode }>(group)) return;
+    Children.forEach(group.props.children, (child, childIndex) => {
+      if (!isValidElement<{ label?: unknown; href?: unknown; onClick?: unknown; disabled?: unknown }>(child)) return;
+      const props = child.props;
+      if (typeof props.label !== "string") return;
+      actions.push({
+        id: `legacy-${groupIndex}-${childIndex}-${props.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        label: props.label,
+        href: typeof props.href === "string" ? props.href : undefined,
+        onClick: typeof props.onClick === "function" ? props.onClick as () => void : undefined,
+        disabled: Boolean(props.disabled),
+      });
+    });
+  });
+  return actions;
 }
 
-/**
- * Wraps grouped actions in a ribbon command surface.
- * Groups always wrap to additional rows on narrow widths.
- */
-export default function WorkspaceRibbon({ children, tabs, accentTone = "green", className = "", sticky = true }: WorkspaceRibbonProps) {
-  const hasTabs = Boolean(tabs?.length);
-  const stickyClass = sticky ? "sticky top-0 z-30" : "";
+/** Retires the visual ribbon while preserving its page actions in the top bar. */
+export default function WorkspaceRibbon({ children, tabs = [], accentTone: _accentTone = "green", className = "", sticky: _sticky = true }: WorkspaceRibbonProps) {
+  const pathname = usePathname();
+  const actions = [
+    ...tabs.filter((tab) => Boolean(tab.href)).map((tab, index) => ({
+      id: `legacy-tab-${index}-${tab.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      label: tab.label,
+      href: tab.href,
+    })),
+    ...collectActions(children),
+  ];
+
+  useEffect(() => {
+    publishWorkspaceCommandContext({ pathname, context: {}, handlers: {}, commands: actions });
+  }, [actions, pathname]);
 
   return (
-    <div className={`workspace-ribbon-surface ${stickyClass} overflow-hidden rounded-md border border-slate-300 bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfd_100%)] shadow-[0_4px_14px_rgba(15,23,42,0.05)] ${className}`}>
-      {hasTabs ? (
-        <div className="workspace-ribbon-tabs flex min-w-0 items-end gap-5 overflow-x-auto border-b border-slate-200/90 px-3 text-[12px] font-semibold text-slate-700 min-[1360px]:px-4">
-          {tabs?.map((tab, index) => {
-            const active = tab.active ?? index === 0;
-            const className = [
-              "relative -mb-px inline-flex h-9 shrink-0 items-end border-b-2 px-0.5",
-              active ? tabAccentClass(accentTone) : "border-transparent text-slate-700 hover:text-slate-950",
-            ].join(" ");
-
-            if (tab.href) {
-              return (
-                <Link key={`${tab.label}-${tab.href}`} href={tab.href} className={className}>
-                  {tab.label}
-                </Link>
-              );
-            }
-
-            return (
-              <span key={tab.label} className={className}>
-                {tab.label}
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-      <div className="workspace-ribbon-commands overflow-x-auto px-2 py-1.5 min-[1360px]:px-2.5">
-        <div className="flex min-w-fit flex-wrap items-stretch gap-0.5">
-        {children}
-        </div>
-      </div>
+    <div className={`hidden ${className}`} aria-hidden="true">
+      {children}
     </div>
   );
 }

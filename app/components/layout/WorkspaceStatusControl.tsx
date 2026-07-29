@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { resolveCrmRibbonConfig } from "@/app/components/ui/crm/ribbon/config";
 import type { CrmRibbonCommand, CrmRibbonCommandHandlers, CrmRibbonContext } from "@/app/components/ui/crm/ribbon/types";
-import { WORKSPACE_COMMAND_CONTEXT_EVENT, type WorkspaceCommandContextDetail } from "@/app/lib/workspace-command-context";
+import { getWorkspaceCommandContext, WORKSPACE_COMMAND_CONTEXT_EVENT, type WorkspaceCommandContextDetail, type WorkspaceCommandEntry } from "@/app/lib/workspace-command-context";
 
 function isAvailable(command: CrmRibbonCommand, context: CrmRibbonContext, handlers: CrmRibbonCommandHandlers): boolean {
   if (command.hidden?.(context)) return false;
@@ -23,7 +23,7 @@ export default function WorkspaceStatusControl({ dark = false }: { dark?: boolea
   const [registered, setRegistered] = useState<WorkspaceCommandContextDetail | null>(null);
 
   useEffect(() => {
-    setRegistered(null);
+    setRegistered(getWorkspaceCommandContext(pathname));
     const receive = (event: Event) => {
       const detail = (event as CustomEvent<WorkspaceCommandContextDetail>).detail;
       if (detail?.pathname === pathname) setRegistered(detail);
@@ -34,8 +34,11 @@ export default function WorkspaceStatusControl({ dark = false }: { dark?: boolea
 
   const context = registered?.context ?? {};
   const handlers = registered?.handlers ?? {};
-  const commands = config.tabs.flatMap((tab) => tab.groups.flatMap((group) => group.commands))
+  const configuredCommands = config.tabs.flatMap((tab) => tab.groups.flatMap((group) => group.commands))
     .filter((command) => isAvailable(command, context, handlers))
+    .map((command): WorkspaceCommandEntry => ({ id: command.id, label: command.label, href: command.href, onClick: handlers[command.id] }));
+  const commands = (registered?.commands?.length ? registered.commands : configuredCommands)
+    .filter((command) => !command.disabled && Boolean(command.href || command.onClick))
     .slice(0, 8);
   const stateLabel = config.statusLabel ?? "Workspace";
   const buttonTone = dark
@@ -70,7 +73,7 @@ export default function WorkspaceStatusControl({ dark = false }: { dark?: boolea
             {commands.length ? commands.map((command) => command.href ? (
               <Link key={command.id} href={command.href} onClick={() => setOpen(false)} className="rounded-md px-2.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950">{command.label}</Link>
             ) : (
-              <button key={command.id} type="button" onClick={() => { handlers[command.id]?.(); setOpen(false); }} className="rounded-md px-2.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950">{command.label}</button>
+              <button key={command.id} type="button" onClick={() => { command.onClick?.(); setOpen(false); }} className="rounded-md px-2.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950">{command.label}</button>
             )) : <p className="col-span-2 px-2.5 py-2 text-xs text-slate-500">Page actions will appear here when available.</p>}
           </div>
           <div className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500">Hover or click this status control anytime to see page context and actions.</div>
