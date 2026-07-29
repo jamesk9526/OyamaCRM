@@ -1,9 +1,10 @@
 /** Shared clean action strip for refreshed Donor CRM pages. */
 "use client";
 
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
+import { publishWorkspaceCommandContext } from "@/app/lib/workspace-command-context";
 import type {
   CrmRibbonCommandHandlers,
   CrmRibbonContext,
@@ -16,23 +17,23 @@ interface CRMActionBarProps {
   commandHandlers?: CrmRibbonCommandHandlers;
 }
 
-/** CRMActionBar renders the new shared Microsoft-style contextual ribbon surface. */
+/** Registers page actions for the compact top-bar workspace status control. */
 export default function CRMActionBar({ className = "", context, commandHandlers, children }: CRMActionBarProps) {
   const pathname = usePathname();
   const hasLegacyChildren = Boolean(children);
 
+  useEffect(() => {
+    publishWorkspaceCommandContext({
+      pathname,
+      context: context ?? {},
+      handlers: commandHandlers ?? {},
+    });
+  }, [pathname, context, commandHandlers]);
+
   return (
-    <div className="space-y-2">
-      <ContextualRibbon
-        pathname={pathname}
-        context={context}
-        handlers={commandHandlers}
-        className={className}
-      />
+    <div className={`hidden ${className}`} aria-hidden="true">
       {hasLegacyChildren ? (
-        <div className="hidden" aria-hidden="true">
-          {children as ReactNode}
-        </div>
+        <div>{children as ReactNode}</div>
       ) : null}
     </div>
   );

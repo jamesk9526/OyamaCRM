@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
+import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
@@ -1485,6 +1486,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
           {/* Mobile top-right priority controls */}
           <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
+            <WorkspaceStatusControl dark={isDonorEnterpriseChrome} />
             {/* Search icon — opens full-screen overlay */}
             <button
               type="button"
@@ -1637,6 +1639,8 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
               </div>
             )}
+
+            <WorkspaceStatusControl dark={isDonorEnterpriseChrome} />
 
             {showTopBarAppLauncher ? (
               <button

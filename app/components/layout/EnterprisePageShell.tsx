@@ -22,13 +22,7 @@ export default function EnterprisePageShell({
 }: EnterprisePageShellProps) {
   return (
     <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col gap-3 p-0 min-[1360px]:gap-4 ${className}`}>
-      {ribbon ? (
-        <div className="sticky top-0 z-40 -mx-3 min-w-0 border-b border-slate-200 bg-white px-3 pb-0 pt-0 sm:-mx-4 sm:px-4 xl:-mx-7 xl:px-7 min-[1440px]:-mx-8 min-[1440px]:px-8 2xl:-mx-9 2xl:px-9">
-          <div className="w-full min-w-0">
-            {ribbon}
-          </div>
-        </div>
-      ) : null}
+      {ribbon ? <div className="hidden" aria-hidden="true">{ribbon}</div> : null}
       <div className={`min-w-0 ${contentClassName}`}>{children}</div>
     </div>
   );
