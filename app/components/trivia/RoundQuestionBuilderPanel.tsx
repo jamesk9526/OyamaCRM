@@ -69,6 +69,7 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
   const [roundDescription, setRoundDescription] = useState("");
   const [roundType, setRoundType] = useState<TriviaRoundType>("normal");
   const [selectedRoundId, setSelectedRoundId] = useState("");
+  const [isQuestionModalOpen, setQuestionModalOpen] = useState(false);
 
   const [questionPrompt, setQuestionPrompt] = useState("");
   const [questionOptions, setQuestionOptions] = useState("");
@@ -139,6 +140,7 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
     setRevealText("");
     setMediaUrl("");
     setHostNotes("");
+    setQuestionModalOpen(false);
   }
 
   async function handleMediaUpload(file: File | undefined) {
@@ -210,9 +212,29 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
         </select>
       </div>
 
-      {!selectedRound ? <div className="border-l-4 border-amber-400 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">Choose a round above before adding questions. This keeps every question in the right place for the host.</div> : null}
+      {!selectedRound ? <div className="border-l-4 border-amber-400 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">Choose a round above before adding questions. This keeps every question in the right place for the host.</div> : (
+        <div className="flex flex-col justify-between gap-3 border border-[#d1c7e8] bg-white p-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">{selectedRound.title}</p>
+            <p className="mt-1 text-xs text-slate-600">{selectedRound.questions.length} question{selectedRound.questions.length === 1 ? "" : "s"} in this round. Add one question at a time so every host and projector detail is checked.</p>
+          </div>
+          <button type="button" onClick={() => setQuestionModalOpen(true)} className="shrink-0 bg-[#5b3f9b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4a327f]">Add question</button>
+        </div>
+      )}
 
-      <form onSubmit={handleAddQuestion} className="grid grid-cols-1 gap-3 border border-slate-700 bg-slate-950/70 p-3">
+      {isQuestionModalOpen && selectedRound ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="add-trivia-question-title">
+          <button type="button" aria-label="Close add question dialog" onClick={() => setQuestionModalOpen(false)} className="absolute inset-0 cursor-default" />
+          <div className="relative flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden border border-[#d1c7e8] bg-[#f5f4f8] shadow-2xl">
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#d1c7e8] bg-white px-5 py-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Question editor</p>
+                <h2 id="add-trivia-question-title" className="mt-1 text-xl font-semibold text-slate-950">Add a question to {selectedRound.title}</h2>
+                <p className="mt-1 text-sm text-slate-600">Complete the core prompt and answer first. Media and reveal details are available only when they apply.</p>
+              </div>
+              <button type="button" onClick={() => setQuestionModalOpen(false)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#8a8886] bg-white text-lg text-slate-600 hover:bg-[#f3f2f1]" aria-label="Close">×</button>
+            </header>
+            <form onSubmit={handleAddQuestion} className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto p-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">1. Choose question type</p>
           <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -314,10 +336,16 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
           placeholder="Host notes (private answer-key only)"
           className="min-h-[80px] rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
         />
-        <button className="bg-emerald-500 hover:bg-emerald-400 px-3 py-2 text-sm font-semibold text-black disabled:opacity-50" type="submit" disabled={!selectedRoundId || !questionPrompt.trim() || !scoringAnswer.trim()}>
+        <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[#d1c7e8] bg-[#f5f4f8] pt-4">
+          <button type="button" onClick={() => setQuestionModalOpen(false)} className="border border-[#8a8886] bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-[#f3f2f1]">Cancel</button>
+          <button className="bg-[#5b3f9b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4a327f] disabled:opacity-50" type="submit" disabled={!selectedRoundId || !questionPrompt.trim() || !scoringAnswer.trim()}>
           Save Question to {selectedRound?.title || "Round"}
         </button>
-      </form>
+        </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         {rounds.map((round) => (

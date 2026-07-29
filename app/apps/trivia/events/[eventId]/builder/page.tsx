@@ -84,8 +84,13 @@ export default function TriviaEventBuilderPage() {
         />
       </div>
 
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Scoring and Display Rules</h2>
+      <details className="border border-[#d1c7e8] bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-[#f6f2ff] px-4 py-3 text-slate-900 marker:hidden">
+          <span><span className="block text-sm font-semibold">Scoring and display rules</span><span className="mt-0.5 block text-xs text-slate-600">Default points, judging rules, and projector preferences.</span></span>
+          <span className="text-xs font-semibold text-[#5b3f9b]">Configure</span>
+        </summary>
+        <div className="space-y-3 border-t border-[#d1c7e8] p-4">
+        <h2 className="sr-only">Scoring and Display Rules</h2>
         <p className="text-sm text-slate-300">These event settings define host scoring behavior and projector defaults.</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <label className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200">
@@ -248,10 +253,16 @@ export default function TriviaEventBuilderPage() {
             Show timer on questions
           </label>
         </div>
-      </section>
+        </div>
+      </details>
 
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 space-y-3">
-        <h2 className="text-lg font-semibold text-white">Import and Export Foundation</h2>
+      <details className="border border-[#d1c7e8] bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-[#f6f2ff] px-4 py-3 text-slate-900 marker:hidden">
+          <span><span className="block text-sm font-semibold">Import and export</span><span className="mt-0.5 block text-xs text-slate-600">Copy a backup or import a prepared trivia pack.</span></span>
+          <span className="text-xs font-semibold text-[#5b3f9b]">Open tools</span>
+        </summary>
+        <div className="space-y-3 border-t border-[#d1c7e8] p-4">
+        <h2 className="sr-only">Import and Export Foundation</h2>
         <p className="text-sm text-slate-300">Import/export for trivia packs is operational with JSON payloads.</p>
         <div className="flex flex-wrap gap-2">
           <button onClick={handleExport} className="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-xs text-white">Copy Event JSON</button>
@@ -264,10 +275,16 @@ export default function TriviaEventBuilderPage() {
           className="w-full min-h-[130px] rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-xs text-white"
         />
         {importMessage ? <p className="text-xs text-cyan-200">{importMessage}</p> : null}
-      </section>
+        </div>
+      </details>
 
-      <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 space-y-2">
-        <h2 className="text-lg font-semibold text-white">Live Event Flow Checklist</h2>
+      <details className="border border-[#d1c7e8] bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-[#f6f2ff] px-4 py-3 text-slate-900 marker:hidden">
+          <span><span className="block text-sm font-semibold">Night-of checklist</span><span className="mt-0.5 block text-xs text-slate-600">A step-by-step runbook for the event team.</span></span>
+          <span className="text-xs font-semibold text-[#5b3f9b]">View checklist</span>
+        </summary>
+        <div className="space-y-2 border-t border-[#d1c7e8] p-4">
+        <h2 className="sr-only">Live Event Flow Checklist</h2>
         <p className="text-sm text-slate-300">Use this sequence before and during each live run.</p>
         <ol className="list-decimal pl-5 text-xs text-slate-200 space-y-1">
           <li>Create or open event workspace.</li>
@@ -288,7 +305,8 @@ export default function TriviaEventBuilderPage() {
           <li>Run final question or tiebreaker when needed.</li>
           <li>Show winner screen and mark event completed.</li>
         </ol>
-      </section>
+        </div>
+      </details>
 
       <FeatureInProgressNotice
         label="Printable host sheets and printable answer keys"

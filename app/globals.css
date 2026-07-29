@@ -272,8 +272,28 @@ body {
 .trivia-admin-content [class*="text-slate-100"],
 .trivia-admin-content [class*="text-slate-200"],
 .trivia-admin-content [class*="text-slate-300"],
+.trivia-admin-content [class*="text-slate-400"],
 .trivia-admin-content [class~="text-white"] {
   color: #242424 !important;
+}
+
+.trivia-admin-content [class*="text-cyan-100"],
+.trivia-admin-content [class*="text-cyan-200"] {
+  color: #0f548c !important;
+}
+
+.trivia-admin-content [class*="text-emerald-100"],
+.trivia-admin-content [class*="text-emerald-200"] {
+  color: #176b4d !important;
+}
+
+.trivia-admin-content [class*="text-fuchsia-100"],
+.trivia-admin-content [class*="text-fuchsia-200"] {
+  color: #7a2dbd !important;
+}
+
+.trivia-admin-content [class*="bg-cyan-500/"] {
+  background-color: #eff6fc !important;
 }
 
 .trivia-admin-content :is(input, textarea, select)[class*="bg-slate-9"] {
@@ -299,6 +319,30 @@ body {
 .trivia-admin-content :is(button, a)[class*="bg-violet"]:hover,
 .trivia-admin-content :is(button, a)[class*="bg-cyan-6"]:hover {
   background: var(--trivia-accent-hover) !important;
+}
+
+/* Preserve white action-label contrast after the surface normalization above. */
+.trivia-admin-content :is(button, a)[class*="bg-slate-700"],
+.trivia-admin-content :is(button, a)[class*="bg-slate-600"],
+.trivia-admin-content :is(button, a)[class*="bg-emerald-600"],
+.trivia-admin-content :is(button, a)[class*="bg-emerald-700"],
+.trivia-admin-content :is(button, a)[class*="bg-cyan-600"],
+.trivia-admin-content :is(button, a)[class*="bg-cyan-700"],
+.trivia-admin-content :is(button, a)[class*="bg-violet-600"],
+.trivia-admin-content :is(button, a)[class*="bg-violet-700"],
+.trivia-admin-content button[class*="bg-emerald-500"] {
+  color: #ffffff !important;
+}
+
+.trivia-admin-content :is(button, a)[class*="bg-slate-700"] [class*="text-slate-"],
+.trivia-admin-content :is(button, a)[class*="bg-slate-600"] [class*="text-slate-"],
+.trivia-admin-content :is(button, a)[class*="bg-emerald-600"] [class*="text-"],
+.trivia-admin-content :is(button, a)[class*="bg-emerald-700"] [class*="text-"],
+.trivia-admin-content :is(button, a)[class*="bg-cyan-600"] [class*="text-"],
+.trivia-admin-content :is(button, a)[class*="bg-cyan-700"] [class*="text-"],
+.trivia-admin-content :is(button, a)[class*="bg-violet-600"] [class*="text-"],
+.trivia-admin-content :is(button, a)[class*="bg-violet-700"] [class*="text-"] {
+  color: #ffffff !important;
 }
 
 /* Windows Explorer-inspired workspace command surfaces. */
