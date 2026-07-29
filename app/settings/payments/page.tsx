@@ -1,6 +1,6 @@
-import PaymentsGatewaySettingsPage from "@/app/components/settings/payments/PaymentsGatewaySettingsPage";
+import { redirect } from "next/navigation";
 
-/** Settings route for payment provider configuration and donation checkout diagnostics. */
+/** Compatibility route retained while Stripe setup moves into its dedicated integration app. */
 export default function SettingsPaymentsPage() {
-  return <PaymentsGatewaySettingsPage />;
+  redirect("/integrations/stripe");
 }

@@ -208,6 +208,7 @@ export interface PaymentGatewaySettingsUpdateInput {
     publishableKey?: string;
     secretKey?: string;
     webhookSecret?: string;
+    clearCredentials?: boolean;
   };
   paypal?: {
     enabled?: boolean;
@@ -245,10 +246,10 @@ export async function savePaymentGatewaySettings(
         : current.stripe.publishableKey,
       secretKeyEncrypted: stripeSecret
         ? encryptCredential(stripeSecret)
-        : current.stripe.secretKeyEncrypted,
+        : input.stripe?.clearCredentials ? "" : current.stripe.secretKeyEncrypted,
       webhookSecretEncrypted: stripeWebhookSecret
         ? encryptCredential(stripeWebhookSecret)
-        : current.stripe.webhookSecretEncrypted,
+        : input.stripe?.clearCredentials ? "" : current.stripe.webhookSecretEncrypted,
     },
     paypal: {
       enabled: typeof input.paypal?.enabled === "boolean" ? input.paypal.enabled : current.paypal.enabled,

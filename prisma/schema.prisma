@@ -505,6 +505,7 @@ model Organization {
   aiUserMemories        AiUserMemory[]
   aiContextFiles        AiContextFile[]
   aiContextChunks       AiContextChunk[]
+  paymentWebhookEvents  PaymentWebhookEvent[]
 }
 
 model OrganizationSettings {
@@ -899,6 +900,29 @@ model Donation {
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
   generatedLetters GeneratedLetter[]
+}
+
+/// Durable idempotency and diagnostics record for provider webhook delivery.
+/// The payload itself is not stored so public donor/payment data is not duplicated here.
+model PaymentWebhookEvent {
+  id              String    @id @default(cuid())
+  organizationId  String
+  provider        String    @db.VarChar(32)
+  externalEventId String    @db.VarChar(255)
+  eventType       String    @db.VarChar(120)
+  status          String    @default("PROCESSING") @db.VarChar(32)
+  donationId      String?
+  payloadHash     String    @db.VarChar(64)
+  errorMessage    String?   @db.Text
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalEventId])
+  @@index([organizationId, createdAt])
+  @@index([donationId])
 }
 
 model Pledge {

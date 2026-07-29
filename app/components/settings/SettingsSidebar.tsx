@@ -23,7 +23,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { label: "Events CRM", href: "/settings/events", iconSlug: "event-fundraising" },
   { label: "AI Assistant", href: "/settings/ai", iconSlug: "steward-ai" },
   { label: "Integrations", href: "/settings/integrations", iconSlug: "integrations" },
-  { label: "Payments", href: "/settings/payments", iconSlug: "quickbooks-queue" },
+  { label: "Stripe Giving", href: "/integrations/stripe", iconSlug: "quickbooks-queue" },
   { label: "Site Embeds", href: "/settings/site-embeds", iconSlug: "communications" },
   { label: "Security & Audit", href: "/settings/security", iconSlug: "system-status" },
   { label: "System Updates", href: "/settings/system-updates", iconSlug: "giving-trends" },

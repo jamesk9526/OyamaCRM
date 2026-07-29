@@ -271,7 +271,7 @@ export default function EventSettingsPage() {
         <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source Links</p>
           <div className="mt-2 space-y-2 text-xs">
-            <Link href="/settings/payments" className="block font-semibold text-violet-700 hover:text-violet-900">Open Donor payment settings</Link>
+            <Link href="/integrations/stripe" className="block font-semibold text-violet-700 hover:text-violet-900">Open Stripe Giving integration</Link>
             <Link href="/settings/email" className="block font-semibold text-violet-700 hover:text-violet-900">Open Donor email settings</Link>
             <Link href="/events/reports" className="block font-semibold text-violet-700 hover:text-violet-900">Open Events reports</Link>
           </div>

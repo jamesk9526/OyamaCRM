@@ -92,7 +92,7 @@ export default function PaymentsPage() {
             Active: {health?.activeProvider ?? "None"}
           </span>
           <Link
-            href="/settings/payments"
+            href="/integrations/stripe"
             className="inline-flex items-center rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 font-semibold text-amber-800 hover:bg-amber-100"
           >
             Open Payment Settings

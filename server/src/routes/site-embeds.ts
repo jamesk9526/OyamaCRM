@@ -1,7 +1,7 @@
 /** Site embeds routes for DonorCRM admin configuration, public loader delivery, and LiveCom website ingestion. */
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
@@ -28,6 +28,14 @@ import {
   type SiteEmbedWidgetSettings,
 } from "../services/site-embeds.js";
 import { readPaymentGatewayRuntimeConfig } from "../services/payment-gateway-settings.js";
+import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
+import {
+  getStripeObjectMetadata,
+  getStripeSiteToken,
+  hashStripePayload,
+  verifyStripeWebhookSignature,
+  type StripeWebhookEnvelope,
+} from "../services/stripe-webhooks.js";
 
 const router = Router();
 const BRANDING_PLUGIN_KEY = "organization-branding";
@@ -84,14 +92,16 @@ function readStringInput(req: import("express").Request, key: string): string {
 
 /** Extracts one observed domain from request query/body headers for domain allow-list checks. */
 function resolveObservedDomain(req: import("express").Request): string {
-  const explicit = normalizeDomainCandidate(readStringInput(req, "domain"));
-  if (explicit) return explicit;
-
   const originHost = normalizeDomainCandidate(req.get("origin"));
   if (originHost) return originHost;
 
   const refererHost = normalizeDomainCandidate(req.get("referer"));
   if (refererHost) return refererHost;
+
+  // Script loads and server-to-server diagnostics may not send Origin. The
+  // explicit value is only a fallback; payment checkout fetches always carry Origin.
+  const explicit = normalizeDomainCandidate(readStringInput(req, "domain"));
+  if (explicit) return explicit;
 
   return "";
 }
@@ -1402,14 +1412,47 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
     return;
   }
 
+  const widget = hit.site.widgets.donation_widget;
+  const amountCents = Math.round(amountRaw * 100);
+  if (amountCents < widget.minimumAmountCents || amountCents > 100_000_000) {
+    res.status(400).json({
+      error: {
+        code: "AMOUNT_OUT_OF_RANGE",
+        message: `Gift amount must be between ${(widget.minimumAmountCents / 100).toFixed(2)} and 1,000,000.00.`,
+      },
+    });
+    return;
+  }
+  if (!donorEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(donorEmail)) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid donor email is required." } });
+    return;
+  }
+  if (giftType !== "one-time" && giftType !== "monthly") {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Gift type must be one-time or monthly." } });
+    return;
+  }
+  if (giftType === "monthly" && !widget.enableMonthlyGiving) {
+    res.status(400).json({ error: { code: "MONTHLY_GIVING_DISABLED", message: "Monthly giving is not enabled for this form." } });
+    return;
+  }
+  const allowedDesignations = new Set(widget.allowedDesignations.map((item) => item.trim().toLowerCase()).filter(Boolean));
+  if (allowedDesignations.size > 0 && !allowedDesignations.has(designation.toLowerCase())) {
+    res.status(400).json({ error: { code: "DESIGNATION_NOT_ALLOWED", message: "That gift designation is not available on this form." } });
+    return;
+  }
+
   const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
-  if (!runtime.stripe.enabled || !runtime.stripe.secretKey || !runtime.stripe.publishableKey) {
+  if (!runtime.stripe.enabled || !runtime.stripe.secretKey || !runtime.stripe.publishableKey || !runtime.stripe.webhookSecret) {
     res.status(503).json({ error: { code: "PAYMENT_NOT_CONFIGURED", message: "Stripe is not configured for this organization." } });
+    return;
+  }
+  const runtimeIsTest = runtime.stripe.mode === "sandbox";
+  if (widget.stripeTestMode !== runtimeIsTest) {
+    res.status(409).json({ error: { code: "STRIPE_MODE_MISMATCH", message: "The donation form mode does not match the connected Stripe account mode." } });
     return;
   }
 
   try {
-    const amountCents = Math.round(amountRaw * 100);
     const currency = runtime.currency.toLowerCase();
     const returnUrl = `${resolveApiBaseUrl(req)}/api/site-embeds/public/donation-return?token=${encodeURIComponent(token)}`;
 
@@ -1430,6 +1473,13 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("metadata[designation]", designation);
       sessionBody.set("metadata[siteToken]", token);
       sessionBody.set("metadata[donorName]", donorName);
+      sessionBody.set("metadata[donorPhone]", donorPhone);
+      sessionBody.set("subscription_data[metadata][platform]", "oyamacrm");
+      sessionBody.set("subscription_data[metadata][giftType]", "monthly");
+      sessionBody.set("subscription_data[metadata][designation]", designation);
+      sessionBody.set("subscription_data[metadata][siteToken]", token);
+      sessionBody.set("subscription_data[metadata][donorName]", donorName);
+      sessionBody.set("subscription_data[metadata][donorPhone]", donorPhone);
       if (donorEmail) sessionBody.set("customer_email", donorEmail);
     } else {
       // One-time payment checkout
@@ -1450,6 +1500,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("metadata[designation]", designation);
       sessionBody.set("metadata[siteToken]", token);
       sessionBody.set("metadata[donorName]", donorName);
+      sessionBody.set("metadata[donorPhone]", donorPhone);
       if (donorEmail) sessionBody.set("customer_email", donorEmail);
     }
 
@@ -1469,45 +1520,6 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
     if (!stripePayload.client_secret) {
       throw new Error("Stripe did not return a client_secret for embedded checkout.");
     }
-
-    // Create pending donor record
-    const parsedName = splitDisplayName(donorName);
-    let constituent = donorEmail
-      ? await prisma.constituent.findFirst({ where: { organizationId: hit.organizationId, email: donorEmail }, select: { id: true } })
-      : null;
-    if (!constituent) {
-      constituent = await prisma.constituent.create({
-        data: {
-          organizationId: hit.organizationId,
-          type: "DONOR",
-          firstName: parsedName.firstName,
-          lastName: parsedName.lastName,
-          email: donorEmail || null,
-          phone: donorPhone || null,
-        },
-        select: { id: true },
-      });
-    }
-
-    await prisma.activity.create({
-      data: {
-        constituentId: constituent.id,
-        type: "DONATION",
-        description: `Embedded Stripe Checkout started – ${giftType} gift of $${amountRaw.toFixed(2)} to ${designation}`,
-        metadata: {
-          source: "site_embeds_widget",
-          widget: "donation_widget_embedded",
-          provider: "stripe",
-          checkoutSessionId: stripePayload.id ?? "",
-          amount: amountRaw,
-          currency,
-          giftType,
-          designation,
-          domain: observedDomain,
-          status: "pending",
-        },
-      },
-    });
 
     res.status(200).json({
       data: {
@@ -1543,7 +1555,7 @@ router.get("/public/donation-return", (_req, res) => {
 <script>
   // Notify parent frame that Stripe checkout completed.
   if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ oyama_stripe_return: true, search: window.location.search }, '*');
+    window.parent.postMessage({ oyama_stripe_return: true }, '*');
   }
 </script></body></html>`);
 });
@@ -1555,132 +1567,247 @@ router.get("/public/donation-return", (_req, res) => {
  */
 router.post("/public/stripe-webhook", async (req, res) => {
   const signature = String(req.headers["stripe-signature"] ?? "");
+  const rawBody = req.body;
+  const rawBodyStr = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : typeof rawBody === "string" ? rawBody : "";
 
-  // We need raw body for signature verification — if rawBody is present use it.
-  const rawBody: Buffer | string = (req as unknown as { rawBody?: Buffer }).rawBody ?? req.body;
-  const rawBodyStr = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : JSON.stringify(rawBody);
-
-  if (!signature) {
-    res.status(400).json({ error: "Missing stripe-signature header" });
+  if (!signature || !rawBodyStr) {
+    res.status(400).json({ error: "Missing Stripe signature or raw request body." });
     return;
   }
 
-  // Parse the event payload directly (signature verification requires stripe SDK or manual HMAC)
-  // We parse first to extract the organization from metadata, then verify with org-specific secret.
-  let event: { type?: string; data?: { object?: Record<string, unknown> }; id?: string };
+  // Metadata locates the organization-specific signing secret. It is not trusted until HMAC verification succeeds.
+  let event: StripeWebhookEnvelope;
   try {
-    event = typeof rawBody === "string"
-      ? JSON.parse(rawBody)
-      : Buffer.isBuffer(rawBody)
-        ? JSON.parse(rawBody.toString("utf8"))
-        : (rawBody as typeof event);
+    event = JSON.parse(rawBodyStr) as StripeWebhookEnvelope;
   } catch {
     res.status(400).json({ error: "Invalid JSON payload" });
     return;
   }
 
-  const session = (event?.data?.object ?? {}) as Record<string, unknown> & {
+  const stripeObject = (event?.data?.object ?? {}) as Record<string, unknown> & {
     metadata?: Record<string, unknown>;
     customer_details?: Record<string, unknown>;
   };
-  const sessionMeta = (session.metadata ?? {}) as Record<string, unknown>;
-  const siteToken = String(sessionMeta["siteToken"] ?? "");
+  const siteToken = getStripeSiteToken(stripeObject);
 
   const hit = siteToken ? await findSiteByToken(siteToken) : null;
   if (!hit) {
-    // Unknown site token - acknowledge but take no action
     res.status(200).json({ received: true, action: "skipped_unknown_token" });
     return;
   }
 
-  // Verify webhook signature if secret is configured
   const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
-  if (runtime.stripe.webhookSecret) {
-    const { createHmac } = await import("crypto");
-    const parts = signature.split(",").reduce<Record<string, string>>((acc, p) => {
-      const [k, v] = p.split("=");
-      if (k && v) acc[k] = v;
-      return acc;
-    }, {});
-    const timestamp = parts["t"];
-    const sigV1 = parts["v1"];
-    if (!timestamp || !sigV1) {
-      res.status(400).json({ error: "Malformed stripe-signature header" });
-      return;
-    }
-    const expected = createHmac("sha256", runtime.stripe.webhookSecret)
-      .update(`${timestamp}.${rawBodyStr}`)
-      .digest("hex");
-    if (expected !== sigV1) {
-      res.status(400).json({ error: "Webhook signature verification failed" });
-      return;
-    }
+  if (!runtime.stripe.webhookSecret) {
+    res.status(503).json({ error: "Stripe webhook signing secret is not configured." });
+    return;
+  }
+  if (!verifyStripeWebhookSignature({
+    rawBody: rawBodyStr,
+    signatureHeader: signature,
+    webhookSecret: runtime.stripe.webhookSecret,
+  })) {
+    res.status(400).json({ error: "Webhook signature verification failed." });
+    return;
   }
 
-  // Process supported event types
-  try {
-    if (event.type === "checkout.session.completed") {
-      const amountTotal = Number(session.amount_total ?? 0) / 100;
-      const currency = String(session.currency ?? "usd").toUpperCase();
-      const meta = (session.metadata ?? {}) as Record<string, unknown>;
-      const custDetails = (session.customer_details ?? {}) as Record<string, unknown>;
-      const designation = String(meta["designation"] ?? "General Fund");
-      const giftType = String(meta["giftType"] ?? "one-time");
-      const donorEmail = String(session["customer_email"] ?? custDetails["email"] ?? "").toLowerCase();
-      const donorName = String(meta["donorName"] ?? "Website Donor").trim();
-      const sessionId = String(session.id ?? "");
+  const eventId = String(event.id ?? "").trim();
+  const eventType = String(event.type ?? "").trim();
+  if (!eventId || !eventType) {
+    res.status(400).json({ error: "Stripe event id and type are required." });
+    return;
+  }
 
-      const parsedName = splitDisplayName(donorName);
+  const existingEvent = await prisma.paymentWebhookEvent.findUnique({
+    where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+  });
+  if (existingEvent?.status === "PROCESSED" || existingEvent?.status === "IGNORED") {
+    res.status(200).json({ received: true, duplicate: true, donationId: existingEvent.donationId });
+    return;
+  }
+
+  const payloadHash = hashStripePayload(rawBodyStr);
+  try {
+    await prisma.paymentWebhookEvent.upsert({
+      where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+      create: {
+        organizationId: hit.organizationId,
+        provider: "stripe",
+        externalEventId: eventId,
+        eventType,
+        payloadHash,
+      },
+      update: {
+        status: "PROCESSING",
+        errorMessage: null,
+        payloadHash,
+      },
+    });
+
+    const isOneTimeCheckout = eventType === "checkout.session.completed"
+      && String(stripeObject.mode ?? "payment") === "payment";
+    const isRecurringInvoice = eventType === "invoice.paid";
+    const paymentStatus = String(stripeObject.payment_status ?? "paid");
+
+    if ((!isOneTimeCheckout && !isRecurringInvoice) || (isOneTimeCheckout && paymentStatus !== "paid" && paymentStatus !== "no_payment_required")) {
+      await prisma.paymentWebhookEvent.update({
+        where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+        data: { status: "IGNORED", processedAt: new Date() },
+      });
+      res.status(200).json({ received: true, action: "ignored_event_type" });
+      return;
+    }
+
+    const metadata = getStripeObjectMetadata(stripeObject);
+    const customerDetails = (stripeObject.customer_details ?? {}) as Record<string, unknown>;
+    const amountCents = Number(isRecurringInvoice ? stripeObject.amount_paid : stripeObject.amount_total);
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      throw new Error("Stripe reported an invalid paid amount.");
+    }
+
+    const amount = amountCents / 100;
+    const currency = String(stripeObject.currency ?? runtime.currency).toUpperCase();
+    const designationName = String(metadata.designation ?? "General Fund").trim();
+    const giftType = isRecurringInvoice ? "monthly" : String(metadata.giftType ?? "one-time");
+    const donorEmail = String(stripeObject.customer_email ?? customerDetails.email ?? "").trim().toLowerCase();
+    const donorName = String(metadata.donorName ?? customerDetails.name ?? "Website Donor").trim();
+    const donorPhone = String(metadata.donorPhone ?? customerDetails.phone ?? "").trim();
+    const providerTransactionId = isRecurringInvoice
+      ? `stripe:invoice:${String(stripeObject.id ?? eventId)}`
+      : `stripe:${String(stripeObject.payment_intent ?? stripeObject.id ?? eventId)}`;
+    const receiptNumber = `STRIPE-${String(stripeObject.id ?? eventId)}`.slice(0, 191);
+    const paidAtSeconds = Number(stripeObject.status_transitions && (stripeObject.status_transitions as Record<string, unknown>).paid_at);
+    const paidAt = Number.isFinite(paidAtSeconds) && paidAtSeconds > 0 ? new Date(paidAtSeconds * 1000) : new Date();
+    const parsedName = splitDisplayName(donorName);
+
+    const donation = await prisma.$transaction(async (tx) => {
+      const existingDonation = await tx.donation.findFirst({
+        where: { transactionId: providerTransactionId },
+        select: { id: true, constituentId: true },
+      });
+      if (existingDonation) return existingDonation;
+
       let constituent = donorEmail
-        ? await prisma.constituent.findFirst({ where: { organizationId: hit.organizationId, email: donorEmail }, select: { id: true } })
+        ? await tx.constituent.findFirst({
+            where: { organizationId: hit.organizationId, email: donorEmail },
+            select: { id: true },
+          })
         : null;
       if (!constituent) {
-        constituent = await prisma.constituent.create({
+        constituent = await tx.constituent.create({
           data: {
             organizationId: hit.organizationId,
             type: "DONOR",
             firstName: parsedName.firstName,
             lastName: parsedName.lastName,
             email: donorEmail || null,
+            phone: donorPhone || null,
           },
           select: { id: true },
         });
+      } else if (donorPhone) {
+        await tx.constituent.updateMany({
+          where: { id: constituent.id, OR: [{ phone: null }, { phone: "" }] },
+          data: { phone: donorPhone },
+        });
       }
 
-      await prisma.activity.create({
+      const designation = await tx.designation.findFirst({
+        where: { name: { equals: designationName } },
+        select: { id: true },
+      });
+      const created = await tx.donation.create({
         data: {
           constituentId: constituent.id,
+          designationId: designation?.id,
+          amount,
+          date: paidAt,
+          paymentMethod: "CREDIT_CARD",
+          status: "COMPLETED",
+          transactionId: providerTransactionId,
+          receiptNumber,
+          isRecurring: giftType === "monthly",
+          frequency: giftType === "monthly" ? "MONTHLY" : undefined,
+          notes: `Stripe donation widget · ${designationName} · ${currency}`,
+        },
+        select: { id: true, constituentId: true },
+      });
+
+      await tx.activity.create({
+        data: {
+          constituentId: constituent.id,
+          donationId: created.id,
           type: "DONATION",
-          description: `${giftType === "monthly" ? "Monthly gift" : "One-time gift"} of $${amountTotal.toFixed(2)} ${currency} – ${designation}`,
+          description: `${giftType === "monthly" ? "Monthly gift" : "One-time gift"} recorded from Stripe: $${amount.toFixed(2)} ${currency}`,
           metadata: {
             source: "stripe_webhook",
             widget: "donation_widget",
             provider: "stripe",
-            checkoutSessionId: sessionId,
-            paymentIntentId: String(session.payment_intent ?? ""),
-            subscriptionId: String(session.subscription ?? ""),
-            amount: amountTotal,
-            currency,
-            giftType,
-            designation,
-            status: "completed",
-            paidAt: new Date().toISOString(),
+            stripeEventId: eventId,
+            transactionId: providerTransactionId,
+            designation: designationName,
           },
         },
       });
+      return created;
+    });
 
-      await logAudit({
-        action: "STRIPE_DONATION_COMPLETED",
-        entity: "Activity",
-        entityId: sessionId,
-        organizationId: hit.organizationId,
-        metadata: { amount: amountTotal, currency, designation, giftType },
-      });
-    }
+    const constituent = await prisma.constituent.findUnique({
+      where: { id: donation.constituentId },
+      select: { organization: { select: { settings: { select: { fiscalYearStart: true } } } } },
+    });
+    const fiscalRange = getFiscalYTDRange(normalizeFiscalYearStart(constituent?.organization.settings?.fiscalYearStart));
+    const [lifetime, fiscalYtd, lastGift] = await Promise.all([
+      prisma.donation.aggregate({
+        where: { constituentId: donation.constituentId, status: "COMPLETED" },
+        _sum: { amount: true },
+        _count: { id: true },
+        _min: { date: true },
+      }),
+      prisma.donation.aggregate({
+        where: { constituentId: donation.constituentId, status: "COMPLETED", date: fiscalRange },
+        _sum: { amount: true },
+      }),
+      prisma.donation.findFirst({
+        where: { constituentId: donation.constituentId, status: "COMPLETED" },
+        orderBy: { date: "desc" },
+        select: { amount: true, date: true },
+      }),
+    ]);
+    await prisma.constituent.update({
+      where: { id: donation.constituentId },
+      data: {
+        totalLifetimeGiving: lifetime._sum.amount ?? 0,
+        totalYtdGiving: fiscalYtd._sum.amount ?? 0,
+        giftCount: lifetime._count.id,
+        firstGiftDate: lifetime._min.date ?? undefined,
+        lastGiftDate: lastGift?.date,
+        lastGiftAmount: lastGift?.amount,
+        donorStatus: "ACTIVE",
+      },
+    });
 
-    res.status(200).json({ received: true });
+    await prisma.paymentWebhookEvent.update({
+      where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+      data: { status: "PROCESSED", donationId: donation.id, processedAt: new Date() },
+    });
+    await logAudit({
+      action: "STRIPE_DONATION_COMPLETED",
+      entity: "Donation",
+      entityId: donation.id,
+      organizationId: hit.organizationId,
+      metadata: { stripeEventId: eventId, amount, currency, designation: designationName, giftType },
+    });
+
+    res.status(200).json({ received: true, donationId: donation.id });
   } catch (error) {
     console.error("[SiteEmbeds] webhook processing error:", error);
+    await prisma.paymentWebhookEvent.updateMany({
+      where: { provider: "stripe", externalEventId: eventId },
+      data: {
+        status: "FAILED",
+        errorMessage: error instanceof Error ? error.message.slice(0, 2000) : "Webhook processing failed",
+      },
+    }).catch(() => undefined);
     res.status(500).json({ error: "Webhook processing failed" });
   }
 });

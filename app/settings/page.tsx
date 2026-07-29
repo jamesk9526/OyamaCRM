@@ -79,7 +79,7 @@ const CARDS = [
   {
     title: "Payments",
     description: "Stripe and PayPal gateway settings, encryption-safe secrets, and donation checkout diagnostics.",
-    href: "/settings/payments",
+    href: "/integrations/stripe",
   },
   {
     title: "Site Embeds",
@@ -120,7 +120,7 @@ export default function SettingsOverviewPage() {
           <WorkspaceRibbonButton label="My Appearance" href="/settings/appearance" />
           <WorkspaceRibbonButton label="Integrations" href="/settings/integrations" />
           <WorkspaceRibbonButton label="Import & Export" href="/settings/import-export" />
-          <WorkspaceRibbonButton label="Payments" href="/settings/payments" />
+          <WorkspaceRibbonButton label="Stripe Giving" href="/integrations/stripe" />
           <WorkspaceRibbonButton label="System Updates" href="/settings/system-updates" />
           <WorkspaceRibbonButton label="System Status" href="/settings/system-status" />
         </WorkspaceRibbonGroup>

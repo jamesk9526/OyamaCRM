@@ -286,7 +286,7 @@ function buildPaymentsCard(payload: PaymentsHealthPayload | null, error: string 
       status: "Broken",
       summary: "Payment gateway status could not be loaded.",
       detail: error,
-      href: "/settings/payments",
+      href: "/integrations/stripe",
       hrefLabel: "Open Payment Settings",
     };
   }
@@ -298,7 +298,7 @@ function buildPaymentsCard(payload: PaymentsHealthPayload | null, error: string 
       status: "Not Implemented",
       summary: "Payment provider diagnostics are unavailable.",
       detail: "Open payment settings to configure Stripe or PayPal.",
-      href: "/settings/payments",
+      href: "/integrations/stripe",
       hrefLabel: "Open Payment Settings",
     };
   }
@@ -310,7 +310,7 @@ function buildPaymentsCard(payload: PaymentsHealthPayload | null, error: string 
       status: "Working",
       summary: "At least one payment provider is ready for donation checkout.",
       detail: `Active provider: ${payload.activeProvider ?? "none"}. Currency: ${payload.currency}.`,
-      href: "/settings/payments",
+      href: "/integrations/stripe",
       hrefLabel: "Manage Payments",
     };
   }
@@ -321,7 +321,7 @@ function buildPaymentsCard(payload: PaymentsHealthPayload | null, error: string 
     status: "Partially Working",
     summary: "Payment APIs are available but provider setup is incomplete.",
     detail: payload.issues.length > 0 ? payload.issues.join(" ") : "Configure Stripe or PayPal credentials.",
-    href: "/settings/payments",
+    href: "/integrations/stripe",
     hrefLabel: "Complete Payment Setup",
   };
 }
