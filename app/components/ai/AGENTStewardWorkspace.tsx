@@ -2974,7 +2974,7 @@ export default function AGENTStewardWorkspace({ initialModule = "donor", dockMod
         )}
         {/* end dockMode ? dock-header : full-header */}
 
-        <StewardMetricsStrip />
+        <StewardMetricsStrip moduleKey={scope} scopePath="/steward-ai-workspace" />
 
         {/* ── Conversation ────────────────────────────────────────────────── */}
         <div className="relative min-h-0 flex-1 overflow-hidden">

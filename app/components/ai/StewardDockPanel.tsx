@@ -402,7 +402,7 @@ export default function StewardDockPanel({
             </button>
           </header>
 
-          <StewardMetricsStrip />
+          <StewardMetricsStrip moduleKey={stewardModule} scopePath={scopePath} />
 
           <div className="min-h-0 flex-1 overflow-hidden bg-white">
             {activeTab === "steward" ? (

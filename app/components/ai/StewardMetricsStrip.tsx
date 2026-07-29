@@ -36,7 +36,12 @@ const statusLabel: Record<StewardRuntimeState["status"], string> = {
 };
 
 /** Compact, live Steward health and activity metrics shared by the companion surfaces. */
-export default function StewardMetricsStrip() {
+interface StewardMetricsStripProps {
+  moduleKey?: string;
+  scopePath?: string;
+}
+
+export default function StewardMetricsStrip({ moduleKey = "donor", scopePath }: StewardMetricsStripProps) {
   const [state, setState] = useState<StewardRuntimeState | null>(null);
 
   const refresh = useCallback(async () => {
@@ -73,11 +78,14 @@ export default function StewardMetricsStrip() {
         </p>
       </div>
       <div className="min-w-0 rounded-md border border-slate-200 bg-white px-2 py-1.5">
-        <p className="uppercase tracking-[0.12em] text-slate-400">Runtime</p>
-        <p className="mt-0.5 truncate font-semibold text-slate-700" title={state?.model ?? "Waiting for runtime"}>
-          {state ? `${state.mode === "local" ? "Local" : "Remote"} · ${relativeTime(state.lastSuccessAt)}` : "Checking…"}
+        <p className="uppercase tracking-[0.12em] text-slate-400">Context</p>
+        <p className="mt-0.5 truncate font-semibold capitalize text-slate-700" title={scopePath ?? "Current CRM workspace"}>
+          {moduleKey === "oshareview" ? "Reports" : moduleKey} · live
         </p>
       </div>
+      <p className="col-span-3 truncate text-slate-500">
+        {state ? `${state.mode === "local" ? "Local" : "Remote"} runtime · last completed ${relativeTime(state.lastSuccessAt)}` : "Checking AI runtime…"}
+      </p>
       {state?.currentTaskLabel ? (
         <p className="col-span-3 truncate text-slate-500">Working on: {state.currentTaskLabel}</p>
       ) : null}
