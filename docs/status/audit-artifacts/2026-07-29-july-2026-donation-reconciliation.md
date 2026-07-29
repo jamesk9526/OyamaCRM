@@ -16,6 +16,10 @@ These checks identify calculation and classification issues in the report; they 
 
 The locally configured development database does not appear to be the report dataset: its July aggregate did not match the reported July total or transaction count. No individual record conclusion was drawn from that local dataset.
 
+## Donation amount presentation correction
+
+Donation amounts are stored in the data model as `Decimal(10,2)`. The primary donor list had been rendering currency with zero maximum fractional digits, which made a stored value such as `$498.97` appear as `$499`. Donor-facing amount formatters now render exactly two decimal places. This corrects presentation only; no donation records were changed.
+
 ## Safeguards added
 
 - Exact receipt-number and transaction-ID matches are found across the organization before import. Existing records remain unchanged unless a staff member explicitly chooses an update path.

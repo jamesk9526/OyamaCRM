@@ -22,14 +22,14 @@ import {
 describe("constituent-utils", () => {
   describe("formatCurrency", () => {
     it("formats string and numeric amounts without fractional digits", () => {
-      expect(formatCurrency("12500.5")).toBe("$12,501");
-      expect(formatCurrency(0)).toBe("$0");
+      expect(formatCurrency("12500.5")).toBe("$12,500.50");
+      expect(formatCurrency(0)).toBe("$0.00");
     });
 
     it("returns $0 for null/undefined/NaN", () => {
-      expect(formatCurrency(null)).toBe("$0");
-      expect(formatCurrency(undefined)).toBe("$0");
-      expect(formatCurrency("oops")).toBe("$0");
+      expect(formatCurrency(null)).toBe("$0.00");
+      expect(formatCurrency(undefined)).toBe("$0.00");
+      expect(formatCurrency("oops")).toBe("$0.00");
     });
   });
 

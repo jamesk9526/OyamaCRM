@@ -92,10 +92,15 @@ export function getConstituentSalutation(c: ConstituentIdentityInput): string {
 }
 
 export function formatCurrency(value: string | number | null | undefined): string {
-  if (value == null) return "$0";
+  if (value == null) return "$0.00";
   const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "$0";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(num);
+  if (isNaN(num)) return "$0.00";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
 }
 
 export function formatDate(value: string | null | undefined): string {

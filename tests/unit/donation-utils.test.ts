@@ -16,14 +16,15 @@ import {
 describe("donation-utils", () => {
   describe("formatCurrency", () => {
     it("formats numeric values as USD with no fraction digits", () => {
-      expect(formatCurrency(1234.5)).toBe("$1,235");
-      expect(formatCurrency("99.99")).toBe("$100");
+      expect(formatCurrency(1234.5)).toBe("$1,234.50");
+      expect(formatCurrency("99.99")).toBe("$99.99");
+      expect(formatCurrency("498.97")).toBe("$498.97");
     });
 
     it("returns $0 for null/undefined/NaN inputs", () => {
-      expect(formatCurrency(null)).toBe("$0");
-      expect(formatCurrency(undefined)).toBe("$0");
-      expect(formatCurrency("not-a-number")).toBe("$0");
+      expect(formatCurrency(null)).toBe("$0.00");
+      expect(formatCurrency(undefined)).toBe("$0.00");
+      expect(formatCurrency("not-a-number")).toBe("$0.00");
     });
   });
 

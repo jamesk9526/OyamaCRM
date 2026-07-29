@@ -27,9 +27,12 @@ function toNumber(v: number | string | null | undefined): number {
 }
 
 function formatCurrency(v: number): string {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `$${Math.round(v / 1_000)}K`;
-  return `$${v.toFixed(0)}`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(v);
 }
 
 function daysLeft(endDateStr: string | null | undefined): number | null {
