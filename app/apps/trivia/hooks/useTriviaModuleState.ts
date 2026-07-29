@@ -10,6 +10,7 @@ import type {
   TriviaEvent,
   TriviaEventSnapshot,
   TriviaEventStatus,
+  TriviaGameTemplate,
   TriviaModuleState,
   TriviaQuestion,
   TriviaQuestionType,
@@ -361,6 +362,26 @@ export function useTriviaModuleState() {
     };
 
     replaceStateWithEvent(nextEvent);
+  }
+
+  /** Applies a reusable game plan without deleting authored rounds or questions. */
+  function applyGameTemplate(eventId: string, template: TriviaGameTemplate) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const requiredRounds = Math.max(1, Math.min(20, template.roundCount));
+    const rounds = [...event.rounds];
+    while (rounds.length < requiredRounds) {
+      const number = rounds.length + 1;
+      rounds.push({ id: createTriviaId("round"), title: `Round ${number}`, description: `Add up to ${template.questionsPerRound} questions.`, roundType: number === requiredRounds && template.finalWagerEnabled ? "final_wager" : "normal", questions: [] });
+    }
+    replaceStateWithEvent({
+      ...event,
+      rounds,
+      gameTemplate: { ...template, roundCount: requiredRounds, questionsPerRound: Math.max(1, Math.min(50, template.questionsPerRound)), defaultQuestionPoints: Math.max(1, template.defaultQuestionPoints), defaultTimeLimitSec: Math.max(5, template.defaultTimeLimitSec) },
+      scoringRules: { ...event.scoringRules, defaultQuestionPoints: Math.max(1, template.defaultQuestionPoints), allowPartialCredit: template.allowPartialCredit, finalWagerEnabled: template.finalWagerEnabled },
+      displaySettings: { ...event.displaySettings, highContrast: template.highContrast, showTimerOnQuestion: template.showTimerOnQuestion },
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   function addTeam(eventId: string, input: AddTeamInput) {
@@ -1052,6 +1073,7 @@ export function useTriviaModuleState() {
       createSampleEvent,
       updateEventStatus,
       updateEventSettings,
+      applyGameTemplate,
       addTeam,
       updateTeam,
       reorderTeam,

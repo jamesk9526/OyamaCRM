@@ -7,6 +7,8 @@ import { useParams } from "next/navigation";
 import TriviaEventHeader from "@/app/components/trivia/TriviaEventHeader";
 import TeamManagerPanel from "@/app/components/trivia/TeamManagerPanel";
 import RoundQuestionBuilderPanel from "@/app/components/trivia/RoundQuestionBuilderPanel";
+import TriviaGameMap from "@/app/components/trivia/TriviaGameMap";
+import TriviaGameTemplateLibrary from "@/app/components/trivia/TriviaGameTemplateLibrary";
 import FeatureInProgressNotice from "@/app/components/trivia/FeatureInProgressNotice";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 
@@ -15,7 +17,7 @@ import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleSta
  */
 export default function TriviaEventBuilderPage() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, updateEventSettings, importEventsFromJson } = useTriviaModuleState();
+  const { state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, updateEventSettings, applyGameTemplate, importEventsFromJson } = useTriviaModuleState();
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState("");
 
@@ -44,7 +46,7 @@ export default function TriviaEventBuilderPage() {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="trivia-builder-admin space-y-4">
       <TriviaEventHeader
         event={event}
         actions={(
@@ -59,6 +61,10 @@ export default function TriviaEventBuilderPage() {
         )}
       />
 
+      <TriviaGameMap event={event} />
+
+      <TriviaGameTemplateLibrary event={event} onApply={(template) => applyGameTemplate(event.id, template)} />
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <TeamManagerPanel
           teams={event.teams}
@@ -69,9 +75,12 @@ export default function TriviaEventBuilderPage() {
         />
 
         <RoundQuestionBuilderPanel
+          key={event.updatedAt}
           rounds={event.rounds}
           onAddRound={(title, description, roundType) => addRound(event.id, { title, description, roundType })}
           onAddQuestion={(roundId, payload) => addQuestion(event.id, roundId, payload)}
+          defaultPoints={event.gameTemplate?.defaultQuestionPoints ?? event.scoringRules.defaultQuestionPoints}
+          defaultTimeLimitSec={event.gameTemplate?.defaultTimeLimitSec ?? 30}
         />
       </div>
 

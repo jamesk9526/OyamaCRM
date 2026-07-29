@@ -196,6 +196,7 @@ const publicEmailAssetOptions = {
 };
 app.use("/uploads/email-media", express.static(path.join(publicUploadsRoot, "email-media"), publicEmailAssetOptions));
 app.use("/uploads/branding", express.static(path.join(publicUploadsRoot, "branding"), publicEmailAssetOptions));
+app.use("/uploads/trivia-media", express.static(path.join(publicUploadsRoot, "trivia-media"), publicEmailAssetOptions));
 
 // ─── Health / readiness ───────────────────────────────────────────────────────
 

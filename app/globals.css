@@ -700,3 +700,26 @@ main {
     transform: translateY(0) scale(1);
   }
 }
+
+/* Trivia setup is an administrative workspace: light, calm, and easy to scan during event preparation. */
+.trivia-builder-admin > section:not(:first-child) {
+  border-color: #d1c7e8 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.trivia-builder-admin > section:not(:first-child) :is(h2, h3, p, li, label) {
+  color: #1f1f1f;
+}
+
+.trivia-builder-admin > section:not(:first-child) :is(input, select, textarea) {
+  border-color: #a99ad0 !important;
+  background: #ffffff !important;
+  color: #1f1f1f !important;
+}
+
+.trivia-builder-admin > section:not(:first-child) :is(input, select, textarea):focus {
+  border-color: #5b3f9b !important;
+  outline: 2px solid #d1c7e8;
+  outline-offset: 1px;
+}

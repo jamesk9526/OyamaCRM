@@ -142,9 +142,9 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
         <div className="mt-10 rounded-3xl border border-slate-700 bg-slate-900/70 p-8">
           <p className="text-sm text-slate-400">Question {live.activeQuestionIndex + 1} • {question?.questionType || "text"}</p>
           <p className="text-5xl font-semibold mt-3 leading-tight">{question?.prompt || "No active question selected."}</p>
-          {question?.mediaUrl ? (
-            <p className="text-base text-emerald-200 mt-4">Media: {question.mediaUrl}</p>
-          ) : null}
+          {question?.mediaUrl && question.questionType === "image" ? <img src={question.mediaUrl} alt="Question media" className="mt-6 max-h-[42vh] w-full rounded-xl border border-emerald-400/30 object-contain" /> : null}
+          {question?.mediaUrl && question.questionType === "audio" ? <div className="mt-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-5"><p className="text-lg font-semibold text-emerald-100">Listen to the audio clue</p><audio controls autoPlay src={question.mediaUrl} className="mt-3 w-full" /></div> : null}
+          {question?.mediaUrl && question.questionType === "video" ? <video controls autoPlay src={question.mediaUrl} className="mt-6 max-h-[42vh] w-full rounded-xl border border-emerald-400/30 bg-black" /> : null}
           {question?.options?.length ? (
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
               {question.options.map((option) => (

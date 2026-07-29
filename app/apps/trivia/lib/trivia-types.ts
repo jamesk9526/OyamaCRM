@@ -65,6 +65,21 @@ export interface TriviaDisplaySettings {
   defaultStage: TriviaDisplayStage;
 }
 
+/** Reusable game-wide setup rules applied before content authoring. */
+export interface TriviaGameTemplate {
+  id: string;
+  name: string;
+  description: string;
+  roundCount: number;
+  questionsPerRound: number;
+  defaultQuestionPoints: number;
+  defaultTimeLimitSec: number;
+  allowPartialCredit: boolean;
+  finalWagerEnabled: boolean;
+  highContrast: boolean;
+  showTimerOnQuestion: boolean;
+}
+
 /**
  * Trivia team model for scoreboard and ranking.
  * Player names are optional because some teams may register only with a team label.
@@ -143,6 +158,7 @@ export interface TriviaEvent {
   teams: TriviaTeam[];
   scoringRules: TriviaScoringRules;
   displaySettings: TriviaDisplaySettings;
+  gameTemplate?: TriviaGameTemplate;
   createdAt: string;
   updatedAt: string;
 }

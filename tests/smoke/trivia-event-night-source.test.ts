@@ -32,4 +32,33 @@ describe("Trivia event-night controls", () => {
     expect(host).toContain('setSyncMode("server")');
     expect(display).toContain('setSyncMode("server")');
   });
+
+  it("keeps visual game planning and supported uploaded question media available", () => {
+    const route = read("server/src/routes/trivia.ts");
+    const builder = read("app/components/trivia/RoundQuestionBuilderPanel.tsx");
+    const map = read("app/components/trivia/TriviaGameMap.tsx");
+    const projector = read("app/components/trivia/ProjectorDisplayView.tsx");
+
+    expect(route).toContain('router.post("/media"');
+    expect(route).toContain("TRIVIA_MEDIA_TYPES");
+    expect(builder).toContain("/api/apps/trivia/media");
+    expect(builder).toContain("Upload file");
+    expect(map).toContain("Visual game map");
+    expect(projector).toContain('question.questionType === "video"');
+    expect(projector).toContain('question.questionType === "audio"');
+  });
+
+  it("provides reusable game-wide templates before question authoring", () => {
+    const types = read("app/apps/trivia/lib/trivia-types.ts");
+    const state = read("app/apps/trivia/hooks/useTriviaModuleState.ts");
+    const library = read("app/components/trivia/TriviaGameTemplateLibrary.tsx");
+    const builder = read("app/apps/trivia/events/[eventId]/builder/page.tsx");
+
+    expect(types).toContain("TriviaGameTemplate");
+    expect(state).toContain("function applyGameTemplate");
+    expect(state).toContain("without deleting authored rounds or questions");
+    expect(library).toContain("Game-wide rules");
+    expect(library).toContain("Apply game plan");
+    expect(builder).toContain("TriviaGameTemplateLibrary");
+  });
 });

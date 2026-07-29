@@ -3,6 +3,7 @@
 
 import { useMemo, useState } from "react";
 import type { TriviaQuestionType, TriviaRound, TriviaRoundType } from "@/app/apps/trivia/lib/trivia-types";
+import { apiFetch } from "@/app/lib/auth-client";
 
 interface RoundQuestionBuilderPanelProps {
   /** Existing rounds in the event being configured. */
@@ -27,6 +28,8 @@ interface RoundQuestionBuilderPanelProps {
       hostNotes: string;
     },
   ) => void;
+  defaultPoints?: number;
+  defaultTimeLimitSec?: number;
 }
 
 const ROUND_TYPES: Array<{ value: TriviaRoundType; label: string }> = [
@@ -61,7 +64,7 @@ const QUESTION_TYPE_HELP: Record<TriviaQuestionType, string> = {
  * RoundQuestionBuilderPanel handles core content authoring for trivia events.
  * It writes directly to persisted state so host and display routes are immediately usable.
  */
-export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQuestion }: RoundQuestionBuilderPanelProps) {
+export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQuestion, defaultPoints = 10, defaultTimeLimitSec = 30 }: RoundQuestionBuilderPanelProps) {
   const [roundTitle, setRoundTitle] = useState("");
   const [roundDescription, setRoundDescription] = useState("");
   const [roundType, setRoundType] = useState<TriviaRoundType>("normal");
@@ -76,9 +79,11 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
   const [explanation, setExplanation] = useState("");
   const [revealText, setRevealText] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
-  const [points, setPoints] = useState(10);
-  const [timeLimitSec, setTimeLimitSec] = useState(30);
+  const [points, setPoints] = useState(defaultPoints);
+  const [timeLimitSec, setTimeLimitSec] = useState(defaultTimeLimitSec);
   const [hostNotes, setHostNotes] = useState("");
+  const [mediaStatus, setMediaStatus] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   const selectedRound = useMemo(() => rounds.find((round) => round.id === selectedRoundId) ?? null, [rounds, selectedRoundId]);
 
@@ -134,6 +139,19 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
     setRevealText("");
     setMediaUrl("");
     setHostNotes("");
+  }
+
+  async function handleMediaUpload(file: File | undefined) {
+    if (!file) return;
+    setUploadingMedia(true);
+    setMediaStatus("Uploading media…");
+    try {
+      const dataBase64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result ?? "")); reader.onerror = () => reject(new Error("The file could not be read.")); reader.readAsDataURL(file); });
+      const result = await apiFetch<{ url: string; sizeBytes: number }>("/api/apps/trivia/media", { method: "POST", body: JSON.stringify({ fileName: file.name, mimeType: file.type, dataBase64 }) });
+      setMediaUrl(result.url);
+      setMediaStatus(`${file.name} uploaded and ready for projector preview.`);
+    } catch (error) { setMediaStatus(error instanceof Error ? error.message : "Media upload failed."); }
+    finally { setUploadingMedia(false); }
   }
 
   return (
@@ -284,6 +302,11 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
             placeholder="Reveal text shown on projector"
             className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
           />
+          <label className="flex cursor-pointer items-center justify-center border border-dashed border-cyan-400/60 bg-cyan-500/10 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20"><input type="file" className="sr-only" accept={questionType === "image" ? "image/png,image/jpeg,image/webp,image/gif" : questionType === "audio" ? "audio/mpeg,audio/ogg,audio/wav,audio/mp4" : "video/mp4,video/webm"} onChange={(event) => void handleMediaUpload(event.target.files?.[0])} />{uploadingMedia ? "Uploading…" : "Upload file"}</label>
+          {mediaStatus ? <p className="md:col-span-2 text-xs text-cyan-200">{mediaStatus}</p> : null}
+          {mediaUrl && questionType === "image" ? <img src={mediaUrl} alt="Question media preview" className="max-h-48 border border-slate-700 object-contain md:col-span-2" /> : null}
+          {mediaUrl && questionType === "audio" ? <audio controls src={mediaUrl} className="w-full md:col-span-2" /> : null}
+          {mediaUrl && questionType === "video" ? <video controls src={mediaUrl} className="max-h-56 w-full border border-slate-700 md:col-span-2" /> : null}
         </div> : <input value={revealText} onChange={(event) => setRevealText(event.target.value)} placeholder="Optional projector reveal text" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white" />}
         <textarea
           value={hostNotes}

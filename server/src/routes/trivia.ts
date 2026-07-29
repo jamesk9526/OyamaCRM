@@ -93,6 +93,12 @@ function makeAccessCode(): string {
   return randomBytes(4).toString("hex").toUpperCase();
 }
 
+const TRIVIA_MEDIA_TYPES: Record<string, { extension: string; maxBytes: number }> = {
+  "image/jpeg": { extension: "jpg", maxBytes: 5 * 1024 * 1024 }, "image/png": { extension: "png", maxBytes: 5 * 1024 * 1024 }, "image/webp": { extension: "webp", maxBytes: 5 * 1024 * 1024 }, "image/gif": { extension: "gif", maxBytes: 5 * 1024 * 1024 },
+  "audio/mpeg": { extension: "mp3", maxBytes: 12 * 1024 * 1024 }, "audio/ogg": { extension: "ogg", maxBytes: 12 * 1024 * 1024 }, "audio/wav": { extension: "wav", maxBytes: 12 * 1024 * 1024 }, "audio/mp4": { extension: "m4a", maxBytes: 12 * 1024 * 1024 },
+  "video/mp4": { extension: "mp4", maxBytes: 12 * 1024 * 1024 }, "video/webm": { extension: "webm", maxBytes: 12 * 1024 * 1024 },
+};
+
 function isAccessRole(value: unknown): value is TriviaAccessRole {
   return value === "host" || value === "checkin" || value === "scorekeeper";
 }
@@ -389,6 +395,24 @@ router.get("/events/:eventId", async (req, res) => {
   }
 
   res.json({ event, live: getLive(orgStore, eventId), scoreHistory: getScoreHistory(orgStore, eventId) });
+});
+
+/** Uploads presentation media for image, audio, and video trivia questions. */
+router.post("/media", async (req, res) => {
+  const organizationId = resolveOrganizationId(req).replace(/[^a-zA-Z0-9_-]/g, "_");
+  const fileName = String(req.body?.fileName ?? "").trim();
+  const mimeType = String(req.body?.mimeType ?? "").trim().toLowerCase();
+  const dataBase64 = String(req.body?.dataBase64 ?? "").trim();
+  const spec = TRIVIA_MEDIA_TYPES[mimeType];
+  if (!fileName || !dataBase64 || !spec) { res.status(400).json({ error: { code: "INVALID_MEDIA", message: "Upload a supported image, audio, or video file." } }); return; }
+  const buffer = Buffer.from(dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64, "base64");
+  if (!buffer.byteLength) { res.status(400).json({ error: { code: "INVALID_MEDIA", message: "The media file could not be read." } }); return; }
+  if (buffer.byteLength > spec.maxBytes) { res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: `${mimeType.startsWith("video/") || mimeType.startsWith("audio/") ? "Audio and video" : "Images"} must be ${Math.round(spec.maxBytes / 1024 / 1024)}MB or smaller.` } }); return; }
+  const safeName = `${randomUUID()}.${spec.extension}`;
+  const uploadDir = path.resolve(process.cwd(), "public", "uploads", "trivia-media", organizationId);
+  await mkdir(uploadDir, { recursive: true });
+  await writeFile(path.join(uploadDir, safeName), buffer);
+  res.status(201).json({ url: `/uploads/trivia-media/${organizationId}/${safeName}`, fileName, mimeType, sizeBytes: buffer.byteLength });
 });
 
 /** Creates a revocable temporary sign-in for an event-night role. The code is returned only once. */

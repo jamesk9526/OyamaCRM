@@ -15,12 +15,12 @@ interface TriviaEventHeaderProps {
  */
 export default function TriviaEventHeader({ event, actions }: TriviaEventHeaderProps) {
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-900/70 backdrop-blur p-4">
+    <div className="border border-[#d1c7e8] bg-white p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-300">Oyama Trivia Event</p>
-          <h1 className="text-2xl font-semibold text-white mt-1">{event.name}</h1>
-          <p className="text-sm text-slate-300 mt-1">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-[#5b3f9b]">Oyama Trivia Event</p>
+          <h1 className="text-2xl font-semibold text-slate-900 mt-1">{event.name}</h1>
+          <p className="text-sm text-slate-600 mt-1">
             Venue: {event.venue || "Not set"} • Host: {event.hostName || "Not set"}
           </p>
         </div>
