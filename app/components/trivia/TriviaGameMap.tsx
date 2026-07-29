@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState, type DragEvent, type FormEvent } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import type { TriviaEvent, TriviaQuestion, TriviaQuestionType, TriviaRoundType } from "@/app/apps/trivia/lib/trivia-types";
+import type { TriviaEvent, TriviaQuestion, TriviaQuestionType, TriviaRound, TriviaRoundType, TriviaWelcomeScreen } from "@/app/apps/trivia/lib/trivia-types";
 
 type DragItem =
   | { kind: "round"; roundId: string }
   | { kind: "question"; roundId: string; questionId: string; questionIndex: number };
 
 type QuestionPatch = Partial<Omit<TriviaQuestion, "id">>;
+type BuilderSelection = { kind: "welcome" } | { kind: "round"; roundId: string } | { kind: "question"; roundId: string; questionId: string };
 
 interface TriviaGameMapProps {
   event: TriviaEvent;
@@ -18,6 +19,11 @@ interface TriviaGameMapProps {
   onAddQuestion?: (roundId: string, question: Omit<TriviaQuestion, "id">) => void;
   onAddRound?: (title: string, description: string, roundType: TriviaRoundType) => void;
   onUpdateQuestion?: (roundId: string, questionId: string, updates: QuestionPatch) => void;
+  onDuplicateQuestion?: (roundId: string, questionId: string) => void;
+  onRemoveQuestion?: (roundId: string, questionId: string) => void;
+  onUpdateRound?: (roundId: string, updates: Partial<Pick<TriviaRound, "title" | "description" | "roundType">>) => void;
+  onRemoveRound?: (roundId: string) => void;
+  onUpdateWelcome?: (updates: Partial<TriviaWelcomeScreen>) => void;
 }
 
 const questionTypes: Array<{ value: TriviaQuestionType; label: string }> = [
@@ -59,11 +65,11 @@ const emptyQuestion = (event: TriviaEvent): Omit<TriviaQuestion, "id"> => ({
  * separate from the generic admin cards so a producer can see the whole run of
  * show without horizontal card clutter. It persists through the existing hook.
  */
-export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, onAddQuestion, onAddRound, onUpdateQuestion }: TriviaGameMapProps) {
+export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, onAddQuestion, onAddRound, onUpdateQuestion, onDuplicateQuestion, onRemoveQuestion, onUpdateRound, onRemoveRound, onUpdateWelcome }: TriviaGameMapProps) {
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
-  const [selection, setSelection] = useState<{ roundId: string; questionId: string } | null>(() => {
+  const [selection, setSelection] = useState<BuilderSelection>(() => {
     const round = event.rounds.find((item) => item.questions.length > 0);
-    return round?.questions[0] ? { roundId: round.id, questionId: round.questions[0].id } : null;
+    return round?.questions[0] ? { kind: "question", roundId: round.id, questionId: round.questions[0].id } : { kind: "welcome" };
   });
   const [roundModalOpen, setRoundModalOpen] = useState(false);
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
@@ -73,8 +79,9 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  const selectedRound = selection ? event.rounds.find((round) => round.id === selection.roundId) ?? null : null;
-  const selectedQuestion = selectedRound?.questions.find((question) => question.id === selection?.questionId) ?? null;
+  const selectedRound = "roundId" in selection ? event.rounds.find((round) => round.id === selection.roundId) ?? null : null;
+  const selectedQuestion = selection.kind === "question" ? selectedRound?.questions.find((question) => question.id === selection.questionId) ?? null : null;
+  const welcome = event.welcomeScreen ?? { eyebrow: "Tonight's event", headline: event.name, subtitle: "Get ready for a great night of trivia.", showHost: true, showVenue: true };
   const totalQuestions = useMemo(() => event.rounds.reduce((total, round) => total + round.questions.length, 0), [event.rounds]);
 
   function allowDrop(target: DragEvent<HTMLElement>) {
@@ -149,7 +156,7 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
   }
 
   function patchSelected(patch: QuestionPatch) {
-    if (!selection) return;
+    if (selection.kind !== "question") return;
     onUpdateQuestion?.(selection.roundId, selection.questionId, patch);
   }
 
@@ -164,27 +171,27 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
         <aside className="trivia-builder-palette" aria-label="Builder components">
           <div><h2>Components</h2><p>Choose a block to add to the game flow.</p></div>
           <button type="button" onClick={() => setRoundModalOpen(true)} className="trivia-builder-component"><span className="bg-cyan-500/20 text-cyan-200">○</span><span><strong>Round</strong><small>Add a themed question set</small></span><b>⠿</b></button>
-          <button type="button" disabled={event.rounds.length === 0} onClick={() => openQuestionComposer(selection?.roundId ?? event.rounds[0]?.id)} className="trivia-builder-component"><span className="bg-emerald-500/20 text-emerald-200">?</span><span><strong>Question</strong><small>Add to the selected round</small></span><b>⠿</b></button>
+          <button type="button" disabled={event.rounds.length === 0} onClick={() => openQuestionComposer("roundId" in selection ? selection.roundId : event.rounds[0]?.id)} className="trivia-builder-component"><span className="bg-emerald-500/20 text-emerald-200">?</span><span><strong>Question</strong><small>Add to the selected round</small></span><b>⠿</b></button>
           <Link href={`/apps/trivia/events/${event.id}/overview`} className="trivia-builder-component"><span className="bg-violet-500/20 text-violet-200">⌁</span><span><strong>Event plan</strong><small>Teams, readiness, and night-of setup</small></span><b>→</b></Link>
           <div className="trivia-builder-tip"><strong>Tip</strong><p>Drag a round or question to rearrange the run of show. Select a question to edit it here.</p></div>
         </aside>
 
         <main className="trivia-builder-canvas" aria-label="Visual game map">
           <div className="trivia-builder-flow">
-            <div className="trivia-builder-system-node trivia-builder-welcome"><span>⚑</span><div><strong>Welcome</strong><small>Welcome screen</small></div></div>
+            <button type="button" onClick={() => setSelection({ kind: "welcome" })} className={`trivia-builder-system-node trivia-builder-welcome ${selection.kind === "welcome" ? "is-selected" : ""}`}><span>⚑</span><div><strong>{welcome.headline || "Welcome"}</strong><small>Welcome screen</small></div></button>
             <div className="trivia-builder-connector trivia-builder-connector-top" aria-hidden="true" />
             <div className="trivia-builder-rounds">
               {event.rounds.map((round, roundIndex) => (
-                <article key={round.id} draggable={Boolean(onReorderRound)} onDragStart={(dragEvent) => { setDragItem({ kind: "round", roundId: round.id }); dragEvent.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragItem(null)} onDragOver={allowDrop} onDrop={(dropEvent) => { dropEvent.preventDefault(); dropOnRound(round.id); }} className="trivia-builder-round">
+                <article key={round.id} draggable={Boolean(onReorderRound)} onClick={() => setSelection({ kind: "round", roundId: round.id })} onDragStart={(dragEvent) => { setDragItem({ kind: "round", roundId: round.id }); dragEvent.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragItem(null)} onDragOver={allowDrop} onDrop={(dropEvent) => { dropEvent.preventDefault(); dropOnRound(round.id); }} className={`trivia-builder-round ${selection.kind === "round" && selection.roundId === round.id ? "is-selected" : ""}`}>
                   <div className="trivia-builder-round-number">{roundIndex + 1}</div>
                   <header><span>Round {roundIndex + 1}</span><button type="button" title="Drag round" aria-label={`Drag ${round.title}`}>⠿</button><h3>{round.title}</h3><p>{round.roundType.replaceAll("_", " ")}</p></header>
                   <div className="trivia-builder-question-list">
                     {round.questions.map((question, questionIndex) => {
-                      const active = selection?.questionId === question.id;
-                      return <button key={question.id} type="button" draggable={Boolean(onMoveQuestion)} onDragStart={(dragEvent) => { dragEvent.stopPropagation(); setDragItem({ kind: "question", roundId: round.id, questionId: question.id, questionIndex }); dragEvent.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragItem(null)} onDragOver={allowDrop} onDrop={(dropEvent) => { dropEvent.preventDefault(); dropEvent.stopPropagation(); dropOnQuestion(round.id, questionIndex); }} onClick={() => setSelection({ roundId: round.id, questionId: question.id })} className={active ? "is-selected" : ""}><span>Q{questionIndex + 1}</span><em>{question.questionType === "multiple_choice" ? "choices" : question.questionType}</em><b>⠿</b></button>;
+                      const active = selection.kind === "question" && selection.questionId === question.id;
+                      return <button key={question.id} type="button" draggable={Boolean(onMoveQuestion)} onDragStart={(dragEvent) => { dragEvent.stopPropagation(); setDragItem({ kind: "question", roundId: round.id, questionId: question.id, questionIndex }); dragEvent.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDragItem(null)} onDragOver={allowDrop} onDrop={(dropEvent) => { dropEvent.preventDefault(); dropEvent.stopPropagation(); dropOnQuestion(round.id, questionIndex); }} onClick={(clickEvent) => { clickEvent.stopPropagation(); setSelection({ kind: "question", roundId: round.id, questionId: question.id }); }} className={active ? "is-selected" : ""}><span>Q{questionIndex + 1}</span><em>{question.questionType === "multiple_choice" ? "choices" : question.questionType}</em><b>⠿</b></button>;
                     })}
                     {round.questions.length === 0 ? <p className="trivia-builder-empty">No questions yet</p> : null}
-                    <button type="button" onClick={() => openQuestionComposer(round.id)} className="trivia-builder-add-question">+ Add question</button>
+                    <button type="button" onClick={(clickEvent) => { clickEvent.stopPropagation(); openQuestionComposer(round.id); }} className="trivia-builder-add-question">+ Add question</button>
                   </div>
                 </article>
               ))}
@@ -194,9 +201,10 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
           </div>
         </main>
 
-        <aside className="trivia-builder-inspector" aria-label="Question settings">
-          <div className="flex items-start justify-between gap-3 border-b border-slate-700 pb-4"><div><h2>Question settings</h2><p>{selectedRound && selectedQuestion ? `${selectedRound.title} · Q${selectedRound.questions.findIndex((question) => question.id === selectedQuestion.id) + 1}` : "Select a question to edit"}</p></div>{selection ? <button type="button" onClick={() => setSelection(null)} className="text-xl text-slate-400 hover:text-white" aria-label="Close question settings">×</button> : null}</div>
-          {selectedQuestion ? <div className="trivia-builder-fields"><label>Question text<textarea value={selectedQuestion.prompt} onChange={(input) => patchSelected({ prompt: input.target.value })} /></label><label>Question type<select value={selectedQuestion.questionType} onChange={(input) => patchSelected({ questionType: input.target.value as TriviaQuestionType })}>{questionTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{selectedQuestion.questionType === "multiple_choice" ? <label>Answer choices<textarea value={selectedQuestion.options.join("\n")} onChange={(input) => patchSelected({ options: input.target.value.split("\n").map((item) => item.trim()).filter(Boolean) })} placeholder="One answer choice per line" /></label> : null}<label>Correct answer<input value={selectedQuestion.scoringAnswer} onChange={(input) => patchSelected({ scoringAnswer: input.target.value, audienceAnswer: selectedQuestion.audienceAnswer || input.target.value })} /></label><div className="grid grid-cols-2 gap-3"><label>Points<input type="number" min={1} value={selectedQuestion.points} onChange={(input) => patchSelected({ points: Number(input.target.value) || 1 })} /></label><label>Time limit<input type="number" min={5} value={selectedQuestion.timeLimitSec} onChange={(input) => patchSelected({ timeLimitSec: Number(input.target.value) || 5 })} /></label></div><label>Media link<input value={selectedQuestion.mediaUrl} onChange={(input) => patchSelected({ mediaUrl: input.target.value })} placeholder="https://…" /></label>{selectedQuestion.mediaUrl ? <div className="trivia-builder-media"><span>Media attached</span><a href={selectedQuestion.mediaUrl} target="_blank">Open ↗</a></div> : null}<label>Host notes<textarea value={selectedQuestion.hostNotes} onChange={(input) => patchSelected({ hostNotes: input.target.value })} placeholder="Private notes for the host" /></label><button type="button" onClick={() => openQuestionComposer(selectedRound?.id)} className="trivia-builder-secondary-action">+ Add another question</button></div> : <div className="trivia-builder-inspector-empty"><span>⌁</span><h3>Start with a question</h3><p>Select a question in the map to edit its content, timing, scoring answer, media link, and host notes.</p>{event.rounds.length > 0 ? <button type="button" onClick={() => openQuestionComposer(event.rounds[0].id)}>Add first question</button> : <button type="button" onClick={() => setRoundModalOpen(true)}>Add first round</button>}</div>}
+        <aside className="trivia-builder-inspector" aria-label="Selected block settings">
+          <div className="border-b border-slate-700 pb-4"><h2>{selection.kind === "welcome" ? "Welcome screen" : selection.kind === "round" ? "Round settings" : "Question settings"}</h2><p>{selection.kind === "welcome" ? "Opening projector content" : selectedRound && selectedQuestion ? `${selectedRound.title} · Q${selectedRound.questions.findIndex((question) => question.id === selectedQuestion.id) + 1}` : selectedRound?.title || "Select a block to edit"}</p></div>
+          {selection.kind === "welcome" ? <div className="trivia-builder-fields"><label>Eyebrow<input value={welcome.eyebrow} onChange={(input) => onUpdateWelcome?.({ eyebrow: input.target.value })} /></label><label>Main headline<input value={welcome.headline} onChange={(input) => onUpdateWelcome?.({ headline: input.target.value })} /></label><label>Welcome message<textarea value={welcome.subtitle} onChange={(input) => onUpdateWelcome?.({ subtitle: input.target.value })} /></label><label className="trivia-builder-toggle"><input type="checkbox" checked={welcome.showHost} onChange={(input) => onUpdateWelcome?.({ showHost: input.target.checked })} /> Show host name</label><label className="trivia-builder-toggle"><input type="checkbox" checked={welcome.showVenue} onChange={(input) => onUpdateWelcome?.({ showVenue: input.target.checked })} /> Show venue</label><Link href={`/apps/trivia/display/${event.id}`} target="_blank" className="trivia-builder-secondary-action text-center">Preview welcome screen ↗</Link></div> : selection.kind === "round" && selectedRound ? <div className="trivia-builder-fields"><label>Round name<input value={selectedRound.title} onChange={(input) => onUpdateRound?.(selectedRound.id, { title: input.target.value })} /></label><label>Description<textarea value={selectedRound.description} onChange={(input) => onUpdateRound?.(selectedRound.id, { description: input.target.value })} /></label><label>Round type<select value={selectedRound.roundType} onChange={(input) => onUpdateRound?.(selectedRound.id, { roundType: input.target.value as TriviaRoundType })}>{roundTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><p className="text-xs leading-5 text-slate-400">{selectedRound.questions.length} question{selectedRound.questions.length === 1 ? "" : "s"} will be deleted with this round.</p><button type="button" onClick={() => { if (window.confirm(`Delete ${selectedRound.title} and all of its questions?`)) { onRemoveRound?.(selectedRound.id); setSelection({ kind: "welcome" }); } }} className="trivia-builder-danger-action">Delete round</button></div> : selectedQuestion ? <div className="trivia-builder-fields"><label>Question text<textarea value={selectedQuestion.prompt} onChange={(input) => patchSelected({ prompt: input.target.value })} /></label><label>Question type<select value={selectedQuestion.questionType} onChange={(input) => patchSelected({ questionType: input.target.value as TriviaQuestionType })}>{questionTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{selectedQuestion.questionType === "multiple_choice" ? <label>Answer choices<textarea value={selectedQuestion.options.join("\n")} onChange={(input) => patchSelected({ options: input.target.value.split("\n").map((item) => item.trim()).filter(Boolean) })} placeholder="One answer choice per line" /></label> : null}<label>Correct answer<input value={selectedQuestion.scoringAnswer} onChange={(input) => patchSelected({ scoringAnswer: input.target.value, audienceAnswer: selectedQuestion.audienceAnswer || input.target.value })} /></label><div className="grid grid-cols-2 gap-3"><label>Points<input type="number" min={1} value={selectedQuestion.points} onChange={(input) => patchSelected({ points: Number(input.target.value) || 1 })} /></label><label>Time limit<input type="number" min={5} value={selectedQuestion.timeLimitSec} onChange={(input) => patchSelected({ timeLimitSec: Number(input.target.value) || 5 })} /></label></div><label>Media link<input value={selectedQuestion.mediaUrl} onChange={(input) => patchSelected({ mediaUrl: input.target.value })} placeholder="https://…" /></label>{selectedQuestion.mediaUrl ? <div className="trivia-builder-media"><span>Media attached</span><a href={selectedQuestion.mediaUrl} target="_blank">Open ↗</a></div> : null}<label>Host notes<textarea value={selectedQuestion.hostNotes} onChange={(input) => patchSelected({ hostNotes: input.target.value })} placeholder="Private notes for the host" /></label><button type="button" onClick={() => openQuestionComposer(selectedRound?.id)} className="trivia-builder-secondary-action">+ Add another question</button></div> : null}
+          {selection.kind === "question" && selectedRound && selectedQuestion ? <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => onDuplicateQuestion?.(selectedRound.id, selectedQuestion.id)} className="trivia-builder-secondary-action">Duplicate</button><button type="button" onClick={() => { if (window.confirm("Delete this question?")) { onRemoveQuestion?.(selectedRound.id, selectedQuestion.id); setSelection({ kind: "round", roundId: selectedRound.id }); } }} className="trivia-builder-danger-action">Delete question</button></div> : null}
         </aside>
       </div>
 

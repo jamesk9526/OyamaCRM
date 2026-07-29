@@ -19,6 +19,7 @@ import type {
   TriviaScoreAction,
   TriviaScoreActionType,
   TriviaTeam,
+  TriviaWelcomeScreen,
 } from "@/app/apps/trivia/lib/trivia-types";
 import {
   createTriviaId,
@@ -590,6 +591,36 @@ export function useTriviaModuleState() {
     replaceStateWithEvent(nextEvent);
   }
 
+  function updateRound(eventId: string, roundId: string, input: Partial<Pick<TriviaRound, "title" | "description" | "roundType">>) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const rounds = event.rounds.map((round) => round.id === roundId ? { ...round, ...input, title: input.title?.trim() || round.title } : round);
+    replaceStateWithEvent({ ...event, rounds, updatedAt: new Date().toISOString() });
+  }
+
+  function removeRound(eventId: string, roundId: string) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const removedIndex = event.rounds.findIndex((round) => round.id === roundId);
+    if (removedIndex < 0) return;
+    const rounds = event.rounds.filter((round) => round.id !== roundId);
+    const nextEvent = { ...event, rounds, updatedAt: new Date().toISOString() };
+    const nextState = replaceEvent(state, nextEvent);
+    const live = nextState.liveByEventId[eventId];
+    if (live?.activeRoundId === roundId) {
+      const fallback = rounds[Math.min(removedIndex, Math.max(0, rounds.length - 1))] ?? null;
+      nextState.liveByEventId[eventId] = { ...live, activeRoundId: fallback?.id ?? "", activeQuestionIndex: 0, stage: fallback ? "round_intro" : "welcome", timerRunning: false, answerRevealed: false, lastHostAction: `Round removed: ${event.rounds[removedIndex].title}`, updatedAt: new Date().toISOString() };
+    }
+    commit(nextState);
+  }
+
+  function updateWelcomeScreen(eventId: string, input: Partial<TriviaWelcomeScreen>) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const current: TriviaWelcomeScreen = event.welcomeScreen ?? { eyebrow: "Tonight's event", headline: event.name, subtitle: "Get ready for a great night of trivia.", showHost: true, showVenue: true };
+    replaceStateWithEvent({ ...event, welcomeScreen: { ...current, ...input }, updatedAt: new Date().toISOString() });
+  }
+
   /** Updates an existing question without disturbing its round order or live selection. */
   function updateQuestion(eventId: string, roundId: string, questionId: string, input: UpdateQuestionInput) {
     const event = state.events.find((item) => item.id === eventId);
@@ -604,6 +635,33 @@ export function useTriviaModuleState() {
     });
 
     replaceStateWithEvent({ ...event, rounds, updatedAt: new Date().toISOString() });
+  }
+
+  function duplicateQuestion(eventId: string, roundId: string, questionId: string) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const rounds = event.rounds.map((round) => {
+      if (round.id !== roundId) return round;
+      const index = round.questions.findIndex((question) => question.id === questionId);
+      if (index < 0) return round;
+      const questions = [...round.questions];
+      questions.splice(index + 1, 0, { ...questions[index], id: createTriviaId("question"), prompt: `${questions[index].prompt} (copy)` });
+      return { ...round, questions };
+    });
+    replaceStateWithEvent({ ...event, rounds, updatedAt: new Date().toISOString() });
+  }
+
+  function removeQuestion(eventId: string, roundId: string, questionId: string) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const rounds = event.rounds.map((round) => round.id === roundId ? { ...round, questions: round.questions.filter((question) => question.id !== questionId) } : round);
+    const nextState = replaceEvent(state, { ...event, rounds, updatedAt: new Date().toISOString() });
+    const live = nextState.liveByEventId[eventId];
+    if (live?.activeRoundId === roundId) {
+      const round = rounds.find((item) => item.id === roundId);
+      nextState.liveByEventId[eventId] = { ...live, activeQuestionIndex: Math.max(0, Math.min(live.activeQuestionIndex, Math.max(0, (round?.questions.length ?? 1) - 1))), timerRunning: false, answerRevealed: false, lastHostAction: "Question removed", updatedAt: new Date().toISOString() };
+    }
+    commit(nextState);
   }
 
   /** Reorders a round by dropping it before another round in the visual builder. */
@@ -1156,6 +1214,11 @@ export function useTriviaModuleState() {
       addRound,
       addQuestion,
       updateQuestion,
+      duplicateQuestion,
+      removeQuestion,
+      updateRound,
+      removeRound,
+      updateWelcomeScreen,
       reorderRound,
       moveQuestion,
       applyScoreAction,

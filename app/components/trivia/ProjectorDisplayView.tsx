@@ -37,7 +37,9 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
   if (live.stage === "blank") return <main className="min-h-screen bg-black" aria-label="Projector intentionally blank" />;
 
   if (live.stage === "welcome") {
-    return <ProjectorFrame event={event} live={live} eyebrow="Welcome"><div className="trivia-projector-hero"><p>Tonight&apos;s event</p><h1>{event.name}</h1><div className="trivia-projector-rule" /><h2>Hosted by {event.hostName || "Your trivia host"}</h2><span>{event.venue || "Please find your table and get ready"}</span></div></ProjectorFrame>;
+    const welcome = event.welcomeScreen ?? { eyebrow: "Tonight's event", headline: event.name, subtitle: "Get ready for a great night of trivia.", showHost: true, showVenue: true };
+    const details = [welcome.showHost && event.hostName ? `Hosted by ${event.hostName}` : "", welcome.showVenue && event.venue ? event.venue : ""].filter(Boolean).join(" · ");
+    return <ProjectorFrame event={event} live={live} eyebrow="Welcome"><div className="trivia-projector-hero"><p>{welcome.eyebrow || "Tonight's event"}</p><h1>{welcome.headline || event.name}</h1><div className="trivia-projector-rule" /><h2>{welcome.subtitle || "Get ready for a great night of trivia."}</h2>{details ? <span>{details}</span> : null}</div></ProjectorFrame>;
   }
 
   if (live.stage === "check_in_open" || live.stage === "check_in_closed") {

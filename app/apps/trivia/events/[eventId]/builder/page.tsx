@@ -12,7 +12,7 @@ import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleSta
 export default function TriviaEventBuilderPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const {
-    state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, updateQuestion,
+    state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, updateQuestion, duplicateQuestion, removeQuestion, updateRound, removeRound, updateWelcomeScreen,
     reorderRound, moveQuestion, applyGameTemplate, importEventsFromJson,
   } = useTriviaModuleState();
   const [importText, setImportText] = useState("");
@@ -34,6 +34,11 @@ export default function TriviaEventBuilderPage() {
         onAddRound={(title, description, roundType) => addRound(event.id, { title, description, roundType })}
         onAddQuestion={(roundId, question) => addQuestion(event.id, roundId, question)}
         onUpdateQuestion={(roundId, questionId, updates) => updateQuestion(event.id, roundId, questionId, updates)}
+        onDuplicateQuestion={(roundId, questionId) => duplicateQuestion(event.id, roundId, questionId)}
+        onRemoveQuestion={(roundId, questionId) => removeQuestion(event.id, roundId, questionId)}
+        onUpdateRound={(roundId, updates) => updateRound(event.id, roundId, updates)}
+        onRemoveRound={(roundId) => removeRound(event.id, roundId)}
+        onUpdateWelcome={(updates) => updateWelcomeScreen(event.id, updates)}
         onReorderRound={(roundId, targetRoundId) => reorderRound(event.id, roundId, targetRoundId)}
         onMoveQuestion={(questionId, sourceRoundId, targetRoundId, targetIndex) => moveQuestion(event.id, questionId, sourceRoundId, targetRoundId, targetIndex)}
       />

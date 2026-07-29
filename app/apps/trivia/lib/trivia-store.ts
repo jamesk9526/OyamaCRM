@@ -114,6 +114,13 @@ function normalizeEvent(input: TriviaEvent): TriviaEvent {
     teams: Array.isArray(input.teams) ? input.teams.map((team, index) => normalizeTeam(team, index)) : [],
     scoringRules: input.scoringRules ?? createDefaultScoringRules(),
     displaySettings: input.displaySettings ?? createDefaultDisplaySettings(),
+    welcomeScreen: {
+      eyebrow: input.welcomeScreen?.eyebrow ?? "Tonight's event",
+      headline: input.welcomeScreen?.headline ?? input.name ?? "Trivia Night",
+      subtitle: input.welcomeScreen?.subtitle ?? "Get ready for a great night of trivia.",
+      showHost: input.welcomeScreen?.showHost ?? true,
+      showVenue: input.welcomeScreen?.showVenue ?? true,
+    },
     createdAt: input.createdAt || new Date().toISOString(),
     updatedAt: input.updatedAt || new Date().toISOString(),
   };

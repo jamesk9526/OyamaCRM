@@ -65,6 +65,15 @@ export interface TriviaDisplaySettings {
   defaultStage: TriviaDisplayStage;
 }
 
+/** Editable audience copy for the opening projector screen. */
+export interface TriviaWelcomeScreen {
+  eyebrow: string;
+  headline: string;
+  subtitle: string;
+  showHost: boolean;
+  showVenue: boolean;
+}
+
 /** Reusable game-wide setup rules applied before content authoring. */
 export interface TriviaGameTemplate {
   id: string;
@@ -158,6 +167,7 @@ export interface TriviaEvent {
   teams: TriviaTeam[];
   scoringRules: TriviaScoringRules;
   displaySettings: TriviaDisplaySettings;
+  welcomeScreen?: TriviaWelcomeScreen;
   gameTemplate?: TriviaGameTemplate;
   createdAt: string;
   updatedAt: string;
