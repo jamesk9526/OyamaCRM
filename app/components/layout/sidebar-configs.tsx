@@ -51,6 +51,14 @@ const DONOR_ICONS = {
 export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): CrmSidebarGroup[] {
   const systemItems: CrmSidebarGroup["items"] = [
     {
+      id: "notifications",
+      label: "Notifications",
+      href: "/notifications",
+      icon: DONOR_ICONS.tasks,
+      kind: "daily_tool" as const,
+      description: "Review live task, communication, and CRM work alerts in one stream.",
+    },
+    {
       id: "reports",
       label: "Reports",
       href: "/reports",

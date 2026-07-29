@@ -661,7 +661,7 @@ export default function CrmSidebar({
 
               {groupIsOpen && (
                 <nav
-                  className={`space-y-1 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-2.5 border-l border-emerald-700/25 pl-2" : ""}`}
+                  className={`space-y-1 pb-0.5 ${!isCollapsed && isDonorChrome ? "ml-2.5 rounded-xl border border-white/[0.055] border-l-emerald-700/35 bg-black/15 p-1.5 pl-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]" : ""}`}
                   aria-label={group.label}
                 >
                   {group.items.map((item) => {

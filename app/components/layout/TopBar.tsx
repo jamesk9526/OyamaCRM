@@ -1572,12 +1572,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                   <div className={`${mobileSheetBase} max-h-[72vh] flex flex-col`}>
                     <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
                       <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                      <button
-                        onClick={() => void loadNotifications()}
-                        className="text-xs text-gray-500 hover:text-gray-700"
-                      >
-                        Refresh
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => { setNotificationsOpen(false); router.push("/notifications"); }} className="text-xs font-semibold text-[#0f6cbd]">View all</button>
+                        <button onClick={() => void loadNotifications()} className="text-xs text-gray-500 hover:text-gray-700">Refresh</button>
+                      </div>
                     </div>
 
                     {notificationsLoading ? (
