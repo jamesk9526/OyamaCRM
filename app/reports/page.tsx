@@ -1,10 +1,8 @@
-// Oyama Reports route: a dedicated Donor CRM reporting app powered by live CRM APIs.
+import DonorReportsSpreadsheet from "@/app/components/donor-reports/DonorReportsSpreadsheet";
 
-import ReportsApp from "@/app/components/reports-app/ReportsApp";
+export const metadata = { title: "Reports - DonorCRM" };
 
-export const metadata = { title: "Oyama Reports - DonorCRM" };
-
-/** Renders the first-class Reports application for Donor CRM staff. */
+/** Renders the live Donor CRM reporting workbook. */
 export default function ReportsPage() {
-  return <ReportsApp />;
+  return <DonorReportsSpreadsheet />;
 }

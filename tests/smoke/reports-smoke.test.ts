@@ -47,6 +47,8 @@ describe("GET /api/reports/summary", () => {
     expect(res.body).toHaveProperty("weekAmount");
     expect(res.body).toHaveProperty("weekCount");
     expect(res.body).toHaveProperty("monthAmount");
+    expect(res.body).toHaveProperty("mtdAmount");
+    expect(res.body).toHaveProperty("mtdCount");
     expect(res.body).toHaveProperty("totalConstituents");
     expect(res.body).toHaveProperty("activeCampaigns");
     expect(res.body).toHaveProperty("pendingTasks");
@@ -69,6 +71,72 @@ describe("GET /api/reports/summary", () => {
     if (t !== null && t !== undefined) {
       expect(Number.isInteger(t)).toBe(true);
     }
+  });
+
+  it("keeps the legacy month fields aligned to the explicit month-to-date fields", async () => {
+    const res = await authGet("/api/reports/summary");
+    expect(res.status).toBe(200);
+    expect(res.body.monthAmount).toBe(res.body.mtdAmount);
+    expect(res.body.monthCount).toBe(res.body.mtdCount);
+  });
+});
+
+// ─── /api/reports/donors-by-designation ─────────────────────────────────────
+
+describe("GET /api/reports/donors-by-designation", () => {
+  it("returns a live month-to-date donor/designation worksheet", async () => {
+    const res = await authGet("/api/reports/donors-by-designation");
+    expect(res.status).toBe(200);
+    expect(res.body.report).toBe("donors-by-designation");
+    expect(res.body.period).toMatchObject({ key: "month-to-date" });
+    expect(res.body.summary).toEqual(expect.objectContaining({
+      totalAmount: expect.any(Number),
+      giftCount: expect.any(Number),
+      donorCount: expect.any(Number),
+      designationCount: expect.any(Number),
+    }));
+    expect(Array.isArray(res.body.rows)).toBe(true);
+  });
+
+  it("uses the first day of this month through now, not the full calendar month", async () => {
+    const res = await authGet("/api/reports/donors-by-designation");
+    expect(res.status).toBe(200);
+    const from = new Date(res.body.period.from);
+    const through = new Date(res.body.period.through);
+    const now = new Date();
+
+    expect(from.getDate()).toBe(1);
+    expect(from.getMonth()).toBe(now.getMonth());
+    expect(from.getFullYear()).toBe(now.getFullYear());
+    expect(through.getTime()).toBeLessThanOrEqual(now.getTime() + 5_000);
+  });
+
+  it("returns stable, numeric worksheet rows and totals", async () => {
+    const res = await authGet("/api/reports/donors-by-designation");
+    expect(res.status).toBe(200);
+    const rowTotal = res.body.rows.reduce((sum: number, row: { totalAmount: number }) => sum + row.totalAmount, 0);
+
+    expect(rowTotal).toBeCloseTo(res.body.summary.totalAmount, 6);
+    for (const row of res.body.rows) {
+      expect(row).toEqual(expect.objectContaining({
+        donorId: expect.any(String),
+        donorName: expect.any(String),
+        designationName: expect.any(String),
+        giftCount: expect.any(Number),
+        totalAmount: expect.any(Number),
+        lastGiftAt: expect.any(String),
+      }));
+      expect(row.giftCount).toBeGreaterThan(0);
+      expect(row.totalAmount).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("exports the same worksheet through the permission-gated CSV route", async () => {
+    const res = await authGet("/api/reports/exports/donors-by-designation.csv");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/csv");
+    expect(res.headers["content-disposition"]).toContain("donors-by-designation-mtd-");
+    expect(res.text).toContain("donorName,donorEmail,designation,giftCount,totalAmount,lastGiftAt,periodFrom,periodThrough");
   });
 });
 

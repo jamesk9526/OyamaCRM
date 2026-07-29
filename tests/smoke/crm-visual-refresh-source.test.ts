@@ -193,7 +193,7 @@ describe("Donor CRM visual refresh foundation", () => {
   it("keeps historic acknowledgment updates date-bounded, confirmed, and audited", () => {
     const donationsPage = read("app/donations/page.tsx");
     const donationsRoute = read("server/src/routes/donations.ts");
-    const reportsApp = read("app/components/reports-app/ReportsApp.tsx");
+    const reportsWorkbook = read("app/components/donor-reports/DonorReportsSpreadsheet.tsx");
 
     expect(donationsPage).toContain("Mark date range thanked");
     expect(donationsPage).toContain("/api/donations/acknowledgments/bulk");
@@ -201,8 +201,9 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(donationsRoute).toContain('router.patch("/acknowledgments/bulk"');
     expect(donationsRoute).toContain("CONFIRMATION_REQUIRED");
     expect(donationsRoute).toContain("DONATION_ACKNOWLEDGMENT_BULK_MARKED");
-    expect(reportsApp).toContain("SAVED_REPORT_VIEWS_STORAGE_KEY");
-    expect(reportsApp).toContain("Print dialog opened for the current live report.");
+    expect(reportsWorkbook).toContain("/api/reports/donors-by-designation");
+    expect(reportsWorkbook).toContain("/api/reports/exports/donors-by-designation.csv");
+    expect(reportsWorkbook).toContain("handlePrint");
   });
 
   it("keeps recurring imports and communication builders in the unified workspace style", () => {

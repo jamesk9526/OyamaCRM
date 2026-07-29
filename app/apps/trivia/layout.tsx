@@ -12,7 +12,7 @@ export default function TriviaLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   // Projector display route must stay shell-free and audience-safe.
-  if (pathname.startsWith("/apps/trivia/display/") || pathname.startsWith("/apps/trivia/remote/")) {
+  if (pathname.startsWith("/apps/trivia/display/") || pathname === "/apps/trivia/remote" || pathname.startsWith("/apps/trivia/remote/")) {
     return <>{children}</>;
   }
 

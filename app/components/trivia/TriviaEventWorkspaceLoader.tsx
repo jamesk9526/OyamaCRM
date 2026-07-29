@@ -19,7 +19,7 @@ export default function TriviaEventWorkspaceLoader({ eventId, view }: { eventId:
   const scoreHistory = event ? api.state.scoreHistoryByEventId[event.id] ?? [] : [];
   useEffect(() => { if (event && view === "recovery") { void api.loadEventSnapshots(event.id); void api.loadEventAudit(event.id); } }, [api, event, view]);
   if (!event || !live) return <section className="border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800">Event not found. Open an event from the Trivia events list.</section>;
-  if (view === "overview") return <TriviaOverviewWorkspace event={event} live={live} scoreHistory={scoreHistory} />;
+  if (view === "overview") return <TriviaOverviewWorkspace event={event} live={live} scoreHistory={scoreHistory} onRefreshFromServer={api.refreshFromServer} />;
   if (view === "printables") return <TriviaPrintablesWorkspace event={event} live={live} scoreHistory={scoreHistory} />;
   if (view === "check-in") return <TriviaCheckInWorkspace event={event} live={live} scoreHistory={scoreHistory} onAddWalkInTeam={(name, players) => api.addTeam(event.id, { name, players })} onUpdateTeam={(teamId, updates) => api.updateTeam(event.id, teamId, updates)} onRemoveTeam={(teamId) => api.removeTeam(event.id, teamId)} />;
   if (view === "judge") return <TriviaJudgeWorkspace event={event} live={live} scoreHistory={scoreHistory} onApplyScore={(payload) => api.applyScoreAction(event.id, payload)} />;

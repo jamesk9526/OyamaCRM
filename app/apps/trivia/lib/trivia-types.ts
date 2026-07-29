@@ -45,6 +45,39 @@ export type TriviaQuestionType =
   | "video"
   | "host_prompt";
 
+/** Public registration pricing choices supported by a trivia event. */
+export type TriviaRegistrationPaymentMode = "free" | "per_seat" | "per_table" | "mixed";
+
+/** Payment handoff methods. Provider checkout is configured as an external hosted URL. */
+export type TriviaRegistrationPaymentProvider = "offline" | "stripe" | "paypal";
+
+export type TriviaTeamPaymentStatus = "not_required" | "pending" | "partial" | "paid" | "waived";
+
+/** Controls whether a linked Oyama Events roster refreshes during normal server polling. */
+export type TriviaEventsSyncMode = "automatic" | "manual";
+
+/** Public event page, capacity, registration, and payment configuration. */
+export interface TriviaRegistrationSettings {
+  enabled: boolean;
+  signupOpen: boolean;
+  publicSlug: string;
+  headline: string;
+  description: string;
+  accentColor: string;
+  contactEmail: string;
+  maximumTables: number;
+  maximumSeatsPerTable: number;
+  collectMemberNames: boolean;
+  paymentMode: TriviaRegistrationPaymentMode;
+  seatPrice: number;
+  tablePrice: number;
+  currency: string;
+  paymentProvider: TriviaRegistrationPaymentProvider;
+  paymentUrl: string;
+  paymentInstructions: string;
+  confirmationMessage: string;
+}
+
 /** Scoring action types used in audit history and undo logic. */
 export type TriviaScoreActionType = "standard" | "partial" | "bonus" | "penalty" | "wager" | "manual";
 
@@ -110,8 +143,22 @@ export interface TriviaTeam {
   tableNumber?: string;
   captainName?: string;
   contactName?: string;
+  contactEmail?: string;
   contactPhone?: string;
+  tableHostName?: string;
+  registrationSource?: "staff" | "public";
+  registrationCode?: string;
+  paymentChoice?: "seat" | "table";
+  paymentStatus?: TriviaTeamPaymentStatus;
+  paymentProvider?: TriviaRegistrationPaymentProvider;
+  amountDue?: number;
+  payerName?: string;
+  payerEmail?: string;
   notes?: string;
+  /** Durable EventSTUDIO table record backing this trivia team. */
+  eventsTableId?: string;
+  /** EventSTUDIO guest records represented by the player list. */
+  eventsGuestIds?: string[];
 }
 
 /** Individual trivia question model within a round. */
@@ -168,7 +215,13 @@ export interface TriviaEvent {
   scoringRules: TriviaScoringRules;
   displaySettings: TriviaDisplaySettings;
   welcomeScreen?: TriviaWelcomeScreen;
+  registrationSettings?: TriviaRegistrationSettings;
   gameTemplate?: TriviaGameTemplate;
+  /** Optional EventSTUDIO event used as the authoritative table and RSVP source. */
+  linkedEventsEventId?: string;
+  linkedEventsEventName?: string;
+  eventsSyncMode?: TriviaEventsSyncMode;
+  eventsLastSyncedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

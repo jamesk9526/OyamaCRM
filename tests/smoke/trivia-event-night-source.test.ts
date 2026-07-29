@@ -15,9 +15,88 @@ describe("Trivia event-night controls", () => {
     expect(route).toContain('router.delete("/events/:eventId/access-passes/:passId"');
     expect(route).toContain('access.pass.role === "host"');
     expect(route).toContain('action === "check_in"');
+    expect(route).toContain("randomInt(1000, 10_000)");
+    expect(route).toContain('value === "table_manager"');
     expect(accessPanel).toContain("Temporary sign-ins and remote controllers");
-    expect(remote).toContain("Event-night sign-in");
+    expect(accessPanel).toContain("Complete remote URL");
+    expect(accessPanel).toContain("create-qr-code");
+    expect(remote).toContain("Event-night remote");
+    expect(remote).toContain("Tables, guests, and check-in");
     expect(remote).toContain('"x-trivia-access"');
+  });
+
+  it("publishes capacity-aware public signup with table, seat, and mixed payment options", () => {
+    const route = read("server/src/routes/trivia.ts");
+    const settings = read("app/components/trivia/TriviaRegistrationSettingsPanel.tsx");
+    const publicPage = read("app/components/trivia/TriviaPublicRegistrationPage.tsx");
+
+    expect(route).toContain('publicRouter.get("/registration/:slug"');
+    expect(route).toContain('publicRouter.post("/registration/:slug"');
+    expect(route).toContain('"EVENT_FULL"');
+    expect(route).toContain("sendTriviaRegistrationConfirmation");
+    expect(route).toContain('router.post("/events/:eventId/registration-invitations"');
+    expect(route).toContain('"EVENT_PROMOTION"');
+    expect(route).toContain("amountDue");
+    expect(settings).toContain("Registration studio");
+    expect(settings).toContain("Invitation sender");
+    expect(settings).toContain("confirmedPermission");
+    expect(settings).toContain('"mixed"');
+    expect(settings).toContain("Stripe hosted checkout");
+    expect(publicPage).toContain("Table host name");
+    expect(publicPage).toContain("four-digit check-in code");
+    expect(publicPage).toContain("confirmation.email.status");
+  });
+
+  it("uses strict unique numeric table identifiers and exposes full member editing at check-in", () => {
+    const route = read("server/src/routes/trivia.ts");
+    const store = read("app/apps/trivia/lib/trivia-store.ts");
+    const state = read("app/apps/trivia/hooks/useTriviaModuleState.ts");
+    const checkIn = read("app/components/trivia/ops/TriviaCheckInWorkspace.tsx");
+
+    expect(route).toContain("normalizeTableNumber");
+    expect(route).toContain('"DUPLICATE_TABLE_NUMBER"');
+    expect(route).toContain("nextAvailableTableNumber");
+    expect(store).toContain("normalizeTriviaTableNumber");
+    expect(state).toContain("is already assigned to another team");
+    expect(checkIn).toContain("Table members — one person per line");
+    expect(checkIn).toContain("Save table and members");
+  });
+
+  it("guards the host console and keeps every temporary remote usable on phones", () => {
+    const hostControls = read("app/components/trivia/HostControlPanel.tsx");
+    const hostRoute = read("app/apps/trivia/events/[eventId]/host/page.tsx");
+    const remote = read("app/components/trivia/TriviaRemoteController.tsx");
+
+    expect(hostControls).toContain("Emergency hold");
+    expect(hostControls).toContain("Save safety checkpoint");
+    expect(hostControls).toContain("Tap the highlighted control again");
+    expect(hostControls).toContain("Shared state connected");
+    expect(hostRoute).toContain("Before going live");
+    expect(remote).toContain("safe-area-inset-bottom");
+    expect(remote).toContain("This phone is offline");
+    expect(remote).toContain("guardedAction");
+    expect(remote).toContain("Check in table");
+  });
+
+  it("links Trivia rosters to durable Oyama Events tables and public registrations", () => {
+    const triviaRoute = read("server/src/routes/trivia.ts");
+    const eventsRoute = read("server/src/routes/events.ts");
+    const linkPanel = read("app/components/trivia/TriviaEventsLinkPanel.tsx");
+    const publicRegistration = read("app/components/events/public/PublicEventRegistrationForm.tsx");
+    const schema = read("prisma/schema.prisma");
+
+    expect(triviaRoute).toContain("syncTriviaEventFromOyamaEvents");
+    expect(triviaRoute).toContain("syncTriviaEventToOyamaEvents");
+    expect(triviaRoute).toContain('router.patch("/events/:eventId/events-link"');
+    expect(triviaRoute).toContain('router.post("/events/:eventId/events-sync"');
+    expect(linkPanel).toContain("Manage tables & members in Events");
+    expect(linkPanel).toContain("Public RSVP page");
+    expect(eventsRoute).toContain("registeredTable");
+    expect(eventsRoute).toContain("nextOpenEventTableNumber");
+    expect(publicRegistration).toContain("A unique table number is assigned automatically");
+    expect(schema).toContain("@@unique([eventId, tableNumber])");
+    expect(schema).toContain("TRIVIA");
+    expect(schema).toContain("FUNDRAISER");
   });
 
   it("keeps builder and projector useable for event staff", () => {
@@ -72,12 +151,15 @@ describe("Trivia event-night controls", () => {
       "app/apps/trivia/events/[eventId]/scoreboard/page.tsx",
       "app/apps/trivia/events/[eventId]/recovery/page.tsx",
       "app/apps/trivia/events/[eventId]/printables/page.tsx",
+      "app/apps/trivia/events/[eventId]/registration/page.tsx",
       "app/apps/trivia/display/[eventId]/leaderboard/page.tsx",
       "app/apps/trivia/display/[eventId]/check-in/page.tsx",
+      "app/trivia/[slug]/page.tsx",
     ];
     paths.forEach((path) => expect(read(path).length).toBeGreaterThan(120));
     expect(shell).toContain('label: "Recovery"');
-    expect(shell).toContain('label: "Check-In Display"');
+    expect(shell).toContain('label: "Check-In Board"');
+    expect(shell).toContain('label: "Registration & page"');
     expect(projector).toContain('live.stage === "check_in_open"');
   });
 });

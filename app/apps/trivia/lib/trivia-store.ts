@@ -11,6 +11,7 @@ import type {
   TriviaLiveState,
   TriviaModuleState,
   TriviaQuestion,
+  TriviaRegistrationSettings,
   TriviaRound,
   TriviaScoreAction,
   TriviaTeam,
@@ -46,6 +47,53 @@ const DISPLAY_STAGES = new Set([
   "winner",
   "blank",
 ]);
+
+export function createDefaultTriviaRegistrationSettings(eventName = "trivia-night", eventId = ""): TriviaRegistrationSettings {
+  const slugBase = eventName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "trivia-night";
+  const suffix = eventId.replace(/^trivia-event-/, "").replace(/[^a-z0-9]/gi, "").slice(-6).toLowerCase();
+  return {
+    enabled: false,
+    signupOpen: false,
+    publicSlug: suffix ? `${slugBase}-${suffix}` : slugBase,
+    headline: eventName || "Trivia Night",
+    description: "Register your team, reserve a table, and join us for trivia night.",
+    accentColor: "#38bdf8",
+    contactEmail: "",
+    maximumTables: 30,
+    maximumSeatsPerTable: 8,
+    collectMemberNames: true,
+    paymentMode: "free",
+    seatPrice: 0,
+    tablePrice: 0,
+    currency: "USD",
+    paymentProvider: "offline",
+    paymentUrl: "",
+    paymentInstructions: "Payment instructions will be provided by the event organizer.",
+    confirmationMessage: "Your team is registered. Save your four-digit check-in code.",
+  };
+}
+
+/** Converts a table number to its canonical positive-integer identifier. */
+export function normalizeTriviaTableNumber(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  if (!/^\d{1,4}$/.test(text)) return null;
+  const number = Number.parseInt(text, 10);
+  return number >= 1 && number <= 9999 ? String(number) : null;
+}
+
+/** Finds the first available table number for an event roster. */
+export function nextTriviaTableNumber(teams: TriviaTeam[], excludedTeamId?: string): string {
+  const used = new Set(
+    teams
+      .filter((team) => team.id !== excludedTeamId)
+      .map((team) => normalizeTriviaTableNumber(team.tableNumber))
+      .filter((value): value is string => Boolean(value)),
+  );
+  for (let number = 1; number <= 9999; number += 1) {
+    if (!used.has(String(number))) return String(number);
+  }
+  throw new Error("No table numbers are available.");
+}
 
 function normalizeQuestion(input: TriviaQuestion): TriviaQuestion {
   return {
@@ -98,12 +146,35 @@ function normalizeTeam(input: TriviaTeam, index: number): TriviaTeam {
     tableNumber: input.tableNumber ?? "",
     captainName: input.captainName ?? "",
     contactName: input.contactName ?? "",
+    contactEmail: input.contactEmail ?? "",
     contactPhone: input.contactPhone ?? "",
+    tableHostName: input.tableHostName ?? input.captainName ?? "",
+    registrationSource: input.registrationSource ?? "staff",
+    registrationCode: input.registrationCode ?? "",
+    paymentChoice: input.paymentChoice,
+    paymentStatus: input.paymentStatus ?? "not_required",
+    paymentProvider: input.paymentProvider ?? "offline",
+    amountDue: Number.isFinite(input.amountDue) ? Math.max(0, Number(input.amountDue)) : 0,
+    payerName: input.payerName ?? "",
+    payerEmail: input.payerEmail ?? "",
     notes: input.notes ?? "",
   };
 }
 
 function normalizeEvent(input: TriviaEvent): TriviaEvent {
+  const registrationDefaults = createDefaultTriviaRegistrationSettings(input.name, input.id);
+  const usedTableNumbers = new Set<string>();
+  const normalizedTeams = Array.isArray(input.teams) ? input.teams.map((team, index) => {
+    const normalized = normalizeTeam(team, index);
+    let tableNumber = normalizeTriviaTableNumber(normalized.tableNumber);
+    if (!tableNumber || usedTableNumbers.has(tableNumber)) {
+      tableNumber = nextTriviaTableNumber(
+        Array.from(usedTableNumbers).map((number) => ({ id: number, tableNumber: number } as TriviaTeam)),
+      );
+    }
+    usedTableNumbers.add(tableNumber);
+    return { ...normalized, tableNumber };
+  }) : [];
   return {
     ...input,
     name: input.name || "Untitled Event",
@@ -111,7 +182,7 @@ function normalizeEvent(input: TriviaEvent): TriviaEvent {
     hostName: input.hostName || "",
     status: EVENT_STATUSES.has(String(input.status ?? "")) ? input.status : "draft",
     rounds: Array.isArray(input.rounds) ? input.rounds.map(normalizeRound) : [],
-    teams: Array.isArray(input.teams) ? input.teams.map((team, index) => normalizeTeam(team, index)) : [],
+    teams: normalizedTeams,
     scoringRules: input.scoringRules ?? createDefaultScoringRules(),
     displaySettings: input.displaySettings ?? createDefaultDisplaySettings(),
     welcomeScreen: {
@@ -120,6 +191,14 @@ function normalizeEvent(input: TriviaEvent): TriviaEvent {
       subtitle: input.welcomeScreen?.subtitle ?? "Get ready for a great night of trivia.",
       showHost: input.welcomeScreen?.showHost ?? true,
       showVenue: input.welcomeScreen?.showVenue ?? true,
+    },
+    registrationSettings: {
+      ...registrationDefaults,
+      ...(input.registrationSettings ?? {}),
+      maximumTables: Math.max(1, Number(input.registrationSettings?.maximumTables) || registrationDefaults.maximumTables),
+      maximumSeatsPerTable: Math.max(1, Number(input.registrationSettings?.maximumSeatsPerTable) || registrationDefaults.maximumSeatsPerTable),
+      seatPrice: Math.max(0, Number(input.registrationSettings?.seatPrice) || 0),
+      tablePrice: Math.max(0, Number(input.registrationSettings?.tablePrice) || 0),
     },
     createdAt: input.createdAt || new Date().toISOString(),
     updatedAt: input.updatedAt || new Date().toISOString(),

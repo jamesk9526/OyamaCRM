@@ -1,7 +1,7 @@
 // React hook for fully functional trivia module state and actions.
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   TriviaCheckInStatus,
   TriviaConnectionStatus,
@@ -14,6 +14,7 @@ import type {
   TriviaModuleState,
   TriviaQuestion,
   TriviaQuestionType,
+  TriviaRegistrationSettings,
   TriviaRound,
   TriviaRoundType,
   TriviaScoreAction,
@@ -23,7 +24,10 @@ import type {
 } from "@/app/apps/trivia/lib/trivia-types";
 import {
   createTriviaId,
+  createDefaultTriviaRegistrationSettings,
   ensureLiveStateCoverage,
+  nextTriviaTableNumber,
+  normalizeTriviaTableNumber,
   readTriviaState,
   replaceEvent,
   subscribeTriviaState,
@@ -113,8 +117,19 @@ interface UpdateTeamInput {
   tableNumber?: string;
   captainName?: string;
   contactName?: string;
+  contactEmail?: string;
   contactPhone?: string;
+  tableHostName?: string;
+  paymentStatus?: TriviaTeam["paymentStatus"];
+  amountDue?: number;
+  payerName?: string;
+  payerEmail?: string;
   notes?: string;
+}
+
+export interface TriviaTeamUpdateResult {
+  ok: boolean;
+  error?: string;
 }
 
 const TEAM_COLORS = ["#34d399", "#38bdf8", "#f59e0b", "#f472b6", "#a78bfa", "#fb7185"];
@@ -273,6 +288,7 @@ export function useTriviaModuleState() {
       teams: [],
       scoringRules: createDefaultScoringRules(),
       displaySettings: createDefaultDisplaySettings(),
+      registrationSettings: createDefaultTriviaRegistrationSettings(input.name, eventId),
       createdAt: nowIso,
       updatedAt: nowIso,
     };
@@ -368,6 +384,27 @@ export function useTriviaModuleState() {
     replaceStateWithEvent(nextEvent);
   }
 
+  function updateRegistrationSettings(eventId: string, input: Partial<TriviaRegistrationSettings>) {
+    const event = state.events.find((item) => item.id === eventId);
+    if (!event) return;
+    const defaults = createDefaultTriviaRegistrationSettings(event.name, event.id);
+    replaceStateWithEvent({
+      ...event,
+      registrationSettings: {
+        ...defaults,
+        ...(event.registrationSettings ?? {}),
+        ...input,
+        publicSlug: (input.publicSlug ?? event.registrationSettings?.publicSlug ?? defaults.publicSlug)
+          .toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64),
+        maximumTables: Math.max(1, Number(input.maximumTables ?? event.registrationSettings?.maximumTables ?? defaults.maximumTables)),
+        maximumSeatsPerTable: Math.max(1, Number(input.maximumSeatsPerTable ?? event.registrationSettings?.maximumSeatsPerTable ?? defaults.maximumSeatsPerTable)),
+        seatPrice: Math.max(0, Number(input.seatPrice ?? event.registrationSettings?.seatPrice ?? 0)),
+        tablePrice: Math.max(0, Number(input.tablePrice ?? event.registrationSettings?.tablePrice ?? 0)),
+      },
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   /** Applies a reusable game plan without deleting authored rounds or questions. */
   function applyGameTemplate(eventId: string, template: TriviaGameTemplate) {
     const event = state.events.find((item) => item.id === eventId);
@@ -407,7 +444,7 @@ export function useTriviaModuleState() {
       sortOrder: nextOrder,
       checkInStatus: "expected",
       checkedInAt: null,
-      tableNumber: "",
+      tableNumber: nextTriviaTableNumber(event.teams),
       captainName: "",
       contactName: "",
       contactPhone: "",
@@ -423,9 +460,16 @@ export function useTriviaModuleState() {
     replaceStateWithEvent(nextEvent);
   }
 
-  function updateTeam(eventId: string, teamId: string, input: UpdateTeamInput) {
+  function updateTeam(eventId: string, teamId: string, input: UpdateTeamInput): TriviaTeamUpdateResult {
     const event = state.events.find((item) => item.id === eventId);
-    if (!event) return;
+    if (!event) return { ok: false, error: "Event not found." };
+    const normalizedTableNumber = input.tableNumber === undefined ? undefined : normalizeTriviaTableNumber(input.tableNumber);
+    if (input.tableNumber !== undefined && !normalizedTableNumber) {
+      return { ok: false, error: "Table number must be a whole number from 1 to 9999." };
+    }
+    if (normalizedTableNumber && event.teams.some((team) => team.id !== teamId && normalizeTriviaTableNumber(team.tableNumber) === normalizedTableNumber)) {
+      return { ok: false, error: `Table ${normalizedTableNumber} is already assigned to another team.` };
+    }
 
     const teams = event.teams.map((team) => {
       if (team.id !== teamId) return team;
@@ -451,10 +495,16 @@ export function useTriviaModuleState() {
           : (nextCheckInStatus === "checked_in" || nextCheckInStatus === "late")
             ? team.checkedInAt ?? new Date().toISOString()
             : team.checkedInAt ?? null,
-        tableNumber: input.tableNumber ?? team.tableNumber,
+        tableNumber: normalizedTableNumber ?? team.tableNumber,
         captainName: input.captainName ?? team.captainName,
         contactName: input.contactName ?? team.contactName,
+        contactEmail: input.contactEmail ?? team.contactEmail,
         contactPhone: input.contactPhone ?? team.contactPhone,
+        tableHostName: input.tableHostName ?? team.tableHostName,
+        paymentStatus: input.paymentStatus ?? team.paymentStatus,
+        amountDue: input.amountDue ?? team.amountDue,
+        payerName: input.payerName ?? team.payerName,
+        payerEmail: input.payerEmail ?? team.payerEmail,
         notes: input.notes ?? team.notes,
       };
     });
@@ -466,6 +516,7 @@ export function useTriviaModuleState() {
     };
 
     replaceStateWithEvent(nextEvent);
+    return { ok: true };
   }
 
   function reorderTeam(eventId: string, teamId: string, direction: -1 | 1) {
@@ -1191,58 +1242,7 @@ export function useTriviaModuleState() {
     return merged;
   }
 
-  const api = useMemo(() => {
-    return {
-      state,
-      syncMode,
-      connectionStatus,
-      lastSyncedAt,
-      syncError,
-      snapshotsByEventId,
-      auditByEventId,
-      setSyncMode,
-      refreshFromServer,
-      createEvent,
-      createSampleEvent,
-      updateEventStatus,
-      updateEventSettings,
-      applyGameTemplate,
-      addTeam,
-      updateTeam,
-      reorderTeam,
-      removeTeam,
-      addRound,
-      addQuestion,
-      updateQuestion,
-      duplicateQuestion,
-      removeQuestion,
-      updateRound,
-      removeRound,
-      updateWelcomeScreen,
-      reorderRound,
-      moveQuestion,
-      applyScoreAction,
-      undoScoreActionById,
-      undoLastScoreAction,
-      setActiveRound,
-      setQuestionIndex,
-      setDisplayStage,
-      setWinner,
-      setTimerRunning,
-      setTimerRemaining,
-      resetTimer,
-      markProjectorOpened,
-      setProjectorConnectionStatus,
-      setScorekeeperConnectionStatus,
-      deleteEvent,
-      createEventSnapshot,
-      loadEventSnapshots,
-      recoverEventSnapshot,
-      loadEventAudit,
-      exportStatePackage,
-      importEventsFromJson,
-    };
-  }, [
+  return {
     state,
     syncMode,
     connectionStatus,
@@ -1250,7 +1250,47 @@ export function useTriviaModuleState() {
     syncError,
     snapshotsByEventId,
     auditByEventId,
-  ]);
-
-  return api;
+    setSyncMode,
+    refreshFromServer,
+    createEvent,
+    createSampleEvent,
+    updateEventStatus,
+    updateEventSettings,
+    updateRegistrationSettings,
+    applyGameTemplate,
+    addTeam,
+    updateTeam,
+    reorderTeam,
+    removeTeam,
+    addRound,
+    addQuestion,
+    updateQuestion,
+    duplicateQuestion,
+    removeQuestion,
+    updateRound,
+    removeRound,
+    updateWelcomeScreen,
+    reorderRound,
+    moveQuestion,
+    applyScoreAction,
+    undoScoreActionById,
+    undoLastScoreAction,
+    setActiveRound,
+    setQuestionIndex,
+    setDisplayStage,
+    setWinner,
+    setTimerRunning,
+    setTimerRemaining,
+    resetTimer,
+    markProjectorOpened,
+    setProjectorConnectionStatus,
+    setScorekeeperConnectionStatus,
+    deleteEvent,
+    createEventSnapshot,
+    loadEventSnapshots,
+    recoverEventSnapshot,
+    loadEventAudit,
+    exportStatePackage,
+    importEventsFromJson,
+  };
 }

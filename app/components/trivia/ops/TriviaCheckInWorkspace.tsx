@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TriviaCheckInStatus, TriviaEvent, TriviaLiveState, TriviaScoreAction, TriviaTeam } from "@/app/apps/trivia/lib/trivia-types";
 import { getCheckInSummary } from "@/app/apps/trivia/lib/trivia-selectors";
 import TriviaEventOpsHeader from "@/app/components/trivia/ops/TriviaEventOpsHeader";
@@ -10,7 +10,7 @@ interface TriviaCheckInWorkspaceProps {
   scoreHistory: TriviaScoreAction[];
   live: TriviaLiveState;
   onAddWalkInTeam: (name: string, players: string[]) => void;
-  onUpdateTeam: (teamId: string, updates: Partial<TriviaTeam>) => void;
+  onUpdateTeam: (teamId: string, updates: Partial<TriviaTeam>) => { ok: boolean; error?: string };
   onRemoveTeam: (teamId: string) => void;
 }
 
@@ -49,7 +49,10 @@ export default function TriviaCheckInWorkspace({
         const byName = team.name.toLowerCase().includes(query);
         const byCaptain = (team.captainName ?? "").toLowerCase().includes(query);
         const byTable = (team.tableNumber ?? "").toLowerCase().includes(query);
-        return byName || byCaptain || byTable;
+        const byCode = (team.registrationCode ?? "").includes(query);
+        const byEmail = (team.contactEmail ?? "").toLowerCase().includes(query);
+        const byMember = team.players.some((player) => player.toLowerCase().includes(query));
+        return byName || byCaptain || byTable || byCode || byEmail || byMember;
       });
   }, [event.teams, search]);
 
@@ -162,81 +165,93 @@ export default function TriviaCheckInWorkspace({
         <input
           value={search}
           onChange={(eventInput) => setSearch(eventInput.target.value)}
-          placeholder="Search by team, captain, or table"
+          placeholder="Search team, table host, guest, email, table, or four-digit code"
           className="w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
         />
       </div>
 
       <div className="space-y-2">
-        {filteredTeams.map((team) => {
-          const selected = team.checkInStatus ?? (team.active ? "expected" : "inactive");
-          return (
-            <article key={team.id} className="rounded-xl border border-slate-700 bg-slate-900/65 p-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-white">{team.name}</p>
-                  <p className="text-xs text-slate-300">Players: {team.playerCount ?? team.players.length} • Table {team.tableNumber || "--"}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleStatus(team, "checked_in")}
-                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
-                >
-                  Quick Check-In
-                </button>
-              </div>
-
-              <div className="grid gap-1 sm:grid-cols-5">
-                {CHECK_IN_STATUSES.map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => handleStatus(team, status)}
-                    className={`rounded-md border px-2 py-1 text-xs capitalize ${checkInButtonTone(status, selected)}`}
-                  >
-                    {status.replace("_", " ")}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-4">
-                <input
-                  value={team.tableNumber ?? ""}
-                  onChange={(eventInput) => onUpdateTeam(team.id, { tableNumber: eventInput.target.value })}
-                  placeholder="Table #"
-                  className="rounded-md border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                />
-                <input
-                  value={team.captainName ?? ""}
-                  onChange={(eventInput) => onUpdateTeam(team.id, { captainName: eventInput.target.value })}
-                  placeholder="Captain"
-                  className="rounded-md border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                />
-                <input
-                  value={String(team.playerCount ?? team.players.length)}
-                  onChange={(eventInput) => onUpdateTeam(team.id, { playerCount: Number.parseInt(eventInput.target.value, 10) || 0 })}
-                  placeholder="Players"
-                  className="rounded-md border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                />
-                <input
-                  value={team.contactPhone ?? ""}
-                  onChange={(eventInput) => onUpdateTeam(team.id, { contactPhone: eventInput.target.value })}
-                  placeholder="Contact phone"
-                  className="rounded-md border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-white"
-                />
-              </div>
-
-              <textarea
-                value={team.notes ?? ""}
-                onChange={(eventInput) => onUpdateTeam(team.id, { notes: eventInput.target.value })}
-                rows={2}
-                placeholder="Check-in notes"
-                className="w-full rounded-md border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-white"
-              />
-            </article>
-          );
-        })}
+        {filteredTeams.map((team) => <CheckInTeamCard key={team.id} team={team} onUpdateTeam={onUpdateTeam} onSetStatus={(status) => handleStatus(team, status)} />)}
       </div>
     </section>
+  );
+}
+
+function CheckInTeamCard({
+  team,
+  onUpdateTeam,
+  onSetStatus,
+}: {
+  team: TriviaTeam;
+  onUpdateTeam: (teamId: string, updates: Partial<TriviaTeam>) => { ok: boolean; error?: string };
+  onSetStatus: (status: TriviaCheckInStatus) => void;
+}) {
+  const [draft, setDraft] = useState({
+    name: team.name,
+    tableNumber: team.tableNumber ?? "",
+    tableHostName: team.tableHostName ?? team.captainName ?? "",
+    contactEmail: team.contactEmail ?? "",
+    contactPhone: team.contactPhone ?? "",
+    members: team.players.join("\n"),
+    paymentStatus: team.paymentStatus ?? "not_required",
+    amountDue: String(team.amountDue ?? 0),
+    payerName: team.payerName ?? "",
+    payerEmail: team.payerEmail ?? "",
+    notes: team.notes ?? "",
+  });
+  const [feedback, setFeedback] = useState("");
+  useEffect(() => {
+    setDraft({
+      name: team.name, tableNumber: team.tableNumber ?? "", tableHostName: team.tableHostName ?? team.captainName ?? "",
+      contactEmail: team.contactEmail ?? "", contactPhone: team.contactPhone ?? "", members: team.players.join("\n"),
+      paymentStatus: team.paymentStatus ?? "not_required", amountDue: String(team.amountDue ?? 0),
+      payerName: team.payerName ?? "", payerEmail: team.payerEmail ?? "", notes: team.notes ?? "",
+    });
+  }, [team]);
+  const selected = team.checkInStatus ?? (team.active ? "expected" : "inactive");
+  const input = "rounded-md border border-slate-600 bg-slate-950 px-2 py-2 text-xs text-white outline-none focus:border-cyan-400";
+
+  function save() {
+    const players = draft.members.split("\n").map((name) => name.trim()).filter(Boolean);
+    const result = onUpdateTeam(team.id, {
+      name: draft.name.trim() || team.name,
+      tableNumber: draft.tableNumber,
+      tableHostName: draft.tableHostName,
+      captainName: draft.tableHostName,
+      contactEmail: draft.contactEmail,
+      contactPhone: draft.contactPhone,
+      players,
+      playerCount: players.length,
+      paymentStatus: draft.paymentStatus as TriviaTeam["paymentStatus"],
+      amountDue: Math.max(0, Number(draft.amountDue) || 0),
+      payerName: draft.payerName,
+      payerEmail: draft.payerEmail,
+      notes: draft.notes,
+    });
+    setFeedback(result.ok ? `Table ${draft.tableNumber} and ${players.length} member${players.length === 1 ? "" : "s"} saved.` : result.error ?? "Could not save this table.");
+  }
+
+  return (
+    <article className="space-y-3 rounded-xl border border-slate-700 bg-slate-900/65 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><p className="text-sm font-semibold text-white">Table {team.tableNumber} · {team.name}</p><p className="text-xs text-slate-300">{team.players.length} named member{team.players.length === 1 ? "" : "s"} · Host {team.tableHostName || team.captainName || "--"} · RSVP code {team.registrationCode || "--"}</p></div>
+        <button type="button" onClick={() => onSetStatus("checked_in")} className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500">{selected === "checked_in" ? "Checked in" : "Quick check-in"}</button>
+      </div>
+      <div className="grid gap-1 sm:grid-cols-5">{CHECK_IN_STATUSES.map((status) => <button key={status} type="button" onClick={() => onSetStatus(status)} className={`rounded-md border px-2 py-1.5 text-xs capitalize ${checkInButtonTone(status, selected)}`}>{status.replace("_", " ")}</button>)}</div>
+      <div className="grid gap-2 md:grid-cols-4">
+        <label className="text-xs text-slate-300">Table number<input inputMode="numeric" pattern="[0-9]*" value={draft.tableNumber} onChange={(e) => setDraft((current) => ({ ...current, tableNumber: e.target.value.replace(/\D/g, "").slice(0, 4) }))} className={`${input} mt-1 w-full font-mono font-semibold`} /></label>
+        <label className="text-xs text-slate-300">Team name<input value={draft.name} onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300">Table host<input value={draft.tableHostName} onChange={(e) => setDraft((current) => ({ ...current, tableHostName: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300">Contact email<input type="email" value={draft.contactEmail} onChange={(e) => setDraft((current) => ({ ...current, contactEmail: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300">Contact phone<input value={draft.contactPhone} onChange={(e) => setDraft((current) => ({ ...current, contactPhone: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300">Payment status<select value={draft.paymentStatus} onChange={(e) => setDraft((current) => ({ ...current, paymentStatus: e.target.value as NonNullable<TriviaTeam["paymentStatus"]> }))} className={`${input} mt-1 w-full`}><option value="not_required">Not required</option><option value="pending">Pending</option><option value="partial">Partial</option><option value="paid">Paid</option><option value="waived">Waived</option></select></label>
+        <label className="text-xs text-slate-300">Amount due<input type="number" min={0} step="0.01" value={draft.amountDue} onChange={(e) => setDraft((current) => ({ ...current, amountDue: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300">Payer name<input value={draft.payerName} onChange={(e) => setDraft((current) => ({ ...current, payerName: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300 md:col-span-2">Payer email<input type="email" value={draft.payerEmail} onChange={(e) => setDraft((current) => ({ ...current, payerEmail: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+        <label className="text-xs text-slate-300 md:col-span-2">Internal notes<input value={draft.notes} onChange={(e) => setDraft((current) => ({ ...current, notes: e.target.value }))} className={`${input} mt-1 w-full`} /></label>
+      </div>
+      <label className="block text-xs text-slate-300">Table members — one person per line<textarea value={draft.members} onChange={(e) => setDraft((current) => ({ ...current, members: e.target.value }))} rows={Math.max(3, Math.min(8, draft.members.split("\n").length + 1))} className="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 p-3 text-sm text-white outline-none focus:border-cyan-400" placeholder="First and last name" /></label>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className={`text-xs ${feedback.includes("already") || feedback.includes("must") || feedback.includes("Could not") ? "text-rose-200" : "text-emerald-200"}`} aria-live="polite">{feedback}</p><button type="button" onClick={save} className="rounded-md bg-cyan-600 px-4 py-2 text-xs font-semibold text-white hover:bg-cyan-500">Save table and members</button></div>
+    </article>
   );
 }

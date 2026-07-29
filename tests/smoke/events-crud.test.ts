@@ -10,6 +10,7 @@ let app: Awaited<typeof import("@/server/src/index")>["default"];
 let token = "";
 let eventId = "";
 let ticketTypeId = "";
+let tableTicketTypeId = "";
 let guestId = "";
 let tableId = "";
 let orderId = "";
@@ -181,6 +182,42 @@ describe("events CRUD", () => {
     tableId = res.body.id;
   });
 
+  it("creates a table registration ticket with a fixed seat count", async () => {
+    const res = await request(app)
+      .post(`/api/events/${eventId}/ticket-types`)
+      .set(auth())
+      .send({
+        name: "Hosted Table",
+        price: 500,
+        capacity: 40,
+        available: 10,
+        isTable: true,
+        seatsIncluded: 4,
+        minPerOrder: 1,
+        maxPerOrder: 1,
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.isTable).toBe(true);
+    expect(Number(res.body.seatsIncluded)).toBe(4);
+    tableTicketTypeId = res.body.id;
+  });
+
+  it("rejects duplicate table numbers and auto-assigns the next open number", async () => {
+    const duplicate = await request(app)
+      .post(`/api/events/${eventId}/tables`)
+      .set(auth())
+      .send({ name: "Duplicate Table 1", capacity: 8, tableNumber: 1 });
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body?.error?.code).toBe("DUPLICATE_TABLE_NUMBER");
+
+    const automatic = await request(app)
+      .post(`/api/events/${eventId}/tables`)
+      .set(auth())
+      .send({ name: "Automatically Numbered Table", capacity: 8 });
+    expect(automatic.status).toBe(201);
+    expect(Number(automatic.body.tableNumber)).toBeGreaterThan(1);
+  });
+
   it("updates table details", async () => {
     expect(tableId).toBeTruthy();
 
@@ -267,6 +304,94 @@ describe("events CRUD", () => {
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(guestId);
     expect(res.body.table?.id).toBe(tableId);
+    expect(res.body.seat?.id).toBeTruthy();
+    expect(Number(res.body.seat?.seatNumber)).toBeGreaterThan(0);
+  });
+
+  it("protects table capacity and occupied seats while moving guests", async () => {
+    const table = await request(app)
+      .post(`/api/events/${eventId}/tables`)
+      .set(auth())
+      .send({ name: "Capacity Guard Table", capacity: 1 });
+    expect(table.status).toBe(201);
+
+    const firstGuest = await request(app)
+      .post(`/api/events/${eventId}/guests`)
+      .set(auth())
+      .send({
+        firstName: "Capacity",
+        lastName: "First",
+        email: `capacity-first-${Date.now()}@example.org`,
+        rsvpStatus: "CONFIRMED",
+      });
+    const secondGuest = await request(app)
+      .post(`/api/events/${eventId}/guests`)
+      .set(auth())
+      .send({
+        firstName: "Capacity",
+        lastName: "Second",
+        email: `capacity-second-${Date.now()}@example.org`,
+        rsvpStatus: "CONFIRMED",
+      });
+    expect(firstGuest.status).toBe(201);
+    expect(secondGuest.status).toBe(201);
+
+    const firstAssignment = await request(app)
+      .patch(`/api/events/guests/${firstGuest.body.id}/assign-table`)
+      .set(auth())
+      .send({ tableId: table.body.id });
+    expect(firstAssignment.status).toBe(200);
+    const occupiedSeatId = String(firstAssignment.body.seat?.id ?? "");
+    expect(occupiedSeatId).toBeTruthy();
+
+    const fullTable = await request(app)
+      .patch(`/api/events/guests/${secondGuest.body.id}/assign-table`)
+      .set(auth())
+      .send({ tableId: table.body.id });
+    expect(fullTable.status).toBe(409);
+    expect(fullTable.body?.error?.code).toBe("TABLE_FULL");
+
+    const occupiedSeat = await request(app)
+      .post(`/api/events/${eventId}/seats/${occupiedSeatId}/assign-guest`)
+      .set(auth())
+      .send({ guestId: secondGuest.body.id });
+    expect(occupiedSeat.status).toBe(409);
+    expect(occupiedSeat.body?.error?.code).toBe("SEAT_OCCUPIED");
+
+    const expanded = await request(app)
+      .patch(`/api/events/tables/${table.body.id}`)
+      .set(auth())
+      .send({ capacity: 2 });
+    expect(expanded.status).toBe(200);
+
+    const secondAssignment = await request(app)
+      .patch(`/api/events/guests/${secondGuest.body.id}/assign-table`)
+      .set(auth())
+      .send({ tableId: table.body.id });
+    expect(secondAssignment.status).toBe(200);
+    expect(secondAssignment.body.seat?.id).not.toBe(occupiedSeatId);
+
+    const unsafeShrink = await request(app)
+      .patch(`/api/events/tables/${table.body.id}`)
+      .set(auth())
+      .send({ capacity: 1 });
+    expect(unsafeShrink.status).toBe(409);
+    expect(unsafeShrink.body?.error?.code).toBe("TABLE_CAPACITY_CONFLICT");
+
+    const unassigned = await request(app)
+      .patch(`/api/events/guests/${secondGuest.body.id}/assign-table`)
+      .set(auth())
+      .send({ tableId: null });
+    expect(unassigned.status).toBe(200);
+    expect(unassigned.body.table).toBeNull();
+    expect(unassigned.body.seat).toBeNull();
+
+    const safeShrink = await request(app)
+      .patch(`/api/events/tables/${table.body.id}`)
+      .set(auth())
+      .send({ capacity: 1 });
+    expect(safeShrink.status).toBe(200);
+    expect(Number(safeShrink.body.capacity)).toBe(1);
   });
 
   it("checks in the guest", async () => {
@@ -592,6 +717,48 @@ describe("events CRUD", () => {
     expect(Array.isArray(res.body.guests)).toBe(true);
     expect(res.body.guests).toHaveLength(1);
     expect(res.body.guests[0].checkinCode).toMatch(/^[A-Z0-9]{6,}$/);
+    expect(["sent", "skipped", "failed"]).toContain(res.body.email?.status);
+    expect(typeof res.body.email?.detail).toBe("string");
+  });
+
+  it("creates a durable uniquely numbered table from public table registration", async () => {
+    expect(tableTicketTypeId).toBeTruthy();
+    const unique = Date.now();
+    const attendees = Array.from({ length: 4 }, (_value, index) => ({
+      firstName: `TableGuest${index + 1}`,
+      lastName: "Public",
+      email: index === 0 ? `table-host-${unique}@example.org` : `table-guest-${index + 1}-${unique}@example.org`,
+    }));
+
+    const res = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .send({
+        ticketTypeId: tableTicketTypeId,
+        quantity: 1,
+        tableName: "Public Registration Team",
+        consentAccepted: true,
+        attendees,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.table?.id).toBeTruthy();
+    expect(res.body.table?.name).toBe("Public Registration Team");
+    expect(Number(res.body.table?.tableNumber)).toBeGreaterThan(0);
+    expect(Number(res.body.table?.capacity)).toBe(4);
+    expect(res.body.guests).toHaveLength(4);
+
+    const tables = await request(app)
+      .get(`/api/events/${eventId}/tables`)
+      .set(auth());
+    expect(tables.status).toBe(200);
+    const registeredTable = (tables.body as Array<{
+      id: string;
+      tableNumber?: number;
+      guests?: Array<{ seatNumber?: number | null }>;
+    }>).find((row) => row.id === res.body.table.id);
+    expect(registeredTable).toBeTruthy();
+    expect(registeredTable?.guests).toHaveLength(4);
+    expect(new Set(registeredTable?.guests?.map((guest) => guest.seatNumber)).size).toBe(4);
   });
 
   it("accepts multi-attendee public registration and creates one check-in code per seat", async () => {

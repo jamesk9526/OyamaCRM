@@ -1,8 +1,41 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-22 (OyamaEmail builder, image delivery, and configurable production letter layout)
+Last updated: 2026-07-29 (Events table operations and public registration)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-07-29 EventSTUDIO Table and Registration Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Every event table has a server-enforced unique number | Working | `prisma/schema.prisma`, migration `20260729021500_event_table_number_uniqueness_and_types`, `server/src/services/event-table-service.ts`, and `server/src/routes/events.ts` enforce event-scoped numbers 1–9999 and auto-assign the next open number. |
+| Seat and table moves preserve roster integrity | Working | `server/src/services/event-seat-service.ts` performs transactional assignment, move, clear, and unassign operations; occupied seats and full tables return 409 conflicts without dropping the prior assignment. |
+| Capacity changes cannot strand assigned guests | Working | Table create/update validates capacities from 1–500, prevents shrinking below assigned guest count, and synchronizes removable empty seat records only after a safe update. |
+| Table organizer supports event-night scale and safe destructive actions | Working | `app/events/tables/page.tsx` adds table/number/host/sponsor/guest search, full-table visibility, mobile guest placement controls, visible server errors, and an in-app delete review that explicitly preserves guests as unassigned. |
+| Public table registration creates operational event records | Working | `server/src/routes/events.ts`, `PublicEventRegistrationForm.tsx`, and `tests/smoke/events-crud.test.ts`; table purchases persist the order, constituent, unique numbered table, seats, host, named guests, and individual check-in codes. |
+| Concurrent public registration protects capacity and availability | Working | The public endpoint is rate-limited and repeats event/ticket capacity checks inside a serializable transaction; ticket availability uses a conditional atomic decrement and concurrent conflicts return a safe retry response. |
+| Public RSVP confirmation email is truthful and non-destructive | Working | A successful registration is persisted before the organization-scoped transactional email attempt. Delivery is compliance-checked and logged; provider failure never rolls back the RSVP, and the browser receipt clearly preserves all order, seating, and check-in details. |
+| Event overview and setup use live readiness state | Working | `app/events/[eventId]/overview/page.tsx` reads page publish state and derives table, seat, check-in-code, host, payment, and capacity readiness from live APIs. `/events/setup` redirects away from its retired mock checklist to the real event selector. |
+
+Validation: the focused Events/Trivia integration lane passed 73/73 across Events CRUD, organization isolation, public TableLink, public table purchase, seat/capacity conflicts, and linked Trivia behavior. Focused ESLint completed with zero warnings or errors; web/server typechecks passed; the production build passed and generated 201 routes.
+
+## 2026-07-29 Trivia Registration and Remote Operations Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Event-night remotes are reachable without a CRM login and remain event/role scoped | Working | `/apps/trivia/remote`, `app/apps/layout.tsx`, and server-side temporary session validation in `server/src/routes/trivia.ts`. |
+| Remote sharing provides a four-digit code, full auto-connect URL, easy code-entry URL, and QR code | Working | `TemporaryEventAccessPanel.tsx`; active codes are globally unique, hashed at rest, rate-limited on claim, time-limited, and revocable. |
+| A dedicated tables-and-guests remote can add walk-ins, edit table hosts and member rosters, update contact/payment status, and check in teams | Working | `TriviaRemoteController.tsx` plus role-validated `add_team`, `update_team`, and `check_in` server actions. |
+| Public Trivia event pages and signups are generated from event settings | Working | `TriviaRegistrationSettingsPanel.tsx`, `/trivia/[slug]`, and unauthenticated read/register endpoints in `server/src/routes/trivia.ts`. |
+| Registration invitations support individual and list sends with communication safeguards | Working | The registration studio accepts single, comma-separated, semicolon-separated, newline-separated, and `Name <email>` recipients; authenticated server sends enforce explicit permission confirmation, do-not-contact, suppression, event-invitation preferences, deduplication, unsubscribe links, and per-recipient outcome reporting. |
+| Successful public RSVPs receive confirmation email | Working | After durable roster persistence, the public registration endpoint sends a transactional confirmation with event, canonical table number, named members, check-in code, amount due, and hosted payment link/instructions. RSVP success is retained and clearly reported even if the email provider is unavailable. |
+| Table number is a unique canonical event identifier | Working | Client and server normalize table numbers to positive integers 1–9999, assign the next available number to public registrations and walk-ins, reject duplicate remote/admin edits, and repair legacy blank or duplicate assignments during state normalization. |
+| Check-In exposes complete table/member operations | Working | `TriviaCheckInWorkspace.tsx` displays every named member and supports reviewed edits for the table ID, team, host, contacts, member roster, payer, payment status/amount, and internal notes. |
+| Capacity and pricing rules are enforced on the server | Working | Public registration enforces remaining-table and per-table seat limits and calculates free, per-seat, per-table, or mixed totals server-side. |
+| Stripe and PayPal handoff does not falsely mark payments paid | Working | Only HTTPS hosted checkout URLs are exposed; registrations remain pending until staff verification. Offline instructions are supported. Verified provider webhooks remain future integration work. |
+| Concurrent public signup is protected from stale whole-state browser sync | Working | Server state-save reconciliation preserves a newer server roster written by public signup or remote operations. |
+
+Validation: focused Trivia smoke coverage passed 6/6; web and server typechecks passed. Production build validation is recorded with the implementing change.
 
 ## 2026-07-22 DonorCRM v1.3 Shell Snapshot
 
@@ -272,16 +305,24 @@ Use only these status labels:
 
 ## Production Pass Phase 1/2 Snapshot (2026-05-14)
 
-## Oyama Reports App Snapshot (2026-05-26)
+## Donor CRM Reporting Workbook Snapshot (2026-07-29)
 
 | Item | Status | Evidence |
 |---|---|---|
-| Canonical `/reports` app replaces legacy reporting workspace | Partially Working | `app/reports/page.tsx`, `app/components/reports-app/ReportsApp.tsx`, `app/reports/donor-crm/page.tsx` redirect |
-| Prebuilt report registry with visible card statuses | Working | `app/components/reports-app/report-registry.ts` uses card labels `Working`, `Partial`, and `Coming Soon` |
-| Live-data-only report runner | Working | `app/components/reports-app/report-data-adapter.ts` calls `/api/donations` and `/api/reports/*`; no seed/demo rows are used |
-| Recharts dashboard, KPI cards, and data grid | Partially Working | `app/components/reports-app/ReportCharts.tsx`, `app/components/reports-app/ReportResultsWorkspace.tsx`; depends on endpoint coverage per report |
-| Report Builder Lite | Partially Working | `app/components/reports-app/ReportBuilderLite.tsx`; browser-session saved view only until backend persistence is implemented |
-| CSV/PDF/export and letter-list handoff | Partially Working | CSV exports loaded rows client-side; PDF uses browser print placeholder; letter-list persistence route still needed |
+| Canonical `/reports` route is part of the Donor CRM shell | Working | `app/reports/page.tsx`, `app/components/layout/AppShell.tsx`, `app/reports/builder/page.tsx`, `app/reports/manager/page.tsx`, `app/reports/donor-crm/page.tsx` |
+| Live month-to-date giving worksheet | Working | `app/components/donor-reports/DonorReportsSpreadsheet.tsx`, `GET /api/reports/donors-by-designation` in `server/src/routes/reports.ts` |
+| Donor-by-designation grid | Working | The API groups completed gifts from the first day of the current month through now by donor and designation. The grid supports in-place sorting and links each donor name to the live constituent record. |
+| Export and print | Working | `GET /api/reports/exports/donors-by-designation.csv` enforces `export:data`, protects CSV cells from formula injection, and produces the same MTD report dataset. The workbook opens a focused printable sheet rather than printing CRM chrome. |
+| Additional report sheets | Partially Working | The workbook is intentionally limited to two complete sheets; future campaign, retention, and custom date-range sheets require their own live API and authorized export contract. |
+
+## Donation Import Reconciliation Safeguards (2026-07-29)
+
+| Item | State | Evidence |
+|---|---|---|
+| Exact identifiers protected | Working | Donation import checks existing receipt numbers and transaction IDs within the organization. A single exact match is preserved by default; multiple exact matches are stopped for review. |
+| Ambiguous matches reviewable | Working | Same donor, UTC calendar day, amount, and status candidates are reported as potential matches, not called duplicates. They pause by default until staff reviews or elects to continue. |
+| Repeat files visible | Working | Browser-generated SHA-256 source fingerprints are retained in the import audit record. A previously committed source file requires a dry run and explicit acknowledgement before it can be imported again. |
+| Full import rollback | Partially Working | Import activity is audited; a controlled import rollback remains follow-up work. |
 
 | Item | Status | Evidence |
 |---|---|---|
@@ -600,10 +641,10 @@ Notes:
    - Added reproducible route+viewport QA script `scripts/qa/donor-browser-pass.mjs`.
    - Added DonorCRM QA report and module guide (`docs/modules/donor-crm/browser-qa-report.md`, `docs/modules/donor-crm/README.md`).
    - Added screenshot index and refreshed dated screenshot pack (`docs/screenshots/donor-crm/README.md`, `docs/screenshots/donor-crm/2026-05-13/*`).
-13. OShareview reporting expansion pass (scope switcher, admin operations, filter depth).
-   - Replaced chip-heavy report scope controls with a compact dropdown switcher in `app/components/reports/ReportsModuleToolbar.tsx`.
-   - Added admin reporting workspace and API-backed operational dataset via `app/components/reports/OShareviewAdminWorkspace.tsx` and `GET /api/reports/admin-summary` in `server/src/routes/reports.ts`.
-   - Added global filter controls and filter-aware exports plus printable packet generation in `app/reports/page.tsx`.
+13. Donor CRM reporting workbook replacement.
+   - Retired the standalone OShareview report UI and its separate app-switcher entry.
+   - Added the live `DonorReportsSpreadsheet` workspace at `/reports` with month-to-date giving and donor-by-designation sheets.
+   - Added `GET /api/reports/donors-by-designation` and a permission-gated CSV export route; printing opens a focused worksheet rather than CRM chrome.
    - Fixed a constituent profile runtime hook-order crash and improved mobile quick-action stacking in `app/constituents/[id]/page.tsx`.
 14. Steward AI bridge pairing automation pass (CRM URL/key pairing + desktop import).
    - Added bridge readiness and pairing key APIs in `server/src/routes/steward-ai.ts` (`GET /api/steward-ai/bridge/readiness`, `POST /api/steward-ai/bridge/pairing-key`).

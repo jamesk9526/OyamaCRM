@@ -53,16 +53,6 @@ const AVAILABLE_APPS: DrawerApp[] = [
     tone: "indigo",
     helper: "Standalone",
   },
-  {
-    id: "admin-reports",
-    label: "Oyama Reports",
-    description: "Dedicated Donor CRM reporting app for prebuilt reports, exports, and board summaries.",
-    href: "/reports",
-    tone: "blue",
-    helper: "Reports",
-    adminOnly: true,
-    openInNewTab: true,
-  },
 ];
 
 /** Visual grid icon (3×3 dots) used as the trigger button */
@@ -168,7 +158,7 @@ export default function AppsDrawer({ open, onClose }: AppsDrawerProps) {
             ))}
           </div>
           <p className="mt-3 text-[11px] text-slate-500">
-            DonorCRM, Compassion CRM, EventSTUDIO, OShareview, and HRM remain in the primary workspace switcher.
+            DonorCRM, Compassion CRM, EventSTUDIO, and HRM remain in the primary workspace switcher. Donor reports are available from DonorCRM.
           </p>
         </div>
 

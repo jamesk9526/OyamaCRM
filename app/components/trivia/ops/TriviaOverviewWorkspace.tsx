@@ -3,15 +3,17 @@
 import Link from "next/link";
 import type { TriviaEvent, TriviaLiveState, TriviaScoreAction } from "@/app/apps/trivia/lib/trivia-types";
 import TriviaEventOpsHeader from "@/app/components/trivia/ops/TriviaEventOpsHeader";
+import TriviaEventsLinkPanel from "@/app/components/trivia/TriviaEventsLinkPanel";
 
 interface TriviaOverviewWorkspaceProps {
   event: TriviaEvent;
   live: TriviaLiveState;
   scoreHistory: TriviaScoreAction[];
+  onRefreshFromServer?: () => Promise<void>;
 }
 
 /** Presents mission-control quick actions and event-night situational metrics. */
-export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: TriviaOverviewWorkspaceProps) {
+export default function TriviaOverviewWorkspace({ event, live, scoreHistory, onRefreshFromServer }: TriviaOverviewWorkspaceProps) {
   const base = `/apps/trivia/events/${event.id}`;
   const questions = event.rounds.flatMap((round) => round.questions);
   const missingAnswers = questions.filter((question) => !question.scoringAnswer.trim()).length;
@@ -29,6 +31,7 @@ export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: T
   return (
     <section className="space-y-4">
       <TriviaEventOpsHeader event={event} live={live} scoreHistory={scoreHistory} />
+      <TriviaEventsLinkPanel event={event} onRefresh={onRefreshFromServer} />
 
       <section className="trivia-dark-card border border-[#d1c7e8] bg-white"><header className="border-b border-[#d1c7e8] bg-[#f6f2ff] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Event readiness</p><h2 className="mt-1 text-lg font-semibold text-slate-900">What to finish before doors open</h2></header><div className="grid gap-px bg-[#d1c7e8] sm:grid-cols-2 xl:grid-cols-3">{readiness.map((item) => <div key={item.label} className="bg-white px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.label}</p><span className={item.ready ? "border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800" : "border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800"}>{item.ready ? "Ready" : "Review"}</span></div><p className="mt-1 text-xs text-slate-600">{item.detail}</p></div>)}</div></section>
 
@@ -37,6 +40,12 @@ export default function TriviaOverviewWorkspace({ event, live, scoreHistory }: T
           <p className="text-[11px] uppercase tracking-wide text-fuchsia-200">Night Of</p>
           <h2 className="text-lg font-semibold text-white mt-1">Check-In Open</h2>
           <p className="mt-1 text-sm text-fuchsia-100/90">Front desk workflow for expected, late, and walk-in teams.</p>
+        </Link>
+
+        <Link href={`${base}/registration`} className="rounded-xl border border-cyan-500/40 bg-cyan-500/15 p-4 hover:bg-cyan-500/25 transition-colors">
+          <p className="text-[11px] uppercase tracking-wide text-cyan-200">Before the event</p>
+          <h2 className="text-lg font-semibold text-white mt-1">Registration & Public Page</h2>
+          <p className="mt-1 text-sm text-cyan-100/90">Publish signup, configure table or seat pricing, and collect hosts and guest names.</p>
         </Link>
 
         <Link href={`${base}/host`} className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-4 hover:bg-emerald-500/25 transition-colors">

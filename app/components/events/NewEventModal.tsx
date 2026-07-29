@@ -17,6 +17,7 @@ export default function NewEventModal({
   onCreated: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     type: "GALA",
@@ -32,6 +33,7 @@ export default function NewEventModal({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       await apiFetch("/api/events", {
         method: "POST",
@@ -42,6 +44,8 @@ export default function NewEventModal({
         }),
       });
       onCreated();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "The event could not be created.");
     } finally {
       setSaving(false);
     }
@@ -76,8 +80,9 @@ export default function NewEventModal({
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
             >
-              {["GALA", "AUCTION", "RUN_WALK", "CONFERENCE", "WORKSHOP", "CULTIVATION", "STEWARDSHIP", "VOLUNTEER", "ONLINE", "OTHER"].map((t) => <option key={t}>{t}</option>)}
+              {["GALA", "TRIVIA", "FUNDRAISER", "AUCTION", "RUN_WALK", "CONFERENCE", "WORKSHOP", "CULTIVATION", "STEWARDSHIP", "VOLUNTEER", "ONLINE", "OTHER"].map((t) => <option key={t} value={t}>{t.replaceAll("_", " ")}</option>)}
             </select>
+            {["GALA", "TRIVIA", "FUNDRAISER", "AUCTION"].includes(form.type) ? <p className="mt-1 text-xs text-violet-700">Table-based setup is supported: configure table tickets, hosts, seats, public RSVP, and event-night check-in after creation.</p> : null}
           </div>
 
           <div>
@@ -141,6 +146,8 @@ export default function NewEventModal({
             />
           </div>
         </div>
+
+        {error ? <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{error}</div> : null}
 
         <div className="flex items-center justify-between border-t border-gray-200 pt-4">
           <p className="text-xs text-gray-500">Next step after creation: tickets, orders, guests, tables, sponsors, and check-in.</p>

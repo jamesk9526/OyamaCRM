@@ -335,9 +335,8 @@ function GlobalSearch({
             ]
           : moduleKey === "oshareview"
             ? [
-              { id: "quick-oshareview-home", type: "tool", label: "Open Reports Hub", sublabel: "Reporting workspace", href: "/reports", group: "tools" },
-              { id: "quick-oshareview-builder", type: "tool", label: "Open Report Builder", sublabel: "Create custom reports", href: "/reports/builder", group: "tools" },
-              { id: "quick-oshareview-segments", type: "tool", label: "Open Segments", sublabel: "Audience and cohort sets", href: "/reports/segments", group: "tools" },
+              { id: "quick-donor-reports", type: "tool", label: "Open donor reports", sublabel: "Month-to-date giving workbook", href: "/reports", group: "tools" },
+              { id: "quick-donor-designations", type: "tool", label: "Donors by designation", sublabel: "Month-to-date donor giving", href: "/reports?sheet=designation", group: "tools" },
               { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=donor&scopePath=${encodeURIComponent(pathname || "/reports")}`, group: "tools" },
             ]
             : [
@@ -2113,14 +2112,6 @@ function ModuleSwitcher({
       icon: <WorkspaceSwitcherIcon moduleKey="hrm" />,
       active: moduleKey === "hrm",
     },
-    {
-      key: "oshareview",
-      label: "Reports",
-      helper: "Donor reporting app",
-      href: "/reports",
-      icon: <WorkspaceSwitcherIcon moduleKey="oshareview" />,
-      active: pathname.startsWith("/reports"),
-    },
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
     if (module.key === "compassion") return settings.compassionEnabled;
@@ -2256,7 +2247,7 @@ function UserMenu({
     { label: "Roles", href: "/settings/roles", icon: "M12 3l7 4v5c0 4.5-2.9 8.5-7 9-4.1-.5-7-4.5-7-9V7l7-4zm-2 9 1.5 1.5L15 10" },
     { label: "Security", href: "/settings/security", icon: "M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4zm0 7v4m0 4h.01" },
     { label: "Modules", href: "/settings/modules", icon: "M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" },
-    { label: "Reports", href: "/reports", icon: "M4 19h16M7 15V9m5 6V5m5 10v-3", openInNewTab: true },
+    { label: "Reports", href: "/reports", icon: "M4 19h16M7 15V9m5 6V5m5 10v-3" },
     { label: "Imports", href: "/data-tools/import", icon: "M12 3v10m0 0 4-4m-4 4-4-4M5 17v2h14v-2" },
     { label: "Data Tools", href: "/data-tools", icon: "M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" },
     { label: "Custom Fields", href: "/custom-fields", icon: "M4 6h16M4 10h10M4 14h16M4 18h8M16 8v4m-2-2h4" },

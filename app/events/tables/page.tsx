@@ -3,7 +3,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -121,6 +121,10 @@ export default function EventTablesPage() {
   const [invitePhone, setInvitePhone] = useState("");
   const [inviteSeatId, setInviteSeatId] = useState("");
   const [seatAssignmentMap, setSeatAssignmentMap] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingDeleteTable, setPendingDeleteTable] = useState<Table | null>(null);
+  const [deletingTable, setDeletingTable] = useState(false);
+  const [tableSearch, setTableSearch] = useState("");
 
   useEffect(() => {
     if (workspaceEventId) {
@@ -138,6 +142,7 @@ export default function EventTablesPage() {
     }
 
     setLoading(true);
+    setActionError(null);
     try {
       const [tablesData, guestsData] = await Promise.all([
         apiFetch(`/api/events/${selectedEventId}/tables`),
@@ -150,6 +155,7 @@ export default function EventTablesPage() {
       setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.table));
     } catch (err) {
       console.error("Failed to load table data:", err);
+      setActionError(err instanceof Error ? err.message : "Tables could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -204,19 +210,37 @@ export default function EventTablesPage() {
   /** Metrics calculation */
   const totalCapacity = tables.reduce((sum, t) => sum + t.capacity, 0);
   const totalAssigned = tables.reduce((sum, t) => sum + t._count.guests, 0);
-  const openSeats = totalCapacity - totalAssigned;
+  const openSeats = Math.max(0, totalCapacity - totalAssigned);
   const overCapacityTables = tables.filter((t) => t._count.guests > t.capacity).length;
+  const visibleTables = useMemo(() => {
+    const query = tableSearch.trim().toLowerCase();
+    if (!query) return tables;
+    return tables.filter((table) => {
+      const guestNames = table.guests.map((guest) => (
+        `${guest.firstName ?? guest.constituent?.firstName ?? ""} ${guest.lastName ?? guest.constituent?.lastName ?? ""}`
+      )).join(" ");
+      return [
+        table.name,
+        table.tableNumber != null ? String(table.tableNumber) : "",
+        table.hostName ?? "",
+        table.sponsorName ?? "",
+        guestNames,
+      ].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [tableSearch, tables]);
 
   /** Assign guest to table */
   async function assignGuestToTable(guestId: string, tableId: string | null) {
     try {
+      setActionError(null);
       await apiFetch(`/api/events/guests/${guestId}/assign-table`, {
         method: "PATCH",
         body: JSON.stringify({ tableId }),
       });
-      loadData();
+      await loadData();
     } catch (err) {
       console.error("Failed to assign guest:", err);
+      setActionError(err instanceof Error ? err.message : "The guest could not be moved.");
     }
   }
 
@@ -232,6 +256,7 @@ export default function EventTablesPage() {
   ) {
     if (!selectedEventId) return;
     try {
+      setActionError(null);
       await apiFetch(`/api/events/${selectedEventId}/tables`, {
         method: "POST",
         body: JSON.stringify({ name, capacity, notes, tableNumber, isSponsored, hostName, shape }),
@@ -240,6 +265,7 @@ export default function EventTablesPage() {
       loadData();
     } catch (err) {
       console.error("Failed to create table:", err);
+      setActionError(err instanceof Error ? err.message : "The table could not be created.");
     }
   }
 
@@ -255,6 +281,7 @@ export default function EventTablesPage() {
     shape?: string,
   ) {
     try {
+      setActionError(null);
       await apiFetch(`/api/events/tables/${tableId}`, {
         method: "PATCH",
         body: JSON.stringify({ name, capacity, notes, tableNumber, isSponsored, hostName, shape }),
@@ -263,17 +290,24 @@ export default function EventTablesPage() {
       loadData();
     } catch (err) {
       console.error("Failed to update table:", err);
+      setActionError(err instanceof Error ? err.message : "The table could not be updated.");
     }
   }
 
   /** Delete table */
-  async function deleteTable(tableId: string) {
-    if (!confirm("Delete this table? Guests will be unassigned.")) return;
+  async function deleteTable() {
+    if (!pendingDeleteTable) return;
+    setDeletingTable(true);
     try {
-      await apiFetch(`/api/events/tables/${tableId}`, { method: "DELETE" });
-      loadData();
+      setActionError(null);
+      await apiFetch(`/api/events/tables/${pendingDeleteTable.id}`, { method: "DELETE" });
+      setPendingDeleteTable(null);
+      await loadData();
     } catch (err) {
       console.error("Failed to delete table:", err);
+      setActionError(err instanceof Error ? err.message : "The table could not be deleted.");
+    } finally {
+      setDeletingTable(false);
     }
   }
 
@@ -444,7 +478,7 @@ export default function EventTablesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-4 p-3 sm:space-y-6 sm:p-6">
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Events CRM", href: "/events/events" },
@@ -472,6 +506,28 @@ export default function EventTablesPage() {
           <WorkspaceRibbonButton label="Seating Help" href="/help?scope=events&scopePath=/events/tables" accentTone="purple" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
+
+      {actionError ? (
+        <div className="rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800" role="alert">
+          {actionError}
+        </div>
+      ) : null}
+
+      <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <label className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+          Find a table, host, or guest
+          <input
+            type="search"
+            value={tableSearch}
+            onChange={(event) => setTableSearch(event.target.value)}
+            placeholder="Search table number, name, host, sponsor, or guest"
+            className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal normal-case tracking-normal text-slate-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+          />
+        </label>
+        <p className="text-xs font-medium text-slate-500">
+          Showing {visibleTables.length} of {tables.length} table{tables.length === 1 ? "" : "s"}
+        </p>
+      </section>
 
       {/* Event Selector */}
       {!eventScoped ? (
@@ -530,9 +586,16 @@ export default function EventTablesPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
               No tables configured yet.
             </div>
+          ) : visibleTables.length === 0 ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-600">
+              <p className="font-semibold text-slate-900">No tables match this search.</p>
+              <button type="button" onClick={() => setTableSearch("")} className="mt-2 text-sm font-semibold text-violet-700 hover:text-violet-900">
+                Clear search
+              </button>
+            </div>
           ) : seatingView === "floor" ? (
             <div className="space-y-4">
-              <FloorPlanBoard tables={tables} />
+              <FloorPlanBoard tables={visibleTables} />
               {unassignedGuests.length > 0 ? (
                 <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
                   {unassignedGuests.length} guests are still unassigned. Switch to Guest Placement view to place them quickly.
@@ -541,13 +604,13 @@ export default function EventTablesPage() {
             </div>
           ) : seatingView === "list" ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-              {tables.map((table) => (
+              {visibleTables.map((table) => (
                 <TableCard
                   key={table.id}
                   table={table}
                   onEdit={() => setEditingTable(table)}
                   onOpenDetails={() => void openTableDetail(table)}
-                  onDelete={() => deleteTable(table.id)}
+                  onDelete={() => setPendingDeleteTable(table)}
                   onUnassignGuest={(guestId) => assignGuestToTable(guestId, null)}
                 />
               ))}
@@ -558,7 +621,7 @@ export default function EventTablesPage() {
                 <h2 className="text-lg font-bold text-gray-900 mb-1">Guest Placement View</h2>
                 <p className="text-xs text-gray-500">Assign unseated guests to available tables with live capacity context.</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {tables.map((table) => (
+                  {visibleTables.map((table) => (
                     <div key={table.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                       <p className="font-semibold text-slate-900">{table.name}</p>
                       <p className="text-slate-600">{table._count.guests}/{table.capacity} seated</p>
@@ -882,6 +945,38 @@ export default function EventTablesPage() {
           onUpdate={updateTable}
         />
       )}
+
+      {pendingDeleteTable && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-table-title">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700">Permanent table removal</p>
+            <h2 id="delete-table-title" className="mt-1 text-xl font-bold text-slate-950">
+              Delete {pendingDeleteTable.tableNumber != null ? `Table ${pendingDeleteTable.tableNumber}` : pendingDeleteTable.name}?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The table and its seat layout will be removed. Its {pendingDeleteTable._count.guests} assigned guest{pendingDeleteTable._count.guests === 1 ? "" : "s"} will stay on the event roster and become unassigned.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteTable(null)}
+                disabled={deletingTable}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Keep table
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteTable()}
+                disabled={deletingTable}
+                className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-50"
+              >
+                {deletingTable ? "Deleting…" : "Delete and unassign guests"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1055,7 +1150,7 @@ function UnassignedGuestRow({
   const [selectedTableId, setSelectedTableId] = useState("");
 
   return (
-    <div className="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded">
+    <div className="flex flex-col gap-3 rounded bg-gray-50 px-3 py-2 sm:flex-row sm:items-center">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">
           {guest.firstName || guest.constituent?.firstName || "—"}{" "}
@@ -1066,14 +1161,17 @@ function UnassignedGuestRow({
       <select
         value={selectedTableId}
         onChange={(e) => setSelectedTableId(e.target.value)}
-        className="px-2 py-1 text-sm border border-gray-300 rounded bg-white"
+        className="w-full rounded border border-gray-300 bg-white px-2 py-2 text-sm sm:w-auto sm:min-w-64 sm:py-1"
       >
         <option value="">Assign to table...</option>
-        {tables.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name} ({t._count.guests}/{t.capacity})
+        {tables.map((t) => {
+          const isFull = t._count.guests >= t.capacity;
+          return (
+          <option key={t.id} value={t.id} disabled={isFull}>
+            {t.tableNumber != null ? `#${t.tableNumber} · ` : ""}{t.name} ({t._count.guests}/{t.capacity}){isFull ? " — Full" : ""}
           </option>
-        ))}
+          );
+        })}
       </select>
       <button
         onClick={() => {
@@ -1083,7 +1181,7 @@ function UnassignedGuestRow({
           }
         }}
         disabled={!selectedTableId}
-        className="px-3 py-1 text-sm font-medium text-white bg-violet-600 rounded hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-1"
       >
         Assign
       </button>
@@ -1112,7 +1210,7 @@ function NewTableModal({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Table</h2>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Table Name *
@@ -1127,19 +1225,20 @@ function NewTableModal({
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Table # (optional)
+                Table # (auto if blank)
               </label>
               <input
                 type="number"
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 min="1"
+                max="9999"
                 placeholder="e.g. 1"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Capacity *
@@ -1149,6 +1248,7 @@ function NewTableModal({
                 value={capacity}
                 onChange={(e) => setCapacity(Number(e.target.value))}
                 min="1"
+                max="500"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
             </div>
@@ -1257,7 +1357,7 @@ function EditTableModal({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Edit Table</h2>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Table Name *
@@ -1271,18 +1371,19 @@ function EditTableModal({
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Table # (optional)
+                Table # *
               </label>
               <input
                 type="number"
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 min="1"
+                max="9999"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Capacity *
@@ -1292,6 +1393,7 @@ function EditTableModal({
                 value={capacity}
                 onChange={(e) => setCapacity(Number(e.target.value))}
                 min="1"
+                max="500"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
             </div>
@@ -1365,7 +1467,7 @@ function EditTableModal({
                 );
               }
             }}
-            disabled={!name.trim()}
+            disabled={!name.trim() || !tableNumber || Number(tableNumber) < 1 || Number(tableNumber) > 9999}
             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50"
           >
             Update Table

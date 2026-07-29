@@ -6,6 +6,7 @@
  */
 import { createHash, randomBytes } from "crypto";
 import { Router, type Request } from "express";
+import rateLimit from "express-rate-limit";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { logAudit } from "../lib/audit.js";
@@ -16,20 +17,52 @@ import { readPaymentGatewayPublicSettings, type PaymentGatewayPublicSettings } f
 import { createEventTable } from "../services/event-table-service.js";
 import { createCheckInRecord, reverseCheckIn, getCheckInLiveCounts } from "../services/checkin-service.js";
 import { createCheckInException, dismissCheckInException, listCheckInExceptions, resolveCheckInException } from "../services/checkin-exception-service.js";
-import { createEventEmailLog, listEventEmailLogs } from "../services/event-email-service.js";
-import { assignGuestToSeat, clearSeat, moveGuestToSeat } from "../services/event-seat-service.js";
+import { createEventEmailLog, listEventEmailLogs, setEventEmailLogStatus } from "../services/event-email-service.js";
+import {
+  assignGuestToOpenTableSeat,
+  assignGuestToSeat,
+  clearSeat,
+  EventSeatServiceError,
+  moveGuestToSeat,
+  unassignGuestFromTable,
+} from "../services/event-seat-service.js";
 import { syncEventTableSeats, updateEventTable } from "../services/event-table-service.js";
 import { issueTableLinkAccessToken, revokeTableLinkAccessTokens, verifyTableLinkAccessToken } from "../services/tablelink-access-service.js";
 import { completeGuestInvite, createGuestInvite, markGuestInviteOpened } from "../services/guest-invite-service.js";
 import { createWalkInGuest, listEventGuests } from "../services/event-guest-service.js";
 import { getEventReportingSnapshot } from "../services/event-reporting-service.js";
-import type { EventCheckInExceptionStatus, EventGuestPaymentStatus, EventGuestRsvpStatus, Prisma } from "@prisma/client";
+import { evaluateRecipientEligibility } from "../services/email-compliance.js";
+import { createOrganizationEmailSender } from "../services/smtp-service.js";
+import type {
+  EventCheckInExceptionStatus,
+  EventGuestPaymentStatus,
+  EventGuestRsvpStatus,
+  EventTableSeatStatus,
+  EventTableStatus,
+  Prisma,
+} from "@prisma/client";
 
 const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
 const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
 const MAX_SEATS_PER_PUBLIC_REGISTRATION = 50;
 const MAX_CHECKIN_CODE_GENERATION_ATTEMPTS = 10;
+const MAX_EVENT_TABLE_CAPACITY = 500;
+const EVENT_TABLE_SHAPES = new Set(["round", "rectangle", "rectangular", "square"]);
+const EVENT_TABLE_STATUSES = new Set(["DRAFT", "OPEN", "SUBMITTED", "LOCKED", "EVENT_DAY", "ARCHIVED"]);
+const EVENT_TABLE_SEAT_STATUSES = new Set(["EMPTY", "RESERVED", "INVITED", "CONFIRMED", "CHECKED_IN", "CANCELLED"]);
+const publicEventRegistrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: "TOO_MANY_REGISTRATIONS",
+      message: "Too many registration attempts. Wait a while or contact the event organizer.",
+    },
+  },
+});
 const CHECK_IN_EXCEPTION_STATUSES = new Set<EventCheckInExceptionStatus>(["OPEN", "RESOLVED", "DISMISSED"]);
 const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "api",
@@ -504,6 +537,119 @@ function buildEventPageUrl(origin: string, pageSlug: string): string {
   return `${normalizedOrigin}/${pageSlug}`;
 }
 
+function escapeEventEmailHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function sendPublicEventRegistrationConfirmation(params: {
+  organizationId: string;
+  event: { id: string; name: string; startDate: Date };
+  buyer: NormalizedPublicRegistrationAttendee;
+  order: { orderNumber: string };
+  guests: Array<{ id: string; firstName: string | null; lastName: string | null; checkinCode: string | null }>;
+  table: { id: string; name: string; tableNumber: number | null; capacity: number; hostName: string | null } | null;
+  ticketName: string;
+  ticketUnits: number;
+  totalAmount: number;
+}): Promise<{ status: "sent" | "skipped" | "failed"; detail: string }> {
+  const subject = `Registration confirmed: ${params.event.name}`;
+  let emailLogId: string | null = null;
+  try {
+    const log = await createEventEmailLog({
+      eventId: params.event.id,
+      tableId: params.table?.id,
+      guestId: params.guests[0]?.id,
+      type: "GUEST_CONFIRMATION",
+      recipientEmail: params.buyer.email,
+      subject,
+    });
+    emailLogId = log.id;
+  } catch {
+    // Email delivery still proceeds if the operational log is temporarily unavailable.
+  }
+
+  try {
+    const eligibility = await evaluateRecipientEligibility({
+      organizationId: params.organizationId,
+      purpose: "TRANSACTIONAL",
+      candidates: [{ email: params.buyer.email }],
+    });
+    if (!eligibility.recipients.includes(params.buyer.email)) {
+      const decision = eligibility.decisions.find((item) => item.email === params.buyer.email);
+      const reason = decision?.ineligibilityReason ?? "This address is not eligible for transactional email.";
+      if (emailLogId) {
+        try {
+          await setEventEmailLogStatus(emailLogId, "FAILED", reason);
+        } catch {
+          // The RSVP receipt remains the source of truth when logging is unavailable.
+        }
+      }
+      return { status: "skipped", detail: reason };
+    }
+
+    const eventDate = params.event.startDate.toUTCString();
+    const attendeeLines = params.guests.map((guest) => {
+      const name = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim() || "Guest";
+      return `${name}${guest.checkinCode ? ` — check-in code ${guest.checkinCode}` : ""}`;
+    });
+    const tableSummary = params.table
+      ? `Table ${params.table.tableNumber ?? "pending"} — ${params.table.name} (${params.table.capacity} seats)`
+      : "Individual registration";
+    const amountSummary = params.totalAmount > 0
+      ? `$${params.totalAmount.toFixed(2)} is due. Event staff will follow up with payment instructions.`
+      : "No payment is due.";
+    const attendeeHtml = params.guests
+      .map((guest) => {
+        const name = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim() || "Guest";
+        return `<li style="margin:6px 0">${escapeEventEmailHtml(name)}${guest.checkinCode ? ` — code <strong>${escapeEventEmailHtml(guest.checkinCode)}</strong>` : ""}</li>`;
+      })
+      .join("");
+    const html = `<!doctype html><html><body style="margin:0;background:#f3f4f6;font-family:Segoe UI,Arial,sans-serif;color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #d7dce5"><tr><td style="padding:24px;border-top:5px solid #5b3fa3"><div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#5b3fa3">Oyama Events</div><h1 style="margin:8px 0 0;font-size:26px;color:#172033">Registration confirmed</h1></td></tr><tr><td style="padding:0 24px 24px;font-size:15px;line-height:1.6"><p>Hello ${escapeEventEmailHtml(params.buyer.firstName)},</p><p>Your registration for <strong>${escapeEventEmailHtml(params.event.name)}</strong> was successful.</p><div style="margin:18px 0;padding:16px;background:#f4f1fb;border-left:4px solid #5b3fa3"><div><strong>Event:</strong> ${escapeEventEmailHtml(params.event.name)}</div><div><strong>Date:</strong> ${escapeEventEmailHtml(eventDate)}</div><div><strong>Registration:</strong> ${escapeEventEmailHtml(params.ticketName)} × ${params.ticketUnits}</div><div><strong>Order:</strong> ${escapeEventEmailHtml(params.order.orderNumber)}</div><div><strong>Seating:</strong> ${escapeEventEmailHtml(tableSummary)}</div><div><strong>Payment:</strong> ${escapeEventEmailHtml(amountSummary)}</div></div><p><strong>Guests and check-in codes</strong></p><ul style="padding-left:20px">${attendeeHtml}</ul><p>Please keep this email available for check-in.</p></td></tr></table></td></tr></table></body></html>`;
+
+    const sender = await createOrganizationEmailSender(params.organizationId);
+    await sender.send({
+      to: params.buyer.email,
+      subject,
+      text: [
+        `Your registration for ${params.event.name} was successful.`,
+        `Date: ${eventDate}`,
+        `Registration: ${params.ticketName} x ${params.ticketUnits}`,
+        `Order: ${params.order.orderNumber}`,
+        `Seating: ${tableSummary}`,
+        `Payment: ${amountSummary}`,
+        "",
+        "Guests and check-in codes:",
+        ...attendeeLines,
+      ].join("\n"),
+      html,
+      fromNameOverride: params.event.name,
+    });
+    if (emailLogId) {
+      try {
+        await setEventEmailLogStatus(emailLogId, "SENT");
+      } catch {
+        // Provider acceptance is still a successful delivery attempt.
+      }
+    }
+    return { status: "sent", detail: `Confirmation sent to ${params.buyer.email}.` };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "The confirmation email could not be sent.";
+    if (emailLogId) {
+      try {
+        await setEventEmailLogStatus(emailLogId, "FAILED", detail);
+      } catch {
+        // Registration remains valid even if the operational email log cannot be updated.
+      }
+    }
+    return { status: "failed", detail };
+  }
+}
+
 function createEventPageDeploymentHistoryEntry(
   status: EventPageBuilderStatus,
   pageSlug: string,
@@ -667,6 +813,37 @@ interface EventOrderItemRequest {
 function normalizePositiveInt(value: unknown, fallback = 1): number {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeEventTableNumber(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 9999 ? parsed : null;
+}
+
+function normalizeEventTableCapacity(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_EVENT_TABLE_CAPACITY ? parsed : null;
+}
+
+function eventSeatErrorResponse(error: unknown): { status: number; code: string; message: string } | null {
+  if (!(error instanceof EventSeatServiceError)) return null;
+  if (error.code === "SEAT_NOT_FOUND" || error.code === "GUEST_NOT_FOUND" || error.code === "TABLE_NOT_FOUND") {
+    return { status: 404, code: error.code, message: error.message };
+  }
+  return { status: 409, code: error.code, message: error.message };
+}
+
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
+}
+
+function nextOpenEventTableNumber(existingNumbers: Array<number | null>): number {
+  const used = new Set(existingNumbers.filter((value): value is number => Number.isInteger(value) && Number(value) > 0));
+  for (let tableNumber = 1; tableNumber <= 9999; tableNumber += 1) {
+    if (!used.has(tableNumber)) return tableNumber;
+  }
+  throw new Error("No table numbers are available for this event.");
 }
 
 function normalizeEventOrderStatus(value: unknown): "PENDING" | "CONFIRMED" | "CANCELLED" | "REFUNDED" {
@@ -930,7 +1107,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
 });
 
 /** POST /api/events/public/page/:pageSlug/register — Public self-registration for a published event page. */
-router.post("/public/page/:pageSlug/register", async (req, res) => {
+router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, async (req, res) => {
   const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
   if (!pageSlug) {
     res.status(400).json({
@@ -1097,8 +1274,20 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
   const orderStatus = totalAmount > 0 ? "PENDING" : "CONFIRMED";
   const orderNumber = generatePublicOrderNumber();
   const partyName = `${buyer.firstName} ${buyer.lastName}`.trim();
+  const requestedTableName = normalizeTextInput(body.tableName, 120);
 
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const persistRegistration = () => prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const [currentEventGuestCount, currentTicketGuestCount] = await Promise.all([
+      tx.eventGuest.count({ where: { eventId: event.id } }),
+      tx.eventGuest.count({ where: { eventId: event.id, ticketTypeId: ticketType.id } }),
+    ]);
+    if (event.capacity != null && event.capacity > 0 && currentEventGuestCount + requestedSeats > event.capacity) {
+      throw new Error("PUBLIC_EVENT_CAPACITY_CONFLICT");
+    }
+    if (ticketType.capacity != null && ticketType.capacity > 0 && currentTicketGuestCount + requestedSeats > ticketType.capacity) {
+      throw new Error("PUBLIC_TICKET_CAPACITY_CONFLICT");
+    }
+
     const existingConstituent = await tx.constituent.findFirst({
       where: {
         organizationId: event.organizationId,
@@ -1153,9 +1342,60 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
     });
 
     if (ticketType.available != null) {
-      await tx.ticketType.update({
-        where: { id: ticketType.id },
+      const availabilityUpdate = await tx.ticketType.updateMany({
+        where: { id: ticketType.id, available: { gte: ticketUnits } },
         data: { available: { decrement: ticketUnits } },
+      });
+      if (availabilityUpdate.count !== 1) {
+        throw new Error("PUBLIC_TICKET_AVAILABILITY_CONFLICT");
+      }
+    }
+
+    let registeredTable: {
+      id: string;
+      name: string;
+      tableNumber: number | null;
+      capacity: number;
+      hostName: string | null;
+      seats: Array<{ id: string; seatNumber: number }>;
+    } | null = null;
+
+    if (ticketType.isTable) {
+      const existingTableNumbers = await tx.eventTable.findMany({
+        where: { eventId: event.id },
+        select: { tableNumber: true },
+      });
+      const tableNumber = nextOpenEventTableNumber(existingTableNumbers.map((table) => table.tableNumber));
+      registeredTable = await tx.eventTable.create({
+        data: {
+          eventId: event.id,
+          name: requestedTableName || `${partyName} Table`,
+          capacity: requestedSeats,
+          tableNumber,
+          status: "SUBMITTED",
+          hostName: partyName,
+          hostEmail: buyer.email,
+          hostPhone: buyer.phone || undefined,
+          notes: `Created from public registration order ${order.orderNumber}.`,
+          seats: {
+            create: Array.from({ length: requestedSeats }, (_value, index) => ({
+              eventId: event.id,
+              seatNumber: index + 1,
+              status: "CONFIRMED",
+            })),
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          tableNumber: true,
+          capacity: true,
+          hostName: true,
+          seats: {
+            orderBy: { seatNumber: "asc" },
+            select: { id: true, seatNumber: true },
+          },
+        },
       });
     }
 
@@ -1164,12 +1404,16 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
       const attendee = attendees[index] ?? {};
       const fallbackName = createGuestNameFallback(index, partyName);
       const checkinCode = await generateUniqueCheckinCode(tx);
+      const assignedSeat = registeredTable?.seats[index] ?? null;
       guests.push(await tx.eventGuest.create({
         data: {
           eventId: event.id,
           orderId: order.id,
           constituentId: index === 0 ? constituent.id : undefined,
           ticketTypeId: ticketType.id,
+          tableId: registeredTable?.id,
+          seatId: assignedSeat?.id,
+          seatNumber: assignedSeat?.seatNumber,
           firstName: attendee.firstName || (index === 0 ? buyer.firstName : fallbackName.firstName),
           lastName: attendee.lastName || (index === 0 ? buyer.lastName : fallbackName.lastName),
           email: attendee.email || (index === 0 ? buyer.email : undefined),
@@ -1212,7 +1456,45 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
       },
     });
 
-    return { order, guests };
+    return { order, guests, table: registeredTable };
+  }, { isolationLevel: "Serializable" });
+
+  let result: Awaited<ReturnType<typeof persistRegistration>>;
+  try {
+    result = await persistRegistration();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "PUBLIC_EVENT_CAPACITY_CONFLICT") {
+      res.status(409).json({ error: { code: "EVENT_CAPACITY_REACHED", message: "Not enough event capacity remains for this registration." } });
+      return;
+    }
+    if (message === "PUBLIC_TICKET_CAPACITY_CONFLICT" || message === "PUBLIC_TICKET_AVAILABILITY_CONFLICT") {
+      res.status(409).json({ error: { code: "TICKET_SOLD_OUT", message: "That ticket option just sold out. Refresh the page to see current availability." } });
+      return;
+    }
+    if (isPrismaUniqueConstraintError(error) || (error && typeof error === "object" && "code" in error && error.code === "P2034")) {
+      res.status(409).json({
+        error: { code: "REGISTRATION_CONFLICT", message: "Another registration was completed at the same time. Please submit again." },
+      });
+      return;
+    }
+    console.error("Public event registration failed:", error);
+    res.status(500).json({
+      error: { code: "REGISTRATION_FAILED", message: "Registration could not be saved. No payment was collected. Please try again." },
+    });
+    return;
+  }
+
+  const emailResult = await sendPublicEventRegistrationConfirmation({
+    organizationId: event.organizationId,
+    event,
+    buyer,
+    order: result.order,
+    guests: result.guests,
+    table: result.table,
+    ticketName: ticketType.name,
+    ticketUnits,
+    totalAmount,
   });
 
   res.status(201).json({
@@ -1227,9 +1509,22 @@ router.post("/public/page/:pageSlug/register", async (req, res) => {
       },
     },
     guests: result.guests,
+    table: result.table ? {
+      id: result.table.id,
+      name: result.table.name,
+      tableNumber: result.table.tableNumber,
+      capacity: result.table.capacity,
+      hostName: result.table.hostName,
+    } : null,
     message: totalAmount > 0
       ? "Registration saved. Payment collection is not connected yet, so staff will follow up."
       : "Registration confirmed.",
+    email: {
+      status: emailResult.status,
+      detail: emailResult.status === "sent"
+        ? emailResult.detail
+        : "Registration is complete, but a confirmation email could not be delivered. Save the order and check-in codes shown here.",
+    },
   });
 });
 
@@ -3186,7 +3481,8 @@ router.post("/:eventId/guests/import", async (req, res) => {
           : null;
 
       if (dryRun) {
-        if (existing) duplicateResolution === "update" ? updated++ : skipped++;
+        if (existing && duplicateResolution === "update") updated++;
+        else if (existing) skipped++;
         else created++;
         continue;
       }
@@ -3271,12 +3567,49 @@ router.patch("/guests/:guestId", async (req, res) => {
     partyName,
   } = req.body;
 
+  if (seatNumber !== undefined) {
+    res.status(400).json({
+      error: {
+        code: "USE_SEATING_WORKSPACE",
+        message: "Seat numbers are managed by the table organizer. Assign the guest to a table or a specific seat instead.",
+      },
+    });
+    return;
+  }
+  if (tableId !== undefined) {
+    if (tableId !== null && typeof tableId !== "string") {
+      res.status(400).json({ error: { code: "INVALID_TABLE", message: "tableId must be a table identifier or null." } });
+      return;
+    }
+    try {
+      const normalizedTableId = typeof tableId === "string" ? tableId.trim() : "";
+      if (normalizedTableId) {
+        await assignGuestToOpenTableSeat({
+          eventId: guest.eventId,
+          tableId: normalizedTableId,
+          guestId: guest.id,
+        });
+      } else {
+        await unassignGuestFromTable({ eventId: guest.eventId, guestId: guest.id });
+      }
+    } catch (error) {
+      const mapped = eventSeatErrorResponse(error);
+      if (mapped) {
+        res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+        return;
+      }
+      res.status(500).json({
+        error: { code: "TABLE_ASSIGNMENT_FAILED", message: "The guest could not be moved. Existing seating was preserved." },
+      });
+      return;
+    }
+  }
+
   const updated = await prisma.eventGuest.update({
     where: { id: req.params.guestId },
     data: {
       ...(constituentId !== undefined && { constituentId }),
       ...(ticketTypeId !== undefined && { ticketTypeId }),
-      ...(tableId !== undefined && { tableId }),
       ...(firstName !== undefined && { firstName }),
       ...(lastName !== undefined && { lastName }),
       ...(email !== undefined && { email }),
@@ -3289,7 +3622,6 @@ router.patch("/guests/:guestId", async (req, res) => {
       ...(paymentStatus !== undefined && { paymentStatus }),
       ...(rsvpStatus !== undefined && { rsvpStatus }),
       ...(mealPreference !== undefined && { mealPreference }),
-      ...(seatNumber !== undefined && { seatNumber }),
       ...(partyName !== undefined && { partyName }),
     },
     include: {
@@ -3357,7 +3689,7 @@ router.get("/:eventId/tables", async (req, res) => {
       },
       _count: { select: { guests: true } },
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ tableNumber: "asc" }, { name: "asc" }],
   });
 
   res.json(tables);
@@ -3396,42 +3728,94 @@ router.post("/:eventId/tables", async (req, res) => {
     status,
   } = req.body;
 
-  const parsedTableNumber =
-    tableNumber === undefined
-      ? undefined
-      : tableNumber === null || tableNumber === ""
-        ? null
-        : Number(tableNumber);
-
-  if (
-    parsedTableNumber !== undefined &&
-    parsedTableNumber !== null &&
-    !Number.isInteger(parsedTableNumber)
-  ) {
+  const normalizedName = normalizeTextInput(name, 120);
+  if (!normalizedName || (typeof name === "string" && name.trim().length > 120)) {
     res.status(400).json({
-      error: { code: "INVALID_INPUT", message: "tableNumber must be an integer when provided" },
+      error: { code: "INVALID_TABLE_NAME", message: "Table name is required and must be 120 characters or fewer." },
+    });
+    return;
+  }
+  const parsedCapacity = normalizeEventTableCapacity(capacity ?? 10);
+  if (parsedCapacity === null) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_CAPACITY", message: `Table capacity must be a whole number from 1 through ${MAX_EVENT_TABLE_CAPACITY}.` },
+    });
+    return;
+  }
+  const normalizedShape = normalizeTextInput(shape ?? "round", 20).toLowerCase();
+  if (!EVENT_TABLE_SHAPES.has(normalizedShape)) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_SHAPE", message: "Table shape must be round, rectangular, or square." },
+    });
+    return;
+  }
+  const normalizedStatus = status === undefined ? undefined : normalizeTextInput(status, 30).toUpperCase();
+  if (normalizedStatus !== undefined && !EVENT_TABLE_STATUSES.has(normalizedStatus)) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_STATUS", message: "Table status is not recognized." },
+    });
+    return;
+  }
+  const normalizedHostEmail = normalizeTextInput(hostEmail, 160).toLowerCase();
+  if (normalizedHostEmail && !isValidPublicRegistrationEmail(normalizedHostEmail)) {
+    res.status(400).json({
+      error: { code: "INVALID_HOST_EMAIL", message: "Enter a valid table host email address." },
     });
     return;
   }
 
-  const created = await createEventTable({
-    eventId: req.params.eventId,
-    name,
-    capacity: capacity ?? 10,
-    notes: notes ?? undefined,
-    tableNumber: parsedTableNumber,
-    isSponsored: isSponsored ?? false,
-    sponsorName: sponsorName ?? undefined,
-    hostName: hostName ?? undefined,
-    hostEmail: hostEmail ?? undefined,
-    hostPhone: hostPhone ?? undefined,
-    shape: shape ?? "round",
-    xPosition: xPosition ?? 0,
-    yPosition: yPosition ?? 0,
+  const normalizedTableNumber = normalizeEventTableNumber(tableNumber);
+  if (tableNumber !== undefined && tableNumber !== null && tableNumber !== "" && normalizedTableNumber === null) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_NUMBER", message: "Table numbers must be whole numbers from 1 through 9999." },
+    });
+    return;
+  }
+  const parsedTableNumber = normalizedTableNumber ?? nextOpenEventTableNumber(
+    (await prisma.eventTable.findMany({
+      where: { eventId: req.params.eventId },
+      select: { tableNumber: true },
+    })).map((table) => table.tableNumber),
+  );
+  const duplicateTable = await prisma.eventTable.findFirst({
+    where: { eventId: req.params.eventId, tableNumber: parsedTableNumber },
+    select: { id: true },
   });
+  if (duplicateTable) {
+    res.status(409).json({
+      error: { code: "DUPLICATE_TABLE_NUMBER", message: `Table ${parsedTableNumber} is already assigned in this event.` },
+    });
+    return;
+  }
 
-  if (status && created) {
-    await updateEventTable(created.id, { status });
+  let created: Awaited<ReturnType<typeof createEventTable>>;
+  try {
+    created = await createEventTable({
+      eventId: req.params.eventId,
+      name: normalizedName,
+      capacity: parsedCapacity,
+      notes: normalizeTextInput(notes, 4000) || undefined,
+      tableNumber: parsedTableNumber,
+      isSponsored: isSponsored ?? false,
+      sponsorName: normalizeTextInput(sponsorName, 120) || undefined,
+      hostName: normalizeTextInput(hostName, 120) || undefined,
+      hostEmail: normalizedHostEmail || undefined,
+      hostPhone: normalizeTextInput(hostPhone, 40) || undefined,
+      shape: normalizedShape,
+      xPosition: xPosition ?? 0,
+      yPosition: yPosition ?? 0,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The table could not be created.";
+    const duplicate = message.includes("already assigned") || isPrismaUniqueConstraintError(error);
+    res.status(duplicate ? 409 : 400).json({
+      error: { code: duplicate ? "DUPLICATE_TABLE_NUMBER" : "INVALID_TABLE", message },
+    });
+    return;
+  }
+
+  if (normalizedStatus && created) {
+    await updateEventTable(created.id, { status: normalizedStatus as EventTableStatus });
   }
 
   if (!created) {
@@ -3466,7 +3850,7 @@ router.patch("/tables/:tableId", async (req, res) => {
 
   const table = await prisma.eventTable.findFirst({
     where: { id: req.params.tableId },
-    include: { event: true },
+    include: { event: true, _count: { select: { guests: true } } },
   });
 
   if (!table || table.event.organizationId !== organizationId) {
@@ -3490,41 +3874,108 @@ router.patch("/tables/:tableId", async (req, res) => {
     status,
   } = req.body;
 
-  const parsedTableNumber =
-    tableNumber === undefined
-      ? undefined
-      : tableNumber === null || tableNumber === ""
-        ? null
-        : Number(tableNumber);
-
+  const normalizedName = name === undefined ? undefined : normalizeTextInput(name, 120);
   if (
-    parsedTableNumber !== undefined &&
-    parsedTableNumber !== null &&
-    !Number.isInteger(parsedTableNumber)
+    name !== undefined
+    && (!normalizedName || (typeof name === "string" && name.trim().length > 120))
   ) {
     res.status(400).json({
-      error: { code: "INVALID_INPUT", message: "tableNumber must be an integer when provided" },
+      error: { code: "INVALID_TABLE_NAME", message: "Table name is required and must be 120 characters or fewer." },
+    });
+    return;
+  }
+  const parsedCapacity = capacity === undefined ? undefined : normalizeEventTableCapacity(capacity);
+  if (capacity !== undefined && parsedCapacity === null) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_CAPACITY", message: `Table capacity must be a whole number from 1 through ${MAX_EVENT_TABLE_CAPACITY}.` },
+    });
+    return;
+  }
+  if (parsedCapacity !== undefined && parsedCapacity !== null && parsedCapacity < table._count.guests) {
+    res.status(409).json({
+      error: {
+        code: "TABLE_CAPACITY_CONFLICT",
+        message: `${table.name} currently has ${table._count.guests} assigned guests. Move guests before reducing capacity below that number.`,
+      },
+    });
+    return;
+  }
+  const normalizedShape = shape === undefined ? undefined : normalizeTextInput(shape, 20).toLowerCase();
+  if (normalizedShape !== undefined && !EVENT_TABLE_SHAPES.has(normalizedShape)) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_SHAPE", message: "Table shape must be round, rectangular, or square." },
+    });
+    return;
+  }
+  const normalizedStatus = status === undefined ? undefined : normalizeTextInput(status, 30).toUpperCase();
+  if (normalizedStatus !== undefined && !EVENT_TABLE_STATUSES.has(normalizedStatus)) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_STATUS", message: "Table status is not recognized." },
+    });
+    return;
+  }
+  const normalizedHostEmail = hostEmail === undefined ? undefined : normalizeTextInput(hostEmail, 160).toLowerCase();
+  if (normalizedHostEmail && !isValidPublicRegistrationEmail(normalizedHostEmail)) {
+    res.status(400).json({
+      error: { code: "INVALID_HOST_EMAIL", message: "Enter a valid table host email address." },
     });
     return;
   }
 
-  await updateEventTable(req.params.tableId, {
-    ...(name !== undefined && { name }),
-    ...(capacity !== undefined && { capacity }),
-    ...(notes !== undefined && { notes }),
-    ...(parsedTableNumber !== undefined && { tableNumber: parsedTableNumber }),
-    ...(isSponsored !== undefined && { isSponsored }),
-    ...(sponsorName !== undefined && { sponsorName }),
-    ...(hostName !== undefined && { hostName }),
-    ...(hostEmail !== undefined && { hostEmail }),
-    ...(hostPhone !== undefined && { hostPhone }),
-    ...(xPosition !== undefined && { xPosition }),
-    ...(yPosition !== undefined && { yPosition }),
-    ...(shape !== undefined && { shape }),
-    ...(status !== undefined && { status }),
-  });
+  const parsedTableNumber = tableNumber === undefined ? undefined : normalizeEventTableNumber(tableNumber);
+  if (tableNumber !== undefined && parsedTableNumber === null) {
+    res.status(400).json({
+      error: { code: "INVALID_TABLE_NUMBER", message: "Table numbers are required and must be whole numbers from 1 through 9999." },
+    });
+    return;
+  }
+  if (parsedTableNumber !== undefined) {
+    const duplicateTable = await prisma.eventTable.findFirst({
+      where: {
+        eventId: table.eventId,
+        tableNumber: parsedTableNumber,
+        id: { not: table.id },
+      },
+      select: { id: true },
+    });
+    if (duplicateTable) {
+      res.status(409).json({
+        error: { code: "DUPLICATE_TABLE_NUMBER", message: `Table ${parsedTableNumber} is already assigned in this event.` },
+      });
+      return;
+    }
+  }
 
-  if (capacity !== undefined) {
+  try {
+    await updateEventTable(req.params.tableId, {
+      ...(normalizedName !== undefined && { name: normalizedName }),
+      ...(parsedCapacity !== undefined && parsedCapacity !== null && { capacity: parsedCapacity }),
+      ...(notes !== undefined && { notes: normalizeTextInput(notes, 4000) || null }),
+      ...(parsedTableNumber !== undefined && { tableNumber: parsedTableNumber }),
+      ...(isSponsored !== undefined && { isSponsored }),
+      ...(sponsorName !== undefined && { sponsorName: normalizeTextInput(sponsorName, 120) || null }),
+      ...(hostName !== undefined && { hostName: normalizeTextInput(hostName, 120) || null }),
+      ...(normalizedHostEmail !== undefined && { hostEmail: normalizedHostEmail || null }),
+      ...(hostPhone !== undefined && { hostPhone: normalizeTextInput(hostPhone, 40) || null }),
+      ...(xPosition !== undefined && { xPosition }),
+      ...(yPosition !== undefined && { yPosition }),
+      ...(normalizedShape !== undefined && { shape: normalizedShape }),
+      ...(normalizedStatus !== undefined && { status: normalizedStatus as EventTableStatus }),
+    });
+  } catch (error) {
+    if (isPrismaUniqueConstraintError(error)) {
+      res.status(409).json({
+        error: { code: "DUPLICATE_TABLE_NUMBER", message: `Table ${parsedTableNumber} is already assigned in this event.` },
+      });
+      return;
+    }
+    res.status(500).json({
+      error: { code: "TABLE_UPDATE_FAILED", message: "The table could not be updated. No seating changes were made." },
+    });
+    return;
+  }
+
+  if (parsedCapacity !== undefined) {
     await syncEventTableSeats(req.params.tableId);
   }
 
@@ -3645,8 +4096,17 @@ router.post("/:eventId/seats/:seatId/assign-guest", async (req, res) => {
     return;
   }
 
-  const result = await assignGuestToSeat({ eventId: event.id, seatId: req.params.seatId, guestId });
-  res.json(result);
+  try {
+    const result = await assignGuestToSeat({ eventId: event.id, seatId: req.params.seatId, guestId });
+    res.json(result);
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (mapped) {
+      res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+      return;
+    }
+    res.status(500).json({ error: { code: "SEAT_ASSIGNMENT_FAILED", message: "The guest could not be assigned to that seat." } });
+  }
 });
 
 /** POST /api/events/:eventId/seats/:seatId/clear — clear seat assignment. */
@@ -3663,8 +4123,17 @@ router.post("/:eventId/seats/:seatId/clear", async (req, res) => {
     return;
   }
 
-  const result = await clearSeat({ eventId: event.id, seatId: req.params.seatId });
-  res.json(result);
+  try {
+    const result = await clearSeat({ eventId: event.id, seatId: req.params.seatId });
+    res.json(result);
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (mapped) {
+      res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+      return;
+    }
+    res.status(500).json({ error: { code: "SEAT_CLEAR_FAILED", message: "The seat could not be cleared." } });
+  }
 });
 
 /** PATCH /api/events/:eventId/seats/:seatId — patch seat metadata/status. */
@@ -3683,11 +4152,35 @@ router.patch("/:eventId/seats/:seatId", async (req, res) => {
     return;
   }
 
+  const normalizedStatus = req.body.status === undefined
+    ? undefined
+    : normalizeTextInput(req.body.status, 30).toUpperCase();
+  if (normalizedStatus !== undefined && !EVENT_TABLE_SEAT_STATUSES.has(normalizedStatus)) {
+    res.status(400).json({ error: { code: "INVALID_SEAT_STATUS", message: "Seat status is not recognized." } });
+    return;
+  }
+  const occupiedSeat = await prisma.eventGuest.findFirst({
+    where: { seatId: seat.id },
+    select: { id: true },
+  });
+  if (occupiedSeat && normalizedStatus === "EMPTY") {
+    res.status(409).json({
+      error: { code: "SEAT_OCCUPIED", message: "Clear the guest assignment before marking this seat empty." },
+    });
+    return;
+  }
+  if (!occupiedSeat && normalizedStatus && ["RESERVED", "CONFIRMED", "CHECKED_IN"].includes(normalizedStatus)) {
+    res.status(409).json({
+      error: { code: "SEAT_HAS_NO_GUEST", message: "Assign a guest before using that seat status." },
+    });
+    return;
+  }
+
   const updated = await prisma.eventTableSeat.update({
     where: { id: seat.id },
     data: {
-      ...(req.body.status !== undefined && { status: req.body.status }),
-      ...(req.body.notes !== undefined && { notes: req.body.notes }),
+      ...(normalizedStatus !== undefined && { status: normalizedStatus as EventTableSeatStatus }),
+      ...(req.body.notes !== undefined && { notes: normalizeTextInput(req.body.notes, 2000) || null }),
     },
     include: { guest: true },
   });
@@ -3716,8 +4209,17 @@ router.post("/:eventId/seats/move-guest", async (req, res) => {
     return;
   }
 
-  const result = await moveGuestToSeat({ eventId: event.id, guestId, toSeatId });
-  res.json(result);
+  try {
+    const result = await moveGuestToSeat({ eventId: event.id, guestId, toSeatId });
+    res.json(result);
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (mapped) {
+      res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+      return;
+    }
+    res.status(500).json({ error: { code: "SEAT_MOVE_FAILED", message: "The guest could not be moved to that seat." } });
+  }
 });
 
 /** PATCH /api/events/guests/:guestId/assign-table — Assign or unassign a guest to a table. */
@@ -3738,28 +4240,44 @@ router.patch("/guests/:guestId/assign-table", async (req, res) => {
     return;
   }
 
-  const { tableId } = req.body;
+  const rawTableId = req.body.tableId;
+  if (rawTableId !== undefined && rawTableId !== null && typeof rawTableId !== "string") {
+    res.status(400).json({ error: { code: "INVALID_TABLE", message: "tableId must be a table identifier or null." } });
+    return;
+  }
+  const tableId = typeof rawTableId === "string" ? rawTableId.trim() : "";
 
-  // Validate table exists and belongs to same event if tableId is provided
-  if (tableId) {
-    const table = await prisma.eventTable.findFirst({
-      where: { id: tableId, eventId: guest.eventId },
-    });
-    if (!table) {
-      res.status(400).json({ error: { code: "INVALID_TABLE", message: "Table not found for this event" } });
+  try {
+    if (tableId) {
+      await assignGuestToOpenTableSeat({
+        eventId: guest.eventId,
+        tableId,
+        guestId: guest.id,
+      });
+    } else {
+      await unassignGuestFromTable({ eventId: guest.eventId, guestId: guest.id });
+    }
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (mapped) {
+      res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
       return;
     }
+    res.status(500).json({
+      error: { code: "TABLE_ASSIGNMENT_FAILED", message: "The guest could not be moved. Existing seating was preserved." },
+    });
+    return;
   }
 
-  const updated = await prisma.eventGuest.update({
+  const updated = await prisma.eventGuest.findUnique({
     where: { id: req.params.guestId },
-    data: { tableId: tableId ?? null },
     include: {
       event: { select: { id: true, name: true, startDate: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
       ticketType: { select: { id: true, name: true } },
       order: { select: { id: true, orderNumber: true, status: true } },
       table: { select: { id: true, name: true, capacity: true } },
+      seat: { select: { id: true, seatNumber: true, status: true } },
     },
   });
 

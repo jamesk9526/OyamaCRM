@@ -72,6 +72,7 @@ export default function TriviaOpsShell({ children }: TriviaOpsShellProps) {
         items: [
           { label: "Overview", href: `${base}/overview` },
           { label: "Builder", href: `${base}/builder` },
+          { label: "Registration & page", href: `${base}/registration` },
           { label: "Print & backups", href: `${base}/printables` },
         ],
       },

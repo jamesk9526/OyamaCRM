@@ -61,13 +61,13 @@ function initials(name?: string | null, fallback = "SM"): string {
 
 function routeLabel(pathname: string): string {
   if (pathname.endsWith("/event-page") || pathname.includes("/page-builder")) return "Event Page Builder";
-  if (pathname.endsWith("/guests")) return "Guests";
+  if (pathname.endsWith("/guests")) return "RSVPs & Guests";
   if (pathname.endsWith("/tables")) return "Tables";
   if (pathname.endsWith("/hosts")) return "Table Hosts";
   if (pathname.endsWith("/sponsors")) return "Sponsors";
-  if (pathname.endsWith("/donations")) return "Donations";
+  if (pathname.endsWith("/donations") || pathname.endsWith("/fundraising") || pathname.endsWith("/sponsors")) return "Fundraising";
   if (pathname.endsWith("/check-in")) return "Check-In";
-  if (pathname.endsWith("/emails")) return "Emails";
+  if (pathname.endsWith("/emails") || pathname.endsWith("/communications")) return "Outreach";
   if (pathname.endsWith("/reports")) return "Reports";
   if (pathname.endsWith("/follow-up")) return "Follow-Up";
   if (pathname.endsWith("/settings")) return "Settings";
@@ -87,13 +87,17 @@ function EventStudioIcon({ label }: { label: string }) {
     Events: "□",
     Overview: "◷",
     Guests: "♙",
+    "RSVPs & Guests": "♙",
     Tables: "▥",
     Hosts: "♧",
     Sponsors: "◇",
     Donations: "$",
+    Fundraising: "$",
     "Check-In": "☑",
     "Event Page": "▣",
+    "Public Page": "▣",
     Emails: "✉",
+    Outreach: "✉",
     Reports: "⌁",
     "Follow-Up": "↳",
     Settings: "⚙",
@@ -166,16 +170,13 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   const scopedNav = activeEventId
     ? [
         { label: "Overview", href: `/events/${activeEventId}/overview` },
-        { label: "Guests", href: `/events/${activeEventId}/guests` },
+        { label: "RSVPs & Guests", href: `/events/${activeEventId}/guests` },
         { label: "Tables", href: `/events/${activeEventId}/tables` },
-        { label: "Hosts", href: `/events/${activeEventId}/hosts` },
-        { label: "Sponsors", href: `/events/${activeEventId}/sponsors` },
-        { label: "Donations", href: `/events/${activeEventId}/donations` },
         { label: "Check-In", href: `/events/${activeEventId}/check-in` },
-        { label: "Event Page", href: `/events/${activeEventId}/event-page` },
-        { label: "Emails", href: `/events/${activeEventId}/emails` },
+        { label: "Public Page", href: `/events/${activeEventId}/event-page` },
+        { label: "Fundraising", href: `/events/${activeEventId}/donations` },
+        { label: "Outreach", href: `/events/${activeEventId}/emails` },
         { label: "Reports", href: `/events/${activeEventId}/reports` },
-        { label: "Follow-Up", href: `/events/${activeEventId}/follow-up` },
         { label: "Settings", href: `/events/${activeEventId}/settings` },
       ]
     : [
@@ -282,7 +283,9 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden items-center gap-1 text-xs font-semibold text-emerald-300 sm:inline-flex">✓ Saved</span>
+            <span className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-violet-100 sm:inline-flex">
+              {activeEventId ? activeEvent?.status?.replace(/_/g, " ") || "Event selected" : "Events workspace"}
+            </span>
             {activeEventId ? (
               <>
                 <Link href={`/events/${activeEventId}/event-page`} className="hidden rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 md:inline-flex">
@@ -301,6 +304,27 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
             </div>
           </div>
         </header>
+
+        {activeEventId ? (
+          <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-200 bg-white px-2 py-2 lg:hidden" aria-label="Event tools">
+            {scopedNav.map((item) => {
+              const active = pathname === item.href || (item.label === "Overview" && pathname === `/events/${activeEventId}`);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={[
+                    "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold",
+                    active ? "bg-violet-600 text-white" : "border border-slate-200 bg-white text-slate-700",
+                  ].join(" ")}
+                >
+                  <EventStudioIcon label={item.label} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        ) : null}
 
         <main className={`min-h-0 flex-1 bg-[#f7f8fc] ${isEventPageRoute ? "overflow-hidden" : "overflow-auto"}`}>
           <ErrorBoundary>

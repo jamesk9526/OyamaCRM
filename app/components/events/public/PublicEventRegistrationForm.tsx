@@ -27,7 +27,18 @@ interface RegistrationResult {
     lastName?: string | null;
     checkinCode?: string | null;
   }>;
+  table?: {
+    id: string;
+    name: string;
+    tableNumber: number;
+    capacity: number;
+    hostName?: string | null;
+  } | null;
   message: string;
+  email?: {
+    status: "sent" | "skipped" | "failed";
+    detail: string;
+  };
 }
 
 interface AttendeeDraft {
@@ -65,6 +76,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
   const activeTickets = useMemo(() => ticketTypes.filter((ticket) => ticket.id), [ticketTypes]);
   const [ticketTypeId, setTicketTypeId] = useState(activeTickets[0]?.id ?? "");
   const [quantity, setQuantity] = useState("1");
+  const [tableName, setTableName] = useState("");
   const [attendees, setAttendees] = useState<AttendeeDraft[]>([createBlankAttendee()]);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -121,6 +133,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
         body: JSON.stringify({
           ticketTypeId: selectedTicket.id,
           quantity: requestedTicketUnits,
+          tableName: selectedTicket.isTable ? tableName.trim() : undefined,
           consentAccepted,
           attendees: attendees.slice(0, requestedSeats),
         }),
@@ -149,6 +162,25 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Registration received</p>
         <h3 className="mt-1 text-lg font-semibold text-emerald-950">Order {result.order.orderNumber}</h3>
         <p className="mt-2 text-sm text-emerald-900">{result.message}</p>
+        {result.email ? (
+          <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+            result.email.status === "sent"
+              ? "border-emerald-300 bg-white text-emerald-900"
+              : "border-amber-300 bg-amber-50 text-amber-950"
+          }`}>
+            <span className="font-semibold">
+              {result.email.status === "sent" ? "Confirmation email sent." : "Save these details now."}
+            </span>{" "}
+            {result.email.detail}
+          </div>
+        ) : null}
+        {result.table ? (
+          <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-100/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">Your table</p>
+            <p className="mt-1 text-xl font-bold text-emerald-950">Table {result.table.tableNumber} · {result.table.name}</p>
+            <p className="mt-1 text-sm text-emerald-900">{result.table.capacity} reserved seats{result.table.hostName ? ` · Host: ${result.table.hostName}` : ""}</p>
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-2 rounded-lg border border-emerald-200 bg-white p-3 text-sm text-slate-700 sm:grid-cols-3">
           <p><span className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Ticket</span>{result.order.ticketType.name}</p>
           <p><span className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Total</span>{formatMoney(result.order.totalAmount)}</p>
@@ -223,6 +255,21 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
           <input type="number" min="1" max="10" value={quantity} onChange={(event) => setQuantity(event.target.value)} disabled={previewOnly} className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm" />
         </label>
       </div>
+
+      {selectedTicket?.isTable ? (
+        <label className="mt-4 block text-sm font-medium text-slate-700">
+          Team or table name <span className="text-xs font-normal text-slate-400">(optional)</span>
+          <input
+            value={tableName}
+            onChange={(event) => setTableName(event.target.value)}
+            disabled={previewOnly}
+            maxLength={120}
+            placeholder="For example: The Bright Ideas"
+            className="mt-1 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+          />
+          <span className="mt-1 block text-xs font-normal text-slate-500">A unique table number is assigned automatically and tied to every attendee in this reservation.</span>
+        </label>
+      ) : null}
 
       <div className="mt-4 space-y-3">
         {attendees.slice(0, requestedSeats).map((attendee, index) => (

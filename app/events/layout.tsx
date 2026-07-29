@@ -1,5 +1,5 @@
 /**
- * Events CRM root layout — wraps all /events/* routes with EventsShell.
+ * Events CRM root layout — wraps all /events/* routes with the event-first studio shell.
  *
  * EventsShell provides:
  *  - Journey-based sidebar (Plan → Fill → Fundraise → Run → Follow Up)
@@ -20,9 +20,9 @@
 "use client";
 
 import { Suspense } from "react";
-import EventsShell from "@/app/components/events/EventsShell";
+import EventsStudioShell from "@/app/components/events/EventsStudioShell";
 
-/** EventsLayout wraps all /events/* routes with the production-polished EventsShell. */
+/** EventsLayout keeps every route in one focused, responsive EventSTUDIO frame. */
 export default function EventsLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense
@@ -32,7 +32,7 @@ export default function EventsLayout({ children }: { children: React.ReactNode }
         </div>
       }
     >
-      <EventsShell>{children}</EventsShell>
+      <EventsStudioShell>{children}</EventsStudioShell>
     </Suspense>
   );
 }

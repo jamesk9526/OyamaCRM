@@ -18,7 +18,7 @@ import type { CSSProperties } from "react";
 
 // Module routes render their own shells — bypass AppShell wrapper.
 // /steward-ai-workspace uses its own standalone PWA layout.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/hrm", "/apps", "/steward-ai-workspace", "/tablelink"];
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/hrm", "/apps", "/trivia", "/steward-ai-workspace", "/tablelink"];
 const SHELL_BYPASS_PATHS = ["/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",
@@ -111,7 +111,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || isRootPublicEventSlugPath(pathname);
   const isShellBypass = SHELL_BYPASS_PATHS.some((p) => pathname.startsWith(p));
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
-  const isOShareview = pathname.startsWith("/reports") && !pathname.startsWith("/reports/donor-crm");
+  // Reports now live inside the normal Donor CRM workspace. The limited
+  // shareview role still lands on Reports, but does not receive the full donor
+  // navigation rail.
+  const isShareviewReports = user?.role === "shareview_user" && pathname.startsWith("/reports");
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
   const canPersistOrgShellSettings = user?.role === "admin" || user?.role === "super_admin";
   const updateDonorLayout = useCallback(async (layout: DonorNavigationLayout) => {
@@ -187,8 +190,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // ShareviewUsers should open OShareview dashboards and avoid full CRM surfaces by default.
-    if (user?.role === "shareview_user" && !isOShareview && !isPublic) {
+    // Shareview users land directly in the reporting workbook.
+    if (user?.role === "shareview_user" && !isShareviewReports && !isPublic) {
       router.replace("/reports");
       return;
     }
@@ -200,10 +203,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     // Redirect away from donor routes if DonorCRM is disabled at workspace settings level.
-    if (user && !isPublic && !isBoard && !isOShareview && !workspaceSettings.donorEnabled && workspaceSettings.compassionEnabled) {
+    if (user && !isPublic && !isBoard && !isShareviewReports && !workspaceSettings.donorEnabled && workspaceSettings.compassionEnabled) {
       router.replace("/compassion/dashboard");
     }
-  }, [loading, user, isPublic, isBoard, isOShareview, router, workspaceSettings]);
+  }, [loading, user, isPublic, isBoard, isShareviewReports, router, workspaceSettings]);
 
   useEffect(() => {
     function handleLayoutSwitch(event: Event) {
@@ -316,7 +319,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Module routes that render their own shell (Events CRM, etc.)
   if (isShellBypass) return <>{children}</>;
 
-  const donorShellVisible = !isOShareview && !isBoard;
+  const donorShellVisible = !isShareviewReports && !isBoard;
   // DonorCRM uses a permanent desktop rail for faster movement between records,
   // outreach, and reporting. The same information architecture collapses into
   // the mobile menu so smaller screens keep their working area.

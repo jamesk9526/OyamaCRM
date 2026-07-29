@@ -58,6 +58,43 @@ const INCLUDE = {
   designation: { select: { id: true, name: true } },
 };
 
+interface DonationImportSourceMetadata {
+  sourceFingerprint: string;
+  sourceFileName: string | null;
+}
+
+/** Keeps browser supplied import provenance to a stable, non-sensitive identifier. */
+function normalizeDonationImportFingerprint(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(normalized) ? normalized : null;
+}
+
+function normalizeDonationImportFileName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/[\r\n\t]+/g, " ");
+  return normalized ? normalized.slice(0, 180) : null;
+}
+
+/** Reads only the import provenance we intentionally write to an audit entry. */
+function readDonationImportSourceMetadata(raw: Prisma.JsonValue | null): DonationImportSourceMetadata | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const metadata = raw as Record<string, unknown>;
+  const sourceFingerprint = normalizeDonationImportFingerprint(metadata.sourceFingerprint);
+  if (!sourceFingerprint) return null;
+  return {
+    sourceFingerprint,
+    sourceFileName: normalizeDonationImportFileName(metadata.sourceFileName),
+  };
+}
+
+function utcDayRange(value: Date): { gte: Date; lt: Date } {
+  const gte = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  const lt = new Date(gte);
+  lt.setUTCDate(lt.getUTCDate() + 1);
+  return { gte, lt };
+}
+
 interface DonationQuickActionContext {
   id: string;
   date: Date;
@@ -537,7 +574,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   const {
     constituentId, campaignId, designationId, pledgeId,
-    amount, date, paymentMethod, checkNumber, isRecurring,
+    amount, date, paymentMethod, checkNumber, transactionId, isRecurring,
     frequency, status, taxDeductible, notes,
   } = req.body;
 
@@ -577,6 +614,7 @@ router.post("/", async (req, res) => {
       date:          parseDonationDateInput(date) ?? new Date(),
       paymentMethod: paymentMethod || "ONLINE",
       checkNumber:   checkNumber   || undefined,
+      transactionId: transactionId || undefined,
       isRecurring:   isRecurring   ?? false,
       frequency:     frequency     || undefined,
       status:        status        || "COMPLETED",
@@ -635,7 +673,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const {
     campaignId, designationId, amount, date, paymentMethod,
-    checkNumber, isRecurring, frequency, status, taxDeductible, notes,
+    checkNumber, transactionId, isRecurring, frequency, status, taxDeductible, notes,
   } = req.body;
 
   const organizationId = await resolveOrganizationId({ req });
@@ -662,6 +700,7 @@ router.put("/:id", async (req, res) => {
       date:          date ? parseDonationDateInput(date) : undefined,
       paymentMethod: paymentMethod || undefined,
       checkNumber:   checkNumber   || undefined,
+      transactionId: transactionId || undefined,
       isRecurring,
       frequency:     frequency     || undefined,
       status:        status        || undefined,
@@ -1404,7 +1443,7 @@ router.patch("/:id/acknowledgment", async (req, res) => {
  * Accepts an array of mapped row objects (from the DonationImportWizard) and:
  *   1. Resolves each donation to an existing constituent via email, externalId, or name
  *   2. Detects duplicate rows within the uploaded file and skips repeats
- *   3. Optionally deduplicates against existing CRM records by receiptNumber
+ *   3. Optionally detects exact existing CRM records by receipt number or transaction ID
  *   4. Normalizes paymentMethod, amount, date, status, frequency
  *   5. Creates Donation records and creates Campaign/Designation on-the-fly by name
  *   6. Updates constituent giving statistics (totalLifetimeGiving, firstGiftDate, lastGiftDate, giftCount, lastGiftAmount)
@@ -1417,9 +1456,11 @@ router.patch("/:id/acknowledgment", async (req, res) => {
  *   matchExternalId   — try to match constituent by externalId
  *   matchName         — try to match constituent by firstName + lastName
  *   skipUnmatched     — skip rows where no constituent match is found (default false)
- *   dedupByReceipt    — skip rows whose receiptNumber already exists in the DB (default true)
+ *   dedupByReceipt    — skip rows whose receipt number or transaction ID already exists in the DB (default true)
+ *   protectPotentialDuplicates — pause same-donor/same-date/same-amount candidates for review (default true)
+ *   sourceFingerprint — SHA-256 fingerprint of the file; blocks accidental repeat imports after review
  *
- * Response: { created, skipped, errors, unmatched, duplicatesInFile, dryRun, errorMessages }
+ * Response: counts plus review candidates, prior source-file metadata, and error messages
  *
  * Requires: role manager or higher.
  */
@@ -1432,7 +1473,13 @@ router.post("/import", async (req, res) => {
     matchName      = true,
     skipUnmatched  = false,
     dedupByReceipt = true,
-    updateExisting = true,
+    // Preserve the existing donation by default. Import evidence should be
+    // reviewed before one system's row overwrites another system's record.
+    updateExisting = false,
+    protectPotentialDuplicates = true,
+    sourceFingerprint,
+    sourceFileName,
+    allowRepeatedSource = false,
   } = req.body as {
     records: Array<Record<string, string>>;
     dryRun: boolean;
@@ -1441,8 +1488,15 @@ router.post("/import", async (req, res) => {
     matchName: boolean;
     skipUnmatched: boolean;
     dedupByReceipt: boolean;
-    /** When true, re-importing a CSV with the same receipt number updates the donation instead of skipping it. */
+    /** When true, a single exact receipt/transaction match may update the existing donation after staff review. */
     updateExisting: boolean;
+    /** Pause ambiguous same-donor/date/amount matches until a staff member reviews them. */
+    protectPotentialDuplicates?: boolean;
+    /** Browser-generated SHA-256 of the source file. No raw source file is persisted. */
+    sourceFingerprint?: unknown;
+    sourceFileName?: unknown;
+    /** Explicit acknowledgement required to repeat a previously committed source file. */
+    allowRepeatedSource?: boolean;
   };
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -1458,6 +1512,38 @@ router.post("/import", async (req, res) => {
   }
   // Narrowed to string so closures below can capture it without null-check noise
   const orgId: string = resolvedOrgId;
+  const normalizedSourceFingerprint = normalizeDonationImportFingerprint(sourceFingerprint);
+  const normalizedSourceFileName = normalizeDonationImportFileName(sourceFileName);
+
+  // A file fingerprint stops accidental repeat imports without treating either
+  // source as authoritative. It is only a prompt to review the prior run.
+  const sourceAuditRows = normalizedSourceFingerprint
+    ? await prisma.auditLog.findMany({
+      where: { organizationId: orgId, action: "DONATIONS_IMPORTED" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true, metadata: true },
+    })
+    : [];
+  const priorSourceAudit = sourceAuditRows.find((row) => (
+    readDonationImportSourceMetadata(row.metadata)?.sourceFingerprint === normalizedSourceFingerprint
+  ));
+  const previousImport = priorSourceAudit
+    ? {
+      importedAt: priorSourceAudit.createdAt.toISOString(),
+      sourceFileName: readDonationImportSourceMetadata(priorSourceAudit.metadata)?.sourceFileName ?? null,
+    }
+    : null;
+
+  if (!dryRun && previousImport && !allowRepeatedSource) {
+    res.status(409).json({
+      error: {
+        code: "IMPORT_FILE_ALREADY_COMMITTED",
+        message: "This exact source file was already imported. Run a dry preview, compare the prior run, then explicitly confirm a repeat only if it is intentional.",
+      },
+      previousImport,
+    });
+    return;
+  }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1639,10 +1725,20 @@ router.post("/import", async (req, res) => {
   let skipped = 0;
   let unmatched = 0;
   let duplicatesInFile = 0;
+  let existingDuplicateRecords = 0;
+  let ambiguousExistingMatches = 0;
+  let potentialDuplicates = 0;
+  const potentialDuplicateExamples: Array<{
+    rowNumber: number;
+    amount: number;
+    date: string;
+    constituentId: string;
+    existingDonationIds: string[];
+  }> = [];
   const errorMessages: string[] = [];
   const seenInFileDedupKeys = new Set<string>();
 
-  for (const rec of records) {
+  for (const [recordIndex, rec] of records.entries()) {
     try {
       // ── Parse required fields ───────────────────────────────────────────────
       const amount = parseAmount(rec.amount ?? "");
@@ -1660,29 +1756,50 @@ router.post("/import", async (req, res) => {
       }
       seenInFileDedupKeys.add(inFileDedupKey);
 
-      // ── Deduplication by receipt number ────────────────────────────────────
-      if (dedupByReceipt && rec.receiptNumber?.trim()) {
-        const exists = await prisma.donation.findFirst({
-          where: { receiptNumber: rec.receiptNumber.trim(), constituent: { organizationId: orgId } },
+      // ── Exact existing-record detection ───────────────────────────────────
+      // Receipt numbers and transaction IDs are durable source identifiers.
+      // When more than one row matches, leave all records untouched for staff
+      // review rather than selecting an arbitrary row to overwrite.
+      const receiptNumber = rec.receiptNumber?.trim();
+      const transactionId = rec.transactionId?.trim();
+      if (dedupByReceipt && (receiptNumber || transactionId)) {
+        const exactMatches = await prisma.donation.findMany({
+          where: {
+            constituent: { organizationId: orgId },
+            OR: [
+              ...(receiptNumber ? [{ receiptNumber }] : []),
+              ...(transactionId ? [{ transactionId }] : []),
+            ],
+          },
           select: { id: true, constituentId: true },
+          take: 2,
         });
-        if (exists) {
+
+        if (exactMatches.length > 1) {
+          ambiguousExistingMatches++;
+          skipped++;
+          errorMessages.push(`Row ${recordIndex + 1}: more than one existing donation uses this receipt number or transaction ID; no record was changed.`);
+          continue;
+        }
+
+        const existing = exactMatches[0];
+        if (existing) {
+          existingDuplicateRecords++;
           if (updateExisting && !dryRun) {
-            // Update the existing donation record with any new field values
             await prisma.donation.update({
-              where: { id: exists.id },
+              where: { id: existing.id },
               data: {
-                amount:        amount!,
+                amount,
                 date,
                 paymentMethod: normalizePaymentMethod(rec.paymentMethod ?? ""),
-                checkNumber:   rec.checkNumber?.trim()  || undefined,
+                checkNumber: rec.checkNumber?.trim() || undefined,
                 transactionId: rec.transactionId?.trim() || undefined,
-                status:        normalizeStatus(rec.status ?? ""),
-                notes:         rec.notes?.trim()        || undefined,
+                status: normalizeStatus(rec.status ?? ""),
+                notes: rec.notes?.trim() || undefined,
               },
             });
-            await updateConstituentStats(exists.constituentId);
-            created++; // count updated records as "created" for display clarity (shows activity)
+            await updateConstituentStats(existing.constituentId);
+            created++;
           } else {
             skipped++;
           }
@@ -1700,6 +1817,36 @@ router.post("/import", async (req, res) => {
         // so we skip rather than insert invalid data
         skipped++;
         continue;
+      }
+
+      // ── Potential duplicate review ────────────────────────────────────────
+      // Same donor + same UTC gift day + same amount can be either a valid pair
+      // of gifts or a re-imported row. Never label it a duplicate automatically.
+      const matchingDonations = await prisma.donation.findMany({
+        where: {
+          constituentId: constituent.id,
+          amount,
+          date: utcDayRange(date),
+          status: normalizeStatus(rec.status ?? ""),
+        },
+        select: { id: true },
+        take: 3,
+      });
+      if (matchingDonations.length > 0) {
+        potentialDuplicates++;
+        if (potentialDuplicateExamples.length < 25) {
+          potentialDuplicateExamples.push({
+            rowNumber: recordIndex + 1,
+            amount,
+            date: date.toISOString(),
+            constituentId: constituent.id,
+            existingDonationIds: matchingDonations.map((donation) => donation.id),
+          });
+        }
+        if (protectPotentialDuplicates) {
+          skipped++;
+          continue;
+        }
       }
 
       // ── Campaign and Designation resolution ────────────────────────────────
@@ -1748,18 +1895,42 @@ router.post("/import", async (req, res) => {
 
   // ─── Audit log ───────────────────────────────────────────────────────────────
   if (!dryRun) {
-    logAudit({
+    await logAudit({
       action: "DONATIONS_IMPORTED",
       entity: "Donation",
       userId: req.user?.sub,
       organizationId: resolvedOrgId,
-      metadata: { created, skipped, unmatched, duplicatesInFile, errors: errorMessages.length },
+      metadata: {
+        created,
+        skipped,
+        unmatched,
+        duplicatesInFile,
+        existingDuplicateRecords,
+        ambiguousExistingMatches,
+        potentialDuplicates,
+        sourceFingerprint: normalizedSourceFingerprint,
+        sourceFileName: normalizedSourceFileName,
+        errors: errorMessages.length,
+      },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
   }
 
-  res.json({ created, skipped, errors: errorMessages.length, unmatched, duplicatesInFile, dryRun, errorMessages });
+  res.json({
+    created,
+    skipped,
+    errors: errorMessages.length,
+    unmatched,
+    duplicatesInFile,
+    existingDuplicateRecords,
+    ambiguousExistingMatches,
+    potentialDuplicates,
+    potentialDuplicateExamples,
+    previousImport,
+    dryRun,
+    errorMessages,
+  });
 });
 
 

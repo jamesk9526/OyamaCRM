@@ -128,6 +128,129 @@ function mergeDateFilters(base?: Prisma.DateTimeFilter, extra?: Prisma.DateTimeF
   return merged;
 }
 
+type DonorDesignationRow = {
+  donorId: string;
+  donorName: string;
+  donorEmail: string | null;
+  designationId: string | null;
+  designationName: string;
+  giftCount: number;
+  totalAmount: number;
+  lastGiftAt: string;
+};
+
+type DonorsByDesignationMtdReport = {
+  report: "donors-by-designation";
+  period: { key: "month-to-date"; label: string; from: string; through: string };
+  summary: { totalAmount: number; giftCount: number; donorCount: number; designationCount: number };
+  rows: DonorDesignationRow[];
+  generatedAt: string;
+};
+
+/** Builds the live MTD donor/designation worksheet used by the grid and CSV export. */
+async function buildDonorsByDesignationMtdReport(
+  organizationId: string | null,
+  now = new Date(),
+): Promise<DonorsByDesignationMtdReport> {
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const period = {
+    key: "month-to-date" as const,
+    label: now.toLocaleString("en-US", { month: "long", year: "numeric" }),
+    from: startOfMonth.toISOString(),
+    through: now.toISOString(),
+  };
+
+  if (!organizationId) {
+    return {
+      report: "donors-by-designation",
+      period,
+      summary: { totalAmount: 0, giftCount: 0, donorCount: 0, designationCount: 0 },
+      rows: [],
+      generatedAt: now.toISOString(),
+    };
+  }
+
+  const donations = await prisma.donation.findMany({
+    where: completedDonationWhere(organizationId, { gte: startOfMonth, lte: now }),
+    select: {
+      amount: true,
+      date: true,
+      constituent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          displayName: true,
+          organizationName: true,
+          email: true,
+        },
+      },
+      designation: { select: { id: true, name: true } },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  const rowsByPair = new Map<string, DonorDesignationRow>();
+  const donorIds = new Set<string>();
+  const designationKeys = new Set<string>();
+  let totalAmount = 0;
+
+  for (const donation of donations) {
+    const donor = donation.constituent;
+    const designationId = donation.designation?.id ?? null;
+    const designationName = donation.designation?.name?.trim() || "General / undesignated";
+    const donorName = donor.displayName?.trim()
+      || donor.organizationName?.trim()
+      || `${donor.firstName} ${donor.lastName}`.trim()
+      || donor.email
+      || "Unnamed donor";
+    const pairKey = `${donor.id}:${designationId ?? "general"}`;
+    const amount = Number(donation.amount ?? 0);
+    totalAmount += amount;
+    donorIds.add(donor.id);
+    designationKeys.add(designationId ?? "general");
+
+    const existing = rowsByPair.get(pairKey);
+    if (existing) {
+      existing.giftCount += 1;
+      existing.totalAmount += amount;
+      continue;
+    }
+
+    rowsByPair.set(pairKey, {
+      donorId: donor.id,
+      donorName,
+      donorEmail: donor.email,
+      designationId,
+      designationName,
+      giftCount: 1,
+      totalAmount: amount,
+      // Donations are read newest first, so the first one is the latest gift
+      // for this donor/designation pair.
+      lastGiftAt: donation.date.toISOString(),
+    });
+  }
+
+  const rows = Array.from(rowsByPair.values()).sort((a, b) => (
+    a.designationName.localeCompare(b.designationName)
+    || b.totalAmount - a.totalAmount
+    || a.donorName.localeCompare(b.donorName)
+  ));
+
+  return {
+    report: "donors-by-designation",
+    period,
+    summary: {
+      totalAmount,
+      giftCount: donations.length,
+      donorCount: donorIds.size,
+      designationCount: designationKeys.size,
+    },
+    rows,
+    generatedAt: now.toISOString(),
+  };
+}
+
 /** Parses report scope from query params and returns year + optional date range filters. */
 async function parseReportScope(rawQuery: unknown, organizationId?: string | null) {
   const query = (rawQuery ?? {}) as Record<string, string | string[] | undefined>;
@@ -232,7 +355,10 @@ function buildFreshnessMetadata(dataThrough: Date = new Date()) {
 
 /** Escapes one CSV cell for safe spreadsheet output. */
 function csvCell(value: unknown): string {
-  const raw = String(value ?? "");
+  const rawValue = String(value ?? "");
+  // Prevent a donor name, designation, or other text value from becoming a
+  // spreadsheet formula when the export is opened in Excel or similar tools.
+  const raw = /^[=+@-]/.test(rawValue) ? `'${rawValue}` : rawValue;
   if (raw.includes(",") || raw.includes("\"") || raw.includes("\n")) {
     return `"${raw.replace(/\"/g, '""')}"`;
   }
@@ -564,6 +690,10 @@ router.get("/summary", async (req, res) => {
       weekAmount: 0,
       weekCount: 0,
       weekAvg: 0,
+      monthAmount: 0,
+      monthCount: 0,
+      mtdAmount: 0,
+      mtdCount: 0,
       activeCampaigns: 0,
       activeGoalTotal: 0,
       pendingTasks: 0,
@@ -605,15 +735,17 @@ router.get("/summary", async (req, res) => {
       _sum: { amount: true },
       _count: true,
     }),
-    // This week's donations
+    // This week's donations through the current moment. Future-dated gifts must
+    // not inflate an operational dashboard total.
     prisma.donation.aggregate({
-      where: completedDonationWhere(organizationId, { gte: startOfWeek }),
+      where: completedDonationWhere(organizationId, { gte: startOfWeek, lte: now }),
       _sum: { amount: true },
       _count: true,
     }),
-    // This month's donations (for trend comparison)
+    // Month-to-date donations (for trend comparison). Do not include a gift
+    // dated later in the current calendar month.
     prisma.donation.aggregate({
-      where: completedDonationWhere(organizationId, { gte: startOfMonth }),
+      where: completedDonationWhere(organizationId, { gte: startOfMonth, lte: now }),
       _sum: { amount: true },
       _count: true,
     }),
@@ -656,9 +788,10 @@ router.get("/summary", async (req, res) => {
       },
       _sum: { amount: true },
     }),
-    // Constituents whose first recorded gift is in the selected year.
+    // Constituents whose first recorded gift is month-to-date. This is a
+    // current-month operational KPI, independent from the selected YTD scope.
     prisma.constituent.count({
-      where: { organizationId, ...(useAllYears ? {} : { firstGiftDate: yearRange }) },
+      where: { organizationId, firstGiftDate: { gte: startOfMonth, lte: now } },
     }),
     // Scoped awarded grants — filtered to selected year unless ALL_YEARS.
     // amountAwarded is used (not amountRequested) since this is what was actually received.
@@ -693,6 +826,10 @@ router.get("/summary", async (req, res) => {
     weekAvg: weekCount > 0 ? weekAmt / weekCount : 0,
     monthAmount: monthAmt,
     monthCount: monthDonations._count,
+    // Explicit aliases make the month-to-date contract clear for new
+    // reporting surfaces while preserving existing dashboard integrations.
+    mtdAmount: monthAmt,
+    mtdCount: monthDonations._count,
     momTrend,
     newDonorsThisMonth,
     activeCampaigns,
@@ -1008,9 +1145,10 @@ router.get("/donors-this-month", async (req, res) => {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Fetch all completed donations this month with basic constituent info
+  // Fetch completed donations month-to-date with basic constituent info.
+  // Future-dated gifts belong to a later operational total, not this one.
   const donations = await prisma.donation.findMany({
-    where: completedDonationWhere(organizationId, { gte: startOfMonth }),
+    where: completedDonationWhere(organizationId, { gte: startOfMonth, lte: now }),
     select: {
       id: true,
       amount: true,
@@ -1062,6 +1200,51 @@ router.get("/donors-this-month", async (req, res) => {
     monthLabel: now.toLocaleString("en-US", { month: "long", year: "numeric" }),
     donors,
   });
+});
+
+/**
+ * GET /api/reports/donors-by-designation
+ *
+ * The first worksheet in the rebuilt Donor CRM reporting area. It returns
+ * completed giving from the first day of the current month through now, with
+ * one row for each donor + designation pair. Keeping this aggregation on the
+ * server gives exports, totals, and the visible grid the exact same data.
+ */
+router.get("/donors-by-designation", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  res.json(await buildDonorsByDesignationMtdReport(organizationId));
+});
+
+/**
+ * GET /api/reports/exports/donors-by-designation.csv
+ * Exports the exact month-to-date worksheet shown in Donor CRM.
+ */
+router.get("/exports/donors-by-designation.csv", requirePermission("export:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const report = await buildDonorsByDesignationMtdReport(organizationId);
+  const exportRows = report.rows.map((row) => ({
+    donorName: row.donorName,
+    donorEmail: row.donorEmail ?? "",
+    designation: row.designationName,
+    giftCount: row.giftCount,
+    totalAmount: row.totalAmount.toFixed(2),
+    lastGiftAt: row.lastGiftAt,
+    periodFrom: report.period.from,
+    periodThrough: report.period.through,
+  }));
+  const csv = exportRows.length > 0
+    ? buildCsv(exportRows)
+    : "donorName,donorEmail,designation,giftCount,totalAmount,lastGiftAt,periodFrom,periodThrough";
+  const stamp = report.period.from.slice(0, 10);
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=donors-by-designation-mtd-${stamp}.csv`);
+  res.status(200).send(csv);
 });
 
 /**

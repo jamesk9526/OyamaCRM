@@ -108,6 +108,8 @@ enum CampaignCategory {
 
 enum EventType {
   GALA
+  TRIVIA
+  FUNDRAISER
   AUCTION
   RUN_WALK
   CONFERENCE
@@ -446,20 +448,20 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  constituents   Constituent[]
+  constituents      Constituent[]
   constituentGroups ConstituentGroup[]
-  campaigns      Campaign[]
-  events         Event[]
-  users          User[]
-  meetings       Meeting[]
-  tasks          Task[]
-  settings       OrganizationSettings?
-  emailCampaigns EmailCampaign[]
-  customFields   CustomField[]
-  grantFunders   GrantFunder[]
-  grants         Grant[]
-  webmasterSites WebmasterSite[]
-  webmasterPages WebmasterPage[]
+  campaigns         Campaign[]
+  events            Event[]
+  users             User[]
+  meetings          Meeting[]
+  tasks             Task[]
+  settings          OrganizationSettings?
+  emailCampaigns    EmailCampaign[]
+  customFields      CustomField[]
+  grantFunders      GrantFunder[]
+  grants            Grant[]
+  webmasterSites    WebmasterSite[]
+  webmasterPages    WebmasterPage[]
 
   // ─── Compassion CRM back-relations ───────────────────────────────────────
   compassionClients      CompassionClient[]
@@ -471,60 +473,60 @@ model Organization {
   compassionActivities   CompassionActivity[]
 
   // ─── Plugin / Integration back-relations ────────────────────────────────
-  pluginSettings      PluginSetting[]
-  crmThreads          CrmThread[]
-  qbSyncQueueItems    QBSyncQueueItem[]
-  emailRecipientLists EmailRecipientList[]
-  emailDeliveryEvents EmailCampaignDeliveryEvent[]
-  emailSubscriptions EmailSubscription[]
-  emailPreferences EmailPreference[]
-  emailSuppressions EmailSuppression[]
-  emailConsentEvents EmailConsentEvent[]
+  pluginSettings         PluginSetting[]
+  crmThreads             CrmThread[]
+  qbSyncQueueItems       QBSyncQueueItem[]
+  emailRecipientLists    EmailRecipientList[]
+  emailDeliveryEvents    EmailCampaignDeliveryEvent[]
+  emailSubscriptions     EmailSubscription[]
+  emailPreferences       EmailPreference[]
+  emailSuppressions      EmailSuppression[]
+  emailConsentEvents     EmailConsentEvent[]
   emailUnsubscribeTokens EmailUnsubscribeToken[]
-  emailSendRecipients EmailSendRecipient[]
-  emailStatusEvents EmailDeliveryEvent[]
-  hrmLocations        HrmLocation[]
-  hrmMessages         HrmMessage[]
-  hrmSettings         HrmSetting?
+  emailSendRecipients    EmailSendRecipient[]
+  emailStatusEvents      EmailDeliveryEvent[]
+  hrmLocations           HrmLocation[]
+  hrmMessages            HrmMessage[]
+  hrmSettings            HrmSetting?
 
   // ─── Steward Paths (engagement sequences) ───────────────────────────────
   stewardPaths           StewardPath[]
   stewardPathEnrollments StewardPathEnrollment[]
 
   // ─── Donor CRM Letters & Printables back-relations ─────────────────────
-  letterHeaderPresets  LetterHeaderPreset[]
-  letterFooterPresets  LetterFooterPreset[]
+  letterHeaderPresets   LetterHeaderPreset[]
+  letterFooterPresets   LetterFooterPreset[]
   letterSignatureBlocks LetterSignatureBlock[]
-  letterTemplates      LetterTemplate[]
-  generatedLetters     GeneratedLetter[]
-  notifications        Notification[]
-  taskTemplatePresets  TaskTemplatePreset[]
-  aiMemoryPreferences  AiMemoryPreference[]
-  aiUserMemories       AiUserMemory[]
-  aiContextFiles       AiContextFile[]
-  aiContextChunks      AiContextChunk[]
+  letterTemplates       LetterTemplate[]
+  generatedLetters      GeneratedLetter[]
+  notifications         Notification[]
+  taskTemplatePresets   TaskTemplatePreset[]
+  aiMemoryPreferences   AiMemoryPreference[]
+  aiUserMemories        AiUserMemory[]
+  aiContextFiles        AiContextFile[]
+  aiContextChunks       AiContextChunk[]
 }
 
 model OrganizationSettings {
-  id                         String   @id @default(cuid())
-  organizationId             String   @unique
-  fiscalYearStart            Int      @default(1) // Month 1-12
-  currency                   String   @default("USD")
-  timezone                   String   @default("America/Chicago")
-  donorWorkspaceEnabled      Boolean  @default(true)
-  compassionWorkspaceEnabled Boolean  @default(true)
-  lettersVisualBuilderEnabled Boolean @default(false)
-  showModuleSwitcher         Boolean  @default(true)
-  defaultWorkspace           String   @default("donor")
-  smtpHost                   String?
-  smtpPort                   Int?
-  smtpSecure                 Boolean  @default(true)
-  smtpUser                   String?
-  smtpPass                   String?
-  smtpFromName               String?
-  smtpFromEmail              String?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  organizationId              String   @unique
+  fiscalYearStart             Int      @default(1) // Month 1-12
+  currency                    String   @default("USD")
+  timezone                    String   @default("America/Chicago")
+  donorWorkspaceEnabled       Boolean  @default(true)
+  compassionWorkspaceEnabled  Boolean  @default(true)
+  lettersVisualBuilderEnabled Boolean  @default(false)
+  showModuleSwitcher          Boolean  @default(true)
+  defaultWorkspace            String   @default("donor")
+  smtpHost                    String?
+  smtpPort                    Int?
+  smtpSecure                  Boolean  @default(true)
+  smtpUser                    String?
+  smtpPass                    String?
+  smtpFromName                String?
+  smtpFromEmail               String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 }
@@ -559,36 +561,36 @@ model User {
   ownedEvents      Event[]
 
   // ─── Compassion CRM staff relations ──────────────────────────────────────
-  compassionClientsAssigned     CompassionClient[]      @relation("CompassionClientStaff")
-  compassionCasesAssigned       CompassionCase[]        @relation("CompassionCaseStaff")
-  compassionApptsAssigned       CompassionAppointment[] @relation("CompassionApptStaff")
-  compassionServicesProvided    CompassionService[]     @relation("CompassionServiceProvider")
-  compassionFollowUpsAssigned   CompassionFollowUp[]    @relation("CompassionFollowUpStaff")
-  compassionActivitiesPerformed CompassionActivity[]    @relation("CompassionActivityUser")
-  linkedCompassionStaff         CompassionStaff?        @relation("CompassionStaffLinkedUser")
-  emailRecipientListsCreated    EmailRecipientList[]    @relation("EmailRecipientListCreator")
-  webmasterSitesCreated         WebmasterSite[]         @relation("WebmasterSiteCreator")
-  webmasterPagesCreated         WebmasterPage[]         @relation("WebmasterPageCreator")
-  webmasterPagesUpdated         WebmasterPage[]         @relation("WebmasterPageUpdater")
+  compassionClientsAssigned     CompassionClient[]       @relation("CompassionClientStaff")
+  compassionCasesAssigned       CompassionCase[]         @relation("CompassionCaseStaff")
+  compassionApptsAssigned       CompassionAppointment[]  @relation("CompassionApptStaff")
+  compassionServicesProvided    CompassionService[]      @relation("CompassionServiceProvider")
+  compassionFollowUpsAssigned   CompassionFollowUp[]     @relation("CompassionFollowUpStaff")
+  compassionActivitiesPerformed CompassionActivity[]     @relation("CompassionActivityUser")
+  linkedCompassionStaff         CompassionStaff?         @relation("CompassionStaffLinkedUser")
+  emailRecipientListsCreated    EmailRecipientList[]     @relation("EmailRecipientListCreator")
+  webmasterSitesCreated         WebmasterSite[]          @relation("WebmasterSiteCreator")
+  webmasterPagesCreated         WebmasterPage[]          @relation("WebmasterPageCreator")
+  webmasterPagesUpdated         WebmasterPage[]          @relation("WebmasterPageUpdater")
   submittedFeedbackTickets      WatchdogFeedbackTicket[] @relation("FeedbackSubmittedBy")
   assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
-  sentHrmMessages               HrmMessage[]            @relation("HrmMessageSender")
-  receivedHrmMessages           HrmMessage[]            @relation("HrmMessageRecipient")
-  crmThreadParticipations       CrmThreadParticipant[]  @relation("CrmThreadParticipantUser")
-  crmMessagesSent               CrmMessage[]            @relation("CrmMessageSender")
+  sentHrmMessages               HrmMessage[]             @relation("HrmMessageSender")
+  receivedHrmMessages           HrmMessage[]             @relation("HrmMessageRecipient")
+  crmThreadParticipations       CrmThreadParticipant[]   @relation("CrmThreadParticipantUser")
+  crmMessagesSent               CrmMessage[]             @relation("CrmMessageSender")
 
   // ─── Steward Paths ownership/review relations ───────────────────────────
-  stewardPathsCreated        StewardPath[]            @relation("StewardPathCreatedBy")
-  stewardPathsEdited         StewardPath[]            @relation("StewardPathEditedBy")
-  stewardPathsDefaultOwned   StewardPath[]            @relation("StewardPathDefaultOwner")
-  stewardPathEnrollmentsOwned StewardPathEnrollment[] @relation("StewardPathEnrollmentOwner")
-  stewardPathTimelineEvents  StewardPathTimelineEvent[] @relation("StewardPathTimelineCreatedBy")
-  stewardPathEmailDraftsReviewed StewardPathEmailDraft[] @relation("StewardPathEmailDraftReviewer")
+  stewardPathsCreated            StewardPath[]              @relation("StewardPathCreatedBy")
+  stewardPathsEdited             StewardPath[]              @relation("StewardPathEditedBy")
+  stewardPathsDefaultOwned       StewardPath[]              @relation("StewardPathDefaultOwner")
+  stewardPathEnrollmentsOwned    StewardPathEnrollment[]    @relation("StewardPathEnrollmentOwner")
+  stewardPathTimelineEvents      StewardPathTimelineEvent[] @relation("StewardPathTimelineCreatedBy")
+  stewardPathEmailDraftsReviewed StewardPathEmailDraft[]    @relation("StewardPathEmailDraftReviewer")
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
-  letterTemplatesCreated LetterTemplate[] @relation("LetterTemplateCreatedBy")
-  letterTemplatesUpdated LetterTemplate[] @relation("LetterTemplateUpdatedBy")
-  generatedLetters       GeneratedLetter[] @relation("GeneratedLetterCreatedBy")
+  letterTemplatesCreated LetterTemplate[]    @relation("LetterTemplateCreatedBy")
+  letterTemplatesUpdated LetterTemplate[]    @relation("LetterTemplateUpdatedBy")
+  generatedLetters       GeneratedLetter[]   @relation("GeneratedLetterCreatedBy")
   aiMemoryPreference     AiMemoryPreference?
   aiUserMemories         AiUserMemory[]
   aiContextFiles         AiContextFile[]
@@ -634,23 +636,23 @@ model AiUserMemory {
 }
 
 model AiContextFile {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   userId         String
-  fileName       String   @db.VarChar(255)
-  displayName    String   @db.VarChar(255)
-  mimeType       String   @db.VarChar(120)
-  fileType       String   @db.VarChar(40)
-  sizeBytes      Int      @default(0)
-  workspaceScope String?  @db.VarChar(40)
-  description    String?  @db.Text
+  fileName       String    @db.VarChar(255)
+  displayName    String    @db.VarChar(255)
+  mimeType       String    @db.VarChar(120)
+  fileType       String    @db.VarChar(40)
+  sizeBytes      Int       @default(0)
+  workspaceScope String?   @db.VarChar(40)
+  description    String?   @db.Text
   tags           Json?
-  indexingStatus String   @default("pending") @db.VarChar(40)
-  active         Boolean  @default(true)
-  extractedText  String?  @db.LongText
-  contentHash    String?  @db.VarChar(128)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  indexingStatus String    @default("pending") @db.VarChar(40)
+  active         Boolean   @default(true)
+  extractedText  String?   @db.LongText
+  contentHash    String?   @db.VarChar(128)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   indexedAt      DateTime?
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -672,7 +674,7 @@ model AiContextChunk {
   tokenEstimate  Int      @default(0)
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   file         AiContextFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   @@unique([fileId, chunkIndex])
@@ -689,21 +691,21 @@ model Constituent {
   donorStatus    DonorStatus     @default(NEW)
 
   // Contact info
-  prefix    String?
-  firstName String
-  lastName  String
-  displayName String?
-  organizationName String?
-  contactFirstName String?
-  contactLastName String?
-  contactTitle String?
-  entityKind String @default("PERSON")
+  prefix               String?
+  firstName            String
+  lastName             String
+  displayName          String?
+  organizationName     String?
+  contactFirstName     String?
+  contactLastName      String?
+  contactTitle         String?
+  entityKind           String  @default("PERSON")
   organizationCategory String?
-  email     String?
-  email2    String?
-  phone     String?
-  phone2    String?
-  mobile    String?
+  email                String?
+  email2               String?
+  phone                String?
+  phone2               String?
+  mobile               String?
 
   // Address
   addressLine1 String?
@@ -744,10 +746,10 @@ model Constituent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization     Organization      @relation(fields: [organizationId], references: [id])
-  household        Household?        @relation("HouseholdMembers", fields: [householdId], references: [id])
-  headOf           Household?        @relation("HouseholdHead")
-  primaryForGroups ConstituentGroup[] @relation("PrimaryConstituentGroup")
+  organization     Organization             @relation(fields: [organizationId], references: [id])
+  household        Household?               @relation("HouseholdMembers", fields: [householdId], references: [id])
+  headOf           Household?               @relation("HouseholdHead")
+  primaryForGroups ConstituentGroup[]       @relation("PrimaryConstituentGroup")
   groupMemberships ConstituentGroupMember[]
   donations        Donation[]
   tasks            Task[]
@@ -769,10 +771,10 @@ model Constituent {
   stewardPathEmailDrafts StewardPathEmailDraft[]
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
-  generatedLetters GeneratedLetter[]
-  emailSubscriptions EmailSubscription[]
-  emailConsentEvents EmailConsentEvent[]
-  emailSuppressions EmailSuppression[]
+  generatedLetters    GeneratedLetter[]
+  emailSubscriptions  EmailSubscription[]
+  emailConsentEvents  EmailConsentEvent[]
+  emailSuppressions   EmailSuppression[]
   emailSendRecipients EmailSendRecipient[]
 }
 
@@ -786,9 +788,9 @@ model ConstituentGroup {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  organization      Organization             @relation(fields: [organizationId], references: [id])
-  primaryConstituent Constituent?            @relation("PrimaryConstituentGroup", fields: [primaryConstituentId], references: [id], onDelete: SetNull)
-  members           ConstituentGroupMember[]
+  organization       Organization             @relation(fields: [organizationId], references: [id])
+  primaryConstituent Constituent?             @relation("PrimaryConstituentGroup", fields: [primaryConstituentId], references: [id], onDelete: SetNull)
+  members            ConstituentGroupMember[]
 
   @@index([organizationId, groupType])
   @@index([primaryConstituentId])
@@ -953,29 +955,29 @@ model Campaign {
 // ─── Tasks ───────────────────────────────────────────────────────────────────
 
 model Task {
-  id            String  @id @default(cuid())
+  id             String  @id @default(cuid())
   organizationId String?
-  constituentId String?
-  assigneeId    String?
-  createdById   String?
-  completedById String?
+  constituentId  String?
+  assigneeId     String?
+  createdById    String?
+  completedById  String?
 
-  title       String
-  description String?      @db.Text
-  type        TaskType     @default(FOLLOW_UP)
-  status      TaskStatus   @default(PENDING)
-  priority    TaskPriority @default(MEDIUM)
-  dueDate     DateTime?
-  reminderAt  DateTime?
-  snoozedUntil DateTime?
-  archivedAt  DateTime?
-  completedAt DateTime?
-  outcome     String?      @db.Text
-  sourceModule String?
-  sourceType   String?
-  sourceId     String?
-  checklistJson Json?
-  metadata      Json?
+  title                   String
+  description             String?      @db.Text
+  type                    TaskType     @default(FOLLOW_UP)
+  status                  TaskStatus   @default(PENDING)
+  priority                TaskPriority @default(MEDIUM)
+  dueDate                 DateTime?
+  reminderAt              DateTime?
+  snoozedUntil            DateTime?
+  archivedAt              DateTime?
+  completedAt             DateTime?
+  outcome                 String?      @db.Text
+  sourceModule            String?
+  sourceType              String?
+  sourceId                String?
+  checklistJson           Json?
+  metadata                Json?
   generatedLetterId       String?
   stewardPathEnrollmentId String?
   stewardPathStepRunId    String?
@@ -984,13 +986,13 @@ model Task {
   updatedAt DateTime @updatedAt
 
   organization Organization? @relation(fields: [organizationId], references: [id])
-  constituent Constituent? @relation(fields: [constituentId], references: [id])
-  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  createdBy   User?        @relation("TaskCreator", fields: [createdById], references: [id])
-  completedBy User?        @relation("TaskCompletedBy", fields: [completedById], references: [id])
-  activities  Activity[]
-  meeting     Meeting?     @relation(fields: [meetingId], references: [id])
-  meetingId   String?
+  constituent  Constituent?  @relation(fields: [constituentId], references: [id])
+  assignee     User?         @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy    User?         @relation("TaskCreator", fields: [createdById], references: [id])
+  completedBy  User?         @relation("TaskCompletedBy", fields: [completedById], references: [id])
+  activities   Activity[]
+  meeting      Meeting?      @relation(fields: [meetingId], references: [id])
+  meetingId    String?
 
   @@index([organizationId])
   @@index([assigneeId, status, dueDate])
@@ -1002,48 +1004,48 @@ model Task {
 }
 
 model TaskTemplatePreset {
-  id                String   @id @default(cuid())
-  organizationId    String
-  name              String
-  title             String
-  taskType          TaskType @default(FOLLOW_UP)
-  defaultPriority   TaskPriority @default(MEDIUM)
-  defaultDueOffsetDays Int   @default(1)
-  description       String?  @db.Text
-  checklistJson     Json?
+  id                     String       @id @default(cuid())
+  organizationId         String
+  name                   String
+  title                  String
+  taskType               TaskType     @default(FOLLOW_UP)
+  defaultPriority        TaskPriority @default(MEDIUM)
+  defaultDueOffsetDays   Int          @default(1)
+  description            String?      @db.Text
+  checklistJson          Json?
   suggestedReminderHours Int?
-  workflowCategory  String?
-  isBuiltIn         Boolean  @default(false)
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  workflowCategory       String?
+  isBuiltIn              Boolean      @default(false)
+  isActive               Boolean      @default(true)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
-  @@index([organizationId, isActive])
   @@unique([organizationId, name])
+  @@index([organizationId, isActive])
 }
 
 model Notification {
-  id            String             @id @default(cuid())
+  id             String               @id @default(cuid())
   organizationId String
-  userId        String
-  module        String
-  sourceType    String
-  sourceId      String?
-  title         String
-  message       String             @db.Text
-  href          String
-  severity      NotificationSeverity @default(MEDIUM)
-  status        NotificationStatus @default(UNREAD)
-  actionLabel   String?
-  metadata      Json?
-  createdAt     DateTime           @default(now())
-  readAt        DateTime?
-  dismissedAt   DateTime?
-  snoozedUntil  DateTime?
-  expiresAt     DateTime?
-  archivedAt    DateTime?
+  userId         String
+  module         String
+  sourceType     String
+  sourceId       String?
+  title          String
+  message        String               @db.Text
+  href           String
+  severity       NotificationSeverity @default(MEDIUM)
+  status         NotificationStatus   @default(UNREAD)
+  actionLabel    String?
+  metadata       Json?
+  createdAt      DateTime             @default(now())
+  readAt         DateTime?
+  dismissedAt    DateTime?
+  snoozedUntil   DateTime?
+  expiresAt      DateTime?
+  archivedAt     DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation("NotificationUser", fields: [userId], references: [id])
@@ -1136,24 +1138,24 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization   Organization      @relation(fields: [organizationId], references: [id])
-  owner          User?             @relation(fields: [ownerId], references: [id])
-  ticketTypes    TicketType[]
-  orders         EventOrder[]
-  guests         EventGuest[]
-  tables         EventTable[]
-  tableSeats     EventTableSeat[]
-  guestInvites   EventGuestInvite[]
+  organization      Organization            @relation(fields: [organizationId], references: [id])
+  owner             User?                   @relation(fields: [ownerId], references: [id])
+  ticketTypes       TicketType[]
+  orders            EventOrder[]
+  guests            EventGuest[]
+  tables            EventTable[]
+  tableSeats        EventTableSeat[]
+  guestInvites      EventGuestInvite[]
   tableAccessTokens EventTableAccessToken[]
-  checkInRecords EventCheckInRecord[]
+  checkInRecords    EventCheckInRecord[]
   checkInExceptions EventCheckInException[]
-  emailLogs      EventEmailLog[]
-  sponsors       EventSponsor[]
-  donations      Donation[]
-  activities     Activity[]
-  volunteerHours VolunteerHour[]
+  emailLogs         EventEmailLog[]
+  sponsors          EventSponsor[]
+  donations         Donation[]
+  activities        Activity[]
+  volunteerHours    VolunteerHour[]
   // Legacy - kept for backward compatibility during migration
-  attendances    EventAttendance[]
+  attendances       EventAttendance[]
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
   generatedLetters GeneratedLetter[]
@@ -1259,16 +1261,16 @@ model EventGuest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event       Event        @relation(fields: [eventId], references: [id])
-  order       EventOrder?  @relation(fields: [orderId], references: [id])
-  constituent Constituent? @relation(fields: [constituentId], references: [id])
-  ticketType  TicketType?  @relation(fields: [ticketTypeId], references: [id])
-  table       EventTable?  @relation(fields: [tableId], references: [id])
-  seat        EventTableSeat? @relation(fields: [seatId], references: [id])
-  invites     EventGuestInvite[]
-  checkInRecords EventCheckInRecord[]
+  event             Event                   @relation(fields: [eventId], references: [id])
+  order             EventOrder?             @relation(fields: [orderId], references: [id])
+  constituent       Constituent?            @relation(fields: [constituentId], references: [id])
+  ticketType        TicketType?             @relation(fields: [ticketTypeId], references: [id])
+  table             EventTable?             @relation(fields: [tableId], references: [id])
+  seat              EventTableSeat?         @relation(fields: [seatId], references: [id])
+  invites           EventGuestInvite[]
+  checkInRecords    EventCheckInRecord[]
   checkInExceptions EventCheckInException[]
-  emailLogs   EventEmailLog[]
+  emailLogs         EventEmailLog[]
 
   @@index([eventId, rsvpStatus])
   @@index([eventId, source])
@@ -1277,57 +1279,58 @@ model EventGuest {
 }
 
 model EventTable {
-  id          String   @id @default(cuid())
-  eventId     String
-  tableUid    String   @default(cuid()) @unique
-  publicCode  String?
-  name        String
-  capacity    Int      @default(10)
-  status      EventTableStatus @default(DRAFT)
-  notes       String?  @db.Text
+  id                   String           @id @default(cuid())
+  eventId              String
+  tableUid             String           @unique @default(cuid())
+  publicCode           String?
+  name                 String
+  capacity             Int              @default(10)
+  status               EventTableStatus @default(DRAFT)
+  notes                String?          @db.Text
   // Seating layout fields (from GalaSoft concepts)
-  tableNumber Int?
-  isSponsored Boolean  @default(false)
-  sponsorName String?
-  hostName    String?
-  hostEmail   String?
-  hostPhone   String?
+  tableNumber          Int?
+  isSponsored          Boolean          @default(false)
+  sponsorName          String?
+  hostName             String?
+  hostEmail            String?
+  hostPhone            String?
   accessTokenHash      String?
   accessTokenExpiresAt DateTime?
-  xPosition   Int      @default(0)
-  yPosition   Int      @default(0)
-  shape       String   @default("round")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  xPosition            Int              @default(0)
+  yPosition            Int              @default(0)
+  shape                String           @default("round")
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
-  event         Event                   @relation(fields: [eventId], references: [id])
-  guests        EventGuest[]
-  seats         EventTableSeat[]
-  guestInvites  EventGuestInvite[]
-  accessTokens  EventTableAccessToken[]
-  checkInRecords EventCheckInRecord[]
+  event             Event                   @relation(fields: [eventId], references: [id])
+  guests            EventGuest[]
+  seats             EventTableSeat[]
+  guestInvites      EventGuestInvite[]
+  accessTokens      EventTableAccessToken[]
+  checkInRecords    EventCheckInRecord[]
   checkInExceptions EventCheckInException[]
-  emailLogs     EventEmailLog[]
+  emailLogs         EventEmailLog[]
 
   @@unique([eventId, publicCode])
+  @@unique([eventId, tableNumber])
   @@index([eventId, status])
 }
 
 model EventTableSeat {
-  id         String             @id @default(cuid())
+  id         String               @id @default(cuid())
   eventId    String
   tableId    String
   seatNumber Int
   status     EventTableSeatStatus @default(EMPTY)
-  notes      String?            @db.Text
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  notes      String?              @db.Text
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
-  event       Event             @relation(fields: [eventId], references: [id])
-  table       EventTable        @relation(fields: [tableId], references: [id])
-  guest       EventGuest?
-  invites     EventGuestInvite[]
-  checkInRecords EventCheckInRecord[]
+  event             Event                   @relation(fields: [eventId], references: [id])
+  table             EventTable              @relation(fields: [tableId], references: [id])
+  guest             EventGuest?
+  invites           EventGuestInvite[]
+  checkInRecords    EventCheckInRecord[]
   checkInExceptions EventCheckInException[]
 
   @@unique([tableId, seatNumber])
@@ -1336,7 +1339,7 @@ model EventTableSeat {
 }
 
 model EventGuestInvite {
-  id                 String                @id @default(cuid())
+  id                 String                 @id @default(cuid())
   eventId            String
   tableId            String
   seatId             String?
@@ -1350,14 +1353,14 @@ model EventGuestInvite {
   openedAt           DateTime?
   completedAt        DateTime?
   expiresAt          DateTime?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
-  event         Event          @relation(fields: [eventId], references: [id])
-  table         EventTable     @relation(fields: [tableId], references: [id])
-  seat          EventTableSeat? @relation(fields: [seatId], references: [id])
-  guest         EventGuest?    @relation(fields: [guestId], references: [id])
-  emailLogs     EventEmailLog[]
+  event     Event           @relation(fields: [eventId], references: [id])
+  table     EventTable      @relation(fields: [tableId], references: [id])
+  seat      EventTableSeat? @relation(fields: [seatId], references: [id])
+  guest     EventGuest?     @relation(fields: [guestId], references: [id])
+  emailLogs EventEmailLog[]
 
   @@index([eventId, status])
   @@index([tableId, status])
@@ -1366,7 +1369,7 @@ model EventGuestInvite {
 }
 
 model EventTableAccessToken {
-  id         String                     @id @default(cuid())
+  id         String                      @id @default(cuid())
   eventId    String
   tableId    String
   hostEmail  String
@@ -1374,8 +1377,8 @@ model EventTableAccessToken {
   status     EventTableAccessTokenStatus @default(ACTIVE)
   expiresAt  DateTime
   lastUsedAt DateTime?
-  createdAt  DateTime                   @default(now())
-  updatedAt  DateTime                   @updatedAt
+  createdAt  DateTime                    @default(now())
+  updatedAt  DateTime                    @updatedAt
 
   event Event      @relation(fields: [eventId], references: [id])
   table EventTable @relation(fields: [tableId], references: [id])
@@ -1386,7 +1389,7 @@ model EventTableAccessToken {
 }
 
 model EventCheckInRecord {
-  id                String            @id @default(cuid())
+  id                String             @id @default(cuid())
   eventId           String
   guestId           String?
   tableId           String?
@@ -1395,15 +1398,15 @@ model EventCheckInRecord {
   status            EventCheckInStatus @default(CHECKED_IN)
   checkedInByUserId String?
   checkInDeviceId   String?
-  checkedInAt       DateTime          @default(now())
+  checkedInAt       DateTime           @default(now())
   reversedAt        DateTime?
   reversedByUserId  String?
-  notes             String?           @db.Text
+  notes             String?            @db.Text
 
-  event           Event          @relation(fields: [eventId], references: [id])
-  guest           EventGuest?    @relation(fields: [guestId], references: [id])
-  table           EventTable?    @relation(fields: [tableId], references: [id])
-  seat            EventTableSeat? @relation(fields: [seatId], references: [id])
+  event Event           @relation(fields: [eventId], references: [id])
+  guest EventGuest?     @relation(fields: [guestId], references: [id])
+  table EventTable?     @relation(fields: [tableId], references: [id])
+  seat  EventTableSeat? @relation(fields: [seatId], references: [id])
 
   @@index([eventId, checkedInAt])
   @@index([eventId, status])
@@ -1412,27 +1415,27 @@ model EventCheckInRecord {
 }
 
 model EventCheckInException {
-  id              String                        @id @default(cuid())
-  eventId         String
-  guestId         String?
-  tableId         String?
-  seatId          String?
-  guestName       String?
-  claimedTable    String?
-  claimedEmail    String?
-  claimedPhone    String?
-  issueType       EventCheckInExceptionIssueType
-  status          EventCheckInExceptionStatus @default(OPEN)
-  notes           String?                      @db.Text
-  createdByUserId String?
+  id               String                         @id @default(cuid())
+  eventId          String
+  guestId          String?
+  tableId          String?
+  seatId           String?
+  guestName        String?
+  claimedTable     String?
+  claimedEmail     String?
+  claimedPhone     String?
+  issueType        EventCheckInExceptionIssueType
+  status           EventCheckInExceptionStatus    @default(OPEN)
+  notes            String?                        @db.Text
+  createdByUserId  String?
   resolvedByUserId String?
-  createdAt       DateTime                     @default(now())
-  resolvedAt      DateTime?
+  createdAt        DateTime                       @default(now())
+  resolvedAt       DateTime?
 
-  event          Event          @relation(fields: [eventId], references: [id])
-  guest          EventGuest?    @relation(fields: [guestId], references: [id])
-  table          EventTable?    @relation(fields: [tableId], references: [id])
-  seat           EventTableSeat? @relation(fields: [seatId], references: [id])
+  event Event           @relation(fields: [eventId], references: [id])
+  guest EventGuest?     @relation(fields: [guestId], references: [id])
+  table EventTable?     @relation(fields: [tableId], references: [id])
+  seat  EventTableSeat? @relation(fields: [seatId], references: [id])
 
   @@index([eventId, status])
   @@index([eventId, issueType])
@@ -1440,7 +1443,7 @@ model EventCheckInException {
 }
 
 model EventEmailLog {
-  id                String            @id @default(cuid())
+  id                String              @id @default(cuid())
   eventId           String
   tableId           String?
   guestId           String?
@@ -1450,16 +1453,16 @@ model EventEmailLog {
   status            EventEmailLogStatus @default(QUEUED)
   subject           String?
   providerMessageId String?
-  errorMessage      String?           @db.Text
+  errorMessage      String?             @db.Text
   queuedAt          DateTime?
   sentAt            DateTime?
   openedAt          DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  event  Event            @relation(fields: [eventId], references: [id])
-  table  EventTable?      @relation(fields: [tableId], references: [id])
-  guest  EventGuest?      @relation(fields: [guestId], references: [id])
+  event  Event             @relation(fields: [eventId], references: [id])
+  table  EventTable?       @relation(fields: [tableId], references: [id])
+  guest  EventGuest?       @relation(fields: [guestId], references: [id])
   invite EventGuestInvite? @relation(fields: [inviteId], references: [id])
 
   @@index([eventId, type, status])
@@ -1622,51 +1625,51 @@ model AuditLog {
 }
 
 model WatchdogFeedbackTicket {
-  id                  String   @id @default(cuid())
-  organizationId      String
-  ticketNumber        String   @unique
+  id             String @id @default(cuid())
+  organizationId String
+  ticketNumber   String @unique
 
-  type                String   @db.VarChar(40)
-  status              String   @default("new") @db.VarChar(40)
-  priority            String   @default("normal") @db.VarChar(20)
-  crmScope            String   @default("unknown") @db.VarChar(20)
+  type     String @db.VarChar(40)
+  status   String @default("new") @db.VarChar(40)
+  priority String @default("normal") @db.VarChar(20)
+  crmScope String @default("unknown") @db.VarChar(20)
 
-  pageUrl             String
-  routePath           String?
-  pageTitle           String?
+  pageUrl   String
+  routePath String?
+  pageTitle String?
 
-  submittedByUserId   String?
-  submittedByName     String?
-  submittedByEmail    String?
+  submittedByUserId String?
+  submittedByName   String?
+  submittedByEmail  String?
 
-  whatTryingToDo      String?  @db.Text
-  whatHappened        String?  @db.Text
-  expectedResult      String?  @db.Text
-  extraComments       String?  @db.Text
+  whatTryingToDo String? @db.Text
+  whatHappened   String? @db.Text
+  expectedResult String? @db.Text
+  extraComments  String? @db.Text
 
-  featureTitle        String?
-  featureProblem      String?  @db.Text
-  featureAudience     String?
+  featureTitle           String?
+  featureProblem         String? @db.Text
+  featureAudience        String?
   featureRequestedChange String? @db.Text
-  importance          String?  @db.VarChar(20)
+  importance             String? @db.VarChar(20)
 
-  browserInfo         String?
-  deviceInfo          String?
-  appVersion          String?
-  environment         String?  @db.VarChar(20)
+  browserInfo String?
+  deviceInfo  String?
+  appVersion  String?
+  environment String? @db.VarChar(20)
 
   assignedDeveloperId String?
   assignedToPersonId  String?
 
-  developerNotes      String?  @db.Text
-  resolutionNotes     String?  @db.Text
+  developerNotes  String? @db.Text
+  resolutionNotes String? @db.Text
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  resolvedAt          DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
 
-  submittedByUser     User?    @relation("FeedbackSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
-  assignedDeveloper   User?    @relation("FeedbackAssignedDeveloper", fields: [assignedDeveloperId], references: [id], onDelete: SetNull)
+  submittedByUser   User? @relation("FeedbackSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  assignedDeveloper User? @relation("FeedbackAssignedDeveloper", fields: [assignedDeveloperId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
@@ -1695,7 +1698,7 @@ enum HrmMessageKind {
 }
 
 model HrmLocation {
-  id             String            @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
 
   name         String
@@ -1721,17 +1724,17 @@ model HrmLocation {
 }
 
 model HrmMessage {
-  id             String             @id @default(cuid())
-  organizationId String
-  senderUserId   String
+  id              String             @id @default(cuid())
+  organizationId  String
+  senderUserId    String
   recipientUserId String?
-  recipientRole  String?
-  kind           HrmMessageKind     @default(DIRECT)
-  priority       HrmMessagePriority @default(NORMAL)
-  broadcastAll   Boolean            @default(false)
+  recipientRole   String?
+  kind            HrmMessageKind     @default(DIRECT)
+  priority        HrmMessagePriority @default(NORMAL)
+  broadcastAll    Boolean            @default(false)
 
   title      String
-  body       String @db.Text
+  body       String    @db.Text
   readAt     DateTime?
   archivedAt DateTime?
 
@@ -1750,13 +1753,13 @@ model HrmMessage {
 }
 
 model HrmSetting {
-  id                        String  @id @default(cuid())
-  organizationId            String  @unique
-  defaultTimezone           String  @default("America/Chicago")
-  defaultLocationId         String?
+  id                            String  @id @default(cuid())
+  organizationId                String  @unique
+  defaultTimezone               String  @default("America/Chicago")
+  defaultLocationId             String?
   allowCompassionAssignmentSync Boolean @default(true)
-  requireSchedulableFlag    Boolean @default(true)
-  messageDigestEnabled      Boolean @default(false)
+  requireSchedulableFlag        Boolean @default(true)
+  messageDigestEnabled          Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1948,57 +1951,57 @@ model AutomationAction {
 // ─── Steward Paths Engagement Sequences ─────────────────────────────────────
 
 model StewardPath {
-  id               String             @id @default(cuid())
-  organizationId   String
-  name             String
-  description      String?            @db.Text
-  crmScope         StewardPathCrmScope @default(DONOR)
-  targetType       StewardPathTarget
-  triggerType      String             @default("MANUAL")
-  triggerConfig    Json?
-  status           StewardPathStatus  @default(DRAFT)
-  defaultOwnerId   String?
-  createdByUserId  String
+  id                 String              @id @default(cuid())
+  organizationId     String
+  name               String
+  description        String?             @db.Text
+  crmScope           StewardPathCrmScope @default(DONOR)
+  targetType         StewardPathTarget
+  triggerType        String              @default("MANUAL")
+  triggerConfig      Json?
+  status             StewardPathStatus   @default(DRAFT)
+  defaultOwnerId     String?
+  createdByUserId    String
   lastEditedByUserId String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  defaultOwner     User?              @relation("StewardPathDefaultOwner", fields: [defaultOwnerId], references: [id], onDelete: SetNull)
-  createdBy        User               @relation("StewardPathCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  lastEditedBy     User?              @relation("StewardPathEditedBy", fields: [lastEditedByUserId], references: [id], onDelete: SetNull)
-  steps            StewardPathStep[]
-  enrollments      StewardPathEnrollment[]
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultOwner User?                   @relation("StewardPathDefaultOwner", fields: [defaultOwnerId], references: [id], onDelete: SetNull)
+  createdBy    User                    @relation("StewardPathCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  lastEditedBy User?                   @relation("StewardPathEditedBy", fields: [lastEditedByUserId], references: [id], onDelete: SetNull)
+  steps        StewardPathStep[]
+  enrollments  StewardPathEnrollment[]
 
   @@index([organizationId, status])
   @@index([organizationId, crmScope, targetType])
 }
 
 model StewardPathStep {
-  id            String             @id @default(cuid())
-  pathId        String
-  orderIndex    Int
-  name          String
-  description   String?            @db.Text
-  stepType      StewardPathStepType
-  configJson    Json?
-  isRequired    Boolean            @default(true)
-  isActive      Boolean            @default(true)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id          String              @id @default(cuid())
+  pathId      String
+  orderIndex  Int
+  name        String
+  description String?             @db.Text
+  stepType    StewardPathStepType
+  configJson  Json?
+  isRequired  Boolean             @default(true)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-  path          StewardPath        @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  runs          StewardPathStepRun[]
-  timelineEvents StewardPathTimelineEvent[]
-  emailDrafts   StewardPathEmailDraft[]
-  enrollmentsAsCurrent StewardPathEnrollment[] @relation("StewardPathCurrentStep")
+  path                 StewardPath                @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  runs                 StewardPathStepRun[]
+  timelineEvents       StewardPathTimelineEvent[]
+  emailDrafts          StewardPathEmailDraft[]
+  enrollmentsAsCurrent StewardPathEnrollment[]    @relation("StewardPathCurrentStep")
 
   @@unique([pathId, orderIndex])
   @@index([pathId, isActive, orderIndex])
 }
 
 model StewardPathEnrollment {
-  id                  String                       @id @default(cuid())
+  id                  String                      @id @default(cuid())
   organizationId      String
   pathId              String
   targetType          StewardPathTarget
@@ -2007,23 +2010,23 @@ model StewardPathEnrollment {
   status              StewardPathEnrollmentStatus @default(ACTIVE)
   currentStepId       String?
   ownerUserId         String?
-  startedAt           DateTime                     @default(now())
+  startedAt           DateTime                    @default(now())
   lastStepCompletedAt DateTime?
   nextStepDueAt       DateTime?
   completedAt         DateTime?
   pausedAt            DateTime?
-  pausedReason        String?                      @db.Text
-  createdAt           DateTime                     @default(now())
-  updatedAt           DateTime                     @updatedAt
+  pausedReason        String?                     @db.Text
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
 
-  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  path                StewardPath                  @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  currentStep         StewardPathStep?             @relation("StewardPathCurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
-  ownerUser           User?                        @relation("StewardPathEnrollmentOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
-  constituent         Constituent?                 @relation(fields: [constituentId], references: [id], onDelete: SetNull)
-  stepRuns            StewardPathStepRun[]
-  timelineEvents      StewardPathTimelineEvent[]
-  emailDrafts         StewardPathEmailDraft[]
+  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  path           StewardPath                @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  currentStep    StewardPathStep?           @relation("StewardPathCurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
+  ownerUser      User?                      @relation("StewardPathEnrollmentOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  constituent    Constituent?               @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  stepRuns       StewardPathStepRun[]
+  timelineEvents StewardPathTimelineEvent[]
+  emailDrafts    StewardPathEmailDraft[]
 
   @@index([organizationId, status, nextStepDueAt])
   @@index([pathId, status])
@@ -2032,67 +2035,67 @@ model StewardPathEnrollment {
 }
 
 model StewardPathStepRun {
-  id            String                   @id @default(cuid())
-  enrollmentId  String
-  stepId        String
-  status        StewardPathStepRunStatus @default(PENDING)
-  scheduledFor  DateTime?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  resultJson    Json?
-  errorMessage  String?                  @db.Text
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  id           String                   @id @default(cuid())
+  enrollmentId String
+  stepId       String
+  status       StewardPathStepRunStatus @default(PENDING)
+  scheduledFor DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  resultJson   Json?
+  errorMessage String?                  @db.Text
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
 
-  enrollment    StewardPathEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  step          StewardPathStep          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  enrollment StewardPathEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step       StewardPathStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, stepId])
   @@index([status, scheduledFor])
 }
 
 model StewardPathTimelineEvent {
-  id              String                      @id @default(cuid())
+  id              String                       @id @default(cuid())
   enrollmentId    String
   stepId          String?
   eventType       StewardPathTimelineEventType
-  message         String                      @db.Text
+  message         String                       @db.Text
   metadataJson    Json?
   createdByUserId String?
-  createdAt       DateTime                    @default(now())
+  createdAt       DateTime                     @default(now())
 
-  enrollment      StewardPathEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  step            StewardPathStep?            @relation(fields: [stepId], references: [id], onDelete: SetNull)
-  createdBy       User?                       @relation("StewardPathTimelineCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  enrollment StewardPathEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step       StewardPathStep?      @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  createdBy  User?                 @relation("StewardPathTimelineCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([enrollmentId, createdAt])
   @@index([eventType, createdAt])
 }
 
 model StewardPathEmailDraft {
-  id                 String                   @id @default(cuid())
-  enrollmentId       String
-  stepId             String
-  constituentId      String?
-  reviewerUserId     String?
-  status             StewardPathEmailDraftStatus @default(DRAFT_CREATED)
-  subject            String
-  body               String                   @db.Text
-  fromMode           String                   @default("organization")
-  replyToMode        String?
-  requireApproval    Boolean                  @default(true)
-  allowUserEdits     Boolean                  @default(true)
-  sentAt             DateTime?
-  skippedAt          DateTime?
-  failedAt           DateTime?
-  failureReason      String?                  @db.Text
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  id              String                      @id @default(cuid())
+  enrollmentId    String
+  stepId          String
+  constituentId   String?
+  reviewerUserId  String?
+  status          StewardPathEmailDraftStatus @default(DRAFT_CREATED)
+  subject         String
+  body            String                      @db.Text
+  fromMode        String                      @default("organization")
+  replyToMode     String?
+  requireApproval Boolean                     @default(true)
+  allowUserEdits  Boolean                     @default(true)
+  sentAt          DateTime?
+  skippedAt       DateTime?
+  failedAt        DateTime?
+  failureReason   String?                     @db.Text
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
 
-  enrollment         StewardPathEnrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  step               StewardPathStep          @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  constituent        Constituent?             @relation(fields: [constituentId], references: [id], onDelete: SetNull)
-  reviewer           User?                    @relation("StewardPathEmailDraftReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  enrollment  StewardPathEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step        StewardPathStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  constituent Constituent?          @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  reviewer    User?                 @relation("StewardPathEmailDraftReviewer", fields: [reviewerUserId], references: [id], onDelete: SetNull)
 
   @@index([reviewerUserId, status])
   @@index([enrollmentId, status])
@@ -2118,7 +2121,7 @@ model LetterHeaderPreset {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   templates    LetterTemplate[]
 
   @@index([organizationId, isActive])
@@ -2143,7 +2146,7 @@ model LetterFooterPreset {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   templates    LetterTemplate[]
 
   @@index([organizationId, isActive])
@@ -2166,7 +2169,7 @@ model LetterSignatureBlock {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   templates    LetterTemplate[]
 
   @@index([organizationId, isActive])
@@ -2197,12 +2200,12 @@ model LetterTemplate {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  headerPreset   LetterHeaderPreset?   @relation(fields: [headerPresetId], references: [id], onDelete: SetNull)
-  footerPreset   LetterFooterPreset?   @relation(fields: [footerPresetId], references: [id], onDelete: SetNull)
-  signatureBlock LetterSignatureBlock? @relation(fields: [signatureBlockId], references: [id], onDelete: SetNull)
-  createdBy      User                  @relation("LetterTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  updatedBy      User?                 @relation("LetterTemplateUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  headerPreset     LetterHeaderPreset?   @relation(fields: [headerPresetId], references: [id], onDelete: SetNull)
+  footerPreset     LetterFooterPreset?   @relation(fields: [footerPresetId], references: [id], onDelete: SetNull)
+  signatureBlock   LetterSignatureBlock? @relation(fields: [signatureBlockId], references: [id], onDelete: SetNull)
+  createdBy        User                  @relation("LetterTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  updatedBy        User?                 @relation("LetterTemplateUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   generatedLetters GeneratedLetter[]
 
   @@index([organizationId, status])
@@ -2211,43 +2214,43 @@ model LetterTemplate {
 }
 
 model GeneratedLetter {
-  id                     String                @id @default(cuid())
-  organizationId         String
-  templateId             String
-  constituentId          String?
-  donationId             String?
-  campaignId             String?
-  eventId                String?
-  category               LetterCategory
-  status                 LetterGeneratedStatus @default(GENERATED)
-  mergedPrintSubject     String?
-  mergedPrintBody        String                @db.LongText
-  mergedEmailBody        String?               @db.LongText
-  emailSubject           String?
-  pdfUrl                 String?
-  emailCampaignId        String?
+  id                      String                @id @default(cuid())
+  organizationId          String
+  templateId              String
+  constituentId           String?
+  donationId              String?
+  campaignId              String?
+  eventId                 String?
+  category                LetterCategory
+  status                  LetterGeneratedStatus @default(GENERATED)
+  mergedPrintSubject      String?
+  mergedPrintBody         String                @db.LongText
+  mergedEmailBody         String?               @db.LongText
+  emailSubject            String?
+  pdfUrl                  String?
+  emailCampaignId         String?
   communicationActivityId String?
-  sourceTaskId           String?
+  sourceTaskId            String?
   stewardPathEnrollmentId String?
-  stewardPathStepRunId   String?
-  generatedByUserId      String
-  generatedAt            DateTime              @default(now())
-  printedAt              DateTime?
-  mailedAt               DateTime?
-  emailDraftCreatedAt    DateTime?
-  emailSentAt            DateTime?
-  metadataJson           Json?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
+  stewardPathStepRunId    String?
+  generatedByUserId       String
+  generatedAt             DateTime              @default(now())
+  printedAt               DateTime?
+  mailedAt                DateTime?
+  emailDraftCreatedAt     DateTime?
+  emailSentAt             DateTime?
+  metadataJson            Json?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  template     LetterTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  constituent  Constituent?   @relation(fields: [constituentId], references: [id], onDelete: SetNull)
-  donation     Donation?      @relation(fields: [donationId], references: [id], onDelete: SetNull)
-  campaign     Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  event        Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template      LetterTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  constituent   Constituent?   @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  donation      Donation?      @relation(fields: [donationId], references: [id], onDelete: SetNull)
+  campaign      Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  event         Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
   emailCampaign EmailCampaign? @relation(fields: [emailCampaignId], references: [id], onDelete: SetNull)
-  generatedBy  User           @relation("GeneratedLetterCreatedBy", fields: [generatedByUserId], references: [id], onDelete: Cascade)
+  generatedBy   User           @relation("GeneratedLetterCreatedBy", fields: [generatedByUserId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status])
   @@index([organizationId, category])
@@ -2289,12 +2292,12 @@ model EmailCampaign {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization   Organization                 @relation(fields: [organizationId], references: [id])
-  deliveryEvents EmailCampaignDeliveryEvent[]
-  emailSendRecipients EmailSendRecipient[]
+  organization           Organization                 @relation(fields: [organizationId], references: [id])
+  deliveryEvents         EmailCampaignDeliveryEvent[]
+  emailSendRecipients    EmailSendRecipient[]
   emailUnsubscribeTokens EmailUnsubscribeToken[]
-  deliveryStatusEvents EmailDeliveryEvent[]
-  generatedLetters GeneratedLetter[]
+  deliveryStatusEvents   EmailDeliveryEvent[]
+  generatedLetters       GeneratedLetter[]
 }
 
 model EmailRecipientList {
@@ -2361,12 +2364,12 @@ model EmailSubscription {
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
-  constituent  Constituent?      @relation(fields: [constituentId], references: [id], onDelete: SetNull)
-  preferences  EmailPreference[]
-  consentEvents EmailConsentEvent[]
+  organization      Organization            @relation(fields: [organizationId], references: [id])
+  constituent       Constituent?            @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  preferences       EmailPreference[]
+  consentEvents     EmailConsentEvent[]
   unsubscribeTokens EmailUnsubscribeToken[]
-  sendRecipients EmailSendRecipient[]
+  sendRecipients    EmailSendRecipient[]
 
   @@unique([organizationId, email], map: "es_org_email_uk")
   @@index([organizationId, globalStatus])
@@ -2382,7 +2385,7 @@ model EmailPreference {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id])
   subscription EmailSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@unique([subscriptionId, category], map: "ep_subscription_category_uk")
@@ -2410,7 +2413,7 @@ model EmailSuppression {
 }
 
 model EmailConsentEvent {
-  id             String               @id @default(cuid())
+  id             String                @id @default(cuid())
   organizationId String
   constituentId  String?
   subscriptionId String?
@@ -2420,13 +2423,13 @@ model EmailConsentEvent {
   source         String?
   ipAddress      String?
   userAgent      String?
-  consentText    String?              @db.Text
+  consentText    String?               @db.Text
   createdById    String?
   metadata       Json?
-  createdAt      DateTime             @default(now())
+  createdAt      DateTime              @default(now())
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
-  constituent  Constituent?      @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  constituent  Constituent?       @relation(fields: [constituentId], references: [id], onDelete: SetNull)
   subscription EmailSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, email, createdAt])
@@ -2434,45 +2437,45 @@ model EmailConsentEvent {
 }
 
 model EmailUnsubscribeToken {
-  id             String       @id @default(cuid())
+  id             String         @id @default(cuid())
   organizationId String
   subscriptionId String
-  tokenHash      String       @unique
+  tokenHash      String         @unique
   email          String
   category       EmailCategory?
   campaignId     String?
   expiresAt      DateTime?
   usedAt         DateTime?
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime       @default(now())
 
-  organization Organization     @relation(fields: [organizationId], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id])
   subscription EmailSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  campaign     EmailCampaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaign     EmailCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, email])
   @@index([expiresAt])
 }
 
 model EmailSendRecipient {
-  id                 String                          @id @default(cuid())
-  organizationId     String
-  campaignId         String
-  subscriptionId     String?
-  constituentId      String?
-  email              String
-  category           EmailCategory?
-  purpose            EmailPurpose
-  eligibilityStatus  EmailRecipientEligibilityStatus @default(ELIGIBLE)
+  id                  String                          @id @default(cuid())
+  organizationId      String
+  campaignId          String
+  subscriptionId      String?
+  constituentId       String?
+  email               String
+  category            EmailCategory?
+  purpose             EmailPurpose
+  eligibilityStatus   EmailRecipientEligibilityStatus @default(ELIGIBLE)
   ineligibilityReason String?
-  queuedAt           DateTime?
-  sentAt             DateTime?
-  createdAt          DateTime                        @default(now())
-  updatedAt          DateTime                        @updatedAt
+  queuedAt            DateTime?
+  sentAt              DateTime?
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
 
-  organization Organization       @relation(fields: [organizationId], references: [id])
-  campaign     EmailCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  subscription EmailSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  constituent  Constituent?       @relation(fields: [constituentId], references: [id], onDelete: SetNull)
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  campaign       EmailCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  subscription   EmailSubscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  constituent    Constituent?         @relation(fields: [constituentId], references: [id], onDelete: SetNull)
   deliveryEvents EmailDeliveryEvent[]
 
   @@unique([campaignId, email], map: "esr_campaign_email_uk")
@@ -2480,18 +2483,18 @@ model EmailSendRecipient {
 }
 
 model EmailDeliveryEvent {
-  id              String             @id @default(cuid())
+  id              String              @id @default(cuid())
   organizationId  String
   sendRecipientId String
   campaignId      String?
   eventType       EmailDeliveryStatus
-  eventAt         DateTime           @default(now())
+  eventAt         DateTime            @default(now())
   metadata        Json?
-  createdAt       DateTime           @default(now())
+  createdAt       DateTime            @default(now())
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
+  organization  Organization       @relation(fields: [organizationId], references: [id])
   sendRecipient EmailSendRecipient @relation(fields: [sendRecipientId], references: [id], onDelete: Cascade)
-  campaign     EmailCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaign      EmailCampaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@index([sendRecipientId, eventType, eventAt])
   @@index([campaignId, eventType, eventAt])
@@ -3093,7 +3096,7 @@ model CrmThread {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
+  organization Organization           @relation(fields: [organizationId], references: [id])
   participants CrmThreadParticipant[]
   messages     CrmMessage[]
 
@@ -3102,12 +3105,12 @@ model CrmThread {
 
 /// Represents a user's membership in a CrmThread; tracks their last-read cursor.
 model CrmThreadParticipant {
-  id           String    @id @default(cuid())
-  threadId     String
-  userId       String
+  id         String    @id @default(cuid())
+  threadId   String
+  userId     String
   /// UTC timestamp of the last message the user has read in this thread.
-  lastReadAt   DateTime?
-  joinedAt     DateTime  @default(now())
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
 
   thread CrmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user   User      @relation("CrmThreadParticipantUser", fields: [userId], references: [id])
@@ -3118,15 +3121,15 @@ model CrmThreadParticipant {
 
 /// A single chat message sent in a CrmThread.
 model CrmMessage {
-  id         String   @id @default(cuid())
-  threadId   String
-  senderId   String
+  id        String    @id @default(cuid())
+  threadId  String
+  senderId  String
   /// Message body — supports plain text.
-  body       String   @db.Text
+  body      String    @db.Text
   /// Optional soft-delete timestamp.
-  deletedAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   thread CrmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   sender User      @relation("CrmMessageSender", fields: [senderId], references: [id])

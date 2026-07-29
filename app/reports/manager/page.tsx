@@ -1,7 +1,8 @@
-import ReportsManagerPage from "@/app/components/donor-reports/ReportsManagerPage";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Reports Manager - DonorCRM" };
+export const metadata = { title: "Reports - DonorCRM" };
 
+/** Keeps old report-manager bookmarks working while reports move into Donor CRM. */
 export default function Page() {
-  return <ReportsManagerPage />;
+  redirect("/reports");
 }

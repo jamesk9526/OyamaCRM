@@ -49,16 +49,46 @@ export async function createEventTable(input: {
   xPosition?: number;
   yPosition?: number;
 }) {
+  const name = String(input.name ?? "").trim();
+  if (!name) throw new Error("Table name is required.");
+  if (name.length > 120) throw new Error("Table name must be 120 characters or fewer.");
+
+  const capacity = Number(input.capacity ?? 10);
+  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500) {
+    throw new Error("Table capacity must be a whole number from 1 through 500.");
+  }
+
+  const existingNumbers = await prisma.eventTable.findMany({
+    where: { eventId: input.eventId },
+    select: { tableNumber: true },
+  });
+  const usedNumbers = new Set(existingNumbers.map((table) => table.tableNumber).filter((value): value is number => Number.isInteger(value) && Number(value) > 0));
+  const requestedNumber = input.tableNumber;
+  if (requestedNumber != null && (!Number.isInteger(requestedNumber) || requestedNumber < 1 || requestedNumber > 9999)) {
+    throw new Error("Table numbers must be whole numbers from 1 through 9999.");
+  }
+  let tableNumber = requestedNumber ?? null;
+  if (tableNumber == null) {
+    for (let candidate = 1; candidate <= 9999; candidate += 1) {
+      if (!usedNumbers.has(candidate)) {
+        tableNumber = candidate;
+        break;
+      }
+    }
+  }
+  if (tableNumber == null) throw new Error("No table numbers are available for this event.");
+  if (usedNumbers.has(tableNumber)) throw new Error(`Table ${tableNumber} is already assigned in this event.`);
+
   const publicCode = await ensureUniquePublicCode(input.eventId);
   const table = await prisma.eventTable.create({
     data: {
       eventId: input.eventId,
       tableUid: generateTableUid(),
       publicCode,
-      name: input.name,
-      capacity: input.capacity ?? 10,
+      name,
+      capacity,
       notes: input.notes ?? undefined,
-      tableNumber: input.tableNumber ?? undefined,
+      tableNumber,
       isSponsored: input.isSponsored ?? false,
       sponsorName: input.sponsorName ?? undefined,
       hostName: input.hostName ?? undefined,
@@ -71,8 +101,8 @@ export async function createEventTable(input: {
     },
   });
 
-  if ((input.capacity ?? 10) > 0) {
-    const seats = Array.from({ length: input.capacity ?? 10 }, (_v, i) => ({
+  if (capacity > 0) {
+    const seats = Array.from({ length: capacity }, (_v, i) => ({
       eventId: input.eventId,
       tableId: table.id,
       seatNumber: i + 1,

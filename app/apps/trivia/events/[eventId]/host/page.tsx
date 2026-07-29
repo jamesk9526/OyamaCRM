@@ -8,6 +8,7 @@ import TriviaEventHeader from "@/app/components/trivia/TriviaEventHeader";
 import HostControlPanel from "@/app/components/trivia/HostControlPanel";
 import ScorekeepingPanel from "@/app/components/trivia/ScorekeepingPanel";
 import TemporaryEventAccessPanel from "@/app/components/trivia/TemporaryEventAccessPanel";
+import TriviaEventsLinkPanel from "@/app/components/trivia/TriviaEventsLinkPanel";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 import { getActiveQuestion } from "@/app/apps/trivia/lib/trivia-selectors";
 
@@ -33,6 +34,7 @@ export default function TriviaHostPage() {
     setSyncMode,
     connectionStatus,
     refreshFromServer,
+    createEventSnapshot,
   } = useTriviaModuleState();
 
   const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [state.events, eventId]);
@@ -56,7 +58,7 @@ export default function TriviaHostPage() {
         event={event}
         actions={(
           <>
-            <button onClick={() => updateEventStatus(event.id, "live")} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-semibold text-black">
+            <button onClick={() => void createEventSnapshot(event.id, "Before going live").then(() => updateEventStatus(event.id, "live"))} className="min-h-11 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-500">
               Mark Live
             </button>
             <Link href={`/apps/trivia/events/${event.id}/scores`} className="rounded-lg bg-cyan-700 hover:bg-cyan-600 px-3 py-2 text-xs text-white">
@@ -81,7 +83,12 @@ export default function TriviaHostPage() {
         onResetTimer={() => resetTimer(event.id)}
         onTickTimer={(remaining) => setTimerRemaining(event.id, remaining)}
         onProjectorOpened={() => markProjectorOpened(event.id)}
+        onCreateCheckpoint={() => createEventSnapshot(event.id, `Host checkpoint · ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`).then(() => undefined)}
+        connectionStatus={connectionStatus}
+        serverSyncEnabled={syncMode === "server"}
       />
+
+      <TriviaEventsLinkPanel event={event} onRefresh={refreshFromServer} compact />
 
       <section className={syncMode === "server" ? "border border-emerald-400/40 bg-emerald-500/10 px-4 py-3" : "border border-amber-400/50 bg-amber-500/10 px-4 py-3"}>
         <div className="flex flex-wrap items-center justify-between gap-3">

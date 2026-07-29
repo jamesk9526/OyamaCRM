@@ -12,6 +12,8 @@ import type { EventItem } from "@/app/components/events/types";
 function badge(type: string) {
   switch (type) {
     case "GALA": return "bg-purple-50 text-purple-700";
+    case "TRIVIA": return "bg-cyan-50 text-cyan-700";
+    case "FUNDRAISER": return "bg-emerald-50 text-emerald-700";
     case "AUCTION": return "bg-amber-50 text-amber-700";
     case "CONFERENCE": return "bg-blue-50 text-blue-700";
     case "VOLUNTEER": return "bg-green-50 text-green-700";

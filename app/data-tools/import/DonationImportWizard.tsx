@@ -54,6 +54,17 @@ interface ImportResult {
   unmatched: number;
   dryRun: boolean;
   duplicatesInFile?: number;
+  existingDuplicateRecords?: number;
+  ambiguousExistingMatches?: number;
+  potentialDuplicates?: number;
+  potentialDuplicateExamples?: Array<{
+    rowNumber: number;
+    amount: number;
+    date: string;
+    constituentId: string;
+    existingDonationIds: string[];
+  }>;
+  previousImport?: { importedAt: string; sourceFileName: string | null } | null;
   errorMessages?: string[];
 }
 
@@ -94,6 +105,13 @@ function isMatchField(key: string) {
 
 function normalizeImportValue(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Returns a stable, privacy-safe fingerprint without retaining the source file. */
+async function fingerprintSourceFile(file: File): Promise<string> {
+  if (!globalThis.crypto?.subtle) return "";
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(hash)).map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 /**
@@ -142,7 +160,7 @@ function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): V
 
   const mappedMatchKeys = Object.values(mapping).filter((v) => isMatchField(v));
   if (mappedMatchKeys.length === 0) {
-    warnings.push("No constituent matching fields are mapped. Donations will be imported without linking to any donor record.");
+    warnings.push("No constituent matching fields are mapped. Donation rows cannot be safely linked and will be skipped.");
   }
 
   for (const row of rows) {
@@ -199,7 +217,7 @@ function validate(rows: Array<Record<string, string>>, mapping: FieldMapping): V
     warnings.push(`${duplicatesInFile} duplicate donation row(s) were detected in this file and excluded from import.`);
   }
   if (noConstituentMatch > 0 && mappedMatchKeys.length > 0) {
-    warnings.push(`${noConstituentMatch} rows are missing all constituent matching fields and may be imported without a linked donor.`);
+    warnings.push(`${noConstituentMatch} rows are missing all constituent matching fields and will be skipped because every donation must have a donor record.`);
   }
 
   return {
@@ -270,6 +288,7 @@ export default function DonationImportWizard() {
   const [step, setStep] = useState(1);
   const [parsed, setParsed] = useState<CsvParseResult | null>(null);
   const [fileName, setFileName] = useState("");
+  const [sourceFingerprint, setSourceFingerprint] = useState("");
   const [columnStats, setColumnStats] = useState<Record<string, ColumnStats>>({});
   const [mapping, setMapping] = useState<FieldMapping>({});
   const [validation, setValidation] = useState<ValidationSummary | null>(null);
@@ -279,7 +298,9 @@ export default function DonationImportWizard() {
   const [matchName, setMatchName] = useState(true);
   const [skipUnmatched, setSkipUnmatched] = useState(false);
   const [dedupByReceipt, setDedupByReceipt] = useState(true);
-  const [updateExisting, setUpdateExisting] = useState(true);
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [protectPotentialDuplicates, setProtectPotentialDuplicates] = useState(true);
+  const [allowRepeatedSource, setAllowRepeatedSource] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [selectedCol, setSelectedCol] = useState<string | null>(null);
@@ -291,6 +312,9 @@ export default function DonationImportWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setSourceFingerprint("");
+    setAllowRepeatedSource(false);
+    void fingerprintSourceFile(file).then(setSourceFingerprint).catch(() => setSourceFingerprint(""));
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
@@ -350,6 +374,10 @@ export default function DonationImportWizard() {
           skipUnmatched,
           dedupByReceipt,
           updateExisting,
+          protectPotentialDuplicates,
+          sourceFingerprint: sourceFingerprint || undefined,
+          sourceFileName: fileName || undefined,
+          allowRepeatedSource,
         }),
       });
       setResult(res);
@@ -363,10 +391,10 @@ export default function DonationImportWizard() {
     } finally {
       setImporting(false);
     }
-  }, [validation, dryRun, matchEmail, matchExternalId, matchName, skipUnmatched, dedupByReceipt, updateExisting]);
+  }, [validation, dryRun, matchEmail, matchExternalId, matchName, skipUnmatched, dedupByReceipt, updateExisting, protectPotentialDuplicates, sourceFingerprint, fileName, allowRepeatedSource]);
 
   const reset = useCallback(() => {
-    setStep(1); setParsed(null); setFileName(""); setColumnStats({});
+    setStep(1); setParsed(null); setFileName(""); setSourceFingerprint(""); setAllowRepeatedSource(false); setColumnStats({});
     setMapping({}); setValidation(null); setResult(null); setSelectedCol(null);
     if (fileRef.current) fileRef.current.value = "";
   }, []);
@@ -738,7 +766,7 @@ export default function DonationImportWizard() {
                     <span className="text-sm text-gray-700">Skip rows with no constituent match</span>
                   </label>
                   {!skipUnmatched && (
-                    <p className="text-xs text-amber-600 mt-1 ml-7">Unmatched donations will be imported without a linked donor.</p>
+                    <p className="text-xs text-amber-600 mt-1 ml-7">Unmatched donations are always skipped; every donation must be linked to a donor record.</p>
                   )}
                 </div>
               </div>
@@ -746,19 +774,25 @@ export default function DonationImportWizard() {
               {/* Deduplication */}
               <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
                 <h3 className="text-sm font-semibold text-gray-900">Deduplication</h3>
-                <p className="text-xs text-gray-500">Prevent duplicate donations from being imported if this CSV is re-imported later.</p>
+                <p className="text-xs text-gray-500">Protect the existing donation ledger without assuming either source is right.</p>
                 <p className="text-xs text-gray-500">Exact duplicate rows within this file are always excluded automatically.</p>
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={dedupByReceipt} onChange={(e) => setDedupByReceipt(e.target.checked)} className="rounded accent-green-600" />
-                  <span className="text-sm text-gray-700">Skip if receipt number already exists in CRM</span>
+                  <span className="text-sm text-gray-700">Pause existing receipt or transaction ID matches</span>
                 </label>
                 {dedupByReceipt && (
                   <label className="flex items-center gap-2.5 cursor-pointer ml-6">
                     <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} className="rounded accent-green-600" />
-                    <span className="text-sm text-gray-700">Update existing donation with new data <span className="text-xs text-green-700">(recommended)</span></span>
+                    <span className="text-sm text-gray-700">Update one exact existing match after review <span className="text-xs text-amber-700">(off by default)</span></span>
                   </label>
                 )}
-                <p className="text-xs text-gray-400">Receipt number must be mapped in Step 2 for this to apply.</p>
+                <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+                  <input type="checkbox" checked={protectPotentialDuplicates} onChange={(e) => setProtectPotentialDuplicates(e.target.checked)} className="mt-0.5 rounded accent-green-600" />
+                  <span className="text-sm text-gray-700">Pause same donor, same date, same amount candidates for review
+                    <span className="block text-xs text-gray-500 mt-0.5">These can be valid separate gifts. They are never called duplicates automatically.</span>
+                  </span>
+                </label>
+                <p className="text-xs text-gray-400">Map receipt number or transaction ID when the export provides one. File fingerprints also flag an exact repeat upload after a live import.</p>
               </div>
 
               {/* Dry run toggle */}
@@ -799,9 +833,9 @@ export default function DonationImportWizard() {
             </div>
 
             {/* Result cards */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatCard label={result.dryRun ? "Would Create" : "Created"} value={result.created} color="green" />
-              <StatCard label="Skipped / Dedup" value={result.skipped} color="gray" />
+              <StatCard label="Skipped / Review" value={result.skipped} color="gray" />
               <StatCard label="Unmatched Donors" value={result.unmatched} color={result.unmatched > 0 ? "amber" : "gray"} />
               <StatCard label="Errors" value={result.errors} color={result.errors > 0 ? "red" : "gray"} />
             </div>
@@ -811,6 +845,45 @@ export default function DonationImportWizard() {
                 {result.duplicatesInFile} duplicate row(s) were detected in this upload and skipped.
               </div>
             )}
+
+            {typeof result.existingDuplicateRecords === "number" && result.existingDuplicateRecords > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {result.existingDuplicateRecords} row{result.existingDuplicateRecords === 1 ? "" : "s"} matched an existing receipt or transaction ID and {updateExisting && !result.dryRun ? "were updated after your explicit choice" : "were left unchanged"}.
+              </div>
+            )}
+
+            {typeof result.ambiguousExistingMatches === "number" && result.ambiguousExistingMatches > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {result.ambiguousExistingMatches} row{result.ambiguousExistingMatches === 1 ? " has" : "s have"} more than one existing receipt or transaction match. Nothing was changed for those rows.
+              </div>
+            )}
+
+            {typeof result.potentialDuplicates === "number" && result.potentialDuplicates > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="font-semibold">{result.potentialDuplicates} possible match{result.potentialDuplicates === 1 ? "" : "es"} need review</p>
+                <p className="mt-1">They share a donor, calendar date, and amount with an existing gift. That can be legitimate, so OyamaCRM has not called them duplicates.</p>
+                {result.potentialDuplicateExamples?.length ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                    {result.potentialDuplicateExamples.map((example) => (
+                      <li key={`${example.rowNumber}-${example.constituentId}`}>Source row {example.rowNumber}: ${example.amount.toFixed(2)} on {new Date(example.date).toLocaleDateString()} · existing record{example.existingDonationIds.length === 1 ? "" : "s"}: {example.existingDonationIds.join(", ")}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            )}
+
+            {result.previousImport ? (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                <p className="font-semibold">This exact file was previously committed</p>
+                <p className="mt-1">{result.previousImport.sourceFileName ?? "An unnamed source file"} was imported on {new Date(result.previousImport.importedAt).toLocaleString()}. Compare it with the ledger before repeating it.</p>
+                {result.dryRun ? (
+                  <label className="mt-3 flex items-start gap-2 text-sm font-medium cursor-pointer">
+                    <input type="checkbox" checked={allowRepeatedSource} onChange={(event) => setAllowRepeatedSource(event.target.checked)} className="mt-0.5 rounded accent-blue-600" />
+                    <span>I reviewed the prior import and intentionally want to allow a repeat of this exact source file.</span>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Error messages */}
             {result.errorMessages && result.errorMessages.length > 0 && (
@@ -827,7 +900,8 @@ export default function DonationImportWizard() {
               {result.dryRun && (
                 <button
                   onClick={() => { setDryRun(false); setStep(4); }}
-                  className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  disabled={Boolean(result.previousImport) && !allowRepeatedSource}
+                  className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   ⬆ Run Live Import
                 </button>

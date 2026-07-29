@@ -20,14 +20,15 @@ export default function AppsLayout({ children }: { children: React.ReactNode }) 
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const isPublicTriviaAccess = pathname === "/apps/trivia/remote" || pathname.startsWith("/apps/trivia/remote/");
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isPublicTriviaAccess && !loading && !user) {
       router.replace("/login");
     }
-  }, [loading, user, router]);
+  }, [isPublicTriviaAccess, loading, user, router]);
 
-  if (loading || !user) {
+  if (!isPublicTriviaAccess && (loading || !user)) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />

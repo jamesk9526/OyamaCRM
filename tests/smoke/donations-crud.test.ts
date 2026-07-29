@@ -18,6 +18,8 @@ let loopResult: {
   redirectTo?: string;
 } | null = null;
 const testConstituentId = "con_01"; // seeded constituent
+const importSafetyTransactionId = "smoke-import-reconciliation-transaction-001";
+const importSafetySourceFingerprint = Date.now().toString(16).padStart(64, "0");
 
 beforeAll(async () => {
   const mod = await import("@/server/src/index");
@@ -51,6 +53,7 @@ describe("donation CRUD", () => {
         amount: 250,
         date: new Date().toISOString(),
         paymentMethod: "CHECK",
+        transactionId: importSafetyTransactionId,
         status: "COMPLETED",
         taxDeductible: true,
         notes: "Smoke test donation",
@@ -204,6 +207,92 @@ describe("donation CRUD", () => {
     expect(typeof res.body.created).toBe("number");
     expect(typeof res.body.skipped).toBe("number");
     expect(typeof res.body.unmatched).toBe("number");
+    expect(typeof res.body.existingDuplicateRecords).toBe("number");
+    expect(typeof res.body.potentialDuplicates).toBe("number");
+  });
+
+  it("pauses an exact existing transaction ID instead of adding a second donation", async () => {
+    const res = await request(app)
+      .post("/api/donations/import")
+      .set(auth())
+      .send({
+        records: [{
+          constituentEmail: "margaret.chen@email.com",
+          amount: "275",
+          date: new Date().toISOString(),
+          transactionId: importSafetyTransactionId,
+          paymentMethod: "CHECK",
+        }],
+        dryRun: true,
+        matchEmail: true,
+        matchExternalId: false,
+        matchName: false,
+        dedupByReceipt: true,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.existingDuplicateRecords).toBe(1);
+    expect(res.body.created).toBe(0);
+    expect(res.body.skipped).toBe(1);
+  });
+
+  it("records a file fingerprint and surfaces a prior import for review", async () => {
+    const source = {
+      records: [{
+        constituentEmail: "margaret.chen@email.com",
+        amount: "275",
+        date: new Date().toISOString(),
+        transactionId: importSafetyTransactionId,
+        paymentMethod: "CHECK",
+      }],
+      matchEmail: true,
+      matchExternalId: false,
+      matchName: false,
+      dedupByReceipt: true,
+      sourceFingerprint: importSafetySourceFingerprint,
+      sourceFileName: "July 2026 eKYROS donations.csv",
+    };
+
+    const first = await request(app)
+      .post("/api/donations/import")
+      .set(auth())
+      .send({ ...source, dryRun: false, allowRepeatedSource: true });
+    expect(first.status).toBe(200);
+
+    const preview = await request(app)
+      .post("/api/donations/import")
+      .set(auth())
+      .send({ ...source, dryRun: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body.previousImport).toEqual(expect.objectContaining({
+      sourceFileName: "July 2026 eKYROS donations.csv",
+    }));
+  });
+
+  it("flags same-donor, same-day, same-amount rows as review candidates without calling them duplicates", async () => {
+    const res = await request(app)
+      .post("/api/donations/import")
+      .set(auth())
+      .send({
+        records: [{
+          constituentEmail: "margaret.chen@email.com",
+          amount: "275",
+          date: new Date().toISOString(),
+          paymentMethod: "CHECK",
+        }],
+        dryRun: true,
+        matchEmail: true,
+        matchExternalId: false,
+        matchName: false,
+        dedupByReceipt: false,
+        protectPotentialDuplicates: true,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.potentialDuplicates).toBe(1);
+    expect(res.body.potentialDuplicateExamples).toHaveLength(1);
+    expect(res.body.created).toBe(0);
+    expect(res.body.skipped).toBe(1);
   });
 
   it("donation import rejects empty records array", async () => {

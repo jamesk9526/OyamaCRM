@@ -53,6 +53,7 @@ interface EventDetail {
   capacity?: number | null;
   registrationGoal?: number | null;
   revenueGoal?: number | string | null;
+  visibility?: string | null;
   active?: boolean;
   ticketTypes?: Array<{ id: string }>;
   _count?: {
@@ -73,6 +74,7 @@ interface GuestSummary {
   paymentStatus?: string | null;
   rsvpStatus?: string | null;
   createdAt?: string;
+  checkinCode?: string | null;
   table?: { id: string; name: string } | null;
 }
 
@@ -111,6 +113,12 @@ interface EventReportSummary {
   donorInsights?: {
     needsFollowUp?: number;
   };
+}
+
+interface EventPageSummary {
+  pageUrl: string;
+  status: "Draft" | "Published" | "Unpublished";
+  lastPublishedAt?: string | null;
 }
 
 type MetricTone = "default" | "purple" | "green" | "amber" | "red";
@@ -212,6 +220,7 @@ export default function EventOverviewPage() {
   const [tables, setTables] = useState<EventTableSummary[]>([]);
   const [sponsors, setSponsors] = useState<EventSponsorSummary[]>([]);
   const [report, setReport] = useState<EventReportSummary | null>(null);
+  const [eventPage, setEventPage] = useState<EventPageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
@@ -223,13 +232,14 @@ export default function EventOverviewPage() {
     setError(null);
 
     try {
-      const [eventData, guestsData, ordersData, tablesData, sponsorsData, reportData] = await Promise.all([
+      const [eventData, guestsData, ordersData, tablesData, sponsorsData, reportData, eventPageData] = await Promise.all([
         apiFetch<EventDetail>(`/api/events/${eventId}`),
         apiFetch<GuestSummary[]>(`/api/events/${eventId}/guests`),
         apiFetch<EventOrderSummary[]>(`/api/events/${eventId}/orders`),
         apiFetch<EventTableSummary[]>(`/api/events/${eventId}/tables`),
         apiFetch<EventSponsorSummary[]>(`/api/events/${eventId}/sponsors`),
         apiFetch<EventReportSummary>(`/api/events/${eventId}/report`).catch(() => null),
+        apiFetch<EventPageSummary>(`/api/events/${eventId}/page-builder-config`).catch(() => null),
       ]);
 
       setEvent(eventData);
@@ -238,6 +248,7 @@ export default function EventOverviewPage() {
       setTables(Array.isArray(tablesData) ? tablesData : []);
       setSponsors(Array.isArray(sponsorsData) ? sponsorsData : []);
       setReport(reportData);
+      setEventPage(eventPageData);
       setLastRefreshedAt(new Date());
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "Failed to load event overview.";
@@ -291,6 +302,12 @@ export default function EventOverviewPage() {
     const soldTables = eventTables.filter((table) => (table._count?.guests ?? 0) > 0).length;
     const hostCount = eventTables.filter((table) => Boolean((table.hostName ?? "").trim())).length;
     const missingHosts = eventTables.filter((table) => table.isSponsored && !(table.hostName ?? "").trim()).length;
+    const overCapacity = eventTables.filter((table) => (table._count?.guests ?? 0) > table.capacity).length;
+    const tableNumbers = eventTables.map((table) => table.tableNumber).filter((value): value is number => value != null);
+    const tableNumbersReady = eventTables.length === 0
+      || (tableNumbers.length === eventTables.length && new Set(tableNumbers).size === eventTables.length);
+    const checkInCodesReady = guestsCount === 0 || guests.every((guest) => Boolean(guest.checkinCode?.trim()));
+    const usesTableSeating = eventTables.length > 0 || ["GALA", "TRIVIA", "FUNDRAISER"].includes(event?.type ?? "");
 
     const confirmedRevenue = orders
       .filter((order) => order.status === "CONFIRMED")
@@ -304,11 +321,12 @@ export default function EventOverviewPage() {
     const readinessItems = [
       { label: "Guest list loaded", done: guestsCount > 0 },
       { label: "RSVP confirmations started", done: confirmed > 0 },
-      { label: "Tables and seating configured", done: eventTables.length > 0 },
-      { label: "Table host coverage assigned", done: hostCount > 0 && missingHosts === 0 },
-      { label: "Sponsor records configured", done: sponsors.length > 0 || (event?._count?.sponsors ?? 0) > 0 },
-      { label: "Payment issues triaged", done: paymentIssueCount === 0 && orders.length > 0 },
-      { label: "Door workflow tested", done: checkedIn > 0 },
+      { label: "Guest check-in codes generated", done: checkInCodesReady },
+      { label: "Tables and seating configured", done: !usesTableSeating || (eventTables.length > 0 && withoutTable === 0 && overCapacity === 0) },
+      { label: "Unique table numbers assigned", done: !usesTableSeating || tableNumbersReady },
+      { label: "Table host coverage assigned", done: !usesTableSeating || missingHosts === 0 },
+      { label: "Payment issues triaged", done: paymentIssueCount === 0 },
+      { label: "Public event page published", done: event?.visibility !== "PUBLIC" || eventPage?.status === "Published" },
     ];
 
     const readinessDone = readinessItems.filter((item) => item.done).length;
@@ -340,6 +358,24 @@ export default function EventOverviewPage() {
         detail: `${withoutTable} guests are unassigned to tables and should be seated before event night.`,
         href: `/events/${eventId}/tables`,
         tone: "purple",
+      });
+    }
+    if (overCapacity > 0) {
+      nextAttentionItems.push({
+        id: "table-capacity",
+        title: "Table Capacity Conflict",
+        detail: `${overCapacity} table${overCapacity === 1 ? " is" : "s are"} over capacity and need immediate seating review.`,
+        href: `/events/${eventId}/tables`,
+        tone: "red",
+      });
+    }
+    if (!tableNumbersReady) {
+      nextAttentionItems.push({
+        id: "table-numbering",
+        title: "Table Numbering",
+        detail: "Every table needs one unique number before guest check-in begins.",
+        href: `/events/${eventId}/tables`,
+        tone: "amber",
       });
     }
     if (pending > 0) {
@@ -412,7 +448,7 @@ export default function EventOverviewPage() {
       recentCheckIns: latestCheckIns,
       eventInitials: initials || "EV",
     };
-  }, [event?._count?.sponsors, event?._count?.tables, event?.name, event?.revenueGoal, eventId, guests, orders, report?.attendance?.noShows, report?.revenue?.goal, report?.revenue?.total, sponsors, tables]);
+  }, [event?._count?.sponsors, event?._count?.tables, event?.name, event?.revenueGoal, event?.type, event?.visibility, eventId, eventPage?.status, guests, orders, report?.attendance?.noShows, report?.revenue?.goal, report?.revenue?.total, sponsors, tables]);
 
   if (loading) {
     return (
@@ -452,7 +488,7 @@ export default function EventOverviewPage() {
   }
 
   const checkInStatusLabel = checkedInGuests > 0 ? "Live" : "Not Started";
-  const pageBuilderStatusLabel = "Working";
+  const pageBuilderStatusLabel = eventPage?.status ?? "Draft";
   const eventStatus = event.status ? toDisplayStatus(event.status) : event.active ? "active" : "inactive";
   const registrationGoal = event.registrationGoal ?? event.capacity ?? null;
   const registrationProgress = registrationGoal && registrationGoal > 0
@@ -556,6 +592,16 @@ export default function EventOverviewPage() {
             >
               Open Event Page Builder
             </Link>
+            {eventPage?.status === "Published" ? (
+              <a
+                href={eventPage.pageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center rounded-md border border-emerald-300 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+              >
+                View Public Page
+              </a>
+            ) : null}
           </div>
         </div>
       </section>
@@ -566,11 +612,11 @@ export default function EventOverviewPage() {
           <p className="text-xs text-slate-500">Fundraising operations snapshot</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-          <OverviewMetricCard label="Registrants" value={totalGuests.toLocaleString()} helper={`${confirmedRsvp.toLocaleString()} confirmed RSVPs`} />
+          <OverviewMetricCard label="Registrants" value={totalGuests.toLocaleString()} helper={`${confirmedRsvp.toLocaleString()} confirmed · ${pendingRsvp.toLocaleString()} pending`} />
           <OverviewMetricCard label="Checked In" value={`${checkedInGuests.toLocaleString()} (${checkedInRate}%)`} helper={`${noShows.toLocaleString()} no-shows`} tone={checkedInRate >= 70 ? "green" : "purple"} />
-          <OverviewMetricCard label="Tables Sold" value={tablesSold.toLocaleString()} helper={`${tableCount.toLocaleString()} tables configured`} tone="purple" />
+          <OverviewMetricCard label="Tables Sold" value={tablesSold.toLocaleString()} helper={`${tableCount.toLocaleString()} configured · ${unassignedGuests.toLocaleString()} guests unassigned`} tone={unassignedGuests > 0 ? "amber" : "purple"} />
           <OverviewMetricCard label="Table Hosts" value={tableHosts.toLocaleString()} helper={`${missingHostCoverage.toLocaleString()} sponsored tables missing host`} tone={missingHostCoverage > 0 ? "amber" : "green"} />
-          <OverviewMetricCard label="Revenue" value={formatCurrency(totalRevenue)} helper={`${orders.length.toLocaleString()} orders processed`} tone="purple" />
+          <OverviewMetricCard label="Revenue" value={formatCurrency(totalRevenue)} helper={`${orders.length.toLocaleString()} orders · ${paymentIssues.toLocaleString()} payment issues`} tone={paymentIssues > 0 ? "amber" : "purple"} />
           <OverviewMetricCard label="Sponsorships" value={sponsorCount.toLocaleString()} helper={sponsorshipRevenue > 0 ? formatCurrency(sponsorshipRevenue) : "Revenue not linked yet"} tone="purple" />
           <OverviewMetricCard label="Donation Goal" value={donationGoal > 0 ? formatCurrency(donationGoal) : "Not Set"} helper={donationGoal > 0 ? `${donationProgress}% progress` : "Set event goal in settings"} tone={donationGoal > 0 && donationProgress >= 90 ? "green" : "purple"} />
           <OverviewMetricCard label="Check-In Readiness" value={`${readinessPercent}%`} helper={`${readinessComplete}/${checkInReadiness.length} readiness checks complete`} tone={readinessPercent >= 85 ? "green" : readinessPercent >= 55 ? "purple" : "amber"} />

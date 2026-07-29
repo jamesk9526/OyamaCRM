@@ -157,12 +157,9 @@ export default function EventGuestsPage() {
   /** Toggle check-in status */
   async function toggleCheckIn(guestId: string, currentStatus: boolean) {
     try {
-      await apiFetch(`/api/events/guests/${guestId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          checkedIn: !currentStatus,
-          checkedInAt: !currentStatus ? new Date().toISOString() : null,
-        }),
+      await apiFetch(`/api/events/guests/${guestId}/check-in`, {
+        method: "POST",
+        body: JSON.stringify({ checkedIn: !currentStatus, method: "MANUAL" }),
       });
       reloadData();
     } catch (err) {
