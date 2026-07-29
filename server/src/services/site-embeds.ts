@@ -1534,6 +1534,29 @@ export function buildSiteEmbedLoaderScript(args: {
     ap(wrap, stripeFooter);
     node.appendChild(wrap);
 
+    var activeCheckout = null;
+    var stripeReturnOrigin = '';
+    try { stripeReturnOrigin = new URL(runtime.apiBaseUrl).origin; } catch (_originError) {}
+    function onStripeReturn(event) {
+      if (!event.data || event.data.oyama_stripe_return !== true) return;
+      if (stripeReturnOrigin && event.origin !== stripeReturnOrigin) return;
+      window.removeEventListener('message', onStripeReturn);
+      if (activeCheckout && typeof activeCheckout.destroy === 'function') {
+        try { activeCheckout.destroy(); } catch (_destroyError) {}
+      }
+      node.innerHTML = '';
+      cardBase(node);
+      var successWrap = el('div', { padding: responsivePadding('38px', '22px'), textAlign: 'center', fontFamily: _FONT });
+      var successIcon = el('div', { width: '54px', height: '54px', margin: '0 auto 16px', borderRadius: '9999px', background: col + '18', color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '700' }, { text: '\u2713' });
+      ap(successWrap, successIcon,
+        el('h3', { margin: '0 0 8px', color: '#111827', fontSize: '22px', fontWeight: '750' }, { text: 'Gift received' }),
+        el('p', { margin: '0', color: '#4b5563', fontSize: '14px', lineHeight: '1.6' }, { text: String(cfg.successMessage || 'Thank you for your generous gift.') })
+      );
+      node.appendChild(successWrap);
+      ping('donation_widget_checkout_completed');
+    }
+    window.addEventListener('message', onStripeReturn);
+
     // ── Submit handler
     ctaBtn.addEventListener('click', function () {
       var amt = customAmt || selAmount;
@@ -1575,6 +1598,7 @@ export function buildSiteEmbedLoaderScript(args: {
         loadStripe(data.publishableKey, function (stripe) {
           if (!stripe) { statusEl.textContent = 'Payment provider unavailable. Please try again.'; statusEl.style.color = '#dc2626'; return; }
           stripe.initEmbeddedCheckout({ clientSecret: data.clientSecret }).then(function (checkout) {
+            activeCheckout = checkout;
             loadMsg.style.display = 'none';
             checkout.mount(mountDiv);
             ping('donation_widget_checkout_mounted');

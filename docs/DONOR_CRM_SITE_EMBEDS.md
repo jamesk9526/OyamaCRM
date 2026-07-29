@@ -133,7 +133,7 @@ CRM staff replies use `/api/livecom/conversations/:id/messages`.
 `GET /api/site-embeds/public/widget-data` and `POST /api/site-embeds/public/widget-submit` are tokenized and domain-gated.
 
 - Campaign Meter: Returns campaign raised/goal/progress values.
-- Donation Widget: Displays donation-interest form and records submissions.
+- Donation Widget: Uses Stripe Embedded Checkout. Signed `checkout.session.completed` and recurring `invoice.paid` webhooks create completed CRM Donation records; checkout-start activity alone is never treated as a paid gift.
 - Event Card: Displays featured event summary and revenue/guest metrics.
 - Volunteer Sign-up: Records volunteer interest into CRM activity logs.
 - Newsletter Sign-up: Records newsletter sign-up submissions.
@@ -142,15 +142,17 @@ CRM staff replies use `/api/livecom/conversations/:id/messages`.
 
 ## Setup Workflow (Admin)
 
-1. Open Settings > Site Embeds.
+1. Open Stripe Giving at `/integrations/stripe` for Stripe connection and donation-form setup. Use Settings > Site Embeds for the wider multi-widget website integration.
 2. Select or create website connection.
 3. Set primary domain and allowed domains.
 4. Configure LiveCom settings (enabled, label, button position, greeting).
-5. Enable desired inline widgets (campaign meter, donation, event, volunteer, newsletter, impact, CTA).
+5. Enable desired inline widgets (campaign meter, event, volunteer, newsletter, impact, CTA). Configure the donation form in Stripe Giving.
 6. Save connection.
 7. Copy head or footer snippet.
 8. Install snippet on public website.
 9. Use Test Connection to validate ping health and config.
+
+For Stripe launch, also register the webhook URL shown in Stripe Giving and subscribe it to `checkout.session.completed` and `invoice.paid`.
 
 ## Public Website Install
 

@@ -1,8 +1,19 @@
 # Production Readiness Checklist
 
-Last updated: 2026-07-29 (Events table operations and public registration)
+Last updated: 2026-07-29 (Stripe Giving integration and verified donation recording)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-07-29 Stripe Giving Integration Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Stripe setup has one Donor CRM integration workspace | Working | `/integrations/stripe`, `StripeIntegrationWorkspace.tsx`; connection, test/live mode, encrypted credentials, webhook endpoint, form builder, install snippets, go-live checklist, and recent provider activity are organized in one workflow. `/settings/payments` and `/apps/stripe` remain compatibility redirects. |
+| Public checkout requires a complete verified-payment path | Working | `server/src/routes/site-embeds.ts`; both hosted and Embedded Checkout reject invalid amounts, emails, gift types, designations, domains, environment mismatches, or missing webhook secrets before contacting Stripe. Abandoned checkout no longer creates a constituent. |
+| Stripe webhook signatures and retries are production-safe | Working | `stripe-webhooks.ts`, `PaymentWebhookEvent`, migration `20260729200000_add_payment_webhook_events`; raw bodies are HMAC-verified with timestamp tolerance and timing-safe comparison, payloads are fingerprinted without retention, concurrent/retried event IDs are idempotent, and failures remain diagnosable/retryable. |
+| Successful Stripe payments become real CRM gifts | Working | Verified `checkout.session.completed` and recurring `invoice.paid` events link or create the donor, create a completed credit-card `Donation`, attach designation/campaign when valid, write the donor timeline activity and audit record, and refresh fiscal-YTD/lifetime giving summaries. |
+| Embed installation and payment completion are usable | Working | The redesigned donation-form builder supplies live preview, domain controls, amount/designation/monthly-giving settings, generated loader/block snippets, Stripe Embedded Checkout, receipt email handoff, and an origin-validated success state without exposing payment secrets. |
+| Live Stripe account proof | Release configuration required | Automated signature, type, lint, and build validation cover the product path. A production operator must still enter the account's live keys, register the displayed webhook URL in Stripe Workbench, apply the database migration, and complete one live low-dollar proof gift before public launch. |
 
 ## 2026-07-29 EventSTUDIO Table and Registration Snapshot
 
@@ -678,7 +689,7 @@ Notes:
 | Tests cover critical workflows | Partially Working | Smoke is passing (151/151), but current e2e run failed due local service availability mismatch (`localhost:3650`) |
 | Lint/type/build pipelines are green | Partially Working | Validated 2026-07-13: lint and typecheck pass, production build generates 198 routes, and 125 lint warnings remain. Full tests pass 638/639 under parallel load; the isolated failing file passes 8/8. |
 | Prisma client generation is reliable | Broken | `pnpm db:generate` failed on Windows with Prisma engine rename `EPERM` |
-| Payment/webhook endpoints are idempotent | Not Implemented | Provider webhooks are not implemented yet |
+| Payment/webhook endpoints are idempotent | Working | Stripe events are raw-body signature verified and claimed by the unique `PaymentWebhookEvent(provider, externalEventId)` key before CRM writes; completed and ignored retries return safely, while failed/stale processing can be retried. |
 | Backup/restore process is documented | Not Implemented | Recovery runbook is still missing |
 | RBAC is enforced server-side | Partially Working | Coverage exists but not complete for all sensitive endpoints |
 | Mobile readiness gate is passing | Broken | `pnpm test:e2e:mobile` failed in this run due auth endpoint mismatch |

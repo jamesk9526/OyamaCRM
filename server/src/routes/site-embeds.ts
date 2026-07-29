@@ -225,6 +225,7 @@ async function createStripeCheckoutSession(args: {
   campaignId: string;
   designation: string;
   idempotencyKey: string;
+  siteToken: string;
 }) {
   const params = new URLSearchParams();
   params.set("mode", "payment");
@@ -237,11 +238,14 @@ async function createStripeCheckoutSession(args: {
   params.set("line_items[0][price_data][product_data][description]", args.designation || "General Fund");
   if (args.donorEmail) {
     params.set("customer_email", args.donorEmail);
+    params.set("payment_intent_data[receipt_email]", args.donorEmail);
   }
   params.set("metadata[platform]", "oyamacrm_site_embeds");
   params.set("metadata[campaignId]", args.campaignId || "");
   params.set("metadata[designation]", args.designation || "");
   params.set("metadata[donorName]", args.donorName || "Website Visitor");
+  params.set("metadata[giftType]", "one-time");
+  params.set("metadata[siteToken]", args.siteToken);
 
   const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
@@ -1029,38 +1033,38 @@ router.post("/public/donation-checkout", async (req, res) => {
     return;
   }
 
+  const donationWidget = hit.site.widgets.donation_widget;
+  const donationAmountCents = Math.round(amount * 100);
+  if (donationAmountCents < donationWidget.minimumAmountCents || donationAmountCents > 100_000_000) {
+    res.status(400).json({ error: { code: "AMOUNT_OUT_OF_RANGE", message: "Donation amount is outside the allowed range." } });
+    return;
+  }
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid donor email is required." } });
+    return;
+  }
+  const hostedAllowedDesignations = new Set(donationWidget.allowedDesignations.map((item) => item.trim().toLowerCase()).filter(Boolean));
+  if (hostedAllowedDesignations.size > 0 && !hostedAllowedDesignations.has(designation.toLowerCase())) {
+    res.status(400).json({ error: { code: "DESIGNATION_NOT_ALLOWED", message: "That gift designation is not available on this form." } });
+    return;
+  }
+
   const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
+  if (providerPreference !== "paypal" && (!runtime.stripe.enabled || !runtime.stripe.secretKey || !runtime.stripe.webhookSecret)) {
+    res.status(503).json({
+      error: {
+        code: "STRIPE_NOT_READY",
+        message: "Stripe checkout and a verified webhook must be configured before accepting website gifts.",
+      },
+    });
+    return;
+  }
   const successUrl = resolveReturnUrl(successUrlInput, observedDomain, "/?donation=success");
   const cancelUrl = resolveReturnUrl(cancelUrlInput, observedDomain, "/?donation=canceled");
 
-  const parsedName = splitDisplayName(displayName);
-  let constituent = email
-    ? await prisma.constituent.findFirst({
-      where: { organizationId: hit.organizationId, email },
-      select: { id: true },
-    })
-    : null;
-
-  if (!constituent) {
-    constituent = await prisma.constituent.create({
-      data: {
-        organizationId: hit.organizationId,
-        type: "DONOR",
-        firstName: parsedName.firstName,
-        lastName: parsedName.lastName,
-        email: email || null,
-        notes: [
-          "Created from site-embed donation checkout.",
-          observedDomain ? `Domain: ${observedDomain}` : "",
-        ].filter(Boolean).join("\n"),
-      },
-      select: { id: true },
-    });
-  }
-
   const idempotencyKey = [
     token,
-    constituent.id,
+    email,
     designation,
     amount.toFixed(2),
     new Date().toISOString().slice(0, 16),
@@ -1082,6 +1086,7 @@ router.post("/public/donation-checkout", async (req, res) => {
         campaignId,
         designation,
         idempotencyKey,
+        siteToken: token,
       })
       : runtime.paypal.enabled && runtime.paypal.clientId && runtime.paypal.clientSecret
         ? await createPayPalCheckoutOrder({
@@ -1108,31 +1113,10 @@ router.post("/public/donation-checkout", async (req, res) => {
       return;
     }
 
-    const activity = await prisma.activity.create({
-      data: {
-        constituentId: constituent.id,
-        type: "DONATION",
-        description: `Checkout started via ${checkout.provider} donation widget`,
-        metadata: {
-          source: "site_embeds_widget",
-          widget: "donation_widget",
-          provider: checkout.provider,
-          checkoutId: checkout.checkoutId,
-          amount,
-          currency: runtime.currency,
-          campaignId: campaignId || null,
-          designation,
-          domain: observedDomain,
-          message: message || null,
-        },
-      },
-      select: { id: true },
-    });
-
     await logAudit({
       action: "SITE_EMBED_DONATION_CHECKOUT_CREATED",
-      entity: "Activity",
-      entityId: activity.id,
+      entity: "PluginSetting",
+      entityId: hit.site.id,
       organizationId: hit.organizationId,
       metadata: {
         provider: checkout.provider,
@@ -1140,6 +1124,7 @@ router.post("/public/donation-checkout", async (req, res) => {
         siteId: hit.site.id,
         domain: observedDomain,
         amount,
+        messageProvided: Boolean(message),
       },
     });
 
@@ -1495,6 +1480,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("payment_intent_data[metadata][designation]", designation);
       sessionBody.set("payment_intent_data[metadata][siteToken]", token);
       sessionBody.set("payment_intent_data[metadata][donorName]", donorName);
+      sessionBody.set("payment_intent_data[receipt_email]", donorEmail);
       sessionBody.set("metadata[platform]", "oyamacrm");
       sessionBody.set("metadata[giftType]", "one-time");
       sessionBody.set("metadata[designation]", designation);
@@ -1554,8 +1540,8 @@ router.get("/public/donation-return", (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
 <script>
   // Notify parent frame that Stripe checkout completed.
-  if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ oyama_stripe_return: true }, '*');
+  if (window.top && window.top !== window) {
+    window.top.postMessage({ oyama_stripe_return: true }, '*');
   }
 </script></body></html>`);
 });
@@ -1624,24 +1610,41 @@ router.post("/public/stripe-webhook", async (req, res) => {
     res.status(200).json({ received: true, duplicate: true, donationId: existingEvent.donationId });
     return;
   }
+  if (existingEvent?.status === "PROCESSING" && Date.now() - existingEvent.updatedAt.getTime() < 5 * 60 * 1000) {
+    res.status(200).json({ received: true, duplicate: true, action: "already_processing" });
+    return;
+  }
 
   const payloadHash = hashStripePayload(rawBodyStr);
   try {
-    await prisma.paymentWebhookEvent.upsert({
-      where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
-      create: {
-        organizationId: hit.organizationId,
-        provider: "stripe",
-        externalEventId: eventId,
-        eventType,
-        payloadHash,
-      },
-      update: {
-        status: "PROCESSING",
-        errorMessage: null,
-        payloadHash,
-      },
-    });
+    if (existingEvent) {
+      await prisma.paymentWebhookEvent.update({
+        where: { id: existingEvent.id },
+        data: {
+          status: "PROCESSING",
+          errorMessage: null,
+          payloadHash,
+        },
+      });
+    } else {
+      try {
+        await prisma.paymentWebhookEvent.create({
+          data: {
+            organizationId: hit.organizationId,
+            provider: "stripe",
+            externalEventId: eventId,
+            eventType,
+            payloadHash,
+          },
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          res.status(200).json({ received: true, duplicate: true, action: "already_processing" });
+          return;
+        }
+        throw error;
+      }
+    }
 
     const isOneTimeCheckout = eventType === "checkout.session.completed"
       && String(stripeObject.mode ?? "payment") === "payment";
@@ -1667,6 +1670,7 @@ router.post("/public/stripe-webhook", async (req, res) => {
     const amount = amountCents / 100;
     const currency = String(stripeObject.currency ?? runtime.currency).toUpperCase();
     const designationName = String(metadata.designation ?? "General Fund").trim();
+    const campaignId = String(metadata.campaignId ?? "").trim();
     const giftType = isRecurringInvoice ? "monthly" : String(metadata.giftType ?? "one-time");
     const donorEmail = String(stripeObject.customer_email ?? customerDetails.email ?? "").trim().toLowerCase();
     const donorName = String(metadata.donorName ?? customerDetails.name ?? "Website Donor").trim();
@@ -1715,9 +1719,16 @@ router.post("/public/stripe-webhook", async (req, res) => {
         where: { name: { equals: designationName } },
         select: { id: true },
       });
+      const campaign = campaignId
+        ? await tx.campaign.findFirst({
+            where: { id: campaignId, organizationId: hit.organizationId },
+            select: { id: true },
+          })
+        : null;
       const created = await tx.donation.create({
         data: {
           constituentId: constituent.id,
+          campaignId: campaign?.id,
           designationId: designation?.id,
           amount,
           date: paidAt,

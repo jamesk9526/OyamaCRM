@@ -196,11 +196,15 @@ export default function StripeIntegrationWorkspace() {
     setSaving(true);
     setMessage(null);
     try {
+      const allowedDesignations = splitList(designationsText);
+      if (siteDraft.widgets.donation_widget.defaultDesignation && !allowedDesignations.some((item) => item.toLowerCase() === siteDraft.widgets.donation_widget.defaultDesignation.toLowerCase())) {
+        allowedDesignations.unshift(siteDraft.widgets.donation_widget.defaultDesignation);
+      }
       const nextWidget: DonationWidgetSettings = {
         ...siteDraft.widgets.donation_widget,
         stripeTestMode: settings.stripe.mode === "sandbox",
         suggestedAmounts: splitList(suggestedAmountsText).map(Number).filter((amount) => Number.isFinite(amount) && amount > 0),
-        allowedDesignations: splitList(designationsText),
+        allowedDesignations,
       };
       await apiFetch("/api/site-embeds/config", {
         method: "PUT",
@@ -239,6 +243,36 @@ export default function StripeIntegrationWorkspace() {
       setMessage({ tone: "error", text: error instanceof Error ? error.message : "Stripe connection test failed." });
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function disconnectStripe() {
+    if (!settings || !window.confirm("Disconnect Stripe? New donation checkouts will stop immediately. Existing CRM donations are not changed.")) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const updated = await apiFetch<PaymentSettingsPayload>("/api/payments/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          currency: settings.currency,
+          stripe: {
+            enabled: false,
+            mode: settings.stripe.mode,
+            publishableKey: "",
+            clearCredentials: true,
+          },
+        }),
+      });
+      setSettings(updated);
+      setSecretKey("");
+      setWebhookSecret("");
+      setConnectionResult(null);
+      setHealth(await apiFetch<PaymentHealthPayload>("/api/payments/health"));
+      setMessage({ tone: "success", text: "Stripe disconnected. Existing payment and donation records were preserved." });
+    } catch (error) {
+      setMessage({ tone: "error", text: error instanceof Error ? error.message : "Stripe could not be disconnected." });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -350,9 +384,12 @@ export default function StripeIntegrationWorkspace() {
                 <label><FieldLabel>Publishable key</FieldLabel><input className={`${fieldClass} font-mono`} value={settings.stripe.publishableKey} onChange={(event) => updateStripe({ publishableKey: event.target.value.trim() })} placeholder={settings.stripe.mode === "production" ? "pk_live_…" : "pk_test_…"} /></label>
                 <label><FieldLabel>Secret key {settings.stripe.hasSecretKey ? <span className="font-normal text-emerald-700">· securely stored</span> : null}</FieldLabel><input type="password" className={`${fieldClass} font-mono`} value={secretKey} onChange={(event) => setSecretKey(event.target.value)} placeholder={settings.stripe.hasSecretKey ? "Leave blank to keep saved key" : settings.stripe.mode === "production" ? "sk_live_…" : "sk_test_…"} /></label>
                 <label><FieldLabel>Webhook signing secret {settings.stripe.hasWebhookSecret ? <span className="font-normal text-emerald-700">· securely stored</span> : null}</FieldLabel><input type="password" className={`${fieldClass} font-mono`} value={webhookSecret} onChange={(event) => setWebhookSecret(event.target.value)} placeholder={settings.stripe.hasWebhookSecret ? "Leave blank to keep saved secret" : "whsec_…"} /></label>
-                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                  <button type="button" disabled={saving || (!settings.stripe.hasSecretKey && !settings.stripe.publishableKey)} onClick={() => void disconnectStripe()} className="min-h-10 rounded-md px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">Disconnect Stripe</button>
+                  <div className="flex flex-wrap justify-end gap-2">
                   <button type="button" disabled={testing || !health?.stripeCheckoutReady} onClick={() => void testConnection()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><PlugZap className="size-4" />{testing ? "Testing…" : "Test connection"}</button>
                   <button type="button" disabled={saving} onClick={() => void saveConnection()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"><Save className="size-4" />{saving ? "Saving…" : "Save connection"}</button>
+                  </div>
                 </div>
               </div>
             </section>
@@ -382,6 +419,7 @@ export default function StripeIntegrationWorkspace() {
                     <label><FieldLabel>Connection name</FieldLabel><input className={fieldClass} value={siteDraft.name} onChange={(event) => setSiteDraft({ ...siteDraft, name: event.target.value })} /></label>
                     <label><FieldLabel>Primary domain</FieldLabel><input className={fieldClass} value={siteDraft.primaryDomain} onChange={(event) => setSiteDraft({ ...siteDraft, primaryDomain: event.target.value })} placeholder="give.example.org" /></label>
                   </div>
+                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={siteDraft.active} onChange={(event) => setSiteDraft({ ...siteDraft, active: event.target.checked })} className="size-4 rounded border-slate-300 text-blue-600" />Allow widgets to run on this website connection</label>
                 </div>
                 <div className="border-t border-slate-200 pt-5">
                   <h3 className="text-sm font-semibold text-slate-900">Content</h3>
