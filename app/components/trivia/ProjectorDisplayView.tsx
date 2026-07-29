@@ -37,6 +37,11 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
     );
   }
 
+  if (live.stage === "check_in_open" || live.stage === "check_in_closed") {
+    const checkedIn = event.teams.filter((team) => team.checkInStatus === "checked_in" || team.checkInStatus === "late").length;
+    return <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-[#251b3f] via-[#3b2768] to-[#101018] text-white"><p className="text-sm uppercase tracking-[0.2em] text-[#d9cffa]">{live.stage === "check_in_open" ? "Check-in is open" : "Check-in is closed"}</p><h1 className="mt-4 text-6xl font-bold">{event.name}</h1><p className="mt-5 text-2xl text-[#f0ebff]">{live.stage === "check_in_open" ? "Please check in with the welcome table." : "Please take your seats. We begin shortly."}</p><div className="mt-10 border border-[#a78bfa]/50 bg-white/10 px-8 py-5"><p className="text-sm uppercase tracking-[0.16em] text-[#d9cffa]">Teams checked in</p><p className="mt-2 text-6xl font-bold">{checkedIn} / {event.teams.length}</p></div></section>;
+  }
+
   if (live.stage === "round_intro") {
     return (
       <section className="min-h-screen flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-sky-950 via-slate-950 to-black text-white">

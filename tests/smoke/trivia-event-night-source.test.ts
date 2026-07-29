@@ -61,4 +61,23 @@ describe("Trivia event-night controls", () => {
     expect(library).toContain("Apply game plan");
     expect(builder).toContain("TriviaGameTemplateLibrary");
   });
+
+  it("backs every Trivia operations and display navigation link with a route", () => {
+    const shell = read("app/components/trivia/TriviaOpsShell.tsx");
+    const projector = read("app/components/trivia/ProjectorDisplayView.tsx");
+    const paths = [
+      "app/apps/trivia/events/[eventId]/overview/page.tsx",
+      "app/apps/trivia/events/[eventId]/check-in/page.tsx",
+      "app/apps/trivia/events/[eventId]/judge/page.tsx",
+      "app/apps/trivia/events/[eventId]/scoreboard/page.tsx",
+      "app/apps/trivia/events/[eventId]/recovery/page.tsx",
+      "app/apps/trivia/events/[eventId]/printables/page.tsx",
+      "app/apps/trivia/display/[eventId]/leaderboard/page.tsx",
+      "app/apps/trivia/display/[eventId]/check-in/page.tsx",
+    ];
+    paths.forEach((path) => expect(read(path).length).toBeGreaterThan(120));
+    expect(shell).toContain('label: "Recovery"');
+    expect(shell).toContain('label: "Check-In Display"');
+    expect(projector).toContain('live.stage === "check_in_open"');
+  });
 });
