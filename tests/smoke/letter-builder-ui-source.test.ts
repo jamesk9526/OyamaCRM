@@ -76,6 +76,9 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("resizeSelectedImage");
     expect(workspace).toContain("updateSelectedImageAlt");
     expect(workspace).toContain("alignSelectedImage");
+    expect(workspace).toContain("removeSelectedImage");
+    expect(workspace).toContain("Remove Image");
+    expect(workspace).toContain("broken image");
     expect(workspace).toContain("Selected Image Size");
     expect(workspace).toContain("data-letter-image-block");
     expect(workspace).toContain("Alt Text");

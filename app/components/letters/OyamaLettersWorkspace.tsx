@@ -2059,6 +2059,30 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setNotice(`Image aligned ${align}.`);
   }
 
+  function removeSelectedImage() {
+    const image = selectedEditorImageRef.current;
+    const editor = editorRef.current;
+    if (!image || !editor || !editor.contains(image)) {
+      setNotice("Select an image in the letter before removing it.");
+      return;
+    }
+
+    // Remove the entire image block when available so no empty figure remains.
+    // A failed network image is still an HTMLImageElement, so this path also
+    // lets staff remove old or broken image links from saved templates.
+    const block = image.closest<HTMLElement>("[data-letter-image-block]");
+    if (block) block.remove();
+    else image.remove();
+
+    selectedEditorImageRef.current = null;
+    setSelectedImageWidth(null);
+    setSelectedImageAlt("");
+    setSelectedImageAlign("center");
+    commitBody(editor.innerHTML);
+    editor.focus();
+    setNotice("Image removed from the letter.");
+  }
+
   function insertSignature(signature?: SignatureBlock | null) {
     const selected = signature ?? signatures.find((item) => item.id === draft.signatureBlockId) ?? signatures.find((item) => item.isDefault) ?? signatures[0] ?? null;
     if (!selected) {
@@ -3013,6 +3037,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                           </Button>
                         ))}
                       </div>
+                      <button
+                        type="button"
+                        onClick={removeSelectedImage}
+                        className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                      >
+                        Remove Image
+                      </button>
+                      <p className="text-[11px] leading-4 text-slate-500">Select a broken image in the letter, then use Remove Image to delete its link.</p>
                     </div>
                   )}
                 </InspectorCard>
