@@ -199,6 +199,10 @@ const publicEmailAssetOptions = {
 };
 app.use("/uploads/email-media", express.static(path.join(publicUploadsRoot, "email-media"), publicEmailAssetOptions));
 app.use("/uploads/branding", express.static(path.join(publicUploadsRoot, "branding"), publicEmailAssetOptions));
+// Letter editor images are stored as local public media so they can be loaded
+// in saved templates and in generated PDFs. The files are UUID-named and
+// organization-scoped by the upload route.
+app.use("/uploads/letter-media", express.static(path.join(publicUploadsRoot, "letter-media"), publicEmailAssetOptions));
 app.use("/uploads/trivia-media", express.static(path.join(publicUploadsRoot, "trivia-media"), publicEmailAssetOptions));
 
 // ─── Health / readiness ───────────────────────────────────────────────────────

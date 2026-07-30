@@ -38,6 +38,10 @@ const nextConfig: NextConfig = {
           source: "/uploads/branding/:path*",
           destination: `${apiProxyTarget}/uploads/branding/:path*`,
         },
+        {
+          source: "/uploads/letter-media/:path*",
+          destination: `${apiProxyTarget}/uploads/letter-media/:path*`,
+        },
       ],
       fallback: [
         {
