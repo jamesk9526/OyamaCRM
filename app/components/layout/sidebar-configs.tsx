@@ -67,6 +67,15 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       description: "Open DonorCRM report tools for giving, retention, stewardship, and campaigns.",
     },
     {
+      id: "oyama-beta-features",
+      label: "OYAMA-BETAFeatures",
+      href: "/oyama-beta-features",
+      icon: DONOR_ICONS.letters,
+      kind: "workspace" as const,
+      badge: "Beta" as SidebarItemBadge,
+      description: "Open parallel replacement workspaces without replacing current CRM tools.",
+    },
+    {
       id: "settings",
       label: "Settings",
       href: "/settings",
