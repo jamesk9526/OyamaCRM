@@ -7,7 +7,10 @@ import { verifyAccessToken } from "../lib/auth.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { getSystemUpdateStatus } from "../services/system-updates.js";
 
-const BYPASS_PREFIXES = ["/health", "/auth", "/system-updates"];
+// Recipient/browser-loaded media cannot include a bearer token. These routes
+// intentionally serve only UUID-scoped public uploads and must stay available
+// during maintenance just like health and authentication endpoints.
+const BYPASS_PREFIXES = ["/health", "/auth", "/system-updates", "/email-campaigns/media", "/letters/media"];
 
 function shouldBypass(pathname: string): boolean {
   return BYPASS_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

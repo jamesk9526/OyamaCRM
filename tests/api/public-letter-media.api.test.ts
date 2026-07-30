@@ -20,8 +20,8 @@ describe("public letter media", () => {
     await rm(uploadDirectory, { recursive: true, force: true });
   });
 
-  it("serves uploaded letter images from the URL returned by the upload route", async () => {
-    const response = await request(app).get(`/uploads/letter-media/${organizationId}/${fileName}`);
+  it("serves uploaded letter images from the public API URL returned by the upload route", async () => {
+    const response = await request(app).get(`/api/letters/media/${organizationId}/${fileName}`);
 
     expect(response.status).toBe(200);
     expect(Buffer.from(response.body).toString()).toBe("letter-image-fixture");

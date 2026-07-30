@@ -81,6 +81,8 @@ const LETTER_MEDIA_EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
   "image/svg+xml": "svg",
 };
+const PUBLIC_LETTER_MEDIA_FILE = /^[a-z0-9][a-z0-9._-]{0,200}\.(?:png|jpe?g|webp)$/i;
+const PUBLIC_LETTER_MEDIA_ORGANIZATION = /^[a-z0-9_-]{3,128}$/i;
 
 type PrintQueueStatus = (typeof PRINT_QUEUE_STATUSES)[number];
 type MailQueueStatus = (typeof MAIL_QUEUE_STATUSES)[number];
@@ -264,8 +266,6 @@ interface ParsedLetterAiCompose {
   mergeFieldsUsed: string[];
 }
 
-router.use(requireAuth);
-
 /** Resolves a safe image extension for editor and signature uploads. */
 function resolveLetterMediaExtension(mimeType: string, fileName: string): string {
   const normalized = mimeType.toLowerCase();
@@ -274,6 +274,42 @@ function resolveLetterMediaExtension(mimeType: string, fileName: string): string
   if (["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(fromName)) return fromName === "jpeg" ? "jpg" : fromName;
   return "png";
 }
+
+/** Converts the stable public API URL back to its local upload path for PDF rendering. */
+function letterMediaStoragePath(value: string): string {
+  const match = value.match(/^\/api\/letters\/media\/([a-z0-9_-]+)\/([a-z0-9][a-z0-9._-]{0,200}\.(?:png|jpe?g|webp))$/i);
+  return match ? `/uploads/letter-media/${match[1]}/${match[2]}` : value;
+}
+
+/** Public letter image retrieval. Browser image elements cannot attach CRM bearer tokens. */
+router.get("/media/:organizationId/:fileName", (req, res) => {
+  const organizationId = String(req.params.organizationId ?? "");
+  const fileName = String(req.params.fileName ?? "");
+  if (!PUBLIC_LETTER_MEDIA_ORGANIZATION.test(organizationId) || !PUBLIC_LETTER_MEDIA_FILE.test(fileName)) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Media file not found" } });
+    return;
+  }
+
+  const mediaRoot = path.resolve(process.cwd(), "public", "uploads", "letter-media");
+  const organizationDirectory = path.resolve(mediaRoot, organizationId);
+  if (!organizationDirectory.startsWith(`${mediaRoot}${path.sep}`)) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Media file not found" } });
+    return;
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+  res.sendFile(fileName, { root: organizationDirectory, dotfiles: "deny" }, (error) => {
+    if (!error || res.headersSent) return;
+    if ("status" in error && error.status === 404) {
+      res.status(404).json({ error: { code: "NOT_FOUND", message: "Media file not found" } });
+      return;
+    }
+    console.error("[letters] Failed to serve public letter media", error);
+    res.status(500).json({ error: { code: "MEDIA_UNAVAILABLE", message: "Media file is unavailable" } });
+  });
+});
+
+router.use(requireAuth);
 
 /** Validates and returns the active organization context for one request. */
 async function requireOrganizationId(req: Request): Promise<string | null> {
@@ -1736,6 +1772,7 @@ async function loadBrandingLogoDataUrl(rawLogoPath: string): Promise<{ dataUrl: 
       return null;
     }
   }
+  logoPath = letterMediaStoragePath(logoPath);
   const logoWithoutQuery = logoPath.split("?")[0]?.split("#")[0] ?? logoPath;
   const inlineFormat = inferPdfLogoFormatFromDataUrl(logoPath);
   if (inlineFormat) return { dataUrl: logoPath, format: inlineFormat };
@@ -3222,7 +3259,7 @@ router.post("/media", requirePermission("letters.edit"), async (req, res) => {
   await mkdir(uploadDir, { recursive: true });
   await writeFile(targetPath, buffer);
 
-  const publicUrl = `/uploads/letter-media/${organizationId}/${safeName}`;
+  const publicUrl = `/api/letters/media/${organizationId}/${safeName}`;
   await logAudit({
     action: "LETTER_MEDIA_UPLOADED",
     entity: "LetterMedia",
