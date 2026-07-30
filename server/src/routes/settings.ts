@@ -914,10 +914,18 @@ router.post("/branding/logo-upload", requireAuth, requireRole("admin"), async (r
       });
     }
 
-    const normalizedData = dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64;
-    const buffer = Buffer.from(normalizedData, "base64");
-    if (!buffer || buffer.byteLength === 0) {
-      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid base64 payload." } });
+    const mediaMatch = /^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i.exec(dataBase64);
+    const encodedData = mediaMatch ? mediaMatch[2] : dataBase64;
+    if (!/^[a-z0-9+/=\s]+$/i.test(encodedData) || (mediaMatch && mediaMatch[1].toLowerCase() !== mimeType)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid image payload." } });
+    }
+    const buffer = Buffer.from(encodedData.replace(/\s/g, ""), "base64");
+    const isPng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isGif = buffer.subarray(0, 6).toString("ascii") === "GIF87a" || buffer.subarray(0, 6).toString("ascii") === "GIF89a";
+    const isWebp = buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+    if (!buffer.byteLength || !((mimeType === "image/png" && isPng) || (mimeType === "image/jpeg" && isJpeg) || (mimeType === "image/gif" && isGif) || (mimeType === "image/webp" && isWebp))) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The upload is not a valid image matching its selected file type." } });
     }
 
     const maxBytes = 5 * 1024 * 1024;

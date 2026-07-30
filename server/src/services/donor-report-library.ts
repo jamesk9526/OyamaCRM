@@ -13,6 +13,7 @@ import { parseCalendarDateExclusiveEnd, parseCalendarDateStart } from "../lib/da
 
 export const DONOR_LIBRARY_REPORT_KEYS = [
   "batch-receipts",
+  "unacknowledged-gifts",
   "donations",
   "donations-by-designation",
   "lifetime-giving",
@@ -307,6 +308,47 @@ async function donationRowsReport(
       receiptNumber: donation.receiptNumber ?? "—",
     })),
     notices: [],
+  };
+}
+
+/** Lists completed gifts that still need a thank-you, without changing any gift status. */
+async function unacknowledgedGiftsReport(
+  organizationId: string,
+  options: DonorLibraryReportOptions,
+): Promise<DonorLibraryReport> {
+  const donations = await prisma.donation.findMany({
+    where: { ...baseDonationWhere(organizationId, options), acknowledgmentSentAt: null },
+    select: donationSelection,
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+  const totalCents = donations.reduce((total, donation) => total + cents(donation.amount), 0);
+  const rows = donations.map((donation) => ({
+    donationId: donation.id,
+    donorId: donation.constituent.id,
+    donorName: donorName(donation.constituent),
+    email: donation.constituent.email,
+    giftDate: donation.date.toISOString(),
+    amount: dollars(cents(donation.amount)),
+    designation: donation.designation?.name ?? "Unassigned",
+    receiptStatus: donation.receiptNumber || donation.receiptSentAt ? "Receipt recorded" : "No receipt recorded",
+  }));
+  return {
+    ...emptyReport("unacknowledged-gifts", "Unacknowledged gifts", "Completed gifts in the selected date range that do not yet have a recorded thank-you.", options),
+    summary: [
+      { label: "Gifts awaiting thanks", value: rows.length, type: "number" },
+      { label: "Giving awaiting thanks", value: dollars(totalCents), type: "currency" },
+      { label: "Donors with email", value: rows.filter((row) => Boolean(row.email)).length, type: "number" },
+    ],
+    columns: [
+      { key: "donorName", label: "Donor", linkToDonor: true },
+      { key: "email", label: "Email" },
+      { key: "giftDate", label: "Gift date", type: "date" },
+      { key: "amount", label: "Gift amount", type: "currency" },
+      { key: "designation", label: "Designation" },
+      { key: "receiptStatus", label: "Receipt status" },
+    ],
+    rows,
+    notices: ["This report is review-only. Generate a letter or email after confirming each donor's communication preferences."],
   };
 }
 
@@ -863,6 +905,7 @@ export async function buildDonorLibraryReport(
 
   switch (report) {
     case "batch-receipts": return donationRowsReport(organizationId, "batch-receipts", options);
+    case "unacknowledged-gifts": return unacknowledgedGiftsReport(organizationId, options);
     case "donations": return donationRowsReport(organizationId, "donations", options);
     case "donations-by-designation": return donorsByDesignationReport(organizationId, options);
     case "lifetime-giving": return lifetimeGivingReport(organizationId, options);

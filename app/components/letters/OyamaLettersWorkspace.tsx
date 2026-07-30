@@ -1963,7 +1963,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     event.target.value = "";
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    if (!new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]).has(file.type.toLowerCase())) {
       setNotice("Choose a PNG, JPG, or WEBP image.");
       return;
     }

@@ -275,6 +275,25 @@ function resolveLetterMediaExtension(mimeType: string, fileName: string): string
   return "png";
 }
 
+/** Decodes only real PNG, JPEG, WEBP, or GIF image files; MIME labels alone are not trusted. */
+function decodeVerifiedLetterImage(dataBase64: string, mimeType: string): Buffer | null {
+  const match = /^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i.exec(dataBase64);
+  const encoded = match ? match[2] : dataBase64;
+  if (!/^[a-z0-9+/=\s]+$/i.test(encoded)) return null;
+  if (match && match[1].toLowerCase() !== mimeType.toLowerCase()) return null;
+  const buffer = Buffer.from(encoded.replace(/\s/g, ""), "base64");
+  const isPng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isGif = buffer.subarray(0, 6).toString("ascii") === "GIF87a" || buffer.subarray(0, 6).toString("ascii") === "GIF89a";
+  const isWebp = buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  const declared = mimeType.toLowerCase();
+  return (declared === "image/png" && isPng)
+    || ((declared === "image/jpeg" || declared === "image/jpg") && isJpeg)
+    || (declared === "image/gif" && isGif)
+    || (declared === "image/webp" && isWebp)
+    ? buffer : null;
+}
+
 /** Converts the stable public API URL back to its local upload path for PDF rendering. */
 function letterMediaStoragePath(value: string): string {
   const match = value.match(/^\/api\/letters\/media\/([a-z0-9_-]+)\/([a-z0-9][a-z0-9._-]{0,200}\.(?:png|jpe?g|webp))$/i);
@@ -3238,10 +3257,9 @@ router.post("/media", requirePermission("letters.edit"), async (req, res) => {
     return;
   }
 
-  const normalizedData = dataBase64.includes(",") ? dataBase64.split(",").pop() ?? "" : dataBase64;
-  const buffer = Buffer.from(normalizedData, "base64");
-  if (!buffer || buffer.byteLength === 0) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid base64 payload." } });
+  const buffer = decodeVerifiedLetterImage(dataBase64, mimeType);
+  if (!buffer) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The upload is not a valid image matching its selected file type." } });
     return;
   }
 

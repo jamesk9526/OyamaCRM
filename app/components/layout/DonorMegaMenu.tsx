@@ -65,6 +65,12 @@ const BASE_NAV_SECTIONS: NavSection[] = [
     href: "/",
   },
   {
+    id: "oyama-beta-features",
+    label: "OYAMA-BETAFeatures",
+    href: "/oyama-beta-features",
+    matchPrefixes: ["/oyama-beta-features"],
+  },
+  {
     id: "donors",
     label: "Donors",
     columns: [

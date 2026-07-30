@@ -16,6 +16,7 @@ import {
 
 type ReportKey =
   | "batch-receipts"
+  | "unacknowledged-gifts"
   | "donations"
   | "donations-by-designation"
   | "lifetime-giving"
@@ -80,6 +81,7 @@ interface DesignationOption {
 
 const REPORTS: ReportDefinition[] = [
   { key: "batch-receipts", title: "Batch Receipts", description: "Review a receipt-ready register grouped by donor before creating receipt communications.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
+  { key: "unacknowledged-gifts", title: "Unacknowledged Gifts", description: "Find completed gifts that still need a recorded thank-you, then review the donor before starting a letter or email.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations", title: "Donations", description: "Print or export a detailed list of completed gifts in a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations-by-designation", title: "Donations by Designation", description: "See completed giving grouped by donor and designation.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true, defaultRange: "month-to-date" },
   { key: "lifetime-giving", title: "Lifetime Giving Report", description: "See every giving donor’s lifetime total, first, last, and largest completed gift.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "none", group: "Gift reports" },
