@@ -11,6 +11,7 @@
  * @module routes/reports
  */
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
@@ -43,6 +44,7 @@ import { buildInclusiveCalendarDateFilter } from "../lib/dateOnlyRanges.js";
 const router = Router();
 const OSHAREVIEW_NOTES_PLUGIN_KEY = "oshareview-notes";
 const OSHAREVIEW_BLUEPRINTS_PLUGIN_KEY = "oshareview-blueprints";
+const DONATION_AUDIENCES_PLUGIN_KEY = "reports-donation-audiences";
 
 interface OShareviewNote {
   id: string;
@@ -87,6 +89,19 @@ function taskOrganizationWhere(organizationId: string) {
 
 function buildDateWindowFilter(fromDateRaw: string | undefined, toDateRaw: string | undefined): Prisma.DateTimeFilter | undefined {
   return buildInclusiveCalendarDateFilter(fromDateRaw, toDateRaw);
+}
+
+interface DonationAudience {
+  id: string;
+  name: string;
+  description: string;
+  from: string;
+  through: string;
+  constituentIds: string[];
+  mailRecipientIds: string[];
+  recipientEmails: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 function mergeDateFilters(base?: Prisma.DateTimeFilter, extra?: Prisma.DateTimeFilter): Prisma.DateTimeFilter | undefined {
@@ -663,6 +678,123 @@ router.delete("/oshareview-blueprints/:id", async (req, res) => {
   });
 
   res.json({ blueprints: nextBlueprints });
+});
+
+function normalizeDonationAudiences(config: unknown): DonationAudience[] {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return [];
+  const values = (config as Record<string, unknown>).audiences;
+  if (!Array.isArray(values)) return [];
+  return values.flatMap((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const row = value as Record<string, unknown>;
+    const id = typeof row.id === "string" ? row.id.trim() : "";
+    const name = typeof row.name === "string" ? row.name.trim() : "";
+    if (!id || !name) return [];
+    const list = (input: unknown): string[] => Array.isArray(input)
+      ? Array.from(new Set<string>(input.map((item) => String(item).trim()).filter(Boolean)))
+      : [];
+    return [{
+      id,
+      name,
+      description: typeof row.description === "string" ? row.description.trim() : "",
+      from: typeof row.from === "string" ? row.from : "",
+      through: typeof row.through === "string" ? row.through : "",
+      constituentIds: list(row.constituentIds).slice(0, 5_000),
+      mailRecipientIds: list(row.mailRecipientIds).slice(0, 5_000),
+      recipientEmails: list(row.recipientEmails).slice(0, 5_000),
+      createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date(0).toISOString(),
+      updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : new Date(0).toISOString(),
+    } satisfies DonationAudience];
+  }).slice(0, 100);
+}
+
+async function readDonationAudiences(organizationId: string): Promise<DonationAudience[]> {
+  const setting = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: DONATION_AUDIENCES_PLUGIN_KEY } },
+    select: { config: true },
+  });
+  return normalizeDonationAudiences(setting?.config);
+}
+
+/** GET /api/reports/tools/donation-audience — donors with gifts in an inclusive date range and mailing data. */
+router.get("/tools/donation-audience", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const from = typeof req.query.from === "string" ? req.query.from : "";
+  const through = typeof req.query.through === "string" ? req.query.through : "";
+  const dateFilter = buildInclusiveCalendarDateFilter(from, through);
+  if (!organizationId || !dateFilter || !from || !through) {
+    res.status(400).json({ error: { code: "DATE_RANGE_REQUIRED", message: "Choose both a start and end date." } });
+    return;
+  }
+
+  const gifts = await prisma.donation.findMany({
+    where: completedDonationWhere(organizationId, dateFilter),
+    select: {
+      amount: true,
+      constituent: { select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, zip: true, doNotEmail: true, doNotMail: true, doNotContact: true, emailOptOut: true } },
+    },
+    orderBy: { date: "desc" },
+    take: 5_000,
+  });
+  const donors = new Map<string, { id: string; name: string; email: string | null; address: string; canMail: boolean; canEmail: boolean; giftCount: number; totalAmount: number }>();
+  for (const gift of gifts) {
+    const donor = gift.constituent;
+    const address = [donor.addressLine1, donor.addressLine2, [donor.city, donor.state].filter(Boolean).join(", "), donor.zip].filter(Boolean).join(" · ");
+    const existing = donors.get(donor.id);
+    if (existing) {
+      existing.giftCount += 1;
+      existing.totalAmount = centsToMoney(moneyToCents(existing.totalAmount) + moneyToCents(gift.amount));
+      continue;
+    }
+    donors.set(donor.id, {
+      id: donor.id,
+      name: donor.displayName?.trim() || donor.organizationName?.trim() || `${donor.firstName} ${donor.lastName}`.trim() || "Unnamed donor",
+      email: donor.email?.trim() || null,
+      address,
+      canMail: Boolean(donor.addressLine1?.trim()) && !donor.doNotMail && !donor.doNotContact,
+      canEmail: Boolean(donor.email?.trim()) && !donor.doNotEmail && !donor.doNotContact && !donor.emailOptOut,
+      giftCount: 1,
+      totalAmount: centsToMoney(moneyToCents(gift.amount)),
+    });
+  }
+  const rows = Array.from(donors.values()).sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ from, through, donors: rows, summary: { donors: rows.length, mailReady: rows.filter((row) => row.canMail).length, emailReady: rows.filter((row) => row.canEmail).length, missingAddress: rows.filter((row) => !row.address).length } });
+});
+
+/** Saved report audiences retain constituent IDs for letters and email addresses for campaigns. */
+router.get("/tools/donation-audiences", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  res.json({ audiences: organizationId ? await readDonationAudiences(organizationId) : [] });
+});
+
+router.post("/tools/donation-audiences", requirePermission("edit:communications"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) { res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } }); return; }
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const constituentIds: string[] = Array.isArray(req.body?.constituentIds)
+    ? Array.from(new Set<string>(req.body.constituentIds.map((value: unknown) => String(value).trim()).filter(Boolean))).slice(0, 5_000)
+    : [];
+  const recipientEmails: string[] = Array.isArray(req.body?.recipientEmails)
+    ? Array.from(new Set<string>(req.body.recipientEmails.map((value: unknown) => String(value).trim().toLowerCase()).filter((value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)))).slice(0, 5_000)
+    : [];
+  const mailRecipientIds: string[] = Array.isArray(req.body?.mailRecipientIds)
+    ? Array.from(new Set<string>(req.body.mailRecipientIds.map((value: unknown) => String(value).trim()).filter(Boolean))).slice(0, 5_000)
+    : [];
+  if (!name || constituentIds.length === 0) { res.status(400).json({ error: { code: "AUDIENCE_REQUIRED", message: "Provide an audience name and at least one donor." } }); return; }
+  const now = new Date().toISOString();
+  const audience: DonationAudience = { id: randomUUID(), name, description: typeof req.body?.description === "string" ? req.body.description.trim() : "", from: typeof req.body?.from === "string" ? req.body.from : "", through: typeof req.body?.through === "string" ? req.body.through : "", constituentIds, mailRecipientIds, recipientEmails, createdAt: now, updatedAt: now };
+  const current = await readDonationAudiences(organizationId);
+  const audiences = [audience, ...current].slice(0, 100);
+  await prisma.pluginSetting.upsert({ where: { organizationId_pluginKey: { organizationId, pluginKey: DONATION_AUDIENCES_PLUGIN_KEY } }, create: { organizationId, pluginKey: DONATION_AUDIENCES_PLUGIN_KEY, enabled: true, config: { audiences } as unknown as Prisma.InputJsonValue }, update: { enabled: true, config: { audiences } as unknown as Prisma.InputJsonValue } });
+  res.status(201).json({ audience, audiences });
+});
+
+router.delete("/tools/donation-audiences/:id", requirePermission("edit:communications"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) { res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } }); return; }
+  const audiences = (await readDonationAudiences(organizationId)).filter((audience) => audience.id !== req.params.id);
+  await prisma.pluginSetting.upsert({ where: { organizationId_pluginKey: { organizationId, pluginKey: DONATION_AUDIENCES_PLUGIN_KEY } }, create: { organizationId, pluginKey: DONATION_AUDIENCES_PLUGIN_KEY, enabled: true, config: { audiences } as unknown as Prisma.InputJsonValue }, update: { enabled: true, config: { audiences } as unknown as Prisma.InputJsonValue } });
+  res.json({ audiences });
 });
 
 /**

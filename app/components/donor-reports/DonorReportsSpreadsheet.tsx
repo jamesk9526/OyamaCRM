@@ -7,6 +7,7 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import DonationAudienceTool from "@/app/components/donor-reports/DonationAudienceTool";
 import {
   getStoredReportingYearMode,
   setStoredReportingYearMode,
@@ -170,6 +171,7 @@ export default function DonorReportsSpreadsheet() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportingMode, setReportingMode] = useState<ReportingYearMode>("calendar");
+  const [activeTool, setActiveTool] = useState<"donation-audience" | null>(null);
 
   useEffect(() => {
     setReportingMode(getStoredReportingYearMode());
@@ -294,11 +296,11 @@ export default function DonorReportsSpreadsheet() {
       <WorkspaceBreadcrumbBar
         items={[{ label: "Donor CRM", href: "/" }, { label: "Reports" }]}
         statusLabel="Working"
-        metadata={selected ? "Live report data" : "Report library"}
+        metadata={activeTool ? "Report tool" : selected ? "Live report data" : "Report library"}
         accentTone="blue"
       />
 
-      {selected ? (
+      {activeTool === "donation-audience" ? <DonationAudienceTool onBack={() => setActiveTool(null)} /> : selected ? (
         <ReportRunner
           definition={selected}
           report={report}
@@ -329,13 +331,13 @@ export default function DonorReportsSpreadsheet() {
           onPrint={handlePrint}
         />
       ) : (
-        <ReportLibrary onRun={(definition) => void loadReport(definition)} />
+        <ReportLibrary onRun={(definition) => void loadReport(definition)} onOpenDonationAudience={() => setActiveTool("donation-audience")} />
       )}
     </div>
   );
 }
 
-function ReportLibrary({ onRun }: { onRun: (definition: ReportDefinition) => void }) {
+function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: ReportDefinition) => void; onOpenDonationAudience: () => void }) {
   return (
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#edf5fc_58%,#fff_100%)] px-5 py-5">
@@ -343,6 +345,7 @@ function ReportLibrary({ onRun }: { onRun: (definition: ReportDefinition) => voi
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Choose a report</h1>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Every report runs against live, organization-scoped donor data and can be printed or exported after review.</p>
       </div>
+      <div className="border-b border-slate-200 bg-emerald-50 px-5 py-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">New report tools</p><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-900">Donation date-range audience</h2><p className="mt-1 text-sm text-slate-600">Select donors who gave in a period, review mailing addresses, save the audience, and create letters or email.</p></div><button type="button" onClick={onOpenDonationAudience} className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Open tool</button></div></div>
       {(["Gift reports", "Donor reports"] as const).map((group) => (
         <div key={group} className="border-b border-slate-200 last:border-b-0">
           <div className="border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-semibold text-slate-800">{group}</div>
