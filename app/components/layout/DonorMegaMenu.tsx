@@ -331,6 +331,7 @@ function NavGlyph({ id }: { id: string }) {
 
 interface DonorMegaMenuProps {
   donorAccentTone?: DonorAccentTone;
+  chromeTint?: { dark: string; mid: string; base: string; border: string };
   scrolled?: boolean;
 }
 
@@ -388,7 +389,7 @@ const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
   },
 };
 
-export default function DonorMegaMenu({ donorAccentTone = "blue" }: DonorMegaMenuProps) {
+export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: DonorMegaMenuProps) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
@@ -513,7 +514,10 @@ export default function DonorMegaMenu({ donorAccentTone = "blue" }: DonorMegaMen
           onClick={() => setMobileNavOpen(false)}
           className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
         />
-        <div className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b border-[#4b4b4b] bg-[#292929] px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+        <div
+          className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+          style={chromeTint ? { background: `linear-gradient(165deg, ${chromeTint.dark}, ${chromeTint.mid} 58%, ${chromeTint.base})`, borderColor: chromeTint.border } : { background: "#292929", borderColor: "#4b4b4b" }}
+        >
           <div className="mx-auto max-w-xl">
             <div className="mb-3 flex items-center justify-between gap-3 px-1">
               <div>
@@ -583,7 +587,8 @@ export default function DonorMegaMenu({ donorAccentTone = "blue" }: DonorMegaMen
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r border-[#4b4b4b] bg-[#292929] md:flex"
+      className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r md:flex"
+      style={chromeTint ? { background: `linear-gradient(180deg, ${chromeTint.mid}, ${chromeTint.dark} 76%)`, borderColor: chromeTint.border } : { background: "#292929", borderColor: "#4b4b4b" }}
     >
       <div className="border-b border-white/10 px-4 py-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">DonorCRM</p>

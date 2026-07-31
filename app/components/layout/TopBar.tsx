@@ -1382,7 +1382,15 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         : (scrolled
           ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px]"
           : "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-[72px]")}`}
-        style={{ paddingTop: "max(0rem, env(safe-area-inset-top))" }}>
+        style={{
+          paddingTop: "max(0rem, env(safe-area-inset-top))",
+          ...(isDonorEnterpriseChrome && donorChromeTint
+            ? {
+                background: `linear-gradient(110deg, ${donorChromeTint.dark}, ${donorChromeTint.mid} 58%, ${donorChromeTint.base})`,
+                borderColor: donorChromeTint.border,
+              }
+            : {}),
+        }}>
         {!isDonorEnterpriseChrome ? (
           <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden h-full transition-[width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "w-[372px]" : "w-[472px]"}`}>
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">

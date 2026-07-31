@@ -412,7 +412,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         donorSidebarOffset={false}
         donorSidebarCollapsed={false}
       />
-      {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} scrolled={shellScrolled} /> : null}
+      {donorMegaMenuEnabled ? <DonorMegaMenu donorAccentTone={workspaceSettings.donorAccentTone} chromeTint={donorChromeTint} scrolled={shellScrolled} /> : null}
       <div className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white ${donorShellVisible ? "md:pl-64" : ""}`}>
         <div className={`min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
           {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
