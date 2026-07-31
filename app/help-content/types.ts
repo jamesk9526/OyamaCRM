@@ -27,6 +27,18 @@ export interface HelpImage {
   caption?: string;
 }
 
+/** Optional tutorial media shown in the contextual top-bar help modal. */
+export interface HelpTutorialMedia {
+  /** Format used by the browser-native tutorial player. */
+  type: "screenshot" | "audio" | "video";
+  /** Public media URL. */
+  url: string;
+  /** Short label for the tutorial asset. */
+  label: string;
+  /** Alternate text required for screenshot media. */
+  alt?: string;
+}
+
 /** Step metadata for image-backed walkthrough sequences. */
 export interface HelpWalkthroughStep {
   /** Stable walkthrough step identifier. */
@@ -71,6 +83,8 @@ export interface HelpArticle {
   role?: HelpRole;
   /** Optional image gallery attached to the article. */
   images?: HelpImage[];
+  /** Optional audio, video, or screenshot tutorial for contextual help. */
+  tutorialMedia?: HelpTutorialMedia[];
   /** Optional ordered walkthrough steps for procedural guidance. */
   walkthroughSteps?: HelpWalkthroughStep[];
   /** Optional related article IDs for cross-linking. */

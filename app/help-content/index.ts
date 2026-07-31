@@ -20,5 +20,6 @@ export type {
   HelpRole,
   HelpSearchResult,
   HelpStatus,
+  HelpTutorialMedia,
   HelpWalkthroughStep,
 } from "@/app/help-content/types";

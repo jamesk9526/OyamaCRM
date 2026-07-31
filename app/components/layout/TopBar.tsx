@@ -9,6 +9,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
+import ContextualTutorialModal from "@/app/components/help/ContextualTutorialModal";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
@@ -855,6 +856,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const showTopBarAppLauncher = true;
   const [appsOpen, setAppsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
@@ -1859,14 +1861,15 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </>
               )}
 
-              <Link
-                href={helpHref}
-                title="Help"
-                aria-label="Open help"
+              <button
+                type="button"
+                onClick={() => setTutorialOpen(true)}
+                title="Page tutorial"
+                aria-label="Open page tutorial"
                 className={`${darkIconButtonBase} ml-0.5`}
               >
-                <HelpCircleIcon className="h-4 w-4" />
-              </Link>
+                ?
+              </button>
             </div>
 
             <div className={`shrink-0 ${isDonorEnterpriseChrome ? "ml-auto" : ""}`}>
@@ -2030,6 +2033,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             </div>
           </>
         )}
+        <ContextualTutorialModal
+          open={tutorialOpen}
+          onClose={() => setTutorialOpen(false)}
+          pathname={pathname}
+          scope={mapModuleKeyToHelpScope(moduleKey)}
+          helpHref={helpHref}
+        />
     </header>
     </>
   );

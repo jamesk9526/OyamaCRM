@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { resolveCrmRibbonConfig } from "@/app/components/ui/crm/ribbon/config";
 import type { CrmRibbonCommand, CrmRibbonCommandHandlers, CrmRibbonContext } from "@/app/components/ui/crm/ribbon/types";
@@ -21,6 +21,7 @@ export default function WorkspaceStatusControl({ dark = false }: { dark?: boolea
   const config = useMemo(() => resolveCrmRibbonConfig(pathname), [pathname]);
   const [open, setOpen] = useState(false);
   const [registered, setRegistered] = useState<WorkspaceCommandContextDetail | null>(null);
+  const controlRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setRegistered(getWorkspaceCommandContext(pathname));
@@ -31,6 +32,24 @@ export default function WorkspaceStatusControl({ dark = false }: { dark?: boolea
     window.addEventListener(WORKSPACE_COMMAND_CONTEXT_EVENT, receive);
     return () => window.removeEventListener(WORKSPACE_COMMAND_CONTEXT_EVENT, receive);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeWhenOutside = (event: PointerEvent) => {
+      if (!controlRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeWhenOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   const context = registered?.context ?? {};
   const handlers = registered?.handlers ?? {};
@@ -46,7 +65,7 @@ export default function WorkspaceStatusControl({ dark = false }: { dark?: boolea
     : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
 
   return (
-    <div className="relative shrink-0" onMouseLeave={() => setOpen(false)}>
+    <div ref={controlRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
