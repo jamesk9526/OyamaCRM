@@ -250,14 +250,14 @@ export default function DashboardAppearancePage() {
               custom: "Custom text — write your own subtitle",
             };
             return (
-              <label key={mode} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${form.heroTitleMode === mode ? "border-emerald-300 bg-emerald-50" : "border-slate-100 hover:bg-slate-50"}`}>
+              <label key={mode} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${form.heroTitleMode === mode ? "border-[#cfe4fa] bg-[#eff6fc]" : "border-slate-100 hover:bg-slate-50"}`}>
                 <input
                   type="radio"
                   name="heroTitleMode"
                   value={mode}
                   checked={form.heroTitleMode === mode}
                   onChange={() => updateField("heroTitleMode", mode)}
-                  className="mt-0.5 h-4 w-4 accent-emerald-600"
+                  className="mt-0.5 h-4 w-4 accent-[#0f6cbd]"
                 />
                 <div>
                   <p className="text-sm font-semibold capitalize text-slate-900">{mode === "greeting" ? "Daily mission line" : mode}</p>
@@ -277,7 +277,7 @@ export default function DashboardAppearancePage() {
               value={form.customHeroText}
               onChange={(e) => updateField("customHeroText", e.target.value)}
               placeholder="e.g. Because of your donors, lives are being changed every day."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-[#0f6cbd] focus:outline-none focus:ring-2 focus:ring-[#cfe4fa]"
             />
             <p className="mt-1 text-right text-[11px] text-slate-400">{form.customHeroText.length}/200</p>
           </div>
@@ -297,7 +297,7 @@ export default function DashboardAppearancePage() {
             <select
               value={form.heroHeight}
               onChange={(e) => updateField("heroHeight", e.target.value as DashboardAppearanceSettings["heroHeight"])}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-[#0f6cbd] focus:outline-none focus:ring-2 focus:ring-[#cfe4fa]"
             >
               <option value="compact">Compact</option>
               <option value="standard">Standard</option>
@@ -309,7 +309,7 @@ export default function DashboardAppearancePage() {
             <select
               value={form.greetingStyle}
               onChange={(e) => updateField("greetingStyle", e.target.value as DashboardAppearanceSettings["greetingStyle"])}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-[#0f6cbd] focus:outline-none focus:ring-2 focus:ring-[#cfe4fa]"
             >
               <option value="warm">Warm</option>
               <option value="formal">Formal</option>
@@ -321,7 +321,7 @@ export default function DashboardAppearancePage() {
             <select
               value={form.density}
               onChange={(e) => updateField("density", e.target.value as DashboardAppearanceSettings["density"])}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-[#0f6cbd] focus:outline-none focus:ring-2 focus:ring-[#cfe4fa]"
             >
               <option value="comfortable">Comfortable</option>
               <option value="compact">Compact</option>
@@ -340,7 +340,7 @@ export default function DashboardAppearancePage() {
               role="switch"
               aria-checked={form.showQuoteCard}
               onClick={() => updateField("showQuoteCard", !form.showQuoteCard)}
-              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1 ${form.showQuoteCard ? "bg-emerald-600" : "bg-slate-200"}`}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition focus:outline-none focus:ring-2 focus:ring-[#0f6cbd] focus:ring-offset-1 ${form.showQuoteCard ? "bg-[#0f6cbd]" : "bg-slate-200"}`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${form.showQuoteCard ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
@@ -353,13 +353,13 @@ export default function DashboardAppearancePage() {
                 value={form.quoteText}
                 onChange={(e) => updateField("quoteText", e.target.value)}
                 placeholder="Enter the quote or short mission statement to show in the hero."
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-[#0f6cbd] focus:outline-none focus:ring-2 focus:ring-[#cfe4fa]"
               />
               <input
                 value={form.quoteAuthor}
                 onChange={(e) => updateField("quoteAuthor", e.target.value)}
                 placeholder="Quote author or source"
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-[#0f6cbd] focus:outline-none focus:ring-2 focus:ring-[#cfe4fa]"
               />
             </div>
           ) : null}
@@ -371,7 +371,7 @@ export default function DashboardAppearancePage() {
             {(Object.keys(DASHBOARD_HERO_ACTIONS) as DashboardHeroActionId[]).map((actionId) => {
               const enabled = form.primaryActions.includes(actionId);
               return (
-                <label key={actionId} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${enabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-100 bg-slate-50 text-slate-600"}`}>
+                <label key={actionId} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${enabled ? "border-[#cfe4fa] bg-[#eff6fc] text-[#0f548c]" : "border-slate-100 bg-slate-50 text-slate-600"}`}>
                   <input
                     type="checkbox"
                     checked={enabled}
@@ -381,7 +381,7 @@ export default function DashboardAppearancePage() {
                         : form.primaryActions.filter((id) => id !== actionId);
                       updateField("primaryActions", next.length > 0 ? next : ["record-gift"]);
                     }}
-                    className="h-4 w-4 accent-emerald-600"
+                    className="h-4 w-4 accent-[#0f6cbd]"
                   />
                   {DASHBOARD_HERO_ACTIONS[actionId].label}
                 </label>
@@ -415,7 +415,7 @@ export default function DashboardAppearancePage() {
                 role="switch"
                 aria-checked={Boolean(form[key])}
                 onClick={() => updateField(key, !form[key] as DashboardAppearanceSettings[typeof key])}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1 ${form[key] ? "bg-emerald-600" : "bg-slate-200"}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition focus:outline-none focus:ring-2 focus:ring-[#0f6cbd] focus:ring-offset-1 ${form[key] ? "bg-[#0f6cbd]" : "bg-slate-200"}`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${form[key] ? "translate-x-5" : "translate-x-0.5"}`} />
               </button>
@@ -436,7 +436,7 @@ export default function DashboardAppearancePage() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-lg bg-emerald-700 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:opacity-60"
+          className="rounded-lg bg-[#0f6cbd] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#115ea3] disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save appearance"}
         </button>

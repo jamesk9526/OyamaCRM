@@ -239,16 +239,16 @@ function DonorQuickAddButton() {
       </button>
 
       {open && (
-        <div role="menu" className="absolute left-0 top-full mt-1.5 w-48 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl z-50">
+        <div role="menu" className="absolute left-0 top-full z-50 mt-1.5 w-48 rounded-[2px] border border-[#d1d1d1] bg-white py-1 shadow-none">
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
+              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-[#eff6fc] hover:text-[#0f548c]"
             >
-              <svg className="h-4 w-4 shrink-0 text-indigo-600" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="h-4 w-4 shrink-0 text-[#0f6cbd]" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
               </svg>
               {item.label}

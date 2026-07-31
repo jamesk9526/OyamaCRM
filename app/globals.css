@@ -2,7 +2,7 @@
 @import "./globals-animations.css";
 
 :root {
-  --background: #f2faf4;
+  --background: #f5f5f5;
   --foreground: #0f172a;
   --accent: #0f6cbd;
   --accent-light: #eff6fc;
@@ -69,12 +69,12 @@ body {
 /* Personal DonorCRM appearance palettes. The command-bar structure stays
    constant; only its approved color tokens and the workspace canvas change. */
 [data-donor-appearance="light-green"] {
-  --background: #f2faf4;
+  --background: #f5f7f6;
   --crm-surface: #ffffff;
-  --crm-surface-subtle: #f7fbf8;
-  --crm-border: #d2e2d7;
-  --crm-border-strong: #9bbcab;
-  --crm-accent-soft: #eaf7ee;
+  --crm-surface-subtle: #fafafa;
+  --crm-border: #d1d1d1;
+  --crm-border-strong: #a19f9d;
+  --crm-accent-soft: #eff6fc;
   --crm-focus-ring: rgba(15, 108, 87, 0.22);
 }
 
@@ -111,7 +111,7 @@ body {
 }
 
 .crm-card-surface {
-  background: #ffffff;
+  background: var(--crm-surface);
   border-color: var(--crm-border);
   border-radius: 4px;
   box-shadow: none;
@@ -122,13 +122,13 @@ body {
 }
 
 .crm-page-header-surface {
-  background: #ffffff;
+  background: var(--crm-surface);
   border-color: var(--crm-border);
   box-shadow: none;
 }
 
 .crm-filter-surface {
-  background: #ffffff;
+  background: var(--crm-surface);
   border-color: var(--crm-border);
 }
 

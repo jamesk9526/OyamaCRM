@@ -18,7 +18,7 @@ interface AppearanceSettings {
 const DEFAULTS: AppearanceSettings = { theme: "light-green", density: "comfortable" };
 
 const THEMES: Array<{ id: Theme; name: string; description: string; colors: [string, string, string] }> = [
-  { id: "light-green", name: "Light green", description: "Default: a fresh green workspace canvas with navy command bars.", colors: ["#0b1b27", "#176b57", "#f2faf4"] },
+  { id: "light-green", name: "Light green", description: "Default: a neutral workspace canvas with green-accented command bars.", colors: ["#0b1b27", "#176b57", "#f5f7f6"] },
   { id: "blue", name: "Blue", description: "Classic Microsoft blue with a clean cool canvas.", colors: ["#0b1b31", "#0f6cbd", "#f2f8fd"] },
   { id: "violet", name: "Violet", description: "A focused purple shell with a light lavender canvas.", colors: ["#17112e", "#6f42c1", "#f8f5ff"] },
   { id: "slate", name: "Slate", description: "A restrained neutral theme for dense fundraising work.", colors: ["#111827", "#475569", "#f7f9fb"] },
