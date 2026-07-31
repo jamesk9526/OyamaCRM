@@ -633,7 +633,8 @@ router.post("/reset-password", async (req: Request, res: Response) => {
   }
 
   const config = parsePasswordResetConfig(row.config);
-  if (!config || config.tokenHash !== tokenHash || new Date(config.expiresAt).getTime() <= Date.now() || config.usedAt) {
+  const expiresAtMs = config ? new Date(config.expiresAt).getTime() : Number.NaN;
+  if (!config || config.tokenHash !== tokenHash || !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now() || config.usedAt) {
     await prisma.pluginSetting.delete({ where: { id: row.id } }).catch(() => {});
     return res.status(400).json({
       error: { code: "RESET_TOKEN_INVALID", message: "Reset token is invalid or expired" },

@@ -5,6 +5,18 @@ import Link from "next/link";
 import { FormEvent, Suspense, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { resetPasswordWithToken } from "@/app/lib/auth-client";
+import LoginBrandPanel, { LoginMobileBrand } from "@/app/components/auth/LoginBrandPanel";
+import PasswordInput from "@/app/components/auth/PasswordInput";
+
+function passwordRequirements(password: string) {
+  return [
+    { label: "At least 10 characters", met: password.length >= 10 },
+    { label: "Lowercase letter", met: /[a-z]/.test(password) },
+    { label: "Uppercase letter", met: /[A-Z]/.test(password) },
+    { label: "Number", met: /\d/.test(password) },
+    { label: "Symbol", met: /[^A-Za-z0-9]/.test(password) },
+  ];
+}
 
 /** Renders one token-based password reset form with confirmation and policy guidance. */
 function ResetPasswordPageContent() {
@@ -17,6 +29,9 @@ function ResetPasswordPageContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const requirements = passwordRequirements(password);
+  const categoryCount = requirements.slice(1).filter((requirement) => requirement.met).length;
+  const passwordMeetsPolicy = requirements[0].met && categoryCount >= 3;
 
   /** Submits one token + password reset request and routes back to login on success. */
   async function handleSubmit(event: FormEvent) {
@@ -26,6 +41,11 @@ function ResetPasswordPageContent() {
 
     if (!token) {
       setError("Reset token is missing. Use the full link from your email.");
+      return;
+    }
+
+    if (!passwordMeetsPolicy) {
+      setError("Choose a password that meets all of the requirements below.");
       return;
     }
 
@@ -49,57 +69,78 @@ function ResetPasswordPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-green-50 via-white to-slate-50 flex items-center justify-center px-4">
-      <section className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Reset Password</h1>
-          <p className="mt-1 text-sm text-gray-600">Create a new password for your account.</p>
-          <p className="mt-2 text-xs text-gray-500">Use at least 10 characters and include 3 of: lowercase, uppercase, number, symbol.</p>
-        </div>
+    <main className="min-h-screen w-screen overflow-x-hidden bg-[#f5f5f5]">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(430px,520px)]">
+        <LoginBrandPanel />
+        <section className="relative flex min-h-screen flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_0%,rgba(15,108,189,0.08),transparent_34%),linear-gradient(180deg,#ffffff,#f5f5f5)] px-4 py-8 sm:px-8 lg:px-10">
+          <div className="w-full max-w-[400px]">
+            <LoginMobileBrand />
+            <div className="border border-[#d1d1d1] bg-white px-6 py-7 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:px-8 sm:py-8">
+              <div className="mb-6">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0f548c]">Account recovery</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Choose a new password</h1>
+                <p className="mt-1.5 text-sm leading-6 text-slate-500">Use a password you have not used elsewhere.</p>
+              </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">New password</span>
-            <input
-              type="password"
-              required
-              minLength={10}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="new-password" className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">New password</label>
+            <PasswordInput
+              id="new-password"
               autoComplete="new-password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Confirm password</span>
-            <input
-              type="password"
+              onChange={setPassword}
               required
               minLength={10}
+              disabled={loading || Boolean(success)}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Confirm new password</label>
+            <PasswordInput
+              id="confirm-password"
               autoComplete="new-password"
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              onChange={setConfirmPassword}
+              required
+              minLength={10}
+              disabled={loading || Boolean(success)}
             />
-          </label>
+          </div>
 
-          {success && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</p>}
-          {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          <ul className="space-y-1.5 border-l-2 border-slate-200 pl-3 text-xs text-slate-500" aria-label="Password requirements">
+            {requirements.map((requirement) => (
+              <li key={requirement.label} className={requirement.met ? "text-emerald-700" : undefined}>
+                <span aria-hidden="true" className="mr-1.5">{requirement.met ? "✓" : "○"}</span>
+                {requirement.label}
+              </li>
+            ))}
+            <li className={categoryCount >= 3 ? "text-emerald-700" : undefined}>
+              <span aria-hidden="true" className="mr-1.5">{categoryCount >= 3 ? "✓" : "○"}</span>
+              Use at least 3 character types
+            </li>
+          </ul>
+
+          {success && <p role="status" className="border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">{success}</p>}
+          {error && <p role="alert" className="border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">{error}</p>}
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+            disabled={loading || Boolean(success)}
+            className="flex w-full items-center justify-center bg-[#0f6cbd] py-3 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(15,108,189,0.22)] transition hover:bg-[#0f548c] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Updating..." : "Update password"}
           </button>
         </form>
 
-        <Link href="/login" className="block text-center text-sm text-gray-600 hover:text-gray-800">
+        <Link href="/login" className="mt-5 block text-center text-sm font-semibold text-[#0f548c] hover:text-[#0f6cbd]">
           Back to login
         </Link>
-      </section>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
@@ -107,7 +148,7 @@ function ResetPasswordPageContent() {
 /** Wraps reset-password client search-params usage in Suspense for build-time prerender compatibility. */
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-gradient-to-b from-green-50 via-white to-slate-50" />}>
+    <Suspense fallback={<main className="min-h-screen bg-[#f5f5f5]" />}>
       <ResetPasswordPageContent />
     </Suspense>
   );

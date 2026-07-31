@@ -59,6 +59,14 @@ export default function DonorAppearancePage() {
     return () => { active = false; };
   }, []);
 
+  /** Applies a local preview immediately; persistence still happens only on Save. */
+  function preview(next: AppearanceSettings) {
+    setSettings(next);
+    window.dispatchEvent(new CustomEvent("crm:donor-appearance", { detail: next }));
+    setMessage(null);
+    setError(null);
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -116,7 +124,7 @@ export default function DonorAppearancePage() {
                 key={theme.id}
                 type="button"
                 aria-pressed={selected}
-                onClick={() => setSettings((current) => ({ ...current, theme: theme.id }))}
+                onClick={() => preview({ ...settings, theme: theme.id })}
                 className={`border p-3 text-left transition-colors ${selected ? "border-[#0f6cbd] bg-[#eff6fc] ring-1 ring-[#0f6cbd]" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"}`}
               >
                 <span className="flex h-16 overflow-hidden border border-black/10" aria-hidden="true">
@@ -144,7 +152,7 @@ export default function DonorAppearancePage() {
               key={density}
               type="button"
               aria-pressed={settings.density === density}
-              onClick={() => setSettings((current) => ({ ...current, density }))}
+              onClick={() => preview({ ...settings, density })}
               className={`border p-3 text-left ${settings.density === density ? "border-[#0f6cbd] bg-[#eff6fc] ring-1 ring-[#0f6cbd]" : "border-slate-200 bg-white hover:border-slate-300"}`}
             >
               <span className="block text-sm font-semibold text-slate-900">{name}</span>

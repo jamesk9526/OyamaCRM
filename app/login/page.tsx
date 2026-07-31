@@ -6,6 +6,7 @@ import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import LoginBrandPanel, { LoginMobileBrand } from "@/app/components/auth/LoginBrandPanel";
+import PasswordInput from "@/app/components/auth/PasswordInput";
 import { verifyEmailMfa, type LoginMfaChallenge } from "@/app/lib/auth-client";
 import { fetchWorkspaceSettings, resolveWorkspaceLandingPath } from "@/app/lib/workspace-settings";
 
@@ -127,6 +128,8 @@ export default function LoginPage() {
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Email address</label>
                   <input
+                    id="email"
+                    name="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -138,20 +141,18 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Password</label>
-                  <input
-                    type="password"
+                  <label htmlFor="password" className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Password</label>
+                  <PasswordInput
+                    id="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={setPassword}
                     required
                     autoComplete="current-password"
-                    placeholder="••••••••"
-                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-400"
                   />
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
+                  <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
                     <svg className="mt-px shrink-0" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <circle cx="8" cy="8" r="7" stroke="#ef4444" strokeWidth="1.5" />
                       <path d="M8 5v3M8 10.5v.5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
