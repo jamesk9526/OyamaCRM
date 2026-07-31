@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
-import MicrosoftProductBar from "@/app/components/layout/MicrosoftProductBar";
+import WorkspaceProductBar from "@/app/components/layout/WorkspaceProductBar";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import OyamaEmailBuilderWorkspace from "@/app/components/oyama-email/OyamaEmailBuilderWorkspace";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
@@ -12,7 +12,6 @@ import type {
   OyamaEmailCampaign,
   OyamaEmailConstituent,
   OyamaEmailRecipientList,
-  OyamaEmailStats,
   OyamaEmailView,
   OyamaEmailWorkspaceProps,
 } from "@/app/components/oyama-email/types";
@@ -309,25 +308,6 @@ const EMPTY_DRAFT: BuilderDraft = {
   preparationStatus: "DRAFT",
 };
 
-const SOURCE_OPTIONS = [
-  "Individual Recipients",
-  "Saved Search / List",
-  "Segments / Tags",
-  "Campaign Donors",
-  "Event Attendees",
-  "Monthly Donors",
-  "Lapsed Donors (12+ months)",
-  "Steward Path Enrollment",
-] as const;
-
-const WIZARD_STEPS: Array<{ step: 1 | 2 | 3 | 4 | 5; label: string }> = [
-  { step: 1, label: "Template" },
-  { step: 2, label: "Audience" },
-  { step: 3, label: "Details" },
-  { step: 4, label: "Review" },
-  { step: 5, label: "Send" },
-];
-
 export default function OyamaEmailWorkspace({ view = "templates", templateId, campaignId }: OyamaEmailWorkspaceProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -336,16 +316,11 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
 
   const [campaigns, setCampaigns] = useState<OyamaEmailCampaign[]>([]);
   const [templates, setTemplates] = useState<OyamaEmailCampaign[]>([]);
-  const [stats, setStats] = useState<OyamaEmailStats | null>(null);
   const [lists, setLists] = useState<OyamaEmailRecipientList[]>([]);
   const [constituents, setConstituents] = useState<OyamaEmailConstituent[]>([]);
   const [focusedCampaign, setFocusedCampaign] = useState<OyamaEmailCampaign | null>(null);
 
   const [builderDraft, setBuilderDraft] = useState<BuilderDraft>(EMPTY_DRAFT);
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [sourceOption, setSourceOption] = useState<(typeof SOURCE_OPTIONS)[number]>("Individual Recipients");
-  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
-  const [recipientSearch, setRecipientSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -382,23 +357,20 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     setLoading(true);
     setError(null);
     try {
-      const [campaignRows, templateRowsResponse, statsRow, listRows, constituentRows] = await Promise.all([
+      const [campaignRows, templateRowsResponse, listRows, constituentRows] = await Promise.all([
         apiFetch<OyamaEmailCampaign[]>("/api/email-campaigns?limit=100"),
         apiFetch<OyamaEmailCampaign[]>("/api/oyama-email/templates?limit=100"),
-        apiFetch<OyamaEmailStats>("/api/email-campaigns/stats").catch(() => null),
         apiFetch<OyamaEmailRecipientList[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<OyamaEmailConstituent[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setCampaigns(campaignRows);
       setTemplates(templateRowsResponse);
-      setStats(statsRow);
       setLists(listRows);
       setConstituents(constituentRows);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to load OyamaEmail workspace.");
       setCampaigns([]);
       setTemplates([]);
-      setStats(null);
       setLists([]);
       setConstituents([]);
     } finally {
@@ -480,48 +452,6 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
       ?? campaigns.find((row) => row.id === targetCampaignId)
       ?? null;
   }, [campaigns, focusedCampaign, targetCampaignId, templates]);
-
-  const selectedRecipients = useMemo(() => {
-    const byId = new Map(constituents.map((row) => [row.id, row]));
-    return selectedRecipientIds
-      .map((id) => byId.get(id))
-      .filter((row): row is OyamaEmailConstituent => Boolean(row));
-  }, [constituents, selectedRecipientIds]);
-
-  const recipientRows = useMemo(() => {
-    const needle = recipientSearch.trim().toLowerCase();
-    return constituents
-      .filter((row) => {
-        if (!needle) return true;
-        return [row.firstName, row.lastName, row.email].join(" ").toLowerCase().includes(needle);
-      })
-      .slice(0, 180);
-  }, [constituents, recipientSearch]);
-
-  const recipientSummary = useMemo(() => {
-    const emails = selectedRecipients.map((row) => (row.email || "").trim().toLowerCase()).filter(Boolean);
-    const duplicateEmails = emails.length - new Set(emails).size;
-    const missingEmail = selectedRecipients.filter((row) => !row.email?.trim()).length;
-    const doNotEmail = selectedRecipients.filter((row) => Boolean(row.doNotEmail)).length;
-    const unsubscribed = selectedRecipients.filter((row) => Boolean(row.emailOptOut)).length;
-    const suppressed = selectedRecipients.filter((row) => Boolean(row.doNotContact)).length;
-    const valid = selectedRecipients.filter((row) => {
-      const email = row.email?.trim();
-      if (!email) return false;
-      if (row.doNotEmail || row.emailOptOut || row.doNotContact) return false;
-      return /.+@.+\..+/.test(email);
-    }).length;
-
-    return {
-      total: selectedRecipients.length,
-      valid,
-      missingEmail,
-      unsubscribed,
-      doNotEmail,
-      suppressed,
-      duplicatesRemoved: duplicateEmails,
-    };
-  }, [selectedRecipients]);
 
   async function saveDraft() {
     setSaving(true);
@@ -669,17 +599,13 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
     }
   }
 
-  function toggleRecipient(id: string) {
-    setSelectedRecipientIds((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]));
-  }
-
   function setSendTemplate(template: OyamaEmailCampaign) {
     router.push(`/oyama-email/campaigns/new?templateId=${template.id}`);
   }
 
   return (
-    <div className="microsoft-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-900">
-      <MicrosoftProductBar
+    <div className="workspace-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-900">
+      <WorkspaceProductBar
         productName="OyamaCRM Email"
         homeHref="/oyama-email"
         backHref="/communications"
@@ -725,7 +651,6 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
           {!loading && (normalizedView === "campaigns" || normalizedView === "callender") ? (
             <CampaignsView
               campaigns={sendRecordRows}
-              stats={stats}
               focusedCampaignId={campaignId ?? null}
               initialTab={initialCampaignTab}
               initialViewMode={normalizedView === "callender" ? "calendar" : "board"}
@@ -885,7 +810,54 @@ function OyamaEmailTopBar({ view, targetCampaign }: { view: OyamaEmailView; targ
           ) : null}
         </div>
       </div>
+      <EmailWorkflowStepper view={view} />
     </header>
+  );
+}
+
+/** Keeps the reusable-template and governed-send lifecycle visible across Email workspace views. */
+function EmailWorkflowStepper({ view }: { view: OyamaEmailView }) {
+  const steps = [
+    { id: "templates", label: "Templates", href: "/oyama-email" },
+    { id: "campaigns", label: "Campaign", href: "/oyama-email/campaigns" },
+    { id: "review", label: "Review & schedule", href: "/oyama-email/campaigns?tab=settings" },
+    { id: "queue", label: "Queue & delivery", href: "/oyama-email/queue" },
+  ] as const;
+  const activeStepId = view === "queue"
+    ? "queue"
+    : view === "publish"
+      ? "review"
+    : view === "campaigns" || view === "audience" || view === "send" || view === "analytics" || view === "callender"
+      ? "campaigns"
+      : "templates";
+
+  return (
+    <nav className="mt-3 hidden overflow-x-auto border-t border-[#e5e5e5] pt-2 lg:block" aria-label="Email workflow">
+      <ol className="flex min-w-max items-center gap-0">
+        {steps.map((step, index) => {
+          const active = step.id === activeStepId;
+          return (
+            <li key={step.id} className="flex items-center">
+              <Link
+                href={step.href}
+                aria-current={active ? "step" : undefined}
+                className={`inline-flex h-8 items-center gap-2 border px-3 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]"
+                    : "border-transparent text-slate-600 hover:border-[#d1d1d1] hover:bg-[#f3f2f1] hover:text-slate-900"
+                }`}
+              >
+                <span className={`flex h-4 w-4 items-center justify-center border text-[9px] ${active ? "border-[#0f6cbd] bg-[#0f6cbd] text-white" : "border-[#a19f9d] bg-white text-slate-500"}`}>
+                  {index + 1}
+                </span>
+                {step.label}
+              </Link>
+              {index < steps.length - 1 ? <span className="h-px w-5 bg-[#d1d1d1]" aria-hidden="true" /> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
@@ -1070,12 +1042,12 @@ function TemplatesView({
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by template name or email subject" className="h-10 w-full rounded-[2px] border border-[#8a8886] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0f6cbd]" />
               </label>
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as "updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-indigo-500" aria-label="Sort templates"><option value="updatedDesc">Recently updated</option><option value="usedDesc">Most used</option><option value="nameAsc">Name A–Z</option><option value="updatedAsc">Oldest updated</option></select>
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as "updatedDesc" | "updatedAsc" | "usedDesc" | "nameAsc")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#0f6cbd]" aria-label="Sort templates"><option value="updatedDesc">Recently updated</option><option value="usedDesc">Most used</option><option value="nameAsc">Name A–Z</option><option value="updatedAsc">Oldest updated</option></select>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 ["Showing", sortedRows.length, "text-slate-900"],
-                ["My templates", myCount, "text-indigo-800"],
+                ["My templates", myCount, "text-[#0f548c]"],
                 ["Shared", sharedCount, "text-violet-800"],
                 ["AI-assisted", aiCount, "text-blue-800"],
               ].map(([label, value, color]) => <div key={String(label)} className="border border-[#d1d1d1] border-t-2 border-t-[#0f6cbd] bg-[#fafafa] px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
@@ -1171,7 +1143,7 @@ function TemplatesView({
                   onClick={() => setPage(value)}
                   className={[
                     "inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-semibold",
-                    value === page ? "bg-emerald-700 text-white" : "text-slate-600 hover:bg-slate-100",
+                    value === page ? "bg-[#0f6cbd] text-white" : "text-slate-600 hover:bg-slate-100",
                   ].join(" ")}
                 >
                   {value}
@@ -1379,152 +1351,8 @@ function logEmailPublishDiagnostics({
   console.groupEnd();
 }
 
-function SendWizardView({
-  campaigns,
-  selectedCampaign,
-  selectedRecipients,
-  recipients,
-  selectedRecipientIds,
-  onToggleRecipient,
-  recipientSearch,
-  onRecipientSearch,
-  summary,
-  wizardStep,
-  onWizardStep,
-  sourceOption,
-  onSourceOption,
-}: {
-  campaigns: OyamaEmailCampaign[];
-  selectedCampaign: OyamaEmailCampaign | null;
-  selectedRecipients: OyamaEmailConstituent[];
-  recipients: OyamaEmailConstituent[];
-  selectedRecipientIds: string[];
-  onToggleRecipient: (id: string) => void;
-  recipientSearch: string;
-  onRecipientSearch: (value: string) => void;
-  summary: {
-    total: number;
-    valid: number;
-    missingEmail: number;
-    unsubscribed: number;
-    doNotEmail: number;
-    suppressed: number;
-    duplicatesRemoved: number;
-  };
-  wizardStep: 1 | 2 | 3 | 4 | 5;
-  onWizardStep: (next: 1 | 2 | 3 | 4 | 5) => void;
-  sourceOption: (typeof SOURCE_OPTIONS)[number];
-  onSourceOption: (next: (typeof SOURCE_OPTIONS)[number]) => void;
-}) {
-  const templateName = selectedCampaign?.name || "Template not selected";
-
-  return (
-    <section className="space-y-4 p-4 xl:p-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-2xl font-semibold text-slate-900">Send Email Wizard</p>
-        <p className="mt-1 text-sm text-slate-600">Follow the steps to create and send your email campaign.</p>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {WIZARD_STEPS.map(({ step, label }) => {
-            const isActive = wizardStep === step;
-            const isComplete = wizardStep > step;
-            return (
-              <button
-                key={step}
-                type="button"
-                onClick={() => onWizardStep(step)}
-                className={[
-                  "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                  isActive ? "border-emerald-700 bg-emerald-50 text-emerald-800" : isComplete ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600",
-                ].join(" ")}
-              >
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px]">{step}</span>
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_260px]">
-        <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-base font-semibold text-slate-900">Select Your Audience</p>
-          {SOURCE_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onSourceOption(option)}
-              className={[
-                "w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold",
-                sourceOption === option ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              ].join(" ")}
-            >
-              {option}
-            </button>
-          ))}
-        </aside>
-
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-base font-semibold text-slate-900">Selected Recipients ({selectedRecipients.length})</p>
-            <StatusBadge label={templateName} tone="slate" />
-          </div>
-
-          <input value={recipientSearch} onChange={(event) => onRecipientSearch(event.target.value)} placeholder="Search recipients..." className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-
-          <div className="max-h-[460px] overflow-auto rounded-lg border border-slate-200">
-            <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
-                <tr>
-                  <th className="w-10 px-3 py-2" />
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="w-20 px-3 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {recipients.map((row) => {
-                  const selected = selectedRecipientIds.includes(row.id);
-                  const valid = Boolean(row.email && !row.doNotEmail && !row.doNotContact && !row.emailOptOut);
-                  return (
-                    <tr key={row.id} className={selected ? "bg-emerald-50/60" : ""}>
-                      <td className="px-3 py-2"><input type="checkbox" checked={selected} onChange={() => onToggleRecipient(row.id)} /></td>
-                      <td className="px-3 py-2 font-medium text-slate-800">{[row.firstName, row.lastName].filter(Boolean).join(" ") || row.id}</td>
-                      <td className="px-3 py-2 text-slate-600">{row.email || "-"}</td>
-                      <td className="px-3 py-2">{valid ? <StatusBadge label="Valid" tone="green" /> : <StatusBadge label="Review" tone="amber" />}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <button type="button" onClick={() => onWizardStep(Math.max(1, wizardStep - 1) as 1 | 2 | 3 | 4 | 5)} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Back</button>
-            <button type="button" onClick={() => onWizardStep(Math.min(5, wizardStep + 1) as 1 | 2 | 3 | 4 | 5)} className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600">Next</button>
-          </div>
-        </div>
-
-        <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-base font-semibold text-slate-900">Audience Summary</p>
-          <SummaryLine label="Total Selected" value={String(summary.total)} />
-          <SummaryLine label="Valid Emails" value={String(summary.valid)} />
-          <SummaryLine label="Missing Email" value={String(summary.missingEmail)} />
-          <SummaryLine label="Unsubscribed" value={String(summary.unsubscribed)} />
-          <SummaryLine label="Do Not Email" value={String(summary.doNotEmail)} />
-          <SummaryLine label="Suppressed" value={String(summary.suppressed)} />
-          <SummaryLine label="Duplicates Removed" value={String(summary.duplicatesRemoved)} />
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-            {summary.valid} recipients are currently eligible to receive this email.
-          </div>
-        </aside>
-      </div>
-    </section>
-  );
-}
-
 function CampaignsView({
   campaigns,
-  stats,
   focusedCampaignId,
   initialTab,
   initialViewMode,
@@ -1539,7 +1367,6 @@ function CampaignsView({
   onRefresh,
 }: {
   campaigns: OyamaEmailCampaign[];
-  stats: OyamaEmailStats | null;
   focusedCampaignId: string | null;
   initialTab: CampaignWorkspaceTab;
   initialViewMode: "board" | "calendar";
@@ -4237,66 +4064,6 @@ function EventTimelineChart({ title, events }: { title: string; events: Delivery
   );
 }
 
-function AudienceView({
-  lists,
-  summary,
-}: {
-  lists: OyamaEmailRecipientList[];
-  summary: {
-    total: number;
-    valid: number;
-    missingEmail: number;
-    unsubscribed: number;
-    doNotEmail: number;
-    suppressed: number;
-    duplicatesRemoved: number;
-  };
-}) {
-  return (
-    <section className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_280px] xl:p-6">
-      <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-2xl font-semibold text-slate-900">Audience Sources</p>
-        <p className="text-sm text-slate-600">Use saved lists and selection sources before entering the send wizard.</p>
-
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
-              <tr>
-                <th className="px-3 py-2">List</th>
-                <th className="px-3 py-2">Recipients</th>
-                <th className="px-3 py-2">Updated</th>
-                <th className="px-3 py-2">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {lists.map((list) => (
-                <tr key={list.id}>
-                  <td className="px-3 py-2">
-                    <p className="font-semibold text-slate-900">{list.name}</p>
-                    <p className="text-xs text-slate-500">{list.description || "Saved recipient list"}</p>
-                  </td>
-                  <td className="px-3 py-2">{list.recipientsCount}</td>
-                  <td className="px-3 py-2">{formatDate(list.updatedAt)}</td>
-                  <td className="px-3 py-2"><WorkspaceAction href="/oyama-email/send">Start Campaign Flow</WorkspaceAction></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-base font-semibold text-slate-900">Current Validation Snapshot</p>
-        <SummaryLine label="Total Selected" value={String(summary.total)} />
-        <SummaryLine label="Valid" value={String(summary.valid)} />
-        <SummaryLine label="Missing Email" value={String(summary.missingEmail)} />
-        <SummaryLine label="Unsubscribed" value={String(summary.unsubscribed)} />
-        <SummaryLine label="Suppressed" value={String(summary.suppressed)} />
-      </aside>
-    </section>
-  );
-}
-
 function EmailQueueView({ campaigns }: { campaigns: OyamaEmailCampaign[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -4368,65 +4135,6 @@ function EmailQueueView({ campaigns }: { campaigns: OyamaEmailCampaign[] }) {
                     <WorkspaceAction href={`/oyama-email/campaigns/${row.id}?tab=overview`}>Open</WorkspaceAction>
                   </div>
                 </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function AnalyticsView({ campaigns, stats }: { campaigns: OyamaEmailCampaign[]; stats: OyamaEmailStats | null }) {
-  const topRows = [...campaigns]
-    .filter((row) => row.status === "SENT")
-    .sort((a, b) => b.delivered - a.delivered)
-    .slice(0, 8);
-
-  return (
-    <section className="space-y-4 p-4 xl:p-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-2xl font-semibold text-slate-900">Analytics</p>
-        <p className="mt-1 text-sm text-slate-600">Track sent volume, engagement, and delivery health.</p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Campaigns" value={String(stats?.total ?? campaigns.length)} />
-        <StatCard label="Sent" value={String(stats?.sent ?? 0)} />
-        <StatCard label="Scheduled" value={String(stats?.scheduled ?? 0)} />
-        <StatCard label="Recipients Sent" value={String(stats?.totalRecipientsSent ?? 0)} />
-        <StatCard label="Avg Open Rate" value={`${stats?.avgOpenRate ?? 0}%`} />
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
-            <tr>
-              <th className="px-3 py-2">Campaign</th>
-              <th className="px-3 py-2">Delivered</th>
-              <th className="px-3 py-2">Opened</th>
-              <th className="px-3 py-2">Clicked</th>
-              <th className="px-3 py-2">Bounced</th>
-              <th className="px-3 py-2">Unsubscribed</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {topRows.length === 0 ? (
-              <tr>
-                <td className="px-3 py-6 text-sm text-slate-500" colSpan={6}>No sent campaign analytics available yet.</td>
-              </tr>
-            ) : null}
-            {topRows.map((row) => (
-              <tr key={row.id}>
-                <td className="px-3 py-2">
-                  <p className="font-semibold text-slate-900">{row.name}</p>
-                  <p className="text-xs text-slate-500">{formatDate(row.sentAt || row.updatedAt)}</p>
-                </td>
-                <td className="px-3 py-2">{row.delivered}</td>
-                <td className="px-3 py-2">{row.opened}</td>
-                <td className="px-3 py-2">{row.clicked}</td>
-                <td className="px-3 py-2">{row.bounced}</td>
-                <td className="px-3 py-2">{row.unsubscribed}</td>
               </tr>
             ))}
           </tbody>
@@ -4590,15 +4298,6 @@ function WorkspaceAction({
     ].join(" ")}>
       {children}
     </Link>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
-    </div>
   );
 }
 
@@ -4835,11 +4534,6 @@ function purposeLabel(value: string): string {
   if (upper.includes("RECEIPT")) return "Receipts";
   if (upper.includes("STEWARD")) return "Steward Paths";
   return "Newsletter";
-}
-
-function toPercent(value: number, total: number): string {
-  if (!total) return "0%";
-  return `${Math.round((value / total) * 100)}%`;
 }
 
 function htmlToText(value: string): string {

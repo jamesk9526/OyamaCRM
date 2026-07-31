@@ -46,7 +46,6 @@ describe("OyamaEmail workspace source contract", () => {
 
     expect(workspace).toContain("/api/email-campaigns?limit=100");
     expect(workspace).toContain("/api/oyama-email/templates?limit=100");
-    expect(workspace).toContain("/api/email-campaigns/stats");
     expect(workspace).toContain("/api/email-campaigns/lists");
     expect(workspace).toContain("/api/email-campaigns/calendar");
     expect(workspace).toContain("/api/email-campaigns/");

@@ -36,7 +36,7 @@ export default function AppProductShell({ appName, appSubtitle, navItems, childr
   }, [pathname]);
 
   return (
-    <div className="microsoft-product-shell flex h-[100dvh] min-h-[100svh] flex-col bg-[#f5f5f5]">
+    <div className="workspace-product-shell flex h-[100dvh] min-h-[100svh] flex-col bg-[#f5f5f5]">
       <header className="flex h-14 w-full shrink-0 items-center justify-between border-b border-[#424242] bg-[#242424] px-4">
         <div className="flex items-center gap-3 min-w-0">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[3px] bg-[#0f6cbd] text-sm font-bold text-white">

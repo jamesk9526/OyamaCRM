@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type DragEvent, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import MicrosoftProductBar from "@/app/components/layout/MicrosoftProductBar";
+import WorkspaceProductBar from "@/app/components/layout/WorkspaceProductBar";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
@@ -500,8 +500,8 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
   }
 
   return (
-    <div className="microsoft-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-950">
-      <MicrosoftProductBar
+    <div className="workspace-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-950">
+      <WorkspaceProductBar
         productName="OyamaCRM Letters"
         homeHref="/oyama-letters"
         backHref="/communications"
@@ -696,10 +696,10 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
       </div>
       {showProcessStepper ? <ProcessStepper view={view} templateId={templateId} /> : null}
       <div className="hidden items-center gap-2.5 border-l border-slate-200 pl-4 xl:flex">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white ring-1 ring-indigo-100">{initials}</div>
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0f6cbd] text-xs font-semibold text-white ring-1 ring-[#cfe4fa]">{initials}</div>
         <div className="leading-tight">
           <p className="max-w-36 truncate text-xs font-semibold text-slate-800">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
-          <button type="button" onClick={() => void signOut()} className="text-[10px] text-slate-500 hover:text-indigo-700">Sign out</button>
+          <button type="button" onClick={() => void signOut()} className="text-[10px] text-slate-500 hover:text-[#0f548c]">Sign out</button>
         </div>
       </div>
     </header>
@@ -717,14 +717,14 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
   const activeIndex = steps.findIndex((step) => step.key === view);
 
   return (
-    <div className="hidden min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 lg:flex">
+    <div className="hidden min-w-0 items-center justify-center gap-2 border border-[#d1d1d1] bg-[#fafafa] px-3 py-1.5 lg:flex">
       {steps.map((step, index) => {
         const active = index === activeIndex;
         const complete = activeIndex >= 0 && index < activeIndex;
         return (
           <div key={step.key} className="flex items-center gap-2">
             <Link href={step.href} className="flex items-center gap-1.5">
-              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active || complete ? "border-indigo-500 bg-indigo-600 text-white" : "border-slate-300 bg-white text-slate-500"].join(" ")}>
+              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active || complete ? "border-[#0f6cbd] bg-[#0f6cbd] text-white" : "border-[#a19f9d] bg-white text-slate-500"].join(" ")}>
                 {complete ? <CheckIcon /> : index + 1}
               </span>
               <span className={active ? "text-[11px] font-semibold text-slate-900" : "text-[11px] font-medium text-slate-500"}>{step.label}</span>
@@ -763,7 +763,7 @@ function WorkflowActionBar({
           type="button"
           onClick={onNext}
           disabled={nextDisabled}
-          className="inline-flex items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-md border border-[#0f6cbd] bg-[#0f6cbd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {nextLabel}
         </button>
@@ -6676,7 +6676,7 @@ function CategoryTabs({ category, setCategory }: { category: string; setCategory
   return (
     <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
       <div className="flex gap-4 overflow-x-auto">
-        {tabs.map((tab) => <button key={tab} type="button" onClick={() => setCategory(tab)} className={["h-12 shrink-0 border-b-2 px-1 text-[11px] font-semibold uppercase tracking-wide", category === tab ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600 hover:text-slate-950"].join(" ")}>{tab === "ALL" ? "All Templates" : tab.replaceAll("_", " ")}</button>)}
+        {tabs.map((tab) => <button key={tab} type="button" onClick={() => setCategory(tab)} className={["h-12 shrink-0 border-b-2 px-1 text-[11px] font-semibold uppercase tracking-wide", category === tab ? "border-[#0f6cbd] text-[#0f548c]" : "border-transparent text-slate-600 hover:text-slate-950"].join(" ")}>{tab === "ALL" ? "All Templates" : tab.replaceAll("_", " ")}</button>)}
       </div>
     </div>
   );
@@ -6684,7 +6684,7 @@ function CategoryTabs({ category, setCategory }: { category: string; setCategory
 
 function SettingsCard({ title, body, href }: { title: string; body: string; href: string }) {
   return (
-    <Link href={href} className="block rounded-md border border-slate-200 bg-white p-5 shadow-sm hover:border-emerald-300 hover:shadow-md">
+    <Link href={href} className="block rounded-md border border-slate-200 bg-white p-5 shadow-sm hover:border-[#0f6cbd] hover:shadow-md">
       <p className="font-semibold">{title}</p>
       <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
     </Link>
@@ -6939,7 +6939,7 @@ function TableNumberField({ label, value, min, max, onChange }: { label: string;
 }
 
 function SnippetButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50">{children}</button>;
+  return <button type="button" onClick={onClick} className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-[#eff6fc]">{children}</button>;
 }
 
 function MiniPresetCard({ title, body, action }: { title: string; body: string; action?: () => void }) {
@@ -6954,7 +6954,7 @@ function MiniPresetCard({ title, body, action }: { title: string; body: string; 
 }
 
 function IconToggle({ active, onClick, label, children }: { active: boolean; onClick: () => void; label: string; children: ReactNode }) {
-  return <button type="button" onClick={onClick} aria-label={label} className={["flex h-11 w-11 items-center justify-center rounded-md border text-lg", active ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>{children}</button>;
+  return <button type="button" onClick={onClick} aria-label={label} className={["flex h-11 w-11 items-center justify-center rounded-md border text-lg", active ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-slate-300 bg-white text-slate-700"].join(" ")}>{children}</button>;
 }
 
 function StatusPill({ label, tone }: { label: string; tone: "green" | "orange" | "red" | "slate" }) {
@@ -6978,7 +6978,7 @@ function StatusPill({ label, tone }: { label: string; tone: "green" | "orange" |
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return <button type="button" onClick={onClick} className={["h-12 border-b-2 text-sm font-semibold", active ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600"].join(" ")}>{children}</button>;
+  return <button type="button" onClick={onClick} className={["h-12 border-b-2 text-sm font-semibold", active ? "border-[#0f6cbd] text-[#0f548c]" : "border-transparent text-slate-600"].join(" ")}>{children}</button>;
 }
 
 function Alert({ children, tone }: { children: ReactNode; tone: "amber" | "green" }) {

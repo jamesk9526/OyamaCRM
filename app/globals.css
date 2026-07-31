@@ -187,58 +187,74 @@ body {
   padding-block: 0.25rem;
 }
 
-/* Microsoft-style standalone workspace foundation for Letters and Email. */
-.microsoft-product-shell {
+/* Shared standalone workspace foundation for Letters and Email. */
+.workspace-product-shell {
   --ms-blue: #0f6cbd;
   --ms-blue-hover: #115ea3;
   --ms-page: #f5f5f5;
   --ms-panel: #ffffff;
   --ms-border: #d1d1d1;
   --ms-muted: #616161;
+  --ms-selected: #eff6fc;
+  --ms-selected-text: #0f548c;
+  --ms-focus: rgba(15, 108, 189, 0.24);
   background: var(--ms-page);
   font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
 }
 
-.microsoft-product-shell :is(h1, h2, h3, h4) {
+.workspace-product-shell :is(h1, h2, h3, h4) {
   font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
   letter-spacing: 0;
 }
 
-.microsoft-product-shell :is(button, input, select, textarea) {
+.workspace-product-shell :is(button, input, select, textarea) {
   font-family: inherit;
 }
 
-.microsoft-product-shell :is(.rounded-2xl, .rounded-xl) {
+.workspace-product-shell :is(.rounded-2xl, .rounded-xl) {
   border-radius: 4px;
 }
 
-.microsoft-product-shell :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl) {
+.workspace-product-shell :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl) {
   box-shadow: none;
 }
 
-.microsoft-product-shell :is(input, select, textarea):focus-visible {
+.workspace-product-shell :is(input, select, textarea):focus-visible {
   outline: 2px solid var(--ms-blue);
   outline-offset: -1px;
   box-shadow: none;
 }
 
-.microsoft-product-shell :is(a, button).bg-indigo-700,
-.microsoft-product-shell :is(a, button).bg-emerald-700,
-.microsoft-product-shell :is(a, button).bg-indigo-600,
-.microsoft-product-shell :is(a, button).bg-emerald-600 {
+.workspace-product-shell :is(input, select, textarea):focus {
+  border-color: var(--ms-blue);
+  box-shadow: 0 0 0 1px var(--ms-focus);
+}
+
+.workspace-product-shell :is(a, button).bg-indigo-700,
+.workspace-product-shell :is(a, button).bg-emerald-700,
+.workspace-product-shell :is(a, button).bg-indigo-600,
+.workspace-product-shell :is(a, button).bg-emerald-600 {
   border-color: #0f6cbd !important;
   background-color: #0f6cbd !important;
 }
 
-.microsoft-product-shell :is(a, button).bg-indigo-700:hover,
-.microsoft-product-shell :is(a, button).bg-emerald-700:hover,
-.microsoft-product-shell :is(a, button).bg-indigo-600:hover,
-.microsoft-product-shell :is(a, button).bg-emerald-600:hover {
+.workspace-product-shell :is(a, button).bg-indigo-700:hover,
+.workspace-product-shell :is(a, button).bg-emerald-700:hover,
+.workspace-product-shell :is(a, button).bg-indigo-600:hover,
+.workspace-product-shell :is(a, button).bg-emerald-600:hover {
   background-color: #115ea3 !important;
 }
 
-.microsoft-product-shell :is(button, input, select, textarea, a).rounded-lg,
-.microsoft-product-shell :is(button, input, select, textarea, a).rounded-md {
+.workspace-product-shell :is(a, button).border-indigo-700,
+.workspace-product-shell :is(a, button).border-indigo-600,
+.workspace-product-shell :is(a, button).border-emerald-700,
+.workspace-product-shell :is(a, button).border-emerald-600 {
+  border-color: var(--ms-blue) !important;
+}
+
+.workspace-product-shell :is(button, input, select, textarea, a).rounded-lg,
+.workspace-product-shell :is(button, input, select, textarea, a).rounded-md,
+.workspace-product-shell :is(button, a).rounded-full {
   border-radius: 2px;
 }
 

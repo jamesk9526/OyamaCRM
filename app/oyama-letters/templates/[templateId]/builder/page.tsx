@@ -5,7 +5,7 @@ interface OyamaLettersTemplateBuilderPageProps {
   params: Promise<{ templateId: string }>;
 }
 
-/** Renders the Microsoft Word-like canvas builder for one template. */
+/** Renders the document-style canvas builder for one template. */
 export default async function OyamaLettersTemplateBuilderPage({ params }: OyamaLettersTemplateBuilderPageProps) {
   const resolved = await params;
   return <OyamaLettersWorkspace view="builder" templateId={resolved.templateId} />;

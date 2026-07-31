@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
-interface MicrosoftProductBarProps {
+interface WorkspaceProductBarProps {
   productName: string;
   homeHref: string;
   backHref: string;
@@ -11,14 +11,14 @@ interface MicrosoftProductBarProps {
   helpHref: string;
 }
 
-/** Compact Microsoft 365-inspired product chrome shared by standalone workspaces. */
-export default function MicrosoftProductBar({
+/** Compact product chrome shared by standalone workspaces. */
+export default function WorkspaceProductBar({
   productName,
   homeHref,
   backHref,
   backLabel,
   helpHref,
-}: MicrosoftProductBarProps) {
+}: WorkspaceProductBarProps) {
   const { user } = useAuth();
   const initials = user
     ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U"

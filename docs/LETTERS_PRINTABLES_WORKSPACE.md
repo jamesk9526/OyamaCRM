@@ -6,7 +6,7 @@ The Donor CRM OyamaLetters workspace at `/oyama-letters` supports template autho
 
 ## Scope
 
-This workspace is Donor CRM-only and uses the green DonorCRM shell.
+This workspace is Donor CRM-only and uses its dedicated Microsoft-style product shell. It owns printable templates, generation, print/mail fulfillment, and draft-first handoff into OyamaEmail; it does not own campaign email delivery.
 
 Implemented routes:
 
@@ -14,19 +14,17 @@ Implemented routes:
 - `/oyama-letters/templates`
 - `/oyama-letters/templates/new`
 - `/oyama-letters/templates/[templateId]`
+- `/oyama-letters/templates/[templateId]/builder`
+- `/oyama-letters/templates/[templateId]/publish`
 - `/oyama-letters/generate`
+- `/oyama-letters/batches` (compatibility entry for batch generation)
+- `/oyama-letters/queue`
+- `/oyama-letters/settings`
+- `/oyama-letters/docs`
 - `/letters-printables` (compatibility redirect to `/oyama-letters`)
 - `/letters-printables/generate` (compatibility redirect to `/oyama-letters/generate`)
 - `/communications/letters-printables` (compatibility redirect to `/oyama-letters`)
 - `/communications/letters-printables/generate` (compatibility redirect to `/oyama-letters/generate`)
-- `/letters-printables/batches` (compatibility redirect to `/letters-printables/generate?mode=batch`)
-- `/letters-printables/queues` (canonical production/print/mail workspace)
-- `/letters-printables/print-queue` (compatibility redirect to `/letters-printables/queues?view=print`)
-- `/letters-printables/mail-queue` (compatibility redirect to `/letters-printables/queues?view=mail`)
-- `/letters-printables/generated` (compatibility redirect to `/letters-printables/queues?view=production`)
-- `/letters-printables/signatures`
-- `/letters-printables/branding`
-- `/letters-printables/settings`
 
 ## Backend API
 
@@ -110,7 +108,7 @@ Working now:
 - Template CRUD and duplication/archive
 - Document-studio printable editor with image upload and full-screen mode
 - Inline merge token insertion at editor cursor
-- Unified single and batch generation workspace at `/letters-printables/generate`
+- Unified single and batch generation workspace at `/oyama-letters/generate`
 - Batch generation with segment search, contact search, saved audience list matching, dry-run, skip reasons, household dedupe option, PDF export, and optional queue handoff
 - Print queue list and bulk actions (approve, queue, mark printed, move to mail queue, cancel, archive)
 - Mail queue list and bulk actions (queue for mail, mark mailed, mark returned, address issue, reprint, archive)
@@ -122,8 +120,8 @@ Working now:
 
 Compatibility:
 
-- Old wizard step URLs under `/letters-printables/generate/*` redirect to `/letters-printables/generate`.
-- Old `/letters-printables/batches` links redirect to `/letters-printables/generate?mode=batch`.
+- Old wizard step URLs under `/letters-printables/generate/*` redirect to `/oyama-letters/generate`.
+- `/oyama-letters/batches` remains a compatibility entry for batch generation.
 
 Partially implemented:
 
