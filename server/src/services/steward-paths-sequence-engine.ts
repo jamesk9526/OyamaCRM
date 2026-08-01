@@ -109,6 +109,7 @@ interface GenerateLetterStepConfig {
 }
 
 interface DraftEmailStepConfig {
+  campaignId?: string;
   subjectTemplate?: string;
   bodyTemplate?: string;
   fromMode?: string;
@@ -133,6 +134,7 @@ interface EnrollmentContext {
       status: string;
       organizationId: string;
       defaultOwnerId: string | null;
+      createdByUserId: string;
     };
     currentStep: StewardPathStep | null;
     constituent: {
@@ -150,10 +152,61 @@ interface EnrollmentContext {
       doNotMail: boolean;
       doNotCall: boolean;
       doNotContact: boolean;
+      addressLine1: string | null;
+      city: string | null;
+      state: string | null;
+      zip: string | null;
       tags?: Array<{ tag: { name: string } }>;
     } | null;
   };
   run: StewardPathStepRun;
+}
+
+/** Resolves the actor recorded for an execution initiated by a request or background worker. */
+export function resolvePathExecutionActor(
+  requestUserId: string | undefined,
+  enrollmentOwnerUserId: string | null,
+  pathDefaultOwnerId: string | null,
+  pathCreatedByUserId: string,
+): string {
+  return requestUserId ?? enrollmentOwnerUserId ?? pathDefaultOwnerId ?? pathCreatedByUserId;
+}
+
+interface PathLetterRecipient {
+  doNotContact: boolean;
+  doNotMail: boolean;
+  addressLine1: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+}
+
+interface PathEmailRecipient {
+  email: string | null;
+  doNotContact: boolean;
+  doNotEmail: boolean;
+  emailOptOut: boolean;
+}
+
+/** Returns the blocking reason when a postal letter cannot be generated for a path recipient. */
+export function getPathLetterEligibilityError(recipient: PathLetterRecipient | null): string | null {
+  if (!recipient) return "GENERATE_LETTER step requires a constituent recipient";
+  if (recipient.doNotContact || recipient.doNotMail) {
+    return "GENERATE_LETTER step blocked by the recipient's communication preferences";
+  }
+  if (!recipient.addressLine1 || !recipient.city || !recipient.state || !recipient.zip) {
+    return "GENERATE_LETTER step requires a complete mailing address";
+  }
+  return null;
+}
+
+/** Returns the blocking reason when a path email cannot be drafted or delivered to a recipient. */
+export function getPathEmailEligibilityError(recipient: PathEmailRecipient | null): string | null {
+  if (!recipient?.email?.trim()) return "Email step requires a constituent recipient with an email address";
+  if (recipient.doNotContact || recipient.doNotEmail || recipient.emailOptOut) {
+    return "Email step blocked by the recipient's communication preferences";
+  }
+  return null;
 }
 
 /** Finds due active enrollments and processes one step for each. */
@@ -169,7 +222,7 @@ export async function processDueStewardPathEnrollments(options: ProcessDueOption
       nextStepDueAt: { not: null, lte: now },
     },
     include: {
-      path: { select: { id: true, name: true, status: true, organizationId: true, defaultOwnerId: true } },
+      path: { select: { id: true, name: true, status: true, organizationId: true, defaultOwnerId: true, createdByUserId: true } },
       currentStep: true,
       constituent: {
         select: {
@@ -187,6 +240,10 @@ export async function processDueStewardPathEnrollments(options: ProcessDueOption
           doNotMail: true,
           doNotCall: true,
           doNotContact: true,
+          addressLine1: true,
+          city: true,
+          state: true,
+          zip: true,
           tags: {
             select: {
               tag: {
@@ -385,11 +442,15 @@ async function processGenerateLetterStep(ctx: EnrollmentContext, now: Date, user
   const step = enrollment.currentStep!;
   const config = (step.configJson ?? {}) as GenerateLetterStepConfig;
   const taskMode = config.taskMode ?? "none";
-  const actorUserId = userId ?? enrollment.ownerUserId ?? enrollment.path.defaultOwnerId ?? undefined;
+  const actorUserId = resolvePathExecutionActor(
+    userId,
+    enrollment.ownerUserId,
+    enrollment.path.defaultOwnerId,
+    enrollment.path.createdByUserId,
+  );
 
-  if (!actorUserId) {
-    throw new Error("GENERATE_LETTER step requires actor user context");
-  }
+  const eligibilityError = getPathLetterEligibilityError(enrollment.constituent);
+  if (eligibilityError) throw new Error(eligibilityError);
 
   if (run.status === "PENDING") {
     if (!config.templateId) {
@@ -758,14 +819,35 @@ async function processDraftEmailStep(ctx: EnrollmentContext, now: Date, userId?:
   const config = (step.configJson ?? {}) as DraftEmailStepConfig;
 
   if (run.status === "PENDING") {
-    const subject = renderTemplate(config.subjectTemplate ?? "Follow-up from {{organizationName}}", enrollment);
-    const body = renderTemplate(config.bodyTemplate ?? "Hello {{firstName}},", enrollment);
+    const eligibilityError = getPathEmailEligibilityError(enrollment.constituent);
+    if (eligibilityError) throw new Error(eligibilityError);
+
+    const sourceCampaignId = typeof config.campaignId === "string" ? config.campaignId.trim() : "";
+    const sourceCampaign = sourceCampaignId
+      ? await prisma.emailCampaign.findFirst({
+          where: { id: sourceCampaignId, organizationId: enrollment.organizationId },
+          select: { id: true, subject: true, bodyHtml: true, bodyText: true },
+        })
+      : null;
+    if (sourceCampaignId && !sourceCampaign) {
+      throw new Error("Selected OyamaEmail campaign is unavailable for this organization");
+    }
+
+    const configuredSubject = config.subjectTemplate?.trim() ?? "";
+    const configuredBody = config.bodyTemplate?.trim() ?? "";
+    const subject = configuredSubject
+      ? renderTemplate(configuredSubject, enrollment)
+      : sourceCampaign?.subject || renderTemplate("Follow-up from {{organizationName}}", enrollment);
+    const body = configuredBody
+      ? renderTemplate(configuredBody, enrollment)
+      : sourceCampaign?.bodyHtml || sourceCampaign?.bodyText || renderTemplate("Hello {{firstName}},", enrollment);
     const draft = await prisma.stewardPathEmailDraft.create({
       data: {
         enrollmentId: enrollment.id,
         stepId: step.id,
         constituentId: enrollment.constituentId ?? undefined,
         reviewerUserId: resolveReviewerId(config, enrollment),
+        sourceCampaignId: sourceCampaign?.id ?? null,
         status: "DRAFT_CREATED",
         subject,
         body,
@@ -831,7 +913,7 @@ async function processDraftEmailStep(ctx: EnrollmentContext, now: Date, userId?:
     throw new Error("Draft email created by path step no longer exists");
   }
 
-  if (draft.status === "SENT" || draft.status === "APPROVED" || draft.status === "SKIPPED") {
+  if (draft.status === "SENT" || draft.status === "SKIPPED") {
     await prisma.stewardPathStepRun.update({
       where: { id: run.id },
       data: { status: draft.status === "SKIPPED" ? "SKIPPED" : "COMPLETED", completedAt: now },

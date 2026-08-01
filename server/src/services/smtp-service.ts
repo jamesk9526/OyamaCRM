@@ -34,12 +34,19 @@ interface EmailProviderInternalSettings {
   smtpSecureOverride: boolean;
 }
 
+export interface OrganizationEmailAttachment {
+  filename: string;
+  contentType: string;
+  contentBase64: string;
+}
+
 interface SendEmailPayload {
   to: string;
   subject: string;
   text: string;
   html?: string;
   fromNameOverride?: string;
+  attachments?: OrganizationEmailAttachment[];
 }
 
 export interface OrganizationSendResult {
@@ -194,6 +201,7 @@ async function sendMicrosoftGraphMail(input: {
   subject: string;
   html: string;
   accessToken: string;
+  attachments?: OrganizationEmailAttachment[];
 }): Promise<void> {
   const mailbox = input.provider.microsoftMailbox.trim();
   const encodedMailbox = mailbox ? encodeURIComponent(mailbox) : "me";
@@ -215,6 +223,12 @@ async function sendMicrosoftGraphMail(input: {
           content: input.html,
         },
         toRecipients: [{ emailAddress: { address: input.toEmail } }],
+        attachments: input.attachments?.map((attachment) => ({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: attachment.filename,
+          contentType: attachment.contentType,
+          contentBytes: attachment.contentBase64,
+        })),
       },
       saveToSentItems: false,
     }),
@@ -410,6 +424,7 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
           subject: payload.subject,
           html,
           accessToken: activeProvider.graphAccessToken,
+          attachments: payload.attachments,
         });
 
         return {
@@ -439,6 +454,11 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
         subject: payload.subject,
         text: payload.text,
         html: payload.html ?? `<p>${payload.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`,
+        attachments: payload.attachments?.map((attachment) => ({
+          filename: attachment.filename,
+          contentType: attachment.contentType,
+          content: Buffer.from(attachment.contentBase64, "base64"),
+        })),
       });
 
       const providerResponse = typeof info.response === "string" && info.response.trim()
@@ -465,6 +485,7 @@ export async function sendOrganizationEmail(input: {
   text: string;
   html?: string;
   fromNameOverride?: string;
+  attachments?: OrganizationEmailAttachment[];
 }): Promise<void> {
   const sender = await createOrganizationEmailSender(input.organizationId);
   await sender.send({
@@ -473,5 +494,6 @@ export async function sendOrganizationEmail(input: {
     text: input.text,
     html: input.html,
     fromNameOverride: input.fromNameOverride,
+    attachments: input.attachments,
   });
 }

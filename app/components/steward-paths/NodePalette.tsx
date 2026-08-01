@@ -205,6 +205,8 @@ function sectionTone(section: PaletteSectionKey): {
 function displayPaletteLabel(item: NodePaletteItem): string {
   const replacements: Record<string, string> = {
     "trigger.new_donation": "Donation Received",
+    "trigger.new_constituent": "New Constituent",
+    "trigger.first_time_donor": "First-Time Donor",
     "trigger.added_to_segment": "Segment Entry",
     "trigger.donor_lapsed": "Donor Lapsed",
     "trigger.pledge_due": "Pledge Due",
@@ -219,7 +221,7 @@ function displayPaletteLabel(item: NodePaletteItem): string {
     "email.create_draft": "Create Email Draft",
     "email.send_review_request": "Request Email Review",
     "email.add_to_sequence": "Add to Email Sequence",
-    "email.schedule_blast": "Schedule Email Blast",
+    "email.schedule_blast": "Prepare Campaign Send",
     "email.wait_for_open": "Wait for Open/Click",
     "email.mark_failed": "Mark Email Failed",
 
@@ -266,6 +268,8 @@ function displayPaletteLabel(item: NodePaletteItem): string {
 function displayPaletteSummary(item: NodePaletteItem): string {
   const replacements: Record<string, string> = {
     "trigger.new_donation": "Start when a donation is received",
+    "trigger.new_constituent": "Start when a constituent is created",
+    "trigger.first_time_donor": "Start after a first completed donation",
     "trigger.added_to_segment": "Start when donor enters a segment",
     "trigger.donor_lapsed": "Start when donor has lapsed",
     "trigger.pledge_due": "Start when a pledge payment is due",
@@ -280,7 +284,7 @@ function displayPaletteSummary(item: NodePaletteItem): string {
     "email.create_draft": "Draft and link an email for this path",
     "email.send_review_request": "Send review request before sending",
     "email.add_to_sequence": "Enroll donor in a sequence",
-    "email.schedule_blast": "Schedule a linked campaign send",
+    "email.schedule_blast": "Prepare a recipient-scoped campaign draft",
     "email.wait_for_open": "Wait for open or click activity",
     "email.mark_failed": "Record delivery failure",
 

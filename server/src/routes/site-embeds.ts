@@ -8,6 +8,7 @@ import { logAudit } from "../lib/audit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { createNotification } from "../services/notifications.js";
+import { enrollConstituentInTriggeredStewardPaths } from "../services/steward-path-enrollment-service.js";
 import {
   SITE_EMBEDS_PLUGIN_KEY,
   SITE_EMBED_REGISTRY,
@@ -915,6 +916,12 @@ router.post("/public/widget-submit", async (req, res) => {
         ].filter(Boolean).join("\n"),
       },
       select: { id: true, firstName: true, lastName: true },
+    });
+    await enrollConstituentInTriggeredStewardPaths({
+      organizationId: hit.organizationId,
+      constituentId: constituent.id,
+      triggerTypes: ["CONSTITUENT_CREATED", ...(constituentType === "DONOR" ? ["FIRST_TIME_DONOR"] : [])],
+      source: `site-embed:${widgetKey}`,
     });
   }
 
@@ -1989,6 +1996,12 @@ router.post("/public/livecom", async (req, res) => {
       },
     });
     constituentMatchMethod = "created_new";
+    await enrollConstituentInTriggeredStewardPaths({
+      organizationId: hit.organizationId,
+      constituentId: constituent.id,
+      triggerTypes: ["CONSTITUENT_CREATED"],
+      source: "site-embed:livecom",
+    });
   }
 
   const donorName = `${constituent.firstName} ${constituent.lastName}`.trim();

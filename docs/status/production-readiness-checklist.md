@@ -224,13 +224,13 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 
 | Item | Status | Evidence |
 |---|---|---|
-| `/steward-paths/*` uses a dedicated workspace shell instead of DonorCRM page chrome | Working | `app/components/layout/AppShell.tsx`, `app/steward-paths/layout.tsx`, `app/components/steward-paths/StewardPathsAppShell.tsx` |
+| `/steward-paths/*` uses a dedicated Microsoft-style workspace shell instead of DonorCRM page chrome | Working | `app/components/layout/AppShell.tsx`, `app/steward-paths/layout.tsx`, `app/components/steward-paths/StewardPathsAppShell.tsx` |
 | Stage routes are explicit and map to live surfaces (Library, Builder, Enrollments, Review, Activity, Analytics, Settings) | Working | `app/steward-paths/page.tsx`, `app/steward-paths/builder/page.tsx`, `app/steward-paths/enrollments/page.tsx`, `app/steward-paths/review/page.tsx`, `app/steward-paths/activity/page.tsx`, `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx` |
 | Review queue stage supports real activation/pause actions on live templates API | Working | `app/steward-paths/review/page.tsx`, `server/src/routes/steward-paths.ts` |
 | Activity stage is live-data based and links to template-specific history timelines | Working | `app/steward-paths/activity/page.tsx`, `app/steward-paths/[id]/history/page.tsx` |
 | Enrollments stage uses live enrollment APIs with pause/resume/cancel/manual-step actions | Working | `app/steward-paths/enrollments/page.tsx`, `server/src/routes/steward-paths.ts` |
 | Analytics stage uses live template/enrollment distributions without placeholder metrics | Working | `app/steward-paths/analytics/page.tsx`, `server/src/routes/steward-paths.ts` |
-| Settings stage exposes real process-due and legacy migration operations | Working | `app/steward-paths/settings/page.tsx`, `server/src/routes/steward-paths.ts` |
+| Settings stage exposes guarded process-due operations through the dedicated Paths API client | Working | `app/steward-paths/settings/page.tsx`, `app/lib/steward-paths-api.ts`, `server/src/routes/steward-paths.ts` |
 | Campaign follow-up shortcut points to canonical Steward Paths builder flow | Working | `app/campaigns/[id]/page.tsx` |
 | Legacy `/automations` route remains compatibility-only redirect | Working | `app/automations/page.tsx` |
 

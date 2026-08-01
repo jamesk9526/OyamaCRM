@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import DonorMegaMenu from "./DonorMegaMenu";
+import CrmContextualHelp from "@/app/components/help/CrmContextualHelp";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
@@ -439,6 +440,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <CrmContextualHelp pathname={pathname} />
     </div>
   );
 }

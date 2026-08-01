@@ -55,7 +55,7 @@ const DONOR_TOOLS: ToolItem[] = [
   { id: "tool-donor-donations", label: "Donations", href: "/donations", keywords: ["gifts", "payments", "receipts"] },
   { id: "tool-donor-campaigns", label: "Campaigns", href: "/campaigns", keywords: ["fundraising", "annual fund", "appeals"] },
   { id: "tool-donor-tasks", label: "Tasks", href: "/tasks", keywords: ["todo", "follow up", "reminders"] },
-  { id: "tool-donor-steward-paths", label: "Steward Paths", href: "/automations", keywords: ["automation", "workflow", "rules"] },
+  { id: "tool-donor-steward-paths", label: "Steward Paths", href: "/steward-paths/library", keywords: ["automation", "workflow", "rules"] },
   { id: "tool-donor-steward-signals", label: "Steward Signals", href: "/steward-signals", keywords: ["opportunity", "signals", "ai"] },
   { id: "tool-donor-reports", label: "Reports", href: "/reports", keywords: ["analytics", "kpi", "export", "donor reports"] },
   { id: "tool-donor-communications", label: "Communications", href: "/communications", keywords: ["email", "newsletter", "outreach"] },

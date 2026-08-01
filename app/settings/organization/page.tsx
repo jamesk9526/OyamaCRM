@@ -41,6 +41,10 @@ interface EmailProviderSettings {
   smtpSecureOverride: boolean;
 }
 
+interface SupportTicketSettings {
+  recipientEmail: string;
+}
+
 const CURRENCIES = ["USD", "CAD", "EUR", "GBP", "AUD", "NZD"];
 const TIMEZONES = [
   "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
@@ -85,6 +89,7 @@ export default function OrganizationSettingsPage() {
     smtpPortOverride: 587,
     smtpSecureOverride: false,
   });
+  const [supportTicketForm, setSupportTicketForm] = useState<SupportTicketSettings>({ recipientEmail: "" });
   const [microsoftClientSecretInput, setMicrosoftClientSecretInput] = useState("");
   const [smtpTestRecipient, setSmtpTestRecipient] = useState("");
   const [smtpTesting, setSmtpTesting] = useState(false);
@@ -101,12 +106,14 @@ export default function OrganizationSettingsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [data, providerData] = await Promise.all([
+        const [data, providerData, supportTicketData] = await Promise.all([
           apiFetch<Settings>("/api/settings"),
           apiFetch<EmailProviderSettings>("/api/settings/email/provider"),
+          apiFetch<SupportTicketSettings>("/api/settings/support-tickets"),
         ]);
         setForm(data);
         setProviderForm(providerData);
+        setSupportTicketForm(supportTicketData);
         setSmtpTestRecipient(data.smtpFromEmail || "");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load settings");
@@ -182,6 +189,10 @@ export default function OrganizationSettingsPage() {
             ...providerForm,
             microsoftClientSecret: microsoftClientSecretInput.trim() || undefined,
           }),
+        }),
+        apiFetch("/api/settings/support-tickets", {
+          method: "PUT",
+          body: JSON.stringify(supportTicketForm),
         }),
       ]);
 
@@ -591,6 +602,24 @@ export default function OrganizationSettingsPage() {
             {providerTestError && (
               <p className="text-xs text-red-700">{providerTestError}</p>
             )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-900 border-b border-gray-100 pb-2">Support Tickets</h2>
+          <p className="text-xs text-gray-500">
+            New support tickets include the page location, browser diagnostics, and a screenshot. They are delivered using the configured email provider and remain visible in the Support Tickets queue.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Support Recipient Email</label>
+            <input
+              type="email"
+              value={supportTicketForm.recipientEmail}
+              onChange={(e) => setSupportTicketForm({ recipientEmail: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="support@organization.org"
+            />
+            <p className="mt-1 text-[11px] text-gray-500">Leave blank to keep in-app ticket capture available while blocking email delivery until a recipient is configured.</p>
           </div>
         </div>
 

@@ -109,7 +109,7 @@ function describeAction(node: WorkflowNode): string {
       : "email draft";
     return `Would create an outbound email draft: ${subject}. Draft-first; no email sent.`;
   }
-  if (kind === "email.schedule_blast") return "Would schedule a bulk email campaign send (draft-first; no email sent).";
+  if (kind === "email.schedule_blast") return "Would create a recipient-scoped campaign draft for review; no email is sent in a dry run.";
   if (kind === "print.generate_letter") {
     const name = typeof cfg.templateName === "string" && cfg.templateName ? cfg.templateName : "letter template";
     return `Would generate a print letter using template: "${name}".`;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
+import WorkspaceProductBar from "@/app/components/layout/WorkspaceProductBar";
 import OyamaAdvancedIcon from "@/app/components/ui/OyamaAdvancedIcon";
 
 interface StewardPathsAppShellProps {
@@ -37,6 +38,12 @@ const STEWARD_NAV_ITEMS: StewardNavItem[] = [
     label: "Enrollments",
     href: "/steward-paths/enrollments",
     icon: <OyamaAdvancedIcon name="enrollments" size={16} className="h-4 w-4" />,
+  },
+  {
+    id: "review",
+    label: "Review",
+    href: "/steward-paths/review",
+    icon: <OyamaAdvancedIcon name="activity" size={16} className="h-4 w-4" />,
   },
   {
     id: "activity",
@@ -103,12 +110,20 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
   }, [desktopNavCollapsed, desktopNavHydrated]);
 
   return (
-    <div className="flex h-[100dvh] min-h-[100svh] overflow-hidden bg-[#f5f7fa]">
+    <div className="flex h-[100dvh] min-h-[100svh] flex-col overflow-hidden bg-[#f3f2f1]">
+      <WorkspaceProductBar
+        productName="Steward Paths"
+        homeHref="/steward-paths/library"
+        backHref="/"
+        backLabel="Donor CRM"
+        helpHref="/help?scope=donor&scopePath=/steward-paths"
+      />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
       <aside
-        className={`hidden h-full shrink-0 flex-col bg-[radial-gradient(circle_at_20%_0%,#07583a_0,#043d2f_42%,#02251f_100%)] text-emerald-50 transition-[width] duration-200 ease-out lg:flex ${desktopNavCollapsed ? "w-[76px]" : "w-[244px]"}`}
+        className={`hidden h-full shrink-0 flex-col border-r border-[#424242] bg-[linear-gradient(180deg,#242424_0%,#1f1f1f_58%,#181818_100%)] text-slate-100 transition-[width] duration-200 ease-out lg:flex ${desktopNavCollapsed ? "w-[76px]" : "w-[244px]"}`}
         data-sidebar-collapsed={desktopNavCollapsed ? "true" : "false"}
       >
-        <div className={`border-b border-white/10 ${desktopNavCollapsed ? "px-2 py-4" : "px-4 py-5"}`}>
+        <div className={`border-b border-[#424242] ${desktopNavCollapsed ? "px-2 py-4" : "px-4 py-5"}`}>
           <div className={`flex ${desktopNavCollapsed ? "flex-col items-center gap-2" : "items-start justify-between gap-3"}`}>
             <CrmBrandLockup
               moduleLabel={desktopNavCollapsed ? "Steward Paths" : "Steward Paths"}
@@ -121,7 +136,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
               aria-label={desktopNavCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!desktopNavCollapsed}
               onClick={() => setDesktopNavCollapsed((prev) => !prev)}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-emerald-100 transition hover:bg-white/15 hover:text-white"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/15 bg-white/[0.06] text-slate-200 transition hover:border-[#60cdff]/60 hover:bg-[#0f6cbd]/35 hover:text-white"
             >
               {desktopNavCollapsed ? (
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -138,7 +153,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
 
         {!desktopNavCollapsed ? (
           <div className="px-5 pb-2 pt-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100/75">Steward Paths</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Steward Paths</p>
           </div>
         ) : null}
 
@@ -155,8 +170,8 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
                   desktopNavCollapsed ? "justify-center px-2 py-2.5" : "gap-2.5 px-3 py-2.5"
                 } ${
                   active
-                    ? "bg-emerald-500/55 text-white shadow-inner"
-                    : "text-emerald-50/90 hover:bg-white/10 hover:text-white"
+                    ? "bg-[#0f6cbd] text-white shadow-[inset_3px_0_0_#60cdff]"
+                    : "text-slate-200 hover:bg-white/[0.08] hover:text-white"
                 }`}
               >
                 <span className="shrink-0">{item.icon}</span>
@@ -166,17 +181,17 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
           })}
         </nav>
 
-        <div className={`space-y-3 border-t border-white/10 ${desktopNavCollapsed ? "p-2" : "p-3"}`}>
+        <div className={`space-y-3 border-t border-[#424242] bg-[#181818] ${desktopNavCollapsed ? "p-2" : "p-3"}`}>
           <Link
             href="/help?scope=donor&scopePath=/steward-paths"
             title={desktopNavCollapsed ? "Steward Paths Guide" : undefined}
             aria-label={desktopNavCollapsed ? "Steward Paths Guide" : undefined}
-            className={`block rounded-xl border border-white/15 bg-white/[0.08] text-emerald-50 hover:bg-white/[0.12] ${desktopNavCollapsed ? "px-2 py-2 text-center" : "px-3 py-3 text-sm"}`}
+            className={`block rounded-md border border-white/15 bg-white/[0.06] text-slate-100 hover:bg-[#0f6cbd]/35 ${desktopNavCollapsed ? "px-2 py-2 text-center" : "px-3 py-3 text-sm"}`}
           >
             {!desktopNavCollapsed ? (
               <>
                 <span className="block font-semibold">Need Help?</span>
-                <span className="block text-xs text-emerald-100/85">Steward Paths Guide</span>
+                <span className="block text-xs text-slate-400">Steward Paths Guide</span>
               </>
             ) : (
               <svg className="mx-auto h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
@@ -189,7 +204,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
             href="/"
             title={desktopNavCollapsed ? "Back to CRM" : undefined}
             aria-label={desktopNavCollapsed ? "Back to CRM" : undefined}
-            className={`block rounded-xl border border-white/15 font-semibold text-emerald-50 hover:bg-white/10 ${desktopNavCollapsed ? "px-2 py-2 text-center" : "px-3 py-3 text-sm"}`}
+            className={`block rounded-md border border-white/15 font-semibold text-slate-100 hover:bg-white/[0.08] ${desktopNavCollapsed ? "px-2 py-2 text-center" : "px-3 py-3 text-sm"}`}
           >
             {!desktopNavCollapsed ? (
               "Back to CRM"
@@ -215,7 +230,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
             </svg>
           </button>
           <p className="text-sm font-semibold text-slate-900">Steward Paths</p>
-          <Link href="/" className="text-xs font-semibold text-emerald-700">Back to CRM</Link>
+          <Link href="/" className="text-xs font-semibold text-[#0f6cbd]">Back to CRM</Link>
         </header>
 
         {mobileNavOpen ? (
@@ -225,7 +240,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
               className="absolute inset-0 bg-slate-950/45"
               onClick={() => setMobileNavOpen(false)}
             />
-            <aside className="absolute inset-y-0 left-0 flex w-[244px] max-w-[86vw] flex-col bg-[radial-gradient(circle_at_20%_0%,#07583a_0,#043d2f_42%,#02251f_100%)] p-3 text-emerald-50 shadow-2xl">
+            <aside className="absolute inset-y-0 left-0 flex w-[244px] max-w-[86vw] flex-col border-r border-[#424242] bg-[#242424] p-3 text-slate-100 shadow-2xl">
               <div className="px-2 pb-3 pt-1">
                 <CrmBrandLockup moduleLabel="Steward Paths CRM" tone="light" className="w-full" />
               </div>
@@ -238,8 +253,8 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
                       href={item.href}
                       className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                         active
-                          ? "bg-emerald-500/55 text-white"
-                          : "text-emerald-100/85 hover:bg-white/10 hover:text-white"
+                          ? "bg-[#0f6cbd] text-white shadow-[inset_3px_0_0_#60cdff]"
+                          : "text-slate-200 hover:bg-white/[0.08] hover:text-white"
                       }`}
                     >
                       <span className="shrink-0">{item.icon}</span>
@@ -250,7 +265,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
               </nav>
               <Link
                 href="/"
-                className="mt-2 rounded-xl border border-emerald-200/20 px-3 py-2.5 text-sm font-semibold text-emerald-50"
+                className="mt-2 rounded-md border border-white/15 px-3 py-2.5 text-sm font-semibold text-slate-100 hover:bg-white/[0.08]"
               >
                 Back to CRM
               </Link>
@@ -261,6 +276,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
         <main className="min-h-0 flex-1 overflow-hidden">
           <div className="h-full min-w-0 max-w-full overflow-hidden">{children}</div>
         </main>
+      </div>
       </div>
     </div>
   );

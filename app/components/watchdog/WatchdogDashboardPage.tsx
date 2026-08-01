@@ -107,16 +107,16 @@ export default function WatchdogDashboardPage() {
 
           <section className="rounded-xl border border-slate-700 bg-slate-900/70 p-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-100">Cross-CRM Feedback Ticketing</h2>
+              <h2 className="text-sm font-semibold text-slate-100">CRM Support Tickets</h2>
               <p className="text-xs text-slate-400 mt-1">
-                Triage user-submitted product feedback from all CRM modules in the dedicated ticket command center.
+                Review page-aware support requests, screenshots, and delivery context from every CRM workspace.
               </p>
             </div>
             <Link
-              href="/watchdog/feedback-tickets"
+              href="/watchdog/support-tickets"
               className="px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-600/15 text-red-200 text-sm font-medium hover:bg-red-600/25"
             >
-              Open Ticketing
+              Open Support Tickets
             </Link>
           </section>
 

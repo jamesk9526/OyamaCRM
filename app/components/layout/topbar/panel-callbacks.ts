@@ -1,30 +1,12 @@
 type BooleanStateSetter = (open: boolean) => void;
 
 export interface TopBarPanelSetters {
-  setAppsOpen: BooleanStateSetter;
   setFeedbackOpen: BooleanStateSetter;
   setNotificationsOpen: BooleanStateSetter;
   setMobileQuickOpen: BooleanStateSetter;
   setMobileSearchOpen: BooleanStateSetter;
   setCompactActionsOpen: BooleanStateSetter;
   setMessengerOpen: BooleanStateSetter;
-}
-
-/** Opens the app launcher and closes lightweight popovers/sheets that can overlap it. */
-export function openAppsFromTopBarLauncher(setters: TopBarPanelSetters): void {
-  setters.setAppsOpen(true);
-  setters.setNotificationsOpen(false);
-  setters.setMessengerOpen(false);
-  setters.setMobileQuickOpen(false);
-  setters.setMobileSearchOpen(false);
-  setters.setCompactActionsOpen(false);
-}
-
-/** Opens apps from the user menu context while preserving existing modal states. */
-export function openAppsFromUserMenu(setters: TopBarPanelSetters): void {
-  setters.setAppsOpen(true);
-  setters.setNotificationsOpen(false);
-  setters.setMessengerOpen(false);
 }
 
 /** Opens feedback while collapsing competing topbar popovers. */

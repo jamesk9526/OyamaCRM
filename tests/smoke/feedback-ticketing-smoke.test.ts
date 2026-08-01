@@ -1,4 +1,4 @@
-/** Smoke tests for cross-CRM feedback submission and Watchdog ticket triage APIs. */
+/** Smoke tests for cross-CRM support submission and Watchdog ticket triage APIs. */
 
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -44,16 +44,16 @@ beforeAll(async () => {
   staffToken = staffLogin.body.data?.accessToken ?? "";
 });
 
-describe("feedback ticketing flow", () => {
-  it("allows staff users to submit feedback tickets", async () => {
+describe("support ticketing flow", () => {
+  it("allows staff users to submit location-aware support tickets", async () => {
     const submit = await request(app)
-      .post("/api/feedback/submit")
+      .post("/api/support-tickets")
       .set("Authorization", `Bearer ${staffToken}`)
       .send({
         type: "bug_report",
         priority: "high",
+        summary: "Save button stayed disabled after selecting a designation.",
         whatTryingToDo: "Submit donation entry in DonorCRM.",
-        whatHappened: "Save button stayed disabled after selecting a designation.",
         expectedResult: "Save button should enable once required fields are complete.",
         context: {
           crmScope: "donor",

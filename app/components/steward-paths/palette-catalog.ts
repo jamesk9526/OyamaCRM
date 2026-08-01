@@ -14,6 +14,8 @@ import type { NodePaletteItem } from "./workflow-types";
 export const PALETTE_ITEMS: NodePaletteItem[] = [
   // Triggers
   { kind: "trigger.new_donation", category: "trigger", label: "New donation", summary: "Start when a gift is received.", readiness: "working", defaultConfig: { minimumAmount: 0, designation: "" } },
+  { kind: "trigger.new_constituent", category: "trigger", label: "New constituent", summary: "Start when a person is added from CRM or a connected site.", readiness: "working", defaultConfig: {} },
+  { kind: "trigger.first_time_donor", category: "trigger", label: "First-time donor", summary: "Start when a constituent records their first completed gift.", readiness: "working", defaultConfig: {} },
   { kind: "trigger.added_to_segment", category: "trigger", label: "Added to segment", summary: "Donor joins a segment.", readiness: "working", defaultConfig: { segmentKey: "High Value Donors" } },
   { kind: "trigger.donor_lapsed", category: "trigger", label: "Donor becomes lapsed", summary: "No gift inside a window.", readiness: "working", defaultConfig: { daysSinceLastGift: 365 } },
   { kind: "trigger.pledge_due", category: "trigger", label: "Pledge due", summary: "Pledge installment becomes due.", readiness: "working", defaultConfig: { dueWithinDays: 14, minimumPledgeAmount: 0 } },
@@ -27,15 +29,15 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
   { kind: "timing.after_last_gift", category: "timing", label: "Wait until after last gift", summary: "Anchor delay to last donation.", readiness: "working", defaultConfig: { amount: 30, unit: "days" } },
 
   // Email
-  { kind: "email.create_draft", category: "email", label: "Create email draft", summary: "Create a review-required email draft.", readiness: "working", defaultConfig: { subjectTemplate: "", bodyTemplate: "", includeUnsubscribeLink: true, contentLayout: "single-column" } },
+  { kind: "email.create_draft", category: "email", label: "Create email draft", summary: "Create a review-required email draft.", readiness: "working", defaultConfig: { campaignId: "", subjectTemplate: "", bodyTemplate: "", includeUnsubscribeLink: true, contentLayout: "single-column", requireApprovalBeforeSend: true, waitForReview: true } },
   { kind: "email.send_review_request", category: "email", label: "Send review request", summary: "Notify a reviewer.", readiness: "working", defaultConfig: { owner: "Development Director", waitDays: 1, instruction: "Review this email before donor outreach continues." } },
   { kind: "email.add_to_sequence", category: "email", label: "Add to email sequence", summary: "Enroll donor in an email sequence.", readiness: "working", defaultConfig: { sequenceName: "Welcome Series", instruction: "Enroll donor in the selected email sequence." } },
-  { kind: "email.schedule_blast", category: "email", label: "Schedule email blast", summary: "Queue a campaign send.", readiness: "working", defaultConfig: { campaignId: "", scheduleAt: "" } },
+  { kind: "email.schedule_blast", category: "email", label: "Prepare campaign send", summary: "Create a recipient-scoped campaign draft for review.", readiness: "working", defaultConfig: { campaignId: "", requireApprovalBeforeSend: true, waitForReview: true } },
   { kind: "email.wait_for_open", category: "email", label: "Wait for email open/click", summary: "Pause until donor engages.", readiness: "working", defaultConfig: { waitDays: 7, instruction: "Wait for email open or click before continuing." } },
   { kind: "email.mark_failed", category: "email", label: "Mark email failed/bounced", summary: "Record delivery failure.", readiness: "working", defaultConfig: { instruction: "Record bounce or failed email and route to staff review." } },
 
   // Print
-  { kind: "print.generate_letter", category: "print", label: "Generate form letter", summary: "Render a letter from a template.", readiness: "working", defaultConfig: { templateId: "" } },
+  { kind: "print.generate_letter", category: "print", label: "Generate form letter", summary: "Render a letter from a template.", readiness: "working", defaultConfig: { templateId: "", taskMode: "create_and_wait_for_completion", taskTitleTemplate: "Mail generated letter to {{firstName}} {{lastName}}", taskType: "MAIL", priority: "MEDIUM" } },
   { kind: "print.add_to_print_queue", category: "print", label: "Add to print queue", summary: "Queue a generated letter for print.", readiness: "working", defaultConfig: { queue: "standard", owner: "Stewardship team" } },
   { kind: "print.require_print_approval", category: "print", label: "Require print approval", summary: "Block print until approval.", readiness: "working", defaultConfig: { queue: "board-review", owner: "Development Director", instruction: "Approve letter before printing." } },
   { kind: "print.mark_printed", category: "print", label: "Mark printed", summary: "Record letter as printed.", readiness: "working", defaultConfig: { queue: "standard", instruction: "Record printed date." } },

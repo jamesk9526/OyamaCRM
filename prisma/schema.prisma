@@ -1682,6 +1682,13 @@ model WatchdogFeedbackTicket {
   appVersion  String?
   environment String? @db.VarChar(20)
 
+  supportSummary        String?   @db.VarChar(300)
+  screenshotDataUrl     String?   @db.LongText
+  screenshotCapturedAt  DateTime?
+  supportEmailRecipient String?   @db.VarChar(320)
+  supportEmailStatus    String    @default("not_configured") @db.VarChar(30)
+  supportEmailError     String?   @db.Text
+
   assignedDeveloperId String?
   assignedToPersonId  String?
 
@@ -2010,6 +2017,8 @@ model StewardPathEmailDraft {
   stepId          String
   constituentId   String?
   reviewerUserId  String?
+  sourceCampaignId String?
+  deliveryCampaignId String?
   status          StewardPathEmailDraftStatus @default(DRAFT_CREATED)
   subject         String
   body            String                      @db.Text
@@ -2031,6 +2040,8 @@ model StewardPathEmailDraft {
 
   @@index([reviewerUserId, status])
   @@index([enrollmentId, status])
+  @@index([sourceCampaignId])
+  @@index([deliveryCampaignId])
 }
 
 // ─── Donor CRM Letters & Printables ───────────────────────────────────────

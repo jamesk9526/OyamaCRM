@@ -3,5 +3,5 @@ import { redirect } from "next/navigation";
 
 /** Redirects legacy /automations traffic to canonical /steward-paths workspace. */
 export default function AutomationsDeprecatedRoute() {
-  redirect("/steward-paths?deprecated=automations");
+  redirect("/steward-paths/library");
 }

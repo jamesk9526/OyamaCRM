@@ -1,4 +1,4 @@
-// Main Watchdog feedback ticketing workspace with queue, filters, metrics, and detail triage panel.
+// Main Watchdog support ticket workspace with queue, filters, metrics, and detail triage panel.
 
 "use client";
 
@@ -248,8 +248,8 @@ export function WatchdogTicketsDashboard() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-slate-100">Feedback Ticketing Command Center</h1>
-        <p className="text-sm text-slate-400 mt-1">Cross-CRM user feedback queue with assignment, status workflow, and resolution notes.</p>
+        <h1 className="text-xl font-semibold text-slate-100">Support Ticket Command Center</h1>
+        <p className="text-sm text-slate-400 mt-1">Location-aware CRM support queue with screenshots, delivery status, assignment, and resolution notes.</p>
       </div>
 
       {error ? (

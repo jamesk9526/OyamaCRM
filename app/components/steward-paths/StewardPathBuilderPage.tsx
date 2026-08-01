@@ -46,7 +46,7 @@ import type {
   WorkflowNode,
 } from "./workflow-types";
 import type { WorkflowContainerRef } from "./workflow-utils";
-import { apiFetch } from "@/app/lib/auth-client";
+import { stewardPathsApi } from "@/app/lib/steward-paths-api";
 
 /** Generates ids for transient visual nodes/lanes and local document metadata. */
 function makeBuilderId(): string {
@@ -234,34 +234,23 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
       let templateId = doc.persistence.templateId;
 
       if (!templateId) {
-        const created = await apiFetch<BackendStewardPathTemplateResponse>("/api/steward-paths/templates", {
-          method: "POST",
-          body: JSON.stringify(exportPayload.template),
-        });
+        const created = await stewardPathsApi.createTemplate<BackendStewardPathTemplateResponse>(exportPayload.template);
         templateId = created.id;
       } else {
-        await apiFetch<BackendStewardPathTemplateResponse>(`/api/steward-paths/templates/${templateId}`, {
-          method: "PATCH",
-          body: JSON.stringify(exportPayload.template),
-        });
+        await stewardPathsApi.updateTemplate<BackendStewardPathTemplateResponse>(templateId, exportPayload.template);
 
-        const existing = await apiFetch<BackendStewardPathTemplateResponse>(`/api/steward-paths/templates/${templateId}`);
+        const existing = await stewardPathsApi.getTemplate<BackendStewardPathTemplateResponse>(templateId);
         const activeStepIds = existing.steps
           .filter((step) => step.isActive !== false)
           .map((step) => step.id);
 
         for (const stepId of activeStepIds) {
-          await apiFetch<void>(`/api/steward-paths/templates/${templateId}/steps/${stepId}`, {
-            method: "DELETE",
-          });
+          await stewardPathsApi.archiveStep(templateId, stepId);
         }
       }
 
       for (const step of exportPayload.steps) {
-        await apiFetch(`/api/steward-paths/templates/${templateId}/steps`, {
-          method: "POST",
-          body: JSON.stringify(step),
-        });
+        await stewardPathsApi.addStep(templateId, step);
       }
 
       const lastSavedAt = new Date().toISOString();
@@ -416,10 +405,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
         return;
       }
 
-      await apiFetch(`/api/steward-paths/templates/${templateId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "ACTIVE" }),
-      });
+      await stewardPathsApi.updateTemplate(templateId, { status: "ACTIVE" });
 
       setDoc((prev) => ({ ...prev, status: "active" }));
       setFeedbackMessage("Workflow activated.");
@@ -441,14 +427,15 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
 
   /** Loads an existing template when pathId/templateId query parameter is present. */
   useEffect(() => {
-    if (!templateIdFromQuery) return;
+    const templateId = templateIdFromQuery;
+    if (!templateId) return;
 
     let cancelled = false;
 
-    async function loadTemplate(): Promise<void> {
+    async function loadTemplate(pathId: string): Promise<void> {
       setLoadingTemplate(true);
       try {
-        const template = await apiFetch<BackendStewardPathTemplateResponse>(`/api/steward-paths/templates/${templateIdFromQuery}`);
+        const template = await stewardPathsApi.getTemplate<BackendStewardPathTemplateResponse>(pathId);
         if (cancelled) return;
 
         const loadedDoc = fromBackendTemplate(template, makeBuilderId);
@@ -465,7 +452,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
       }
     }
 
-    void loadTemplate();
+    void loadTemplate(templateId);
 
     return () => {
       cancelled = true;
@@ -484,7 +471,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
     setHistoryLoading(true);
     setHistoryError(null);
 
-    void apiFetch<StewardPathHistoryResponse>(`/api/steward-paths/templates/${doc.persistence.templateId}/history?limit=40`)
+    void stewardPathsApi.getHistory<StewardPathHistoryResponse>(doc.persistence.templateId)
       .then((response) => {
         if (cancelled) return;
         setHistoryItems(response.items ?? []);
@@ -587,7 +574,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
 
     setHistoryLoading(true);
     setHistoryError(null);
-    void apiFetch<StewardPathHistoryResponse>(`/api/steward-paths/templates/${doc.persistence.templateId}/history?limit=40`)
+    void stewardPathsApi.getHistory<StewardPathHistoryResponse>(doc.persistence.templateId)
       .then((response) => {
         setHistoryItems(response.items ?? []);
       })
@@ -621,11 +608,11 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   );
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-[#f5f7fa] text-slate-950">
-      <header className="shrink-0 border-b border-slate-200 bg-white px-5 py-3 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+    <div className="flex h-full min-w-0 flex-col bg-[#f3f2f1] text-slate-950">
+      <header className="shrink-0 border-b border-slate-300 bg-white px-4 py-2.5 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Link href="/steward-paths" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+            <Link href="/steward-paths/library" className="inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900">
               <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 12 6 8l4-4" />
               </svg>
@@ -675,18 +662,10 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               <option value="history">History</option>
             </select>
 
-            <select
-              defaultValue="version-1"
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm"
-              aria-label="Path version"
-            >
-              <option value="version-1">Version 1</option>
-            </select>
-
             <button
               type="button"
               onClick={() => setAutosaveEnabled((prev) => !prev)}
-              className={`inline-flex h-9 items-center rounded-lg border px-3 text-xs font-semibold shadow-sm ${autosaveEnabled ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+              className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-semibold shadow-sm ${autosaveEnabled ? "border-[#0f6cbd]/30 bg-[#eaf4fd] text-[#0f6cbd] hover:bg-[#d9ecfb]" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
             >
               {autosaveEnabled ? "Autosave On" : "Autosave Off"}
             </button>
@@ -694,7 +673,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             <button
               type="button"
               onClick={validateWorkflow}
-              className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Validate
             </button>
@@ -716,7 +695,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
                 onClick={() => runTestEnrollment()}
                 disabled={busyAction !== null || !doc.persistence.templateId}
                 title={doc.persistence.templateId ? "Start one manual test enrollment" : "Save first to enable test"}
-                className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Test Path
               </button>
@@ -729,7 +708,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
                   setShowTestInput(false);
                   setShowTestModal(true);
                 }}
-                className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 Playground
               </button>
@@ -740,7 +719,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               onClick={() => void activateWorkflow()}
               disabled={busyAction !== null || !supportReport.canActivate}
               title={supportReport.canActivate ? "Publish and activate workflow" : (supportReport.reasons[0] ?? "Activation blocked")}
-              className="inline-flex h-9 items-center rounded-lg bg-emerald-700 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-9 items-center rounded-md bg-[#0f6cbd] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busyAction === "activate" ? "Publishing..." : "Publish Path"}
             </button>
@@ -750,7 +729,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               onClick={() => void saveDraft()}
               disabled={busyAction !== null}
               title="Save workflow (Ctrl+S)"
-              className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
             >
               {busyAction === "save" ? "Saving..." : "Save"}
             </button>
@@ -759,7 +738,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               <button
                 type="button"
                 onClick={() => setInspectorCollapsed((prev) => !prev)}
-                className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
               >
                 {inspectorCollapsed ? "Show Inspector" : "Hide Inspector"}
               </button>
@@ -783,7 +762,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
       )}
 
       {/* ── Three-panel body: palette | canvas/content | inspector ── */}
-      <div className="relative flex min-h-0 flex-1 gap-3 overflow-hidden bg-[#f5f7fa] p-3">
+      <div className="relative flex min-h-0 flex-1 gap-3 overflow-hidden bg-[#f3f2f1] p-3">
         {!isFullscreenCanvas && (
           <NodePalette onAdd={addNode} insertionTargetLabel={insertTargetLabel} />
         )}

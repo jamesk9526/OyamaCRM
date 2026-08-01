@@ -10,6 +10,7 @@ import { prisma } from "../lib/prisma.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { completeCurrentManualStep, createTimelineEvent, processDueStewardPathEnrollments } from "../services/steward-paths-sequence-engine.js";
+import { sendCampaignNow } from "./email-campaigns.js";
 import {
   advancePlaygroundRun,
   buildPlaygroundScenarios,
@@ -136,30 +137,6 @@ function withPathShareSettings(
       allowEdit: share.allowEdit,
     },
   } as Prisma.InputJsonValue;
-}
-
-/** Maps legacy automation trigger into steward path trigger type. */
-function mapLegacyTrigger(trigger: string): string {
-  const normalized = trigger.trim().toUpperCase();
-  if (normalized === "DONATION_RECEIVED") return "DONATION_RECEIVED";
-  if (normalized === "CONSTITUENT_CREATED") return "CONSTITUENT_CREATED";
-  if (normalized === "TASK_DUE") return "TASK_DUE";
-  if (normalized === "PLEDGE_CREATED") return "PLEDGE_CREATED";
-  if (normalized === "EMAIL_OPENED") return "EMAIL_OPENED";
-  if (normalized === "EVENT_REGISTERED") return "EVENT_REGISTERED";
-  return "MANUAL";
-}
-
-/** Maps legacy automation action type into steward path step type. */
-function mapLegacyActionType(type: string): StewardPathStepType {
-  const normalized = type.trim().toUpperCase();
-  if (normalized === "SEND_EMAIL") return "DRAFT_EMAIL";
-  if (normalized === "CREATE_TASK") return "CREATE_TASK";
-  if (normalized === "UPDATE_FIELD") return "STATUS_CHANGE";
-  if (normalized === "ADD_TAG") return "STATUS_CHANGE";
-  if (normalized === "REMOVE_TAG") return "STATUS_CHANGE";
-  if (normalized === "ASSIGN_USER") return "MANUAL_ACTION";
-  return "MANUAL_ACTION";
 }
 
 /** Loads one path with active steps for sandbox playback endpoints. */
@@ -987,84 +964,6 @@ router.get("/templates/:id/history", requirePermission("steward_paths.view"), as
   });
 });
 
-/** POST /api/steward-paths/migrations/automations — imports legacy automations into steward paths templates. */
-router.post("/migrations/automations", requirePermission("steward_paths.create"), async (req, res) => {
-  const organizationId = await requireOrganizationId(req);
-  const userId = req.user?.sub;
-  if (!organizationId || !userId) {
-    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
-    return;
-  }
-
-  const automations = await prisma.automation.findMany({
-    where: { organizationId },
-    include: { actions: { orderBy: { order: "asc" } } },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const imported: Array<{ legacyAutomationId: string; stewardPathId: string }> = [];
-  for (const automation of automations) {
-    const created = await prisma.$transaction(async (tx) => {
-      const path = await tx.stewardPath.create({
-        data: {
-          organizationId,
-          name: automation.name,
-          description: automation.description,
-          crmScope: "DONOR",
-          targetType: "CONSTITUENT",
-          triggerType: mapLegacyTrigger(String(automation.trigger)),
-          triggerConfig: {
-            ...(((automation.triggerConfig as Record<string, unknown> | null) ?? {})),
-            _migration: {
-              source: "legacy-automations",
-              legacyAutomationId: automation.id,
-              migratedAt: new Date().toISOString(),
-            },
-          },
-          status: automation.enabled ? "ACTIVE" : "DRAFT",
-          createdByUserId: userId,
-          lastEditedByUserId: userId,
-        },
-      });
-
-      for (const [index, action] of automation.actions.entries()) {
-        await tx.stewardPathStep.create({
-          data: {
-            pathId: path.id,
-            orderIndex: index,
-            name: `${action.type}`,
-            description: "Migrated from legacy automation action.",
-            stepType: mapLegacyActionType(String(action.type)),
-            configJson: {
-              ...(((action.config as Record<string, unknown> | null) ?? {})),
-              legacyActionType: action.type,
-            },
-            isRequired: true,
-            isActive: true,
-          },
-        });
-      }
-
-      return path;
-    });
-
-    imported.push({ legacyAutomationId: automation.id, stewardPathId: created.id });
-  }
-
-  await logAudit({
-    action: "STEWARD_PATH_LEGACY_AUTOMATIONS_MIGRATED",
-    entity: "StewardPath",
-    userId,
-    organizationId,
-    metadata: {
-      importedCount: imported.length,
-      imported,
-    },
-  });
-
-  res.status(201).json({ importedCount: imported.length, imported });
-});
-
 /** POST /api/steward-paths/templates/:id/steps — append or insert one step. */
 router.post("/templates/:id/steps", requirePermission("steward_paths.edit"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
@@ -1671,11 +1570,19 @@ router.patch("/email-drafts/:id", requirePermission("steward_paths.edit"), async
     res.status(400).json({ error: { code: "INVALID_STATUS", message: "Invalid draft status." } });
     return;
   }
+  if (status === "SENT") {
+    res.status(400).json({
+      error: {
+        code: "USE_SEND_ENDPOINT",
+        message: "Use the path email draft send endpoint so provider delivery, preferences, and audit records are enforced.",
+      },
+    });
+    return;
+  }
 
   const now = new Date();
   if (status) {
     updateData.status = status;
-    if (status === "SENT") updateData.sentAt = now;
     if (status === "SKIPPED") updateData.skippedAt = now;
     if (status === "FAILED") {
       updateData.failedAt = now;
@@ -1688,7 +1595,7 @@ router.patch("/email-drafts/:id", requirePermission("steward_paths.edit"), async
     data: updateData,
   });
 
-  if (status === "SENT" || status === "SKIPPED" || status === "FAILED" || status === "APPROVED") {
+  if (status === "SKIPPED" || status === "FAILED" || status === "APPROVED") {
     await prisma.stewardPathEnrollment.update({
       where: { id: draft.enrollmentId },
       data: { nextStepDueAt: new Date() },
@@ -1699,7 +1606,7 @@ router.patch("/email-drafts/:id", requirePermission("steward_paths.edit"), async
     await createTimelineEvent({
       enrollmentId: draft.enrollmentId,
       stepId: draft.stepId,
-      eventType: status === "SENT" ? "EMAIL_SENT" : status === "SKIPPED" ? "STEP_SKIPPED" : "STEP_STARTED",
+      eventType: status === "SKIPPED" ? "STEP_SKIPPED" : "STEP_STARTED",
       message: `Email draft status changed to ${status}.`,
       createdByUserId: userId,
       metadataJson: { draftId: draft.id, status },
@@ -1721,6 +1628,162 @@ router.patch("/email-drafts/:id", requirePermission("steward_paths.edit"), async
   });
 
   res.json(updated);
+});
+
+/** POST /api/steward-paths/email-drafts/:id/send — sends one approved recipient-scoped campaign through the provider. */
+router.post("/email-drafts/:id/send", requirePermission("steward_paths.edit"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+
+  const draft = await prisma.stewardPathEmailDraft.findFirst({
+    where: { id: getRouteId(req), enrollment: { organizationId } },
+    include: {
+      step: { select: { id: true, name: true } },
+      enrollment: {
+        select: {
+          id: true,
+          pathId: true,
+          constituent: {
+            select: {
+              id: true,
+              email: true,
+              doNotContact: true,
+              doNotEmail: true,
+              emailOptOut: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!draft) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Email draft not found." } });
+    return;
+  }
+  if (draft.status !== "APPROVED") {
+    res.status(400).json({ error: { code: "DRAFT_NOT_APPROVED", message: "Approve this path email draft before sending it." } });
+    return;
+  }
+  if (!draft.sourceCampaignId) {
+    res.status(400).json({ error: { code: "CAMPAIGN_REQUIRED", message: "Link an OyamaEmail campaign before sending this path email draft." } });
+    return;
+  }
+
+  const recipient = draft.enrollment.constituent;
+  if (!recipient?.email?.trim()) {
+    res.status(400).json({ error: { code: "RECIPIENT_EMAIL_REQUIRED", message: "The enrolled constituent needs an email address." } });
+    return;
+  }
+  if (recipient.doNotContact || recipient.doNotEmail || recipient.emailOptOut) {
+    res.status(400).json({ error: { code: "RECIPIENT_SUPPRESSED", message: "The enrolled constituent cannot receive email under their communication preferences." } });
+    return;
+  }
+
+  const sourceCampaign = await prisma.emailCampaign.findFirst({
+    where: { id: draft.sourceCampaignId, organizationId },
+    select: {
+      id: true,
+      name: true,
+      purpose: true,
+      previewText: true,
+      fromName: true,
+      fromEmail: true,
+      replyToEmail: true,
+      bodyText: true,
+      templateJson: true,
+      audienceFilter: true,
+    },
+  });
+  if (!sourceCampaign) {
+    res.status(404).json({ error: { code: "CAMPAIGN_NOT_FOUND", message: "The selected OyamaEmail campaign is no longer available." } });
+    return;
+  }
+
+  try {
+    const deliveryCampaign = await prisma.emailCampaign.create({
+      data: {
+        organizationId,
+        name: `Path delivery: ${sourceCampaign.name} - ${recipient.email}`,
+        subject: draft.subject,
+        purpose: sourceCampaign.purpose,
+        previewText: sourceCampaign.previewText,
+        fromName: sourceCampaign.fromName,
+        fromEmail: sourceCampaign.fromEmail,
+        replyToEmail: sourceCampaign.replyToEmail,
+        bodyHtml: draft.body,
+        bodyText: sourceCampaign.bodyText ?? draft.body,
+        templateJson: sourceCampaign.templateJson,
+        audienceFilter: sourceCampaign.audienceFilter,
+      },
+    });
+
+    const sentCampaign = await sendCampaignNow(deliveryCampaign.id, "MANUAL", {
+      sendMode: "INDIVIDUAL",
+      recipientEmails: [recipient.email],
+    });
+
+    const sentAt = sentCampaign.sentAt ?? new Date();
+    const updated = await prisma.stewardPathEmailDraft.update({
+      where: { id: draft.id },
+      data: {
+        status: "SENT",
+        sentAt,
+        deliveryCampaignId: sentCampaign.id,
+        failureReason: null,
+      },
+    });
+    await prisma.stewardPathEnrollment.update({
+      where: { id: draft.enrollmentId },
+      data: { nextStepDueAt: new Date() },
+    });
+    await createTimelineEvent({
+      enrollmentId: draft.enrollmentId,
+      stepId: draft.stepId,
+      eventType: "EMAIL_SENT",
+      message: `Path email delivered through OyamaEmail to ${recipient.email}.`,
+      createdByUserId: userId,
+      metadataJson: {
+        draftId: draft.id,
+        sourceCampaignId: sourceCampaign.id,
+        deliveryCampaignId: sentCampaign.id,
+        recipientEmail: recipient.email,
+      },
+    });
+    await logAudit({
+      action: "STEWARD_PATH_EMAIL_DRAFT_SENT",
+      entity: "StewardPathEmailDraft",
+      entityId: draft.id,
+      userId,
+      organizationId,
+      metadata: {
+        enrollmentId: draft.enrollmentId,
+        sourceCampaignId: sourceCampaign.id,
+        deliveryCampaignId: sentCampaign.id,
+        recipientEmail: recipient.email,
+      },
+    });
+
+    res.json({ draft: updated, deliveryCampaignId: sentCampaign.id, recipientEmail: recipient.email });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Provider delivery failed.";
+    await prisma.stewardPathEmailDraft.update({
+      where: { id: draft.id },
+      data: { status: "FAILED", failedAt: new Date(), failureReason: message },
+    });
+    await createTimelineEvent({
+      enrollmentId: draft.enrollmentId,
+      stepId: draft.stepId,
+      eventType: "PATH_FAILED",
+      message: `Path email delivery failed: ${message}`,
+      createdByUserId: userId,
+      metadataJson: { draftId: draft.id, sourceCampaignId: draft.sourceCampaignId },
+    });
+    res.status(400).json({ error: { code: "EMAIL_DELIVERY_FAILED", message } });
+  }
 });
 
 /** POST /api/steward-paths/process-due — process one due-step batch on demand. */

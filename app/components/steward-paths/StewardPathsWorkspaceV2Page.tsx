@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ContextualRibbon from "@/app/components/ui/crm/ribbon/ContextualRibbon";
-import { apiFetch } from "@/app/lib/auth-client";
+import { stewardPathsApi } from "@/app/lib/steward-paths-api";
 
 interface StewardPathTemplate {
   id: string;
@@ -116,6 +116,7 @@ const CATEGORY_OPTIONS: Array<{ value: CategoryFilter; label: string }> = [
 
 const TRIGGER_OPTIONS = [
   { value: "MANUAL", label: "Manual Enrollment" },
+  { value: "CONSTITUENT_CREATED", label: "New Constituent Added" },
   { value: "DONATION_RECEIVED", label: "Gift Received" },
   { value: "FIRST_TIME_DONOR", label: "First-Time Donor" },
   { value: "DONOR_LAPSED", label: "Lapsed Donor" },
@@ -553,8 +554,8 @@ export default function StewardPathsWorkspaceV2Page({
     setError(null);
     try {
       const [templateRows, enrollmentRows] = await Promise.all([
-        apiFetch<StewardPathTemplate[]>("/api/steward-paths/templates"),
-        apiFetch<StewardEnrollment[]>("/api/steward-paths/enrollments?limit=500").catch(() => []),
+        stewardPathsApi.listTemplates<StewardPathTemplate>(),
+        stewardPathsApi.listEnrollments<StewardEnrollment>(500).catch(() => []),
       ]);
       setPaths(Array.isArray(templateRows) ? templateRows : []);
       setEnrollments(Array.isArray(enrollmentRows) ? enrollmentRows : []);
@@ -672,10 +673,7 @@ export default function StewardPathsWorkspaceV2Page({
     setBusyPathId(path.id);
     setError(null);
     try {
-      await apiFetch(`/api/steward-paths/templates/${path.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: nextStatus }),
-      });
+      await stewardPathsApi.updateTemplate(path.id, { status: nextStatus });
       setNotice(nextStatus === "ACTIVE" ? "Path published and activated." : "Path paused.");
       await load();
     } catch (statusError) {
@@ -689,7 +687,7 @@ export default function StewardPathsWorkspaceV2Page({
     setBusyPathId(path.id);
     setError(null);
     try {
-      const created = await apiFetch<StewardPathTemplate>(`/api/steward-paths/templates/${path.id}/duplicate`, { method: "POST" });
+      const created = await stewardPathsApi.duplicateTemplate<StewardPathTemplate>(path.id);
       setNotice("Path duplicated as a new draft.");
       await load();
       if (created?.id) {
@@ -711,7 +709,7 @@ export default function StewardPathsWorkspaceV2Page({
     setBusyPathId(path.id);
     setError(null);
     try {
-      await apiFetch(`/api/steward-paths/templates/${path.id}`, { method: "DELETE" });
+      await stewardPathsApi.archiveTemplate(path.id);
       setNotice("Path archived.");
       await load();
     } catch (archiveError) {
@@ -751,17 +749,14 @@ export default function StewardPathsWorkspaceV2Page({
     if (seedSteps.length === 0) return;
 
     for (const [index, step] of seedSteps.entries()) {
-      await apiFetch(`/api/steward-paths/templates/${pathId}/steps`, {
-        method: "POST",
-        body: JSON.stringify({
-          name: step.name,
-          description: step.description,
-          stepType: step.stepType,
-          configJson: step.configJson ?? {},
-          orderIndex: index,
-          isRequired: true,
-          isActive: true,
-        }),
+      await stewardPathsApi.addStep(pathId, {
+        name: step.name,
+        description: step.description,
+        stepType: step.stepType,
+        configJson: step.configJson ?? {},
+        orderIndex: index,
+        isRequired: true,
+        isActive: true,
       });
     }
   }
@@ -782,9 +777,7 @@ export default function StewardPathsWorkspaceV2Page({
       setCreateBusy(true);
       setCreateError(null);
       try {
-        const created = await apiFetch<StewardPathTemplate>(`/api/steward-paths/templates/${createDraft.duplicateSourcePathId}/duplicate`, {
-          method: "POST",
-        });
+        const created = await stewardPathsApi.duplicateTemplate<StewardPathTemplate>(createDraft.duplicateSourcePathId);
         await load();
         closeCreateModal();
         if (created?.id) {
@@ -807,27 +800,24 @@ export default function StewardPathsWorkspaceV2Page({
     setCreateError(null);
 
     try {
-      const created = await apiFetch<StewardPathTemplate>("/api/steward-paths/templates", {
-        method: "POST",
-        body: JSON.stringify({
-          name: createDraft.name.trim(),
-          description: createDraft.description.trim() || createDraft.purpose.trim() || null,
-          status: "DRAFT",
-          crmScope: "DONOR",
-          targetType: defaultTargetTypeForCategory(createDraft.category),
-          triggerType: createDraft.startingTrigger,
-          triggerConfig: {
-            category: createDraft.category,
-            pathPurpose: createDraft.purpose,
-            ownerLabel: createDraft.ownerLabel,
-            _sharing: {
-              visibility: "private",
-              ownerUserId: null,
-              allowRun: false,
-              allowEdit: false,
-            },
+      const created = await stewardPathsApi.createTemplate<StewardPathTemplate>({
+        name: createDraft.name.trim(),
+        description: createDraft.description.trim() || createDraft.purpose.trim() || null,
+        status: "DRAFT",
+        crmScope: "DONOR",
+        targetType: defaultTargetTypeForCategory(createDraft.category),
+        triggerType: createDraft.startingTrigger,
+        triggerConfig: {
+          category: createDraft.category,
+          pathPurpose: createDraft.purpose,
+          ownerLabel: createDraft.ownerLabel,
+          _sharing: {
+            visibility: "private",
+            ownerUserId: null,
+            allowRun: false,
+            allowEdit: false,
           },
-        }),
+        },
       });
 
       if (createDraft.mode === "template" && created?.id) {

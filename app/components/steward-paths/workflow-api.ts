@@ -63,6 +63,7 @@ export function testRunStewardPathTemplate(id: string, constituentId: string): P
 export async function listStewardPathLetterTemplates(search?: string): Promise<StewardPathLetterTemplateOption[]> {
   const params = new URLSearchParams();
   if (search?.trim()) params.set("search", search.trim());
+  params.set("status", "ACTIVE");
   const suffix = params.toString() ? `?${params.toString()}` : "";
   const items = await apiFetch<Array<{ id: string; name: string; status?: string }>>(`/api/letters/templates${suffix}`);
   return items.map((item) => ({ id: item.id, name: item.name, status: item.status }));

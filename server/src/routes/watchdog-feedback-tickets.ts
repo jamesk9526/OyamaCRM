@@ -1,4 +1,4 @@
-/** Watchdog ticket triage routes for viewing, assigning, and resolving cross-CRM feedback. */
+/** Watchdog support ticket triage routes for viewing, assigning, and resolving CRM requests. */
 import { Router, type Request, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
@@ -51,6 +51,12 @@ const TICKET_SELECT = {
   deviceInfo: true,
   appVersion: true,
   environment: true,
+  supportSummary: true,
+  screenshotDataUrl: true,
+  screenshotCapturedAt: true,
+  supportEmailRecipient: true,
+  supportEmailStatus: true,
+  supportEmailError: true,
   assignedDeveloperId: true,
   assignedToPersonId: true,
   developerNotes: true,

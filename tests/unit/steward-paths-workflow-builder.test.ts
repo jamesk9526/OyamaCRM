@@ -236,6 +236,66 @@ describe("workflow-transformers", () => {
       expect(exported.steps.length, item.kind).toBeGreaterThan(0);
     }
   });
+
+  it("exports a generated letter with a reviewable mail-task handoff by default", () => {
+    const idFactory = createTestIdFactory();
+    let doc = createWorkflowDocument(idFactory);
+
+    const trigger = createNodeFromPalette(palette("trigger.manual_enrollment"), idFactory);
+    const letter = createNodeFromPalette(palette("print.generate_letter"), idFactory);
+    doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+    doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, {
+      ...letter,
+      config: { ...letter.config, templateId: "letter-template-1" },
+    });
+
+    const exported = toLinearWorkflowExport(doc);
+    expect(exported.report.canSaveLinear).toBe(true);
+    expect(exported.steps[0]).toMatchObject({
+      stepType: "GENERATE_LETTER",
+      configJson: {
+        templateId: "letter-template-1",
+        taskMode: "create_and_wait_for_completion",
+        taskType: "MAIL",
+      },
+    });
+  });
+
+  it("exports a recipient-scoped campaign send as review-required email work", () => {
+    const idFactory = createTestIdFactory();
+    let doc = createWorkflowDocument(idFactory);
+
+    const trigger = createNodeFromPalette(palette("trigger.manual_enrollment"), idFactory);
+    const campaignSend = createNodeFromPalette(palette("email.schedule_blast"), idFactory);
+    doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+    doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, {
+      ...campaignSend,
+      config: { ...campaignSend.config, campaignId: "campaign-source-1" },
+    });
+
+    const exported = toLinearWorkflowExport(doc);
+    expect(exported.report.canSaveLinear).toBe(true);
+    expect(exported.steps[0]).toMatchObject({
+      stepType: "SEND_EMAIL",
+      configJson: {
+        campaignId: "campaign-source-1",
+        requireApprovalBeforeSend: true,
+        waitForReview: true,
+      },
+    });
+  });
+
+  it("preserves constituent-created and first-time-donor triggers through builder export", () => {
+    for (const [kind, triggerType] of [["trigger.new_constituent", "CONSTITUENT_CREATED"], ["trigger.first_time_donor", "FIRST_TIME_DONOR"]] as const) {
+      const idFactory = createTestIdFactory();
+      let doc = createWorkflowDocument(idFactory);
+      const trigger = createNodeFromPalette(palette(kind), idFactory);
+      const task = createNodeFromPalette(palette("task.create"), idFactory);
+      doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+      doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, task);
+      expect(toLinearWorkflowExport(doc).template.triggerType).toBe(triggerType);
+    }
+  });
 });
 
 describe("readiness labels", () => {

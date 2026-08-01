@@ -17,6 +17,7 @@ import HouseholdPanel from "@/app/components/constituents/HouseholdPanel";
 import QuickGiftModal from "@/app/components/constituents/QuickGiftModal";
 import ConstituentNotesTab from "@/app/components/constituents/ConstituentNotesTab";
 import ConstituentLettersPanel from "@/app/components/constituents/ConstituentLettersPanel";
+import ConstituentStewardPathsPanel from "@/app/components/constituents/ConstituentStewardPathsPanel";
 import EmailPreferencePanel from "@/app/components/constituents/EmailPreferencePanel";
 import DonorStewardSignalsWidget from "@/app/components/steward/DonorStewardSignalsWidget";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
@@ -587,6 +588,7 @@ export default function ConstituentDetailPage() {
           {/* Right sidebar */}
           <aside className="space-y-4">
             <DonorStewardSignalsWidget constituentId={id} />
+            <ConstituentStewardPathsPanel constituentId={id} />
 
             {(c.groupMemberships.length > 0 || c.primaryForGroups.length > 0) ? (
               <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

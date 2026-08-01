@@ -6,13 +6,13 @@ import Link from "next/link";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
-import AppsDrawer, { AppsGridIcon } from "@/app/components/layout/AppsDrawer";
+import AppLauncherIcon from "@/app/components/layout/AppLauncherIcon";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
 import ContextualTutorialModal from "@/app/components/help/ContextualTutorialModal";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
-import { FeedbackModal } from "@/app/components/feedback/FeedbackModal";
+import { SupportTicketModal } from "@/app/components/support/SupportTicketModal";
 import { apiFetch, API_BASE as AUTH_API_BASE } from "@/app/lib/auth-client";
 import { OYAMA_PRODUCT_LOGO } from "@/app/lib/product-branding";
 import {
@@ -32,8 +32,6 @@ import {
 import { buildHelpHref, mapModuleKeyToHelpScope } from "@/app/help-content";
 import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
 import {
-  openAppsFromTopBarLauncher,
-  openAppsFromUserMenu,
   openFeedbackFromUserMenu,
   openMessagesFromUserMenu,
   type TopBarPanelSetters,
@@ -307,7 +305,7 @@ function GlobalSearch({
       : moduleKey === "watchdog"
         ? [
           { id: "quick-watchdog-home", type: "tool", label: "Open Watchdog Home", sublabel: "Security workspace", href: "/watchdog", group: "tools" },
-          { id: "quick-watchdog-feedback", type: "tool", label: "Open Feedback Ticketing", sublabel: "Cross-CRM triage queue", href: "/watchdog/feedback-tickets", group: "tools" },
+          { id: "quick-watchdog-support", type: "tool", label: "Open Support Tickets", sublabel: "Review organization support requests", href: "/watchdog/support-tickets", group: "tools" },
           { id: "quick-watchdog-alerts", type: "tool", label: "Open Alerts", sublabel: "Threat and anomaly activity", href: "/watchdog/alerts", group: "tools" },
           { id: "quick-watchdog-audit", type: "tool", label: "Open Audit Logs", sublabel: "Security event trail", href: "/watchdog/audit", group: "tools" },
           { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=global&scopePath=${encodeURIComponent(pathname || "/watchdog")}`, group: "tools" },
@@ -854,7 +852,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const { user, signOut } = useAuth();
   const moduleKey = resolveTopBarModuleKey(pathname);
   const showTopBarAppLauncher = true;
-  const [appsOpen, setAppsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -913,7 +910,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     : "Calendar year mode is on. Click to use the fiscal year offset from Organization Settings.";
   const canRunAiConnectionTest = user?.role === "admin" || user?.role === "super_admin";
   const topBarPanelSetters: TopBarPanelSetters = {
-    setAppsOpen,
     setFeedbackOpen,
     setNotificationsOpen,
     setMobileQuickOpen,
@@ -966,11 +962,16 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, []);
 
   useEffect(() => {
+    const openSupportTicket = () => setFeedbackOpen(true);
+    window.addEventListener("oyamacrm:open-support-ticket", openSupportTicket);
+    return () => window.removeEventListener("oyamacrm:open-support-ticket", openSupportTicket);
+  }, []);
+
+  useEffect(() => {
     function openSearchFromKeyboard(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         if (isEditableEventTarget(event.target)) return;
         event.preventDefault();
-        setAppsOpen(false);
         setFeedbackOpen(false);
         setNotificationsOpen(false);
         setMobileQuickOpen(false);
@@ -990,14 +991,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, []);
 
   useEffect(() => {
-    const hasOpenPanel = appsOpen || feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen || messengerOpen;
+    const hasOpenPanel = feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen || messengerOpen;
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (!hasOpenPanel) {
         return;
       }
-      setAppsOpen(false);
       setFeedbackOpen(false);
       setNotificationsOpen(false);
       setMobileQuickOpen(false);
@@ -1008,7 +1008,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [appsOpen, compactActionsOpen, feedbackOpen, messengerOpen, mobileQuickOpen, mobileSearchOpen, notificationsOpen]);
+  }, [compactActionsOpen, feedbackOpen, messengerOpen, mobileQuickOpen, mobileSearchOpen, notificationsOpen]);
 
   function toggleReportingYearMode() {
     const nextMode: ReportingYearMode = reportingYearMode === "fiscal" ? "calendar" : "fiscal";
@@ -1226,10 +1226,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, [pathname]);
 
   useEffect(() => {
-    if (appsOpen || feedbackOpen || notificationsOpen) {
+    if (feedbackOpen || notificationsOpen) {
       setCompactActionsOpen(false);
     }
-  }, [appsOpen, feedbackOpen, notificationsOpen]);
+  }, [feedbackOpen, notificationsOpen]);
 
   // Subtle color response when navigation context changes.
   useEffect(() => {
@@ -1238,10 +1238,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
   // Subtle color response when topbar interactive panels are used.
   useEffect(() => {
-    if (notificationsOpen || feedbackOpen || appsOpen) {
+    if (notificationsOpen || feedbackOpen) {
       triggerTopBarReactiveGlow();
     }
-  }, [notificationsOpen, feedbackOpen, appsOpen, triggerTopBarReactiveGlow]);
+  }, [notificationsOpen, feedbackOpen, triggerTopBarReactiveGlow]);
 
   // Subtle color response after task-level actions complete in topbar utilities.
   useEffect(() => {
@@ -1295,16 +1295,14 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const openAiSettings = useCallback(() => {
     setNotificationsOpen(false);
     setMobileQuickOpen(false);
-    setAppsOpen(false);
     setFeedbackOpen(false);
     setCompactActionsOpen(false);
     router.push("/settings/ai");
-  }, [router, setNotificationsOpen, setMobileQuickOpen, setAppsOpen, setFeedbackOpen, setCompactActionsOpen]);
+  }, [router, setNotificationsOpen, setMobileQuickOpen, setFeedbackOpen, setCompactActionsOpen]);
 
   return (
     <>
-      {showTopBarAppLauncher ? <AppsDrawer open={appsOpen} onClose={() => setAppsOpen(false)} /> : null}
-      <FeedbackModal
+      <SupportTicketModal
         open={feedbackOpen}
         onClose={() => setFeedbackOpen(false)}
         moduleKey={moduleKey}
@@ -1655,14 +1653,14 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             {showTopBarAppLauncher ? (
               <button
                 type="button"
-                onClick={() => openAppsFromTopBarLauncher(topBarPanelSetters)}
+                onClick={() => router.push("/apps")}
                 title="Open app launcher"
                 aria-label="Open app launcher"
                 className={isDonorEnterpriseChrome
                   ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] text-slate-300 transition-colors hover:bg-white/[0.12] hover:text-white"
                   : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-[0_1px_4px_rgba(15,23,42,0.05)] transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"}
               >
-                <AppsGridIcon className="h-4 w-4" />
+                <AppLauncherIcon className="h-4 w-4" />
               </button>
             ) : null}
 
@@ -1876,7 +1874,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               <UserMenu
                 moduleKey={moduleKey}
                 showApps={showTopBarAppLauncher}
-                onOpenApps={() => openAppsFromUserMenu(topBarPanelSetters)}
+                onOpenApps={() => router.push("/apps")}
                 onOpenFeedback={() => openFeedbackFromUserMenu(topBarPanelSetters)}
                 onToggleMessages={() => openMessagesFromUserMenu(topBarPanelSetters)}
                 messengerUnread={messengerUnread}
@@ -1934,10 +1932,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 {showTopBarAppLauncher ? (
                   <button
                     type="button"
-                    onClick={() => openAppsFromTopBarLauncher(topBarPanelSetters)}
+                    onClick={() => {
+                      setMobileQuickOpen(false);
+                      router.push("/apps");
+                    }}
                     className="flex w-full min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-700"
                   >
-                    <AppsGridIcon className="h-4 w-4 shrink-0" />
+                    <AppLauncherIcon className="h-4 w-4 shrink-0" />
                     Apps
                   </button>
                 ) : null}
@@ -1970,7 +1971,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                   }}
                   className="w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
                 >
-                  Send Feedback
+                  Get support
                 </button>
 
                 <Link
@@ -2059,7 +2060,6 @@ function ModuleSwitcher({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
   const [open, setOpen] = useState(false);
 
   const modules = useMemo(() => [
@@ -2331,7 +2331,7 @@ function UserMenu({
                     onClick={() => runProfileAction(onOpenApps)}
                     className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                   >
-                    <AppsGridIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <AppLauncherIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     <span className="min-w-0 truncate">Apps</span>
                   </button>
                 ) : null}
@@ -2343,7 +2343,7 @@ function UserMenu({
                   <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
                   </svg>
-                  <span className="min-w-0 truncate">Feedback</span>
+                  <span className="min-w-0 truncate">Get support</span>
                 </button>
                 {moduleKey === "donor" ? (
                   <Link

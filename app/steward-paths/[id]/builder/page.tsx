@@ -1,12 +1,12 @@
-/** Path-scoped builder route wrapper. */
-import StewardPathBuilderPage from "@/app/components/steward-paths/StewardPathBuilderPage";
+/** Deprecated path-scoped editor route preserved as a canonical builder redirect. */
+import { redirect } from "next/navigation";
 
 interface StewardPathScopedBuilderPageProps {
   params: Promise<{ id: string }>;
 }
 
-/** Loads builder for one path id. */
+/** Redirects to the single canonical builder route. */
 export default async function StewardPathScopedBuilderPage({ params }: StewardPathScopedBuilderPageProps) {
   const { id } = await params;
-  return <StewardPathBuilderPage templateIdFromRoute={id} />;
+  redirect(`/steward-paths/builder/${encodeURIComponent(id)}`);
 }

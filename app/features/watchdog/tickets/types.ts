@@ -1,4 +1,4 @@
-// Types for Watchdog feedback ticket triage dashboards and API responses.
+// Types for Watchdog support ticket triage dashboards and API responses.
 
 export type WatchdogFeedbackTicketType =
   | "bug_report"
@@ -51,6 +51,12 @@ export interface WatchdogFeedbackTicket {
   deviceInfo: string | null;
   appVersion: string | null;
   environment: string | null;
+  supportSummary: string | null;
+  screenshotDataUrl: string | null;
+  screenshotCapturedAt: string | null;
+  supportEmailRecipient: string | null;
+  supportEmailStatus: "pending" | "sent" | "failed" | "not_configured";
+  supportEmailError: string | null;
   assignedDeveloperId: string | null;
   assignedToPersonId: string | null;
   assignedDeveloperDisplayName: string | null;

@@ -31,6 +31,7 @@ import {
 import { getConstituentDisplayName, getConstituentSortName, isOrganizationConstituent } from "../lib/constituent-identity.js";
 import { omitUnavailableModelDataFields, omitUnavailableModelSelectFields, prismaModelHasField } from "../lib/prisma-model-fields.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
+import { enrollConstituentInStewardPath, enrollConstituentInTriggeredStewardPaths } from "../services/steward-path-enrollment-service.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
@@ -1244,8 +1245,53 @@ router.post("/", async (req, res) => {
     userId: req.user?.sub,
     source: "api/constituents:create",
   });
+  await enrollConstituentInTriggeredStewardPaths({
+    organizationId: resolvedOrganizationId,
+    constituentId: constituent.id,
+    triggerTypes: ["CONSTITUENT_CREATED", ...(constituent.type === "DONOR" && constituent.donorStatus === "NEW" ? ["FIRST_TIME_DONOR"] : [])],
+    actorUserId: req.user?.sub,
+    source: "api/constituents:create",
+  });
 
   res.status(201).json(constituent);
+});
+
+/** POST /api/constituents/:id/steward-paths — enroll or replace active paths from a constituent profile. */
+router.post("/:id/steward-paths", requirePermission("steward_paths.enroll"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const userId = req.user?.sub;
+  const constituentId = Array.isArray(req.params.id) ? req.params.id[0] ?? "" : req.params.id;
+  const pathId = typeof req.body?.pathId === "string" ? req.body.pathId.trim() : "";
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user context are required." } });
+    return;
+  }
+  if (!pathId) {
+    res.status(400).json({ error: { code: "PATH_REQUIRED", message: "pathId is required." } });
+    return;
+  }
+
+  try {
+    const result = await enrollConstituentInStewardPath({
+      organizationId,
+      constituentId,
+      pathId,
+      actorUserId: userId,
+      source: "constituent-profile",
+      replaceExisting: req.body?.replaceExisting === true,
+    });
+    await logAudit({
+      action: "CONSTITUENT_STEWARD_PATH_ENROLLED",
+      entity: "StewardPathEnrollment",
+      entityId: result.enrollment.id,
+      userId,
+      organizationId,
+      metadata: { constituentId, pathId, reused: result.reused, replacedCount: result.replacedCount },
+    });
+    res.status(result.reused ? 200 : 201).json(result);
+  } catch (error) {
+    res.status(400).json({ error: { code: "PATH_ENROLLMENT_FAILED", message: error instanceof Error ? error.message : "Failed to enroll constituent in Steward Path." } });
+  }
 });
 
 /** PUT /api/constituents/:id — Update constituent fields. Ensures a Household record exists if switching to HOUSEHOLD type. */

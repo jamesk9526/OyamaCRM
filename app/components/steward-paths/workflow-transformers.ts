@@ -112,6 +112,10 @@ function toBackendTriggerType(kind: string | null): string {
   switch (kind) {
     case "trigger.new_donation":
       return "DONATION_RECEIVED";
+    case "trigger.new_constituent":
+      return "CONSTITUENT_CREATED";
+    case "trigger.first_time_donor":
+      return "FIRST_TIME_DONOR";
     case "trigger.pledge_due":
       return "PLEDGE_DUE";
     case "trigger.donor_lapsed":
@@ -132,6 +136,10 @@ function fromBackendTriggerType(triggerType: string): string {
   switch (normalized) {
     case "DONATION_RECEIVED":
       return "trigger.new_donation";
+    case "CONSTITUENT_CREATED":
+      return "trigger.new_constituent";
+    case "FIRST_TIME_DONOR":
+      return "trigger.first_time_donor";
     case "PLEDGE_DUE":
       return "trigger.pledge_due";
     case "DONOR_LAPSED":
@@ -236,7 +244,8 @@ function actionNodeToStep(node: WorkflowNode): Omit<BackendStewardPathStepInput,
         stepType: "SEND_EMAIL",
         configJson: {
           ...node.config,
-          waitForReview: false,
+          requireApprovalBeforeSend: true,
+          waitForReview: true,
         },
         isRequired: true,
         isActive: true,

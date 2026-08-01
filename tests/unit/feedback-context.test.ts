@@ -1,11 +1,11 @@
-/** Unit tests for privacy-safe feedback context capture helpers. */
+/** Unit tests for privacy-safe support ticket context capture helpers. */
 
 import { describe, expect, it } from "vitest";
-import { getFeedbackContext } from "@/app/lib/feedback/getFeedbackContext";
+import { getSupportTicketContext } from "@/app/lib/support-tickets/context";
 
-describe("feedback context helpers", () => {
+describe("support ticket context helpers", () => {
   it("builds fallback context when browser globals are unavailable", () => {
-    const context = getFeedbackContext({ moduleKey: "donor", pathname: "/donations/new" });
+    const context = getSupportTicketContext({ moduleKey: "donor", pathname: "/donations/new" });
 
     expect(context.crmScope).toBe("donor");
     expect(context.routePath).toBe("/donations/new");
@@ -15,7 +15,16 @@ describe("feedback context helpers", () => {
   });
 
   it("maps reportit module key into reportit scope for ticket payloads", () => {
-    const context = getFeedbackContext({ moduleKey: "oshareview", pathname: "/reports" });
+    const context = getSupportTicketContext({ moduleKey: "oshareview", pathname: "/reports" });
     expect(context.crmScope).toBe("reportit");
+  });
+
+  it("keeps CRM scopes explicit for every remaining module boundary", () => {
+    expect(getSupportTicketContext({ moduleKey: "letters", pathname: "/oyama-letters" }).crmScope).toBe("donor");
+    expect(getSupportTicketContext({ moduleKey: "compassion", pathname: "/compassion" }).crmScope).toBe("compassion");
+    expect(getSupportTicketContext({ moduleKey: "events", pathname: "/events" }).crmScope).toBe("events");
+    expect(getSupportTicketContext({ moduleKey: "watchdog", pathname: "/watchdog" }).crmScope).toBe("watchdog");
+    expect(getSupportTicketContext({ moduleKey: "webmaster", pathname: "/webmaster" }).crmScope).toBe("webmaster");
+    expect(getSupportTicketContext({ moduleKey: "password", pathname: "/password" }).crmScope).toBe("other");
   });
 });

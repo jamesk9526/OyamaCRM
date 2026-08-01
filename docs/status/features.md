@@ -1,6 +1,14 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-07-29 (Donor report library, portable backup package, and personal appearance preferences)_
+_Last focused audit: 2026-08-01 (contextual CRM help and location-aware support tickets)_
+
+## 2026-08-01 Contextual Help and Support Tickets
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Route-aware CRM help | Working | `app/components/help/CrmContextualHelp.tsx`, `app/components/layout/AppShell.tsx` | Every standard Donor CRM workspace page now has a persistent `?` control with a concise how-to for the current workflow, a link to fuller documentation, and a direct problem-report action. |
+| Location-aware support requests | Working | `app/components/support/SupportTicketModal.tsx`, `app/lib/support-tickets/context.ts`, `server/src/routes/support-tickets.ts` | The global support request captures the current route, title, browser and viewport diagnostics, plus an automatically captured active-work-area screenshot. Staff can remove the screenshot before submitting; the durable ticket and audit entry record the result. |
+| Configured ticket delivery and support queue | Working | `app/settings/organization/page.tsx`, `server/src/routes/settings.ts`, `server/src/services/smtp-service.ts`, `app/watchdog/support-tickets/page.tsx` | Admins configure the organization support recipient in Settings. Ticket notifications use the selected SMTP or Microsoft Graph provider with screenshot attachment support, record `sent`, `failed`, or `not_configured` delivery state, and remain reviewable in the Support Tickets command center. The retired feedback form/API is removed; the former Watchdog URL redirects to the new queue. |
 
 ## 2026-07-22 DonorCRM v1.3 Enterprise Shell
 
@@ -253,13 +261,17 @@ Validation: focused unit/source suite passed 84/84; database-backed donor, Lette
 
 | Area | Status | Evidence | Notes |
 |---|---|---|---|
-| Dedicated Steward Paths shell routing | Working | `app/components/layout/AppShell.tsx`, `app/steward-paths/layout.tsx`, `app/components/steward-paths/StewardPathsAppShell.tsx` | Steward Paths now bypasses the donor page chrome and renders in its own workspace shell with staged navigation and Back to CRM path. |
+| Dedicated Steward Paths shell routing | Working | `app/components/layout/AppShell.tsx`, `app/steward-paths/layout.tsx`, `app/components/steward-paths/StewardPathsAppShell.tsx` | Steward Paths now bypasses the donor page chrome and renders in its own Microsoft-style workspace shell with product bar, dark rail, staged navigation, and Donor CRM return path. |
 | Mockup-aligned stage route surface | Working | `app/steward-paths/page.tsx`, `app/steward-paths/builder/page.tsx`, `app/steward-paths/enrollments/page.tsx`, `app/steward-paths/review/page.tsx`, `app/steward-paths/activity/page.tsx`, `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx` | Canonical progression now includes live enrollments, analytics, and settings operations in the dedicated workspace shell. |
 | Review queue operations | Working | `app/steward-paths/review/page.tsx`, `server/src/routes/steward-paths.ts` | Draft and paused workflows can be reviewed and moved to active/paused states through live API operations. |
 | Enrollments operations | Working | `app/steward-paths/enrollments/page.tsx`, `server/src/routes/steward-paths.ts` | Staff can filter enrollments and perform pause/resume/cancel/manual-step completion on live enrollment records. |
-| Analytics and settings operations | Working | `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx`, `server/src/routes/steward-paths.ts` | Analytics uses live distributions from templates/enrollments; settings runs real process-due and legacy migration actions. |
+| Analytics and settings operations | Working | `app/steward-paths/analytics/page.tsx`, `app/steward-paths/settings/page.tsx`, `server/src/routes/steward-paths.ts`, `app/lib/steward-paths-api.ts` | Analytics uses live distributions from templates/enrollments; settings runs the guarded due-step processor through the dedicated Paths API client. |
 | Activity route and timeline jump flow | Working | `app/steward-paths/activity/page.tsx`, `app/steward-paths/[id]/history/page.tsx` | Recent path activity is shown from live templates data with direct history navigation per template. |
 | Canonical navigation cleanup | Working | `app/campaigns/[id]/page.tsx`, `app/components/layout/sidebar-configs.tsx`, `app/components/layout/DonorMegaMenu.tsx` | Campaign follow-up now deep-links to Steward Paths builder; duplicate legacy Automations entry removed from donor system navigation. |
+| OyamaLetters path execution safety | Working | `app/components/steward-paths/NodeInspector.tsx`, `app/components/steward-paths/workflow-api.ts`, `server/src/services/steward-paths-sequence-engine.ts`, `tests/unit/steward-paths-letter-eligibility.test.ts` | Letter nodes select active templates only, create a linked reviewable mail task by default, retain a background-worker actor fallback, and block generation for suppressed or incomplete postal recipients. |
+| OyamaEmail path delivery safety | Working | `app/steward-paths/review/page.tsx`, `server/src/routes/steward-paths.ts`, `server/src/services/steward-paths-sequence-engine.ts`, `tests/unit/steward-paths-email-eligibility.test.ts` | Paths resolve selected OyamaEmail campaigns into recipient-scoped review drafts. Approved sends create a separate one-recipient delivery campaign through the normal provider sender, while preference blocks and provider failures remain auditable. |
+| Steward Path enrollment entry points | Working | `server/src/services/steward-path-enrollment-service.ts`, `server/src/routes/constituents.ts`, `server/src/routes/site-embeds.ts`, `server/src/routes/donations.ts`, `app/components/constituents/ConstituentStewardPathsPanel.tsx` | New CRM/site constituents, completed donations, and first gifts can enter matching active modern paths. Constituent profiles show current path state and preview steps, then support server-validated enrollment or explicit replacement. |
+| Routed app launcher | Working | `app/apps/page.tsx`, `app/components/apps/AppLauncherPage.tsx`, `app/components/layout/TopBar.tsx` | Replaced the limited top-bar overlay with a dedicated Apps workspace organized by CRM workspaces, studios, operations, and standalone tools. The prior drawer component and callback state were removed after reference verification. |
 
 ## 2026-05-28 OyamaLetters Standalone Workspace Pass
 
@@ -273,7 +285,7 @@ Validation: focused unit/source suite passed 84/84; database-backed donor, Lette
 | Donations selected-donor letter handoff | Working | `app/donations/page.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` | Staff can select multiple donations or visible monthly donors and open OyamaLetters with a session-scoped temporary list of unique donors for template selection, review, and batch generation. |
 | OyamaLetters organization branding setup | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `server/src/routes/letters.ts`, `server/src/routes/settings.ts`, `app/settings/branding/page.tsx` | Letters consume the global Branding Defaults identity, logo, communication header, and communication footer. Legacy preset routes remain compatibility-only while signatures and workflow policy stay editable. |
 | Legacy letters UI removal and compatibility | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `app/letters/page.tsx`, `app/letters-printables/page.tsx`, `apps/letters/app/page.tsx` | Old routed letters UI components were removed from the main app and standalone package. Existing `/letters`, `/letters-printables`, Communications, and standalone app entries redirect into the refreshed workspace. |
-| Workspace switcher access | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts`, `app/help-content/scope.ts`, `app/lib/feedback/getFeedbackContext.ts` | OyamaLetters is available as a primary workspace switcher entry with help and feedback context mapped back to donor scope. |
+| Workspace switcher access | Working | `app/components/layout/TopBar.tsx`, `app/lib/navigation-boundaries.ts`, `app/help-content/scope.ts`, `app/lib/support-tickets/context.ts` | OyamaLetters is available as a primary workspace switcher entry with help and support context mapped back to donor scope. |
 
 ## 2026-05-29 OyamaEmail Standalone Workspace Launch Pass
 

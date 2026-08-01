@@ -1,6 +1,6 @@
 # DonorCRM Steward Paths
 
-Last updated: 2026-05-30
+Last updated: 2026-08-01
 
 ## Purpose
 
@@ -22,20 +22,21 @@ Legacy duplicate operations should be redirected into canonical Steward Paths ro
 
 ## Canonical Routes
 
-- `/steward-paths` — saved visual paths list with operations
+- `/steward-paths` — redirects to the canonical Path Library
 - `/steward-paths/builder` — create a new visual path
 - `/steward-paths/builder/:id` — edit an existing path
 - `/steward-paths/enrollments` — live enrollment queue and status operations
 - `/steward-paths/review` — review queue for draft/paused workflows and activation decisions
 - `/steward-paths/activity` — recent path activity with direct timeline jump links
 - `/steward-paths/analytics` — path/enrollment metrics and distribution analytics
-- `/steward-paths/settings` — processing and migration operations
+- `/steward-paths/settings` — guarded due-step processing controls
 - `/steward-paths/:id` — detail route (currently redirects to history)
 - `/steward-paths/:id/history` — path timeline and run history
 
 Legacy route behavior:
 
-- `/automations` is deprecated and redirects to `/steward-paths?deprecated=automations`.
+- `/automations` is deprecated and redirects to `/steward-paths/library`.
+- `/steward-paths/:id/builder` is deprecated and redirects to `/steward-paths/builder/:id`.
 
 ## Saved Visual Path Operations
 
@@ -48,6 +49,14 @@ Each saved path card exposes:
 - Duplicate
 - Archive
 - View run history
+
+## Enrollment Entry Points
+
+- CRM-created constituents automatically enter matching active `CONSTITUENT_CREATED` paths. New donor records also match active `FIRST_TIME_DONOR` paths.
+- Public Site Embed and LiveCom-created constituents use the same enrollment service, so site-originated people enter the same active onboarding paths as CRM-created people.
+- Completed donation entry matches active `DONATION_RECEIVED` paths; the constituent's first completed gift additionally matches active `FIRST_TIME_DONOR` paths.
+- The constituent profile shows active or paused paths, the current step, next scheduled execution, and an ordered preview of any selected active path. Staff with `steward_paths.enroll` can add a path or explicitly replace active paths; replacement cancels prior active or paused enrollments with timeline and constituent activity evidence.
+- Shared enrollment behavior is owned by `server/src/services/steward-path-enrollment-service.ts` to deduplicate each constituent/path pair and maintain a consistent timeline across CRM, public-site, donation, and profile entry points.
 
 ## API Endpoints Used By Canonical Workspace
 
@@ -70,31 +79,9 @@ Step endpoints:
 - `DELETE /api/steward-paths/templates/:id/steps/:stepId`
 - `POST /api/steward-paths/templates/:id/steps/reorder`
 
-Migration endpoint:
-
-- `POST /api/steward-paths/migrations/automations`
-
-## Legacy Migration Notes
-
-A compatibility migration utility imports `Automation` + `AutomationAction` records into `StewardPath` + `StewardPathStep` templates and marks migration metadata in `triggerConfig._migration`.
-
-Current mapping highlights:
-
-- `DONATION_RECEIVED` -> `DONATION_RECEIVED`
-- `CONSTITUENT_CREATED` -> `CONSTITUENT_CREATED`
-- `TASK_DUE` -> `TASK_DUE`
-- `PLEDGE_CREATED` -> `PLEDGE_CREATED`
-- `EMAIL_OPENED` -> `EMAIL_OPENED`
-- `EVENT_REGISTERED` -> `EVENT_REGISTERED`
-- `SEND_EMAIL` -> `DRAFT_EMAIL`
-- `CREATE_TASK` -> `CREATE_TASK`
-- `UPDATE_FIELD` -> `STATUS_CHANGE`
-- `ADD_TAG` / `REMOVE_TAG` -> `STATUS_CHANGE` (migration metadata retained)
-- `ASSIGN_USER` -> `MANUAL_ACTION` fallback
-
 ## Current Parity Status
 
-- Working: dedicated Steward Paths shell at `/steward-paths/*`, canonical list routing, builder-by-id route, enrollments route, review queue route, activity route, analytics route, settings route, history route, share/duplicate/test-run/archive operations, migration endpoint.
+- Working: dedicated Microsoft-style Steward Paths shell at `/steward-paths/*`, typed client boundary in `app/lib/steward-paths-api.ts`, canonical list routing, builder-by-id route, enrollments route, review queue route, activity route, analytics route, settings route, history route, and share/duplicate/test-run/archive operations.
 - Partially Working: inspector parity for linked campaign/template selectors and open-in-email-builder shortcuts.
 
 ## V2 guardrails
@@ -109,3 +96,18 @@ Current mapping highlights:
 - Email actions remain draft-first and review-first by default.
 - Test run endpoint creates a safe test enrollment event and does not auto-send outbound email.
 - Archive is the default destructive action for templates.
+
+## OyamaLetters Execution Contract
+
+- Letter nodes only offer `ACTIVE` OyamaLetters templates for selection; the server also enforces active status at generation time.
+- A generated letter is linked to its enrollment and step run, then creates a reviewable mail task by default. The path waits for that task to be completed unless staff explicitly select a different handoff mode.
+- Delays are scheduled and resumed by the Steward Paths worker. Background execution uses the path creator as its actor fallback when no enrollment or path owner is assigned.
+- Postal generation is blocked when the constituent has `doNotMail` or `doNotContact` set, or when the postal address is incomplete. The failed step is recorded in the enrollment timeline rather than producing a letter.
+
+## OyamaEmail Execution Contract
+
+- Email nodes select an OyamaEmail campaign as a reusable source. When the path reaches the node, its recipient receives a path-owned draft that retains the source campaign ID and uses the selected campaign content when no node-level copy overrides it.
+- The Review workspace exposes pending path email drafts. Approval does not advance the path; reviewers must use the provider-backed Send action to complete delivery or explicitly skip the draft.
+- Sending creates a new one-recipient delivery campaign, then invokes the standard OyamaEmail sender with that constituent's email as the explicit audience. The source campaign and its broader audience are never sent by a path.
+- Email drafting and sending are blocked for missing email addresses, `doNotContact`, `doNotEmail`, and `emailOptOut`. Provider failures mark the draft failed and retain the failure in path timeline history.
+- `20260801090000_add_steward_path_email_campaign_links` adds source and delivery campaign IDs to `StewardPathEmailDraft` for durable audit linkage.

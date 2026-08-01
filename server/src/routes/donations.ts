@@ -24,6 +24,7 @@ import { donationOrgWhere } from "../lib/donationScope.js";
 import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
 import { buildInclusiveCalendarDateFilter } from "../lib/dateOnlyRanges.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
+import { enrollConstituentInTriggeredStewardPaths } from "../services/steward-path-enrollment-service.js";
 import { sendCampaignNow } from "./email-campaigns.js";
 
 const router = Router();
@@ -627,6 +628,21 @@ router.post("/", async (req, res) => {
         error,
       });
     });
+    void prisma.donation.count({
+      where: { constituentId: donation.constituentId, status: "COMPLETED" },
+    }).then((completedGiftCount) => enrollConstituentInTriggeredStewardPaths({
+      organizationId,
+      constituentId: donation.constituentId,
+      triggerTypes: ["DONATION_RECEIVED", ...(completedGiftCount === 1 ? ["FIRST_TIME_DONOR"] : [])],
+      actorUserId: req.user?.sub,
+      source: "api/donations:create",
+    })).catch((error) => {
+      console.error("Failed to enroll donation Steward Paths", {
+        donationId: donation.id,
+        constituentId: donation.constituentId,
+        error,
+      });
+    });
   }
 
   // Keep constituent giving rollups aligned with all-time donation history.
@@ -971,7 +987,7 @@ router.post("/:id/quick-actions/start-path", requirePermission("steward_paths.en
   res.status(201).json({
     enrollmentId: enrollment.id,
     pathId: enrollment.pathId,
-    redirectTo: `/automations?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(enrollment.id)}`,
+    redirectTo: `/steward-paths/enrollments?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(enrollment.id)}`,
   });
 });
 
@@ -1261,7 +1277,7 @@ router.post(
     } else if (followUpTask.id) {
       redirectTo = `/tasks?focus=my&taskId=${encodeURIComponent(followUpTask.id)}`;
     } else if (pathEnrollment.id) {
-      redirectTo = `/automations?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(pathEnrollment.id)}`;
+      redirectTo = `/steward-paths/enrollments?source=donation&constituentId=${encodeURIComponent(donation.constituent.id)}&donationId=${encodeURIComponent(donation.id)}&enrollmentId=${encodeURIComponent(pathEnrollment.id)}`;
     }
 
     res.json({

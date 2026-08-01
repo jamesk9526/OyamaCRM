@@ -197,6 +197,7 @@ function valueOrEnv(value: string | null | undefined, envValue: string): string 
 const BRANDING_PLUGIN_KEY = "organization-branding";
 const CRM_SHELL_PLUGIN_KEY = "crm-shell-preferences";
 const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
+const SUPPORT_TICKET_PLUGIN_KEY = "support-ticket-delivery";
 const EMAIL_PROVIDER_MS_GRAPH_STATE_PREFIX = "email-provider-ms-graph-oauth-state:";
 
 interface EmailProviderInternalSettings {
@@ -217,6 +218,20 @@ interface EmailProviderInternalSettings {
   smtpHostOverride: string;
   smtpPortOverride: number;
   smtpSecureOverride: boolean;
+}
+
+interface SupportTicketSettingsPayload {
+  recipientEmail?: string;
+}
+
+/** Normalizes the support mailbox used for ticket delivery without exposing unrelated plugin settings. */
+function normalizeSupportTicketSettings(input: unknown) {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const recipientEmail = String(raw.recipientEmail ?? "").trim().slice(0, 320);
+
+  return {
+    recipientEmail: isValidEmail(recipientEmail) ? recipientEmail : "",
+  };
 }
 
 /** Default provider config preserves legacy SMTP behavior while enabling provider selection. */
@@ -1092,6 +1107,80 @@ router.put("/email/provider", requireAuth, requireRole("admin"), async (req: Req
     return res.json(normalizeEmailProviderSettings(internalPayload));
   } catch {
     return res.status(500).json({ error: { code: "EMAIL_PROVIDER_WRITE_FAILED", message: "Failed to save email provider settings" } });
+  }
+});
+
+/** GET /api/settings/support-tickets - returns the configured destination for support ticket email. */
+router.get("/support-tickets", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.json({ recipientEmail: "" });
+    }
+
+    const setting = await prisma.pluginSetting.findUnique({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: SUPPORT_TICKET_PLUGIN_KEY,
+        },
+      },
+      select: { config: true },
+    });
+
+    return res.json(normalizeSupportTicketSettings(setting?.config ?? {}));
+  } catch {
+    return res.status(500).json({ error: { code: "SUPPORT_TICKET_SETTINGS_READ_FAILED", message: "Failed to load support ticket settings." } });
+  }
+});
+
+/** PUT /api/settings/support-tickets - configures the organization support mailbox. */
+router.put("/support-tickets", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await resolveSettingsOrganizationId(req);
+    if (!organizationId) {
+      return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization has been configured yet." } });
+    }
+
+    const payload = normalizeSupportTicketSettings(req.body as SupportTicketSettingsPayload);
+    const requestedRecipient = String((req.body as SupportTicketSettingsPayload).recipientEmail ?? "").trim();
+    if (requestedRecipient && !payload.recipientEmail) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Enter a valid support recipient email address." } });
+    }
+
+    await prisma.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: SUPPORT_TICKET_PLUGIN_KEY,
+        },
+      },
+      create: {
+        organizationId,
+        pluginKey: SUPPORT_TICKET_PLUGIN_KEY,
+        enabled: true,
+        config: payload as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        enabled: true,
+        config: payload as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await logAudit({
+      action: "SUPPORT_TICKET_SETTINGS_UPDATED",
+      entity: "PluginSetting",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { recipientConfigured: Boolean(payload.recipientEmail) },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.json(payload);
+  } catch {
+    return res.status(500).json({ error: { code: "SUPPORT_TICKET_SETTINGS_WRITE_FAILED", message: "Failed to save support ticket settings." } });
   }
 });
 

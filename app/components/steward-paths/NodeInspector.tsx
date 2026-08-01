@@ -1177,6 +1177,46 @@ export default function NodeInspector({
             </div>
             {templatesLoading ? <p className="text-[11px] text-gray-600">Loading templates...</p> : null}
             {templateError ? <p className="text-[11px] text-rose-700">{templateError}</p> : null}
+
+            <label className="block">
+              <span className="text-xs font-medium text-slate-700">After generation</span>
+              <select
+                value={readString(activeNode.config, "taskMode") || "create_and_wait_for_completion"}
+                onChange={(event) => updateConfig("taskMode", event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+              >
+                <option value="create_and_wait_for_completion">Create mail task and wait for completion</option>
+                <option value="create_and_continue">Create mail task and continue</option>
+                <option value="none">Generate only</option>
+              </select>
+            </label>
+
+            {readString(activeNode.config, "taskMode") !== "none" ? (
+              <>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Mail task title</span>
+                  <input
+                    type="text"
+                    value={readString(activeNode.config, "taskTitleTemplate")}
+                    onChange={(event) => updateConfig("taskTitleTemplate", event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-slate-700">Priority</span>
+                  <select
+                    value={readString(activeNode.config, "priority") || "MEDIUM"}
+                    onChange={(event) => updateConfig("priority", event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
           </div>
         )}
 

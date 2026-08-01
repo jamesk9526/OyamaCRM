@@ -1,15 +1,6 @@
-// Watchdog route entry for cross-CRM feedback ticket triage.
+import { redirect } from "next/navigation";
 
-import { WatchdogTicketsDashboard } from "@/app/features/watchdog/tickets/WatchdogTicketsDashboard";
-
-/**
- * WatchdogFeedbackTicketsPage renders the dedicated ticketing command center.
- * This page is intentionally separate from dashboard anchors so queue triage has room.
- */
+/** Legacy Watchdog ticket URL retained for saved links. */
 export default function WatchdogFeedbackTicketsPage() {
-  return (
-    <div className="space-y-4">
-      <WatchdogTicketsDashboard />
-    </div>
-  );
+  redirect("/watchdog/support-tickets");
 }

@@ -557,7 +557,7 @@ export function buildWatchdogSidebarGroups(): CrmSidebarGroup[] {
       collapsible: true,
       items: [
         { id: "settings", label: "Settings", href: "/watchdog/settings", icon: DONOR_ICONS.settings, kind: "system", description: "Manage Watchdog policy and workspace-level settings." },
-        { id: "feedback-tickets", label: "Feedback Tickets", href: "/watchdog/feedback-tickets", icon: DONOR_ICONS.communications, kind: "system", description: "Review and triage cross-CRM user feedback." },
+        { id: "support-tickets", label: "Support Tickets", href: "/watchdog/support-tickets", icon: DONOR_ICONS.communications, kind: "system", description: "Review and triage location-aware CRM support requests." },
       ],
     },
   ];

@@ -1,8 +1,9 @@
-// Detail panel with assignment and resolution controls for one Watchdog feedback ticket.
+// Detail panel with evidence, assignment, and resolution controls for one Watchdog support ticket.
 
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { WatchdogTicketStatusBadge } from "@/app/features/watchdog/tickets/WatchdogTicketStatusBadge";
 import type {
   WatchdogFeedbackPriority,
@@ -75,6 +76,30 @@ export function WatchdogTicketDetail({ ticket, developers, busy, onSave, onResol
           <p className="text-xs text-slate-300 break-all">Route: <span className="text-slate-100">{ticket.routePath || ticket.pageUrl}</span></p>
           <p className="text-xs text-slate-300">Environment: <span className="text-slate-100">{ticket.environment || "unknown"}</span></p>
         </div>
+
+        <div className="rounded-lg border border-slate-700 bg-slate-950/70 p-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Support delivery</p>
+          <p className="text-xs text-slate-300">Notification: <span className="text-slate-100">{ticket.supportEmailStatus.replaceAll("_", " ")}</span></p>
+          {ticket.supportEmailRecipient ? <p className="text-xs text-slate-300 break-all">Recipient: <span className="text-slate-100">{ticket.supportEmailRecipient}</span></p> : null}
+          {ticket.supportEmailError ? <p className="text-xs leading-5 text-amber-200">Delivery error: {ticket.supportEmailError}</p> : null}
+        </div>
+
+        {ticket.screenshotDataUrl ? (
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Attached page screenshot</p>
+            <a href={ticket.screenshotDataUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-700 bg-slate-950/70 hover:border-slate-500">
+              <Image src={ticket.screenshotDataUrl} alt={`Screenshot attached to ${ticket.ticketNumber}`} width={1440} height={900} unoptimized className="max-h-72 w-full object-contain object-top" />
+            </a>
+          </div>
+        ) : null}
+
+        {(ticket.browserInfo || ticket.deviceInfo) ? (
+          <div className="rounded-lg border border-slate-700 bg-slate-950/70 p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Browser diagnostics</p>
+            {ticket.deviceInfo ? <p className="break-words text-xs leading-5 text-slate-300">{ticket.deviceInfo}</p> : null}
+            {ticket.browserInfo ? <p className="break-words text-xs leading-5 text-slate-400">{ticket.browserInfo}</p> : null}
+          </div>
+        ) : null}
 
         {ticket.whatTryingToDo ? (
           <div className="space-y-1">
