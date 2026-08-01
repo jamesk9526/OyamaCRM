@@ -1,9 +1,9 @@
-/** StewardAIWorkspace — thin shell that mounts the full AGENTSteward chat workspace. */
+/** StewardAIWorkspace — route shell for the focused Copilot chat workspace. */
 "use client";
 
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import AGENTStewardWorkspace from "@/app/components/ai/AGENTStewardWorkspace";
+import StewardCopilotWorkspace from "@/app/components/ai/StewardCopilotWorkspace";
 
 type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "all";
 
@@ -16,7 +16,7 @@ function resolveModuleKey(raw: string | null): ModuleKey {
   return "donor";
 }
 
-/** StewardAIWorkspace provides the AGENTSteward full-page workspace via URL module param. */
+/** StewardAIWorkspace provides the Copilot workspace via URL module param. */
 export default function StewardAIWorkspace() {
   const searchParams = useSearchParams();
   const initialModule = useMemo(() => resolveModuleKey(searchParams.get("module")), [searchParams]);
@@ -24,7 +24,7 @@ export default function StewardAIWorkspace() {
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <AGENTStewardWorkspace initialModule={initialModule} initialThreadId={initialThreadId} />
+      <StewardCopilotWorkspace initialModule={initialModule} initialThreadId={initialThreadId} />
     </div>
   );
 }

@@ -129,7 +129,8 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(megaMenu).toContain('label: "Operations"');
     expect(megaMenu).toContain("bg-slate-950/25");
     expect(megaMenu).toContain("accentTheme.navActive");
-    expect(megaMenu).toContain('bg-[#292929]');
+    expect(megaMenu).toContain('background: "#292929"');
+    expect(megaMenu).toContain('borderColor: "#4b4b4b"');
     expect(megaMenu).toContain('border-[#3a96dd]');
     expect(megaMenu).toContain("mobileNavOpen");
     expect(sidebar).toContain('label: "Overview"');
@@ -167,7 +168,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
     expect(topBar).toContain("OyamaCRM v1.3 home");
-    expect(topBar).toContain("Steward Workspace");
+    expect(topBar).toContain("Steward Copilot");
     expect(topBar).toContain("Quick Add");
     expect(topBar).toContain("lg:hidden");
     expect(megaMenu).toContain("top-14");

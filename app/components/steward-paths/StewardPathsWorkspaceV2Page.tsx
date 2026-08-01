@@ -42,6 +42,7 @@ interface PathRunStats {
 }
 
 type StatusFilter =
+  | "OPERATIONAL"
   | "ALL"
   | "DRAFT"
   | "NEEDS_REVIEW"
@@ -106,7 +107,8 @@ interface NewPathSeedStep {
 }
 
 const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
-  { value: "ALL", label: "All" },
+  { value: "OPERATIONAL", label: "Operational" },
+  { value: "ALL", label: "All records" },
   { value: "DRAFT", label: "Draft" },
   { value: "NEEDS_REVIEW", label: "Needs Review" },
   { value: "PUBLISHED", label: "Published" },
@@ -115,6 +117,8 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
   { value: "ERRORED", label: "Errored" },
   { value: "ARCHIVED", label: "Archived" },
 ];
+
+const PATHS_PER_PAGE = 24;
 
 const CATEGORY_OPTIONS: Array<{ value: CategoryFilter; label: string }> = [
   { value: "all", label: "All Types" },
@@ -211,6 +215,7 @@ function statusLabel(path: StewardPathTemplate, stats: PathRunStats): StatusFilt
 }
 
 function matchesStatusFilter(path: StewardPathTemplate, stats: PathRunStats, filter: StatusFilter): boolean {
+  if (filter === "OPERATIONAL") return path.status !== "ARCHIVED";
   if (filter === "ALL") return true;
   if (filter === "DRAFT") return path.status === "DRAFT";
   if (filter === "NEEDS_REVIEW") return path.status === "DRAFT" || path.status === "PAUSED";
@@ -554,10 +559,11 @@ export default function StewardPathsWorkspaceV2Page({
   const [busyPathId, setBusyPathId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("OPERATIONAL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("updated");
+  const [pathPage, setPathPage] = useState(1);
 
   const [createOpen, setCreateOpen] = useState(initialOpenCreate);
   const [createBusy, setCreateBusy] = useState(false);
@@ -659,6 +665,15 @@ export default function StewardPathsWorkspaceV2Page({
     });
   }, [categoryFilter, ownerFilter, pathStatsById, paths, searchQuery, sortMode, statusFilter]);
 
+  const totalPathPages = Math.max(1, Math.ceil(visiblePaths.length / PATHS_PER_PAGE));
+  const currentPathPage = Math.min(pathPage, totalPathPages);
+  const firstVisiblePathIndex = visiblePaths.length === 0 ? 0 : (currentPathPage - 1) * PATHS_PER_PAGE;
+  const pagePaths = visiblePaths.slice(firstVisiblePathIndex, firstVisiblePathIndex + PATHS_PER_PAGE);
+
+  useEffect(() => {
+    setPathPage(1);
+  }, [searchQuery, statusFilter, categoryFilter, ownerFilter, sortMode]);
+
   const totalEnrollments = useMemo(() => enrollments.length, [enrollments]);
   const activeEnrollments = useMemo(() => enrollments.filter((item) => item.status === "ACTIVE").length, [enrollments]);
   const completedEnrollments = useMemo(() => enrollments.filter((item) => item.status === "COMPLETED").length, [enrollments]);
@@ -736,7 +751,7 @@ export default function StewardPathsWorkspaceV2Page({
 
   function resetFilters(): void {
     setSearchQuery("");
-    setStatusFilter("ALL");
+    setStatusFilter("OPERATIONAL");
     setCategoryFilter("all");
     setOwnerFilter("all");
     setSortMode("updated");
@@ -1044,7 +1059,7 @@ export default function StewardPathsWorkspaceV2Page({
             </div>
           </div>
 
-          <p className="mt-2 text-xs text-slate-500">Published currently maps to Active in the runtime engine; this filter remains visible for stage clarity.</p>
+          <p className="mt-2 text-xs text-slate-500">Operational is the focused default; choose All records or Archived when you need historical templates. Published currently maps to Active in the runtime engine.</p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {STATUS_FILTERS.map((item) => (
@@ -1113,7 +1128,34 @@ export default function StewardPathsWorkspaceV2Page({
           </section>
         ) : (
           <section className="grid gap-3">
-            {visiblePaths.map((path) => {
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500">
+              <span>
+                Showing {firstVisiblePathIndex + 1}-{Math.min(firstVisiblePathIndex + PATHS_PER_PAGE, visiblePaths.length)} of {visiblePaths.length} matching paths
+              </span>
+              {totalPathPages > 1 ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPathPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPathPage === 1}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span>Page {currentPathPage} of {totalPathPages}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPathPage((page) => Math.min(totalPathPages, page + 1))}
+                    disabled={currentPathPage === totalPathPages}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {pagePaths.map((path) => {
               const stats = pathStatsById.get(path.id) ?? { total: 0, active: 0, completed: 0, failed: 0, lastRunAt: null };
               const category = derivePathCategory(path);
               const label = statusLabel(path, stats);
@@ -1185,14 +1227,14 @@ export default function StewardPathsWorkspaceV2Page({
                     </div>
                   </div>
 
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-[10px] uppercase tracking-wide text-slate-500">Trigger</p>
                       <p className="mt-1 text-xs font-semibold text-slate-900">{path.triggerType || "MANUAL"}</p>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-500">Path Type</p>
-                      <p className="mt-1 text-xs font-semibold text-slate-900">{path.targetType}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500">Active Steps</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-900">{path.steps.filter((step) => step.isActive !== false).length}</p>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-[10px] uppercase tracking-wide text-slate-500">Enrolled</p>
@@ -1202,26 +1244,14 @@ export default function StewardPathsWorkspaceV2Page({
                       <p className="text-[10px] uppercase tracking-wide text-emerald-700">Active Donors</p>
                       <p className="mt-1 text-xs font-semibold text-emerald-800">{stats.active}</p>
                     </div>
-                    <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wide text-blue-700">Completed</p>
-                      <p className="mt-1 text-xs font-semibold text-blue-800">{stats.completed}</p>
-                    </div>
                     <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wide text-rose-700">Errored</p>
+                      <p className="text-[10px] uppercase tracking-wide text-rose-700">Issues</p>
                       <p className="mt-1 text-xs font-semibold text-rose-800">{stats.failed}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-500">Last Run</p>
-                      <p className="mt-1 text-xs font-semibold text-slate-900">{formatDate(stats.lastRunAt)}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-500">Owner</p>
-                      <p className="mt-1 text-xs font-semibold text-slate-900">{readOwnerLabel(path)}</p>
                     </div>
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                    <span>Updated {formatDate(path.updatedAt)}</span>
+                    <span>Updated {formatDate(path.updatedAt)} · {readOwnerLabel(path)} · Last run {formatDate(stats.lastRunAt)}</span>
                     <span>{nextAction.reason}</span>
                   </div>
                 </article>

@@ -119,6 +119,27 @@ describe("steward paths playground service", () => {
     expect(reset?.steps.every((step) => step.status === "pending")).toBe(true);
   });
 
+  it("supports a synthetic donor so exploratory simulations do not require CRM data", () => {
+    const run = createPlaygroundRun({
+      organizationId: ORG_ID,
+      pathId: PATH_ID,
+      pathName: "Retention Path",
+      steps: baseSteps(),
+      scenarioId: "opt-out-guardrails",
+    });
+
+    expect(run.sourceConstituent.source).toBe("synthetic");
+    expect(run.scenario.donorProfile.doNotContact).toBe(true);
+
+    const completed = advancePlaygroundRun({
+      organizationId: ORG_ID,
+      pathId: PATH_ID,
+      runId: run.runId,
+      action: "auto",
+    });
+    expect(completed?.summary.blocked).toBeGreaterThan(0);
+  });
+
   it("generates sandbox email previews with safety prefixes and no analytics", () => {
     const run = createPlaygroundRun({
       organizationId: ORG_ID,

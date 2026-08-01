@@ -748,9 +748,7 @@ function resolveBranchJumpLabels(steps: PlannedStep[]): BackendStewardPathStepIn
 
 /**
  * Converts the visual document into linear template + step payloads.
- *
- * TODO(branch-persistence): map branch lanes into backend branch jump indexes
- * once full branch execution and join semantics are finalized.
+ * Branch lane labels are resolved to backend order indexes immediately before persistence.
  */
 export function toLinearWorkflowExport(doc: WorkflowDocument): LinearWorkflowExport {
   const triggerNode = doc.rootNodeIds

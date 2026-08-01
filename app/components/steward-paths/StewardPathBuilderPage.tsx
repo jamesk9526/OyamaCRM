@@ -11,7 +11,6 @@ import ConstituentSearchCombobox from "./ConstituentSearchCombobox";
 import AddStepPicker from "./AddStepPicker";
 import NodeInspector from "./NodeInspector";
 import NodePalette from "./NodePalette";
-import StewardPathsPlaygroundModal from "./StewardPathsPlaygroundModal";
 import { PALETTE_ITEMS } from "./palette-catalog";
 import WorkflowCanvas from "./WorkflowCanvas";
 import { describeInsertTarget } from "./workflow-layout";
@@ -198,9 +197,6 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [showTestInput, setShowTestInput] = useState(false);
-  const [testConstituentId, setTestConstituentId] = useState("");
-  const [testDonorName, setTestDonorName] = useState("");
-  const [showTestModal, setShowTestModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [stepPickerOpen, setStepPickerOpen] = useState(false);
@@ -709,12 +705,16 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               <ConstituentSearchCombobox
                 disabled={busyAction !== null}
                 onConfirm={(id, name) => {
-                  setTestConstituentId(id);
-                  setTestDonorName(name);
                   setShowTestInput(false);
-                  setShowTestModal(true);
+                  const templateId = doc.persistence.templateId;
+                  if (!templateId) return;
+                  window.open(
+                    `/steward-paths/${encodeURIComponent(templateId)}/playground?constituentId=${encodeURIComponent(id)}&donorName=${encodeURIComponent(name)}`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
                 }}
-                onCancel={() => { setShowTestInput(false); setTestConstituentId(""); setTestDonorName(""); }}
+                onCancel={() => setShowTestInput(false)}
               />
             ) : (
               <button
@@ -732,8 +732,11 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
               <button
                 type="button"
                 onClick={() => {
-                  setShowTestInput(false);
-                  setShowTestModal(true);
+                  window.open(
+                    `/steward-paths/${encodeURIComponent(doc.persistence.templateId ?? "")}/playground`,
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
                 }}
                 className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
@@ -999,22 +1002,6 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
         onAdd={addNode}
       />
 
-      {/* Test Run Modal — visual dry-run simulation */}
-      {showTestModal && (
-        <StewardPathsPlaygroundModal
-          templateId={doc.persistence.templateId ?? ""}
-          pathName={doc.pathName}
-          initialConstituentId={testConstituentId}
-          initialDonorName={testDonorName}
-          onClose={() => {
-            setShowTestModal(false);
-            setTestConstituentId("");
-            setTestDonorName("");
-            setDoc((prev) => ({ ...prev, status: "test-mode" }));
-            setFeedbackMessage(`Playground run closed for ${testDonorName || testConstituentId}.`);
-          }}
-        />
-      )}
     </div>
   );
 }

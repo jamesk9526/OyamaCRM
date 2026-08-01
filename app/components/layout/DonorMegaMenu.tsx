@@ -177,7 +177,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
         },
         {
           id: "agent-steward",
-          label: "AGENTSteward AI",
+          label: "Steward Copilot",
           href: "/steward-ai-workspace",
           description: "AI-powered CRM assistant",
           badge: "AI",

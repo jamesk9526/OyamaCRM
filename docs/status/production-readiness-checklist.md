@@ -233,6 +233,11 @@ If any item above is not met, status must remain `Partially Working`, `Demo Only
 | Settings stage exposes guarded process-due operations through the dedicated Paths API client | Working | `app/steward-paths/settings/page.tsx`, `app/lib/steward-paths-api.ts`, `server/src/routes/steward-paths.ts` |
 | Campaign follow-up shortcut points to canonical Steward Paths builder flow | Working | `app/campaigns/[id]/page.tsx` |
 | Legacy `/automations` route remains compatibility-only redirect | Working | `app/automations/page.tsx` |
+| Builder connectors add every supported step at an exact root or branch-lane target, with stale targets failing closed | Working | `app/components/steward-paths/AddStepPicker.tsx`, `app/components/steward-paths/StewardPathBuilderPage.tsx`, `app/components/steward-paths/workflow-utils.ts`, `tests/unit/steward-paths-workflow-builder.test.ts` |
+| Draft save and activation readiness use explicit trigger, linked-template/campaign, date, and branch invariants | Working | `app/components/steward-paths/workflow-transformers.ts`, `app/components/steward-paths/StewardPathBuilderPage.tsx`, `tests/unit/steward-paths-workflow-builder.test.ts` |
+| Steward AI prompt and read-tool planner apply shared grounding, prompt-injection, input-contract, and Paths-specific action rules | Working | `server/src/steward/prompt-policy.ts`, `server/src/steward/context-builders.ts`, `server/src/steward/agentic.ts`, `server/src/services/steward-tool-registry.ts`, `tests/unit/steward-prompt-policy.test.ts` |
+| Dedicated AI workspace is a focused Copilot-style conversation surface with scoped threads, streaming tool state, rendered artifacts, and a single safe command composer | Working | `app/components/ai/StewardCopilotWorkspace.tsx`, `app/components/ai/StewardAIWorkspace.tsx`, `/api/steward-ai/chat/stream` |
+| Path Library defaults to operational records and paginates compact triage cards, keeping archived history available without overwhelming current work | Working | `app/components/steward-paths/StewardPathsWorkspaceV2Page.tsx` |
 
 ## DonorCRM Audit Refresh Snapshot (2026-06-09)
 

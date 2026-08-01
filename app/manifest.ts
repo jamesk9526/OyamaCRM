@@ -60,7 +60,7 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: "Steward AI",
         url: "/steward-ai-workspace",
-        description: "Open AGENTSteward workspace",
+        description: "Open Steward Copilot",
       },
     ],
   };

@@ -69,12 +69,13 @@ export default function AddStepPicker({ open, targetLabel, allowTriggers, onClos
             <input
               ref={inputRef}
               type="search"
+              aria-label="Search blocks"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search actions, conditions, waits, and safeguards"
               className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#0f6cbd]/15"
             />
-            <select value={category} onChange={(event) => setCategory(event.target.value as NodeCategory | "all")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700">
+            <select aria-label="Filter blocks by type" value={category} onChange={(event) => setCategory(event.target.value as NodeCategory | "all")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700">
               <option value="all">All block types</option>
               {CATEGORY_ORDER.filter((item) => allowTriggers || item !== "trigger").map((item) => <option key={item} value={item}>{CATEGORY_LABELS[item]}</option>)}
             </select>

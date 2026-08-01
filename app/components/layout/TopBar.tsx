@@ -1827,12 +1827,12 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
                   <Link
                     href="/steward-ai-workspace"
-                    title="Open Steward Workspace"
-                    aria-label="Open Steward Workspace"
+                    title="Open Steward Copilot"
+                    aria-label="Open Steward Copilot"
                     className="ml-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-300/30 bg-violet-500/90 px-2 text-[11px] font-semibold text-white shadow-[0_5px_14px_rgba(124,58,237,0.22)] transition-colors hover:bg-violet-500"
                   >
                     <AiOrbIcon className="h-3.5 w-3.5" />
-                    <span className="hidden min-[1400px]:inline">Steward Workspace</span>
+                    <span className="hidden min-[1400px]:inline">Steward Copilot</span>
                   </Link>
                 </>
               ) : (
@@ -1849,12 +1849,12 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
                   <Link
                     href="/steward-ai-workspace"
-                    title="Open Steward Workspace"
-                    aria-label="Open Steward Workspace"
+                    title="Open Steward Copilot"
+                    aria-label="Open Steward Copilot"
                     className="ml-0.5 inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                   >
                     <StewardAvatarIcon size={12} alt="Steward" className="ring-slate-300/80" />
-                    <span className="hidden min-[1500px]:inline">Workspace</span>
+                    <span className="hidden min-[1500px]:inline">Copilot</span>
                   </Link>
                 </>
               )}

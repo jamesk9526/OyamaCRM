@@ -641,13 +641,12 @@ router.post("/:id/playground/run", requirePermission("steward_paths.view"), asyn
   }
 
   const constituentId = typeof req.body?.constituentId === "string" ? req.body.constituentId.trim() : "";
-  if (!constituentId) {
-    res.status(400).json({ error: { code: "CONSTITUENT_REQUIRED", message: "constituentId is required." } });
-    return;
-  }
-
-  const constituent = await loadPlaygroundConstituent(organizationId, constituentId);
-  if (!constituent) {
+  // A real donor is optional: without one the Playground service generates a synthetic
+  // profile. This keeps exploratory path testing entirely inside the sandbox.
+  const constituent = constituentId
+    ? await loadPlaygroundConstituent(organizationId, constituentId)
+    : null;
+  if (constituentId && !constituent) {
     res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found in this organization." } });
     return;
   }

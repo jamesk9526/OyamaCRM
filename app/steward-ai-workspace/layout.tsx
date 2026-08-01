@@ -1,15 +1,15 @@
 /**
- * AGENTSteward workspace standalone layout.
+ * Steward Copilot standalone layout.
  * Bypasses the CRM AppShell so the workspace fills the full viewport edge-to-edge
  * and supports PWA installation on mobile devices.
  */
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
-/** PWA + mobile metadata for the Steward workspace route. */
+/** PWA + mobile metadata for the Steward Copilot route. */
 export const metadata: Metadata = {
-  title: "AGENTSteward — OyamaCRM v1.3",
-  description: "AI-powered CRM assistant for donor intelligence and fundraising.",
+  title: "Steward Copilot — OyamaCRM v1.3",
+  description: "Copilot-style CRM assistant for grounded donor intelligence and safe next actions.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
