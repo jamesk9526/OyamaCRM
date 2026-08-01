@@ -1796,8 +1796,10 @@ router.post("/process-due", requirePermission("steward_paths.process_due_steps")
   }
 
   const limit = parsePositiveInt(req.body?.limit, 100, 1, 500);
+  const enrollmentId = typeof req.body?.enrollmentId === "string" ? req.body.enrollmentId.trim() : undefined;
   const result = await processDueStewardPathEnrollments({
     organizationId,
+    ...(enrollmentId ? { enrollmentId } : {}),
     limit,
     userId,
     source: "manual-api",
@@ -1808,7 +1810,7 @@ router.post("/process-due", requirePermission("steward_paths.process_due_steps")
     entity: "StewardPath",
     userId,
     organizationId,
-    metadata: { ...result },
+    metadata: { ...result, ...(enrollmentId ? { enrollmentId } : {}) },
   });
 
   res.json(result);

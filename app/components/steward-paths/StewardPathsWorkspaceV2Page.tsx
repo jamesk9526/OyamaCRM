@@ -71,6 +71,21 @@ type StartMode = "scratch" | "template" | "duplicate" | "import";
 
 type TemplatePreset = "none" | "donor-welcome" | "lapsed-reengagement" | "event-follow-up";
 
+const STARTER_TEMPLATES: Array<{
+  preset: Exclude<TemplatePreset, "none">;
+  name: string;
+  eyebrow: string;
+  description: string;
+  category: PathCategoryKey;
+  trigger: string;
+  steps: number;
+  tone: string;
+}> = [
+  { preset: "donor-welcome", name: "New Donor Welcome", eyebrow: "First gift", description: "A review-first thank-you email and staff welcome call.", category: "new-donor-welcome", trigger: "FIRST_TIME_DONOR", steps: 3, tone: "border-emerald-200 bg-emerald-50/70" },
+  { preset: "lapsed-reengagement", name: "Lapsed Donor Recovery", eyebrow: "Retention", description: "Branch by engagement and coordinate thoughtful re-engagement.", category: "lapsed-donor-recovery", trigger: "DONOR_LAPSED", steps: 4, tone: "border-violet-200 bg-violet-50/70" },
+  { preset: "event-follow-up", name: "Event Follow-Up", eyebrow: "Post-event", description: "Prepare timely email and printable follow-up after attendance.", category: "event-follow-up", trigger: "EVENT_ATTENDED", steps: 3, tone: "border-blue-200 bg-blue-50/70" },
+];
+
 interface CreatePathDraft {
   mode: StartMode;
   name: string;
@@ -736,6 +751,22 @@ export default function StewardPathsWorkspaceV2Page({
     }
   }
 
+  function openTemplateStarter(template: (typeof STARTER_TEMPLATES)[number]): void {
+    setCreateError(null);
+    setCreateDraft({
+      ...initialCreateDraft(),
+      mode: "template",
+      name: template.name,
+      purpose: template.eyebrow,
+      category: template.category,
+      startingTrigger: template.trigger,
+      description: template.description,
+      templatePreset: template.preset,
+    });
+    setCreateOpen(true);
+    if (!window.location.search.includes("create=1")) router.replace("/steward-paths/library?create=1");
+  }
+
   function closeCreateModal(): void {
     setCreateOpen(false);
     setCreateError(null);
@@ -913,6 +944,29 @@ export default function StewardPathsWorkspaceV2Page({
             "paths-analytics-view": () => router.push("/steward-paths/analytics"),
           }}
         />
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 md:px-5">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-950">Proven starting points</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Use a production-safe starter, then customize every trigger, branch, and action.</p>
+            </div>
+            <button type="button" onClick={openCreateModal} className="text-xs font-semibold text-[#0f6cbd] hover:text-[#115ea3]">Start from scratch →</button>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-3 md:p-5">
+            {STARTER_TEMPLATES.map((template) => (
+              <button key={template.preset} type="button" onClick={() => openTemplateStarter(template)} className={`group rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:border-[#0f6cbd] hover:shadow-md ${template.tone}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{template.eyebrow}</span>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">{template.steps} steps</span>
+                </div>
+                <h3 className="mt-3 text-base font-semibold text-slate-950">{template.name}</h3>
+                <p className="mt-1 min-h-10 text-xs leading-5 text-slate-600">{template.description}</p>
+                <span className="mt-3 inline-flex text-xs font-semibold text-[#0f6cbd]">Use this starter →</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="grid gap-2 lg:grid-cols-[minmax(260px,1.2fr)_170px_170px_150px_170px_auto]">
@@ -1376,18 +1430,17 @@ export default function StewardPathsWorkspaceV2Page({
                 </label>
 
                 {createDraft.mode === "template" ? (
-                  <label className="block sm:col-span-2">
+                  <div className="sm:col-span-2">
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Template Starter</span>
-                    <select
-                      value={createDraft.templatePreset}
-                      onChange={(event) => setCreateDraft((prev) => ({ ...prev, templatePreset: event.target.value as TemplatePreset }))}
-                      className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm text-slate-900"
-                    >
-                      <option value="donor-welcome">New Donor Welcome</option>
-                      <option value="lapsed-reengagement">Lapsed Donor Recovery</option>
-                      <option value="event-follow-up">Event Follow-Up</option>
-                    </select>
-                  </label>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                      {STARTER_TEMPLATES.map((template) => (
+                        <button key={template.preset} type="button" onClick={() => setCreateDraft((prev) => ({ ...prev, templatePreset: template.preset, category: template.category, startingTrigger: template.trigger }))} className={`rounded-xl border p-3 text-left ${createDraft.templatePreset === template.preset ? "border-[#0f6cbd] bg-blue-50 ring-2 ring-[#0f6cbd]/15" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+                          <span className="text-xs font-semibold text-slate-900">{template.name}</span>
+                          <span className="mt-1 block text-[11px] text-slate-500">{template.steps} configured steps</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ) : null}
 
                 <label className="block sm:col-span-2">

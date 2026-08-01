@@ -76,6 +76,8 @@ export interface WorkflowSupportReport {
   canActivate: boolean;
   hasBranchNodes: boolean;
   unsupportedKinds: string[];
+  /** Issues that allow draft persistence but must block activation. */
+  activationReasons: string[];
   reasons: string[];
 }
 
@@ -475,9 +477,9 @@ export function analyzeWorkflowSupport(doc: WorkflowDocument): WorkflowSupportRe
 
   inspectNodeIds(doc.rootNodeIds);
 
-  const reasons: string[] = [];
+  const saveReasons: string[] = [];
   if (unsupportedKinds.size > 0) {
-    reasons.push(`Unsupported step kinds for current API save: ${Array.from(unsupportedKinds).join(", ")}.`);
+    saveReasons.push(`Unsupported step kinds for current API save: ${Array.from(unsupportedKinds).join(", ")}.`);
   }
 
   const linearStepCount = doc.rootNodeIds
@@ -486,15 +488,61 @@ export function analyzeWorkflowSupport(doc: WorkflowDocument): WorkflowSupportRe
     .filter((node) => !isTriggerKind(node.kind))
     .length;
   if (linearStepCount === 0) {
-    reasons.push("At least one non-trigger action step is required before saving.");
+    saveReasons.push("At least one non-trigger action step is required before saving.");
   }
 
-  const canSaveLinear = reasons.length === 0;
+  const activationReasons: string[] = [];
+  const reachableNodeIds: string[] = [];
+  const collectReachable = (nodeIds: string[]) => {
+    for (const nodeId of nodeIds) {
+      reachableNodeIds.push(nodeId);
+      const node = doc.nodesById[nodeId];
+      if (node && isBranchNode(node)) node.lanes.forEach((lane) => collectReachable(lane.nodeIds));
+    }
+  };
+  collectReachable(doc.rootNodeIds);
+
+  const triggerIds = reachableNodeIds.filter((nodeId) => isTriggerKind(doc.nodesById[nodeId]?.kind ?? ""));
+  if (triggerIds.length !== 1) activationReasons.push("Exactly one trigger is required before publishing.");
+  if (triggerIds.length === 1 && doc.rootNodeIds[0] !== triggerIds[0]) {
+    activationReasons.push("The trigger must be the first block in the main path.");
+  }
+
+  for (const nodeId of reachableNodeIds) {
+    const node = doc.nodesById[nodeId];
+    if (!node) {
+      activationReasons.push(`The path references a missing block (${nodeId}).`);
+      continue;
+    }
+    if (node.kind === "print.generate_letter" && !readString(node.config, "templateId")) {
+      activationReasons.push(`Configure a letter template for “${node.title}”.`);
+    }
+    if (node.kind === "email.schedule_blast" && !readString(node.config, "campaignId")) {
+      activationReasons.push(`Select a source campaign for “${node.title}”.`);
+    }
+    if (node.kind === "timing.until_date") {
+      const dateIso = readString(node.config, "dateIso", readString(node.config, "date"));
+      if (!dateIso || Number.isNaN(new Date(dateIso).getTime())) activationReasons.push(`Choose a valid date for “${node.title}”.`);
+    }
+    if (isBranchNode(node)) {
+      if (node.lanes.length < 2) activationReasons.push(`“${node.title}” needs at least two branch lanes.`);
+      if (node.lanes.filter((lane) => lane.isFallback).length !== 1) activationReasons.push(`“${node.title}” needs exactly one fallback lane.`);
+      for (const lane of node.lanes.filter((candidate) => !candidate.isFallback)) {
+        if (lane.conditionGroups.length === 0 || lane.conditionGroups.some((condition) => !condition.value.trim())) {
+          activationReasons.push(`Complete the condition for branch lane “${lane.label}”.`);
+        }
+      }
+    }
+  }
+
+  const canSaveLinear = saveReasons.length === 0;
+  const reasons = [...saveReasons, ...activationReasons];
   return {
     canSaveLinear,
-    canActivate: canSaveLinear,
+    canActivate: canSaveLinear && activationReasons.length === 0,
     hasBranchNodes,
     unsupportedKinds: Array.from(unsupportedKinds),
+    activationReasons,
     reasons,
   };
 }

@@ -108,7 +108,7 @@ describe("API smoke tests", () => {
     const processed = await request(app)
       .post("/api/steward-paths/process-due")
       .set(auth)
-      .send({ limit: 25 });
+      .send({ limit: 1, enrollmentId });
     expect(processed.status).toBe(200);
     expect(processed.body).toHaveProperty("processed");
 
@@ -132,8 +132,37 @@ describe("API smoke tests", () => {
       .get("/api/constituents")
       .set(auth);
     expect(constituents.status).toBe(200);
-    const constituent = (constituents.body as Array<{ id: string }>)[0];
+    let constituent = (constituents.body as Array<{
+      id: string;
+      addressLine1?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zip?: string | null;
+      doNotMail?: boolean;
+    }>).find((row) => Boolean(row.addressLine1 && row.city && row.state && row.zip && !row.doNotMail));
+
+    // Letter generation is intentionally address-gated. Seed data is not a
+    // stable test fixture, so create an eligible record when none is present.
+    if (!constituent?.id) {
+      const created = await request(app)
+        .post("/api/constituents")
+        .set(auth)
+        .send({
+          firstName: "Letter",
+          lastName: `Smoke ${Date.now()}`,
+          email: `letter-smoke-${Date.now()}@example.org`,
+          addressLine1: "100 Main St",
+          city: "Springfield",
+          state: "IL",
+          zip: "62701",
+          type: "DONOR",
+        });
+      expect(created.status).toBe(201);
+      constituent = created.body as typeof constituent;
+    }
     expect(constituent?.id).toBeTruthy();
+    const constituentId = constituent?.id;
+    if (!constituentId) throw new Error("Address-eligible constituent fixture was not created.");
 
     const template = await request(app)
       .post("/api/letters/templates")
@@ -181,9 +210,9 @@ describe("API smoke tests", () => {
       .post(`/api/steward-paths/templates/${pathId}/enrollments`)
       .set(auth)
       .send({
-        targetId: constituent.id,
+        targetId: constituentId,
         targetType: "CONSTITUENT",
-        constituentId: constituent.id,
+        constituentId,
       });
     expect(enrollment.status).toBe(201);
     const enrollmentId = enrollment.body.id as string;
@@ -192,7 +221,7 @@ describe("API smoke tests", () => {
     const processed = await request(app)
       .post("/api/steward-paths/process-due")
       .set(auth)
-      .send({ limit: 25 });
+      .send({ limit: 1, enrollmentId });
     expect(processed.status).toBe(200);
 
     const generated = await request(app)
@@ -211,7 +240,7 @@ describe("API smoke tests", () => {
     expect(letter?.stewardPathStepRunId).toBeTruthy();
 
     const tasks = await request(app)
-      .get(`/api/tasks?scope=all&constituentId=${encodeURIComponent(constituent.id)}`)
+      .get(`/api/tasks?scope=all&constituentId=${encodeURIComponent(constituentId)}`)
       .set(auth);
     expect(tasks.status).toBe(200);
     expect(Array.isArray(tasks.body?.items)).toBe(true);

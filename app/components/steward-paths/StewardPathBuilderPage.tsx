@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import ConstituentSearchCombobox from "./ConstituentSearchCombobox";
+import AddStepPicker from "./AddStepPicker";
 import NodeInspector from "./NodeInspector";
 import NodePalette from "./NodePalette";
 import StewardPathsPlaygroundModal from "./StewardPathsPlaygroundModal";
@@ -202,6 +203,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   const [showTestModal, setShowTestModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [stepPickerOpen, setStepPickerOpen] = useState(false);
 
   const supportReport = useMemo(() => analyzeWorkflowSupport(doc), [doc]);
   const contentSignature = useMemo(() => workflowContentSignature(doc), [doc]);
@@ -281,22 +283,47 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   /** Adds a new node from the palette at the current insertion target. */
   const addNode = useCallback((item: NodePaletteItem) => {
     const next = createNodeFromPalette(item, makeBuilderId);
-    const resolvedTarget = insertTarget
+    let resolvedTarget = insertTarget
       ?? (selectedNodeId ? { kind: "after-node", nodeId: selectedNodeId } as NodeInsertTarget : { kind: "root-end" });
+
+    if (item.category === "trigger") {
+      const hasTrigger = Object.values(doc.nodesById).some((node) => node.kind.startsWith("trigger."));
+      if (hasTrigger) {
+        setFeedbackMessage("A path can have one trigger. Edit the existing trigger instead of adding another.");
+        return;
+      }
+      resolvedTarget = { kind: "root-start" };
+    }
 
     setDoc((prev) => insertNodeAtTarget(prev, resolvedTarget, next));
     setSelectedNodeId(next.id);
     setInsertTarget({ kind: "after-node", nodeId: next.id });
+    setStepPickerOpen(false);
     setFeedbackMessage(`Added ${item.label}.`);
-  }, [insertTarget, selectedNodeId]);
+  }, [doc.nodesById, insertTarget, selectedNodeId]);
 
   /** Adds a palette node at an explicit target (used by drop zones). */
   const addNodeAtTarget = useCallback((item: NodePaletteItem, target: NodeInsertTarget) => {
     const next = createNodeFromPalette(item, makeBuilderId);
+    if (item.category === "trigger") {
+      const hasTrigger = Object.values(doc.nodesById).some((node) => node.kind.startsWith("trigger."));
+      if (hasTrigger) {
+        setFeedbackMessage("A path can have one trigger. Edit the existing trigger instead of adding another.");
+        return;
+      }
+      target = { kind: "root-start" };
+    }
     setDoc((prev) => insertNodeAtTarget(prev, target, next));
     setSelectedNodeId(next.id);
     setInsertTarget({ kind: "after-node", nodeId: next.id });
+    setStepPickerOpen(false);
     setFeedbackMessage(`Added ${item.label}.`);
+  }, [doc.nodesById]);
+
+  /** Opens the shared searchable picker for the exact connector or branch lane clicked. */
+  const requestInsertTarget = useCallback((target: NodeInsertTarget) => {
+    setInsertTarget(target);
+    setStepPickerOpen(true);
   }, []);
 
   /** Writes one node update from the inspector back into the workflow document. */
@@ -760,9 +787,15 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
           {supportReport.reasons[0] ?? "Resolve workflow issues to enable save."}
         </div>
       )}
+      {supportReport.canSaveLinear && !supportReport.canActivate ? (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-950">
+          <span><span className="font-semibold">Draft saved safely; publish needs attention:</span> {supportReport.activationReasons[0]}</span>
+          <button type="button" onClick={validateWorkflow} className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 font-semibold text-amber-800 hover:bg-amber-100">Review issues</button>
+        </div>
+      ) : null}
 
       {/* ── Three-panel body: palette | canvas/content | inspector ── */}
-      <div className="relative flex min-h-0 flex-1 gap-3 overflow-hidden bg-[#f3f2f1] p-3">
+      <div className="relative flex min-h-0 flex-1 gap-3 overflow-hidden bg-[radial-gradient(circle_at_50%_0%,rgba(15,108,189,0.08),transparent_30%),#eef1f5] p-3">
         {!isFullscreenCanvas && (
           <NodePalette onAdd={addNode} insertionTargetLabel={insertTargetLabel} />
         )}
@@ -778,7 +811,7 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
             }}
             onMoveNode={moveNode}
             onRemove={deleteNode}
-            onInsertTarget={setInsertTarget}
+            onInsertTarget={requestInsertTarget}
             onDropNode={handleDropNode}
             onDropPaletteKind={handleDropPaletteKind}
             nodeOffsets={doc.canvasLayout.nodeOffsets}
@@ -957,6 +990,14 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
           </div>
         </div>
       )}
+
+      <AddStepPicker
+        open={stepPickerOpen}
+        targetLabel={insertTargetLabel}
+        allowTriggers={!Object.values(doc.nodesById).some((node) => node.kind.startsWith("trigger."))}
+        onClose={() => setStepPickerOpen(false)}
+        onAdd={addNode}
+      />
 
       {/* Test Run Modal — visual dry-run simulation */}
       {showTestModal && (

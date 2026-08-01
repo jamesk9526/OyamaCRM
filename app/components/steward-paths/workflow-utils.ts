@@ -354,6 +354,21 @@ export function insertNodeAtTarget(
   target: NodeInsertTarget,
   node: WorkflowNode,
 ): WorkflowDocument {
+  // Never silently place a step somewhere else when a stale connector target
+  // no longer exists. A misplaced donor communication is worse than a no-op.
+  if (target.kind === "after-node" && !findNodeLocation(doc, target.nodeId)) {
+    return doc;
+  }
+  if (target.kind === "branch-lane") {
+    const targetBranch = doc.nodesById[target.branchNodeId];
+    if (!targetBranch || !isBranchNode(targetBranch) || !findLane(targetBranch, target.laneId)) {
+      return doc;
+    }
+    if (target.afterNodeId && !findLane(targetBranch, target.laneId)?.nodeIds.includes(target.afterNodeId)) {
+      return doc;
+    }
+  }
+
   let nextDoc: WorkflowDocument = {
     ...doc,
     nodesById: {
@@ -387,12 +402,7 @@ export function insertNodeAtTarget(
 
   if (target.kind === "after-node") {
     const location = findNodeLocation(nextDoc, target.nodeId);
-    if (!location) {
-      return {
-        ...nextDoc,
-        rootNodeIds: [...nextDoc.rootNodeIds, node.id],
-      };
-    }
+    if (!location) return doc;
 
     const containerNodeIds = getContainerNodeIds(nextDoc, location.container);
     const updatedContainerNodeIds = containerNodeIds.slice();
@@ -401,29 +411,17 @@ export function insertNodeAtTarget(
   }
 
   const branchNode = nextDoc.nodesById[target.branchNodeId];
-  if (!branchNode || !isBranchNode(branchNode)) {
-    return {
-      ...nextDoc,
-      rootNodeIds: [...nextDoc.rootNodeIds, node.id],
-    };
-  }
+  if (!branchNode || !isBranchNode(branchNode)) return doc;
 
   const lane = findLane(branchNode, target.laneId);
-  if (!lane) {
-    return {
-      ...nextDoc,
-      rootNodeIds: [...nextDoc.rootNodeIds, node.id],
-    };
-  }
+  if (!lane) return doc;
 
   const laneNodeIds = [...lane.nodeIds];
   if (target.afterNodeId) {
     const index = laneNodeIds.indexOf(target.afterNodeId);
     if (index >= 0) {
       laneNodeIds.splice(index + 1, 0, node.id);
-    } else {
-      laneNodeIds.push(node.id);
-    }
+    } else return doc;
   } else {
     laneNodeIds.unshift(node.id);
   }

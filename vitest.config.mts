@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // API suites share a development database and organization-level runtime
+    // settings. Running files concurrently lets one test overwrite another
+    // test's configuration, producing false failures and masking real issues.
+    fileParallelism: false,
     passWithNoTests: false,
     coverage: {
       provider: "v8",

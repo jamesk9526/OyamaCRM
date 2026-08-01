@@ -50,10 +50,10 @@ export const stewardPathsApi = {
     return apiFetch<T[]>(`${API_ROOT}/enrollments?limit=${limit}`);
   },
 
-  runDueSteps<T>(limit = 150) {
+  runDueSteps<T>(limit = 150, enrollmentId?: string) {
     return apiFetch<T>(`${API_ROOT}/process-due`, {
       method: "POST",
-      body: JSON.stringify({ limit }),
+      body: JSON.stringify({ limit, ...(enrollmentId ? { enrollmentId } : {}) }),
     });
   },
 };

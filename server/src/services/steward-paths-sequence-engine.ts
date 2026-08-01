@@ -64,6 +64,8 @@ function evaluateBranchRule(
 
 interface ProcessDueOptions {
   organizationId?: string;
+  /** Restricts a manual run to one enrollment without bypassing organization scope. */
+  enrollmentId?: string;
   limit?: number;
   userId?: string;
   source?: string;
@@ -217,6 +219,7 @@ export async function processDueStewardPathEnrollments(options: ProcessDueOption
   const enrollments = await prisma.stewardPathEnrollment.findMany({
     where: {
       ...(options.organizationId ? { organizationId: options.organizationId } : {}),
+      ...(options.enrollmentId ? { id: options.enrollmentId } : {}),
       status: "ACTIVE",
       currentStepId: { not: null },
       nextStepDueAt: { not: null, lte: now },

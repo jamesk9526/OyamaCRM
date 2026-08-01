@@ -29,7 +29,7 @@ describe("stewardPathsApi", () => {
     await stewardPathsApi.addStep("path/a?b", { stepType: "CREATE_TASK" });
     await stewardPathsApi.archiveStep("path/a?b", "step/a?b");
     await stewardPathsApi.duplicateTemplate("path/a?b");
-    await stewardPathsApi.runDueSteps(25);
+    await stewardPathsApi.runDueSteps(25, "enrollment/a?b");
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       "http://localhost:4000/api/steward-paths/templates/path%2Fa%3Fb",
@@ -43,7 +43,7 @@ describe("stewardPathsApi", () => {
     ]);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ name: "Updated" }) });
     expect(new Headers((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).get("Authorization")).toBe("Bearer test-token");
-    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ body: JSON.stringify({ limit: 25 }) });
+    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ body: JSON.stringify({ limit: 25, enrollmentId: "enrollment/a?b" }) });
   });
 
   it("uses safe bounded defaults for history, enrollment, and due processing", async () => {

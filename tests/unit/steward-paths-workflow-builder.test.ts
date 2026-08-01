@@ -114,6 +114,58 @@ describe("workflow-utils", () => {
     expect(updatedLane?.nodeIds).toContain(email.id);
   });
 
+  it("inserts every non-trigger palette block into every starter branch lane", () => {
+    for (const item of PALETTE_ITEMS.filter((candidate) => candidate.category !== "trigger")) {
+      const idFactory = createTestIdFactory();
+      let doc = createWorkflowDocument(idFactory);
+      const branch = createNodeFromPalette(palette("logic.if_else"), idFactory);
+      doc = insertNodeAtTarget(doc, { kind: "root-end" }, branch);
+      const storedBranch = doc.nodesById[branch.id];
+      expect(isBranchNode(storedBranch), item.kind).toBe(true);
+      if (!isBranchNode(storedBranch)) continue;
+
+      for (const lane of storedBranch.lanes) {
+        const node = createNodeFromPalette(item, idFactory);
+        doc = insertNodeAtTarget(doc, { kind: "branch-lane", branchNodeId: branch.id, laneId: lane.id }, node);
+        const updated = doc.nodesById[branch.id];
+        expect(isBranchNode(updated), item.kind).toBe(true);
+        if (!isBranchNode(updated)) continue;
+        expect(updated.lanes.find((candidate) => candidate.id === lane.id)?.nodeIds, `${item.kind}:${lane.label}`).toContain(node.id);
+      }
+    }
+  });
+
+  it("inserts after an existing node inside a branch lane without changing root order", () => {
+    const idFactory = createTestIdFactory();
+    let doc = createWorkflowDocument(idFactory);
+    const trigger = createNodeFromPalette(palette("trigger.manual_enrollment"), idFactory);
+    const branch = createNodeFromPalette(palette("logic.if_else"), idFactory);
+    doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+    doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, branch);
+    const storedBranch = doc.nodesById[branch.id];
+    if (!isBranchNode(storedBranch)) throw new Error("Expected branch node");
+    const laneId = storedBranch.lanes[0].id;
+    const first = createNodeFromPalette(palette("task.create"), idFactory);
+    const second = createNodeFromPalette(palette("donor.add_note"), idFactory);
+    doc = insertNodeAtTarget(doc, { kind: "branch-lane", branchNodeId: branch.id, laneId }, first);
+    doc = insertNodeAtTarget(doc, { kind: "branch-lane", branchNodeId: branch.id, laneId, afterNodeId: first.id }, second);
+
+    const updated = doc.nodesById[branch.id];
+    if (!isBranchNode(updated)) throw new Error("Expected branch node");
+    expect(updated.lanes[0].nodeIds).toEqual([first.id, second.id]);
+    expect(doc.rootNodeIds).toEqual([trigger.id, branch.id]);
+  });
+
+  it("rejects stale connector and branch targets instead of misplacing a block", () => {
+    const idFactory = createTestIdFactory();
+    const doc = createWorkflowDocument(idFactory);
+    const task = createNodeFromPalette(palette("task.create"), idFactory);
+
+    expect(insertNodeAtTarget(doc, { kind: "after-node", nodeId: "missing" }, task)).toBe(doc);
+    expect(insertNodeAtTarget(doc, { kind: "branch-lane", branchNodeId: "missing", laneId: "missing" }, task)).toBe(doc);
+    expect(doc.nodesById[task.id]).toBeUndefined();
+  });
+
   it("updates node config", () => {
     const idFactory = createTestIdFactory();
     let doc = createWorkflowDocument(idFactory);
@@ -295,6 +347,29 @@ describe("workflow-transformers", () => {
       doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, task);
       expect(toLinearWorkflowExport(doc).template.triggerType).toBe(triggerType);
     }
+  });
+
+  it("allows incomplete drafts to save while blocking unsafe publication", () => {
+    const idFactory = createTestIdFactory();
+    let doc = createWorkflowDocument(idFactory);
+    const trigger = createNodeFromPalette(palette("trigger.manual_enrollment"), idFactory);
+    const letter = createNodeFromPalette(palette("print.generate_letter"), idFactory);
+    doc = insertNodeAtTarget(doc, { kind: "root-end" }, trigger);
+    doc = insertNodeAtTarget(doc, { kind: "after-node", nodeId: trigger.id }, letter);
+
+    const support = analyzeWorkflowSupport(doc);
+    expect(support.canSaveLinear).toBe(true);
+    expect(support.canActivate).toBe(false);
+    expect(support.activationReasons.some((reason) => reason.includes("letter template"))).toBe(true);
+  });
+
+  it("requires exactly one trigger at the beginning before publication", () => {
+    const idFactory = createTestIdFactory();
+    let doc = createWorkflowDocument(idFactory);
+    const task = createNodeFromPalette(palette("task.create"), idFactory);
+    doc = insertNodeAtTarget(doc, { kind: "root-end" }, task);
+    expect(analyzeWorkflowSupport(doc).canActivate).toBe(false);
+    expect(analyzeWorkflowSupport(doc).activationReasons).toContain("Exactly one trigger is required before publishing.");
   });
 });
 

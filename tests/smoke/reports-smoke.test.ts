@@ -105,9 +105,11 @@ describe("GET /api/reports/donors-by-designation", () => {
     const through = new Date(res.body.period.through);
     const now = new Date();
 
-    expect(from.getDate()).toBe(1);
-    expect(from.getMonth()).toBe(now.getMonth());
-    expect(from.getFullYear()).toBe(now.getFullYear());
+    // Donation-only imports are normalized to UTC midnight, so reports expose
+    // the UTC month boundary to avoid dropping gifts made on the first locally.
+    expect(from.getUTCDate()).toBe(1);
+    expect(from.getUTCMonth()).toBe(now.getUTCMonth());
+    expect(from.getUTCFullYear()).toBe(now.getUTCFullYear());
     expect(through.getTime()).toBeLessThanOrEqual(now.getTime() + 5_000);
   });
 
