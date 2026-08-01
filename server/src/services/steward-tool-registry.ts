@@ -88,10 +88,53 @@ export interface StewardToolListItem {
   name: StewardToolName;
   kind: StewardToolKind;
   description: string;
+  inputGuidance: string;
   requiredPermissions: PermissionKey[];
   requiresConfirmation: boolean;
   allowed: boolean;
   missingPermissions: PermissionKey[];
+}
+
+const TOOL_INPUT_GUIDANCE: Partial<Record<StewardToolName, string>> = {
+  "donor.getThankYousNeeded": "Optional input: limit (1-200).",
+  "donor.getAcknowledgmentQueue": "Optional inputs: limit (1-250), maxAgeDays (14-730), includeAcknowledged (boolean).",
+  "donor.getRecurringGivingHealth": "Optional inputs: limit (1-120), windowDays (7-120).",
+  "donor.getPledgeAtRisk": "Optional inputs: limit (1-120), maxDaysAhead (14-365).",
+  "donor.getLapseRisks": "Optional inputs: limit (1-250), minimumRisk (LOW, MEDIUM, or HIGH).",
+  "donor.getTopOpportunities": "Optional input: limit (1-150).",
+  "donor.getProfileDecisionPacket": "Required input: constituentId from route or retrieved context.",
+  "donor.getCommunicationSnapshot": "Required input: constituentId from route or retrieved context.",
+  "donor.getFullProfile": "Required input: constituentId from route or retrieved context.",
+  "donor.getDonationHistory": "Required input: constituentId from route or retrieved context. Optional input: limit (1-100).",
+  "donor.getGiftSummaryByYear": "Required input: constituentId from route or retrieved context.",
+  "reports.getOShareviewDonorSummary": "Optional input: four-digit year.",
+  "reports.runGivingByMonth": "Optional inputs: year, dateBasis (fiscal or calendar).",
+  "reports.runLybunt": "Optional input: limit (1-200).",
+  "reports.runGivingByDesignation": "Optional inputs: year, dateBasis (fiscal or calendar).",
+  "reports.runGivingByCampaign": "Optional inputs: year, dateBasis (fiscal or calendar).",
+  "knowledge.searchCrmRecords": "Required input: query. Optional inputs: limit (1-30), entityType.",
+  "knowledge.searchDonorActivities": "At least one useful filter: query or constituentId. Optional inputs: limit (1-60), activityType.",
+  "knowledge.searchUnifiedTimeline": "Optional inputs: query, constituentId, limit (5-80), daysBack (7-730).",
+  "knowledge.getDonorsBySegment": "Optional inputs: donorStatus, constituentType, lastGiftWithinDays, limit (1-200).",
+  "knowledge.searchGrants": "Required input: query. Optional inputs: status, limit (1-60).",
+  "grants.getDeadlineRadar": "Optional inputs: limit (1-120), windowDays (14-365).",
+  "communications.listDraftsForReview": "Optional input: limit (1-100).",
+  "tasks.listOverdue": "Optional input: limit (1-100).",
+  "tasks.createFollowUpTask": "Required input: constituentId. Optional inputs: dueDateIso, assigneeId, title, description, priority.",
+  "tasks.createThankYouTask": "Required input: donationId or constituentId. Optional inputs: dueDateIso, assigneeId, title, description, priority.",
+  "communications.createEmailDraft": "Required input: constituentId. Optional inputs: name, subject, previewText, bodyPlainText, bodyHtml.",
+  "communications.createThankYouEmailDraft": "Optional inputs: name, subject, previewText, bodyPlainText, bodyHtml.",
+  "communications.createImpactUpdateEmailDraft": "Optional inputs: name, subject, previewText, bodyPlainText, bodyHtml.",
+  "communications.createReEngagementEmailDraft": "Optional inputs: name, subject, previewText, bodyPlainText, bodyHtml.",
+  "letters.createLetterDraft": "Required input: printBody. Optional inputs: name, category, description, printSubject, emailSubject, emailBody.",
+  "letters.createHtmlCssLetterDraft": "Required inputs: bodyHtml and css. Optional inputs: name, category, description, printSubject, emailSubject, emailBody.",
+  "letters.createThankYouLetterDraft": "Optional inputs: name, printSubject, printBody.",
+  "letters.createAppealLetterDraft": "Optional inputs: name, printSubject, printBody.",
+};
+
+/** Gives model planners a compact, truthful input contract for each registered tool. */
+export function getStewardToolInputGuidance(toolName: StewardToolName): string {
+  return TOOL_INPUT_GUIDANCE[toolName] ?? "No input is required; use an empty input object.";
 }
 
 export interface StewardToolExecutionResult<T = unknown> {
@@ -708,6 +751,7 @@ export async function listStewardTools(context: StewardToolExecutionContext): Pr
         name: tool.name,
         kind: tool.kind,
         description: tool.description,
+        inputGuidance: getStewardToolInputGuidance(tool.name),
         requiredPermissions: tool.requiredPermissions,
         requiresConfirmation: tool.requiresConfirmation,
         allowed: missing.length === 0,

@@ -22,6 +22,12 @@ import {
   listStewardTools,
   type StewardToolExecutionContext,
 } from "../services/steward-tool-registry.js";
+import {
+  STEWARD_GROUNDING_RULES,
+  STEWARD_TOOL_SELECTION_RULES,
+  buildStewardModulePolicy,
+  delimitStewardData,
+} from "./prompt-policy.js";
 
 // ─── Agentic pipeline types ────────────────────────────────────────────────────
 
@@ -83,6 +89,10 @@ export async function buildAgenticPreparation(options: {
       `User intent category: ${options.userIntent}`,
       `Scope: ${options.scopePath || "general"}`,
       `Module: ${options.moduleKey}`,
+      "Return concise decision summaries only. Do not reveal hidden chain-of-thought.",
+      "Grounding rules:",
+      STEWARD_GROUNDING_RULES,
+      buildStewardModulePolicy(options.moduleKey, options.scopePath),
       "",
       "Produce a concise planning brief using EXACTLY these four section headers:",
       "## Plan",
@@ -101,10 +111,10 @@ export async function buildAgenticPreparation(options: {
       options.responseContract,
       "",
       "User query:",
-      options.userQuery,
+      delimitStewardData("user_query", options.userQuery, "(empty query)"),
       "",
       "Available CRM context:",
-      options.contextText.slice(0, 3000),
+      delimitStewardData("crm_context", options.contextText.slice(0, 3000), "No CRM context available."),
     ].join("\n");
 
     const planResult = await withStewardAiTask(
@@ -228,6 +238,36 @@ export function parseAgenticToolRequestPlan(raw: string): AgenticToolRequest[] {
   }
 }
 
+/** Builds the strict, injection-resistant prompt used to choose safe read tools. */
+export function buildAgenticToolPlannerPrompt(options: {
+  userQuery: string;
+  contextText: string;
+  toolCatalog: string;
+  moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>;
+  scopePath: string;
+}): string {
+  return [
+    "You are Steward's read-only tool planner.",
+    "Return tool requests, not an answer to the user and not hidden reasoning.",
+    "Grounding rules:",
+    STEWARD_GROUNDING_RULES,
+    "Tool-selection rules:",
+    STEWARD_TOOL_SELECTION_RULES,
+    buildStewardModulePolicy(options.moduleKey, options.scopePath),
+    'Return exactly one JSON object shaped as {"toolRequests":[{"tool":"...","reason":"brief evidence need","input":{...}}]}.',
+    'If no listed tool is necessary or its required input is unavailable, return {"toolRequests":[]}.',
+    "Request no more than 4 tools. Use only exact tool names and input fields in the catalog.",
+    "User query:",
+    delimitStewardData("user_query", options.userQuery, "(empty query)"),
+    "Existing context:",
+    delimitStewardData("crm_context", options.contextText, "(none)"),
+    "Available read tools and their input contracts:",
+    delimitStewardData("tool_catalog", options.toolCatalog, "(none)"),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 // ─── Agentic tool pass ─────────────────────────────────────────────────────────
 
 /**
@@ -262,23 +302,16 @@ export async function buildAgenticToolPass(options: {
   }
 
   const toolCatalog = availableTools
-    .map((tool) => `- ${tool.name}: ${tool.description}`)
+    .map((tool) => `- ${tool.name}: ${tool.description} Input contract: ${tool.inputGuidance}`)
     .join("\n");
 
-  const plannerPrompt = [
-    "You are Steward's agentic tool planner.",
-    "Decide whether one or more safe read tools would improve the answer.",
-    "Use only the tool names listed below.",
-    "Do not request write tools.",
-    'Return exactly one JSON object shaped as {"toolRequests":[{"tool":"...","reason":"...","input":{...}}]}.',
-    'If no tools are needed, return {"toolRequests":[]}.',
-    "User query:",
-    options.userQuery || "(empty query)",
-    "Context:",
-    options.contextText || "(none)",
-    "Available tools:",
+  const plannerPrompt = buildAgenticToolPlannerPrompt({
+    userQuery: options.userQuery,
+    contextText: options.contextText,
     toolCatalog,
-  ].join("\n\n");
+    moduleKey: options.moduleKey,
+    scopePath: options.scopePath,
+  });
 
   const plannerResult = await withStewardAiTask(
     {

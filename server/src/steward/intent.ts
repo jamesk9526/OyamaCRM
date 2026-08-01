@@ -5,6 +5,7 @@
 
 import type { StewardChatMode, StewardResponseIntent, StewardAiChatPayload } from "./types.js";
 import type { parseStewardAiConfig } from "../services/steward-ai-ollama.js";
+import { STEWARD_GROUNDING_RULES, buildStewardModulePolicy, delimitStewardData } from "./prompt-policy.js";
 
 // ─── Thinking model resolver ───────────────────────────────────────────────────
 
@@ -37,7 +38,10 @@ export function detectStewardIntent(userQuery: string, mode: StewardChatMode): S
   if (mode === "help" || /(how\s+do\s+i|how\s+to|where\s+is|steps?\s+to|walk\s+me\s+through)/.test(q)) {
     return "how_to";
   }
-  if (mode === "action" || /(plan|next\s+step|what\s+should\s+we\s+do|execute|workflow|follow\s*up)/.test(q)) {
+  if (
+    mode === "action" ||
+    /(plan|next\s+step|what\s+should\s+we\s+do|execute|workflow|follow\s*up|steward\s+path|path\s+builder|add\s+(?:a\s+)?(?:step|block|branch|trigger)|activate\s+(?:the\s+)?path)/.test(q)
+  ) {
     return "action_plan";
   }
   if (mode === "analyze" || /(analy[sz]e|why|trend|compare|risk|retention|kpi|forecast)/.test(q)) {
@@ -163,24 +167,29 @@ export function buildPlannerPrompt(options: {
   userQuery: string;
   contextText: string;
 }): string {
+  const modulePolicy = buildStewardModulePolicy(options.moduleKey, options.scopePath);
   return [
     "You are Steward's planning engine. Produce concise planning notes only.",
     "Do not answer the user yet.",
+    "Provide decision summaries, not hidden chain-of-thought.",
     `Mode: ${options.mode}`,
     `Intent: ${options.userIntent}`,
     `Module: ${options.moduleKey}`,
     `Scope: ${options.scopePath}`,
     "Required response contract:",
     options.responseContract,
+    "Grounding rules:",
+    STEWARD_GROUNDING_RULES,
+    modulePolicy,
     "Return exactly three sections:",
     "1) Key intent",
     "2) Evidence to prioritize",
     "3) Execution plan",
     "Keep each section under 4 bullets and stay grounded in provided context.",
     "User query:",
-    options.userQuery || "(empty query)",
+    delimitStewardData("user_query", options.userQuery, "(empty query)"),
     "Retrieved context:",
-    options.contextText || "No retrieval context available.",
+    delimitStewardData("retrieved_context", options.contextText, "No retrieval context available."),
   ].join("\n\n");
 }
 
