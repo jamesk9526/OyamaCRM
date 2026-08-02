@@ -91,6 +91,14 @@ describe("steward paths api", () => {
     expect(run.body.isSandbox).toBe(true);
     expect(typeof run.body.runId).toBe("string");
 
+    const syntheticRun = await request(app)
+      .post(`/api/steward-paths/${pathId}/playground/run`)
+      .set(auth)
+      .send({ scenarioId: "opt-out-guardrails", options: { skipDelays: true } });
+    expect(syntheticRun.status).toBe(201);
+    expect(syntheticRun.body.isSandbox).toBe(true);
+    expect(syntheticRun.body.sourceConstituent.source).toBe("synthetic");
+
     const stepped = await request(app)
       .post(`/api/steward-paths/${pathId}/playground/step`)
       .set(auth)

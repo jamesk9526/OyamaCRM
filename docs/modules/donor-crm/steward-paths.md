@@ -32,11 +32,16 @@ Legacy duplicate operations should be redirected into canonical Steward Paths ro
 - `/steward-paths/settings` — guarded due-step processing controls
 - `/steward-paths/:id` — detail route (currently redirects to history)
 - `/steward-paths/:id/history` — path timeline and run history
+- `/steward-paths/:id/playground` — isolated, new-tab path simulator with donor and team inbox previews
 
 Legacy route behavior:
 
 - `/automations` is deprecated and redirects to `/steward-paths/library`.
 - `/steward-paths/:id/builder` is deprecated and redirects to `/steward-paths/builder/:id`.
+
+## Playground sandbox
+
+The builder opens Playground in a separate tab. It is an in-memory simulation only: it can use a selected CRM donor for realistic rule evaluation or a synthetic donor profile for exploration, but it never creates an enrollment, timeline event, task, donor update, or outbound email. Donor and team inboxes render the path's configured simulated outputs and label every item as sandbox-only.
 
 ## Saved Visual Path Operations
 
