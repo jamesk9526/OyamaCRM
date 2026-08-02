@@ -11,6 +11,7 @@ import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
 import ContextualTutorialModal from "@/app/components/help/ContextualTutorialModal";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
+import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { SupportTicketModal } from "@/app/components/support/SupportTicketModal";
 import { apiFetch, API_BASE as AUTH_API_BASE } from "@/app/lib/auth-client";
@@ -1308,15 +1309,12 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         moduleKey={moduleKey}
         pathname={pathname}
       />
-      {/* Unified dock renders Steward AI and staff DMs in one bottom-right conversation box. */}
+      {/* Steward and staff messaging remain separate so the assistant stays focused. */}
       <StewardDockPanel
         moduleKey={moduleKey}
-        messagesOpen={messengerOpen}
-        onMessagesOpenChange={setMessengerOpen}
-        messengerUnread={messengerUnread}
-        onMessengerUnreadChange={setMessengerUnread}
         showLauncher
       />
+      <MessengerPanel open={messengerOpen} onClose={() => setMessengerOpen(false)} onUnreadChange={setMessengerUnread} />
 
             {/* Incoming message toast — shown when panel is closed and a new message arrives */}
             {incomingMsgToast && !messengerOpen && (
@@ -1829,10 +1827,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                     href="/steward-ai-workspace"
                     title="Open Steward Copilot"
                     aria-label="Open Steward Copilot"
-                    className="ml-0.5 inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-300/30 bg-violet-500/90 px-2 text-[11px] font-semibold text-white shadow-[0_5px_14px_rgba(124,58,237,0.22)] transition-colors hover:bg-violet-500"
+                    className="steward-topbar-launcher relative ml-0.5 inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-violet-300/30 bg-violet-500/90 text-white shadow-[0_5px_14px_rgba(124,58,237,0.22)] transition-colors hover:bg-violet-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
                   >
                     <AiOrbIcon className="h-3.5 w-3.5" />
-                    <span className="hidden min-[1400px]:inline">Steward Copilot</span>
                   </Link>
                 </>
               ) : (

@@ -1012,6 +1012,28 @@ main {
   animation: stewardChromaPulse 2.6s ease-in-out infinite;
 }
 
+/* A quiet invitation on the compact top-bar Steward control. It only animates
+   when a pointer or keyboard focus reaches it, avoiding persistent motion. */
+.steward-topbar-launcher::after {
+  position: absolute;
+  inset: -70%;
+  content: "";
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(110deg, transparent 38%, rgba(134, 239, 172, 0.95) 50%, rgba(255, 255, 255, 0.9) 55%, transparent 68%);
+}
+
+.steward-topbar-launcher:hover::after,
+.steward-topbar-launcher:focus-visible::after {
+  animation: stewardTopbarShimmer 1.4s ease-out infinite;
+}
+
+@keyframes stewardTopbarShimmer {
+  0% { opacity: 0; transform: translateX(-34%) rotate(12deg); }
+  24% { opacity: 0.82; }
+  72%, 100% { opacity: 0; transform: translateX(34%) rotate(12deg); }
+}
+
 @keyframes stewardDotRise {
   0%, 80%, 100% {
     opacity: 0.35;
