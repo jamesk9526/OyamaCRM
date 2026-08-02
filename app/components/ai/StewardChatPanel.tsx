@@ -42,6 +42,8 @@ interface StewardChatPanelProps {
   moduleKey: ModuleKey;
   scopePath: string;
   displayMode?: StewardChatDisplayMode;
+  /** Removes duplicate window chrome and advanced controls inside the Messenger-style dock. */
+  embeddedCompact?: boolean;
   /** When set to external-pill, hide the built-in footer composer and accept prompts via externalPrompt. */
   composerPlacement?: "panel" | "external-pill";
   onDisplayModeChange?: (mode: StewardPanelMode) => void;
@@ -380,6 +382,7 @@ export default function StewardChatPanel({
   moduleKey,
   scopePath,
   displayMode = "dock",
+  embeddedCompact = false,
   composerPlacement = "panel",
   onDisplayModeChange,
   onTraceUpdate,
@@ -431,7 +434,6 @@ export default function StewardChatPanel({
     });
     return `/steward-ai-workspace?${params.toString()}`;
   }, [moduleKey, scopePath]);
-  const scopeHref = useMemo(() => (scopePath.startsWith("/") ? scopePath : null), [scopePath]);
   const activeThread = useMemo(
     () => threads.find((thread) => thread.id === activeThreadId) ?? null,
     [threads, activeThreadId]
@@ -1206,7 +1208,7 @@ export default function StewardChatPanel({
   return (
     <div className={rootClassName}>
       <aside className={panelClassName} style={panelStyle}>
-        <header className="px-3 border-b border-slate-100 bg-white py-2">
+        {!embeddedCompact ? <header className="px-3 border-b border-slate-100 bg-white py-2">
           {/* Top row: avatar + title + window controls */}
           <div className="flex items-center gap-2">
             {/* Steward avatar mark */}
@@ -1315,7 +1317,7 @@ export default function StewardChatPanel({
               Settings
             </Link>
           </div>
-        </header>
+        </header> : null}
 
           <>
             {!aiConfig?.enabled && !loadingConfig && (
@@ -1385,8 +1387,8 @@ export default function StewardChatPanel({
               )}
 
               <section className="flex-1 min-h-0 flex flex-col relative">
-                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-3 sm:px-4 pt-2.5 sm:pt-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] sm:pb-4 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
-                  <div className={isWorkspaceMode ? "mx-auto w-full max-w-4xl space-y-3" : "mx-auto w-full max-w-[580px] space-y-3"}>
+                <div className={`flex-1 overflow-y-auto chat-scroll-smooth px-3 pt-3 pb-3 ${isWorkspaceMode ? "bg-slate-50/70" : "bg-slate-50/80"}`}>
+                  <div className={embeddedCompact ? "mx-auto w-full max-w-[350px] space-y-3" : isWorkspaceMode ? "mx-auto w-full max-w-4xl space-y-3" : "mx-auto w-full max-w-[580px] space-y-3"}>
                   {messages.map((message) => (
                     <div key={message.id} className={`max-w-[92%] ${message.role === "user" ? "ml-auto" : "mr-auto"}`}>
                       <div
@@ -1474,8 +1476,8 @@ export default function StewardChatPanel({
 
                 {!usesExternalComposer ? (
                 <footer className="border-t border-slate-200 bg-white/95 px-2 sm:px-3 pt-2 sm:pt-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] sm:pb-3">
-                  <div className={`mx-auto rounded-2xl border p-2 sm:p-3 shadow-[0_14px_24px_rgba(15,23,42,0.08)] ${isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white" : "max-w-[680px] border-slate-200 bg-white"}`}>
-                    <div className={`flex flex-wrap gap-2 ${isDockMode ? "items-start" : "items-center justify-between"}`}>
+                  <div className={`mx-auto rounded-2xl border p-2 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ${embeddedCompact ? "max-w-[360px] border-slate-200 bg-white" : isWorkspaceMode ? "max-w-4xl border-slate-200 bg-white sm:p-3" : "max-w-[680px] border-slate-200 bg-white sm:p-3"}`}>
+                    {!embeddedCompact ? <div className={`flex flex-wrap gap-2 ${isDockMode ? "items-start" : "items-center justify-between"}`}>
                       <div className="flex items-center gap-1.5 flex-wrap sm:gap-2">
                         <label className="sr-only" htmlFor="steward-mode-select">Mode</label>
                         <select
@@ -1535,9 +1537,9 @@ export default function StewardChatPanel({
                         </button>
                       </div>
                       <p className="text-[11px] text-slate-500 sm:ml-auto">Confirm-first for write actions.</p>
-                    </div>
+                    </div> : null}
 
-                    {filteredPromptChips.length > 0 && (
+                    {!embeddedCompact && filteredPromptChips.length > 0 && (
                       <div className="mt-2 hidden sm:flex flex-wrap items-center gap-1.5">
                         {filteredPromptChips.map((prompt) => (
                           <button
@@ -1555,7 +1557,7 @@ export default function StewardChatPanel({
                       </div>
                     )}
 
-                    <div className="mt-2 flex items-end gap-1.5 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition-all focus-within:border-slate-300 focus-within:shadow-md sm:gap-2 sm:px-3 sm:py-2">
+                    <div className={`${embeddedCompact ? "" : "mt-2"} flex items-end gap-1.5 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm transition-all focus-within:border-[#0f6cbd] focus-within:shadow-md sm:gap-2`}>
                       <input
                         ref={composerInputRef}
                         type="text"

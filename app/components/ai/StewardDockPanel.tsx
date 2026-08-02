@@ -1,67 +1,36 @@
-/**
- * StewardDockPanel renders the unified Steward + staff messages dock.
- *
- * The dock intentionally behaves like a compact DM window instead of a
- * full-height CRM side panel: a bottom-right launcher opens a tabbed
- * conversation surface for Steward AI and internal staff messages.
- */
+/** Compact Messenger-style launcher for Steward Copilot and staff messages. */
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
-import StewardMetricsStrip from "@/app/components/ai/StewardMetricsStrip";
 import { STEWARD_OPEN_EVENT, type StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
 type DockTab = "steward" | "messages";
-type StewardChatModuleKey =
-  | "donor"
-  | "compassion"
-  | "events"
-  | "watchdog"
-  | "webmaster"
-  | "oshareview"
-  | "password";
+type StewardChatModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
 
 interface StewardDockPanelProps {
-  /** Active CRM module key passed from TopBar so Steward scopes correctly. */
   moduleKey?: string;
-  /** Kept for older call sites; the new dock no longer sits behind Messenger. */
   behindOverlay?: boolean;
-  /** TopBar message button command. When true, the dock opens to Messages. */
   messagesOpen?: boolean;
-  /** Keeps TopBar unread and background-SSE behavior in sync with the dock tab. */
   onMessagesOpenChange?: (open: boolean) => void;
-  /** Current unread count for the closed launcher badge. */
   messengerUnread?: number;
-  /** Receives unread count changes from the embedded Messenger app. */
   onMessengerUnreadChange?: (count: number) => void;
-  /** When false, the dock is opened only by external/top-bar controls. */
   showLauncher?: boolean;
 }
 
 const STORAGE_KEY = "steward-dock-open";
 const TAB_STORAGE_KEY = "steward-dock-tab";
-const PILL_COLLAPSED_STORAGE_KEY = "steward-dock-pill-collapsed";
 const DOCK_STATE_EVENT = "steward-dock-state";
 
 function normalizeStewardModule(moduleKey?: string): StewardChatModuleKey {
-  const valid = new Set<StewardChatModuleKey>([
-    "donor",
-    "compassion",
-    "events",
-    "watchdog",
-    "webmaster",
-    "oshareview",
-    "password",
-  ]);
-  return moduleKey && valid.has(moduleKey as StewardChatModuleKey)
-    ? (moduleKey as StewardChatModuleKey)
-    : "donor";
+  const valid = new Set<StewardChatModuleKey>(["donor", "compassion", "events", "watchdog", "webmaster", "oshareview", "password"]);
+  return moduleKey && valid.has(moduleKey as StewardChatModuleKey) ? moduleKey as StewardChatModuleKey : "donor";
 }
 
-/** StewardDockPanel combines Steward AI and real staff DMs in one docked chat box. */
+/** Keeps a small companion available in CRM and hands larger work to the embedded workspace. */
 export default function StewardDockPanel({
   moduleKey,
   messagesOpen = false,
@@ -75,13 +44,9 @@ export default function StewardDockPanel({
   const [activeTab, setActiveTab] = useState<DockTab>("steward");
   const [externalPrompt, setExternalPrompt] = useState<StewardOpenPromptDetail | null>(null);
   const [scopePath, setScopePath] = useState("/");
-  const [pillDraft, setPillDraft] = useState("");
-  const [pillCollapsed, setPillCollapsed] = useState(false);
 
   const emitDockState = useCallback((nextOpen: boolean) => {
-    window.dispatchEvent(new CustomEvent(DOCK_STATE_EVENT, {
-      detail: { open: nextOpen, pushLayout: false, panelWidth: 0 },
-    }));
+    window.dispatchEvent(new CustomEvent(DOCK_STATE_EVENT, { detail: { open: nextOpen, pushLayout: false, panelWidth: 0 } }));
   }, []);
 
   const openDock = useCallback((tab: DockTab) => {
@@ -95,9 +60,9 @@ export default function StewardDockPanel({
 
   const closeDock = useCallback(() => {
     setOpen(false);
+    setExternalPrompt(null);
     localStorage.setItem(STORAGE_KEY, "false");
     emitDockState(false);
-    setExternalPrompt(null);
     onMessagesOpenChange?.(false);
   }, [emitDockState, onMessagesOpenChange]);
 
@@ -111,10 +76,8 @@ export default function StewardDockPanel({
     setScopePath(`${window.location.pathname}${window.location.search}`);
     const restoredOpen = localStorage.getItem(STORAGE_KEY) === "true";
     const restoredTab = localStorage.getItem(TAB_STORAGE_KEY) === "messages" ? "messages" : "steward";
-    const restoredPillCollapsed = localStorage.getItem(PILL_COLLAPSED_STORAGE_KEY) === "true";
-    setActiveTab(restoredTab);
     setOpen(restoredOpen);
-    setPillCollapsed(restoredPillCollapsed);
+    setActiveTab(restoredTab);
     emitDockState(restoredOpen);
     onMessagesOpenChange?.(restoredOpen && restoredTab === "messages");
     setHydrated(true);
@@ -122,306 +85,68 @@ export default function StewardDockPanel({
   }, [emitDockState, onMessagesOpenChange]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(PILL_COLLAPSED_STORAGE_KEY, pillCollapsed ? "true" : "false");
-  }, [hydrated, pillCollapsed]);
-
-  useEffect(() => {
-    if (!hydrated || !messagesOpen) return;
-    openDock("messages");
+    if (hydrated && messagesOpen) openDock("messages");
   }, [hydrated, messagesOpen, openDock]);
 
   useEffect(() => {
     if (!open) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeDock();
-    }
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") closeDock(); };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeDock, open]);
 
-  // Listen for steward:open-with-prompt events fired by StewardContextButton.
   useEffect(() => {
-    function handleOpenWithPrompt(e: Event) {
-      const detail = (e as CustomEvent<StewardOpenPromptDetail>).detail;
+    const handleOpenWithPrompt = (event: Event) => {
+      const detail = (event as CustomEvent<StewardOpenPromptDetail>).detail;
       if (!detail?.prompt) return;
       setExternalPrompt(detail);
       openDock("steward");
-    }
+    };
     window.addEventListener(STEWARD_OPEN_EVENT, handleOpenWithPrompt);
     return () => window.removeEventListener(STEWARD_OPEN_EVENT, handleOpenWithPrompt);
   }, [openDock]);
 
   if (!hydrated) return null;
-
   const stewardModule = normalizeStewardModule(externalPrompt?.moduleKey ?? moduleKey);
-  // One companion surface is shared across every CRM workspace. Keeping the same
-  // head and dock behavior makes Steward feel like a Copilot instead of a module widget.
-  const isDonorFloatingMode = false;
-
-  function sendFromPill() {
-    const prompt = pillDraft.trim();
-    if (!prompt) {
-      openDock("steward");
-      return;
-    }
-    setExternalPrompt({ prompt, moduleKey: stewardModule, mode: "ask" });
-    setPillDraft("");
-    openDock("steward");
-  }
-
-  function collapsePill() {
-    setPillCollapsed(true);
-    setOpen(false);
-    localStorage.setItem(STORAGE_KEY, "false");
-    emitDockState(false);
-    onMessagesOpenChange?.(false);
-  }
-
-  function restorePill() {
-    setPillCollapsed(false);
-  }
+  const workspaceHref = `/steward-ai-workspace?module=${encodeURIComponent(stewardModule)}&scope=${encodeURIComponent(scopePath)}`;
 
   return (
     <>
-      {showLauncher && !open && !isDonorFloatingMode ? (
+      {showLauncher && !open ? (
         <button
           type="button"
           onClick={() => openDock("steward")}
-          title="Open Steward and messages"
-          style={{ bottom: "max(1rem, env(safe-area-inset-bottom))", right: "1rem" }}
-          className="group fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-[9990] flex h-14 w-14 items-center justify-center rounded-full border border-slate-300 bg-white text-left shadow-[0_10px_26px_rgba(15,23,42,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-500 hover:shadow-[0_14px_32px_rgba(15,23,42,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:right-6"
-          aria-label="Open Steward and messages"
+          title="Chat with Steward Copilot"
+          aria-label="Open Steward Copilot chat"
+          className="group fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-[9990] flex h-13 w-13 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-[#0f6cbd] to-[#6246c7] shadow-[0_12px_30px_rgba(15,108,189,0.32)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(15,108,189,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd] focus-visible:ring-offset-2 sm:right-6"
         >
-          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50">
-            <StewardAvatarIcon size={28} alt="Steward" className="ring-2 ring-white" />
-            <span className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-500" />
-          </span>
-          <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-md group-hover:block sm:block sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-            Ask Steward
-          </span>
-          {messengerUnread > 0 ? (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white">
-              {Math.min(messengerUnread, 99)}
-            </span>
-          ) : (
-            <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-blue-500" aria-hidden="true" />
-          )}
+          <StewardAvatarIcon size={34} alt="Steward" className="ring-2 ring-white/80" />
+          <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />
+          <span className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 opacity-0 shadow-lg transition group-hover:opacity-100">Ask Steward</span>
+          {messengerUnread > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{Math.min(messengerUnread, 99)}</span> : null}
         </button>
       ) : null}
 
-      {isDonorFloatingMode ? (
-        <>
-          {open ? (
-            <>
-              <div
-                className="fixed inset-0 z-[9988] bg-slate-950/14"
-                style={{ backdropFilter: "blur(1.2px)" }}
-                onClick={() => closeDock()}
-              />
-              <section
-                className="fixed left-1/2 top-[118px] z-[9991] w-[min(860px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-slate-200/95 bg-white shadow-[0_20px_52px_rgba(2,6,23,0.18),0_0_120px_rgba(2,6,23,0.08)]"
-                aria-label="Steward dashboard overlay"
-              >
-                <header className="border-b border-slate-200/80 bg-white px-5 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 ring-1 ring-emerald-100">
-                        <StewardAvatarIcon size={22} alt="Steward" className="ring-1 ring-white" />
-                      </span>
-                      <div className="min-w-0">
-                        <h2 className="truncate text-lg font-semibold text-slate-900">Steward AI</h2>
-                        <p className="truncate text-xs text-slate-500">Your ministry intelligence partner</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => closeDock()}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
-                        title="Minimize"
-                      >
-                        <span className="text-sm leading-none">−</span>
-                        Minimize
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => closeDock()}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                        title="Close"
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    {["Insights", "Ask Anything", "Recommendations", "Donor Profile"].map((tab) => (
-                      <button
-                        key={tab}
-                        type="button"
-                        className={`rounded-lg border px-3 py-1.5 text-[11px] font-semibold ${tab === "Insights" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                </header>
-
-                <div className="h-[min(62vh,560px)] bg-white">
-                  {activeTab === "steward" ? (
-                    <StewardChatPanel
-                      open
-                      onClose={closeDock}
-                      moduleKey={stewardModule}
-                      scopePath={scopePath}
-                      displayMode="workspace"
-                      composerPlacement="external-pill"
-                      externalPrompt={externalPrompt}
-                      onExternalPromptConsumed={() => setExternalPrompt(null)}
-                    />
-                  ) : (
-                    <MessengerPanel
-                      open
-                      variant="dock"
-                      onClose={closeDock}
-                      onUnreadChange={onMessengerUnreadChange}
-                    />
-                  )}
-                </div>
-              </section>
-            </>
-          ) : null}
-
-          {!pillCollapsed ? (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                sendFromPill();
-              }}
-              className="fixed bottom-[max(0.8rem,env(safe-area-inset-bottom))] left-1/2 z-[9992] flex w-[min(760px,calc(100vw-1rem))] -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-900/85 bg-white px-3 py-2 shadow-[0_14px_32px_rgba(2,52,39,0.26)]"
-            >
-              <button
-                type="button"
-                onClick={() => openDock("steward")}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white"
-                title="Open Steward"
-              >
-                <StewardAvatarIcon size={18} alt="Steward" className="ring-1 ring-white/50" />
-              </button>
-              <input
-                value={pillDraft}
-                onChange={(event) => setPillDraft(event.target.value)}
-                onFocus={() => openDock("steward")}
-                placeholder="Ask Steward anything about your donors, gifts, or ministry..."
-                className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white hover:bg-emerald-800"
-                title="Send"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={collapsePill}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                title="Dismiss to side tab"
-                aria-label="Dismiss Steward pill to side tab"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={restorePill}
-              className="fixed right-0 top-1/2 z-[9992] -translate-y-1/2 rounded-l-xl border border-r-0 border-emerald-800/60 bg-emerald-900 px-2 py-3 text-emerald-100 shadow-[0_10px_30px_rgba(2,52,39,0.32)] hover:bg-emerald-800"
-              title="Open Steward"
-              aria-label="Open Steward"
-            >
-              <span className="flex items-center gap-1.5">
-                <StewardAvatarIcon size={14} alt="Steward" className="ring-1 ring-white/25" />
-                <span className="[writing-mode:vertical-rl] rotate-180 text-[10px] font-semibold tracking-[0.12em]">STEWARD</span>
-              </span>
-            </button>
-          )}
-        </>
-      ) : null}
-
-      {open && !isDonorFloatingMode ? (
-        <section
-          className="fixed inset-x-2 bottom-2 top-[4.25rem] z-[9991] flex flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_20px_54px_rgba(15,23,42,0.2)] sm:inset-x-auto sm:left-auto sm:right-4 sm:top-auto sm:h-[min(720px,calc(100dvh-5rem))] sm:w-[min(760px,calc(100vw-2rem))]"
-          aria-label="Steward and messages dock"
-        >
-          <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+      {open ? (
+        <section className="fixed inset-x-2 bottom-2 top-[4.25rem] z-[9991] flex flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)] sm:inset-x-auto sm:left-auto sm:right-5 sm:top-auto sm:h-[min(590px,calc(100dvh-5rem))] sm:w-[min(390px,calc(100vw-2rem))]" aria-label="Steward Copilot and staff messages">
+          <header className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-[#f6fbff] to-white px-3 py-2.5">
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <StewardAvatarIcon size={28} alt="Steward" className="ring-2 ring-emerald-100" />
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold text-slate-900">Steward Copilot</h2>
-                <p className="truncate text-[11px] text-slate-500">Your workspace companion</p>
-              </div>
+              <span className="relative"><StewardAvatarIcon size={30} alt="Steward" className="ring-2 ring-white shadow-sm" /><span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" /></span>
+              <div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Steward Copilot</h2><p className="truncate text-[10px] text-slate-500">OyamaCRM intelligence · Ready</p></div>
             </div>
-            <div className="flex rounded-full border border-slate-200 bg-slate-50 p-0.5">
-              <button
-                type="button"
-                onClick={() => switchTab("steward")}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activeTab === "steward" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                Steward
-              </button>
-              <button
-                type="button"
-                onClick={() => switchTab("messages")}
-                className={`relative rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activeTab === "messages" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                Messages
-                {messengerUnread > 0 ? (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white">
-                    {Math.min(messengerUnread, 99)}
-                  </span>
-                ) : null}
-              </button>
+            <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+              <button type="button" onClick={() => switchTab("steward")} className={`rounded-md px-2 py-1 text-[10px] font-semibold ${activeTab === "steward" ? "bg-[#eaf4fd] text-[#0f6cbd]" : "text-slate-500"}`}>AI</button>
+              <button type="button" onClick={() => switchTab("messages")} className={`relative rounded-md px-2 py-1 text-[10px] font-semibold ${activeTab === "messages" ? "bg-violet-50 text-violet-700" : "text-slate-500"}`}>People{messengerUnread > 0 ? <span className="absolute -right-1 -top-1 h-3.5 min-w-3.5 rounded-full bg-violet-600 px-1 text-[8px] leading-[14px] text-white">{Math.min(messengerUnread, 99)}</span> : null}</button>
             </div>
-            <button
-              type="button"
-              onClick={closeDock}
-              title="Minimize dock"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <Link href={workspaceHref} title="Open larger Copilot workspace" aria-label="Open larger Copilot workspace" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-[#eaf4fd] hover:text-[#0f6cbd]"><svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5h5v5m0-5-7 7M10 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4" /></svg></Link>
+            <button type="button" onClick={closeDock} title="Minimize" aria-label="Minimize chat" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" d="M6 12h12" /></svg></button>
           </header>
-
-          <StewardMetricsStrip moduleKey={stewardModule} scopePath={scopePath} />
 
           <div className="min-h-0 flex-1 overflow-hidden bg-white">
             {activeTab === "steward" ? (
-              <StewardChatPanel
-                open
-                onClose={closeDock}
-                moduleKey={stewardModule}
-                scopePath={scopePath}
-                displayMode="workspace"
-                externalPrompt={externalPrompt}
-                onExternalPromptConsumed={() => setExternalPrompt(null)}
-              />
+              <StewardChatPanel open onClose={closeDock} moduleKey={stewardModule} scopePath={scopePath} displayMode="workspace" embeddedCompact externalPrompt={externalPrompt} onExternalPromptConsumed={() => setExternalPrompt(null)} />
             ) : (
-              <MessengerPanel
-                open
-                variant="dock"
-                onClose={closeDock}
-                onUnreadChange={onMessengerUnreadChange}
-              />
+              <MessengerPanel open variant="dock" onClose={closeDock} onUnreadChange={onMessengerUnreadChange} />
             )}
           </div>
         </section>

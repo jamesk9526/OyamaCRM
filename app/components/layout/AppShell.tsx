@@ -47,9 +47,9 @@ const DONOR_APPEARANCE_CHROME: Record<DonorAppearanceTheme, {
   slate: { dark: "#111827", mid: "#263447", base: "#475569", light: "#cbd5e1", soft: "#edf2f7", border: "rgba(203, 213, 225, 0.28)", shadowRgb: "15, 23, 42" },
 };
 
-// Module routes render their own shells — bypass AppShell wrapper.
-// /steward-ai-workspace uses its own standalone PWA layout.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/apps", "/trivia", "/steward-ai-workspace", "/tablelink"];
+// Module routes render their own shells — bypass AppShell wrapper. Steward Copilot
+// intentionally remains inside this shell so CRM navigation and context stay visible.
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
 const SHELL_BYPASS_PATHS = ["/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",

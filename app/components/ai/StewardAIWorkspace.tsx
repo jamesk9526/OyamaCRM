@@ -21,10 +21,14 @@ export default function StewardAIWorkspace() {
   const searchParams = useSearchParams();
   const initialModule = useMemo(() => resolveModuleKey(searchParams.get("module")), [searchParams]);
   const initialThreadId = useMemo(() => searchParams.get("thread") || undefined, [searchParams]);
+  const initialScopePath = useMemo(() => {
+    const scope = searchParams.get("scope");
+    return scope?.startsWith("/") ? scope : "/";
+  }, [searchParams]);
 
   return (
-    <div className="h-full min-h-0 overflow-hidden">
-      <StewardCopilotWorkspace initialModule={initialModule} initialThreadId={initialThreadId} />
+    <div className="h-[calc(100dvh-7rem)] min-h-[560px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <StewardCopilotWorkspace initialModule={initialModule} initialThreadId={initialThreadId} initialScopePath={initialScopePath} />
     </div>
   );
 }

@@ -80,6 +80,13 @@ const STARTERS: Array<{ label: string; prompt: string; mode: ChatMode }> = [
   { label: "Build a path", prompt: "Help me plan a safe Steward Path for new donor follow-up.", mode: "action" },
 ];
 
+const PATH_STARTERS: Array<{ label: string; prompt: string; mode: ChatMode }> = [
+  { label: "Audit this path", prompt: "Review the Steward Path in my current CRM context. Identify configuration gaps, communication risks, and the highest-value improvements before activation.", mode: "analyze" },
+  { label: "Improve follow-up", prompt: "Recommend a stronger donor follow-up sequence for this Steward Path, including timing, review gates, and measurable outcomes.", mode: "action" },
+  { label: "Check donor experience", prompt: "Walk through this Steward Path from the donor's perspective and flag anything repetitive, unclear, impersonal, or unsafe.", mode: "analyze" },
+  { label: "Draft path content", prompt: "Draft review-ready copy for the key donor communications needed by this Steward Path, using only confirmed CRM context.", mode: "draft" },
+];
+
 function newThread(moduleKey: ModuleKey): CopilotThread {
   return {
     id: crypto.randomUUID(),
@@ -114,7 +121,7 @@ function safeStoredThreads(raw: string | null): CopilotThread[] {
   }
 }
 
-export default function StewardCopilotWorkspace({ initialModule = "donor", initialThreadId }: { initialModule?: ModuleKey; initialThreadId?: string }) {
+export default function StewardCopilotWorkspace({ initialModule = "donor", initialThreadId, initialScopePath = "/" }: { initialModule?: ModuleKey; initialThreadId?: string; initialScopePath?: string }) {
   const [threads, setThreads] = useState<CopilotThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId ?? null);
   const [moduleKey, setModuleKey] = useState<ModuleKey>(initialModule);
@@ -143,9 +150,13 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
   }, [hydrated, threads]);
 
   const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [activeThreadId, threads]);
-  const activeMessages = activeThread?.messages ?? [];
+  const activeMessages = useMemo(() => activeThread?.messages ?? [], [activeThread]);
   const activeModule = MODULES.find((item) => item.value === moduleKey) ?? MODULES[0];
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) ?? MODE_OPTIONS[0];
+  const visibleStarters = initialScopePath.startsWith("/steward-paths") ? PATH_STARTERS : STARTERS;
+  const scopeLabel = initialScopePath === "/"
+    ? "CRM overview"
+    : initialScopePath.split("?")[0].split("/").filter(Boolean).map((part) => part.replace(/-/g, " ")).join(" / ");
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -209,7 +220,7 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
           messages: [...priorMessages, userMessage].map((message) => ({ role: message.role, content: message.content })),
           mode: selectedMode,
           moduleKey: moduleKey === "all" ? "donor" : moduleKey,
-          scopePath: "/steward-ai-workspace",
+          scopePath: initialScopePath,
         }),
         signal: controller.signal,
       });
@@ -298,7 +309,7 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
       abortRef.current = null;
       setSending(false);
     }
-  }, [draft, ensureThread, mode, moduleKey, sending, updateActiveThread]);
+  }, [draft, ensureThread, initialScopePath, mode, moduleKey, sending]);
 
   function clearCurrentThread() {
     if (!activeThread || sending) return;
@@ -336,13 +347,14 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
             </div>
           ))}
         </div>
-        <div className="border-t border-slate-200 p-3 text-xs text-slate-600"><Link href="/settings/ai" className="block rounded-lg px-2 py-2 hover:bg-slate-50">AI settings</Link><Link href="/" className="block rounded-lg px-2 py-2 hover:bg-slate-50">Back to CRM</Link></div>
+        <div className="border-t border-slate-200 p-3 text-xs text-slate-600"><Link href="/steward-paths/library" className="block rounded-lg px-2 py-2 hover:bg-slate-50">Steward Paths</Link><Link href="/settings/ai" className="block rounded-lg px-2 py-2 hover:bg-slate-50">AI settings</Link></div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3 sm:px-5">
           <button type="button" onClick={() => setSidebarOpen(true)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 lg:hidden" aria-label="Open conversations">☰</button>
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{activeThread?.title ?? "New conversation"}</p><p className="truncate text-xs text-slate-500">{activeModule.description}</p></div>
+          <span title={`Grounding scope: ${initialScopePath}`} className="hidden max-w-[220px] truncate rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold capitalize text-[#0f548c] xl:inline">Context: {scopeLabel}</span>
           <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 sm:inline-flex"><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />Ready</span>
           <button type="button" onClick={clearCurrentThread} disabled={!activeThread || activeMessages.length === 0 || sending} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Clear</button>
         </header>
@@ -352,7 +364,7 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
             {activeMessages.length === 0 ? (
               <div className="flex min-h-[56vh] flex-col justify-center">
                 <div className="max-w-2xl"><span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-[#0f548c]">Grounded in your CRM</span><h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">What can I help move forward?</h1><p className="mt-3 max-w-xl text-base leading-7 text-slate-600">Ask for an answer, analysis, draft, or action plan. Steward uses live permissioned CRM context and keeps every consequential action review-first.</p></div>
-                <div className="mt-8 grid gap-3 sm:grid-cols-2">{STARTERS.map((starter) => <button key={starter.label} type="button" onClick={() => { setMode(starter.mode); void send(starter.prompt, starter.mode); }} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#7ab8e7] hover:shadow-md"><p className="text-sm font-semibold text-slate-900">{starter.label}</p><p className="mt-1 text-xs leading-5 text-slate-500">{starter.prompt}</p></button>)}</div>
+                <div className="mt-8 grid gap-3 sm:grid-cols-2">{visibleStarters.map((starter) => <button key={starter.label} type="button" onClick={() => { setMode(starter.mode); void send(starter.prompt, starter.mode); }} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#7ab8e7] hover:shadow-md"><p className="text-sm font-semibold text-slate-900">{starter.label}</p><p className="mt-1 text-xs leading-5 text-slate-500">{starter.prompt}</p></button>)}</div>
               </div>
             ) : activeMessages.map((message) => (
               <article key={message.id} className={`mb-7 ${message.role === "user" ? "ml-auto max-w-2xl" : "max-w-none"}`}>

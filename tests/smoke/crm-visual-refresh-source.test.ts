@@ -164,6 +164,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(appShell).not.toContain('import Sidebar from "./Sidebar"');
     expect(appShell).toContain('const contentTopPaddingClass = "pt-14"');
     expect(appShell).toContain('donorShellVisible ? "md:pl-64" : ""');
+    expect(appShell).not.toContain('"/trivia", "/steward-ai-workspace"');
     expect(appShell).toContain("useBrowserLayoutEffect");
     expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
@@ -176,6 +177,23 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(megaMenu).toContain("Search DonorCRM");
     expect(megaMenu).not.toContain("Use Sidebar");
     expect(globals).toContain("scrollbar-gutter: stable");
+  });
+
+  it("keeps Steward Copilot inside the CRM and gives its chat head a compact handoff", () => {
+    const dock = read("app/components/ai/StewardDockPanel.tsx");
+    const panel = read("app/components/ai/StewardChatPanel.tsx");
+    const workspace = read("app/components/ai/StewardCopilotWorkspace.tsx");
+    const layout = read("app/steward-ai-workspace/layout.tsx");
+
+    expect(dock).toContain("Open larger Copilot workspace");
+    expect(dock).toContain("embeddedCompact");
+    expect(dock).toContain("OyamaCRM intelligence · Ready");
+    expect(panel).toContain("embeddedCompact?: boolean");
+    expect(workspace).toContain("scopePath: initialScopePath");
+    expect(workspace).toContain("PATH_STARTERS");
+    expect(workspace).toContain('initialScopePath.startsWith("/steward-paths")');
+    expect(layout).toContain("return children");
+    expect(layout).not.toContain('className="h-[100dvh]');
   });
 
   it("applies the next visual pass to Constituents without removing existing behavior", () => {
