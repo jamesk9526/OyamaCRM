@@ -8,7 +8,8 @@ import {
   delimitStewardData,
   isStewardPathsScope,
 } from "../../server/src/steward/prompt-policy.js";
-import { getStewardToolInputGuidance } from "../../server/src/services/steward-tool-registry.js";
+import { getStewardToolInputGuidance, parseScopedCrmEntity } from "../../server/src/services/steward-tool-registry.js";
+import { parseScopeIdentifiers } from "../../server/src/steward/query-utils.js";
 
 describe("Steward prompt policy", () => {
   it("recognizes Steward Paths requests as action plans", () => {
@@ -67,7 +68,24 @@ describe("Steward prompt policy", () => {
   it("publishes truthful tool input contracts", () => {
     expect(getStewardToolInputGuidance("donor.getFullProfile")).toContain("Required input: constituentId");
     expect(getStewardToolInputGuidance("reports.runGivingByMonth")).toContain("dateBasis");
+    expect(getStewardToolInputGuidance("stewardPaths.getPath")).toContain("pathId");
     expect(getStewardToolInputGuidance("branding.getOrganizationBrandKit")).toContain("No input is required");
+    expect(getStewardToolInputGuidance("stewardPaths.getPath")).toContain("pathId");
+  });
+
+  it("extracts only recognized CRM detail records from route scope", () => {
+    expect(parseScopedCrmEntity("/campaigns/cmp_123?tab=results")).toEqual({ kind: "campaign", id: "cmp_123" });
+    expect(parseScopedCrmEntity("/donations/gift_42/edit")).toEqual({ kind: "donation", id: "gift_42" });
+    expect(parseScopedCrmEntity("/steward-paths/library")).toBeNull();
+    expect(parseScopedCrmEntity("/donations/new")).toBeNull();
+  });
+
+  it("extracts CRM record identifiers from current route context", () => {
+    expect(parseScopeIdentifiers("/constituents/con-1?tab=giving")).toEqual({ constituentId: "con-1" });
+    expect(parseScopeIdentifiers("/campaigns/camp-1")).toEqual({ campaignId: "camp-1" });
+    expect(parseScopeIdentifiers("/steward-paths/builder/path-1")).toEqual({ stewardPathId: "path-1" });
+    expect(parseScopeIdentifiers("/steward-paths/path-2/playground")).toEqual({ stewardPathId: "path-2" });
+    expect(parseScopeIdentifiers("/steward-paths/library")).toEqual({});
   });
 
   it("normalizes delimiter labels", () => {

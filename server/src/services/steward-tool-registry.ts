@@ -4,6 +4,7 @@
 import type { PermissionKey } from "../lib/permissions.js";
 import { hasDefaultPermission } from "../lib/permissions.js";
 import { prisma } from "../lib/prisma.js";
+import { parseScopeIdentifiers } from "../steward/query-utils.js";
 import {
   getFiscalYearForDate,
   getFiscalYearRange,
@@ -29,6 +30,8 @@ import {
 
 export type StewardToolName =
   | "branding.getOrganizationBrandKit"
+  | "context.getScopedCampaign"
+  | "context.getScopedDonation"
   | "donor.getDailyBrief"
   | "donor.getThankYousNeeded"
   | "donor.getAcknowledgmentQueue"
@@ -42,6 +45,7 @@ export type StewardToolName =
   | "donor.getDonationHistory"
   | "donor.getGiftSummaryByYear"
   | "campaigns.listActive"
+  | "stewardPaths.getPath"
   | "tasks.listOverdue"
   | "reports.getOShareviewDonorSummary"
   | "reports.runSummary"
@@ -96,6 +100,8 @@ export interface StewardToolListItem {
 }
 
 const TOOL_INPUT_GUIDANCE: Partial<Record<StewardToolName, string>> = {
+  "context.getScopedCampaign": "Required input: campaignId from the current CRM route.",
+  "context.getScopedDonation": "Required input: donationId from the current CRM route.",
   "donor.getThankYousNeeded": "Optional input: limit (1-200).",
   "donor.getAcknowledgmentQueue": "Optional inputs: limit (1-250), maxAgeDays (14-730), includeAcknowledged (boolean).",
   "donor.getRecurringGivingHealth": "Optional inputs: limit (1-120), windowDays (7-120).",
@@ -107,6 +113,7 @@ const TOOL_INPUT_GUIDANCE: Partial<Record<StewardToolName, string>> = {
   "donor.getFullProfile": "Required input: constituentId from route or retrieved context.",
   "donor.getDonationHistory": "Required input: constituentId from route or retrieved context. Optional input: limit (1-100).",
   "donor.getGiftSummaryByYear": "Required input: constituentId from route or retrieved context.",
+  "stewardPaths.getPath": "Required input: pathId from the current Steward Paths route.",
   "reports.getOShareviewDonorSummary": "Optional input: four-digit year.",
   "reports.runGivingByMonth": "Optional inputs: year, dateBasis (fiscal or calendar).",
   "reports.runLybunt": "Optional input: limit (1-200).",
@@ -167,6 +174,22 @@ interface PermissionSnapshot {
 }
 
 const TOOL_DEFINITIONS: ToolDefinition[] = [
+  {
+    name: "context.getScopedCampaign",
+    kind: "read",
+    description: "Returns the exact campaign open in the current CRM route with verified goal, giving progress, gift count, and dates.",
+    requiredPermissions: ["view:campaigns", "view:donations"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "context.getScopedDonation",
+    kind: "read",
+    description: "Returns the exact gift open in the current CRM route with donor, campaign, designation, receipt, and acknowledgment context.",
+    requiredPermissions: ["view:donations", "view:constituents"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
   {
     name: "branding.getOrganizationBrandKit",
     kind: "read",
@@ -276,6 +299,14 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     kind: "read",
     description: "Returns all active fundraising campaigns with real-time goal progress, amounts raised, and gift counts.",
     requiredPermissions: ["view:campaigns"],
+    requiresConfirmation: false,
+    allowedModules: ["donor", "oshareview"],
+  },
+  {
+    name: "stewardPaths.getPath",
+    kind: "read",
+    description: "Returns one Steward Path with its trigger, ordered active steps, status, and enrollment health for grounded path review.",
+    requiredPermissions: ["steward_paths.view"],
     requiresConfirmation: false,
     allowedModules: ["donor", "oshareview"],
   },
@@ -797,6 +828,51 @@ export async function executeStewardTool(
   let result: unknown;
 
   switch (toolName) {
+    case "context.getScopedCampaign": {
+      const campaignId = asText(input?.campaignId, "", 80);
+      if (!campaignId) throw new StewardToolError(400, "VALIDATION_ERROR", "campaignId is required.");
+      const campaign = await prisma.campaign.findFirst({
+        where: { id: campaignId, organizationId: context.organizationId },
+        select: { id: true, name: true, description: true, category: true, goal: true, startDate: true, endDate: true, active: true, _count: { select: { donations: true, pledges: true } } },
+      });
+      if (!campaign) throw new StewardToolError(404, "NOT_FOUND", `Campaign not found: ${campaignId}`);
+      const completed = await prisma.donation.aggregate({
+        where: { campaignId, status: "COMPLETED", constituent: { organizationId: context.organizationId } },
+        _sum: { amount: true },
+        _count: { _all: true },
+      });
+      const goal = campaign.goal ? Number(campaign.goal) : 0;
+      const raised = completed._sum.amount ? Number(completed._sum.amount) : 0;
+      result = {
+        ...campaign,
+        goal,
+        raised,
+        completedGiftCount: completed._count._all,
+        progressPercent: goal > 0 ? Math.round((raised / goal) * 1000) / 10 : null,
+        startDate: campaign.startDate.toISOString(),
+        endDate: campaign.endDate?.toISOString() ?? null,
+      };
+      break;
+    }
+
+    case "context.getScopedDonation": {
+      const donationId = asText(input?.donationId, "", 80);
+      if (!donationId) throw new StewardToolError(400, "VALIDATION_ERROR", "donationId is required.");
+      const donation = await prisma.donation.findFirst({
+        where: { id: donationId, constituent: { organizationId: context.organizationId } },
+        select: {
+          id: true, amount: true, feeAmount: true, date: true, status: true, paymentMethod: true,
+          isRecurring: true, receiptNumber: true, receiptSentAt: true, acknowledgmentSentAt: true, taxDeductible: true,
+          constituent: { select: { id: true, firstName: true, lastName: true, donorStatus: true, doNotEmail: true, emailOptOut: true, doNotCall: true, doNotMail: true, doNotContact: true } },
+          campaign: { select: { id: true, name: true } },
+          designation: { select: { id: true, name: true } },
+        },
+      });
+      if (!donation) throw new StewardToolError(404, "NOT_FOUND", `Donation not found: ${donationId}`);
+      result = { ...donation, amount: Number(donation.amount), feeAmount: Number(donation.feeAmount), date: donation.date.toISOString(), receiptSentAt: donation.receiptSentAt?.toISOString() ?? null, acknowledgmentSentAt: donation.acknowledgmentSentAt?.toISOString() ?? null };
+      break;
+    }
+
     case "branding.getOrganizationBrandKit": {
       const [organization, settings, headerPreset, footerPreset, signatureBlock] = await Promise.all([
         prisma.organization.findUnique({
@@ -2908,6 +2984,64 @@ export async function executeStewardTool(
       break;
     }
 
+    case "stewardPaths.getPath": {
+      const pathId = asText(input?.pathId, "", 120);
+      if (!pathId) {
+        throw new StewardToolError(400, "PATH_ID_REQUIRED", "A valid pathId is required.");
+      }
+      const path = await prisma.stewardPath.findFirst({
+        where: { id: pathId, organizationId: context.organizationId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          triggerType: true,
+          triggerConfig: true,
+          updatedAt: true,
+          steps: {
+            where: { isActive: true },
+            orderBy: { orderIndex: "asc" },
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              stepType: true,
+              orderIndex: true,
+              isRequired: true,
+              configJson: true,
+            },
+          },
+          enrollments: {
+            select: { status: true, currentStepId: true, nextStepDueAt: true },
+          },
+        },
+      });
+      if (!path) {
+        throw new StewardToolError(404, "PATH_NOT_FOUND", "Steward Path was not found in this organization.");
+      }
+      const enrollmentCounts = path.enrollments.reduce<Record<string, number>>((counts, enrollment) => {
+        counts[enrollment.status] = (counts[enrollment.status] ?? 0) + 1;
+        return counts;
+      }, {});
+      result = {
+        id: path.id,
+        name: path.name,
+        description: path.description,
+        status: path.status,
+        triggerType: path.triggerType,
+        triggerConfig: path.triggerConfig,
+        updatedAt: path.updatedAt.toISOString(),
+        steps: path.steps,
+        enrollmentCounts,
+        nextStepDueAt: path.enrollments
+          .map((enrollment) => enrollment.nextStepDueAt)
+          .filter((value): value is Date => value instanceof Date)
+          .sort((left, right) => left.getTime() - right.getTime())[0]?.toISOString() ?? null,
+      };
+      break;
+    }
+
     case "tasks.listOverdue": {
       const limit = asPositiveInt(input?.limit, 25, 1, 100);
       result = await getOverdueTasks(context.organizationId, { limit });
@@ -2964,6 +3098,18 @@ interface DonorRetrievalIntent {
   draftQueue: boolean;
 }
 
+export type ScopedCrmEntity =
+  | { kind: "campaign"; id: string }
+  | { kind: "donation"; id: string };
+
+/** Extracts exact record identity only from recognized CRM detail routes. */
+export function parseScopedCrmEntity(scopePath: string): ScopedCrmEntity | null {
+  const parts = scopePath.split("?")[0].split("/").filter(Boolean);
+  if (parts[0] === "campaigns" && parts[1]) return { kind: "campaign", id: parts[1] };
+  if (parts[0] === "donations" && parts[1] && parts[1] !== "new") return { kind: "donation", id: parts[1] };
+  return null;
+}
+
 /** Detects the user's retrieval intent so context loading stays focused and less noisy. */
 function detectDonorRetrievalIntent(lowerQuery: string): DonorRetrievalIntent {
   return {
@@ -3013,6 +3159,20 @@ export async function buildDonorToolContextForChat(params: {
   const lower = params.query.toLowerCase();
   const intent = detectDonorRetrievalIntent(lower);
   const mentionLockedIds = Array.from(new Set((params.mentionedConstituentIds ?? []).filter(Boolean))).slice(0, 3);
+  const scopedEntity = parseScopedCrmEntity(params.scopePath);
+
+  if (scopedEntity) {
+    try {
+      const scopedResult = scopedEntity.kind === "campaign"
+        ? await executeStewardTool(context, "context.getScopedCampaign", { campaignId: scopedEntity.id })
+        : await executeStewardTool(context, "context.getScopedDonation", { donationId: scopedEntity.id });
+      toolsUsed.push(scopedResult.tool);
+      lines.push(`Exact scoped CRM record (${scopedEntity.kind}): ${JSON.stringify(scopedResult.result)}`);
+      recordsUsed.push(`Current ${scopedEntity.kind} record: ${scopedEntity.id}`);
+    } catch {
+      lines.push(`Exact scoped CRM record (${scopedEntity.kind}) could not be loaded. Do not infer its details from other records.`);
+    }
+  }
 
   // Inject fiscal year context so the AI knows the current FY and YTD window
   try {
@@ -3026,6 +3186,39 @@ export async function buildDonorToolContextForChat(params: {
     toolsUsed.push("fiscal.context");
   } catch {
     // Non-fatal: fiscal year context is enhancement only
+  }
+
+  const scopedIdentifiers = parseScopeIdentifiers(params.scopePath);
+  if (scopedIdentifiers.stewardPathId) {
+    try {
+      const pathResult = await executeStewardTool(context, "stewardPaths.getPath", {
+        pathId: scopedIdentifiers.stewardPathId,
+      });
+      toolsUsed.push(pathResult.tool);
+      const path = pathResult.result as {
+        id: string;
+        name: string;
+        description: string | null;
+        status: string;
+        triggerType: string;
+        steps: Array<{ name: string; stepType: string; orderIndex: number; isRequired: boolean; configJson: unknown }>;
+        enrollmentCounts: Record<string, number>;
+        nextStepDueAt: string | null;
+      };
+      lines.push(
+        `Focused Steward Path: ${path.name} [${path.status}]`,
+        `  Path ID: ${path.id}`,
+        `  Trigger: ${path.triggerType}`,
+        `  Description: ${path.description ?? "none"}`,
+        `  Active steps: ${path.steps.length}`,
+        ...path.steps.slice(0, 60).map((step) => `    ${step.orderIndex + 1}. ${step.name} [${step.stepType}] required=${step.isRequired ? "yes" : "no"} config=${JSON.stringify(step.configJson ?? {})}`),
+        `  Enrollment counts: ${JSON.stringify(path.enrollmentCounts)}`,
+        `  Next due step: ${path.nextStepDueAt ?? "none"}`,
+      );
+      recordsUsed.push(`Steward Path: ${path.name} [${path.status}] — ${path.steps.length} active steps`);
+    } catch (error) {
+      lines.push(`Focused Steward Path could not be loaded: ${error instanceof Error ? error.message : "unavailable"}`);
+    }
   }
 
   // Tagged donor lock: when the composer includes @mentioned donors, restrict retrieval

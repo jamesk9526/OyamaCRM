@@ -166,6 +166,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(appShell).toContain('donorShellVisible ? "md:pl-64" : ""');
     expect(appShell).not.toContain('"/trivia", "/steward-ai-workspace"');
     expect(appShell).toContain("useBrowserLayoutEffect");
+    expect(appShell).toContain("StewardProactiveNudge");
     expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
     expect(topBar).toContain("OyamaCRM v1.3 home");
@@ -179,8 +180,18 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(globals).toContain("scrollbar-gutter: stable");
   });
 
+  it("offers dismissible route-aware Steward adoption prompts", () => {
+    const nudge = read("app/components/ai/StewardProactiveNudge.tsx");
+    expect(nudge).toContain("getStewardNudge");
+    expect(nudge).toContain("steward-nudge:v1:");
+    expect(nudge).toContain("/api/steward-ai/config");
+    expect(nudge).toContain("openStewardWithPrompt");
+    expect(nudge).toContain("using the real saved path data");
+  });
+
   it("keeps Steward Copilot inside the CRM and gives its chat head a compact handoff", () => {
     const dock = read("app/components/ai/StewardDockPanel.tsx");
+    const nudge = read("app/components/ai/StewardProactiveNudge.tsx");
     const panel = read("app/components/ai/StewardChatPanel.tsx");
     const workspace = read("app/components/ai/StewardCopilotWorkspace.tsx");
     const layout = read("app/steward-ai-workspace/layout.tsx");
@@ -188,6 +199,9 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(dock).toContain("Open larger Copilot workspace");
     expect(dock).toContain("embeddedCompact");
     expect(dock).toContain("OyamaCRM intelligence · Ready");
+    expect(nudge).toContain("getStewardNudge");
+    expect(nudge).toContain("steward-nudge:v1:");
+    expect(nudge).toContain("chatHeadEnabled === false");
     expect(panel).toContain("embeddedCompact?: boolean");
     expect(workspace).toContain("scopePath: initialScopePath");
     expect(workspace).toContain("PATH_STARTERS");

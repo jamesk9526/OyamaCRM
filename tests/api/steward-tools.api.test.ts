@@ -39,6 +39,9 @@ describe("steward tools api", () => {
     expect(names).toContain("grants.getDeadlineRadar");
     expect(names).toContain("communications.listDraftsForReview");
     expect(names).toContain("letters.createLetterDraft");
+    expect(names).toContain("stewardPaths.getPath");
+    expect(names).toContain("context.getScopedCampaign");
+    expect(names).toContain("context.getScopedDonation");
   });
 
   it("executes new read tools with deterministic response shapes", async () => {

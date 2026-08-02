@@ -18,8 +18,8 @@ export function tokenizeQuery(input: string): string[] {
 }
 
 /** Extracts path-scoped IDs from known workspace routes. */
-export function parseScopeIdentifiers(scopePath: string): { clientId?: string; eventId?: string; constituentId?: string } {
-  const parts = scopePath.split("/").filter(Boolean);
+export function parseScopeIdentifiers(scopePath: string): { clientId?: string; eventId?: string; constituentId?: string; stewardPathId?: string; campaignId?: string } {
+  const parts = scopePath.split("?")[0].split("/").filter(Boolean);
   if (parts[0] === "compassion" && parts[1] === "clients" && parts[2]) {
     return { clientId: parts[2] };
   }
@@ -32,6 +32,15 @@ export function parseScopeIdentifiers(scopePath: string): { clientId?: string; e
   }
   if (parts[0] === "constituents" && parts[1]) {
     return { constituentId: parts[1] };
+  }
+  if (parts[0] === "campaigns" && parts[1]) {
+    return { campaignId: parts[1] };
+  }
+  if (parts[0] === "steward-paths") {
+    if (parts[1] === "builder" && parts[2]) return { stewardPathId: parts[2] };
+    if (parts[1] && !["activity", "analytics", "builder", "enrollments", "library", "livecom", "new", "review", "settings"].includes(parts[1])) {
+      return { stewardPathId: parts[1] };
+    }
   }
   return {};
 }

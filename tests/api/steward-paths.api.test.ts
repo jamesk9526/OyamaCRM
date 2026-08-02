@@ -40,6 +40,20 @@ describe("steward paths api", () => {
       });
     expect(step.status).toBe(201);
 
+    const copilotPathContext = await request(app)
+      .post("/api/steward-ai/tools/execute")
+      .set(auth)
+      .send({
+        tool: "stewardPaths.getPath",
+        moduleKey: "donor",
+        scopePath: `/steward-paths/builder/${pathId}`,
+        input: { pathId },
+      });
+    expect(copilotPathContext.status).toBe(200);
+    expect(copilotPathContext.body?.data?.result?.id).toBe(pathId);
+    expect(copilotPathContext.body?.data?.result?.steps).toHaveLength(1);
+    expect(copilotPathContext.body?.data?.requiresConfirmation).toBe(false);
+
     const share = await request(app)
       .patch(`/api/steward-paths/templates/${pathId}/share`)
       .set(auth)

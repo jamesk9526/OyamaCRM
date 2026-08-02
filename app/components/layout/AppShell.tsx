@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
 import DonorMegaMenu from "./DonorMegaMenu";
 import CrmContextualHelp from "@/app/components/help/CrmContextualHelp";
+import StewardProactiveNudge from "@/app/components/ai/StewardProactiveNudge";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
@@ -441,6 +442,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <CrmContextualHelp pathname={pathname} />
+      <StewardProactiveNudge />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
@@ -39,6 +40,7 @@ export default function StewardDockPanel({
   onMessengerUnreadChange,
   showLauncher = true,
 }: StewardDockPanelProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [activeTab, setActiveTab] = useState<DockTab>("steward");
@@ -73,7 +75,6 @@ export default function StewardDockPanel({
   }, [onMessagesOpenChange, open]);
 
   useEffect(() => {
-    setScopePath(`${window.location.pathname}${window.location.search}`);
     const restoredOpen = localStorage.getItem(STORAGE_KEY) === "true";
     const restoredTab = localStorage.getItem(TAB_STORAGE_KEY) === "messages" ? "messages" : "steward";
     setOpen(restoredOpen);
@@ -83,6 +84,10 @@ export default function StewardDockPanel({
     setHydrated(true);
     return () => emitDockState(false);
   }, [emitDockState, onMessagesOpenChange]);
+
+  useEffect(() => {
+    setScopePath(`${window.location.pathname}${window.location.search}`);
+  }, [pathname]);
 
   useEffect(() => {
     if (hydrated && messagesOpen) openDock("messages");
