@@ -122,7 +122,7 @@ export default function RecordGiftModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-2 backdrop-blur-[2px] sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Record gift">
       <button type="button" className="absolute inset-0" aria-label="Close record gift" onClick={onClose} />
-      <div className="relative flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-2xl">
+      <div className="relative flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_36px_100px_rgba(15,23,42,0.24)]">
         <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Donations / Record Gift</p>

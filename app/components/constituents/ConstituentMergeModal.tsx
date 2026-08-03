@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { ConstituentRow, formatCurrency, getConstituentDisplayName } from "./constituent-utils";
+import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
 type Props = {
   constituents: ConstituentRow[];
@@ -34,13 +35,14 @@ export default function ConstituentMergeModal({ constituents, onClose, onMerged 
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="merge-constituents-title">
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-900/10">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#0f6cbd]">Data quality</p>
-          <h2 id="merge-constituents-title" className="mt-1 text-xl font-semibold text-slate-950">Merge duplicate constituents</h2>
-          <p className="mt-2 text-sm text-slate-600">Choose the profile to keep. Gifts, tasks, notes, tags, communication history, and event records from the other selected profiles will move into it.</p>
-        </div>
+    <WorkspaceSetupModal
+      title="Merge duplicate constituents"
+      subtitle="Choose the profile to keep. Related gifts, tasks, notes, tags, communication history, and event records move into it."
+      onClose={onClose}
+      maxWidthClassName="max-w-2xl"
+      contentClassName="bg-slate-50"
+    >
+      <div className="overflow-hidden">
         <div className="space-y-3 px-6 py-5">
           {constituents.map((item) => {
             const isKeep = item.id === keepId;
@@ -64,6 +66,6 @@ export default function ConstituentMergeModal({ constituents, onClose, onMerged 
           <button type="button" onClick={submit} disabled={saving || !keep} className="rounded-[3px] bg-[#0f6cbd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Merging…" : `Merge ${duplicates.length} into ${keep ? getConstituentDisplayName(keep) : "profile"}`}</button>
         </div>
       </div>
-    </div>
+    </WorkspaceSetupModal>
   );
 }

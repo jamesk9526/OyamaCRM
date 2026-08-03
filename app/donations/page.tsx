@@ -79,6 +79,7 @@ export default function DonationsPage() {
   const recordGiftGrantTitle = searchParams.get("grantTitle") ?? "";
   const recordGiftFunderName = searchParams.get("funderName") ?? "";
   const recordGiftSuggestedAmount = searchParams.get("suggestedAmount") ?? "";
+  const [recordGiftDismissed, setRecordGiftDismissed] = useState(false);
   const [defaultRange] = useState(getCurrentYearDateInputs);
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -185,6 +186,12 @@ export default function DonationsPage() {
   useEffect(() => {
     setSelectedIds((current) => current.filter((id) => donations.some((row) => row.id === id)));
   }, [donations]);
+
+  // Restore the URL-driven dialog after a genuine new open, while allowing a
+  // close action to disappear immediately instead of waiting for navigation.
+  useEffect(() => {
+    if (recordGiftOpen) setRecordGiftDismissed(false);
+  }, [recordGiftOpen]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -391,6 +398,7 @@ export default function DonationsPage() {
 
   /** Closes the Record Gift modal while preserving ledger filters such as campaign scope. */
   function closeRecordGiftModal() {
+    setRecordGiftDismissed(true);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("recordGift");
     params.delete("source");
@@ -738,7 +746,7 @@ export default function DonationsPage() {
       />
     )}
 
-    {recordGiftOpen ? (
+    {recordGiftOpen && !recordGiftDismissed ? (
       <RecordGiftModal
         source={recordGiftSource}
         campaignId={campaignIdFilter}
@@ -776,9 +784,23 @@ function BulkAcknowledgmentDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [busy, onClose]);
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4" role="dialog" aria-modal="true" aria-labelledby="bulk-acknowledgment-title">
-      <div className="w-full max-w-lg border border-[#d1d1d1] bg-white">
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bulk-acknowledgment-title"
+      onMouseDown={(event) => { if (!busy && event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.28)]">
         <div className="border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#0f548c]">Historical acknowledgment</p>
           <h2 id="bulk-acknowledgment-title" className="mt-1 text-lg font-semibold text-[#242424]">Mark completed gifts as thanked</h2>

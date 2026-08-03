@@ -1,7 +1,7 @@
 /** Shared setup-style modal shell with module-aware accent theming for CRM modals. */
 "use client";
 
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 
@@ -99,13 +99,32 @@ export default function WorkspaceSetupModal({
   icon,
   rightPanel,
   contentClassName,
-  closeOnBackdropClick = false,
+  closeOnBackdropClick = true,
 }: WorkspaceSetupModalProps) {
   const pathname = usePathname();
   const moduleKey = useMemo(() => resolveTopBarModuleKey(pathname || "/"), [pathname]);
   const theme = useMemo(() => getAccentTheme(moduleKey), [moduleKey]);
   const isDark = appearance === "dark";
   const showChecklist = checklist.length > 0;
+
+  // Every shared CRM dialog should have a dependable way out, including when
+  // a form field or a nested scroll area has focus.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
 
   const shellClass = isDark
     ? "border-slate-800 bg-[#020617] text-slate-100 shadow-[0_30px_120px_rgba(2,6,23,0.85)]"

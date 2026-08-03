@@ -49,6 +49,14 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
   }, []);
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadTemplates() {
@@ -98,14 +106,17 @@ export default function LetterFromTemplateModal({ donation, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-12 overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 p-4 pt-8 backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose letter template"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
       <div
         ref={containerRef}
         tabIndex={-1}
         className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl ring-1 ring-gray-200 outline-none"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
-        }}
       >
         <div className="flex items-start justify-between gap-3 rounded-t-xl bg-gradient-to-r from-green-700 to-green-500 px-6 py-4">
           <div className="min-w-0">

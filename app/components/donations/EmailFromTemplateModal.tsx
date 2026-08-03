@@ -324,6 +324,14 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
     if (el) el.focus();
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   // Load templates on open
   useEffect(() => {
     let cancelled = false;
@@ -488,12 +496,17 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-12 overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/45 p-4 pt-8 backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Send email from template"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
       <div
         ref={containerRef}
         tabIndex={-1}
         className={`relative w-full ${step === "compose" ? "max-w-6xl" : "max-w-3xl"} rounded-xl bg-white shadow-2xl ring-1 ring-gray-200 outline-none`}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
       >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-3 rounded-t-xl bg-gradient-to-r from-blue-700 to-blue-500 px-6 py-4">
