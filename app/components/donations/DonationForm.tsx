@@ -240,19 +240,19 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
     })();
   }
 
-  const inputCls = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500";
-  const selectCls = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white";
-  const labelCls = "block text-sm font-medium text-gray-700 mb-1";
+  const inputCls = "w-full rounded-sm border border-[#8a8886] bg-white px-3 py-2 text-sm text-[#323130] placeholder:text-[#a19f9d] focus:border-[#0078d4] focus:outline-none focus:ring-1 focus:ring-[#0078d4]";
+  const selectCls = "w-full rounded-sm border border-[#8a8886] bg-white px-3 py-2 text-sm text-[#323130] focus:border-[#0078d4] focus:outline-none focus:ring-1 focus:ring-[#0078d4]";
+  const labelCls = "mb-1 block text-sm font-semibold text-[#323130]";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="border border-[#a4262c] bg-[#fdf3f4] px-4 py-3 text-sm text-[#a4262c]">{error}</div>
       )}
 
       {/* Donor */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h3 className="font-semibold text-gray-800">Donor</h3>
+      <div className="space-y-4 border border-[#edebe9] bg-white p-5">
+        <h3 className="text-base font-semibold text-[#323130]">Donor</h3>
         <div ref={constituentSearchRef} className="relative">
           <label className={labelCls}>Constituent *</label>
           <input
@@ -271,7 +271,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
           />
 
           {constituentSearchOpen ? (
-            <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+            <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto border border-[#8a8886] bg-white shadow-[0_4px_14px_rgba(0,0,0,0.16)]">
               {constituentSearching ? (
                 <p className="px-3 py-2 text-xs text-gray-500">Searching...</p>
               ) : constituentSearchError ? (
@@ -286,7 +286,7 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
                       key={option.id}
                       type="button"
                       onClick={() => pickConstituent(option)}
-                      className={`block w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 ${selected ? "bg-green-50" : "hover:bg-gray-50"}`}
+                      className={`block w-full border-b border-[#edebe9] px-3 py-2 text-left last:border-b-0 ${selected ? "bg-[#deecf9]" : "hover:bg-[#f3f2f1]"}`}
                     >
                         <p className="text-sm font-medium text-gray-900">{buildDisplayName(option)}</p>
                       <p className="text-xs text-gray-500">{option.email || "No email"}</p>
@@ -300,9 +300,9 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
       </div>
 
       {/* Gift Details */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h3 className="font-semibold text-gray-800">Gift Details</h3>
-        <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4 border border-[#edebe9] bg-white p-5">
+        <h3 className="text-base font-semibold text-[#323130]">Gift details</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Amount ($) *</label>
             <input type="number" min="0" step="0.01" placeholder="0.00" className={inputCls}
@@ -335,15 +335,15 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
         </div>
 
         {/* Checkboxes */}
-        <div className="flex gap-6 pt-1">
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+        <div className="flex flex-wrap gap-x-6 gap-y-3 pt-1">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[#323130]">
             <input type="checkbox" checked={form.taxDeductible} onChange={e => update("taxDeductible", e.target.checked)}
-              className="rounded border-gray-300 text-green-600 focus:ring-green-500" />
+              className="rounded-sm border-[#8a8886] text-[#0078d4] focus:ring-[#0078d4]" />
             Tax Deductible
           </label>
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[#323130]">
             <input type="checkbox" checked={form.isRecurring} onChange={e => update("isRecurring", e.target.checked)}
-              className="rounded border-gray-300 text-green-600 focus:ring-green-500" />
+              className="rounded-sm border-[#8a8886] text-[#0078d4] focus:ring-[#0078d4]" />
             Recurring Gift
           </label>
         </div>
@@ -363,9 +363,9 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
       </div>
 
       {/* Attribution */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h3 className="font-semibold text-gray-800">Attribution</h3>
-        <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4 border border-[#edebe9] bg-white p-5">
+        <h3 className="text-base font-semibold text-[#323130]">Attribution</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Fund / Designation</label>
             <select className={selectCls} value={form.designationId} onChange={e => update("designationId", e.target.value)}>
@@ -384,20 +384,20 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
       </div>
 
       {/* Notes */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="border border-[#edebe9] bg-white p-5">
         <label className={labelCls}>Notes</label>
         <textarea rows={3} className={inputCls + " resize-none"} placeholder="Optional notes about this gift…"
           value={form.notes} onChange={e => update("notes", e.target.value)} />
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="sticky bottom-0 -mx-5 flex flex-wrap items-center gap-3 border-t border-[#edebe9] bg-[#faf9f8] px-5 py-4 sm:-mx-6 sm:px-6">
         <button type="submit" disabled={saving}
-          className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg disabled:opacity-60 transition-colors">
-          {saving ? "Saving…" : mode === "edit" ? "Update Donation" : "Record Donation"}
+          className="rounded-sm bg-[#0078d4] px-5 py-2 text-sm font-semibold text-white hover:bg-[#106ebe] focus:outline-none focus:ring-2 focus:ring-[#0078d4] focus:ring-offset-2 disabled:opacity-60">
+          {saving ? "Saving…" : mode === "edit" ? "Save changes" : "Record gift"}
         </button>
         <button type="button" onClick={() => onCancel ? onCancel() : router.back()}
-          className="px-6 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+          className="rounded-sm border border-[#8a8886] bg-white px-5 py-2 text-sm font-semibold text-[#323130] hover:bg-[#f3f2f1] focus:outline-none focus:ring-2 focus:ring-[#0078d4] focus:ring-offset-2">
           Cancel
         </button>
         {/* QB sync checkbox — only shows on create when the QB plugin is enabled */}
