@@ -1,150 +1,57 @@
-/** Settings overview page summarizes core configuration areas and next steps. */
+/** Settings overview organized around common staff and administrator goals. */
 import Link from "next/link";
+import { ArrowRight, Building2, CircleUserRound, PlugZap, ShieldCheck, Sparkles, UsersRound, Wrench } from "lucide-react";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
-const CARDS = [
-  {
-    title: "My Profile",
-    description: "Update your name, phone, job details, timezone, profile image, and review your account usage.",
-    href: "/settings/profile",
-  },
-  {
-    title: "Organization",
-    description: "Profile, timezone, fiscal year, and primary nonprofit details.",
-    href: "/settings/organization",
-  },
-  {
-    title: "Desktop App",
-    description: "Download the Windows one-click installer for the OyamaCRM v1.3 desktop shell.",
-    href: "/settings/desktop-app",
-  },
-  {
-    title: "Users",
-    description: "User onboarding, status controls, role assignment, and workspace access.",
-    href: "/settings/users",
-  },
-  {
-    title: "Roles & Scopes",
-    description: "Permission matrix and role foundations for route-level RBAC.",
-    href: "/settings/roles",
-  },
-  {
-    title: "AI Assistant",
-    description: "Configure Steward AI with local Ollama or a remote hosted Ollama endpoint.",
-    href: "/settings/ai",
-  },
-  {
-    title: "CRM Modules",
-    description: "Enable and govern module access for DonorCRM and Events CRM.",
-    href: "/settings/modules",
-  },
-  {
-    title: "System Updates",
-    description: "Admin-only release manager with backup, migration, smoke test, and rollback controls.",
-    href: "/settings/system-updates",
-  },
-  {
-    title: "System Status",
-    description: "Combined system readiness and project-status evidence for release planning.",
-    href: "/settings/system-status",
-  },
-  {
-    title: "Branding",
-    description: "Logo, primary colors, and public display defaults for forms and pages.",
-    href: "/settings/branding",
-  },
-  {
-    title: "Dashboard Appearance",
-    description: "Configure the Donor Dashboard header image, overlay, quote card, density, and visible sections.",
-    href: "/settings/dashboard-appearance",
-  },
-  {
-    title: "My DonorCRM Appearance",
-    description: "Choose your personal DonorCRM command-bar color and workspace density. This does not affect other users.",
-    href: "/settings/appearance",
-  },
-  {
-    title: "Integrations",
-    description: "Unified integration readiness and plugin controls for QuickBooks, embeds, SMTP, and AI.",
-    href: "/settings/integrations",
-  },
-  {
-    title: "Import & Export",
-    description: "Open reviewed imports, data tools, and the admin-only portable full CRM backup workspace.",
-    href: "/settings/import-export",
-  },
-  {
-    title: "Payments",
-    description: "Stripe and PayPal gateway settings, encryption-safe secrets, and donation checkout diagnostics.",
-    href: "/integrations/stripe",
-  },
-  {
-    title: "Site Embeds",
-    description: "Generate secure website snippets, configure domain allow-lists, and manage LiveCom public widget installs.",
-    href: "/settings/site-embeds",
-  },
-  {
-    title: "Security & Audit",
-    description: "Authentication controls, recovery actions, and audit log visibility in one place.",
-    href: "/settings/security",
-  },
-];
+const PRIMARY_ACTIONS = [
+  { title: "My profile", description: "Update your contact details, job information, and timezone.", href: "/settings/profile", icon: CircleUserRound, tone: "blue" },
+  { title: "Organization", description: "Manage nonprofit identity, fiscal year, regional, and email defaults.", href: "/settings/organization", icon: Building2, tone: "emerald" },
+  { title: "Team access", description: "Invite staff, manage accounts, and review role permissions.", href: "/settings/users", icon: UsersRound, tone: "violet" },
+  { title: "Integrations", description: "Review connected services, payments, email, and website tools.", href: "/settings/integrations", icon: PlugZap, tone: "amber" },
+] as const;
 
-/** SettingsOverviewPage introduces the settings workspace foundation state. */
+const GROUPS = [
+  { title: "Personalize", description: "Control how OyamaCRM looks for you and your team.", icon: Sparkles, links: [["My appearance", "/settings/appearance"], ["Dashboard appearance", "/settings/dashboard-appearance"], ["Branding", "/settings/branding"]] },
+  { title: "Configure workspaces", description: "Choose the modules and tools your organization uses.", icon: Wrench, links: [["CRM modules", "/settings/modules"], ["Events CRM", "/settings/events"], ["AI assistant", "/settings/ai"], ["Site embeds", "/settings/site-embeds"]] },
+  { title: "Protect your data", description: "Review access, move data safely, and check operational health.", icon: ShieldCheck, links: [["Security & audit", "/settings/security"], ["Roles & scopes", "/settings/roles"], ["Import & export", "/settings/import-export"], ["System status", "/settings/system-status"]] },
+] as const;
+
+const TONES = { blue: "bg-blue-50 text-blue-700", emerald: "bg-emerald-50 text-emerald-700", violet: "bg-violet-50 text-violet-700", amber: "bg-amber-50 text-amber-700" };
+
 export default function SettingsOverviewPage() {
-  return (
-    <div className="space-y-5">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Donor CRM", href: "/" },
-          { label: "Settings" },
-        ]}
-        metadata={`${CARDS.length} settings areas`}
-      />
+  return <div className="space-y-6">
+    <WorkspaceBreadcrumbBar items={[{ label: "Donor CRM", href: "/" }, { label: "Settings" }]} metadata="Organization and account controls" />
 
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Core">
-          <WorkspaceRibbonButton label="My Profile" href="/settings/profile" />
-          <WorkspaceRibbonButton label="Organization" href="/settings/organization" />
-          <WorkspaceRibbonButton label="Users" href="/settings/users" />
-          <WorkspaceRibbonButton label="Roles" href="/settings/roles" />
-          <WorkspaceRibbonButton label="Security & Audit" href="/settings/security" />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="System">
-          <WorkspaceRibbonButton label="Modules" href="/settings/modules" />
-          <WorkspaceRibbonButton label="AI" href="/settings/ai" />
-          <WorkspaceRibbonButton label="Dashboard Appearance" href="/settings/dashboard-appearance" />
-          <WorkspaceRibbonButton label="My Appearance" href="/settings/appearance" />
-          <WorkspaceRibbonButton label="Integrations" href="/settings/integrations" />
-          <WorkspaceRibbonButton label="Import & Export" href="/settings/import-export" />
-          <WorkspaceRibbonButton label="Stripe Giving" href="/integrations/stripe" />
-          <WorkspaceRibbonButton label="System Updates" href="/settings/system-updates" />
-          <WorkspaceRibbonButton label="System Status" href="/settings/system-status" />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+    <header className="overflow-hidden rounded-2xl border border-slate-200 bg-[linear-gradient(120deg,#ecfdf5,#ffffff_48%,#eff6ff)] px-5 py-7 shadow-sm sm:px-7">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Settings center</p>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">What would you like to manage?</h1>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Update your own preferences or manage organization-wide configuration. Changes that affect other staff are clearly identified on their settings page.</p>
+    </header>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <p className="text-sm text-gray-700">
-          Settings is now organized around one-home paths for identity, access, modules, AI, and platform governance. Module-specific
-          operational workflows should live in their CRM workspaces rather than duplicate here.
-        </p>
+    <section aria-labelledby="common-settings-heading">
+      <div className="mb-3 flex items-end justify-between gap-4"><div><h2 id="common-settings-heading" className="text-base font-semibold text-slate-950">Common settings</h2><p className="mt-0.5 text-sm text-slate-500">The places administrators and staff use most often.</p></div></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {PRIMARY_ACTIONS.map((item) => { const Icon = item.icon; return <Link key={item.href} href={item.href} className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+          <span className={`grid h-10 w-10 place-items-center rounded-xl ${TONES[item.tone]}`}><Icon size={20} aria-hidden="true" /></span>
+          <h3 className="mt-4 flex items-center justify-between gap-2 text-sm font-semibold text-slate-950">{item.title}<ArrowRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-600" aria-hidden="true" /></h3>
+          <p className="mt-1.5 text-sm leading-5 text-slate-500">{item.description}</p>
+        </Link>; })}
       </div>
+    </section>
 
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {CARDS.map((card) => (
-          <Link
-            key={card.title}
-            href={card.href}
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:border-green-300 hover:shadow-sm transition-all"
-          >
-            <h2 className="text-sm font-semibold text-gray-900">{card.title}</h2>
-            <p className="text-sm text-gray-500 mt-1">{card.description}</p>
-          </Link>
-        ))}
+    <section aria-labelledby="all-settings-heading">
+      <h2 id="all-settings-heading" className="text-base font-semibold text-slate-950">More settings</h2>
+      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+        {GROUPS.map((group) => { const Icon = group.icon; return <article key={group.title} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={18} aria-hidden="true" /></span><div><h3 className="text-sm font-semibold text-slate-950">{group.title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p></div></div>
+          <div className="mt-4 divide-y divide-slate-100 border-t border-slate-100">{group.links.map(([label, href]) => <Link key={href} href={href} className="group flex items-center justify-between py-2.5 text-sm font-medium text-slate-700 hover:text-emerald-700">{label}<ArrowRight size={15} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-600" aria-hidden="true" /></Link>)}</div>
+        </article>; })}
       </div>
+    </section>
+
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div><p className="font-semibold text-slate-800">Looking for technical controls?</p><p className="mt-0.5 text-slate-500">System updates, health checks, desktop downloads, and version details are under System in the settings menu.</p></div>
+      <Link href="/settings/system" className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-emerald-700 hover:text-emerald-800">Open system details <ArrowRight size={16} aria-hidden="true" /></Link>
     </div>
-  );
+  </div>;
 }
