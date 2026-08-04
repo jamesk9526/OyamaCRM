@@ -121,7 +121,6 @@ export default function WatchdogAuditPage() {
               <option value="">All</option>
               <option value="watchdog">watchdog</option>
               <option value="donor">donor</option>
-              <option value="compassion">compassion</option>
               <option value="events">events</option>
               <option value="webmaster">webmaster</option>
             </select>

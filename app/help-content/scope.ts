@@ -5,7 +5,6 @@ import type { HelpCrmScope } from "@/app/help-content/types";
 
 /** Converts shared topbar module keys into Help App CRM scopes. */
 export function mapModuleKeyToHelpScope(moduleKey: TopBarModuleKey): HelpCrmScope {
-  if (moduleKey === "compassion") return "compassion";
   if (moduleKey === "events") return "events";
   if (moduleKey === "password") return "global";
   if (moduleKey === "letters") return "donor";
@@ -17,7 +16,6 @@ export function mapModuleKeyToHelpScope(moduleKey: TopBarModuleKey): HelpCrmScop
 export function parseHelpScope(raw: string | null | undefined): HelpCrmScope {
   if (raw === "donor") return "donor";
   if (raw === "events") return "events";
-  if (raw === "compassion") return "compassion";
   if (raw === "global") return "global";
   return "donor";
 }

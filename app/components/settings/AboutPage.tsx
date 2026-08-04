@@ -41,7 +41,7 @@ export default function AboutPage() {
           </p>
           <p className="mt-2 text-sm text-gray-600 leading-relaxed">
             OyamaCRM v1.3 is an integrated nonprofit management platform covering donor
-            management, compassion client services, event management, and AI-powered
+            management, constituent engagement, event management, and AI-powered
             stewardship — built to serve pregnancy centers and nonprofits of every size.
           </p>
         </div>

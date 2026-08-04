@@ -216,50 +216,6 @@ export const HELP_ROUTE_CONTEXT_RULES: HelpRouteContextRule[] = [
     prioritizeSlugs: ["events-create-event"],
   },
 
-  // Compassion CRM
-  {
-    routePrefix: "/compassion/appointments",
-    crmScope: "compassion",
-    tags: ["appointments", "calendar", "rescheduling"],
-    prioritizeSlugs: ["compassion-appointments-workspace"],
-  },
-  {
-    routePrefix: "/compassion/import/clients",
-    crmScope: "compassion",
-    tags: ["import", "clients", "privacy"],
-    prioritizeSlugs: ["compassion-client-import"],
-  },
-  {
-    routePrefix: "/compassion/clients",
-    crmScope: "compassion",
-    tags: ["clients", "intake", "privacy"],
-    prioritizeSlugs: ["compassion-add-client"],
-  },
-  {
-    routePrefix: "/compassion/cases",
-    crmScope: "compassion",
-    tags: ["cases", "case-management", "workflow"],
-    prioritizeSlugs: ["compassion-open-case"],
-  },
-  {
-    routePrefix: "/compassion/follow-ups",
-    crmScope: "compassion",
-    tags: ["follow-ups", "tasks", "case-management"],
-    prioritizeSlugs: ["compassion-follow-up-tasks"],
-  },
-  {
-    routePrefix: "/compassion/reports",
-    crmScope: "compassion",
-    tags: ["reports", "compassion", "analytics"],
-    prioritizeSlugs: ["compassion-reports"],
-  },
-  {
-    routePrefix: "/compassion",
-    crmScope: "compassion",
-    tags: ["compassion", "clients", "intake"],
-    prioritizeSlugs: ["compassion-add-client", "compassion-appointments-workspace"],
-  },
-
   // Global
   {
     routePrefix: "/setup",

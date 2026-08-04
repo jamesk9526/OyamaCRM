@@ -50,7 +50,7 @@ const DONOR_APPEARANCE_CHROME: Record<DonorAppearanceTheme, {
 
 // Module routes render their own shells — bypass AppShell wrapper. Steward Copilot
 // intentionally remains inside this shell so CRM navigation and context stay visible.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/compassion", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
 const SHELL_BYPASS_PATHS = ["/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",
@@ -59,7 +59,6 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "board",
   "campaigns",
   "communications",
-  "compassion",
   "constituents",
   "contacts-manager",
   "custom-fields",
@@ -268,10 +267,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Redirect away from donor routes if DonorCRM is disabled at workspace settings level.
-    if (user && !isPublic && !isBoard && !isShareviewReports && !workspaceSettings.donorEnabled && workspaceSettings.compassionEnabled) {
-      router.replace("/compassion/dashboard");
-    }
   }, [loading, user, isPublic, isBoard, isShareviewReports, router, workspaceSettings]);
 
   useEffect(() => {

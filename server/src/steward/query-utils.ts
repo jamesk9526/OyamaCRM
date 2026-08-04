@@ -18,11 +18,8 @@ export function tokenizeQuery(input: string): string[] {
 }
 
 /** Extracts path-scoped IDs from known workspace routes. */
-export function parseScopeIdentifiers(scopePath: string): { clientId?: string; eventId?: string; constituentId?: string; stewardPathId?: string; campaignId?: string } {
+export function parseScopeIdentifiers(scopePath: string): { eventId?: string; constituentId?: string; stewardPathId?: string; campaignId?: string } {
   const parts = scopePath.split("?")[0].split("/").filter(Boolean);
-  if (parts[0] === "compassion" && parts[1] === "clients" && parts[2]) {
-    return { clientId: parts[2] };
-  }
   if (
     parts[0] === "events" &&
     parts[1] &&

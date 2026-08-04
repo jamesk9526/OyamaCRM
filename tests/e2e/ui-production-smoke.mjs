@@ -67,49 +67,6 @@ async function getAdminToken() {
   throw new Error("API login failed after retries.");
 }
 
-/** Ensures public scheduling widget is enabled with predictable smoke-test availability. */
-async function configureWidget(token) {
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  tomorrow.setHours(0, 0, 0, 0);
-  const widgetToken = `e2e-widget-${Date.now()}`;
-
-  const response = await fetch(`${API_BASE}/api/compassion/appointment-widget`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      enabled: true,
-      config: {
-        enabled: true,
-        token: widgetToken,
-        slotIntervalMinutes: 30,
-        appointmentDurationMinutes: 30,
-        minLeadHours: 0,
-        maxAdvanceDays: 120,
-        locationOptions: ["Main Office"],
-        availabilityBlocks: [
-          {
-            id: "e2e-public-slot-block",
-            dayOfWeek: tomorrow.getDay(),
-            startTime: "09:00",
-            endTime: "11:00",
-            location: "Main Office",
-            appointmentType: "ANY",
-            capacity: 2,
-            isActive: true,
-          },
-        ],
-        blackoutDates: [],
-      },
-    }),
-  });
-
-  await expectJsonOk(response, "Widget setup");
-  return widgetToken;
-}
-
 /** Checks for obvious runtime error surfaces after a route navigation. */
 async function assertHealthyRoute(page, route, allowRelogin = true) {
   console.log(`[e2e] checking route ${route}`);
@@ -233,75 +190,7 @@ async function reloginViaBrowserApi(page) {
   return false;
 }
 
-/** Verifies the public widget renders and keeps submit disabled before required fields are completed. */
-async function assertPublicWidgetPreSubmit(page, widgetToken) {
-  const configResponse = await fetch(`${API_BASE}/api/compassion-public/widget/${widgetToken}/config`);
-  if (!configResponse.ok) {
-    throw new Error(`Public widget config endpoint failed: ${configResponse.status}`);
-  }
-
-  const widgetUrl = `${WEB_BASE}/compassion/public/appointments/${widgetToken}`;
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    await page.goto(widgetUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle").catch(() => {});
-
-    const submitButton = page.locator('button[type="submit"]');
-    const submitCount = await submitButton.count();
-    if (submitCount > 0) {
-      const submitDisabled = await submitButton.isDisabled();
-      if (!submitDisabled) {
-        throw new Error("Public appointment submit button should be disabled before required form fields are completed.");
-      }
-      return;
-    }
-
-    const bodyText = await page.locator("body").innerText();
-    if (/widget not found|widget not available|failed to load booking form/i.test(bodyText)) {
-      throw new Error("Public widget page reported a configuration/loading error.");
-    }
-
-    await page.waitForTimeout(1000);
-  }
-
-  throw new Error("Public widget submit button was not found after retries.");
-}
-
-/** Logs in through the real UI and waits for authenticated navigation. */
-async function loginViaUi(page) {
-  await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 45000 });
-  await page.fill('input[type="email"], input[name="email"]', "admin@hopefoundation.org");
-  await page.fill('input[type="password"], input[name="password"]', "admin123!");
-  await page.click('button[type="submit"]');
-
-  // Setup and workspace resolution can delay route transition after submit.
-  const timeoutMs = 45000;
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    if (!page.url().includes("/login")) {
-      return;
-    }
-
-    const hasError = await page.getByText(/login failed|session expired|invalid/i).count();
-    if (hasError > 0) {
-      throw new Error("Login failed with visible error message on the form.");
-    }
-
-    const hasRateLimit = await page.getByText(/too many auth attempts|too many requests|rate limit/i).count();
-    if (hasRateLimit > 0) {
-      throw new Error("Login is currently rate-limited.");
-    }
-
-    await page.waitForTimeout(500);
-  }
-
-  throw new Error("Login did not leave /login within 45s.");
-}
-
-/** Runs desktop + mobile browser smoke checks across key route groups. */
-async function runBrowserChecks(widgetToken) {
+async function runBrowserChecks() {
   const browser = await chromium.launch({ headless: true });
 
   try {
@@ -320,9 +209,6 @@ async function runBrowserChecks(widgetToken) {
       "/events/reports",
       "/events/page-builder",
       "/events/templates",
-      "/compassion/dashboard",
-      "/compassion/clients",
-      "/compassion/settings",
       "/settings",
       "/data-tools/import",
     ];
@@ -330,8 +216,6 @@ async function runBrowserChecks(widgetToken) {
     for (const route of criticalRoutes) {
       await assertHealthyRoute(page, route);
     }
-
-    await assertPublicWidgetPreSubmit(page, widgetToken);
 
     const state = await context.storageState();
     const mobileContext = await browser.newContext({
@@ -371,9 +255,7 @@ async function runBrowserChecks(widgetToken) {
 }
 
 async function main() {
-  const token = await getAdminToken();
-  const widgetToken = await configureWidget(token);
-  await runBrowserChecks(widgetToken);
+  await runBrowserChecks();
   console.log("E2E production smoke passed.");
 }
 

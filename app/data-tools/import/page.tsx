@@ -63,7 +63,7 @@ export default function ImportPage() {
       </div>
 
       <div className="border border-[#e1b96a] bg-[#fff4ce] px-4 py-3 text-sm text-[#5c3b00]">
-        Client files should not be imported here. Import Compassion client records in the Compassion CRM client workspace so they stay out of donor data. If a client is also a donor, import them in Compassion first, then intentionally tag or link them as a donor.
+        Client-service files should not be imported here. This importer is limited to donor and outreach contact data.
       </div>
 
       {showGuidedEntry ? (

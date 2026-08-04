@@ -24,7 +24,6 @@ export interface ModuleSwitcherTone {
 
 /** Resolves the thin reactive accent line class used at the bottom of the top bar. */
 export function resolveTopBarModuleAccentClass(moduleKey: TopBarModuleKey, donorAccentLineClass: string): string {
-  if (moduleKey === "compassion") return "bg-blue-600";
   if (moduleKey === "events") return "bg-violet-500";
   if (moduleKey === "watchdog") return "bg-red-600";
   if (moduleKey === "webmaster") return "bg-indigo-600";
@@ -37,21 +36,6 @@ export function resolveTopBarModuleChromePalette(
   moduleKey: TopBarModuleKey,
   donorChromeTint?: DashboardChromeTint,
 ): TopBarModuleChromePalette {
-  if (moduleKey === "compassion") {
-    return {
-      scoopStart: "#1e3a8a",
-      scoopMid: "#1d4ed8",
-      scoopEnd: "#2563eb",
-      scoopStroke: "#1e40af",
-      glowStart: "#60a5fa",
-      glowMid: "#2563eb",
-      glowEnd: "#1e3a8a",
-      mobileGradient: "radial-gradient(circle at 8% 0%, rgba(96,165,250,0.24), transparent 42%), linear-gradient(135deg, #1e3a8a, #1d4ed8 58%, #2563eb)",
-      mobileBorderColor: "rgba(147,197,253,0.25)",
-      mobileShadow: "0 10px 26px rgba(30,58,138,0.24)",
-    };
-  }
-
   if (moduleKey === "events") {
     return {
       scoopStart: "#4c1d95",
@@ -143,7 +127,6 @@ export function resolveTopBarModuleChromePalette(
 
 /** Resolves the module home href used by topbar brand links and workspace jumps. */
 export function resolveTopBarHomeHref(moduleKey: TopBarModuleKey): string {
-  if (moduleKey === "compassion") return "/compassion/dashboard";
   if (moduleKey === "events") return "/events/events";
   if (moduleKey === "watchdog") return "/watchdog";
   if (moduleKey === "webmaster") return "/webmaster";
@@ -169,12 +152,7 @@ export function resolveModuleSwitcherTone(moduleKey: TopBarModuleKey, scrolled: 
       activeItem: "border-slate-300 bg-slate-50",
     };
 
-  const accentTone = moduleKey === "compassion"
-    ? {
-      activeIcon: "border-blue-200 bg-blue-50 text-blue-700",
-      activePill: "bg-blue-100 text-blue-700",
-    }
-    : moduleKey === "events"
+  const accentTone = moduleKey === "events"
       ? {
         activeIcon: "border-amber-200 bg-amber-50 text-amber-700",
         activePill: "bg-amber-100 text-amber-700",

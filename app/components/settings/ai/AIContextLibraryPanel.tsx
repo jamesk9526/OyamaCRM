@@ -28,7 +28,7 @@ interface ContextFile {
   chunkCount: number;
 }
 
-const WORKSPACE_SCOPES = ["global", "donor", "events", "compassion", "watchdog", "webmaster", "steward"];
+const WORKSPACE_SCOPES = ["global", "donor", "events", "watchdog", "webmaster", "steward"];
 const TEXT_TYPES = new Set(["text/plain", "text/markdown", "text/csv", "application/json"]);
 
 function bytesLabel(value: number): string {

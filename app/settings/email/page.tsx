@@ -1,4 +1,4 @@
-// Module communication settings skeleton page for DonorCRM, Compassion CRM, and Events CRM.
+// Module communication settings skeleton page for DonorCRM and Events CRM.
 
 interface ModuleCommunicationCard {
   moduleName: string;
@@ -17,17 +17,6 @@ const MODULE_CARDS: ModuleCommunicationCard[] = [
       "SMS sender and opt-out language",
       "Appeal, receipt, and stewardship templates",
       "Notification defaults for donation workflows",
-    ],
-  },
-  {
-    moduleName: "Compassion CRM",
-    accent: "bg-blue-50 border-blue-200 text-blue-800",
-    title: "Client Care Communications",
-    checklist: [
-      "Email and SMS sender settings for care teams",
-      "Consent and privacy-safe communication rules",
-      "Appointment and follow-up message templates",
-      "Client communication log visibility defaults",
     ],
   },
   {
@@ -53,7 +42,7 @@ export default function EmailSettingsPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Email and SMS by CRM Module</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Communication settings are module-specific. Donor, Compassion, and Events workflows have separate defaults,
+          Communication settings are module-specific. Donor and Events workflows have separate defaults,
           templates, and privacy expectations.
         </p>
       </div>
@@ -63,7 +52,7 @@ export default function EmailSettingsPage() {
         logs are planned and not fully implemented yet.
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         {MODULE_CARDS.map((card) => (
           <section key={card.moduleName} className="bg-white rounded-lg border border-gray-200 p-4">
             <p className={`inline-flex text-xs font-semibold px-2 py-1 rounded-full border ${card.accent}`}>

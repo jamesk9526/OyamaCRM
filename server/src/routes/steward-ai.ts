@@ -2659,7 +2659,6 @@ router.post("/chat/stream", async (req, res) => {
       : await (async () => {
           const retrievalProgressMessages: Record<string, string> = {
             donor:      "Reviewing donor records and giving history…",
-            compassion: "Reviewing client and case records…",
             events:     "Reviewing event and registration data…",
             watchdog:   "Reviewing compliance and audit data…",
             webmaster:  "Reviewing site and content data…",
@@ -2741,8 +2740,6 @@ router.post("/chat/stream", async (req, res) => {
         "reports.runSummary":               "Running YTD summary",
         "reports.runGivingByMonth":         "Building monthly chart",
         "reports.runTotalsSnapshot":        "Fetching totals snapshot",
-        "compassion.clientLookup":          "Looking up client",
-        "compassion.caseFollowupSnapshot":  "Reviewing case follow-ups",
         "events.eventLookup":              "Looking up event",
         "events.guestOpsSnapshot":         "Reviewing guest ops",
         "watchdog.auditSnapshot":          "Scanning audit log",

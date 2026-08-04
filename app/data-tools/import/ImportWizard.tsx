@@ -829,7 +829,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
           method: "POST",
           body: JSON.stringify({
             name: baseName,
-            description: "Created from donor-side CSV import. Client service files should be imported in Compassion CRM instead.",
+            description: "Created from donor-side CSV import. Client-service files are not supported by this importer.",
             recipientEmails,
           }),
         });
@@ -902,7 +902,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
         </div>
 
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <strong>Client data safety:</strong> do not import Compassion client files here. Client-service records belong in the Compassion CRM client import workspace. If a client is also a donor, import the client file in Compassion first, then intentionally tag or link that person as a donor through the approved donor workflow.
+          <strong>Client data safety:</strong> do not import client-service files here. This workflow accepts donor and outreach contact data only.
         </div>
 
         <div>

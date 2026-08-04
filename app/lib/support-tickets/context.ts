@@ -1,7 +1,7 @@
 import type { TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 
 export interface SupportTicketContext {
-  crmScope: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "other" | "unknown";
+  crmScope: "donor" | "events" | "watchdog" | "webmaster" | "reportit" | "other" | "unknown";
   pageUrl: string;
   routePath: string;
   pageTitle: string;
@@ -13,7 +13,6 @@ export interface SupportTicketContext {
 
 function scopeForModule(moduleKey: TopBarModuleKey): SupportTicketContext["crmScope"] {
   if (moduleKey === "donor" || moduleKey === "letters") return "donor";
-  if (moduleKey === "compassion") return "compassion";
   if (moduleKey === "events") return "events";
   if (moduleKey === "watchdog") return "watchdog";
   if (moduleKey === "webmaster") return "webmaster";

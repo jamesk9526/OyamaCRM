@@ -127,7 +127,6 @@ function sourceModuleFromAudit(action: string, entity: string | null): string {
   const a = action.toUpperCase();
   const e = (entity ?? "").toUpperCase();
 
-  if (a.includes("COMPASSION") || e.includes("COMPASSION") || e.includes("CLIENT") || e.includes("CASE")) return "compassion";
   if (a.includes("EVENT") || e.includes("EVENT") || e.includes("GUEST") || e.includes("TICKET")) return "events";
   if (a.includes("WATCHDOG") || e.includes("WATCHDOG")) return "watchdog";
   if (a.includes("WEBMASTER") || e.includes("WEBMASTER")) return "webmaster";

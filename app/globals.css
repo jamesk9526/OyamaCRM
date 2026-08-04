@@ -352,7 +352,7 @@ body {
 
 /* Existing night-of workspaces use these shared utilities. Keeping the remap
    inside the Trivia shell gives every non-projector route the same visual
-   language without leaking into Donor, Events, or Compassion. */
+   language without leaking into Donor or Events. */
 .trivia-admin-content [class*="bg-slate-950"] { background-color: #071323 !important; }
 .trivia-admin-content [class*="bg-slate-900"] { background-color: #0b1929 !important; }
 .trivia-admin-content [class*="bg-slate-800"] { background-color: #132840 !important; }

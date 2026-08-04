@@ -1,17 +1,9 @@
-/** Large-scale deterministic demo seed expansion for DonorCRM, Compassion CRM, and Events CRM. */
+/** Large-scale deterministic demo seed expansion for DonorCRM and Events CRM. */
 import {
   ActivityType,
   AutomationActionType,
   AutomationTrigger,
   CampaignCategory,
-  CompassionAppointmentStatus,
-  CompassionAppointmentType,
-  CompassionCaseStatus,
-  CompassionCaseType,
-  CompassionClientStatus,
-  CompassionFollowUpStatus,
-  CompassionPriority,
-  CompassionServiceType,
   ConstituentType,
   DonationStatus,
   DonorStatus,
@@ -62,10 +54,6 @@ export interface DemoSeedExpansionSummary {
   additionalEvents: number;
   additionalOrders: number;
   additionalGuests: number;
-  additionalClients: number;
-  additionalAppointments: number;
-  additionalServices: number;
-  additionalFollowUps: number;
   additionalTasks: number;
   additionalActivities: number;
   additionalEmailCampaigns: number;
@@ -81,13 +69,6 @@ interface DemoSeedProfile {
   additionalEvents: number;
   ordersPerEvent: number;
   tablesPerEvent: number;
-  additionalClients: number;
-  appointmentsPerClientMin: number;
-  appointmentsPerClientMax: number;
-  servicesPerClientMin: number;
-  servicesPerClientMax: number;
-  followUpsPerClientMin: number;
-  followUpsPerClientMax: number;
   additionalTasks: number;
   additionalMeetings: number;
   additionalActivities: number;
@@ -102,13 +83,6 @@ const DEMO_PROFILES: Record<DemoSeedSize, DemoSeedProfile> = {
     additionalEvents: 12,
     ordersPerEvent: 24,
     tablesPerEvent: 8,
-    additionalClients: 120,
-    appointmentsPerClientMin: 1,
-    appointmentsPerClientMax: 3,
-    servicesPerClientMin: 1,
-    servicesPerClientMax: 2,
-    followUpsPerClientMin: 1,
-    followUpsPerClientMax: 2,
     additionalTasks: 280,
     additionalMeetings: 120,
     additionalActivities: 1400,
@@ -121,13 +95,6 @@ const DEMO_PROFILES: Record<DemoSeedSize, DemoSeedProfile> = {
     additionalEvents: 40,
     ordersPerEvent: 60,
     tablesPerEvent: 12,
-    additionalClients: 650,
-    appointmentsPerClientMin: 1,
-    appointmentsPerClientMax: 4,
-    servicesPerClientMin: 1,
-    servicesPerClientMax: 3,
-    followUpsPerClientMin: 1,
-    followUpsPerClientMax: 3,
     additionalTasks: 1800,
     additionalMeetings: 480,
     additionalActivities: 9000,
@@ -140,13 +107,6 @@ const DEMO_PROFILES: Record<DemoSeedSize, DemoSeedProfile> = {
     additionalEvents: 120,
     ordersPerEvent: 110,
     tablesPerEvent: 16,
-    additionalClients: 2200,
-    appointmentsPerClientMin: 2,
-    appointmentsPerClientMax: 5,
-    servicesPerClientMin: 1,
-    servicesPerClientMax: 4,
-    followUpsPerClientMin: 1,
-    followUpsPerClientMax: 4,
     additionalTasks: 6000,
     additionalMeetings: 1700,
     additionalActivities: 36500,
@@ -170,17 +130,6 @@ const LAST_NAMES = [
 ];
 
 const CITIES = ["Chicago", "Evanston", "Skokie", "Naperville", "Aurora", "Oak Park", "Glenview", "Wheaton", "Elmhurst", "Joliet"];
-
-const REFERRAL_SOURCES = [
-  "Community Partner",
-  "Church Referral",
-  "Walk In",
-  "Hospital Social Worker",
-  "Shelter Referral",
-  "School Counselor",
-  "Website Form",
-  "Returning Client",
-];
 
 const OPPORTUNITY_ACTIONS = [
   "Schedule gratitude call within 48 hours",
@@ -240,14 +189,6 @@ export async function seedDemoExpansion(
   await createManyInChunks(prisma.meeting, operational.meetings, 1000);
   await createManyInChunks(prisma.activity, operational.activities, 1500);
 
-  const compassion = buildCompassionData(options, profile, rng);
-  await createManyInChunks(prisma.compassionClient, compassion.clients, 1000);
-  await createManyInChunks(prisma.compassionCase, compassion.cases, 1000);
-  await createManyInChunks(prisma.compassionAppointment, compassion.appointments, 1000);
-  await createManyInChunks(prisma.compassionService, compassion.services, 1000);
-  await createManyInChunks(prisma.compassionFollowUp, compassion.followUps, 1000);
-  await createManyInChunks(prisma.compassionActivity, compassion.activities, 1200);
-
   const communications = buildEmailCampaignData(options, profile, rng);
   await createManyInChunks(prisma.emailCampaign, communications, 800);
 
@@ -255,7 +196,7 @@ export async function seedDemoExpansion(
   const steward = await seedStewardSignalsAndRuns(prisma, options, demoConstituents, automations, tagMap, profile, rng);
   const feedbackTickets = await seedWatchdogFeedbackTickets(prisma, options, rng);
 
-  const importFixturesDir = await writeImportFixtures(profile, demoConstituents, compassion.clients, rng);
+  const importFixturesDir = await writeImportFixtures(profile, demoConstituents, rng);
   await seedImportBatchAuditLogs(prisma, options, importFixturesDir, rng);
 
   return {
@@ -266,10 +207,6 @@ export async function seedDemoExpansion(
     additionalEvents: demoEvents.events.length,
     additionalOrders: demoEvents.orders.length,
     additionalGuests: demoEvents.guests.length,
-    additionalClients: compassion.clients.length,
-    additionalAppointments: compassion.appointments.length,
-    additionalServices: compassion.services.length,
-    additionalFollowUps: compassion.followUps.length,
     additionalTasks: operational.tasks.length,
     additionalActivities: operational.activities.length,
     additionalEmailCampaigns: communications.length,
@@ -336,13 +273,6 @@ async function cleanPreviousDemoExpansion(prisma: PrismaClient, organizationId: 
   await prisma.ticketType.deleteMany({ where: { id: { startsWith: "demo_tkt_" } } });
   await prisma.volunteerHour.deleteMany({ where: { id: { startsWith: "demo_vh_" } } });
   await prisma.event.deleteMany({ where: { id: { startsWith: "demo_evt_" } } });
-
-  await prisma.compassionActivity.deleteMany({ where: { id: { startsWith: "demo_cact_" } } });
-  await prisma.compassionFollowUp.deleteMany({ where: { id: { startsWith: "demo_fup_" } } });
-  await prisma.compassionService.deleteMany({ where: { id: { startsWith: "demo_srv_" } } });
-  await prisma.compassionAppointment.deleteMany({ where: { id: { startsWith: "demo_appt_" } } });
-  await prisma.compassionCase.deleteMany({ where: { id: { startsWith: "demo_case_" } } });
-  await prisma.compassionClient.deleteMany({ where: { id: { startsWith: "demo_cli_" } } });
 
   await prisma.emailCampaign.deleteMany({ where: { id: { startsWith: "demo_mail_" } } });
 
@@ -1236,270 +1166,6 @@ function buildOperationalData(
   return { tasks, meetings, activities };
 }
 
-interface CompassionSeedBundle {
-  clients: Array<{
-    id: string;
-    organizationId: string;
-    constituentId: null;
-    firstName: string;
-    lastName: string;
-    preferredName: string | null;
-    email: string | null;
-    phone: string | null;
-    addressLine1: string | null;
-    addressLine2: string | null;
-    city: string;
-    state: string;
-    zip: string;
-    dateOfBirth: Date | null;
-    clientStatus: CompassionClientStatus;
-    assignedStaffId: string;
-    intakeDate: Date;
-    referralSource: string;
-    privateNotes: string;
-  }>;
-  cases: Array<{
-    id: string;
-    organizationId: string;
-    clientId: string;
-    caseNumber: string;
-    caseStatus: CompassionCaseStatus;
-    caseType: CompassionCaseType;
-    openedAt: Date;
-    closedAt: Date | null;
-    assignedStaffId: string;
-    priority: CompassionPriority;
-    summary: string;
-    privateNotes: string;
-  }>;
-  appointments: Array<{
-    id: string;
-    organizationId: string;
-    clientId: string;
-    caseId: string;
-    appointmentType: CompassionAppointmentType;
-    status: CompassionAppointmentStatus;
-    startTime: Date;
-    endTime: Date;
-    timezone: string;
-    location: string;
-    assignedStaffId: string;
-    notes: string;
-    outcome: string | null;
-    followUpNeeded: boolean;
-  }>;
-  services: Array<{
-    id: string;
-    organizationId: string;
-    clientId: string;
-    caseId: string;
-    serviceType: CompassionServiceType;
-    serviceDate: Date;
-    quantity: number;
-    notes: string;
-    providedById: string;
-  }>;
-  followUps: Array<{
-    id: string;
-    organizationId: string;
-    clientId: string;
-    caseId: string;
-    appointmentId: string | null;
-    title: string;
-    dueDate: Date;
-    status: CompassionFollowUpStatus;
-    priority: CompassionPriority;
-    assignedStaffId: string;
-    notes: string;
-    completedAt: Date | null;
-  }>;
-  activities: Array<{
-    id: string;
-    organizationId: string;
-    clientId: string;
-    caseId: string;
-    appointmentId: string | null;
-    activityType: string;
-    description: string;
-    performedById: string;
-    metadata: object;
-    createdAt: Date;
-  }>;
-}
-
-/** Creates privacy-safe Compassion CRM client data without linking to donor records by default. */
-function buildCompassionData(
-  options: DemoSeedExpansionOptions,
-  profile: DemoSeedProfile,
-  rng: Rng
-): CompassionSeedBundle {
-  const clients: CompassionSeedBundle["clients"] = [];
-  const cases: CompassionSeedBundle["cases"] = [];
-  const appointments: CompassionSeedBundle["appointments"] = [];
-  const services: CompassionSeedBundle["services"] = [];
-  const followUps: CompassionSeedBundle["followUps"] = [];
-  const activities: CompassionSeedBundle["activities"] = [];
-
-  let caseSeq = 1;
-  let apptSeq = 1;
-  let serviceSeq = 1;
-  let followSeq = 1;
-  let activitySeq = 1;
-
-  for (let i = 0; i < profile.additionalClients; i += 1) {
-    const idx = i + 1;
-    const clientId = `demo_cli_${String(idx).padStart(6, "0")}`;
-    const firstName = FIRST_NAMES[(idx * 7) % FIRST_NAMES.length] as string;
-    const lastName = LAST_NAMES[(idx * 13) % LAST_NAMES.length] as string;
-    const intakeDate = randomDateBetween(rng, new Date("2023-01-01T00:00:00Z"), new Date());
-
-    const clientStatus = (["ACTIVE", "ACTIVE", "ACTIVE", "PENDING", "INACTIVE", "GRADUATED"] as CompassionClientStatus[])[idx % 6] as CompassionClientStatus;
-
-    clients.push({
-      id: clientId,
-      organizationId: options.organizationId,
-      constituentId: null,
-      firstName,
-      lastName,
-      preferredName: rng.bool(0.35) ? firstName : null,
-      email: rng.bool(0.12) ? null : `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${idx}@client.demo.oyamacrm.invalid`,
-      phone: rng.bool(0.2) ? null : `630-555-${String(1000 + (idx % 9000)).padStart(4, "0")}`,
-      addressLine1: `${100 + (idx % 5000)} ${rng.pick(["Maple", "Oak", "Cedar", "Pine", "River", "Lake"])} St`,
-      addressLine2: rng.bool(0.16) ? `Apt ${rng.int(1, 40)}` : null,
-      city: rng.pick(CITIES),
-      state: "IL",
-      zip: `60${String(300 + (idx % 600)).padStart(3, "0")}`,
-      dateOfBirth: rng.bool(0.22) ? null : randomDateBetween(rng, new Date("1978-01-01T00:00:00Z"), new Date("2008-12-31T00:00:00Z")),
-      clientStatus,
-      assignedStaffId: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
-      intakeDate,
-      referralSource: rng.pick(REFERRAL_SOURCES),
-      privateNotes: `${DEMO_MARKER} Privacy-safe fictional client record. Not linked to donor profile by default.`,
-    });
-
-    const caseId = `demo_case_${String(caseSeq).padStart(7, "0")}`;
-    const caseType = rng.pick([
-      "PREGNANCY_SUPPORT",
-      "PARENTING",
-      "MATERIAL_ASSISTANCE",
-      "RESOURCE_REFERRAL",
-      "COUNSELING",
-      "FOLLOW_UP",
-    ] as CompassionCaseType[]);
-
-    const openedAt = new Date(intakeDate.getTime() + rng.int(0, 14) * 24 * 60 * 60 * 1000);
-    const closed = rng.bool(0.28);
-
-    cases.push({
-      id: caseId,
-      organizationId: options.organizationId,
-      clientId,
-      caseNumber: `DEMO-CASE-${String(caseSeq).padStart(7, "0")}`,
-      caseStatus: closed ? "CLOSED" : rng.bool(0.2) ? "PENDING" : "OPEN",
-      caseType,
-      openedAt,
-      closedAt: closed ? new Date(openedAt.getTime() + rng.int(30, 240) * 24 * 60 * 60 * 1000) : null,
-      assignedStaffId: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
-      priority: rng.pick(["LOW", "MEDIUM", "HIGH", "URGENT"] as CompassionPriority[]),
-      summary: `${DEMO_MARKER} Fictional case summary for operational workflow testing.`,
-      privateNotes: `${DEMO_MARKER} Internal-only case notes.`,
-    });
-
-    const apptCount = rng.int(profile.appointmentsPerClientMin, profile.appointmentsPerClientMax);
-    for (let a = 0; a < apptCount; a += 1) {
-      const appointmentType = caseType === "PREGNANCY_SUPPORT"
-        ? rng.pick(["INTAKE", "PREGNANCY_TEST", "ULTRASOUND", "FOLLOW_UP"] as CompassionAppointmentType[])
-        : rng.pick(["INTAKE", "PARENTING_CLASS", "RESOURCE_REFERRAL", "FOLLOW_UP", "CASE_REVIEW"] as CompassionAppointmentType[]);
-
-      const startTime = randomDateBetween(rng, new Date("2024-01-01T00:00:00Z"), new Date(Date.now() + 60 * 24 * 60 * 60 * 1000));
-      const completed = startTime.getTime() < Date.now() && rng.bool(0.72);
-      const appointmentId = `demo_appt_${String(apptSeq).padStart(7, "0")}`;
-
-      appointments.push({
-        id: appointmentId,
-        organizationId: options.organizationId,
-        clientId,
-        caseId,
-        appointmentType,
-        status: completed ? "COMPLETED" : rng.bool(0.15) ? "CANCELLED" : "SCHEDULED",
-        startTime,
-        endTime: new Date(startTime.getTime() + rng.int(30, 90) * 60 * 1000),
-        timezone: "America/Chicago",
-        location: rng.pick(["Compassion Center", "Telehealth", "Partner Clinic", "Resource Room"]),
-        assignedStaffId: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
-        notes: `${DEMO_MARKER} Fictional appointment note including prep checklist and support context.`,
-        outcome: completed ? "Completed with follow-up guidance." : null,
-        followUpNeeded: rng.bool(0.58),
-      });
-
-      const serviceType = appointmentType === "PREGNANCY_TEST"
-        ? "PREGNANCY_TEST"
-        : appointmentType === "ULTRASOUND"
-          ? "ULTRASOUND"
-          : rng.pick(["DIAPERS", "CLOTHING", "FORMULA", "COUNSELING", "NUTRITION_SUPPORT", "OTHER"] as CompassionServiceType[]);
-
-      if (rng.bool(0.82)) {
-        services.push({
-          id: `demo_srv_${String(serviceSeq).padStart(7, "0")}`,
-          organizationId: options.organizationId,
-          clientId,
-          caseId,
-          serviceType,
-          serviceDate: new Date(startTime.getTime() + rng.int(0, 3) * 24 * 60 * 60 * 1000),
-          quantity: rng.int(1, 6),
-          notes: `${DEMO_MARKER} Fictional service delivery record for reporting and timeline tests.`,
-          providedById: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
-        });
-        serviceSeq += 1;
-      }
-
-      if (rng.bool(0.66)) {
-        const dueDate = new Date(startTime.getTime() + rng.int(3, 30) * 24 * 60 * 60 * 1000);
-        const completedFollow = dueDate.getTime() < Date.now() && rng.bool(0.35);
-        followUps.push({
-          id: `demo_fup_${String(followSeq).padStart(7, "0")}`,
-          organizationId: options.organizationId,
-          clientId,
-          caseId,
-          appointmentId,
-          title: `${DEMO_MARKER} Follow-up check for support continuity`,
-          dueDate,
-          status: completedFollow ? "COMPLETED" : rng.bool(0.2) ? "IN_PROGRESS" : "PENDING",
-          priority: rng.pick(["LOW", "MEDIUM", "HIGH"] as CompassionPriority[]),
-          assignedStaffId: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
-          notes: `${DEMO_MARKER} Fictional follow-up action for client support workflow testing.`,
-          completedAt: completedFollow ? new Date(dueDate.getTime() - 2 * 60 * 60 * 1000) : null,
-        });
-        followSeq += 1;
-      }
-
-      activities.push({
-        id: `demo_cact_${String(activitySeq).padStart(8, "0")}`,
-        organizationId: options.organizationId,
-        clientId,
-        caseId,
-        appointmentId,
-        activityType: completed ? "APPOINTMENT_COMPLETED" : "APPOINTMENT_SCHEDULED",
-        description: `${DEMO_MARKER} Fictional Compassion timeline activity for privacy-safe workflow testing.`,
-        performedById: idx % 2 === 0 ? options.staffUserId : options.adminUserId,
-        metadata: {
-          demo: true,
-          synthetic: true,
-          safe: true,
-          notes: "No real client data.",
-        },
-        createdAt: startTime,
-      });
-      activitySeq += 1;
-      apptSeq += 1;
-    }
-
-    caseSeq += 1;
-  }
-
-  return { clients, cases, appointments, services, followUps, activities };
-}
-
 /** Creates synthetic communication campaigns for list views, filtering, and analytics testing. */
 function buildEmailCampaignData(
   options: DemoSeedExpansionOptions,
@@ -1870,14 +1536,12 @@ async function seedStewardSignalsAndRuns(
 async function writeImportFixtures(
   profile: DemoSeedProfile,
   demoConstituents: DemoConstituentSeed[],
-  demoClients: CompassionSeedBundle["clients"],
   rng: Rng
 ): Promise<string> {
   const outDir = path.join(process.cwd(), "prisma", "demo-imports");
   await mkdir(outDir, { recursive: true });
 
   const donorRows = demoConstituents.slice(0, Math.min(profile.additionalConstituents, 280));
-  const clientRows = demoClients.slice(0, Math.min(profile.additionalClients, 180));
 
   const cleanDonorCsv = [
     "sourceId,firstName,lastName,email,phone,city,state,status,segment",
@@ -1921,27 +1585,6 @@ async function writeImportFixtures(
     "DEMO-MALFORMED-002,\"broken field,missing close,312-555-1111,Chicago,IL,ACTIVE,broken",
   ].join("\n");
 
-  const messyClientCsv = [
-    "externalSourceId,fullName,email,homePhone,status,location,birthdate,notes",
-    ...clientRows.slice(0, 90).map((row, idx) => [
-      `DEMO-CLI-${String(idx + 1).padStart(5, "0")}`,
-      `${row.firstName} ${row.lastName}`,
-      row.email ?? "",
-      row.phone ?? "",
-      row.clientStatus,
-      row.city,
-      row.dateOfBirth ? row.dateOfBirth.toISOString().slice(0, 10) : "",
-      `${DEMO_MARKER} Client import sample`,
-    ].map(csvEscape).join(",")),
-    // Duplicate + malformed patterns seen in real exports
-    "DEMO-CLI-DUP-1,Miranda Abrisz(Miranda),miranda.abrisz@client.demo.oyamacrm.invalid,630-555-0101,ACTIVE,Aurora,1998-07-04,duplicate nickname format",
-    "DEMO-CLI-DUP-1,Miranda Abrisz (Mira),miranda.abrisz@client.demo.oyamacrm.invalid,630-555-0101,ACTIVE,Aurora,1998-07-04,duplicate source id",
-    "DEMO-CLI-BAD-1,Text,Aurora,False,Active,No,Not Applicable,metadata row",
-    "DEMO-CLI-BAD-2,Invalid Email Person,invalid_email_here,630-555-0202,ACTIVE,Chicago,1992-10-10,bad email",
-    "DEMO-CLI-BAD-3,Missing Name,,630-555-0303,ACTIVE,Chicago,1989-03-09,missing email",
-    "DEMO-CLI-MALFORMED,\"Name with broken quote,broken@client.demo.oyamacrm.invalid,630-555-0404,ACTIVE,Chicago,1990-01-01,malformed",
-  ].join("\n");
-
   const manifest = {
     marker: DEMO_MARKER,
     generatedAt: new Date().toISOString(),
@@ -1949,7 +1592,6 @@ async function writeImportFixtures(
     files: [
       { file: "donors-clean.csv", purpose: "Baseline clean donor import regression" },
       { file: "donors-messy.csv", purpose: "Duplicate + malformed + invalid donor import edge cases" },
-      { file: "clients-messy.csv", purpose: "Compassion import validation edge cases" },
     ],
     expectedIssues: [
       "Duplicate source IDs",
@@ -1963,7 +1605,6 @@ async function writeImportFixtures(
 
   await writeFile(path.join(outDir, "donors-clean.csv"), cleanDonorCsv, "utf8");
   await writeFile(path.join(outDir, "donors-messy.csv"), messyDonorCsv, "utf8");
-  await writeFile(path.join(outDir, "clients-messy.csv"), messyClientCsv, "utf8");
   await writeFile(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
 
   return outDir;
@@ -2015,24 +1656,6 @@ async function seedImportBatchAuditLogs(
       },
       createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
     },
-    {
-      id: "demo_import_log_003",
-      organizationId: options.organizationId,
-      userId: options.adminUserId,
-      action: "DEMO_IMPORT_BATCH_COMPASSION_VALIDATION",
-      entity: "ImportBatch",
-      entityId: "demo-import-batch-003",
-      metadata: {
-        demo: true,
-        fixture: path.join(fixturesDir, "clients-messy.csv"),
-        totalRows: 96,
-        validRows: 81,
-        skippedRows: 15,
-        issues: ["garbage_name_pattern", "invalid_email", "duplicate_external_id", "malformed_csv_quote"],
-        confidence: rng.int(75, 95),
-      },
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    },
   ];
 
   await createManyInChunks(prisma.auditLog, logs, 200);
@@ -2073,40 +1696,6 @@ async function seedWatchdogFeedbackTickets(
       resolutionNotes: null,
       resolvedAt: null,
       createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: "demo_wd_ticket_000002",
-      organizationId: options.organizationId,
-      ticketNumber: "WD-900002",
-      type: "feature_request",
-      status: "in_review",
-      priority: "normal",
-      crmScope: "compassion",
-      pageUrl: "https://demo.oyamacrm.invalid/compassion/clients",
-      routePath: "/compassion/clients",
-      pageTitle: "Compassion Clients",
-      submittedByUserId: options.staffUserId,
-      submittedByName: "Demo Staff User",
-      submittedByEmail: "staff@demo.oyamacrm.invalid",
-      whatTryingToDo: null,
-      whatHappened: null,
-      expectedResult: null,
-      extraComments: `${DEMO_MARKER} Include column preference persistence for caseworkers.`,
-      featureTitle: "Client list column presets",
-      featureProblem: `${DEMO_MARKER} Staff reset visible columns every shift.`,
-      featureAudience: "Compassion caseworkers",
-      featureRequestedChange: `${DEMO_MARKER} Save and apply named column presets per user.`,
-      importance: "important",
-      browserInfo: "DemoBrowser/1.0",
-      deviceInfo: "Windows Demo VM",
-      appVersion: "demo-seed",
-      environment: "development",
-      assignedDeveloperId: options.adminUserId,
-      assignedToPersonId: null,
-      developerNotes: `${DEMO_MARKER} Product review queued in planning.`,
-      resolutionNotes: null,
-      resolvedAt: null,
-      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
     },
     {
       id: "demo_wd_ticket_000003",

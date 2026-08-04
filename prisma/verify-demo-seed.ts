@@ -15,8 +15,6 @@ async function main() {
     prisma.donation.count({ where: { id: { startsWith: "demo_don_" } } }),
     prisma.event.count({ where: { id: { startsWith: "demo_evt_" } } }),
     prisma.eventGuest.count({ where: { id: { startsWith: "demo_guest_" } } }),
-    prisma.compassionClient.count({ where: { id: { startsWith: "demo_cli_" } } }),
-    prisma.compassionAppointment.count({ where: { id: { startsWith: "demo_appt_" } } }),
     prisma.emailCampaign.count({ where: { id: { startsWith: "demo_mail_" } } }),
     prisma.automation.count({ where: { id: { startsWith: "demo_auto_" } } }),
     prisma.auditLog.count({ where: { action: "STEWARD_PATH_RUN", entityId: { startsWith: "demo_auto_" } } }),
@@ -29,8 +27,6 @@ async function main() {
     demoDonations,
     demoEvents,
     demoGuests,
-    demoClients,
-    demoAppointments,
     demoEmails,
     demoAutomations,
     demoStewardRuns,
@@ -39,7 +35,7 @@ async function main() {
   ] = checks;
 
   const importDir = path.join(process.cwd(), "prisma", "demo-imports");
-  const fixtureFiles = ["donors-clean.csv", "donors-messy.csv", "clients-messy.csv", "manifest.json"];
+  const fixtureFiles = ["donors-clean.csv", "donors-messy.csv", "manifest.json"];
 
   for (const file of fixtureFiles) {
     await access(path.join(importDir, file));
@@ -50,8 +46,6 @@ async function main() {
   if (demoDonations === 0) failures.push("No demo donations found.");
   if (demoEvents === 0) failures.push("No demo events found.");
   if (demoGuests === 0) failures.push("No demo event guests found.");
-  if (demoClients === 0) failures.push("No demo compassion clients found.");
-  if (demoAppointments === 0) failures.push("No demo compassion appointments found.");
   if (demoEmails === 0) failures.push("No demo email campaigns found.");
   if (demoAutomations === 0) failures.push("No demo automations found.");
   if (demoStewardRuns === 0) failures.push("No demo steward run-history logs found.");
@@ -62,8 +56,6 @@ async function main() {
   console.log(`  Demo donations: ${demoDonations}`);
   console.log(`  Demo events: ${demoEvents}`);
   console.log(`  Demo guests: ${demoGuests}`);
-  console.log(`  Demo clients: ${demoClients}`);
-  console.log(`  Demo appointments: ${demoAppointments}`);
   console.log(`  Demo email campaigns: ${demoEmails}`);
   console.log(`  Demo automations: ${demoAutomations}`);
   console.log(`  Demo steward runs: ${demoStewardRuns}`);

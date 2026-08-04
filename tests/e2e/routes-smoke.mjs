@@ -17,8 +17,6 @@ const ROUTES = [
   "/reports",
   "/data-tools",
   "/settings",
-  "/compassion/dashboard",
-  "/compassion/clients",
   "/events/workspace",
   "/events/events",
   "/watchdog",

@@ -26,7 +26,6 @@ interface WorkspaceMessage {
 const SCOPE_OPTIONS: Array<{ id: string; label: string }> = [
   { id: "donor", label: "Donor CRM" },
   { id: "events", label: "Events CRM" },
-  { id: "compassion", label: "Compassion CRM" },
   { id: "communications", label: "Communications" },
   { id: "reports", label: "Reports" },
 ];
@@ -40,9 +39,6 @@ function toExecutionScopes(scopes: string[]): OGenticExecutionContext["moduleSco
   }
   if (scopes.includes("events")) {
     normalized.push("event");
-  }
-  if (scopes.includes("compassion")) {
-    normalized.push("client");
   }
   if (scopes.includes("communications")) {
     normalized.push("communication");

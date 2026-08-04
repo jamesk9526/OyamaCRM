@@ -103,7 +103,7 @@ export interface BridgePairingKeyPayload {
 export interface StewardAiChatPayload {
   messages?: StewardAiChatMessage[];
   mode?: "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
-  moduleKey?: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
+  moduleKey?: "donor" | "events" | "watchdog" | "webmaster" | "oshareview";
   scopePath?: string;
   /** @mention-locked donors from the chat composer. Each entry provides a constituentId to load a full profile for. */
   donorContext?: Array<{ id?: string; name?: string }>;

@@ -71,7 +71,6 @@ const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "board",
   "campaigns",
   "communications",
-  "compassion",
   "constituents",
   "contacts-manager",
   "custom-fields",

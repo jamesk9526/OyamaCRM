@@ -8,7 +8,7 @@ import StewardChatPanel from "@/app/components/ai/StewardChatPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { STEWARD_OPEN_EVENT, type StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
-type StewardChatModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
+type StewardChatModuleKey = "donor" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
 
 interface StewardDockPanelProps {
   moduleKey?: string;
@@ -20,7 +20,7 @@ const STORAGE_KEY = "steward-dock-open";
 const DOCK_STATE_EVENT = "steward-dock-state";
 
 function normalizeStewardModule(moduleKey?: string): StewardChatModuleKey {
-  const valid = new Set<StewardChatModuleKey>(["donor", "compassion", "events", "watchdog", "webmaster", "oshareview", "password"]);
+  const valid = new Set<StewardChatModuleKey>(["donor", "events", "watchdog", "webmaster", "oshareview", "password"]);
   return moduleKey && valid.has(moduleKey as StewardChatModuleKey) ? moduleKey as StewardChatModuleKey : "donor";
 }
 

@@ -29,7 +29,6 @@ type LauncherApp = {
 
 const APPS: LauncherApp[] = [
   { id: "donor", name: "Donor CRM", description: "Constituents, giving, campaigns, and stewardship work.", href: "/", category: "Workspaces", icon: LayoutDashboard, tone: "bg-[#eaf4fd] text-[#0f6cbd]" },
-  { id: "compassion", name: "Compassion CRM", description: "Client care, cases, services, and coordinated support.", href: "/compassion/dashboard", category: "Workspaces", icon: Building2, tone: "bg-blue-50 text-blue-700" },
   { id: "events", name: "EventSTUDIO", description: "Event planning, registration, guests, and public experiences.", href: "/events/events", category: "Workspaces", icon: CalendarDays, tone: "bg-amber-50 text-amber-700" },
   { id: "email", name: "OyamaEmail", description: "Build, review, schedule, and monitor donor email delivery.", href: "/oyama-email", category: "Studios", icon: Mail, tone: "bg-cyan-50 text-cyan-700" },
   { id: "letters", name: "OyamaLetters", description: "Create branded letters, print output, and mail workflows.", href: "/oyama-letters", category: "Studios", icon: FileText, tone: "bg-rose-50 text-rose-700" },

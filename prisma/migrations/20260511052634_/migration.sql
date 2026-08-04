@@ -1,27 +1,8 @@
 -- AlterTable
-ALTER TABLE `CompassionActivity` ADD COLUMN `performedByCompassionStaffId` VARCHAR(191) NULL;
-
--- AlterTable
-ALTER TABLE `CompassionAppointment` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
-
--- AlterTable
-ALTER TABLE `CompassionCase` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
-
--- AlterTable
-ALTER TABLE `CompassionClient` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
-
--- AlterTable
-ALTER TABLE `CompassionFollowUp` ADD COLUMN `assignedCompassionStaffId` VARCHAR(191) NULL;
-
--- AlterTable
-ALTER TABLE `CompassionService` ADD COLUMN `providedByCompassionStaffId` VARCHAR(191) NULL;
-
--- AlterTable
 ALTER TABLE `EmailRecipientList` MODIFY `description` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `OrganizationSettings` ADD COLUMN `compassionWorkspaceEnabled` BOOLEAN NOT NULL DEFAULT true,
-    ADD COLUMN `defaultWorkspace` VARCHAR(191) NOT NULL DEFAULT 'donor',
+ALTER TABLE `OrganizationSettings` ADD COLUMN `defaultWorkspace` VARCHAR(191) NOT NULL DEFAULT 'donor',
     ADD COLUMN `donorWorkspaceEnabled` BOOLEAN NOT NULL DEFAULT true,
     ADD COLUMN `showModuleSwitcher` BOOLEAN NOT NULL DEFAULT true;
 
@@ -67,29 +48,6 @@ CREATE TABLE `WebmasterPage` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateTable
-CREATE TABLE `CompassionStaff` (
-    `id` VARCHAR(191) NOT NULL,
-    `organizationId` VARCHAR(191) NOT NULL,
-    `linkedUserId` VARCHAR(191) NULL,
-    `firstName` VARCHAR(191) NOT NULL,
-    `lastName` VARCHAR(191) NOT NULL,
-    `displayName` VARCHAR(191) NULL,
-    `title` VARCHAR(191) NULL,
-    `email` VARCHAR(191) NULL,
-    `phone` VARCHAR(191) NULL,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `supportsScheduling` BOOLEAN NOT NULL DEFAULT true,
-    `notes` TEXT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `CompassionStaff_linkedUserId_key`(`linkedUserId`),
-    INDEX `CompassionStaff_organizationId_isActive_idx`(`organizationId`, `isActive`),
-    UNIQUE INDEX `CompassionStaff_organizationId_email_key`(`organizationId`, `email`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 -- AddForeignKey
 ALTER TABLE `WebmasterSite` ADD CONSTRAINT `WebmasterSite_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `Organization`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -107,27 +65,3 @@ ALTER TABLE `WebmasterPage` ADD CONSTRAINT `WebmasterPage_createdById_fkey` FORE
 
 -- AddForeignKey
 ALTER TABLE `WebmasterPage` ADD CONSTRAINT `WebmasterPage_updatedById_fkey` FOREIGN KEY (`updatedById`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionStaff` ADD CONSTRAINT `CompassionStaff_organizationId_fkey` FOREIGN KEY (`organizationId`) REFERENCES `Organization`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionStaff` ADD CONSTRAINT `CompassionStaff_linkedUserId_fkey` FOREIGN KEY (`linkedUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionClient` ADD CONSTRAINT `CompassionClient_assignedCompassionStaffId_fkey` FOREIGN KEY (`assignedCompassionStaffId`) REFERENCES `CompassionStaff`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionCase` ADD CONSTRAINT `CompassionCase_assignedCompassionStaffId_fkey` FOREIGN KEY (`assignedCompassionStaffId`) REFERENCES `CompassionStaff`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionAppointment` ADD CONSTRAINT `CompassionAppointment_assignedCompassionStaffId_fkey` FOREIGN KEY (`assignedCompassionStaffId`) REFERENCES `CompassionStaff`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionService` ADD CONSTRAINT `CompassionService_providedByCompassionStaffId_fkey` FOREIGN KEY (`providedByCompassionStaffId`) REFERENCES `CompassionStaff`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionFollowUp` ADD CONSTRAINT `CompassionFollowUp_assignedCompassionStaffId_fkey` FOREIGN KEY (`assignedCompassionStaffId`) REFERENCES `CompassionStaff`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `CompassionActivity` ADD CONSTRAINT `CompassionActivity_performedByCompassionStaffId_fkey` FOREIGN KEY (`performedByCompassionStaffId`) REFERENCES `CompassionStaff`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

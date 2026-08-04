@@ -3,7 +3,7 @@
  * This keeps help answers grounded in published /help workflows.
  */
 
-export type StewardHelpScope = "donor" | "events" | "compassion" | "global";
+export type StewardHelpScope = "donor" | "events" | "global";
 
 export interface StewardHelpGuide {
   slug: string;
@@ -34,13 +34,6 @@ const HELP_GUIDES: StewardHelpGuide[] = [
   { slug: "events-check-in-guide", title: "Run Event Check-In Operations", scope: "events", summary: "Process guest arrivals and attendance status updates.", tags: ["check-in", "guests", "attendance"] },
   { slug: "events-page-builder", title: "Create Event Pages In Events Page Builder", scope: "events", summary: "Build event landing pages and registration messaging.", tags: ["page-builder", "events", "website"] },
   { slug: "events-cross-event-reports", title: "Run Cross-Event Reports", scope: "events", summary: "Compare attendance and revenue across events.", tags: ["events", "reports", "attendance", "revenue"] },
-
-  { slug: "compassion-add-client", title: "Add A Client In Compassion CRM", scope: "compassion", summary: "Create privacy-safe client profiles and intake context.", tags: ["compassion", "clients", "intake"] },
-  { slug: "compassion-open-case", title: "Open A New Compassion Case", scope: "compassion", summary: "Create client-scoped cases and track status.", tags: ["compassion", "cases", "workflow"] },
-  { slug: "compassion-appointments-workspace", title: "Schedule And Manage Appointments", scope: "compassion", summary: "Create, reschedule, and complete appointments.", tags: ["appointments", "calendar", "schedule"] },
-  { slug: "compassion-follow-up-tasks", title: "Manage Compassion Follow-Up Tasks", scope: "compassion", summary: "Assign and complete care follow-up tasks.", tags: ["follow-up", "tasks", "compassion"] },
-  { slug: "compassion-client-import", title: "Import Clients Safely", scope: "compassion", summary: "Use validator-backed import with privacy safeguards.", tags: ["import", "clients", "privacy", "validation"] },
-  { slug: "compassion-public-scheduling-widget", title: "Configure Public Scheduling Widget", scope: "compassion", summary: "Publish server-validated appointment booking slots.", tags: ["widget", "public", "appointments", "slots"] },
 
   { slug: "global-getting-started", title: "Get Started With OyamaCRM v1.3", scope: "global", summary: "Navigate modules and core workspace patterns.", tags: ["getting-started", "modules", "navigation"] },
   { slug: "global-permissions-and-readiness", title: "Understand Roles, Permissions, And Feature Readiness", scope: "global", summary: "Understand role permissions and readiness labels.", tags: ["permissions", "security", "roles"] },

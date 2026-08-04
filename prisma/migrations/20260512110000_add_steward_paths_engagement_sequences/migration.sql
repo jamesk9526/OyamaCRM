@@ -4,7 +4,7 @@ CREATE TABLE `StewardPath` (
     `organizationId` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
     `description` TEXT NULL,
-    `crmScope` ENUM('DONOR', 'COMPASSION', 'EVENTS', 'HRM', 'GLOBAL') NOT NULL DEFAULT 'DONOR',
+    `crmScope` ENUM('DONOR', 'EVENTS', 'HRM', 'GLOBAL') NOT NULL DEFAULT 'DONOR',
     `targetType` ENUM('CONSTITUENT', 'DONOR', 'CLIENT', 'EVENT_ATTENDEE', 'SPONSOR', 'GRANT', 'STAFF', 'CUSTOM') NOT NULL,
     `triggerType` VARCHAR(191) NOT NULL DEFAULT 'MANUAL',
     `triggerConfig` JSON NULL,

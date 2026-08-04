@@ -2,7 +2,7 @@
  * Lightweight Help Agent planner for route-aware "how do I" guidance and executable actions.
  */
 
-export type HelpAgentScope = "donor" | "events" | "compassion" | "global";
+export type HelpAgentScope = "donor" | "events" | "global";
 
 export interface HelpAgentPlanAction {
   id: string;
@@ -92,30 +92,6 @@ const HELP_ROUTE_CATALOG: HelpRouteItem[] = [
     keywords: ["seating", "tables", "assign seat", "capacity"],
   },
   {
-    id: "compassion-clients",
-    scope: "compassion",
-    title: "Compassion Clients",
-    href: "/compassion/clients",
-    helpSlug: "compassion-add-client",
-    keywords: ["client", "intake", "new client", "profile"],
-  },
-  {
-    id: "compassion-appointments",
-    scope: "compassion",
-    title: "Compassion Appointments",
-    href: "/compassion/appointments",
-    helpSlug: "compassion-appointments-workspace",
-    keywords: ["appointment", "schedule", "calendar", "reschedule"],
-  },
-  {
-    id: "compassion-import",
-    scope: "compassion",
-    title: "Compassion Client Import",
-    href: "/compassion/import/clients",
-    helpSlug: "compassion-client-import",
-    keywords: ["import", "csv", "client import", "validation"],
-  },
-  {
     id: "global-help",
     scope: "all",
     title: "Help Home",
@@ -158,7 +134,6 @@ function getScopedCatalog(scope: HelpAgentScope): HelpRouteItem[] {
 
 function getScopeHelpPath(scope: HelpAgentScope): string {
   if (scope === "events") return "/help?scope=events";
-  if (scope === "compassion") return "/help?scope=compassion";
   if (scope === "global") return "/help?scope=global";
   return "/help?scope=donor";
 }

@@ -54,7 +54,7 @@ interface SearchResult {
 }
 
 interface SearchResponse {
-  module: "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview";
+  module: "donor" | "events" | "watchdog" | "webmaster" | "oshareview";
   query: string;
   results: SearchResult[];
 }
@@ -148,14 +148,6 @@ function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey
       <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h10l4 4v14H6V3z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 11h6M9 15h6M16 3v5h4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "compassion") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM15.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 18.5a4.75 4.75 0 0 1 9.5 0M10.75 18.5a4.75 4.75 0 0 1 9.5 0" />
       </svg>
     );
   }
@@ -289,14 +281,7 @@ function GlobalSearch({
 
   const storageKey = `oyama:topbar-search:recent:${moduleKey}`;
 
-  const quickActions: SearchResult[] = useMemo(() => moduleKey === "compassion"
-    ? [
-      { id: "quick-compassion-dashboard", type: "tool", label: "Open Compassion Dashboard", sublabel: "Workspace home", href: "/compassion/dashboard", group: "tools" },
-      { id: "quick-compassion-clients", type: "tool", label: "Open Clients", sublabel: "Client records and profiles", href: "/compassion/clients", group: "tools" },
-      { id: "quick-compassion-appointments", type: "tool", label: "Open Appointments", sublabel: "Calendar and scheduling", href: "/compassion/appointments", group: "tools" },
-      { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=compassion&scopePath=${encodeURIComponent(pathname || "/compassion/dashboard")}`, group: "tools" },
-    ]
-    : moduleKey === "events"
+  const quickActions: SearchResult[] = useMemo(() => moduleKey === "events"
       ? [
         { id: "quick-events-workspace", type: "tool", label: "Open EventSTUDIO Home", sublabel: "Fundraising event command center home", href: "/events", group: "tools" },
         { id: "quick-events-registry", type: "tool", label: "Open All Events", sublabel: "Create or select an event workspace", href: "/events/events", group: "tools" },
@@ -651,9 +636,7 @@ function GlobalSearch({
     );
   }
 
-  const focusRing = moduleKey === "compassion"
-    ? "focus:ring-blue-400/60"
-    : moduleKey === "events"
+  const focusRing = moduleKey === "events"
       ? "focus:ring-violet-400/60"
       : moduleKey === "watchdog"
         ? "focus:ring-red-400/60"
@@ -662,9 +645,7 @@ function GlobalSearch({
           : moduleKey === "oshareview"
               ? "focus:ring-cyan-400/60"
           : "focus:ring-indigo-400/60";
-  const activeResultBg = moduleKey === "compassion"
-    ? "bg-blue-50"
-    : moduleKey === "events"
+  const activeResultBg = moduleKey === "events"
       ? "bg-violet-50"
       : moduleKey === "watchdog"
         ? "bg-red-50"
@@ -673,9 +654,7 @@ function GlobalSearch({
           : moduleKey === "oshareview"
               ? "bg-cyan-50"
           : "bg-indigo-50";
-  const spinnerColor = moduleKey === "compassion"
-    ? "border-blue-400"
-    : moduleKey === "events"
+  const spinnerColor = moduleKey === "events"
       ? "border-violet-400"
       : moduleKey === "watchdog"
         ? "border-red-400"
@@ -684,9 +663,7 @@ function GlobalSearch({
           : moduleKey === "oshareview"
               ? "border-cyan-500"
           : "border-indigo-400";
-  const placeholder = moduleKey === "compassion"
-    ? "Search clients, cases, tools..."
-    : moduleKey === "events"
+  const placeholder = moduleKey === "events"
       ? "Search events, guests, tools..."
       : moduleKey === "watchdog"
         ? "Search alerts, vault, security tools..."
@@ -1531,9 +1508,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 <BellIcon className="h-[18px] w-[18px]" />
                 {unreadCount > 0 && (
                   <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
-                    moduleKey === "compassion"
-                      ? "bg-blue-500"
-                      : moduleKey === "events"
+                    moduleKey === "events"
                         ? "bg-violet-500"
                         : moduleKey === "watchdog"
                           ? "bg-red-600"
@@ -1705,9 +1680,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                   <BellIcon className="h-4 w-4" />
                   {unreadCount > 0 && (
                     <span className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center ${
-                      moduleKey === "compassion"
-                        ? "bg-blue-500"
-                        : moduleKey === "events"
+                      moduleKey === "events"
                           ? "bg-violet-500"
                           : moduleKey === "watchdog"
                             ? "bg-red-600"
@@ -2077,14 +2050,6 @@ function ModuleSwitcher({
       active: moduleKey === "letters",
     },
     {
-      key: "compassion",
-      label: "Compassion CRM",
-      helper: "Client Care",
-      href: "/compassion/dashboard",
-      icon: <WorkspaceSwitcherIcon moduleKey="compassion" />,
-      active: moduleKey === "compassion",
-    },
-    {
       key: "events",
       label: "EventSTUDIO",
       helper: "Operations",
@@ -2094,9 +2059,8 @@ function ModuleSwitcher({
     },
   ].filter((module) => {
     if (module.key === "donor") return settings.donorEnabled;
-    if (module.key === "compassion") return settings.compassionEnabled;
     return true;
-  }), [moduleKey, pathname, settings.compassionEnabled, settings.donorEnabled]);
+  }), [moduleKey, pathname, settings.donorEnabled]);
 
   const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
 
@@ -2244,9 +2208,7 @@ function UserMenu({
     action();
   }
 
-  const avatarCls = moduleKey === "compassion"
-    ? "bg-blue-700 border-blue-200"
-    : moduleKey === "events"
+  const avatarCls = moduleKey === "events"
       ? "bg-violet-700 border-violet-200"
       : moduleKey === "watchdog"
         ? "bg-red-700 border-red-200"

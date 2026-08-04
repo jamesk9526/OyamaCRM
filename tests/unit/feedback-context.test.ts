@@ -21,7 +21,6 @@ describe("support ticket context helpers", () => {
 
   it("keeps CRM scopes explicit for every remaining module boundary", () => {
     expect(getSupportTicketContext({ moduleKey: "letters", pathname: "/oyama-letters" }).crmScope).toBe("donor");
-    expect(getSupportTicketContext({ moduleKey: "compassion", pathname: "/compassion" }).crmScope).toBe("compassion");
     expect(getSupportTicketContext({ moduleKey: "events", pathname: "/events" }).crmScope).toBe("events");
     expect(getSupportTicketContext({ moduleKey: "watchdog", pathname: "/watchdog" }).crmScope).toBe("watchdog");
     expect(getSupportTicketContext({ moduleKey: "webmaster", pathname: "/webmaster" }).crmScope).toBe("webmaster");

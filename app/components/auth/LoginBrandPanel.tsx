@@ -87,7 +87,6 @@ export default function LoginBrandPanel() {
           <div className="mt-10 grid max-w-lg grid-cols-3 gap-3">
             {[
               ["DonorCRM", "Stewardship", "bg-[#60cdff]"],
-              ["Compassion", "Client care", "bg-blue-500"],
               ["Events", "Fundraising", "bg-amber-500"],
             ].map(([label, helper, dot]) => (
               <div key={label} className="border border-[#60cdff]/25 bg-[#061a36]/45 p-3 shadow-sm backdrop-blur">

@@ -6,7 +6,7 @@ export default function FormsSettingsPage() {
   return (
     <SettingsPlaceholderPage
       title="Forms"
-      description="Create and manage intake, consent, and workflow forms for donor and compassion operations."
+      description="Create and manage intake, consent, and workflow forms for donor operations."
       plannedItems={[
         "Configure form templates and categories",
         "Manage published and draft forms",

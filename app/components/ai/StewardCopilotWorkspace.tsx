@@ -12,7 +12,7 @@ import StewardResponseRenderer from "@/app/components/ai/StewardResponseRenderer
 import { StewardThinkingPanel, type ActiveTool } from "@/app/components/ai/StewardThinkingPanel";
 import type { StewardStructuredResponse } from "@/app/components/ai/steward-artifact-types";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "all";
+type ModuleKey = "donor" | "events" | "watchdog" | "webmaster" | "all";
 type ChatMode = "ask" | "analyze" | "draft" | "agentic" | "action" | "help";
 
 interface CopilotMessage {
@@ -57,7 +57,6 @@ const STORAGE_KEY = "oyama.steward-copilot.threads.v1";
 
 const MODULES: Array<{ value: ModuleKey; label: string; description: string }> = [
   { value: "donor", label: "Donor CRM", description: "Donors, gifts, campaigns, and stewardship" },
-  { value: "compassion", label: "Compassion CRM", description: "Client care and follow-up" },
   { value: "events", label: "Events CRM", description: "Guests, registration, and operations" },
   { value: "watchdog", label: "Watchdog", description: "Security and audit activity" },
   { value: "webmaster", label: "Webmaster", description: "Website operations and planning" },

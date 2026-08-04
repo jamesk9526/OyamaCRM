@@ -15,7 +15,7 @@ This is the sole repository instruction file. Use judgment and improve the produ
 - Keep major tools easy to find and give each one a clear primary workflow. A dedicated workspace is useful when it reduces confusion, not as a mandatory pattern.
 - Use real data and working actions. Empty states and incomplete features must be explicit; never present placeholder data or dead controls as production behavior.
 - Follow supplied mockups when present, while improving them where real workflow needs demand it.
-- Keep DonorCRM, Compassion CRM, Events CRM, and standalone apps conceptually distinct. Protect Compassion client data from unintended exposure.
+- Keep DonorCRM, Events CRM, and standalone apps conceptually distinct.
 
 ## Safety and engineering
 

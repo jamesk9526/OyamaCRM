@@ -291,7 +291,6 @@ const CONSTITUENT_IMPORT_DELETE_GUARD_SELECT = {
       eventSponsors: true,
       volunteerHours: true,
       pledges: true,
-      compassionClients: true,
       stewardPathEnrollments: true,
       stewardPathEmailDrafts: true,
       generatedLetters: true,
@@ -525,7 +524,6 @@ function countConstituentDeleteGuards(row: ConstituentImportDeleteGuardRecord): 
     + row._count.eventSponsors
     + row._count.volunteerHours
     + row._count.pledges
-    + row._count.compassionClients
     + row._count.stewardPathEnrollments
     + row._count.stewardPathEmailDrafts
     + row._count.generatedLetters
@@ -2126,7 +2124,7 @@ function mergeSnapshotToData(snapshot: MergeSnapshot, includeId: boolean): Prism
 
 const mergeRelationNames = [
   "donation", "pledge", "task", "meeting", "activity", "eventAttendance", "eventOrder", "eventGuest", "eventSponsor", "volunteerHour",
-  "stewardPathEnrollment", "stewardPathEmailDraft", "generatedLetter", "emailSubscription", "emailSuppression", "emailConsentEvent", "emailSendRecipient", "compassionClient",
+  "stewardPathEnrollment", "stewardPathEmailDraft", "generatedLetter", "emailSubscription", "emailSuppression", "emailConsentEvent", "emailSendRecipient",
 ] as const;
 type MergeRelationName = typeof mergeRelationNames[number];
 type MergeRelationSnapshot = { sourceId: string; relation: MergeRelationName; ids: string[] };
@@ -2150,7 +2148,6 @@ async function moveMergeRelations(tx: Prisma.TransactionClient, sourceId: string
   await tx.emailSuppression.updateMany({ where: where("emailSuppression"), data: { constituentId: targetId } });
   await tx.emailConsentEvent.updateMany({ where: where("emailConsentEvent"), data: { constituentId: targetId } });
   await tx.emailSendRecipient.updateMany({ where: where("emailSendRecipient"), data: { constituentId: targetId } });
-  await tx.compassionClient.updateMany({ where: where("compassionClient"), data: { constituentId: targetId } });
 }
 
 /** POST /api/constituents/merge — review-approved, reversible merge of selected duplicates. */
@@ -2220,7 +2217,7 @@ router.post("/merge", async (req, res) => {
         tx.stewardPathEnrollment.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.stewardPathEmailDraft.findMany({ where: { constituentId: source.id }, select: { id: true } }),
         tx.generatedLetter.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.emailSubscription.findMany({ where: { constituentId: source.id }, select: { id: true } }),
         tx.emailSuppression.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.emailConsentEvent.findMany({ where: { constituentId: source.id }, select: { id: true } }),
-        tx.emailSendRecipient.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.compassionClient.findMany({ where: { constituentId: source.id }, select: { id: true } }),
+        tx.emailSendRecipient.findMany({ where: { constituentId: source.id }, select: { id: true } }),
       ]);
       relationIds.forEach((ids, index) => relationSnapshots.push({ sourceId: source.id, relation: mergeRelationNames[index], ids: ids.map((item) => item.id) }));
     }

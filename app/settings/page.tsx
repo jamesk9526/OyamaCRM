@@ -38,7 +38,7 @@ const CARDS = [
   },
   {
     title: "CRM Modules",
-    description: "Enable and govern module access for DonorCRM, Compassion CRM, and Events CRM.",
+    description: "Enable and govern module access for DonorCRM and Events CRM.",
     href: "/settings/modules",
   },
   {

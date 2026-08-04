@@ -15,7 +15,6 @@ describe("help scope helpers", () => {
   it("maps known module keys to crm help scopes", () => {
     expect(mapModuleKeyToHelpScope("donor")).toBe("donor");
     expect(mapModuleKeyToHelpScope("events")).toBe("events");
-    expect(mapModuleKeyToHelpScope("compassion")).toBe("compassion");
     expect(mapModuleKeyToHelpScope("webmaster")).toBe("global");
   });
 
@@ -26,10 +25,10 @@ describe("help scope helpers", () => {
   });
 
   it("builds contextual help href with scope and route", () => {
-    const href = buildHelpHref({ scope: "compassion", scopePath: "/compassion/appointments" });
+    const href = buildHelpHref({ scope: "events", scopePath: "/events/check-in" });
     expect(href).toContain("/help?");
-    expect(href).toContain("scope=compassion");
-    expect(href).toContain("scopePath=%2Fcompassion%2Fappointments");
+    expect(href).toContain("scope=events");
+    expect(href).toContain("scopePath=%2Fevents%2Fcheck-in");
   });
 });
 
@@ -56,22 +55,6 @@ describe("help search ranking", () => {
     expect(eventsResults[0].article.crmScope).toBe("events");
   });
 
-  it("supports metadata filters for category and tag", () => {
-    const filtered = searchHelpArticles({
-      query: "",
-      scope: "compassion",
-      filters: {
-        category: "Appointments",
-        tag: "appointments",
-      },
-      limit: 10,
-    });
-
-    expect(filtered.length).toBeGreaterThan(0);
-    expect(filtered.every((result) => result.article.crmScope === "compassion" || result.article.crmScope === "global")).toBe(true);
-    expect(filtered.some((result) => result.article.slug === "compassion-appointments-workspace")).toBe(true);
-  });
-
   it("returns relevant results for minor typos and partial phrase input", () => {
     const typoResults = searchHelpArticles({
       query: "livcom setp",
@@ -89,17 +72,6 @@ describe("help route context", () => {
     const context = getRouteHelpContext("/settings/site-embeds");
     expect(context).not.toBeNull();
     expect(context?.tags).toContain("site-embeds");
-  });
-
-  it("returns contextual suggestions for appointments route", () => {
-    const suggestions = getContextualHelpSuggestions({
-      pathname: "/compassion/appointments",
-      scope: "compassion",
-      limit: 5,
-    });
-
-    expect(suggestions.length).toBeGreaterThan(0);
-    expect(suggestions.some((article) => article.slug === "compassion-appointments-workspace")).toBe(true);
   });
 
   it("returns stable filter metadata for scope", () => {

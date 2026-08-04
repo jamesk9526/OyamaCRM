@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 
-export type AiWorkspaceScope = "donor" | "events" | "compassion" | "watchdog" | "webmaster" | "steward" | "global";
+export type AiWorkspaceScope = "donor" | "events" | "watchdog" | "webmaster" | "steward" | "global";
 export type AiMemoryCategory =
   | "preference"
   | "organization"
@@ -27,7 +27,6 @@ export interface StewardContextSnippet {
 const ALLOWED_SCOPES = new Set<AiWorkspaceScope>([
   "donor",
   "events",
-  "compassion",
   "watchdog",
   "webmaster",
   "steward",

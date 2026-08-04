@@ -3,7 +3,7 @@
 import { apiFetch } from "@/app/lib/auth-client";
 import type { OGenticExecutionContext } from "@/app/modules/ogentic/types/ogentic.types";
 
-type StewardModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster";
+type StewardModuleKey = "donor" | "events" | "watchdog" | "webmaster";
 
 interface OGenticAgentMessage {
   role: "user" | "assistant";
@@ -44,7 +44,6 @@ export interface OGenticAgentResult {
 /** Maps OGentic module scopes to the closest Steward retrieval module. */
 function resolveStewardModuleKey(scopes: OGenticExecutionContext["moduleScope"]): StewardModuleKey {
   if (scopes.includes("event")) return "events";
-  if (scopes.includes("client")) return "compassion";
   if (scopes.includes("communication")) return "webmaster";
   return "donor";
 }

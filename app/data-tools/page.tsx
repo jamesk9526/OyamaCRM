@@ -451,7 +451,7 @@ export default function DataToolsPage() {
       <GuidedImportWizard />
 
       <div id="data-tools-import" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-        Use Guided Import for contacts, audience lists, donations, and Compassion client files. The wizard routes each file to the correct importer and keeps client data out of Donor CRM.
+        Use Guided Import for contacts, audience lists, donations, and event guest files. Review each file before importing it into Donor CRM.
       </div>
 
       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

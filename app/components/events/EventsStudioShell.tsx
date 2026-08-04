@@ -245,7 +245,6 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
                 <div className="absolute left-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-white/12 bg-[#111434] p-2 text-sm shadow-2xl shadow-slate-950/35">
                   {[
                     { label: "Donor CRM", href: "/" },
-                    { label: "Compassion CRM", href: "/compassion/dashboard" },
                     { label: "EventSTUDIO", href: "/events/events" },
                     { label: "Steward AI", href: "/steward-ai-workspace" },
                     { label: "Webmaster", href: "/webmaster" },

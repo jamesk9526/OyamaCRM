@@ -20,7 +20,7 @@ export type WebmasterSiteType =
   | "MICROSITE"
   | "BLOG_SITE";
 
-export type WebmasterConnectedModule = "donor" | "events" | "compassion" | "communications" | "webmaster" | "platform";
+export type WebmasterConnectedModule = "donor" | "events" | "communications" | "webmaster" | "platform";
 
 export interface WebmasterSiteRecord {
   id: string;

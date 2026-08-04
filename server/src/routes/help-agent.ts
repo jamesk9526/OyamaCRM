@@ -13,7 +13,7 @@ router.use(requireAuth);
 
 /**
  * POST /api/help-agent/plan
- * Body: { query: string; scope: donor|events|compassion|global; scopePath?: string }
+ * Body: { query: string; scope: donor|events|global; scopePath?: string }
  */
 router.post("/plan", (req, res) => {
   const body = req.body as {
@@ -25,9 +25,7 @@ router.post("/plan", (req, res) => {
   const rawScope = String(body.scope ?? "donor");
   const scope: HelpAgentScope = rawScope === "events"
     ? "events"
-    : rawScope === "compassion"
-      ? "compassion"
-      : rawScope === "global"
+    : rawScope === "global"
         ? "global"
         : "donor";
 

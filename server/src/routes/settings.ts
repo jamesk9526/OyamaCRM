@@ -60,13 +60,12 @@ interface SettingsPayload {
   smtpFromEmail?: string | null;
 }
 
-type WorkspaceDefault = "donor" | "compassion";
+type WorkspaceDefault = "donor";
 type DonorNavigationLayout = "mega" | "sidebar";
 type DonorAccentTone = "green" | "blue" | "teal" | "amber";
 
 interface WorkspaceSettingsPayload {
   donorEnabled?: boolean;
-  compassionEnabled?: boolean;
   showModuleSwitcher?: boolean;
   defaultWorkspace?: WorkspaceDefault;
   donorNavigationLayout?: DonorNavigationLayout;
@@ -604,9 +603,8 @@ async function resolveSettingsOrganizationId(req: Request): Promise<string | nul
 /** Normalizes workspace settings and enforces at least one enabled workspace. */
 function normalizeWorkspacePayload(input: WorkspaceSettingsPayload) {
   const donorEnabled = input.donorEnabled ?? true;
-  const compassionEnabled = input.compassionEnabled ?? true;
   const showModuleSwitcher = input.showModuleSwitcher ?? true;
-  const requestedDefault: WorkspaceDefault = input.defaultWorkspace === "compassion" ? "compassion" : "donor";
+  const defaultWorkspace: WorkspaceDefault = "donor";
   const donorNavigationLayout: DonorNavigationLayout = input.donorNavigationLayout === "sidebar" ? "sidebar" : "mega";
   const donorAccentTone: DonorAccentTone = input.donorAccentTone === "blue"
     || input.donorAccentTone === "teal"
@@ -615,22 +613,17 @@ function normalizeWorkspacePayload(input: WorkspaceSettingsPayload) {
     ? input.donorAccentTone
     : "green";
 
-  if (!donorEnabled && !compassionEnabled) {
+  if (!donorEnabled) {
     return {
       ok: false as const,
       error: { code: "WORKSPACE_REQUIRED", message: "At least one workspace must remain enabled." },
     };
   }
 
-  const defaultWorkspace: WorkspaceDefault = requestedDefault === "donor"
-    ? (donorEnabled ? "donor" : "compassion")
-    : (compassionEnabled ? "compassion" : "donor");
-
   return {
     ok: true as const,
     value: {
       donorEnabled,
-      compassionEnabled,
       showModuleSwitcher,
       defaultWorkspace,
       donorNavigationLayout,
@@ -653,7 +646,6 @@ router.get("/workspaces", requireAuth, async (req: Request, res: Response) => {
         where: { organizationId },
         select: {
           donorWorkspaceEnabled: true,
-          compassionWorkspaceEnabled: true,
           showModuleSwitcher: true,
           defaultWorkspace: true,
         },
@@ -677,9 +669,8 @@ router.get("/workspaces", requireAuth, async (req: Request, res: Response) => {
 
     const normalized = normalizeWorkspacePayload({
       donorEnabled: settings?.donorWorkspaceEnabled,
-      compassionEnabled: settings?.compassionWorkspaceEnabled,
       showModuleSwitcher: settings?.showModuleSwitcher,
-      defaultWorkspace: settings?.defaultWorkspace === "compassion" ? "compassion" : "donor",
+      defaultWorkspace: "donor",
       donorNavigationLayout: shellConfig.donorNavigationLayout === "sidebar" ? "sidebar" : "mega",
       donorAccentTone: shellConfig.donorAccentTone === "blue"
         || shellConfig.donorAccentTone === "teal"
@@ -714,19 +705,16 @@ router.put("/workspaces", requireAuth, requireRole("admin"), async (req: Request
       create: {
         organizationId,
         donorWorkspaceEnabled: normalized.value.donorEnabled,
-        compassionWorkspaceEnabled: normalized.value.compassionEnabled,
         showModuleSwitcher: normalized.value.showModuleSwitcher,
         defaultWorkspace: normalized.value.defaultWorkspace,
       },
       update: {
         donorWorkspaceEnabled: normalized.value.donorEnabled,
-        compassionWorkspaceEnabled: normalized.value.compassionEnabled,
         showModuleSwitcher: normalized.value.showModuleSwitcher,
         defaultWorkspace: normalized.value.defaultWorkspace,
       },
       select: {
         donorWorkspaceEnabled: true,
-        compassionWorkspaceEnabled: true,
         showModuleSwitcher: true,
         defaultWorkspace: true,
       },
@@ -770,9 +758,8 @@ router.put("/workspaces", requireAuth, requireRole("admin"), async (req: Request
 
     return res.json({
       donorEnabled: saved.donorWorkspaceEnabled,
-      compassionEnabled: saved.compassionWorkspaceEnabled,
       showModuleSwitcher: saved.showModuleSwitcher,
-      defaultWorkspace: saved.defaultWorkspace === "compassion" ? "compassion" : "donor",
+      defaultWorkspace: "donor",
       donorNavigationLayout: normalized.value.donorNavigationLayout,
       donorAccentTone: normalized.value.donorAccentTone,
     });

@@ -83,7 +83,7 @@ export interface StewardToolExecutionContext {
   organizationId: string;
   userId: string;
   role: string;
-  moduleKey?: "donor" | "oshareview" | "compassion" | "events" | "watchdog" | "webmaster";
+  moduleKey?: "donor" | "oshareview" | "events" | "watchdog" | "webmaster";
   scopePath?: string;
   requestRoute?: string;
 }

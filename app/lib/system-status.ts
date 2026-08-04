@@ -95,7 +95,7 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "API Status",
     status: "Working",
-    summary: "Core donor, compassion, events, and settings routes are mounted behind shared middleware.",
+    summary: "Core donor, events, and settings routes are mounted behind shared middleware.",
   },
   {
     title: "Authentication Status",
@@ -118,11 +118,6 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
     summary: "Core constituent, donation, campaign, task, and dashboard workflows run on real API and database data.",
   },
   {
-    title: "Compassion Workspace Feature Status",
-    status: "Partially Working",
-    summary: "Client and appointment workflows are real-data backed, with deeper care-plan and privacy controls still incomplete.",
-  },
-  {
     title: "Communication / Email Builder Status",
     status: "Partially Working",
     summary: "Campaign CRUD and queue dispatch exist; media pipeline, approval safeguards, and delivery telemetry remain incomplete.",
@@ -130,7 +125,7 @@ export const SYSTEM_STATUS_SECTIONS: SystemStatusSection[] = [
   {
     title: "Scheduling Status",
     status: "Partially Working",
-    summary: "Compassion appointments are live; unified calendar and policy hardening are not complete.",
+    summary: "Calendar and scheduling policy hardening are not complete.",
   },
   {
     title: "Reports Status",
@@ -186,7 +181,7 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
     linkedPlanFile: "docs/plans/oyamacrm-onboarding-and-settings-setup-plan.md",
     priority: "P1",
     successCriteria: "Admins can edit role/scope matrix in UI and changes are enforced server-side for module workspace access.",
-    copilotPrompt: "Implement persisted role and scope matrix management for Settings Workspace. Use app/settings/roles/page.tsx and server/src/routes/users.ts as anchors. Build real CRUD endpoints and replace placeholder matrix UI with editable controls. Enforce module workspace assignment checks in middleware for donor, compassion, events, and apps routes. Add audit events for role/scope changes. Add tests for allow and deny paths across at least one route per module.",
+    copilotPrompt: "Implement persisted role and scope matrix management for Settings Workspace. Use app/settings/roles/page.tsx and server/src/routes/users.ts as anchors. Build real CRUD endpoints and replace placeholder matrix UI with editable controls. Enforce module workspace assignment checks in middleware for donor, events, and apps routes. Add audit events for role/scope changes. Add tests for allow and deny paths across at least one route per module.",
   },
   {
     feature: "Constituents",
@@ -297,20 +292,7 @@ export const FEATURE_READINESS: FeatureReadinessItem[] = [
     linkedPlanFile: "docs/plans/oyamacrm-onboarding-and-settings-setup-plan.md",
     priority: "P1",
     successCriteria: "Scope assignments are editable and enforced with clear allow/deny behavior in all module shells.",
-    copilotPrompt: "Finish user scopes and workspace assignment enforcement. Build editable role/scope controls in settings, persist values, and enforce in shared layout guards and server middleware. Add explicit TODO removal where permission checks are now implemented. Include tests for unauthorized access to compassion and events module routes.",
-  },
-  {
-    feature: "Compassion Workspace",
-    workspace: "Compassion CRM",
-    status: "Partially Working",
-    lastVerified: AUDIT_DATE,
-    workingPieces: "Client and appointment workflows plus public scheduling endpoints are implemented.",
-    missingPieces: "Deep client-service tabs, stricter privacy enforcement, and wider test coverage are still in progress.",
-    nextAction: "Complete client-scoped service tabs and enforce workspace permission checks.",
-    linkedPlanFile: "docs/plans/phase-09-compassion-workspace.md",
-    priority: "P1",
-    successCriteria: "Client service tabs are fully client-scoped with privacy guards and passing happy-path tests.",
-    copilotPrompt: "Complete Compassion CRM partial areas with privacy-first guards. Use app/compassion/clients/[clientId] and server/src/routes/compassion.ts as anchors. Ensure each service tab is scoped by clientId, remove scaffold warnings only after endpoint + UI + happy-path test exist, and enforce workspace permissions. Preserve donor/client separation rules and keep SSN stripping behavior intact.",
+    copilotPrompt: "Finish user scopes and workspace assignment enforcement. Build editable role/scope controls in settings, persist values, and enforce in shared layout guards and server middleware. Add explicit TODO removal where permission checks are now implemented. Include tests for unauthorized access to donor and events module routes.",
   },
   {
     feature: "Integrations Workspace",

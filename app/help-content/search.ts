@@ -106,16 +106,6 @@ function expandQueryTokens(tokens: string[]): string[] {
     website: ["embeds", "livecom", "webmaster"],
     webmaster: ["website", "embeds", "pages"],
 
-    // Compassion CRM terms
-    client: ["compassion", "intake", "case", "appointment"],
-    case: ["compassion", "client", "casework"],
-    intake: ["compassion", "client", "assessment"],
-    assessment: ["compassion", "intake", "client"],
-    referral: ["compassion", "case", "client"],
-    carplan: ["care", "compassion", "case"],
-    schedule: ["appointment", "calendar", "compassion"],
-    widget: ["scheduling", "appointment", "embed", "public"],
-
     // Finance / grants
     grant: ["grants", "funding", "research", "deadline"],
     grants: ["grant", "funding", "research", "writing"],

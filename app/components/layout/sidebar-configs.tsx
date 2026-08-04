@@ -1,4 +1,4 @@
-// Central sidebar configuration maps for Donor, Compassion, Events, and Watchdog modules.
+// Central sidebar configuration maps for Donor, Events, and Watchdog modules.
 
 import type { CrmSidebarGroup, SidebarItemBadge } from "@/app/components/layout/CrmSidebar";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
@@ -312,36 +312,6 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       defaultOpen: false,
       collapsible: true,
       items: systemItems,
-    },
-  ];
-}
-
-/** Returns Compassion CRM sidebar groups following the shared config pattern. */
-export function buildCompassionSidebarGroups(): CrmSidebarGroup[] {
-  return [
-    {
-      id: "care-workspace",
-      label: "Care Workspace",
-      defaultOpen: true,
-      items: [
-        { id: "dashboard", label: "Dashboard", href: "/compassion/dashboard", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "Compassion CRM dashboard and daily service overview." },
-        { id: "clients", label: "Clients", href: "/compassion/clients", icon: <OyamaGradientIcon name="constituent-search" />, kind: "core_record", description: "Manage privacy-first client records and profile history." },
-        { id: "cases", label: "Cases", href: "/compassion/cases", icon: <OyamaGradientIcon name="contact-checklist" />, kind: "daily_tool", description: "Open and manage client cases with status workflows." },
-        { id: "appointments", label: "Appointments", href: "/compassion/appointments", icon: <OyamaGradientIcon name="task-checklist" />, kind: "daily_tool", description: "Schedule and manage office appointments." },
-        { id: "follow-ups", label: "Follow Ups", href: "/compassion/follow-ups", icon: <OyamaGradientIcon name="momentum-growth" />, kind: "daily_tool", description: "Manage pending follow-up work and case touchpoints." },
-        { id: "reports", label: "Reports", href: "/compassion/reports", icon: <OyamaGradientIcon name="reporting-dashboard" />, kind: "insight", description: "Review care outcomes and module-level trends." },
-      ],
-    },
-    {
-      id: "system",
-      label: "System",
-      defaultOpen: false,
-      collapsible: true,
-      items: [
-        { id: "data-tools", label: "Data Tools", href: "/compassion/data-tools", icon: <OyamaGradientIcon name="client-profile-sync" />, kind: "system", description: "Import, validate, and clean client workspace data." },
-        { id: "settings", label: "Settings", href: "/compassion/settings", icon: DONOR_ICONS.settings, kind: "system", description: "Configure Compassion workspace settings and policies." },
-        { id: "help", label: "Help", href: "/help?scope=compassion&scopePath=/compassion/dashboard", icon: DONOR_ICONS.help, kind: "system", description: "Open Compassion help and role-specific guides." },
-      ],
     },
   ];
 }

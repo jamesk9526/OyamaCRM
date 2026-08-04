@@ -5,10 +5,9 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import StewardCopilotWorkspace from "@/app/components/ai/StewardCopilotWorkspace";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "all";
+type ModuleKey = "donor" | "events" | "watchdog" | "webmaster" | "all";
 
 function resolveModuleKey(raw: string | null): ModuleKey {
-  if (raw === "compassion") return "compassion";
   if (raw === "events")     return "events";
   if (raw === "watchdog")   return "watchdog";
   if (raw === "webmaster")  return "webmaster";

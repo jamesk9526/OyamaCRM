@@ -2,7 +2,7 @@
 import { apiFetch } from "@/app/lib/auth-client";
 
 /** Allowed default workspace values persisted by the backend. */
-export type WorkspaceKey = "donor" | "compassion";
+export type WorkspaceKey = "donor";
 
 /** Donor shell navigation modes supported by AppShell. */
 export type DonorNavigationLayout = "mega" | "sidebar";
@@ -26,7 +26,6 @@ export interface DonorAccentTheme {
 /** Organization-wide workspace controls consumed by admin/settings and runtime shells. */
 export interface WorkspaceSettings {
   donorEnabled: boolean;
-  compassionEnabled: boolean;
   showModuleSwitcher: boolean;
   defaultWorkspace: WorkspaceKey;
   donorNavigationLayout: DonorNavigationLayout;
@@ -36,7 +35,6 @@ export interface WorkspaceSettings {
 /** Safe defaults used when settings are unavailable or malformed. */
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   donorEnabled: true,
-  compassionEnabled: true,
   showModuleSwitcher: true,
   defaultWorkspace: "donor",
   donorNavigationLayout: "mega",
@@ -106,11 +104,10 @@ export function normalizeWorkspaceSettings(input: unknown): WorkspaceSettings {
   }
   const raw = input as Record<string, unknown>;
   const donorEnabled = typeof raw.donorEnabled === "boolean" ? raw.donorEnabled : DEFAULT_WORKSPACE_SETTINGS.donorEnabled;
-  const compassionEnabled = typeof raw.compassionEnabled === "boolean" ? raw.compassionEnabled : DEFAULT_WORKSPACE_SETTINGS.compassionEnabled;
   const showModuleSwitcher = typeof raw.showModuleSwitcher === "boolean"
     ? raw.showModuleSwitcher
     : DEFAULT_WORKSPACE_SETTINGS.showModuleSwitcher;
-  const defaultWorkspace = raw.defaultWorkspace === "compassion" ? "compassion" : "donor";
+  const defaultWorkspace: WorkspaceKey = "donor";
   const donorNavigationLayout = raw.donorNavigationLayout === "sidebar" ? "sidebar" : "mega";
   const donorAccentTone = raw.donorAccentTone === "blue"
     || raw.donorAccentTone === "teal"
@@ -120,10 +117,9 @@ export function normalizeWorkspaceSettings(input: unknown): WorkspaceSettings {
     : "green";
 
   // Ensure impossible states still produce a usable runtime configuration.
-  if (!donorEnabled && !compassionEnabled) {
+  if (!donorEnabled) {
     return {
       donorEnabled: true,
-      compassionEnabled: false,
       showModuleSwitcher,
       defaultWorkspace: "donor",
       donorNavigationLayout,
@@ -131,15 +127,10 @@ export function normalizeWorkspaceSettings(input: unknown): WorkspaceSettings {
     };
   }
 
-  const safeDefault = defaultWorkspace === "donor"
-    ? (donorEnabled ? "donor" : "compassion")
-    : (compassionEnabled ? "compassion" : "donor");
-
   return {
     donorEnabled,
-    compassionEnabled,
     showModuleSwitcher,
-    defaultWorkspace: safeDefault,
+    defaultWorkspace,
     donorNavigationLayout,
     donorAccentTone,
   };
@@ -172,14 +163,5 @@ export async function patchWorkspaceSettings(partial: Partial<WorkspaceSettings>
 
 /** Computes the preferred landing route after login based on enabled/default workspace settings. */
 export function resolveWorkspaceLandingPath(settings: WorkspaceSettings): string {
-  if (settings.defaultWorkspace === "compassion" && settings.compassionEnabled) {
-    return "/compassion/dashboard";
-  }
-  if (settings.donorEnabled) {
-    return "/";
-  }
-  if (settings.compassionEnabled) {
-    return "/compassion/dashboard";
-  }
   return "/";
 }

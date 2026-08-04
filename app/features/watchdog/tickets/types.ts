@@ -12,7 +12,7 @@ export type WatchdogFeedbackTicketStatus = "new" | "in_review" | "in_progress" |
 
 export type WatchdogFeedbackPriority = "low" | "normal" | "high" | "urgent";
 
-export type WatchdogFeedbackScope = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "reportit" | "other" | "unknown";
+export type WatchdogFeedbackScope = "donor" | "events" | "watchdog" | "webmaster" | "reportit" | "other" | "unknown";
 
 export interface WatchdogTicketUser {
   id: string;

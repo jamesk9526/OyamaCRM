@@ -25,7 +25,7 @@ export default function WatchdogSidebar({ forceExpanded = false }: WatchdogSideb
       brandHeaderCollapsed={<CrmBrandLockup moduleLabel="Watchdog CRM" compact />}
       expandedWidthClass="w-64"
       collapsedWidthClass="w-20"
-      organizationLabel="Security telemetry across Donor, Compassion, Events, WebMaster"
+      organizationLabel="Security telemetry across Donor, Events, WebMaster"
     />
   );
 }

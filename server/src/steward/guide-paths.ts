@@ -62,7 +62,6 @@ function extractGuidePathSignals(text: string): GuidePathSignals {
 
 function inferModuleReportFocus(moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>): string {
   if (moduleKey === "events") return "attendance and operations";
-  if (moduleKey === "compassion") return "client engagement and outcomes";
   if (moduleKey === "watchdog") return "security and operations";
   if (moduleKey === "webmaster") return "campaign and web performance";
   return "donor engagement and fundraising";
@@ -70,7 +69,6 @@ function inferModuleReportFocus(moduleKey: NonNullable<StewardAiChatPayload["mod
 
 function reportWorkspacePathForModule(moduleKey: NonNullable<StewardAiChatPayload["moduleKey"]>): string {
   if (moduleKey === "events") return "/reports?tab=events&module=events";
-  if (moduleKey === "compassion") return "/reports?tab=compassion&module=compassion";
   if (moduleKey === "watchdog") return "/reports?tab=operations&module=watchdog";
   if (moduleKey === "webmaster") return "/reports?tab=webmaster&module=webmaster";
   return "/reports?tab=donor-crm&module=donor";
@@ -227,7 +225,6 @@ export function buildGuidePathClarification(options: {
         suggestedActions: [
           buildGuidePathChoice("Donor CRM", "Apply this request to Donor CRM context."),
           buildGuidePathChoice("Events CRM", "Apply this request to Events CRM context."),
-          buildGuidePathChoice("Compassion CRM", "Apply this request to Compassion CRM context."),
           buildGuidePathChoice("Describe manually", "I will describe exactly what this should apply to."),
         ],
         evidence: [{ label: "GuidePath classified request as Cannot Safely Answer Yet" }],

@@ -13,7 +13,7 @@ const router = Router();
 const SUPPORT_TICKET_PLUGIN_KEY = "support-ticket-delivery";
 const TICKET_TYPES = ["bug_report", "feature_request", "confusing_ui", "data_issue", "general_feedback"] as const;
 const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
-const CRM_SCOPES = ["donor", "compassion", "events", "watchdog", "webmaster", "reportit", "other", "unknown"] as const;
+const CRM_SCOPES = ["donor", "events", "watchdog", "webmaster", "reportit", "other", "unknown"] as const;
 const MAX_SCREENSHOT_BYTES = 2_500_000;
 
 interface SupportTicketPayload {

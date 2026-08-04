@@ -32,7 +32,7 @@ export default function WatchdogSecurityFeed({ items, onAction, actingKey }: Wat
       <div className="flex items-center justify-between gap-3 mb-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-100">Security Feed</h2>
-          <p className="text-xs text-slate-400">Merged audit stream across DonorCRM, Compassion CRM, Events, and Watchdog.</p>
+          <p className="text-xs text-slate-400">Merged audit stream across DonorCRM, Events, and Watchdog.</p>
         </div>
       </div>
 

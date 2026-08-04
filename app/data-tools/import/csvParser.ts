@@ -1,6 +1,6 @@
 // CSV / TSV / pasted-tabular parsing utilities — smart header detection,
 // delimiter auto-detection, quoted-field parsing, and column-type inference.
-// Used by both Donor and Compassion CRM import wizards. Pure client-side; no deps.
+// Used by Donor CRM import wizards. Pure client-side; no deps.
 
 /** Raw parsed row: maps CSV column header names to cell values (as strings). */
 export type RawRow = Record<string, string>;

@@ -862,10 +862,6 @@ async function main() {
     console.log(`   + Events:       ${expansion.additionalEvents}`);
     console.log(`   + Orders:       ${expansion.additionalOrders}`);
     console.log(`   + Guests:       ${expansion.additionalGuests}`);
-    console.log(`   + Clients:      ${expansion.additionalClients}`);
-    console.log(`   + Appointments: ${expansion.additionalAppointments}`);
-    console.log(`   + Services:     ${expansion.additionalServices}`);
-    console.log(`   + Follow-ups:   ${expansion.additionalFollowUps}`);
     console.log(`   + Tasks:        ${expansion.additionalTasks}`);
     console.log(`   + Activities:   ${expansion.additionalActivities}`);
     console.log(`   + Campaigns:    ${expansion.additionalEmailCampaigns} email campaigns`);

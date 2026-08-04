@@ -123,29 +123,6 @@ const MODULES: Module[] = [
     notes: "Day/week/month calendar for meetings and tasks. Planned after meetings foundation.",
     configLink: "/settings/meetings",
   },
-  // ─── Compassion CRM ───
-  {
-    name: "Clients",
-    area: "Compassion CRM",
-    status: "Partial",
-    dataSource: "Real DB",
-    notes: "Client profile, case management, appointments, care plans. Assessments planned.",
-    configLink: "/settings/compassion",
-  },
-  {
-    name: "Cases",
-    area: "Compassion CRM",
-    status: "Partial",
-    dataSource: "Real DB",
-    notes: "Case creation and linking to clients. Case activities and assessments in progress.",
-  },
-  {
-    name: "Appointments",
-    area: "Compassion CRM",
-    status: "Partial",
-    dataSource: "Real DB",
-    notes: "Schedule appointments with clients. Reminder and follow-up system planned.",
-  },
   // ─── Events CRM ───
   {
     name: "Events",

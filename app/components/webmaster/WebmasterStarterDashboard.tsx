@@ -25,7 +25,7 @@ interface WebmasterSite {
     | "MICROSITE"
     | "BLOG_SITE";
   sitePurpose: string | null;
-  connectedModule: "donor" | "events" | "compassion" | "communications" | "webmaster" | "platform" | null;
+  connectedModule: "donor" | "events" | "communications" | "webmaster" | "platform" | null;
   connectedRecordId: string | null;
   domain: string | null;
   subdomain: string | null;
@@ -417,7 +417,6 @@ export default function WebmasterStarterDashboard() {
             <option value="">No connected module</option>
             <option value="donor">DonorCRM</option>
             <option value="events">Events</option>
-            <option value="compassion">Compassion CRM</option>
             <option value="communications">Communications</option>
             <option value="webmaster">Webmaster</option>
             <option value="platform">Platform</option>

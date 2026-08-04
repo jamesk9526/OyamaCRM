@@ -18,7 +18,7 @@ import type { StewardStructuredResponse } from "@/app/components/ai/steward-arti
 import { executeStewardSuggestedAction } from "@/app/components/ai/steward-action-executor";
 import type { StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
-type ModuleKey = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
+type ModuleKey = "donor" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
 type ChatMode = "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
 export type StewardPanelMode = "collapsed" | "dock-right" | "popout" | "maximized";
 type StewardChatDisplayMode = "dock" | "dock-right" | "popout" | "maximized" | "workspace";
@@ -290,14 +290,6 @@ const STEWARD_DISABLED_MESSAGE = "Steward AI is not enabled yet. Open Settings >
 
 /** Returns starter prompts based on current CRM module context. */
 function promptsForModule(moduleKey: ModuleKey): string[] {
-  if (moduleKey === "compassion") {
-    return [
-      "Summarize this client context from visible page details.",
-      "What follow-ups should happen this week?",
-      "Draft a client-safe appointment reminder.",
-    ];
-  }
-
   if (moduleKey === "events") {
     return [
       "Summarize event operations status.",

@@ -76,7 +76,7 @@ function parseSiteType(value: unknown): WebmasterSiteType | undefined {
 function parseConnectedModule(value: unknown): WebmasterConnectedModule | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   const normalized = value.trim().toLowerCase();
-  const allowed: WebmasterConnectedModule[] = ["donor", "events", "compassion", "communications", "webmaster", "platform"];
+  const allowed: WebmasterConnectedModule[] = ["donor", "events", "communications", "webmaster", "platform"];
   return allowed.includes(normalized as WebmasterConnectedModule) ? (normalized as WebmasterConnectedModule) : undefined;
 }
 

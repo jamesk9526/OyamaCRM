@@ -34,8 +34,6 @@ interface SetupCompletePayload {
   };
   workspaces?: {
     oyamacrm?: boolean;
-    oyamacrmCompassion?: boolean;
-    defaultWorkspace?: "donor" | "compassion";
   };
   defaults?: {
     fiscalYearStart?: number;
@@ -230,7 +228,7 @@ router.post("/complete", async (req: Request, res: Response) => {
       });
     }
 
-    if (!body?.workspaces?.oyamacrm && !body?.workspaces?.oyamacrmCompassion) {
+    if (!body?.workspaces?.oyamacrm) {
       return res.status(400).json({
         success: false,
         error: {
@@ -340,9 +338,8 @@ router.post("/complete", async (req: Request, res: Response) => {
           currency,
           fiscalYearStart,
           donorWorkspaceEnabled: body?.workspaces?.oyamacrm ?? true,
-          compassionWorkspaceEnabled: body?.workspaces?.oyamacrmCompassion ?? true,
           showModuleSwitcher: true,
-          defaultWorkspace: body?.workspaces?.defaultWorkspace === "compassion" ? "compassion" : "donor",
+          defaultWorkspace: "donor",
           smtpSecure: false,
           smtpHost,
           smtpPort,
@@ -556,9 +553,8 @@ router.post("/restore/:id", requireAuth, requireRole("admin"), async (req: Reque
             currency: (data.settings.currency as string) || "USD",
             fiscalYearStart: (data.settings.fiscalYearStart as number) || 1,
             donorWorkspaceEnabled: (data.settings.donorWorkspaceEnabled as boolean) ?? true,
-            compassionWorkspaceEnabled: (data.settings.compassionWorkspaceEnabled as boolean) ?? true,
             showModuleSwitcher: (data.settings.showModuleSwitcher as boolean) ?? true,
-            defaultWorkspace: (data.settings.defaultWorkspace as string) === "compassion" ? "compassion" : "donor",
+            defaultWorkspace: "donor",
             smtpSecure: (data.settings.smtpSecure as boolean) || false,
             smtpPort: (data.settings.smtpPort as number) || 587,
             smtpFromName: (data.settings.smtpFromName as string) || org.name,

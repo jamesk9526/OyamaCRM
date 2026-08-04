@@ -98,7 +98,6 @@ export function WatchdogTicketFilters({ value, developers, onChange, onReset }: 
           >
             <option value="all">All scopes</option>
             <option value="donor">DonorCRM</option>
-            <option value="compassion">Compassion CRM</option>
             <option value="events">Events CRM</option>
             <option value="watchdog">Watchdog</option>
             <option value="webmaster">Webmaster</option>

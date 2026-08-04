@@ -51,9 +51,7 @@ export function buildRuntimeSystemPrompt(options: {
             : "";
 
   const moduleLexicon =
-    options.moduleKey === "compassion"
-      ? "Use client-care terminology (client, case, appointment, follow-up). Avoid donor fundraising terms unless explicitly requested."
-      : options.moduleKey === "events"
+    options.moduleKey === "events"
         ? "Use event-operations terminology (event, guest, check-in, sponsor, seating, registration)."
         : options.moduleKey === "watchdog"
           ? "Use security operations terminology (incident, severity, alert, audit, access control, encrypted vault)."
@@ -154,93 +152,6 @@ export async function buildDonorContext(params: {
   });
 }
 
-/** Builds Compassion module retrieval context from clients, cases, appointments, and follow-ups. */
-export async function buildCompassionContext(params: {
-  organizationId: string;
-  tokens: string[];
-  scopePath: string;
-}): Promise<StewardContextResult> {
-  const toolsUsed: string[] = ["compassion.clientLookup", "compassion.caseFollowupSnapshot"];
-  const ids = parseScopeIdentifiers(params.scopePath);
-
-  const scopedClient = ids.clientId
-    ? await prisma.compassionClient.findFirst({
-        where: { id: ids.clientId, organizationId: params.organizationId },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          clientStatus: true,
-          intakeDate: true,
-          _count: { select: { cases: true, appointments: true, followUps: true } },
-        },
-      })
-    : null;
-
-  const matchedClients =
-    params.tokens.length > 0
-      ? await prisma.compassionClient.findMany({
-          where: {
-            organizationId: params.organizationId,
-            OR: params.tokens.flatMap((token) => [
-              { firstName: { contains: token } },
-              { lastName: { contains: token } },
-              { email: { contains: token } },
-            ]),
-          },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            clientStatus: true,
-          },
-          take: 6,
-        })
-      : [];
-
-  const openCases = await prisma.compassionCase.findMany({
-    where: { organizationId: params.organizationId, caseStatus: "OPEN" },
-    select: {
-      id: true,
-      caseNumber: true,
-      caseType: true,
-      priority: true,
-      client: { select: { firstName: true, lastName: true } },
-    },
-    orderBy: { openedAt: "desc" },
-    take: 6,
-  });
-
-  const pendingFollowUps = await prisma.compassionFollowUp.count({
-    where: { organizationId: params.organizationId, status: "PENDING" },
-  });
-
-  const lines = [
-    `Compassion scope path: ${params.scopePath}`,
-    scopedClient
-      ? `Scoped client: ${scopedClient.firstName} ${scopedClient.lastName} [${scopedClient.clientStatus}] intake=${scopedClient.intakeDate.toISOString()} cases=${scopedClient._count.cases} appointments=${scopedClient._count.appointments} followUps=${scopedClient._count.followUps}`
-      : "Scoped client: none",
-    `Pending follow-ups: ${pendingFollowUps}`,
-    `Open cases sampled: ${openCases.length}`,
-    ...openCases.map(
-      (item) =>
-        `- Case ${item.caseNumber} (${item.caseType}/${item.priority}) for ${item.client.firstName} ${item.client.lastName}`
-    ),
-    `Matched clients: ${matchedClients.length}`,
-    ...matchedClients.map((client) => `- ${client.firstName} ${client.lastName} [${client.clientStatus}]`),
-  ];
-
-  return {
-    contextText: lines.join("\n"),
-    toolsUsed,
-    recordsUsed: [
-      ...(scopedClient ? [`Scoped client: ${scopedClient.firstName} ${scopedClient.lastName}`] : []),
-      ...matchedClients.slice(0, 5).map((client) => `${client.firstName} ${client.lastName}`),
-      ...openCases.slice(0, 4).map((item) => `Case ${item.caseNumber}`),
-    ],
-  };
-}
-
 /** Builds Events module retrieval context from event and guest operations data. */
 export async function buildEventsContext(params: {
   organizationId: string;
@@ -328,13 +239,7 @@ export async function buildRetrievalContext(params: {
 
   let base: StewardContextResult;
 
-  if (params.moduleKey === "compassion") {
-    base = await buildCompassionContext({
-      organizationId: params.organizationId,
-      tokens,
-      scopePath: params.scopePath,
-    });
-  } else if (params.moduleKey === "events") {
+  if (params.moduleKey === "events") {
     base = await buildEventsContext({
       organizationId: params.organizationId,
       tokens,
@@ -439,9 +344,7 @@ export async function buildRetrievalContext(params: {
   }
 
   const helpScope =
-    params.moduleKey === "compassion"
-      ? "compassion"
-      : params.moduleKey === "events"
+    params.moduleKey === "events"
         ? "events"
         : "donor";
 

@@ -1,6 +1,10 @@
 # OyamaCRM
 
-OyamaCRM is a nonprofit operations platform with dedicated DonorCRM, Compassion CRM, Events CRM, OyamaEmail, OyamaLetters, and Steward Paths workspaces.
+OyamaCRM is a nonprofit operations platform with dedicated DonorCRM, Events CRM, OyamaEmail, OyamaLetters, and Steward Paths workspaces.
+
+## Future CRM
+
+Compassion CRM has been removed from this repository. It will be developed later as a new, separate CRM.
 
 ## Development
 

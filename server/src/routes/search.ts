@@ -5,7 +5,7 @@
  * only surfaces relevant pages and entities.
  *
  * Route:
- *   GET /api/search?module=donor|compassion|events|watchdog|webmaster|password&q=<query>&limit=<n>
+ *   GET /api/search?module=donor|events|watchdog|webmaster|password&q=<query>&limit=<n>
  */
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
@@ -19,7 +19,7 @@ const router = Router();
 // All global search requests require authentication.
 router.use(requireAuth);
 
-type SearchModule = "donor" | "compassion" | "events" | "watchdog" | "webmaster" | "password";
+type SearchModule = "donor" | "events" | "watchdog" | "webmaster" | "password";
 
 type SearchResultType =
   | "tool"
@@ -60,19 +60,6 @@ const DONOR_TOOLS: ToolItem[] = [
   { id: "tool-donor-reports", label: "Reports", href: "/reports", keywords: ["analytics", "kpi", "export", "donor reports"] },
   { id: "tool-donor-communications", label: "Communications", href: "/communications", keywords: ["email", "newsletter", "outreach"] },
   { id: "tool-donor-data-tools", label: "Data Tools", href: "/data-tools", keywords: ["import", "merge", "dedupe"] },
-];
-
-const COMPASSION_TOOLS: ToolItem[] = [
-  { id: "tool-compassion-dashboard", label: "Dashboard", href: "/compassion/dashboard", keywords: ["overview", "caseload", "metrics"] },
-  { id: "tool-compassion-clients", label: "Clients", href: "/compassion/clients", keywords: ["people", "profiles", "intake"] },
-  { id: "tool-compassion-cases", label: "Cases", href: "/compassion/cases", keywords: ["casework", "plans", "status"] },
-  { id: "tool-compassion-appointments", label: "Appointments", href: "/compassion/appointments", keywords: ["calendar", "schedule", "visit"] },
-  { id: "tool-compassion-assessments", label: "Assessments", href: "/compassion/assessments", keywords: ["evaluation", "intake", "screening"] },
-  { id: "tool-compassion-care-plans", label: "Care Plans", href: "/compassion/care-plans", keywords: ["plan", "goals", "care"] },
-  { id: "tool-compassion-activities", label: "Activities", href: "/compassion/activities", keywords: ["timeline", "notes", "log"] },
-  { id: "tool-compassion-communications", label: "Communications", href: "/compassion/communications", keywords: ["messages", "outreach", "contact"] },
-  { id: "tool-compassion-reports", label: "Reports", href: "/compassion/reports", keywords: ["analytics", "insights", "exports"] },
-  { id: "tool-compassion-data-tools", label: "Data Tools", href: "/compassion/data-tools", keywords: ["import", "data", "quality"] },
 ];
 
 const EVENTS_TOOLS: ToolItem[] = [
@@ -157,12 +144,10 @@ router.get("/", async (req, res) => {
   const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "6", 10) || 6, 1), 20);
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const donorNamePairClauses = buildNamePairClauses("firstName", "lastName", terms);
-  const clientNamePairClauses = buildNamePairClauses("firstName", "lastName", terms);
   const guestNamePairClauses = buildNamePairClauses("firstName", "lastName", terms);
 
   const normalizedModule: SearchModule =
-    moduleKey === "compassion"
-    || moduleKey === "events"
+    moduleKey === "events"
     || moduleKey === "watchdog"
     || moduleKey === "webmaster"
     || moduleKey === "password"
@@ -266,68 +251,6 @@ router.get("/", async (req, res) => {
         label: `Donation $${Number(donation.amount).toLocaleString()}`,
         sublabel: `${donation.constituent.firstName} ${donation.constituent.lastName}${donation.campaign?.name ? ` • ${donation.campaign.name}` : ""}`,
         href: "/donations",
-        group: "records",
-      });
-    }
-  }
-
-  if (normalizedModule === "compassion") {
-    const [tools, clients, cases] = await Promise.all([
-      Promise.resolve(matchTools(COMPASSION_TOOLS, query, toolLimit)),
-      prisma.compassionClient.findMany({
-        where: {
-          organizationId,
-          OR: [
-            { firstName: { contains: query } },
-            { lastName: { contains: query } },
-            { preferredName: { contains: query } },
-            { email: { contains: query } },
-            { phone: { contains: query } },
-            ...clientNamePairClauses,
-          ],
-        },
-        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-        take: recordLimit,
-        select: { id: true, firstName: true, lastName: true, preferredName: true, email: true, clientStatus: true },
-      }),
-      prisma.compassionCase.findMany({
-        where: {
-          organizationId,
-          OR: [
-            { caseNumber: { contains: query } },
-            { summary: { contains: query } },
-            { client: { firstName: { contains: query } } },
-            { client: { lastName: { contains: query } } },
-          ],
-        },
-        orderBy: { openedAt: "desc" },
-        take: Math.max(4, Math.floor(recordLimit / 2)),
-        include: {
-          client: { select: { firstName: true, lastName: true } },
-        },
-      }),
-    ]);
-
-    searchResults.push(...tools);
-
-    for (const client of clients) {
-      searchResults.push({
-        id: client.id,
-        type: "client",
-        label: `${client.firstName} ${client.lastName}`,
-        sublabel: client.email ?? client.preferredName ?? client.clientStatus,
-        href: `/compassion/clients/${client.id}`,
-        group: "records",
-      });
-    }
-
-    for (const compassionCase of cases) {
-      searchResults.push({
-        id: compassionCase.id,
-        type: "case",
-        label: compassionCase.caseNumber,
-        sublabel: `${compassionCase.client.firstName} ${compassionCase.client.lastName} • ${compassionCase.caseStatus.replace(/_/g, " ")}`,
-        href: "/compassion/cases",
         group: "records",
       });
     }

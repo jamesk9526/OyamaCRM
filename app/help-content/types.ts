@@ -1,7 +1,7 @@
 // Core typed models for the CRM-scoped Help App content system.
 
 /** CRM scopes supported by the Help App for module-aware content prioritization. */
-export type HelpCrmScope = "donor" | "events" | "compassion" | "global";
+export type HelpCrmScope = "donor" | "events" | "global";
 
 /** Difficulty labels shown in guide cards and article metadata panels. */
 export type HelpDifficulty = "beginner" | "intermediate" | "advanced";

@@ -85,16 +85,6 @@ interface AutomationWorkflowEditorModalProps {
 
 /** Returns workspace-aware accent classes so modal theme follows active CRM module. */
 function getAccentTheme(moduleKey: TopBarModuleKey): AccentTheme {
-  if (moduleKey === "compassion") {
-    return {
-      primaryBg: "bg-blue-600",
-      primaryHoverBg: "hover:bg-blue-700",
-      sidebarGradient: "from-blue-600 to-sky-600",
-      badgeBg: "bg-blue-50",
-      badgeText: "text-blue-700",
-      inputRing: "focus:ring-blue-500",
-    };
-  }
   if (moduleKey === "events") {
     return {
       primaryBg: "bg-amber-600",

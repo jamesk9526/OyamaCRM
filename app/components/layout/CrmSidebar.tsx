@@ -48,7 +48,7 @@ export interface CrmSidebarGroup {
   items: CrmSidebarItem[];
 }
 
-export type CrmSidebarVariant = "donor" | "compassion" | "events" | "watchdog";
+export type CrmSidebarVariant = "donor" | "events" | "watchdog";
 
 interface SidebarVariantStyles {
   aside: string;
@@ -191,26 +191,6 @@ const VARIANT_STYLES: Record<CrmSidebarVariant, SidebarVariantStyles> = {
     divider: "bg-white/15",
     accent: "bg-[#0f6cbd]",
   },
-  compassion: {
-    aside: "bg-white border-r border-slate-200",
-    navSurface: "",
-    heading: "text-blue-400",
-    headingMuted: "hover:text-blue-600",
-    itemActive: "text-slate-900 bg-blue-50 font-semibold",
-    itemInactive: "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-    iconActive: "text-blue-600",
-    iconInactive: "text-slate-400 group-hover:text-slate-600",
-    badge: "bg-slate-100 text-slate-600",
-    sectionBorder: "border-transparent",
-    sectionHover: "",
-    footer: "border-t border-slate-200 bg-white",
-    footerText: "text-blue-500",
-    collapseButton: "border-blue-200 bg-white text-blue-600 hover:text-blue-800 hover:bg-blue-50",
-    tooltip: "border-blue-200 bg-white text-blue-900 shadow-xl",
-    tooltipSubtitle: "text-blue-600",
-    divider: "bg-blue-200",
-    accent: "bg-blue-600",
-  },
   events: {
     aside: "bg-white border-r border-gray-200",
     navSurface: "",
@@ -302,7 +282,7 @@ function getInitialGroupOpenState(groups: CrmSidebarGroup[]): Record<string, boo
   return state;
 }
 
-/** Shared CRM sidebar renderer used by Donor, Compassion, Events, and Watchdog modules. */
+/** Shared CRM sidebar renderer used by Donor, Events, and Watchdog modules. */
 export default function CrmSidebar({
   groups,
   variant,

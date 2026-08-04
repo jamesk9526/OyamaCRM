@@ -28,10 +28,6 @@
     {
       "file": "donors-messy.csv",
       "purpose": "Duplicate + malformed + invalid donor import edge cases"
-    },
-    {
-      "file": "clients-messy.csv",
-      "purpose": "Compassion import validation edge cases"
     }
   ],
   "expectedIssues": [

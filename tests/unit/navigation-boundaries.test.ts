@@ -13,7 +13,6 @@ import {
 describe("resolveTopBarModuleKey", () => {
   it("maps known module roots", () => {
     expect(resolveTopBarModuleKey("/")).toBe("donor");
-    expect(resolveTopBarModuleKey("/compassion/dashboard")).toBe("compassion");
     expect(resolveTopBarModuleKey("/events/workspace")).toBe("events");
     expect(resolveTopBarModuleKey("/watchdog")).toBe("watchdog");
     expect(resolveTopBarModuleKey("/webmaster/pages")).toBe("webmaster");

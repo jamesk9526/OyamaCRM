@@ -1,10 +1,10 @@
-/** Guided import launcher that routes donor and Compassion client files to the correct importer. */
+/** Guided import launcher that routes donor and event files to the correct importer. */
 "use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-type ImportKind = "contacts" | "donations" | "eventGuests" | "clients";
+type ImportKind = "contacts" | "donations" | "eventGuests";
 type ImportPreset = "hubspot" | "ekyros" | "eventGuests" | "generic";
 
 const PRESETS: Array<{ id: ImportPreset; label: string; description: string }> = [
@@ -21,7 +21,6 @@ export default function GuidedImportWizard() {
   const [createList, setCreateList] = useState(true);
 
   const targetHref = useMemo(() => {
-    if (kind === "clients") return `/compassion/import/clients?preset=${preset}`;
     if (kind === "eventGuests") return `/data-tools/import/events-guests?preset=eventGuests`;
     if (kind === "donations") return `/data-tools/import/donation?preset=${preset}`;
     const params = new URLSearchParams({ preset });
@@ -30,9 +29,7 @@ export default function GuidedImportWizard() {
     return `/data-tools/import?${params.toString()}`;
   }, [createList, kind, preset]);
 
-  const nextStep = kind === "clients"
-    ? "Records stay in the protected Compassion workspace."
-    : kind === "donations"
+  const nextStep = kind === "donations"
       ? "You will review donor matching, dates, campaigns, and designations."
       : kind === "eventGuests"
         ? "You will review guests, RSVP, ticket, and check-in fields."
@@ -81,14 +78,6 @@ export default function GuidedImportWizard() {
             <span className="block text-sm font-semibold text-gray-900">Event guest roster</span>
             <span className="mt-1 block text-xs text-gray-500">Guests, RSVP, payment status, seating, meals, party names, and check-in codes.</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setKind("clients")}
-            className={`border p-3 text-left transition-colors ${kind === "clients" ? "border-[#0f6cbd] bg-[#eff6fc] shadow-[inset_3px_0_0_#0f6cbd]" : "border-[#d1d1d1] hover:border-[#0f6cbd]"}`}
-          >
-            <span className="block text-sm font-semibold text-gray-900">Compassion client records</span>
-            <span className="mt-1 block text-xs text-gray-500">Private client-service files must go to Compassion CRM, not donor contacts.</span>
-          </button>
           </div>
         </div>
 
@@ -126,9 +115,6 @@ export default function GuidedImportWizard() {
         </div>
       </div>
 
-      <div className="border-t border-[#d1d1d1] bg-[#fff4ce] px-4 py-3 text-xs text-[#5c3b00]">
-        Client files should be imported in the Compassion workspace. Donor contacts and audience files belong here; client-service files do not unless the person is intentionally linked or tagged as a donor after Compassion import.
-      </div>
     </section>
   );
 }

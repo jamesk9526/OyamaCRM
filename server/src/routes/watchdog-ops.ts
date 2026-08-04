@@ -69,7 +69,7 @@ const BACKUP_SCOPES: WatchdogBackupScope[] = [
   "MODULE",
 ];
 
-const MODULE_SCOPES = ["donor", "compassion", "events", "webmaster", "watchdog", "apps"] as const;
+const MODULE_SCOPES = ["donor", "events", "webmaster", "watchdog", "apps"] as const;
 
 type RestoreRiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -148,7 +148,7 @@ const WATCHDOG_RUNBOOKS: WatchdogRunbook[] = [
       "Confirm restore point verification status.",
       "Capture pre-restore backup from Watchdog.",
       "Execute restore through Watchdog Restore Center.",
-      "Validate core donor, compassion, and events workflows.",
+      "Validate core donor and events workflows.",
     ],
     warnings: ["Do not run direct SQL restore outside Watchdog unless incident commander approves."],
     verificationChecklist: [
@@ -293,28 +293,6 @@ const WATCHDOG_RUNBOOKS: WatchdogRunbook[] = [
     lastReviewedDate: "2026-05-13",
   },
   {
-    id: "compassion-privacy-incident",
-    title: "Compassion Data Privacy Incident",
-    purpose: "Contain and remediate sensitive client-data exposure incidents.",
-    whenToUse: "Potential cross-module exposure of client records or confidential fields.",
-    requiredPermissions: ["watchdog.security.view", "watchdog.audit.view"],
-    steps: [
-      "Isolate affected routes and suspend high-risk exports.",
-      "Review audit events by module and actor.",
-      "Validate client-scope boundaries and redact leaked fields.",
-      "Document remediation and notify compliance owner.",
-    ],
-    warnings: ["Client privacy data must never be copied into donor or public contexts."],
-    verificationChecklist: [
-      "Boundary warning checks return healthy/working.",
-      "No additional exposure events after mitigation.",
-      "Incident timeline is complete.",
-    ],
-    relatedVaultCategories: ["Internal Service"],
-    relatedBackupPolicies: ["nightly-full-platform"],
-    lastReviewedDate: "2026-05-13",
-  },
-  {
     id: "donor-data-recovery",
     title: "Donor Data Recovery",
     purpose: "Recover donor records, donations, and campaign artifacts from valid restore points.",
@@ -401,7 +379,6 @@ const DEFAULT_WATCHDOG_SETTINGS: Record<string, unknown> = {
   },
   moduleCoverage: {
     donor: true,
-    compassion: true,
     events: true,
     webmaster: true,
     watchdog: true,
@@ -479,7 +456,6 @@ function sourceModuleFromAudit(action: string, entity: string | null): string {
   const a = action.toUpperCase();
   const e = (entity ?? "").toUpperCase();
 
-  if (a.includes("COMPASSION") || e.includes("COMPASSION") || e.includes("CLIENT") || e.includes("CASE")) return "compassion";
   if (a.includes("EVENT") || e.includes("EVENT") || e.includes("GUEST") || e.includes("TICKET")) return "events";
   if (a.includes("WATCHDOG") || e.includes("WATCHDOG")) return "watchdog";
   if (a.includes("WEBMASTER") || e.includes("WEBMASTER")) return "webmaster";

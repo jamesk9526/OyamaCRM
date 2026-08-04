@@ -1,7 +1,7 @@
 /** Shared setup-style modal shell with module-aware accent theming for CRM modals. */
 "use client";
 
-import { type ReactNode, useEffect, useMemo } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 
@@ -31,15 +31,6 @@ interface WorkspaceSetupModalProps {
 
 /** Returns module-aware accent treatment so modal chrome follows active workspace. */
 function getAccentTheme(moduleKey: TopBarModuleKey): AccentTheme {
-  if (moduleKey === "compassion") {
-    return {
-      badgeBg: "bg-blue-50",
-      badgeText: "text-blue-700",
-      iconBg: "bg-blue-100",
-      iconText: "text-blue-700",
-      focusRing: "ring-blue-500/20",
-    };
-  }
   if (moduleKey === "events") {
     return {
       badgeBg: "bg-amber-50",
@@ -101,6 +92,8 @@ export default function WorkspaceSetupModal({
   contentClassName,
   closeOnBackdropClick = true,
 }: WorkspaceSetupModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const pathname = usePathname();
   const moduleKey = useMemo(() => resolveTopBarModuleKey(pathname || "/"), [pathname]);
   const theme = useMemo(() => getAccentTheme(moduleKey), [moduleKey]);
@@ -111,18 +104,52 @@ export default function WorkspaceSetupModal({
   // a form field or a nested scroll area has focus.
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
+        return;
+      }
+
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+          .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+        if (focusable.length === 0) {
+          event.preventDefault();
+          dialogRef.current.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
 
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleKeyDown);
+    window.requestAnimationFrame(() => {
+      const preferredTarget = dialogRef.current?.querySelector<HTMLElement>("[data-modal-autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])");
+      (preferredTarget ?? dialogRef.current)?.focus();
+    });
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
     };
   }, [onClose]);
 
@@ -162,23 +189,23 @@ export default function WorkspaceSetupModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/45 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       onMouseDown={(event) => {
         if (!closeOnBackdropClick) return;
         if (event.target === event.currentTarget) onClose();
       }}
       role="dialog"
       aria-modal="true"
-      aria-label={title}
+      aria-labelledby={titleId}
     >
-      <div className={`w-full ${maxWidthClassName} max-h-[calc(100dvh-2rem)] overflow-hidden rounded-3xl border ${shellClass} ${isDark ? "dark" : ""}`}>
-        <div className={`flex items-start justify-between gap-4 border-b ${isDark ? "border-slate-800" : "border-slate-200"} px-5 py-5 sm:px-6`}>
+      <div ref={dialogRef} tabIndex={-1} className={`w-full ${maxWidthClassName} max-h-[calc(100dvh-0.5rem)] overflow-hidden rounded-t-3xl border outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl ${shellClass} ${isDark ? "dark" : ""}`}>
+        <div className={`sticky top-0 z-10 flex items-start justify-between gap-4 border-b ${isDark ? "border-slate-800 bg-[#020617]" : "border-slate-200 bg-white"} px-4 py-4 sm:px-6 sm:py-5`}>
           <div className="flex min-w-0 items-start gap-3">
             <div className={`mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${iconBadgeClass} ring-4 ${isDark ? "ring-slate-800" : theme.focusRing}`}>
               {icon || defaultIcon}
             </div>
             <div className="min-w-0">
-              <h2 className={`text-xl font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{title}</h2>
+              <h2 id={titleId} className={`text-lg font-semibold sm:text-xl ${isDark ? "text-slate-100" : "text-slate-900"}`}>{title}</h2>
               <p className={`mt-1 text-sm ${headerSubtitleClass}`}>{subtitle}</p>
             </div>
           </div>
@@ -209,7 +236,7 @@ export default function WorkspaceSetupModal({
           </div>
         </div>
 
-        <div className={`grid max-h-[calc(100dvh-8.75rem)] min-h-[420px] ${showChecklist || rightPanel ? "lg:grid-cols-[260px_minmax(0,1fr)_250px]" : "grid-cols-1"}`}>
+        <div className={`grid max-h-[calc(100dvh-7.5rem)] min-h-[min(420px,calc(100dvh-7.5rem))] sm:max-h-[calc(100dvh-8.75rem)] ${showChecklist || rightPanel ? "lg:grid-cols-[240px_minmax(0,1fr)_230px] xl:grid-cols-[260px_minmax(0,1fr)_250px]" : "grid-cols-1"}`}>
           {showChecklist ? (
             <aside className={`hidden min-h-0 overflow-y-auto p-4 lg:block ${leftRailClass}`}>
               <div className="space-y-2">

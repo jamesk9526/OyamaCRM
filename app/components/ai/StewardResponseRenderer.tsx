@@ -66,7 +66,6 @@ const TOOL_LABELS: Record<string, string> = {
 
 const MODULE_LABELS: Record<string, string> = {
   donor: "Donor CRM",
-  compassion: "Compassion CRM",
   events: "Events CRM",
   webmaster: "Webmaster",
   watchdog: "Watchdog",

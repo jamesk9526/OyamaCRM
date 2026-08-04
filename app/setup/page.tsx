@@ -35,8 +35,6 @@ interface SetupFormState {
   primaryColor: string;
   accentColor: string;
   enableOyamaCRM: boolean;
-  enableCompassion: boolean;
-  defaultWorkspace: "donor" | "compassion";
   adminFirstName: string;
   adminLastName: string;
   adminEmail: string;
@@ -97,8 +95,6 @@ export default function SetupPage() {
     primaryColor: "#16a34a",
     accentColor: "#0f766e",
     enableOyamaCRM: true,
-    enableCompassion: true,
-    defaultWorkspace: "donor",
     adminFirstName: "",
     adminLastName: "",
     adminEmail: "",
@@ -205,7 +201,7 @@ export default function SetupPage() {
       return form.organizationName.trim().length > 1;
     }
     if (step.key === "workspaces") {
-      return form.enableOyamaCRM || form.enableCompassion;
+      return form.enableOyamaCRM;
     }
     if (step.key === "admin") {
       return (
@@ -280,8 +276,6 @@ export default function SetupPage() {
           },
           workspaces: {
             oyamacrm: form.enableOyamaCRM,
-            oyamacrmCompassion: form.enableCompassion,
-            defaultWorkspace: form.defaultWorkspace,
           },
           defaults: {
             fiscalYearStart: form.fiscalYearStart,
@@ -344,9 +338,7 @@ export default function SetupPage() {
       { label: "Fiscal Year Starts", value: String(form.fiscalYearStart) },
       {
         label: "Workspaces",
-        value:
-          `${form.enableOyamaCRM ? "DonorCRM" : ""}${form.enableOyamaCRM && form.enableCompassion ? " + " : ""}${form.enableCompassion ? "Compassion CRM" : ""}` ||
-          "None selected",
+        value: form.enableOyamaCRM ? "DonorCRM" : "None selected",
       },
       {
         label: "Onboarding Goals",
@@ -420,7 +412,7 @@ export default function SetupPage() {
                     "Fundraising goals and dashboard defaults",
                     "Timezone, fiscal year, currency, and email defaults",
                     "Optional database and environment bootstrap values",
-                    "Workspace setup for DonorCRM and Compassion CRM",
+                    "Workspace setup for DonorCRM and supporting apps",
                     "Admin account plus optional team onboarding",
                   ].map((item) => (
                     <div key={item} className="rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-800">
@@ -697,26 +689,6 @@ export default function SetupPage() {
                     className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                   />
                   Enable DonorCRM workspace (donors, donations, campaigns, communications)
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={form.enableCompassion}
-                    onChange={(e) => setField("enableCompassion", e.target.checked)}
-                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  Enable Compassion CRM workspace (clients, cases, appointments)
-                </label>
-                <label className="text-sm text-gray-600 block pt-2">
-                  Default workspace after login
-                  <select
-                    value={form.defaultWorkspace}
-                    onChange={(e) => setField("defaultWorkspace", e.target.value as "donor" | "compassion")}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="donor">DonorCRM</option>
-                    <option value="compassion">Compassion CRM</option>
-                  </select>
                 </label>
               </section>
             )}
