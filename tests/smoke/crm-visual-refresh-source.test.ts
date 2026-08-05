@@ -189,20 +189,20 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(nudge).toContain("using the real saved path data");
   });
 
-  it("keeps Steward Copilot inside the CRM and gives its chat head a compact handoff", () => {
+  it("opens the full Steward workspace directly from its chat head", () => {
     const dock = read("app/components/ai/StewardDockPanel.tsx");
     const nudge = read("app/components/ai/StewardProactiveNudge.tsx");
-    const panel = read("app/components/ai/StewardChatPanel.tsx");
     const workspace = read("app/components/ai/StewardCopilotWorkspace.tsx");
     const layout = read("app/steward-ai-workspace/layout.tsx");
 
-    expect(dock).toContain("Open larger Copilot workspace");
-    expect(dock).toContain("embeddedCompact");
-    expect(dock).toContain("OyamaCRM intelligence · Ready");
+    expect(dock).toContain("Open Steward workspace");
+    expect(dock).toContain("router.push");
+    expect(dock).toContain("stewardWorkspaceHref");
+    expect(dock).not.toContain("StewardChatPanel");
     expect(nudge).toContain("getStewardNudge");
     expect(nudge).toContain("steward-nudge:v1:");
     expect(nudge).toContain("chatHeadEnabled === false");
-    expect(panel).toContain("embeddedCompact?: boolean");
+    expect(workspace).toContain("initialPrompt");
     expect(workspace).toContain("scopePath: initialScopePath");
     expect(workspace).toContain("PATH_STARTERS");
     expect(workspace).toContain('initialScopePath.startsWith("/steward-paths")');

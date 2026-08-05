@@ -120,7 +120,7 @@ function safeStoredThreads(raw: string | null): CopilotThread[] {
   }
 }
 
-export default function StewardCopilotWorkspace({ initialModule = "donor", initialThreadId, initialScopePath = "/" }: { initialModule?: ModuleKey; initialThreadId?: string; initialScopePath?: string }) {
+export default function StewardCopilotWorkspace({ initialModule = "donor", initialThreadId, initialScopePath = "/", initialPrompt, initialMode }: { initialModule?: ModuleKey; initialThreadId?: string; initialScopePath?: string; initialPrompt?: string; initialMode?: ChatMode }) {
   const [threads, setThreads] = useState<CopilotThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId ?? null);
   const [moduleKey, setModuleKey] = useState<ModuleKey>(initialModule);
@@ -134,6 +134,7 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const consumedInitialPromptRef = useRef<string | null>(null);
 
   useEffect(() => {
     const restored = safeStoredThreads(window.sessionStorage.getItem(STORAGE_KEY));
@@ -309,6 +310,14 @@ export default function StewardCopilotWorkspace({ initialModule = "donor", initi
       setSending(false);
     }
   }, [draft, ensureThread, initialScopePath, mode, moduleKey, sending]);
+
+  /** Runs contextual prompts from the floating Steward launcher in the full workspace. */
+  useEffect(() => {
+    const prompt = initialPrompt?.trim();
+    if (!hydrated || !prompt || consumedInitialPromptRef.current === prompt) return;
+    consumedInitialPromptRef.current = prompt;
+    void send(prompt, initialMode);
+  }, [hydrated, initialMode, initialPrompt, send]);
 
   function clearCurrentThread() {
     if (!activeThread || sending) return;
