@@ -2076,20 +2076,23 @@ function drawPdfChrome(
   const [brandR, brandG, brandB] = normalizePdfHexColor(branding.primaryColor);
   const firstPage = Math.max(1, pageRange?.startPage ?? 1);
   const lastPage = Math.min(pageCount, pageRange?.endPage ?? pageCount);
+  const letterPageCount = Math.max(1, lastPage - firstPage + 1);
 
   for (let page = firstPage; page <= lastPage; page += 1) {
     doc.setPage(page);
     doc.setDrawColor(226, 232, 240);
     doc.setTextColor(15, 23, 42);
 
-    if (hasLogo && branding.logoDataUrl) {
+    const chrome = letterPdfChromeVisibility(page - firstPage + 1, letterPageCount);
+
+    if (chrome.header && hasLogo && branding.logoDataUrl) {
       try {
         doc.addImage(branding.logoDataUrl, logoFormat, logoX, logoY, renderedLogoWidth, renderedLogoHeight);
       } catch {
         // Keep PDF generation resilient if logo decoding fails.
       }
     }
-    if (hasFallbackLogo) {
+    if (chrome.header && hasFallbackLogo) {
       doc.setFillColor(brandR, brandG, brandB);
       doc.roundedRect(logoX, logoY, fallbackLogoWidth, fallbackLogoHeight, 8, 8, "F");
       doc.setFont("helvetica", "bold");
@@ -2099,7 +2102,7 @@ function drawPdfChrome(
       doc.setTextColor(15, 23, 42);
     }
 
-    if (wrappedHeaderLines.length > 0 || hasLogo || hasFallbackLogo) {
+    if (chrome.header && (wrappedHeaderLines.length > 0 || hasLogo || hasFallbackLogo)) {
       wrappedHeaderLines.forEach((line, index) => {
         doc.setFont("helvetica", rightColumnMode === "RECIPIENT" && index === 0 ? "bold" : "normal");
         doc.setFontSize(8.25);
@@ -2107,10 +2110,12 @@ function drawPdfChrome(
         doc.text(line, pageWidth - marginRight, layout.marginTop + 8 + index * headerLineHeight, { align: "right" });
       });
     }
-    doc.setDrawColor(brandR, brandG, brandB);
-    doc.line(marginLeft, headerDividerY, pageWidth - marginRight, headerDividerY);
+    if (chrome.header) {
+      doc.setDrawColor(brandR, brandG, brandB);
+      doc.line(marginLeft, headerDividerY, pageWidth - marginRight, headerDividerY);
+    }
 
-    if (page === firstPage && rightColumnMode === "ORGANIZATION") {
+    if (chrome.header && page === firstPage && rightColumnMode === "ORGANIZATION") {
       const addressLines = recipientAddressLines.slice(0, 4);
       const renderedDate = documentMeta?.generatedAt
           ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
@@ -2123,7 +2128,7 @@ function drawPdfChrome(
         doc.text(line, marginLeft, headerDividerY + 18 + index * 14);
       });
       if (renderedDate) doc.text(renderedDate, pageWidth - marginRight, headerDividerY + 18, { align: "right" });
-    } else if (page === firstPage) {
+    } else if (chrome.header && page === firstPage) {
       const renderedDate = documentMeta?.generatedAt
           ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(documentMeta.generatedAt)
           : (documentMeta?.bodyDate?.trim() || "");
@@ -2135,18 +2140,33 @@ function drawPdfChrome(
       }
     }
 
-    const footerLinesToRender = footer.slice(0, 4);
-    const footerLineHeight = 9;
-    const footerFirstBaseline = pageHeight - layout.marginBottom - Math.max(0, footerLinesToRender.length - 1) * footerLineHeight;
-    doc.setDrawColor(226, 232, 240);
-    doc.line(marginLeft, footerFirstBaseline - 11, pageWidth - marginRight, footerFirstBaseline - 11);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.25);
-    footerLinesToRender.forEach((line, index) => {
-      doc.setTextColor(71, 85, 105);
-      doc.text(line, pageWidth / 2, footerFirstBaseline + index * footerLineHeight, { align: "center" });
-    });
+    if (chrome.footer) {
+      const footerLinesToRender = footer.slice(0, 4);
+      const footerLineHeight = 9;
+      const footerFirstBaseline = pageHeight - layout.marginBottom - Math.max(0, footerLinesToRender.length - 1) * footerLineHeight;
+      doc.setDrawColor(226, 232, 240);
+      doc.line(marginLeft, footerFirstBaseline - 11, pageWidth - marginRight, footerFirstBaseline - 11);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.25);
+      footerLinesToRender.forEach((line, index) => {
+        doc.setTextColor(71, 85, 105);
+        doc.text(line, pageWidth / 2, footerFirstBaseline + index * footerLineHeight, { align: "center" });
+      });
+    }
   }
+}
+
+/**
+ * Applies letterhead only where it belongs: a one-page letter has both pieces;
+ * a multi-page letter has its header on page one and its footer on the last page.
+ */
+export function letterPdfChromeVisibility(page: number, pageCount: number): { header: boolean; footer: boolean } {
+  const normalizedPageCount = Math.max(1, Math.trunc(pageCount));
+  const normalizedPage = Math.min(normalizedPageCount, Math.max(1, Math.trunc(page)));
+  return {
+    header: normalizedPage === 1,
+    footer: normalizedPage === normalizedPageCount,
+  };
 }
 
 function headerRightColumnMode(preset?: LetterPdfPresetContext["headerPreset"]): "ORGANIZATION" | "RECIPIENT" | "CUSTOM" {
@@ -2570,7 +2590,7 @@ export async function renderGeneratedLetterPdf(params: {
   const { bodyDate, blocks } = extractLeadingLetterDate(builtBlocks);
   renderPdfContentBlocks(doc, blocks, {
     startY: firstPageLetterBodyStartY(params.presets, layout),
-    continuationStartY: layout.marginTop + 72 + 27,
+    continuationStartY: layout.marginTop + 10,
     layout,
   });
   drawPdfChrome(doc, params.branding, params.presets, params.recipient, undefined, {
@@ -2647,7 +2667,7 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
     const { bodyDate, blocks } = extractLeadingLetterDate(builtBlocks);
     renderPdfContentBlocks(doc, blocks, {
       startY: firstPageLetterBodyStartY(item.presets, layout),
-      continuationStartY: layout.marginTop + 72 + 27,
+      continuationStartY: layout.marginTop + 10,
       layout,
     });
     const endPage = doc.getNumberOfPages();

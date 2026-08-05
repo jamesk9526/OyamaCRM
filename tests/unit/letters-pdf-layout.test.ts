@@ -5,6 +5,7 @@ import {
   extractLeadingLetterDate,
   htmlToPdfBlocks,
   htmlToPlainText,
+  letterPdfChromeVisibility,
   normalizeMergedDonationDateTextForPdfExport,
   recipientFacingLetterSubject,
   renderGeneratedLetterPdf,
@@ -12,6 +13,14 @@ import {
 } from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
+  it("places letterhead chrome correctly on single- and multi-page letters", () => {
+    expect(letterPdfChromeVisibility(1, 1)).toEqual({ header: true, footer: true });
+
+    expect(letterPdfChromeVisibility(1, 3)).toEqual({ header: true, footer: false });
+    expect(letterPdfChromeVisibility(2, 3)).toEqual({ header: false, footer: false });
+    expect(letterPdfChromeVisibility(3, 3)).toEqual({ header: false, footer: true });
+  });
+
   it("does not expose the legacy internal printable-letter label to recipients", () => {
     expect(recipientFacingLetterSubject("Printable Letter")).toBe("");
     expect(recipientFacingLetterSubject("  Thank you for your support  ")).toBe("Thank you for your support");

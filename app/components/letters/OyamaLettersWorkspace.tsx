@@ -2783,7 +2783,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
           {canvasOverflowing ? (
             <div className="mx-auto mt-2 max-w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" style={{ width: editorFrameWidth }}>
-              This editor page is full. The production PDF automatically continues on the next page; use Add Page when you want to choose the break yourself.
+              This editor page is full. The production PDF automatically continues on the next page. Multi-page letters keep the header on page 1 and move the footer to the final page; use Add Page when you want to choose the break yourself.
             </div>
           ) : null}
         </section>
