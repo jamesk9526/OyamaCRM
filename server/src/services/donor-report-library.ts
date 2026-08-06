@@ -30,6 +30,8 @@ export const DONOR_LIBRARY_REPORT_KEYS = [
   "payment-method-summary",
   "designation-performance",
   "crm-performance-scorecard",
+  "recurring-giving",
+  "campaign-performance",
 ] as const;
 
 export type DonorLibraryReportKey = (typeof DONOR_LIBRARY_REPORT_KEYS)[number];
@@ -190,6 +192,7 @@ const donationSelection = {
   amount: true,
   date: true,
   paymentMethod: true,
+  isRecurring: true,
   receiptNumber: true,
   receiptSentAt: true,
   acknowledgmentSentAt: true,
@@ -993,6 +996,48 @@ async function crmPerformanceScorecardReport(organizationId: string, options: Do
   };
 }
 
+async function recurringGivingReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
+  const donations = await prisma.donation.findMany({ where: baseDonationWhere(organizationId, options), select: donationSelection, orderBy: { date: "desc" } });
+  const recurring = donations.filter((donation) => donation.isRecurring);
+  const byDonor = new Map<string, { donorId: string; donorName: string; email: string | null; giftCount: number; totalCents: number; lastGiftDate: string }>();
+  for (const donation of recurring) {
+    const row = byDonor.get(donation.constituent.id) ?? { donorId: donation.constituent.id, donorName: donorName(donation.constituent), email: donation.constituent.email, giftCount: 0, totalCents: 0, lastGiftDate: donation.date.toISOString() };
+    row.giftCount += 1;
+    row.totalCents += cents(donation.amount);
+    if (donation.date.toISOString() > row.lastGiftDate) row.lastGiftDate = donation.date.toISOString();
+    byDonor.set(donation.constituent.id, row);
+  }
+  const rows = Array.from(byDonor.values()).sort((a, b) => b.totalCents - a.totalCents).map((row) => ({ ...row, totalAmount: dollars(row.totalCents) }));
+  return {
+    ...emptyReport("recurring-giving", "Recurring giving", "Donors and gift activity marked recurring in the selected date range.", options),
+    summary: [{ label: "Recurring gifts", value: recurring.length, type: "number" }, { label: "Recurring giving", value: dollars(recurring.reduce((sum, donation) => sum + cents(donation.amount), 0)), type: "currency" }, { label: "Recurring donors", value: rows.length, type: "number" }],
+    columns: [{ key: "donorName", label: "Donor", linkToDonor: true }, { key: "email", label: "Email" }, { key: "giftCount", label: "Recurring gifts", type: "number" }, { key: "totalAmount", label: "Recurring giving", type: "currency" }, { key: "lastGiftDate", label: "Last gift", type: "date" }],
+    rows,
+    notices: ["Recurring status reflects the donation record flag and does not predict future gifts."],
+  };
+}
+
+async function campaignPerformanceReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
+  const donations = await prisma.donation.findMany({ where: baseDonationWhere(organizationId, options), select: { amount: true, constituentId: true, campaign: { select: { name: true } } } });
+  const groups = new Map<string, { campaign: string; giftCount: number; totalCents: number; donors: Set<string> }>();
+  for (const donation of donations) {
+    const campaign = donation.campaign?.name ?? "Unattributed campaign";
+    const row = groups.get(campaign) ?? { campaign, giftCount: 0, totalCents: 0, donors: new Set<string>() };
+    row.giftCount += 1;
+    row.totalCents += cents(donation.amount);
+    row.donors.add(donation.constituentId);
+    groups.set(campaign, row);
+  }
+  const rows = Array.from(groups.values()).sort((a, b) => b.totalCents - a.totalCents).map((row) => ({ campaign: row.campaign, giftCount: row.giftCount, donorCount: row.donors.size, totalAmount: dollars(row.totalCents) }));
+  return {
+    ...emptyReport("campaign-performance", "Campaign performance", "Completed giving attributed to campaigns in the selected date range.", options),
+    summary: [{ label: "Campaign giving", value: dollars(donations.reduce((sum, donation) => sum + cents(donation.amount), 0)), type: "currency" }, { label: "Campaigns", value: rows.length, type: "number" }, { label: "Gifts", value: donations.length, type: "number" }],
+    columns: [{ key: "campaign", label: "Campaign" }, { key: "giftCount", label: "Gifts", type: "number" }, { key: "donorCount", label: "Donors", type: "number" }, { key: "totalAmount", label: "Total giving", type: "currency" }],
+    rows,
+    notices: [],
+  };
+}
+
 export async function buildDonorLibraryReport(
   organizationId: string | null,
   report: DonorLibraryReportKey,
@@ -1024,5 +1069,7 @@ export async function buildDonorLibraryReport(
     case "payment-method-summary": return paymentMethodSummaryReport(organizationId, options);
     case "designation-performance": return designationPerformanceReport(organizationId, options);
     case "crm-performance-scorecard": return crmPerformanceScorecardReport(organizationId, options);
+    case "recurring-giving": return recurringGivingReport(organizationId, options);
+    case "campaign-performance": return campaignPerformanceReport(organizationId, options);
   }
 }

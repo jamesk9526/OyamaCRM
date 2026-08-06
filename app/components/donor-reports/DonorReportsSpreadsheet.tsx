@@ -33,7 +33,9 @@ type ReportKey =
   | "top-donors"
   | "payment-method-summary"
   | "designation-performance"
-  | "crm-performance-scorecard";
+  | "crm-performance-scorecard"
+  | "recurring-giving"
+  | "campaign-performance";
 
 type ColumnType = "currency" | "date" | "number" | "text";
 type MatrixValueType = "currency" | "number" | "decimal";
@@ -103,6 +105,8 @@ const REPORTS: ReportDefinition[] = [
   { key: "payment-method-summary", title: "Payment Method Summary", description: "Compare gift volume, donor count, and giving by payment method.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports" },
   { key: "designation-performance", title: "Designation Performance", description: "Compare giving across funds and designations, including donor reach.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports" },
   { key: "crm-performance-scorecard", title: "CRM Performance Scorecard", description: "Compare growth, donor reach, gift activity, and recurring giving to the prior equal period.", source: "Completed donations", capabilities: "Grid, Visual, Insights", scope: "date", group: "Donor reports" },
+  { key: "recurring-giving", title: "Recurring Giving", description: "Review recurring gifts and the donors sustaining recurring revenue in a selected period.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
+  { key: "campaign-performance", title: "Campaign Performance", description: "Rank campaign-attributed giving by revenue, gifts, and donor reach.", source: "Completed donations + campaigns", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
 ];
 
 const PAYMENT_METHODS = [
@@ -312,6 +316,22 @@ export default function DonorReportsSpreadsheet() {
     window.setTimeout(() => printWindow.print(), 120);
   };
 
+  const handleGenerateLetters = (currentReport: ReportData) => {
+    const constituentIds = Array.from(new Set(currentReport.rows.map((row) => typeof row.donorId === "string" ? row.donorId : "").filter(Boolean)));
+    if (constituentIds.length === 0) {
+      setError("This report does not contain donor rows that can be sent to letter generation.");
+      return;
+    }
+    const temporaryListId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `report-${Date.now()}`;
+    window.sessionStorage.setItem(`oyama-letters:temporary-recipient-list:${temporaryListId}`, JSON.stringify({
+      name: `${currentReport.title} recipients`,
+      constituentIds,
+      donationIds: currentReport.rows.map((row) => typeof row.donationId === "string" ? row.donationId : "").filter(Boolean),
+      createdAt: new Date().toISOString(),
+    }));
+    window.location.assign(`/oyama-letters/generate?mode=batch&temporaryListId=${encodeURIComponent(temporaryListId)}&source=report&reportTitle=${encodeURIComponent(currentReport.title)}`);
+  };
+
   return (
     <div className="mx-auto max-w-[1720px] space-y-3 py-3 sm:py-4">
       <WorkspaceBreadcrumbBar
@@ -353,6 +373,7 @@ export default function DonorReportsSpreadsheet() {
           displayMode={displayMode}
           onDisplayModeChange={setDisplayMode}
           onShowInsights={() => setShowInsights(true)}
+          onGenerateLetters={() => report ? handleGenerateLetters(report) : undefined}
         />
       ) : (
         <ReportLibrary onRun={(definition) => void loadReport(definition)} onOpenDonationAudience={() => setActiveTool("donation-audience")} />
@@ -376,7 +397,7 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
           <div className="border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-semibold text-slate-800">{group}</div>
           <div className="grid gap-1 bg-slate-100 sm:grid-cols-2 xl:grid-cols-5">
             {REPORTS.filter((report) => report.group === group).map((report) => (
-              <article key={report.key} className="flex min-h-[238px] flex-col bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.07)] transition-shadow hover:relative hover:z-10 hover:shadow-md">
+              <article key={report.key} title={`${report.title}: ${report.description}`} className="group flex min-h-[238px] flex-col bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.07)] transition-all hover:relative hover:z-10 hover:-translate-y-0.5 hover:shadow-lg">
                 <div className="flex items-start gap-2.5">
                   <DocumentIcon />
                   <div>
@@ -385,8 +406,8 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
                   </div>
                 </div>
                 <p className="mt-3 text-sm leading-5 text-slate-600">{report.description}</p>
-                <p className="mt-1 text-xs text-slate-500">Source: {report.source}</p>
-                <button type="button" onClick={() => onRun(report)} className="mt-auto self-end pt-4 text-sm font-medium text-[#0f6cbd] hover:text-[#0b5a9d] hover:underline">Run Report</button>
+                <p className="mt-1 text-xs text-slate-500" title="The live CRM records used to build this report">Source: {report.source}</p>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] text-slate-400 opacity-0 transition-opacity group-hover:opacity-100">Hover for details</span><button type="button" onClick={() => onRun(report)} className="text-sm font-medium text-[#0f6cbd] hover:text-[#0b5a9d] hover:underline">Run Report →</button></div>
               </article>
             ))}
           </div>
@@ -424,6 +445,7 @@ function ReportRunner({
   displayMode,
   onDisplayModeChange,
   onShowInsights,
+  onGenerateLetters,
 }: {
   definition: ReportDefinition;
   report: ReportData | null;
@@ -452,6 +474,7 @@ function ReportRunner({
   displayMode: "grid" | "visual";
   onDisplayModeChange: (mode: "grid" | "visual") => void;
   onShowInsights: () => void;
+  onGenerateLetters: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
@@ -508,7 +531,7 @@ function ReportRunner({
       </div>
 
       {error ? <div className="m-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div> : null}
-      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} displayMode={displayMode} /> : null}
+      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} displayMode={displayMode} onGenerateLetters={onGenerateLetters} /> : null}
     </section>
   );
 }
@@ -521,15 +544,17 @@ function ReportLoading() {
   return <div className="p-4"><div className="grid gap-px overflow-hidden rounded border border-slate-300 bg-slate-200">{Array.from({ length: 9 }, (_, index) => <div key={index} className="h-11 animate-pulse bg-white" />)}</div></div>;
 }
 
-function ReportOutput({ report, displayMode }: { report: ReportData; displayMode: "grid" | "visual" }) {
+function ReportOutput({ report, displayMode, onGenerateLetters }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void }) {
+  const donorRowCount = report.rows.filter((row) => typeof row.donorId === "string").length;
   return (
     <div className="space-y-4 p-4 sm:p-5">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {report.summary.map((item) => <div key={item.label} className="min-w-32 rounded border border-slate-200 bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">{item.label}</p><p className="mt-0.5 font-semibold tabular-nums text-slate-900">{formatCell(item.value, item.type ?? "text")}</p></div>)}
+          {report.summary.map((item) => <div key={item.label} title={`Live report metric: ${item.label}`} className="group min-w-32 rounded border border-slate-200 bg-slate-50 px-3 py-2 transition-colors hover:border-blue-300 hover:bg-blue-50"><p className="text-xs text-slate-500">{item.label}<span className="ml-1 inline-block text-[10px] text-blue-500 opacity-0 transition-opacity group-hover:opacity-100">ⓘ</span></p><p className="mt-0.5 font-semibold tabular-nums text-slate-900">{formatCell(item.value, item.type ?? "text")}</p></div>)}
         </div>
         <p className="text-xs text-slate-500">Generated {formatDateTime(report.generatedAt)}{report.period ? ` · ${report.period.label}` : ""}</p>
       </div>
+      {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Open the letter generation workspace with {donorRowCount.toLocaleString()} donor{donorRowCount === 1 ? "" : "s"} preselected.</p></div><button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div> : null}
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
       {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
     </div>
@@ -547,9 +572,9 @@ function ReportGrid({ report }: { report: ReportData }) {
           </tr>
         </thead>
         <tbody>
-          {report.rows.map((row, index) => <tr key={`${row.donorId ?? row.taskId ?? index}`} className="hover:bg-[#f7fbff]">
+          {report.rows.map((row, index) => <tr key={`${row.donorId ?? row.taskId ?? index}`} title="Hover a value to inspect its source field" className="group hover:bg-[#f7fbff]">
             <td className="border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs tabular-nums text-slate-500">{index + 1}</td>
-            {report.columns.map((column) => <td key={column.key} className={`border-b border-r border-slate-200 px-3 py-2 align-top ${column.type === "currency" || column.type === "number" ? "text-right tabular-nums" : ""}`}>
+            {report.columns.map((column) => <td key={column.key} title={`${column.label}: ${formatCell(row[column.key] ?? null, column.type ?? "text")}`} className={`border-b border-r border-slate-200 px-3 py-2 align-top ${column.type === "currency" || column.type === "number" ? "text-right tabular-nums" : ""}`}>
               {column.linkToDonor && typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="font-medium text-[#0f6cbd] hover:underline">{formatCell(row[column.key] ?? null, column.type ?? "text")}</Link> : formatCell(row[column.key] ?? null, column.type ?? "text")}
             </td>)}
           </tr>)}

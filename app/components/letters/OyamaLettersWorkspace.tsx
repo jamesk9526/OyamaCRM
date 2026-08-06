@@ -3700,6 +3700,8 @@ function GenerateWorkspace() {
   const searchParams = useSearchParams();
   const temporaryListId = searchParams.get("temporaryListId") ?? "";
   const sourceGeneratedLetterId = searchParams.get("generatedLetterId") ?? "";
+  const sourceReportTitle = searchParams.get("reportTitle")?.trim() ?? "";
+  const sourceIsReport = searchParams.get("source") === "report";
   const [temporaryRecipientList, setTemporaryRecipientList] = useState<TemporaryRecipientList | null>(null);
   const [templates, setTemplates] = useState<LetterTemplateSummary[]>([]);
   const [generated, setGenerated] = useState<GeneratedLetterSummary[]>([]);
@@ -4564,6 +4566,7 @@ function GenerateWorkspace() {
       </PageHero>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {notice ? <Alert tone="green">{notice}</Alert> : null}
+      {sourceIsReport ? <div className="mx-4 mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 xl:mx-6"><p className="text-sm font-semibold text-blue-950">Started from {sourceReportTitle || "a live report"}</p><p className="mt-1 text-xs leading-5 text-blue-800">Recipients were preselected from the report. Review suppression, address, and merge-field validation before generating.</p></div> : null}
       <section className="border-b border-slate-200 bg-white px-4 xl:px-6">
         <div className="grid gap-2 py-4 sm:grid-cols-2 xl:grid-cols-4">
           {wizardSteps.map((step, index) => {
