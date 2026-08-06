@@ -27,6 +27,9 @@ export const DONOR_LIBRARY_REPORT_KEYS = [
   "lapsed-donors",
   "never-given",
   "top-donors",
+  "payment-method-summary",
+  "designation-performance",
+  "crm-performance-scorecard",
 ] as const;
 
 export type DonorLibraryReportKey = (typeof DONOR_LIBRARY_REPORT_KEYS)[number];
@@ -49,6 +52,7 @@ export interface DonorLibraryReport {
   rows: Array<Record<string, DonorReportCell>>;
   comparisonMatrix?: {
     columns: { currentYear: number; priorYear: number; twoYearsPrior: number };
+    labels?: { current: string; prior: string; twoYearsPrior: string };
     sections: Array<{
       label: string;
       rows: Array<{
@@ -891,6 +895,104 @@ async function topDonorsReport(organizationId: string, options: DonorLibraryRepo
   };
 }
 
+async function paymentMethodSummaryReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
+  const donations = await prisma.donation.findMany({
+    where: baseDonationWhere(organizationId, options),
+    select: { amount: true, paymentMethod: true, constituentId: true },
+  });
+  const groups = new Map<PaymentMethod, { giftCount: number; totalCents: number; donors: Set<string> }>();
+  for (const donation of donations) {
+    const group = groups.get(donation.paymentMethod) ?? { giftCount: 0, totalCents: 0, donors: new Set<string>() };
+    group.giftCount += 1;
+    group.totalCents += cents(donation.amount);
+    group.donors.add(donation.constituentId);
+    groups.set(donation.paymentMethod, group);
+  }
+  const totalCents = donations.reduce((total, donation) => total + cents(donation.amount), 0);
+  const rows = Array.from(groups.entries()).map(([method, group]) => ({
+    paymentMethod: String(method).replace(/_/g, " ").replace(/\b\w/g, (letter: string) => letter.toUpperCase()),
+    giftCount: group.giftCount,
+    donorCount: group.donors.size,
+    totalAmount: dollars(group.totalCents),
+    shareOfGiving: totalCents ? Math.round((group.totalCents / totalCents) * 1000) / 10 : 0,
+  })).sort((a, b) => b.totalAmount - a.totalAmount);
+  return {
+    ...emptyReport("payment-method-summary", "Payment method summary", "Completed gifts grouped by payment method for the selected date range.", options),
+    summary: [{ label: "Gift total", value: dollars(totalCents), type: "currency" }, { label: "Gifts", value: donations.length, type: "number" }, { label: "Payment methods", value: rows.length, type: "number" }],
+    columns: [{ key: "paymentMethod", label: "Payment method" }, { key: "giftCount", label: "Gifts", type: "number" }, { key: "donorCount", label: "Donors", type: "number" }, { key: "totalAmount", label: "Total giving", type: "currency" }, { key: "shareOfGiving", label: "Share of giving (%)", type: "number" }],
+    rows,
+    notices: [],
+  };
+}
+
+async function designationPerformanceReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
+  const donations = await prisma.donation.findMany({
+    where: baseDonationWhere(organizationId, options),
+    select: { amount: true, designation: { select: { id: true, name: true } }, constituentId: true },
+  });
+  const groups = new Map<string, { designation: string; giftCount: number; totalCents: number; donors: Set<string> }>();
+  for (const donation of donations) {
+    const key = donation.designation?.id ?? "general";
+    const group = groups.get(key) ?? { designation: donation.designation?.name ?? "General / undesignated", giftCount: 0, totalCents: 0, donors: new Set<string>() };
+    group.giftCount += 1;
+    group.totalCents += cents(donation.amount);
+    group.donors.add(donation.constituentId);
+    groups.set(key, group);
+  }
+  const totalCents = donations.reduce((total, donation) => total + cents(donation.amount), 0);
+  const rows = Array.from(groups.values()).map((group) => ({ designation: group.designation, giftCount: group.giftCount, donorCount: group.donors.size, totalAmount: dollars(group.totalCents), shareOfGiving: totalCents ? Math.round((group.totalCents / totalCents) * 1000) / 10 : 0 })).sort((a, b) => b.totalAmount - a.totalAmount);
+  return {
+    ...emptyReport("designation-performance", "Designation performance", "Completed giving grouped by fund or designation for the selected date range.", options),
+    summary: [{ label: "Gift total", value: dollars(totalCents), type: "currency" }, { label: "Gifts", value: donations.length, type: "number" }, { label: "Designations", value: rows.length, type: "number" }],
+    columns: [{ key: "designation", label: "Designation" }, { key: "giftCount", label: "Gifts", type: "number" }, { key: "donorCount", label: "Donors", type: "number" }, { key: "totalAmount", label: "Total giving", type: "currency" }, { key: "shareOfGiving", label: "Share of giving (%)", type: "number" }],
+    rows,
+    notices: [],
+  };
+}
+
+async function crmPerformanceScorecardReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
+  const durationMs = Math.max(24 * 60 * 60 * 1000, options.through.getTime() - options.from.getTime() + 1);
+  const priorThrough = new Date(options.from.getTime() - 1);
+  const priorFrom = new Date(priorThrough.getTime() - durationMs + 1);
+  const [current, prior] = await Promise.all([
+    prisma.donation.findMany({ where: baseDonationWhere(organizationId, options), select: { amount: true, constituentId: true, isRecurring: true } }),
+    prisma.donation.findMany({ where: completedDonationWhere(organizationId, { gte: priorFrom, lte: priorThrough }), select: { amount: true, constituentId: true, isRecurring: true } }),
+  ]);
+  const totals = (donations: typeof current) => ({
+    revenue: donations.reduce((sum, donation) => sum + cents(donation.amount), 0),
+    gifts: donations.length,
+    donors: new Set(donations.map((donation) => donation.constituentId)).size,
+    recurring: donations.filter((donation) => donation.isRecurring).length,
+  });
+  const currentTotals = totals(current);
+  const priorTotals = totals(prior);
+  const metricRows = [
+    { metric: "Giving revenue", current: dollars(currentTotals.revenue), prior: dollars(priorTotals.revenue), type: "currency" as const },
+    { metric: "Completed gifts", current: currentTotals.gifts, prior: priorTotals.gifts, type: "number" as const },
+    { metric: "Giving donors", current: currentTotals.donors, prior: priorTotals.donors, type: "number" as const },
+    { metric: "Recurring gifts", current: currentTotals.recurring, prior: priorTotals.recurring, type: "number" as const },
+  ].map((row) => ({ ...row, change: row.current - row.prior, changePercent: row.prior ? Math.round(((row.current - row.prior) / row.prior) * 1000) / 10 : null }));
+  const positiveSignals = metricRows.filter((row) => row.change > 0).length;
+  const performanceScore = Math.round((positiveSignals / metricRows.length) * 100);
+  return {
+    ...emptyReport("crm-performance-scorecard", "CRM performance scorecard", "Period performance compared with the immediately preceding period of the same length.", options),
+    summary: [
+      { label: "Giving revenue", value: dollars(currentTotals.revenue), type: "currency" },
+      { label: "Giving donors", value: currentTotals.donors, type: "number" },
+      { label: "Positive signals", value: `${positiveSignals} of ${metricRows.length}`, type: "text" },
+      { label: "Performance score", value: `${performanceScore}/100`, type: "text" },
+    ],
+    columns: [],
+    rows: [],
+    comparisonMatrix: {
+      columns: { currentYear: options.selectedYear, priorYear: options.selectedYear - 1, twoYearsPrior: options.selectedYear - 2 },
+      labels: { current: "Selected period", prior: "Prior equal period", twoYearsPrior: "" },
+      sections: [{ label: "Period performance", rows: metricRows.map((row) => ({ label: row.metric, current: row.current, prior: row.prior, twoYearsPrior: 0, difference: row.change, type: row.type })) }],
+    },
+    notices: [`Comparison period: ${period(priorFrom, priorThrough)?.label ?? "prior equal period"}. Revenue uses currency; count-based rows are labeled in the insights view.`],
+  };
+}
+
 export async function buildDonorLibraryReport(
   organizationId: string | null,
   report: DonorLibraryReportKey,
@@ -919,5 +1021,8 @@ export async function buildDonorLibraryReport(
     case "lapsed-donors": return lapsedDonorsReport(organizationId, options);
     case "never-given": return neverGivenReport(organizationId, options);
     case "top-donors": return topDonorsReport(organizationId, options);
+    case "payment-method-summary": return paymentMethodSummaryReport(organizationId, options);
+    case "designation-performance": return designationPerformanceReport(organizationId, options);
+    case "crm-performance-scorecard": return crmPerformanceScorecardReport(organizationId, options);
   }
 }

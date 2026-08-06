@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -29,7 +30,10 @@ type ReportKey =
   | "first-time-donors"
   | "lapsed-donors"
   | "never-given"
-  | "top-donors";
+  | "top-donors"
+  | "payment-method-summary"
+  | "designation-performance"
+  | "crm-performance-scorecard";
 
 type ColumnType = "currency" | "date" | "number" | "text";
 type MatrixValueType = "currency" | "number" | "decimal";
@@ -65,6 +69,7 @@ interface ReportData {
   rows: Array<Record<string, string | number | null>>;
   comparisonMatrix?: {
     columns: { currentYear: number; priorYear: number; twoYearsPrior: number };
+    labels?: { current: string; prior: string; twoYearsPrior: string };
     sections: Array<{
       label: string;
       rows: Array<{ label: string; current: number; prior: number; twoYearsPrior: number; difference?: number | null; type: MatrixValueType }>;
@@ -95,6 +100,9 @@ const REPORTS: ReportDefinition[] = [
   { key: "lapsed-donors", title: "Lapsed Donors (SYBUNTY)", description: "Find donors who gave in the prior year but not in the selected year.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "year", group: "Donor reports" },
   { key: "never-given", title: "Never Given Report", description: "List donor files with no completed donation record.", source: "Donor files + completed donations", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "top-donors", title: "Top Donors", description: "Rank donors by completed giving within a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Donor reports", supportsLimit: true },
+  { key: "payment-method-summary", title: "Payment Method Summary", description: "Compare gift volume, donor count, and giving by payment method.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports" },
+  { key: "designation-performance", title: "Designation Performance", description: "Compare giving across funds and designations, including donor reach.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports" },
+  { key: "crm-performance-scorecard", title: "CRM Performance Scorecard", description: "Compare growth, donor reach, gift activity, and recurring giving to the prior equal period.", source: "Completed donations", capabilities: "Grid, Visual, Insights", scope: "date", group: "Donor reports" },
 ];
 
 const PAYMENT_METHODS = [
@@ -118,6 +126,13 @@ function localDateInput(value: Date): string {
 
 function currentYearStart(): string {
   return localDateInput(new Date(new Date().getFullYear(), 0, 1));
+}
+
+function lastMonthToDateRange(): { from: string; through: string } {
+  const today = new Date();
+  const priorMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  return { from: localDateInput(priorMonth), through: localDateInput(new Date(priorMonth.getFullYear(), priorMonth.getMonth(), Math.min(today.getDate(), lastDay))) };
 }
 
 function formatCurrency(value: number): string {
@@ -174,6 +189,8 @@ export default function DonorReportsSpreadsheet() {
   const [error, setError] = useState<string | null>(null);
   const [reportingMode, setReportingMode] = useState<ReportingYearMode>("calendar");
   const [activeTool, setActiveTool] = useState<"donation-audience" | null>(null);
+  const [displayMode, setDisplayMode] = useState<"grid" | "visual">("grid");
+  const [showInsights, setShowInsights] = useState(false);
 
   useEffect(() => {
     setReportingMode(getStoredReportingYearMode());
@@ -225,6 +242,7 @@ export default function DonorReportsSpreadsheet() {
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const nextReport = await apiFetch<ReportData>(`/api/reports/library/${definition.key}${suffix}`);
       setReport(nextReport);
+      setShowInsights(definition.key === "crm-performance-scorecard");
       if (typeof window !== "undefined") {
         window.history.replaceState({}, "", `/reports?report=${encodeURIComponent(definition.key)}`);
       }
@@ -245,6 +263,7 @@ export default function DonorReportsSpreadsheet() {
   const backToLibrary = () => {
     setSelected(null);
     setReport(null);
+    setDisplayMode("grid");
     setError(null);
     if (typeof window !== "undefined") window.history.replaceState({}, "", "/reports");
   };
@@ -331,10 +350,14 @@ export default function DonorReportsSpreadsheet() {
           onRun={() => void loadReport(selected, "refresh")}
           onExport={() => void handleExport()}
           onPrint={handlePrint}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
+          onShowInsights={() => setShowInsights(true)}
         />
       ) : (
         <ReportLibrary onRun={(definition) => void loadReport(definition)} onOpenDonationAudience={() => setActiveTool("donation-audience")} />
       )}
+      {showInsights && report && selected?.key === "crm-performance-scorecard" ? <PerformanceInsightsModal report={report} onClose={() => setShowInsights(false)} /> : null}
     </div>
   );
 }
@@ -398,6 +421,9 @@ function ReportRunner({
   onRun,
   onExport,
   onPrint,
+  displayMode,
+  onDisplayModeChange,
+  onShowInsights,
 }: {
   definition: ReportDefinition;
   report: ReportData | null;
@@ -423,6 +449,9 @@ function ReportRunner({
   onRun: () => void;
   onExport: () => void;
   onPrint: () => void;
+  displayMode: "grid" | "visual";
+  onDisplayModeChange: (mode: "grid" | "visual") => void;
+  onShowInsights: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
@@ -455,6 +484,9 @@ function ReportRunner({
           <WorkspaceRibbonButton label={loading ? "Running" : "Run report"} onClick={onRun} disabled={loading} accentTone="blue" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Output">
+          <WorkspaceRibbonButton label="Grid" onClick={() => onDisplayModeChange("grid")} disabled={!report || displayMode === "grid"} accentTone="blue" />
+          <WorkspaceRibbonButton label="Visual" onClick={() => onDisplayModeChange("visual")} disabled={!report || displayMode === "visual"} accentTone="blue" />
+          {definition.key === "crm-performance-scorecard" ? <WorkspaceRibbonButton label="AI insights" onClick={onShowInsights} disabled={!report} accentTone="blue" /> : null}
           <WorkspaceRibbonButton label={exporting ? "Exporting" : "Export CSV"} onClick={onExport} disabled={!report || exporting} accentTone="blue" />
           <WorkspaceRibbonButton label="Print report" onClick={onPrint} disabled={!report} accentTone="blue" />
         </WorkspaceRibbonGroup>
@@ -472,10 +504,11 @@ function ReportRunner({
           {definition.supportsLimit ? <FilterField label="Donors shown"><input type="number" min="1" max="1000" value={limit} onChange={(event) => onLimitChange(event.target.value)} className="report-input w-24" /></FilterField> : null}
           {definition.scope === "none" ? <p className="pb-1 text-sm text-slate-600">This report uses the current organization-wide donor record set.</p> : null}
         </div>
+        {definition.scope === "date" ? <div className="mt-3 flex flex-wrap gap-2"><span className="pt-1 text-xs font-medium text-slate-600">Quick range:</span><button type="button" onClick={() => { const range = lastMonthToDateRange(); onFromChange(range.from); onThroughChange(range.through); }} className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">Last month to date</button><button type="button" onClick={() => { const today = new Date(); onFromChange(localDateInput(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29))); onThroughChange(localDateInput(today)); }} className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">Last 30 days</button></div> : null}
       </div>
 
       {error ? <div className="m-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div> : null}
-      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} /> : null}
+      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} displayMode={displayMode} /> : null}
     </section>
   );
 }
@@ -488,7 +521,7 @@ function ReportLoading() {
   return <div className="p-4"><div className="grid gap-px overflow-hidden rounded border border-slate-300 bg-slate-200">{Array.from({ length: 9 }, (_, index) => <div key={index} className="h-11 animate-pulse bg-white" />)}</div></div>;
 }
 
-function ReportOutput({ report }: { report: ReportData }) {
+function ReportOutput({ report, displayMode }: { report: ReportData; displayMode: "grid" | "visual" }) {
   return (
     <div className="space-y-4 p-4 sm:p-5">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
@@ -498,7 +531,7 @@ function ReportOutput({ report }: { report: ReportData }) {
         <p className="text-xs text-slate-500">Generated {formatDateTime(report.generatedAt)}{report.period ? ` · ${report.period.label}` : ""}</p>
       </div>
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
-      {report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
+      {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
     </div>
   );
 }
@@ -528,11 +561,14 @@ function ReportGrid({ report }: { report: ReportData }) {
 }
 
 function ComparisonMatrix({ matrix }: { matrix: NonNullable<ReportData["comparisonMatrix"]> }) {
+  const currentLabel = matrix.labels?.current ?? `Current year ${matrix.columns.currentYear}`;
+  const priorLabel = matrix.labels?.prior ?? `Prior year ${matrix.columns.priorYear}`;
+  const twoYearsPriorLabel = matrix.labels?.twoYearsPrior ?? `Two years prior ${matrix.columns.twoYearsPrior}`;
   return (
     <div className="overflow-x-auto rounded border border-slate-300">
       <table className="min-w-[820px] w-full border-collapse text-sm">
         <thead className="bg-[#5d5d5d] text-white">
-          <tr><th className="w-36 border-r border-white/20 px-3 py-2 text-left font-semibold">Donor group</th><th className="min-w-60 border-r border-white/20 px-3 py-2 text-left font-semibold">Metric</th><th className="border-r border-white/20 px-3 py-2 text-right font-semibold">Current year<br />{matrix.columns.currentYear}</th><th className="border-r border-white/20 px-3 py-2 text-right font-semibold">Prior year<br />{matrix.columns.priorYear}</th><th className="border-r border-white/20 px-3 py-2 text-right font-semibold">Two years prior<br />{matrix.columns.twoYearsPrior}</th><th className="px-3 py-2 text-right font-semibold">vs. prior year</th></tr>
+          <tr><th className="w-36 border-r border-white/20 px-3 py-2 text-left font-semibold">Donor group</th><th className="min-w-60 border-r border-white/20 px-3 py-2 text-left font-semibold">Metric</th><th className="border-r border-white/20 px-3 py-2 text-right font-semibold">{currentLabel}</th><th className="border-r border-white/20 px-3 py-2 text-right font-semibold">{priorLabel}</th><th className="border-r border-white/20 px-3 py-2 text-right font-semibold">{twoYearsPriorLabel}</th><th className="px-3 py-2 text-right font-semibold">Change</th></tr>
         </thead>
         <tbody>
           {matrix.sections.flatMap((section) => section.rows.map((row, index) => <tr key={`${section.label}-${row.label}`} className="hover:bg-[#f7fbff]">
@@ -547,6 +583,63 @@ function ComparisonMatrix({ matrix }: { matrix: NonNullable<ReportData["comparis
       </table>
     </div>
   );
+}
+
+const VISUAL_COLORS = ["#0f6cbd", "#0f766e", "#7c3aed", "#d97706", "#db2777", "#475569", "#16a34a", "#dc2626"];
+type VisualConfig = { rows: Array<Record<string, string | number | null>>; labelKey: string; metrics: string[]; labels: string[]; title: string };
+
+function VisualReport({ report }: { report: ReportData }) {
+  const visual = useMemo<VisualConfig | null>(() => {
+    if (report.comparisonMatrix) {
+      const rows: VisualConfig["rows"] = report.comparisonMatrix.sections.flatMap((section) => section.rows.map((row) => ({ label: `${section.label}: ${row.label}`, current: row.current, prior: row.prior })));
+      return { rows, labelKey: "label", metrics: ["current", "prior"], labels: [report.comparisonMatrix.labels?.current ?? `${report.comparisonMatrix.columns.currentYear}`, report.comparisonMatrix.labels?.prior ?? `${report.comparisonMatrix.columns.priorYear}`], title: "Current and prior period comparison" };
+    }
+    const textColumn = report.columns.find((column) => column.type !== "currency" && column.type !== "number" && column.type !== "date" && !column.linkToDonor);
+    const metricColumns = report.columns.filter((column) => column.type === "currency" || column.type === "number").slice(0, 2);
+    if (!textColumn || metricColumns.length === 0) return null;
+    return { rows: report.rows.slice(0, 12).map((row) => ({ ...row, [textColumn.key]: String(row[textColumn.key] ?? "Unlabeled") })), labelKey: textColumn.key, metrics: metricColumns.map((column) => column.key), labels: metricColumns.map((column) => column.label), title: `${metricColumns.map((column) => column.label).join(" and ")} by ${textColumn.label.toLowerCase()}` };
+  }, [report]);
+
+  if (!visual || visual.rows.length === 0) return <div className="rounded border border-slate-200 bg-slate-50 px-4 py-12 text-center text-sm text-slate-600">This report has no numeric data to visualize for the current filters. Try a different range or return to the grid.</div>;
+  const isBreakdown = !report.comparisonMatrix && visual.metrics.length > 0;
+  const pieData = visual.rows.map((row) => ({ name: String(row[visual.labelKey]), value: Number(row[visual.metrics[0]] ?? 0) }));
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="rounded border border-slate-200 bg-white p-4">
+        <h3 className="text-sm font-semibold text-slate-900">{visual.title}</h3>
+        <p className="mt-1 text-xs text-slate-500">Showing up to 12 rows from the current live report.</p>
+        <div className="mt-4 h-[360px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={visual.rows} margin={{ top: 12, right: 12, left: 8, bottom: 48 }}>
+              <XAxis dataKey={visual.labelKey} angle={-28} textAnchor="end" interval={0} height={82} tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(value, name) => [Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 }), String(name)]} />
+              <Legend />
+              {visual.metrics.map((metric, index) => <Bar key={metric} dataKey={metric} name={visual.labels[index]} fill={VISUAL_COLORS[index]} radius={[3, 3, 0, 0]} />)}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+      {isBreakdown ? <section className="rounded border border-slate-200 bg-white p-4"><h3 className="text-sm font-semibold text-slate-900">{visual.labels[0]} mix</h3><div className="mt-4 h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={100} paddingAngle={2}>{pieData.map((entry, index) => <Cell key={entry.name} fill={VISUAL_COLORS[index % VISUAL_COLORS.length]} />)}</Pie><Tooltip formatter={(value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })} /></PieChart></ResponsiveContainer></div><ul className="space-y-1 text-xs text-slate-600">{pieData.map((entry, index) => <li key={entry.name} className="flex justify-between gap-2"><span className="truncate"><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: VISUAL_COLORS[index % VISUAL_COLORS.length] }} />{entry.name}</span><span className="tabular-nums">{entry.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></li>)}</ul></section> : null}
+    </div>
+  );
+}
+
+function PerformanceInsightsModal({ report, onClose }: { report: ReportData; onClose: () => void }) {
+  const metrics = report.comparisonMatrix?.sections.flatMap((section) => section.rows) ?? [];
+  const positive = metrics.filter((metric) => metric.difference != null && metric.difference > 0).length;
+  const declining = metrics.filter((metric) => metric.difference != null && metric.difference < 0);
+  const score = metrics.length ? Math.round((positive / metrics.length) * 100) : 0;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true" aria-labelledby="performance-insights-title" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+      <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">AI-assisted performance review</p><h2 id="performance-insights-title" className="mt-1 text-xl font-semibold text-slate-950">Selected-period CRM insights</h2><p className="mt-1 text-sm text-slate-600">Transparent signals calculated from the live report and its prior equal period.</p></div><button type="button" onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Close insights">×</button></div>
+      <div className="space-y-4 p-5"><div className="grid gap-3 sm:grid-cols-3"><InsightCard label="Performance signal" value={`${score}/100`} detail={`${positive} improving metrics`} /><InsightCard label="Attention signals" value={String(declining.length)} detail={declining.length ? declining.map((metric) => metric.label).join(", ") : "No declining tracked metric"} /><InsightCard label="User AI score" value="Not available" detail="No validated per-user AI scoring data is stored in this report." /></div><div className="rounded-lg border border-slate-200"><div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">Metric explanations</div><div className="divide-y divide-slate-100">{metrics.map((metric) => <div key={metric.label} className="flex items-center justify-between gap-4 px-4 py-3 text-sm"><span className="font-medium text-slate-800">{metric.label}</span><span className={metric.difference != null && metric.difference < 0 ? "font-semibold tabular-nums text-red-700" : "font-semibold tabular-nums text-emerald-700"}>{metric.difference == null ? "No prior-period baseline" : `${metric.difference > 0 ? "+" : ""}${formatCell(metric.difference, metric.type)}`}</span></div>)}</div></div><p className="text-xs leading-5 text-slate-500">These are decision-support signals, not predictions or donor propensity scores. Add a governed AI scoring source before treating any user-level AI score as operational data.</p></div>
+    </section>
+  </div>;
+}
+
+function InsightCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <div className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-medium text-slate-600">{label}</p><p className="mt-1 text-lg font-semibold text-slate-950">{value}</p><p className="mt-1 text-xs leading-4 text-slate-500">{detail}</p></div>;
 }
 
 function matrixPrintTable(matrix: NonNullable<ReportData["comparisonMatrix"]>): string {
