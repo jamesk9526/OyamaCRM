@@ -384,6 +384,9 @@ export default function DonorReportsSpreadsheet() {
 }
 
 function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: ReportDefinition) => void; onOpenDonationAudience: () => void }) {
+  const [reportSearch, setReportSearch] = useState("");
+  const normalizedSearch = reportSearch.trim().toLowerCase();
+  const filteredReports = REPORTS.filter((report) => !normalizedSearch || [report.title, report.description, report.source, report.capabilities].some((value) => value.toLowerCase().includes(normalizedSearch)));
   return (
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#edf5fc_58%,#fff_100%)] px-5 py-5">
@@ -391,13 +394,16 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Choose a report</h1>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Every report runs against live, organization-scoped donor data and can be printed or exported after review.</p>
       </div>
-      <div className="border-b border-slate-200 bg-emerald-50 px-5 py-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">New report tools</p><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-900">Donation date-range audience</h2><p className="mt-1 text-sm text-slate-600">Select donors who gave in a period, review mailing addresses, save the audience, and create letters or email.</p></div><button type="button" onClick={onOpenDonationAudience} className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Open tool</button></div></div>
+      <div className="grid gap-px border-b border-slate-200 bg-slate-200 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+        <div className="bg-emerald-50 px-5 py-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">Audience workflow</p><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-900">Donation date-range audience</h2><p className="mt-1 text-sm text-slate-600">Review donors in a period, then create letters or email.</p></div><button type="button" onClick={onOpenDonationAudience} className="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">Open tool</button></div></div>
+        <div className="bg-white px-5 py-4"><label htmlFor="report-library-search" className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">Find a report</label><div className="mt-2 flex items-center gap-2"><input id="report-library-search" type="search" value={reportSearch} onChange={(event) => setReportSearch(event.target.value)} placeholder="Giving, retention, campaign..." className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"/><span className="shrink-0 text-xs font-medium text-slate-500">{filteredReports.length} of {REPORTS.length}</span></div></div>
+      </div>
       {(["Gift reports", "Donor reports"] as const).map((group) => (
-        <div key={group} className="border-b border-slate-200 last:border-b-0">
+        filteredReports.some((report) => report.group === group) ? <div key={group} className="border-b border-slate-200 last:border-b-0">
           <div className="border-b border-slate-200 bg-slate-50 px-4 py-1.5 text-sm font-semibold text-slate-800">{group}</div>
-          <div className="grid gap-1 bg-slate-100 sm:grid-cols-2 xl:grid-cols-5">
-            {REPORTS.filter((report) => report.group === group).map((report) => (
-              <article key={report.key} title={`${report.title}: ${report.description}`} className="group flex min-h-[238px] flex-col bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.07)] transition-all hover:relative hover:z-10 hover:-translate-y-0.5 hover:shadow-lg">
+          <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {filteredReports.filter((report) => report.group === group).map((report) => (
+              <article key={report.key} title={`${report.title}: ${report.description}`} className="group flex min-h-[220px] flex-col bg-white p-5 transition-all hover:relative hover:z-10 hover:-translate-y-0.5 hover:shadow-lg">
                 <div className="flex items-start gap-2.5">
                   <DocumentIcon />
                   <div>
@@ -407,12 +413,13 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
                 </div>
                 <p className="mt-3 text-sm leading-5 text-slate-600">{report.description}</p>
                 <p className="mt-1 text-xs text-slate-500" title="The live CRM records used to build this report">Source: {report.source}</p>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] text-slate-400 opacity-0 transition-opacity group-hover:opacity-100">Hover for details</span><button type="button" onClick={() => onRun(report)} className="text-sm font-medium text-[#0f6cbd] hover:text-[#0b5a9d] hover:underline">Run Report →</button></div>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] font-medium text-slate-500">{report.scope === "date" ? "Date filters" : report.scope === "year" ? "Year comparison" : "All records"}</span><button type="button" onClick={() => onRun(report)} className="rounded-md bg-[#0f6cbd] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a9d]">Run report</button></div>
               </article>
             ))}
           </div>
-        </div>
+        </div> : null
       ))}
+      {filteredReports.length === 0 ? <div className="px-5 py-12 text-center"><p className="text-sm font-semibold text-slate-800">No reports match “{reportSearch}”</p><button type="button" onClick={() => setReportSearch("")} className="mt-2 text-sm font-medium text-blue-700 hover:underline">Clear search</button></div> : null}
     </section>
   );
 }
@@ -563,7 +570,17 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
 
 function ReportGrid({ report }: { report: ReportData }) {
   return (
-    <div className="overflow-x-auto rounded border border-slate-300">
+    <div className="rounded border border-slate-300">
+      <div className="divide-y divide-slate-200 lg:hidden">
+        {report.rows.map((row, index) => <article key={`${row.donorId ?? row.taskId ?? index}`} className="p-3.5">
+          <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-slate-500">Row {index + 1}</span>{typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="text-xs font-semibold text-blue-700 hover:underline">Open donor →</Link> : null}</div>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+            {report.columns.map((column) => <div key={column.key} className="min-w-0 rounded-md bg-slate-50 px-2.5 py-2"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{column.label}</dt><dd className={`mt-0.5 break-words text-sm text-slate-900 ${column.type === "currency" || column.type === "number" ? "font-semibold tabular-nums" : ""}`}>{column.linkToDonor && typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="font-medium text-blue-700 hover:underline">{formatCell(row[column.key] ?? null, column.type ?? "text")}</Link> : formatCell(row[column.key] ?? null, column.type ?? "text")}</dd></div>)}
+          </dl>
+        </article>)}
+        {report.rows.length === 0 ? <div className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</div> : null}
+      </div>
+      <div className="hidden overflow-x-auto lg:block">
       <table className="min-w-full border-collapse text-sm">
         <thead className="bg-[#5d5d5d] text-left text-xs text-white">
           <tr>
@@ -581,6 +598,7 @@ function ReportGrid({ report }: { report: ReportData }) {
           {report.rows.length === 0 ? <tr><td colSpan={report.columns.length + 1} className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</td></tr> : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

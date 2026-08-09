@@ -33,6 +33,14 @@ interface RecoverEnvelope {
   recoveredSnapshotId: string;
 }
 
+interface IntegratedTriviaEventEnvelope {
+  event: import("@/app/apps/trivia/lib/trivia-types").TriviaEvent;
+  eventStudio: {
+    id: string;
+    publicPagePath: string;
+  };
+}
+
 /** Reads persisted sync mode preference for trivia state operations. */
 export function readTriviaSyncMode(): TriviaSyncMode {
   if (typeof window === "undefined") return "local";
@@ -56,6 +64,17 @@ export async function saveServerTriviaState(state: TriviaModuleState): Promise<S
   return apiFetch<ServerStateEnvelope>("/api/apps/trivia/state", {
     method: "PUT",
     body: JSON.stringify({ state }),
+  });
+}
+
+/** Creates Trivia and EventSTUDIO records together, including a published RSVP page. */
+export async function createIntegratedTriviaEvent(
+  event: import("@/app/apps/trivia/lib/trivia-types").TriviaEvent,
+  options: { maximumTables: number; seatsPerTable: number; tablePrice: number },
+): Promise<IntegratedTriviaEventEnvelope> {
+  return apiFetch<IntegratedTriviaEventEnvelope>("/api/apps/trivia/events", {
+    method: "POST",
+    body: JSON.stringify({ ...event, eventStudioSetup: options }),
   });
 }
 

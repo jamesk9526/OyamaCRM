@@ -494,6 +494,7 @@ model Organization {
   aiContextFiles        AiContextFile[]
   aiContextChunks       AiContextChunk[]
   paymentWebhookEvents  PaymentWebhookEvent[]
+  donorResearchFindings DonorResearchFinding[]
 }
 
 model OrganizationSettings {
@@ -577,6 +578,8 @@ model User {
   aiMemoryPreference     AiMemoryPreference?
   aiUserMemories         AiUserMemory[]
   aiContextFiles         AiContextFile[]
+  donorResearchFindingsCreated  DonorResearchFinding[] @relation("DonorResearchFindingCreatedBy")
+  donorResearchFindingsReviewed DonorResearchFinding[] @relation("DonorResearchFindingReviewedBy")
 }
 
 // ─── Steward AI Memory & Context ─────────────────────────────────────────────
@@ -745,6 +748,7 @@ model Constituent {
   eventSponsors    EventSponsor[]
   volunteerHours   VolunteerHour[]
   pledges          Pledge[]
+  researchFindings DonorResearchFinding[]
 
   // ─── Steward Paths enrollments/drafts ───────────────────────────────────
   stewardPathEnrollments StewardPathEnrollment[]
@@ -756,6 +760,43 @@ model Constituent {
   emailConsentEvents  EmailConsentEvent[]
   emailSuppressions   EmailSuppression[]
   emailSendRecipients EmailSendRecipient[]
+}
+
+/// Reviewable, sourced public-record evidence linked to a constituent.
+/// A finding is never treated as verified until a staff member explicitly reviews it.
+model DonorResearchFinding {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  constituentId        String
+  provider             String    @db.VarChar(40)
+  sourceRecordId       String?   @db.VarChar(120)
+  sourceUrl            String    @db.VarChar(1000)
+  signalType           String    @db.VarChar(60)
+  title                String    @db.VarChar(255)
+  summary              String    @db.Text
+  disclosedAmount      Decimal?  @db.Decimal(16, 2)
+  disclosedAmountLabel String?   @db.VarChar(120)
+  sourcePublishedAt    DateTime?
+  matchConfidence      String    @default("LOW") @db.VarChar(20)
+  matchRationale       String    @db.Text
+  status               String    @default("UNVERIFIED") @db.VarChar(20)
+  reviewNotes          String?   @db.Text
+  createdByUserId      String
+  reviewedByUserId     String?
+  reviewedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  constituent  Constituent  @relation(fields: [constituentId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("DonorResearchFindingCreatedBy", fields: [createdByUserId], references: [id])
+  reviewedBy   User?        @relation("DonorResearchFindingReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([constituentId, createdAt])
+  @@index([provider, sourceRecordId])
+  @@index([createdByUserId])
+  @@index([reviewedByUserId])
 }
 
 model ConstituentGroup {

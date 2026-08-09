@@ -3,7 +3,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -46,6 +46,8 @@ interface Table {
   hostEmail?: string;
   hostPhone?: string;
   shape: string;
+  xPosition: number;
+  yPosition: number;
   guests: Guest[];
   _count: { guests: number };
 }
@@ -308,6 +310,26 @@ export default function EventTablesPage() {
       setActionError(err instanceof Error ? err.message : "The table could not be deleted.");
     } finally {
       setDeletingTable(false);
+    }
+  }
+
+  async function saveFloorPositions(positions: Array<{ id: string; xPosition: number; yPosition: number }>) {
+    if (!positions.length) return;
+    const previous = tables;
+    const positionMap = new Map(positions.map((position) => [position.id, position]));
+    setTables((current) => current.map((table) => {
+      const position = positionMap.get(table.id);
+      return position ? { ...table, xPosition: position.xPosition, yPosition: position.yPosition } : table;
+    }));
+    try {
+      setActionError(null);
+      await Promise.all(positions.map((position) => apiFetch(`/api/events/tables/${position.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ xPosition: position.xPosition, yPosition: position.yPosition }),
+      })));
+    } catch (error) {
+      setTables(previous);
+      setActionError(error instanceof Error ? error.message : "The floor-plan positions could not be saved.");
     }
   }
 
@@ -595,7 +617,11 @@ export default function EventTablesPage() {
             </div>
           ) : seatingView === "floor" ? (
             <div className="space-y-4">
-              <FloorPlanBoard tables={visibleTables} />
+              <FloorPlanBoard
+                tables={visibleTables}
+                onSavePositions={saveFloorPositions}
+                onOpenTable={(table) => void openTableDetail(table)}
+              />
               {unassignedGuests.length > 0 ? (
                 <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900">
                   {unassignedGuests.length} guests are still unassigned. Switch to Guest Placement view to place them quickly.
@@ -981,44 +1007,136 @@ export default function EventTablesPage() {
   );
 }
 
-/** FloorPlanBoard renders a compact seat-fill floor plan summary for table operations. */
-function FloorPlanBoard({ tables }: { tables: Table[] }) {
-  const sortedTables = [...tables].sort((left, right) => {
-    const leftNumber = left.tableNumber ?? Number.MAX_SAFE_INTEGER;
-    const rightNumber = right.tableNumber ?? Number.MAX_SAFE_INTEGER;
-    if (leftNumber !== rightNumber) return leftNumber - rightNumber;
-    return left.name.localeCompare(right.name);
-  });
+const FLOOR_WIDTH = 1040;
+const FLOOR_HEIGHT = 650;
+const FLOOR_TABLE_WIDTH = 138;
+const FLOOR_TABLE_HEIGHT = 112;
+const FLOOR_GRID = 20;
+
+function suggestedFloorPosition(index: number) {
+  const columns = 6;
+  return {
+    xPosition: 30 + (index % columns) * 165,
+    yPosition: 105 + Math.floor(index / columns) * 145,
+  };
+}
+
+function clampFloorPosition(value: number, maximum: number): number {
+  return Math.max(20, Math.min(maximum, Math.round(value / FLOOR_GRID) * FLOOR_GRID));
+}
+
+/** Interactive, persisted venue diagram for table placement and night-of orientation. */
+function FloorPlanBoard({
+  tables,
+  onSavePositions,
+  onOpenTable,
+}: {
+  tables: Table[];
+  onSavePositions: (positions: Array<{ id: string; xPosition: number; yPosition: number }>) => Promise<void>;
+  onOpenTable: (table: Table) => void;
+}) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [positions, setPositions] = useState<Record<string, { xPosition: number; yPosition: number }>>({});
+  const dragRef = useRef<{ id: string; startX: number; startY: number; xPosition: number; yPosition: number } | null>(null);
+  const [movingTableId, setMovingTableId] = useState<string | null>(null);
+  const [savingLayout, setSavingLayout] = useState(false);
+
+  useEffect(() => {
+    setPositions(Object.fromEntries(tables.map((table, index) => {
+      const stored = table.xPosition || table.yPosition
+        ? { xPosition: table.xPosition, yPosition: table.yPosition }
+        : suggestedFloorPosition(index);
+      return [table.id, stored];
+    })));
+  }, [tables]);
+
+  function startMove(event: ReactPointerEvent<HTMLButtonElement>, table: Table) {
+    if (event.button !== 0) return;
+    const position = positions[table.id] ?? suggestedFloorPosition(tables.indexOf(table));
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { id: table.id, startX: event.clientX, startY: event.clientY, ...position };
+    setMovingTableId(table.id);
+  }
+
+  function move(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const xPosition = clampFloorPosition(drag.xPosition + event.clientX - drag.startX, FLOOR_WIDTH - FLOOR_TABLE_WIDTH - 20);
+    const yPosition = clampFloorPosition(drag.yPosition + event.clientY - drag.startY, FLOOR_HEIGHT - FLOOR_TABLE_HEIGHT - 20);
+    setPositions((current) => ({ ...current, [drag.id]: { xPosition, yPosition } }));
+  }
+
+  async function finishMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const position = {
+      xPosition: clampFloorPosition(drag.xPosition + event.clientX - drag.startX, FLOOR_WIDTH - FLOOR_TABLE_WIDTH - 20),
+      yPosition: clampFloorPosition(drag.yPosition + event.clientY - drag.startY, FLOOR_HEIGHT - FLOOR_TABLE_HEIGHT - 20),
+    };
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+    setMovingTableId(null);
+    setPositions((current) => ({ ...current, [drag.id]: position }));
+    await onSavePositions([{ id: drag.id, ...position }]);
+  }
+
+  async function autoArrange() {
+    const next = tables.map((table, index) => ({ id: table.id, ...suggestedFloorPosition(index) }));
+    setPositions(Object.fromEntries(next.map(({ id, ...position }) => [id, position])));
+    setSavingLayout(true);
+    await onSavePositions(next);
+    setSavingLayout(false);
+  }
+
+  const assigned = tables.reduce((sum, table) => sum + table._count.guests, 0);
+  const capacity = tables.reduce((sum, table) => sum + table.capacity, 0);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="text-lg font-bold text-gray-900">Floor Plan View</h2>
-      <p className="mt-1 text-xs text-gray-500">Quick visual capacity map for tables and host coverage.</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {sortedTables.map((table) => {
-          const usedSeats = table._count.guests;
-          const fillRate = table.capacity > 0 ? Math.round((usedSeats / table.capacity) * 100) : 0;
-          const safeFillRate = Math.max(0, Math.min(100, fillRate));
-          const overCapacity = fillRate > 100;
-          return (
-            <article key={table.id} className={`rounded-lg border px-3 py-2 ${table.isSponsored ? "border-violet-300 bg-violet-50" : "border-slate-200 bg-slate-50"}`}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-900">{table.tableNumber != null ? `#${table.tableNumber} ` : ""}{table.name}</p>
-                {table.hostName ? (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">Host</span>
-                ) : (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">No host</span>
-                )}
-              </div>
-              <p className="mt-1 text-xs text-slate-600">{usedSeats}/{table.capacity} seats</p>
-              <div className="mt-2 h-2 rounded-full bg-slate-200">
-                <div className={`h-2 rounded-full ${overCapacity ? "bg-red-500" : "bg-violet-500"}`} style={{ width: `${safeFillRate}%` }} />
-              </div>
-              <p className="mt-1 text-[11px] text-slate-500">{fillRate}% filled</p>
-            </article>
-          );
-        })}
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2"><h2 className="text-lg font-bold text-slate-900">Venue floor plan</h2><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Saved layout</span></div>
+          <p className="mt-1 text-xs text-slate-500">Drag tables onto the room grid. Positions snap to 20 pixels and save when released.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">{tables.length} tables · {assigned}/{capacity} seats</span>
+          <button type="button" disabled={savingLayout} onClick={() => void autoArrange()} className="rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-semibold text-violet-800 hover:bg-violet-50 disabled:opacity-50">{savingLayout ? "Arranging…" : "Auto-arrange"}</button>
+          <button type="button" onClick={() => window.print()} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Print plan</button>
+        </div>
+      </header>
+
+      <div className="overflow-x-auto bg-slate-100 p-3 sm:p-4">
+        <div ref={canvasRef} className="relative mx-auto overflow-hidden border border-slate-300 bg-white shadow-inner" style={{ width: FLOOR_WIDTH, height: FLOOR_HEIGHT, backgroundImage: "linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(90deg, #e2e8f0 1px, transparent 1px)", backgroundSize: `${FLOOR_GRID}px ${FLOOR_GRID}px` }}>
+          <div className="absolute left-5 right-5 top-5 flex h-14 items-center justify-center border-2 border-dashed border-slate-300 bg-slate-50 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Stage / presentation wall</div>
+          <div className="absolute bottom-4 left-4 rounded border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">Main entrance</div>
+          {tables.map((table, index) => {
+            const position = positions[table.id] ?? suggestedFloorPosition(index);
+            const usedSeats = table._count.guests;
+            const overCapacity = usedSeats > table.capacity;
+            const openSeats = Math.max(0, table.capacity - usedSeats);
+            return (
+              <button
+                key={table.id}
+                type="button"
+                onPointerDown={(event) => startMove(event, table)}
+                onPointerMove={move}
+                onPointerUp={(event) => void finishMove(event)}
+                onPointerCancel={(event) => void finishMove(event)}
+                onDoubleClick={() => onOpenTable(table)}
+                className={`absolute touch-none select-none p-2 text-left shadow-md outline-none transition-shadow focus:ring-2 focus:ring-violet-500 ${table.shape === "round" ? "rounded-[32px]" : table.shape === "square" ? "rounded-md" : "rounded-xl"} ${movingTableId === table.id ? "z-20 cursor-grabbing shadow-xl ring-2 ring-violet-500" : "z-10 cursor-grab hover:shadow-lg"} ${overCapacity ? "border-2 border-rose-500 bg-rose-50" : table.isSponsored ? "border-2 border-violet-400 bg-violet-50" : "border border-slate-300 bg-white"}`}
+                style={{ left: position.xPosition, top: position.yPosition, width: FLOOR_TABLE_WIDTH, height: FLOOR_TABLE_HEIGHT }}
+                aria-label={`${table.name}, ${usedSeats} of ${table.capacity} seats. Drag to move; double click for TableLink.`}
+              >
+                <span className="block truncate text-center text-[10px] font-bold uppercase tracking-wide text-violet-700">{table.tableNumber != null ? `Table ${table.tableNumber}` : "Table"}</span>
+                <strong className="mt-1 block truncate text-center text-sm text-slate-950">{table.name}</strong>
+                <span className={`mt-1 block text-center text-[11px] font-semibold ${overCapacity ? "text-rose-700" : openSeats === 0 ? "text-slate-600" : "text-emerald-700"}`}>{usedSeats}/{table.capacity} seated{openSeats ? ` · ${openSeats} open` : ""}</span>
+                <span className="mt-1 block truncate text-center text-[10px] text-slate-500">{table.hostName ? `Host: ${table.hostName}` : "Host needed"}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
+      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500"><span>Tip: double-click a table for seats, host access, invitations, and email history.</span><span>Round, square, and rectangular table shapes are preserved.</span></footer>
     </section>
   );
 }

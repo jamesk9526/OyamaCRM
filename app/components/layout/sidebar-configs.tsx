@@ -34,6 +34,7 @@ const DONOR_ICONS = {
   livecom: <DonorPackIcon slug="communications" />,
   stewardPaths: <AdvancedPackIcon name="steward-paths-special" />,
   signals: <DonorPackIcon slug="steward-signals" />,
+  research: <DonorPackIcon slug="steward-signals" />,
   agentSteward: <DonorPackIcon slug="steward-ai" />,
   volunteers: <DonorPackIcon slug="volunteer" />,
   events: <DonorPackIcon slug="event-fundraising" />,
@@ -57,14 +58,6 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       icon: DONOR_ICONS.tasks,
       kind: "daily_tool" as const,
       description: "Review live task, communication, and CRM work alerts in one stream.",
-    },
-    {
-      id: "reports",
-      label: "Reports",
-      href: "/reports",
-      icon: DONOR_ICONS.reports,
-      kind: "insight" as const,
-      description: "Open DonorCRM report tools for giving, retention, stewardship, and campaigns.",
     },
     {
       id: "oyama-beta-features",
@@ -136,6 +129,14 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           kind: "workspace" as const,
           description: "View donor CRM overview and fundraising health.",
         },
+        {
+          id: "reports",
+          label: "Reports",
+          href: "/reports",
+          icon: DONOR_ICONS.reports,
+          kind: "insight" as const,
+          description: "Open donor reports for giving, retention, stewardship, and campaigns.",
+        },
       ],
     },
     {
@@ -151,6 +152,15 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           icon: DONOR_ICONS.constituents,
           kind: "core_record" as const,
           description: "Manage donors, volunteers, members, and supporters.",
+        },
+        {
+          id: "donor-research",
+          label: "Donor Research",
+          href: "/donor-research",
+          icon: DONOR_ICONS.research,
+          kind: "insight" as const,
+          badge: "New" as SidebarItemBadge,
+          description: "Research reviewable public-source evidence with provenance and confidence.",
         },
         {
           id: "steward-signals",

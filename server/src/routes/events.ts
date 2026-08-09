@@ -48,6 +48,7 @@ const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
 const MAX_SEATS_PER_PUBLIC_REGISTRATION = 50;
 const MAX_CHECKIN_CODE_GENERATION_ATTEMPTS = 10;
 const MAX_EVENT_TABLE_CAPACITY = 500;
+const MAX_EVENT_FLOOR_COORDINATE = 5000;
 const EVENT_TABLE_SHAPES = new Set(["round", "rectangle", "rectangular", "square"]);
 const EVENT_TABLE_STATUSES = new Set(["DRAFT", "OPEN", "SUBMITTED", "LOCKED", "EVENT_DAY", "ARCHIVED"]);
 const EVENT_TABLE_SEAT_STATUSES = new Set(["EMPTY", "RESERVED", "INVITED", "CONFIRMED", "CHECKED_IN", "CANCELLED"]);
@@ -822,6 +823,11 @@ function normalizeEventTableNumber(value: unknown): number | null {
 function normalizeEventTableCapacity(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= MAX_EVENT_TABLE_CAPACITY ? parsed : null;
+}
+
+function normalizeEventFloorCoordinate(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= MAX_EVENT_FLOOR_COORDINATE ? parsed : null;
 }
 
 function eventSeatErrorResponse(error: unknown): { status: number; code: string; message: string } | null {
@@ -3747,6 +3753,12 @@ router.post("/:eventId/tables", async (req, res) => {
     });
     return;
   }
+  const normalizedXPosition = normalizeEventFloorCoordinate(xPosition ?? 0);
+  const normalizedYPosition = normalizeEventFloorCoordinate(yPosition ?? 0);
+  if (normalizedXPosition === null || normalizedYPosition === null) {
+    res.status(400).json({ error: { code: "INVALID_TABLE_POSITION", message: `Table positions must be whole numbers from 0 through ${MAX_EVENT_FLOOR_COORDINATE}.` } });
+    return;
+  }
   const normalizedStatus = status === undefined ? undefined : normalizeTextInput(status, 30).toUpperCase();
   if (normalizedStatus !== undefined && !EVENT_TABLE_STATUSES.has(normalizedStatus)) {
     res.status(400).json({
@@ -3800,8 +3812,8 @@ router.post("/:eventId/tables", async (req, res) => {
       hostEmail: normalizedHostEmail || undefined,
       hostPhone: normalizeTextInput(hostPhone, 40) || undefined,
       shape: normalizedShape,
-      xPosition: xPosition ?? 0,
-      yPosition: yPosition ?? 0,
+      xPosition: normalizedXPosition,
+      yPosition: normalizedYPosition,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The table could not be created.";
@@ -3905,6 +3917,12 @@ router.patch("/tables/:tableId", async (req, res) => {
     });
     return;
   }
+  const normalizedXPosition = xPosition === undefined ? undefined : normalizeEventFloorCoordinate(xPosition);
+  const normalizedYPosition = yPosition === undefined ? undefined : normalizeEventFloorCoordinate(yPosition);
+  if ((xPosition !== undefined && normalizedXPosition === null) || (yPosition !== undefined && normalizedYPosition === null)) {
+    res.status(400).json({ error: { code: "INVALID_TABLE_POSITION", message: `Table positions must be whole numbers from 0 through ${MAX_EVENT_FLOOR_COORDINATE}.` } });
+    return;
+  }
   const normalizedStatus = status === undefined ? undefined : normalizeTextInput(status, 30).toUpperCase();
   if (normalizedStatus !== undefined && !EVENT_TABLE_STATUSES.has(normalizedStatus)) {
     res.status(400).json({
@@ -3955,8 +3973,8 @@ router.patch("/tables/:tableId", async (req, res) => {
       ...(hostName !== undefined && { hostName: normalizeTextInput(hostName, 120) || null }),
       ...(normalizedHostEmail !== undefined && { hostEmail: normalizedHostEmail || null }),
       ...(hostPhone !== undefined && { hostPhone: normalizeTextInput(hostPhone, 40) || null }),
-      ...(xPosition !== undefined && { xPosition }),
-      ...(yPosition !== undefined && { yPosition }),
+      ...(normalizedXPosition !== undefined && normalizedXPosition !== null && { xPosition: normalizedXPosition }),
+      ...(normalizedYPosition !== undefined && normalizedYPosition !== null && { yPosition: normalizedYPosition }),
       ...(normalizedShape !== undefined && { shape: normalizedShape }),
       ...(normalizedStatus !== undefined && { status: normalizedStatus as EventTableStatus }),
     });

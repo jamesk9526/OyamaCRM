@@ -222,6 +222,8 @@ export interface TriviaEvent {
   linkedEventsEventName?: string;
   eventsSyncMode?: TriviaEventsSyncMode;
   eventsLastSyncedAt?: string | null;
+  /** Public EventSTUDIO RSVP route created with the linked event. */
+  eventsPublicPagePath?: string;
   createdAt: string;
   updatedAt: string;
 }

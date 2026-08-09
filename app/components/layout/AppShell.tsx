@@ -65,6 +65,7 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "data-tools",
   "designations",
   "donations",
+  "donor-research",
   "email-builder",
   "events",
   "features",

@@ -99,6 +99,9 @@ function ConstituentRowMoreMenu({
           <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
             Edit
           </Link>
+          <Link href={`/donor-research?constituentId=${encodeURIComponent(constituent.id)}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
+            Research Public Sources
+          </Link>
           <button
             type="button"
             onClick={() => {
@@ -254,7 +257,7 @@ export default function ConstituentTable({
 
   return (
     <div className="overflow-hidden bg-white">
-      <div className="divide-y divide-slate-100 md:hidden">
+      <div className="divide-y divide-slate-100 lg:hidden">
         {sorted.map((c) => (
           <article key={c.id} className="p-3.5">
             <div className="flex items-start justify-between gap-3">
@@ -264,7 +267,10 @@ export default function ConstituentTable({
                 </Link>
                 {c.email ? <p className="mt-0.5 truncate text-xs text-slate-500">{c.email}</p> : null}
               </div>
-              <ConstituentStatusBadge status={c.donorStatus} />
+              <div className="flex shrink-0 items-center gap-2">
+                <ConstituentStatusBadge status={c.donorStatus} />
+                {selectable ? <input type="checkbox" checked={selectedSet.has(c.id)} onChange={() => toggleRow(c.id)} aria-label={`Select ${getConstituentDisplayName(c)}`} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" /> : null}
+              </div>
             </div>
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -285,16 +291,21 @@ export default function ConstituentTable({
             ) : null}
 
             <div className="mt-3 flex items-center justify-between gap-2">
-              <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-                Edit
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                  Edit
+                </Link>
+                <Link href={`/donor-research?constituentId=${encodeURIComponent(c.id)}`} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
+                  Research
+                </Link>
+              </div>
               <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
             </div>
           </article>
         ))}
       </div>
 
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr className="border-b border-[#d1d1d1] bg-[#f3f2f1]">

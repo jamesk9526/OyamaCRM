@@ -297,9 +297,17 @@ export default function ConstituentsPage() {
                 <p className="mt-1 text-sm text-slate-600">Search, segment, and act on one live donor directory. The counts below are interactive views, not duplicated dashboard metrics.</p>
               </div>
             </div>
-            <Link href="/data-tools/import" className="inline-flex h-9 shrink-0 items-center justify-center rounded-[2px] border border-[#c8c6c4] bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-[#f3f2f1] hover:text-[#0f548c]">
-              Import data
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/donor-research" className="inline-flex h-9 shrink-0 items-center justify-center rounded-[2px] border border-[#8bb8df] bg-[#eff6fc] px-3.5 text-sm font-semibold text-[#0f548c] hover:bg-[#deecf9]">
+                Donor research
+              </Link>
+              <Link href="/data-tools/import" className="inline-flex h-9 shrink-0 items-center justify-center rounded-[2px] border border-[#c8c6c4] bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-[#f3f2f1] hover:text-[#0f548c]">
+                Import data
+              </Link>
+              <Link href="/constituents/new" className="inline-flex h-9 shrink-0 items-center justify-center rounded-[2px] bg-[#0f6cbd] px-3.5 text-sm font-semibold text-white hover:bg-[#0b5a9d]">
+                Add constituent
+              </Link>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="Constituent directory quick views">
@@ -388,7 +396,7 @@ export default function ConstituentsPage() {
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Could not connect to API — start it with <code className="bg-amber-100 px-1 rounded">pnpm start:server</code>
+          {error}
         </div>
       )}
 

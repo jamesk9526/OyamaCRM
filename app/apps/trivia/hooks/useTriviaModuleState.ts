@@ -37,6 +37,7 @@ import { createDefaultDisplaySettings, createDefaultLiveState, createDefaultScor
 import { createSampleTriviaEvent } from "@/app/apps/trivia/lib/trivia-sample-data";
 import {
   createServerTriviaSnapshot,
+  createIntegratedTriviaEvent,
   listServerTriviaAudit,
   listServerTriviaSnapshots,
   loadServerTriviaState,
@@ -52,6 +53,9 @@ interface CreateTriviaEventInput {
   venue: string;
   hostName: string;
   startAt: string;
+  maximumTables: number;
+  seatsPerTable: number;
+  tablePrice: number;
 }
 
 interface AddTeamInput {
@@ -273,7 +277,7 @@ export function useTriviaModuleState() {
     commit(nextState);
   }
 
-  function createEvent(input: CreateTriviaEventInput): TriviaEvent {
+  async function createEvent(input: CreateTriviaEventInput): Promise<TriviaEvent> {
     const nowIso = new Date().toISOString();
     const eventId = createTriviaId("trivia-event");
 
@@ -293,11 +297,18 @@ export function useTriviaModuleState() {
       updatedAt: nowIso,
     };
 
+    const created = await createIntegratedTriviaEvent(nextEvent, {
+      maximumTables: input.maximumTables,
+      seatsPerTable: input.seatsPerTable,
+      tablePrice: input.tablePrice,
+    });
+    const integratedEvent = created.event;
+
     const nextState: TriviaModuleState = {
-      events: [nextEvent, ...state.events],
+      events: [integratedEvent, ...state.events.filter((event) => event.id !== integratedEvent.id)],
       liveByEventId: {
         ...state.liveByEventId,
-        [eventId]: createDefaultLiveState(nextEvent),
+        [eventId]: createDefaultLiveState(integratedEvent),
       },
       scoreHistoryByEventId: {
         ...state.scoreHistoryByEventId,
@@ -306,7 +317,7 @@ export function useTriviaModuleState() {
     };
 
     commit(nextState);
-    return nextEvent;
+    return integratedEvent;
   }
 
   function createSampleEvent(): TriviaEvent {

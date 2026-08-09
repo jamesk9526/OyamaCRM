@@ -12,6 +12,7 @@ interface EventsLinkPayload {
     syncMode: "automatic" | "manual";
     lastSyncedAt: string | null;
     error: string | null;
+    publicPagePath: string | null;
   };
   availableEvents: Array<{
     id: string;
@@ -180,7 +181,8 @@ export default function TriviaEventsLinkPanel({
       {link?.oyamaEventId ? (
         <div className="mt-3 flex flex-wrap gap-2">
           <Link href={`/events/${link.oyamaEventId}/tables`} className="inline-flex min-h-11 items-center border border-white/15 bg-white/5 px-3 text-xs font-semibold text-white hover:bg-white/10">Manage tables & members in Events →</Link>
-          <Link href={`/events/${link.oyamaEventId}/event-page`} className="inline-flex min-h-11 items-center border border-white/15 bg-white/5 px-3 text-xs font-semibold text-white hover:bg-white/10">Public RSVP page →</Link>
+          <Link href={`/events/${link.oyamaEventId}/event-page`} className="inline-flex min-h-11 items-center border border-white/15 bg-white/5 px-3 text-xs font-semibold text-white hover:bg-white/10">Edit RSVP site →</Link>
+          {link.publicPagePath ? <Link href={link.publicPagePath} target="_blank" className="inline-flex min-h-11 items-center border border-emerald-400/40 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20">Open live RSVP site ↗</Link> : null}
           <button type="button" disabled={busy} onClick={() => void unlink()} className={`min-h-11 border px-3 text-xs font-semibold disabled:opacity-50 ${unlinkArmed ? "border-rose-400 bg-rose-500/15 text-rose-100" : "border-slate-600 text-slate-300 hover:bg-white/5"}`}>{unlinkArmed ? "Confirm remove link" : "Remove link"}</button>
         </div>
       ) : null}

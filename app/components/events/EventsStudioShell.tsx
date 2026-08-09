@@ -8,6 +8,11 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 import { apiFetch } from "@/app/lib/auth-client";
 import { resolveLegacyGlobalEventsRedirect } from "@/app/lib/events-route-boundaries";
+import {
+  EVENT_JOURNEY_STAGES,
+  EVENT_WORKSPACE_TOOLS,
+  STAGE_META,
+} from "@/app/components/events/events-workspace-config";
 
 interface EventSummary {
   id: string;
@@ -15,6 +20,7 @@ interface EventSummary {
   status?: string;
   startDate?: string;
   location?: string;
+  type?: string;
 }
 
 const STATIC_EVENT_SEGMENTS = new Set([
@@ -82,7 +88,7 @@ function formatEventDate(value?: string): string {
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function EventStudioIcon({ label }: { label: string }) {
+function EventStudioIcon({ label, icon }: { label: string; icon?: string }) {
   const iconMap: Record<string, string> = {
     Events: "□",
     Overview: "◷",
@@ -103,7 +109,7 @@ function EventStudioIcon({ label }: { label: string }) {
     Settings: "⚙",
   };
 
-  return <span className="grid h-5 w-5 place-items-center text-[15px] leading-none">{iconMap[label] ?? "•"}</span>;
+  return <span className="grid h-5 w-5 place-items-center text-[15px] leading-none" aria-hidden="true">{icon ?? iconMap[label] ?? "•"}</span>;
 }
 
 /** Dark EventSTUDIO app frame with an event-first navigation model. */
@@ -113,6 +119,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeEvent, setActiveEvent] = useState<EventSummary | null>(null);
+  const [events, setEvents] = useState<EventSummary[]>([]);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
 
   const activeEventId = useMemo(() => getActiveEventId(pathname), [pathname]);
@@ -158,6 +165,20 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
     };
   }, [activeEventId]);
 
+  useEffect(() => {
+    let active = true;
+    async function loadEvents() {
+      try {
+        const result = await apiFetch<EventSummary[]>("/api/events");
+        if (active) setEvents(Array.isArray(result) ? result : []);
+      } catch {
+        if (active) setEvents([]);
+      }
+    }
+    void loadEvents();
+    return () => { active = false; };
+  }, []);
+
   if (loading || !user) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#080a22] text-white">
@@ -168,53 +189,64 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
 
   const eventName = activeEvent?.name ?? "Select Event";
   const scopedNav = activeEventId
-    ? [
-        { label: "Overview", href: `/events/${activeEventId}/overview` },
-        { label: "RSVPs & Guests", href: `/events/${activeEventId}/guests` },
-        { label: "Tables", href: `/events/${activeEventId}/tables` },
-        { label: "Check-In", href: `/events/${activeEventId}/check-in` },
-        { label: "Public Page", href: `/events/${activeEventId}/event-page` },
-        { label: "Fundraising", href: `/events/${activeEventId}/donations` },
-        { label: "Outreach", href: `/events/${activeEventId}/emails` },
-        { label: "Reports", href: `/events/${activeEventId}/reports` },
-        { label: "Settings", href: `/events/${activeEventId}/settings` },
-      ]
+    ? EVENT_WORKSPACE_TOOLS.map((tool) => ({
+        label: tool.label,
+        href: `/events/${activeEventId}/${tool.routeSegment ?? "overview"}`,
+        icon: tool.icon,
+        stage: tool.stage,
+      }))
     : [
-        { label: "Events", href: "/events/events" },
+        { label: "All events", href: "/events/events", icon: "▦", stage: "Plan" as const },
+        { label: "Templates", href: "/events/templates", icon: "▤", stage: "Plan" as const },
+        { label: "Cross-event reports", href: "/events/reports", icon: "⌁", stage: "Follow Up" as const },
       ];
+  const activeSegment = pathname.split("/").filter(Boolean).at(-1) ?? "overview";
+
+  function switchEvent(eventId: string) {
+    if (!eventId) {
+      router.push("/events/events");
+      return;
+    }
+    const segment = EVENT_WORKSPACE_TOOLS.some((tool) => tool.routeSegment === activeSegment)
+      ? activeSegment
+      : "overview";
+    router.push(`/events/${eventId}/${segment}`);
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f8fc] text-slate-950">
-      <aside className="hidden w-28 shrink-0 flex-col border-r border-white/10 bg-[linear-gradient(180deg,#241062_0%,#120c3b_55%,#0a0d27_100%)] text-white shadow-[12px_0_36px_rgba(17,24,39,0.22)] lg:flex">
-        <div className="flex h-16 items-center justify-center border-b border-white/10">
-          <Link href="/events/events" className="text-center text-sm font-bold tracking-tight">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-white/10 bg-[linear-gradient(180deg,#241062_0%,#120c3b_55%,#0a0d27_100%)] text-white shadow-[12px_0_36px_rgba(17,24,39,0.22)] lg:flex">
+        <div className="flex h-16 items-center border-b border-white/10 px-4">
+          <Link href="/events/events" className="text-left text-base font-bold tracking-tight">
             Event<span className="text-violet-300">STUDIO</span>
+            <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200/70">Plan, invite, run, follow up</span>
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
-          {scopedNav.map((item) => {
-            const active = pathname === item.href || (item.label === "Overview" && pathname === `/events/${activeEventId}`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={[
-                  "group flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold transition",
+        <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-4" aria-label="Event workflow">
+          {(activeEventId ? EVENT_JOURNEY_STAGES : (["Plan", "Follow Up"] as const)).map((stage) => {
+            const items = scopedNav.filter((item) => item.stage === stage);
+            if (!items.length) return null;
+            return <section key={stage}>
+              <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-200/55">{activeEventId ? STAGE_META[stage].label : stage === "Plan" ? "Event workspace" : "Across events"}</p>
+              <div className="space-y-0.5">{items.map((item) => {
+                const active = pathname === item.href || (item.label === "Overview" && pathname === `/events/${activeEventId}`);
+                return <Link key={item.href} href={item.href} className={[
+                  "group flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition",
                   active ? "bg-violet-500 text-white shadow-lg shadow-violet-950/30" : "text-violet-100/88 hover:bg-white/10 hover:text-white",
-                ].join(" ")}
-              >
-                <EventStudioIcon label={item.label} />
-                <span className="max-w-full truncate">{item.label}</span>
-              </Link>
-            );
+                ].join(" ")}>
+                  <EventStudioIcon label={item.label} icon={item.icon} />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                </Link>;
+              })}</div>
+            </section>;
           })}
         </nav>
 
-        <div className="border-t border-white/10 px-2 py-3">
-          <Link href="/events/events" className="flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold text-violet-100/90 hover:bg-white/10">
-            <span className="text-lg">‹</span>
-            <span>Events</span>
+        <div className="border-t border-white/10 px-3 py-3">
+          <Link href="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-violet-100/90 hover:bg-white/10">
+            <span aria-hidden="true">←</span>
+            <span>Back to Donor CRM</span>
           </Link>
         </div>
       </aside>
@@ -268,9 +300,17 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
 
             <div className="min-w-0 text-sm">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="font-semibold text-white">{activeToolLabel}</span>
-                {activeEventId ? <span className="text-white/35">/</span> : null}
-                {activeEventId ? <span className="truncate text-white/86">{eventName}</span> : null}
+                <span className="hidden font-semibold text-white md:inline">{activeToolLabel}</span>
+                <select
+                  aria-label="Switch event"
+                  value={activeEventId ?? ""}
+                  onChange={(event) => switchEvent(event.target.value)}
+                  className="min-w-0 max-w-60 rounded-md border border-white/15 bg-[#151833] px-2 py-1.5 text-xs font-semibold text-white outline-none focus:border-violet-400 sm:min-w-52"
+                >
+                  <option value="">All events</option>
+                  {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
+                  {activeEventId && !events.some((event) => event.id === activeEventId) ? <option value={activeEventId}>{eventName}</option> : null}
+                </select>
               </div>
               {activeEventId ? (
                 <p className="truncate text-[11px] text-violet-100/65">
@@ -316,7 +356,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
                     active ? "bg-violet-600 text-white" : "border border-slate-200 bg-white text-slate-700",
                   ].join(" ")}
                 >
-                  <EventStudioIcon label={item.label} />
+                  <EventStudioIcon label={item.label} icon={item.icon} />
                   {item.label}
                 </Link>
               );

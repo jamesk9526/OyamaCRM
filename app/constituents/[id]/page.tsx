@@ -490,6 +490,10 @@ export default function ConstituentDetailPage() {
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                   Edit Profile
                 </Link>
+                <Link href={`/donor-research?constituentId=${encodeURIComponent(id)}`} className={QA_BTN}>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4a7 7 0 1 0 4.9 12l4.1 4m-9-13a4 4 0 0 1 4 4"/></svg>
+                  Donor Research
+                </Link>
               </div>
             </div>
 
@@ -562,7 +566,6 @@ export default function ConstituentDetailPage() {
                   donations={c.donations ?? []}
                   onDelete={handleDeleteDonation}
                   deletingDonationId={deletingDonationId}
-                  constituentId={id}
                   onRecordGift={() => setShowGiftModal(true)}
                 />
               )}
@@ -770,10 +773,6 @@ function OverviewTab({
   const recentActivity = c.activities.slice(0, 5);
   const householdLabel = c.headOf?.name ?? c.household?.name;
 
-  const lapseRisk = c.lastGiftDate
-    ? Math.floor((Date.now() - new Date(c.lastGiftDate).getTime()) / 86400000) > 120 ? "high" : "low"
-    : "unknown";
-
   const summary =
     c.giftCount === 0
       ? `${fullName} has not given yet. Steward recommends a qualification touchpoint to confirm mission fit, preferred channel, and next ask timing.`
@@ -894,13 +893,11 @@ function GivingTab({
   donations,
   onDelete,
   deletingDonationId,
-  constituentId,
   onRecordGift,
 }: {
   donations: ConstituentDetail["donations"];
   onDelete?: (id: string) => void;
   deletingDonationId?: string | null;
-  constituentId: string;
   onRecordGift: () => void;
 }) {
   return (

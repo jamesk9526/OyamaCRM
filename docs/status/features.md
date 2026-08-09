@@ -1,6 +1,31 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-01 (contextual CRM help and location-aware support tickets)_
+_Last focused audit: 2026-08-09 (Donor CRM layouts, reports, constituents, and public-source research)_
+
+## 2026-08-09 Donor CRM Layout and Research Audit
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Review-first Donor Research workspace | Working | `app/donor-research/page.tsx`, `app/components/donor-research/DonorResearchWorkspace.tsx`, `server/src/routes/donor-research.ts`, `server/src/services/public-donor-research.ts` | Staff can select a constituent, run transient ProPublica or configured SEC lookups, inspect the original source, document identity-match confidence/rationale, save an unverified finding, and explicitly verify or dismiss it. This is external evidence research, not the internal cohort analysis in Steward Signals. |
+| Durable sourced research findings | Working after migration | `prisma/schema.prisma`, migration `20260809143000_add_donor_research_findings` | Findings preserve organization/constituent scope, source URL and record ID, disclosed-amount label, match confidence, reviewer status, and audit actors. No raw provider payload, guessed net worth, or auto-verified match is stored. |
+| Public source adapters | Partially Working | ProPublica adapter; SEC adapter plus `.env.example` | Nonprofit Explorer is available without a local key. SEC EDGAR requires `SEC_EDGAR_USER_AGENT`. IRS bulk data and licensed vendor adapters are researched but not implemented. |
+| Constituent directory responsive actions | Working | `app/constituents/page.tsx`, `app/components/constituents/ConstituentTable.tsx`, `app/constituents/[id]/page.tsx` | Phone/tablet cards retain bulk selection, edit, and research actions; desktop tables begin at the large breakpoint; primary create/import/research actions are discoverable; API errors remain truthful. |
+| Searchable responsive report library | Working | `app/components/donor-reports/DonorReportsSpreadsheet.tsx`, `app/components/layout/sidebar-configs.tsx` | Reports are in primary Overview navigation, the library supports live discovery and less-dense tiles, and report rows render as labeled mobile/tablet cards before switching to the desktop grid. |
+
+Audit: `docs/status/audit-artifacts/2026-08-09-donor-crm-layout-and-research-audit.md`.
+
+Validation: focused donor/report/research coverage passed 134/134; focused ESLint and web/server typechecks passed; Prisma validation/client generation passed; the production build passed with 186 routes. Browser checks covered the Donor Research desktop/phone layouts and unauthenticated redirect. Database migration deployment remains blocked by the pre-existing local-history drift documented in the audit.
+
+## 2026-08-09 Event System Redesign
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Unified Trivia/Event creation | Working | `server/src/routes/trivia.ts`, `app/apps/trivia/events/new/page.tsx` | Creating Trivia also creates and links a durable EventSTUDIO event, table ticket, and published RSVP page. |
+| Simplified EventSTUDIO journey | Working | `app/components/events/EventsStudioShell.tsx`, `events-workspace-config.ts` | All event tools are organized by Plan, Fill, Fundraise, Run, and Follow Up with in-context event switching. |
+| Visual table layout | Working | `app/events/tables/page.tsx`, `server/src/routes/events.ts` | Drag, snap, persist, auto-arrange, print, capacity, host coverage, and TableLink drill-in are live. |
+| Public RSVP for free/offline events | Working | Events public page and registration routes | Published pages create durable orders, tables, seats, guests, and check-in codes. Card payment verification remains Not Implemented. |
+
+Audit: `docs/audits/event-system-audit-2026-08-09.md`.
 
 ## 2026-08-01 Contextual Help and Support Tickets
 

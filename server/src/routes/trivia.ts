@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import express, { type Request } from "express";
 import rateLimit from "express-rate-limit";
+import type { Prisma } from "@prisma/client";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { evaluateRecipientEligibility, hashPublicEmailToken, isValidEmailAddress } from "../services/email-compliance.js";
@@ -15,6 +16,7 @@ import { createEventTable, syncEventTableSeats } from "../services/event-table-s
 
 const router = express.Router();
 const publicRouter = express.Router();
+const EVENTS_PAGE_BUILDER_PLUGIN_KEY = "events-page-builder";
 const accessClaimLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   limit: 30,
@@ -107,6 +109,131 @@ function ensureOrgStore(store: StoreShape, organizationId: string): Organization
   };
   store.organizations[organizationId] = created;
   return created;
+}
+
+function triviaEventPageSlug(name: unknown): string {
+  const base = String(name ?? "trivia-night")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 44) || "trivia-night";
+  return `${base}-${randomUUID().replace(/-/g, "").slice(0, 6)}`;
+}
+
+function boundedWholeNumber(value: unknown, fallback: number, minimum: number, maximum: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
+
+function publicEventPagePath(config: unknown, eventId: string): string | null {
+  if (!isObject(config) || !isObject(config.events)) return null;
+  const entry = config.events[eventId];
+  if (!isObject(entry) || entry.status !== "Published") return null;
+  const slug = String(entry.pageSlug ?? "").trim();
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ? `/${slug}` : null;
+}
+
+/** Creates the durable Events record, team ticket, and published RSVP page used by a Trivia event. */
+async function createTriviaEventStudioWorkspace(organizationId: string, incoming: JsonObject) {
+  const setup = isObject(incoming.eventStudioSetup) ? incoming.eventStudioSetup : {};
+  const name = String(incoming.name ?? "").trim().slice(0, 160);
+  const venue = String(incoming.venue ?? "").trim().slice(0, 255);
+  const hostName = String(incoming.hostName ?? "").trim().slice(0, 120);
+  const startAt = new Date(String(incoming.startAt ?? ""));
+  if (!name) throw new Error("A trivia event name is required.");
+  if (Number.isNaN(startAt.getTime())) throw new Error("Choose a valid event date and time.");
+
+  const maximumTables = boundedWholeNumber(setup.maximumTables, 30, 1, 500);
+  const seatsPerTable = boundedWholeNumber(setup.seatsPerTable, 6, 1, 50);
+  const requestedPrice = Number(setup.tablePrice ?? 0);
+  const tablePrice = Number.isFinite(requestedPrice) ? Math.min(1_000_000, Math.max(0, requestedPrice)) : 0;
+  const pageSlug = triviaEventPageSlug(name);
+  const now = nowIso();
+
+  return prisma.$transaction(async (tx) => {
+    const eventStudio = await tx.event.create({
+      data: {
+        organizationId,
+        name,
+        description: hostName
+          ? `Trivia night hosted by ${hostName}. Register a team through this public page.`
+          : "Register a team for this trivia night.",
+        type: "TRIVIA",
+        status: "REGISTRATION_OPEN",
+        visibility: "PUBLIC",
+        location: venue || undefined,
+        startDate: startAt,
+        capacity: maximumTables * seatsPerTable,
+        registrationGoal: maximumTables * seatsPerTable,
+        internalNotes: "Created automatically from Oyama Trivia. Trivia owns game content; EventSTUDIO owns RSVPs, tables, seats, guests, and check-in.",
+        active: true,
+      },
+    });
+
+    await tx.ticketType.create({
+      data: {
+        eventId: eventStudio.id,
+        name: "Team table",
+        description: `Reserve one team table for up to ${seatsPerTable} players.`,
+        price: tablePrice,
+        capacity: maximumTables,
+        available: maximumTables,
+        isTable: true,
+        seatsIncluded: seatsPerTable,
+        minPerOrder: 1,
+        maxPerOrder: 1,
+        active: true,
+      },
+    });
+
+    const existingSetting = await tx.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY } },
+      select: { config: true },
+    });
+    const existingConfig = isObject(existingSetting?.config) ? clone(existingSetting.config) : {};
+    const existingEvents = isObject(existingConfig.events) ? existingConfig.events : {};
+    const pageEntry = {
+      pageSlug,
+      status: "Published",
+      lastPublishedAt: now,
+      paymentPolicy: tablePrice > 0 ? "OfflineFollowUp" : "NoPaymentRequired",
+      deploymentHistory: [{
+        id: `deploy-${randomUUID().slice(0, 12)}`,
+        action: "Published",
+        status: "Published",
+        pageSlug,
+        deployedAt: now,
+      }],
+      updatedAt: now,
+      sections: [
+        { id: "hero", enabled: true, lockToEventData: true, content: { kicker: "Trivia night", primaryButtonText: "Reserve a team", primaryButtonLink: "#registration" } },
+        { id: "event-details", enabled: true, lockToEventData: true },
+        { id: "registration-form", enabled: true, lockToEventData: true, advanced: { anchorId: "registration" } },
+        { id: "map-location", enabled: Boolean(venue), lockToEventData: true },
+        { id: "share-buttons", enabled: true, lockToEventData: true },
+        { id: "footer", enabled: true, lockToEventData: true },
+      ],
+    };
+    const nextConfig = { ...existingConfig, events: { ...existingEvents, [eventStudio.id]: pageEntry } };
+
+    await tx.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY } },
+      create: {
+        organizationId,
+        pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+        enabled: true,
+        config: nextConfig as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        enabled: true,
+        config: nextConfig as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    return { eventStudio, pageSlug, publicPagePath: `/${pageSlug}` };
+  });
 }
 
 function hashSecret(value: string): string {
@@ -1077,6 +1204,7 @@ router.put("/state", async (req, res) => {
       eventsSyncMode: currentEvent.eventsSyncMode,
       eventsLastSyncedAt: currentEvent.eventsLastSyncedAt,
       eventsSyncError: currentEvent.eventsSyncError,
+      eventsPublicPagePath: currentEvent.eventsPublicPagePath,
     } : {};
     return { ...reconciled, ...linkedFields, teams: normalizeRosterTableNumbers(Array.isArray(reconciled.teams) ? reconciled.teams.filter(isObject) : []) };
   });
@@ -1110,19 +1238,44 @@ router.get("/events", async (req, res) => {
 
 router.post("/events", async (req, res) => {
   const store = await loadStore();
-  const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
+  const organizationId = resolveOrganizationId(req);
+  const orgStore = ensureOrgStore(store, organizationId);
   const events = getStateEvents(orgStore);
   const now = nowIso();
   const incoming = isObject(req.body) ? clone(req.body) : {};
   const eventId = typeof incoming.id === "string" && incoming.id.trim() ? incoming.id : `trivia-event-${randomUUID().slice(0, 12)}`;
 
+  let eventStudio: Awaited<ReturnType<typeof createTriviaEventStudioWorkspace>> | null = null;
+  if (!String(incoming.linkedEventsEventId ?? "").trim()) {
+    try {
+      eventStudio = await createTriviaEventStudioWorkspace(organizationId, incoming);
+    } catch (error) {
+      res.status(400).json({
+        error: {
+          code: "CONNECTED_EVENT_CREATE_FAILED",
+          message: error instanceof Error ? error.message : "The connected EventSTUDIO workspace could not be created.",
+        },
+      });
+      return;
+    }
+  }
+
   const nextEvent: JsonObject = {
     ...incoming,
+    eventStudioSetup: undefined,
     id: eventId,
     rounds: Array.isArray(incoming.rounds) ? incoming.rounds : [],
     teams: normalizeRosterTableNumbers(Array.isArray(incoming.teams) ? incoming.teams.filter(isObject) : []),
     createdAt: typeof incoming.createdAt === "string" ? incoming.createdAt : now,
     updatedAt: now,
+    ...(eventStudio ? {
+      linkedEventsEventId: eventStudio.eventStudio.id,
+      linkedEventsEventName: eventStudio.eventStudio.name,
+      eventsSyncMode: "automatic",
+      eventsLastSyncedAt: now,
+      eventsSyncError: null,
+      eventsPublicPagePath: eventStudio.publicPagePath,
+    } : {}),
   };
 
   const idx = events.findIndex((event) => event.id === eventId);
@@ -1136,9 +1289,12 @@ router.post("/events", async (req, res) => {
   if (getScoreHistory(orgStore, eventId).length === 0) setScoreHistory(orgStore, eventId, []);
 
   orgStore.updatedAt = now;
-  pushAudit(orgStore, eventId, "manual", "Event created or updated");
+  pushAudit(orgStore, eventId, "manual", eventStudio ? "Trivia and EventSTUDIO workspaces created and linked" : "Event created or updated");
   await persistStore(store);
-  res.status(idx >= 0 ? 200 : 201).json({ event: nextEvent });
+  res.status(idx >= 0 ? 200 : 201).json({
+    event: nextEvent,
+    eventStudio: eventStudio ? { id: eventStudio.eventStudio.id, publicPagePath: eventStudio.publicPagePath } : null,
+  });
 });
 
 router.get("/events/:eventId", async (req, res) => {
@@ -1168,20 +1324,29 @@ router.get("/events/:eventId/events-link", async (req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Trivia event not found." } });
     return;
   }
-  const availableEvents = await prisma.event.findMany({
-    where: { organizationId, active: true },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      status: true,
-      startDate: true,
-      location: true,
-      _count: { select: { tables: true, guests: true } },
-    },
-    orderBy: [{ startDate: "desc" }, { name: "asc" }],
-    take: 100,
-  });
+  const [availableEvents, pageSetting] = await Promise.all([
+    prisma.event.findMany({
+      where: { organizationId, active: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        status: true,
+        startDate: true,
+        location: true,
+        _count: { select: { tables: true, guests: true } },
+      },
+      orderBy: [{ startDate: "desc" }, { name: "asc" }],
+      take: 100,
+    }),
+    prisma.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY } },
+      select: { config: true },
+    }),
+  ]);
+  const configuredPublicPath = String(event.linkedEventsEventId ?? "").trim()
+    ? publicEventPagePath(pageSetting?.config, String(event.linkedEventsEventId))
+    : null;
   res.json({
     link: {
       oyamaEventId: event.linkedEventsEventId ?? "",
@@ -1189,6 +1354,7 @@ router.get("/events/:eventId/events-link", async (req, res) => {
       syncMode: event.eventsSyncMode ?? "automatic",
       lastSyncedAt: event.eventsLastSyncedAt ?? null,
       error: event.eventsSyncError ?? null,
+      publicPagePath: configuredPublicPath ?? event.eventsPublicPagePath ?? null,
     },
     availableEvents,
   });

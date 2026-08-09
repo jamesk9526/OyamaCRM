@@ -1,6 +1,19 @@
 # Events CRM — Feature Status
 
-_Last updated: 2026-05-18_
+_Last updated: 2026-08-09_
+
+## 2026-08-09 Unified Events + Trivia Redesign
+
+| Surface | Status | Evidence | Notes |
+|---|---|---|---|
+| Trivia → EventSTUDIO creation | Working | `app/apps/trivia/events/new/page.tsx`, `useTriviaModuleState.ts`, `server/src/routes/trivia.ts` | One reviewed setup creates and links the Trivia record, EventSTUDIO event, team-table ticket, capacity, and public RSVP site. |
+| New Trivia public RSVP site | Working | `server/src/routes/trivia.ts`, Events public page/read/register routes | A unique page is published automatically with free confirmation or explicit offline payment follow-up. Verified online event payment remains Not Implemented. |
+| EventSTUDIO navigation | Working | `app/components/events/EventsStudioShell.tsx`, `events-workspace-config.ts` | Mounted shell now uses one Plan → Fill → Fundraise → Run → Follow Up journey and keeps the selected tool when switching events. |
+| Interactive floor plan | Working | `app/events/tables/page.tsx`, `server/src/routes/events.ts`, `EventTable.xPosition/yPosition` | Tables drag and snap on a room grid, positions persist, auto-arrange is available, and invalid server coordinates are rejected. |
+| Trivia high-impact action review | Working | `app/apps/trivia/events/page.tsx` | Go-live, completion, and permanent deletion require confirmation; readiness gaps are shown before launch. |
+| Full database integration validation | Blocked | Local run 2026-08-09 | MySQL was unavailable at `localhost:3306`; web/server typechecks and focused source tests passed. |
+
+Full findings: `docs/audits/event-system-audit-2026-08-09.md`.
 
 ## 2026-05-18 Slice C — Public Page Completion & Builder Gap Pass
 

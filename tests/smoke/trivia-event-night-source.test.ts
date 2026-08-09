@@ -90,13 +90,45 @@ describe("Trivia event-night controls", () => {
     expect(triviaRoute).toContain('router.patch("/events/:eventId/events-link"');
     expect(triviaRoute).toContain('router.post("/events/:eventId/events-sync"');
     expect(linkPanel).toContain("Manage tables & members in Events");
-    expect(linkPanel).toContain("Public RSVP page");
+    expect(linkPanel).toContain("Edit RSVP site");
+    expect(linkPanel).toContain("Open live RSVP site");
     expect(eventsRoute).toContain("registeredTable");
     expect(eventsRoute).toContain("nextOpenEventTableNumber");
     expect(publicRegistration).toContain("A unique table number is assigned automatically");
     expect(schema).toContain("@@unique([eventId, tableNumber])");
     expect(schema).toContain("TRIVIA");
     expect(schema).toContain("FUNDRAISER");
+  });
+
+  it("creates Trivia, EventSTUDIO, and a published RSVP site as one setup", () => {
+    const triviaRoute = read("server/src/routes/trivia.ts");
+    const createPage = read("app/apps/trivia/events/new/page.tsx");
+    const provider = read("app/apps/trivia/lib/trivia-state-provider.ts");
+
+    expect(triviaRoute).toContain("createTriviaEventStudioWorkspace");
+    expect(triviaRoute).toContain('type: "TRIVIA"');
+    expect(triviaRoute).toContain('status: "REGISTRATION_OPEN"');
+    expect(triviaRoute).toContain('status: "Published"');
+    expect(triviaRoute).toContain('id: "registration-form"');
+    expect(triviaRoute).toContain('name: "Team table"');
+    expect(triviaRoute).toContain("eventsPublicPagePath");
+    expect(provider).toContain("createIntegratedTriviaEvent");
+    expect(createPage).toContain("Create Event, Trivia & RSVP Site");
+  });
+
+  it("provides a persisted interactive venue plan and simplified event journey", () => {
+    const tableWorkspace = read("app/events/tables/page.tsx");
+    const eventShell = read("app/components/events/EventsStudioShell.tsx");
+    const eventRoute = read("server/src/routes/events.ts");
+
+    expect(tableWorkspace).toContain("Venue floor plan");
+    expect(tableWorkspace).toContain("onPointerMove");
+    expect(tableWorkspace).toContain("saveFloorPositions");
+    expect(tableWorkspace).toContain("Auto-arrange");
+    expect(eventRoute).toContain("INVALID_TABLE_POSITION");
+    expect(eventShell).toContain("EVENT_JOURNEY_STAGES");
+    expect(eventShell).toContain("Plan, invite, run, follow up");
+    expect(eventShell).toContain('aria-label="Switch event"');
   });
 
   it("keeps builder and projector useable for event staff", () => {
