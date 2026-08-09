@@ -24,6 +24,9 @@ import AiInsightsWidget from "./AiInsightsWidget";
 import AiOpportunityWidget from "./AiOpportunityWidget";
 import AiChatWidget from "./AiChatWidget";
 import MonthlyDonationsWidget from "./MonthlyDonationsWidget";
+import DesignationMixWidget from "./DesignationMixWidget";
+import CampaignScorecardWidget from "./CampaignScorecardWidget";
+import RecurringGivingHealthWidget from "./RecurringGivingHealthWidget";
 import type { ReportingYearMode } from "@/app/lib/fiscal-year";
 import type { DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutModal";
@@ -120,6 +123,24 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
       return (
         <DashboardWidget key={id} id={id} title="This Month's Giving" subtitle="Running total · click to see donors" {...editProps}>
           <MonthlyDonationsWidget />
+        </DashboardWidget>
+      );
+    case "designation-mix":
+      return (
+        <DashboardWidget key={id} id={id} title="Giving by Fund" subtitle={data.reportingYearMode === "fiscal" ? "Current fiscal-year designation mix" : "Current-year designation mix"} {...editProps}>
+          <DesignationMixWidget dateBasis={data.reportingYearMode} />
+        </DashboardWidget>
+      );
+    case "campaign-scorecard":
+      return (
+        <DashboardWidget key={id} id={id} title="Campaign Scorecard" subtitle="Top active campaigns by funds raised" {...editProps}>
+          <CampaignScorecardWidget />
+        </DashboardWidget>
+      );
+    case "recurring-giving-health":
+      return (
+        <DashboardWidget key={id} id={id} title="Recurring Giving Health" subtitle="Live payment-plan performance" {...editProps}>
+          <RecurringGivingHealthWidget />
         </DashboardWidget>
       );
     case "giving-trend":

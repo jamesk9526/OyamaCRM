@@ -35,6 +35,9 @@ describe("Donor CRM visual refresh foundation", () => {
     const dashboardTypes = read("app/features/donor-dashboard/types.ts");
     const dashboardConfig = read("app/components/dashboard/dashboardPageConfig.ts");
     const campaignGoalHealth = read("app/components/dashboard/CampaignGoalHealthWidget.tsx");
+    const designationMix = read("app/components/dashboard/DesignationMixWidget.tsx");
+    const campaignScorecard = read("app/components/dashboard/CampaignScorecardWidget.tsx");
+    const recurringGivingHealth = read("app/components/dashboard/RecurringGivingHealthWidget.tsx");
     const donationsPage = read("app/donations/page.tsx");
     const donationsRoute = read("server/src/routes/donations.ts");
     const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
@@ -80,6 +83,12 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(dashboardConfig).toContain("DEFAULT_DASHBOARD_INSIGHT_WIDGETS");
     expect(dashboardConfig).toContain("DEFAULT_HIDDEN_WIDGETS");
     expect(dashboardConfig).toContain("DASHBOARD_WIDGET_DEFAULTS_VERSION");
+    expect(dashboardConfig).toContain("designation-mix");
+    expect(dashboardConfig).toContain("campaign-scorecard");
+    expect(dashboardConfig).toContain("recurring-giving-health");
+    expect(designationMix).toContain("/api/reports/designations-summary");
+    expect(campaignScorecard).toContain("/api/campaigns?active=true&limit=5");
+    expect(recurringGivingHealth).toContain("donor.getRecurringGivingHealth");
     expect(campaignGoalHealth).toContain("No active campaign goal is set");
     expect(campaignGoalHealth).toContain("if (safeGoal === 0)");
     expect(monthlyDonations).toContain("/api/reports/donors-this-month");

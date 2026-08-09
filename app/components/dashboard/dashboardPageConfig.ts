@@ -26,6 +26,7 @@ export const DEFAULT_WIDGET_ORDER = [
   "ai-chat",
   "revenue",
   "goal-health",
+  "campaign-scorecard",
   "donation-velocity",
   "fundraising-forecast",
   "retention",
@@ -36,6 +37,8 @@ export const DEFAULT_WIDGET_ORDER = [
   "top-donors",
   "weekly-stats",
   "monthly-donors",
+  "designation-mix",
+  "recurring-giving-health",
   "giving-trend",
   "recent-donations",
   "tasks",
@@ -54,6 +57,9 @@ export type AutoArrangePreset = "BALANCED" | "ALTERNATING_WIDE" | "FEATURE_FIRST
  */
 export const DEFAULT_DASHBOARD_INSIGHT_WIDGETS: WidgetId[] = [
   "giving-trend",
+  "designation-mix",
+  "campaign-scorecard",
+  "recurring-giving-health",
   "stewardship-attention",
   "top-donors",
   "tasks",
@@ -78,6 +84,7 @@ export const WIDGET_META: WidgetMeta[] = [
   { id: "ai-chat", label: "AI Chat", description: "Compact ask-and-reply Steward assistant" },
   { id: "revenue", label: "Revenue Progress", description: "Active campaign goal tracking" },
   { id: "goal-health", label: "Campaign Goal Health", description: "Goal gap and campaign attainment" },
+  { id: "campaign-scorecard", label: "Campaign Scorecard", description: "Top active campaigns by funds raised" },
   { id: "donation-velocity", label: "Donation Velocity", description: "Short-horizon gift speed and average trend" },
   { id: "fundraising-forecast", label: "Fundraising Forecast", description: "Projected year-end pacing toward goal" },
   { id: "retention", label: "Donor Retention", description: "Year-over-year retention rate" },
@@ -89,6 +96,8 @@ export const WIDGET_META: WidgetMeta[] = [
   { id: "weekly-stats", label: "This Week", description: "Weekly donation activity summary" },
   { id: "giving-trend", label: "Giving Trend", description: "Monthly giving totals chart" },
   { id: "monthly-donors", label: "This Month's Giving", description: "Running donation total for the current month with donor list" },
+  { id: "designation-mix", label: "Giving by Fund", description: "Current-period designation mix" },
+  { id: "recurring-giving-health", label: "Recurring Giving Health", description: "Live recurring payment-plan health" },
   { id: "recent-donations", label: "Recent Donations", description: "Last 8 gifts received" },
   { id: "tasks", label: "Tasks", description: "Open & upcoming staff tasks" },
   { id: "meetings", label: "Upcoming Meetings", description: "Scheduled donor meetings" },
@@ -121,6 +130,7 @@ export const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   "ai-chat": "standard",
   revenue: "standard",
   "goal-health": "standard",
+  "campaign-scorecard": "standard",
   "donation-velocity": "standard",
   "fundraising-forecast": "standard",
   retention: "standard",
@@ -131,6 +141,8 @@ export const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
   "top-donors": "standard",
   "weekly-stats": "standard",
   "monthly-donors": "standard",
+  "designation-mix": "standard",
+  "recurring-giving-health": "standard",
   "giving-trend": "hero",
   "recent-donations": "standard",
   tasks: "wide",
@@ -140,6 +152,7 @@ export const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
 export const TOP_KPI_WIDGETS: WidgetId[] = [
   "revenue",
   "goal-health",
+  "campaign-scorecard",
   "donation-velocity",
   "fundraising-forecast",
   "retention",
@@ -151,8 +164,8 @@ export const TOP_KPI_WIDGETS: WidgetId[] = [
 export const STEWARDSHIP_WIDGETS: WidgetId[] = ["actionable-insights", "stewardship-attention"];
 export const INTELLIGENCE_WIDGETS: WidgetId[] = ["ai-insights", "ai-opportunities", "ai-chat"];
 export const WEEKLY_WIDGETS: WidgetId[] = ["weekly-stats", "recent-donations"];
-export const MONTHLY_WIDGETS: WidgetId[] = ["monthly-donors", "giving-trend"];
-export const OTHER_WIDGETS: WidgetId[] = ["top-donors", "tasks", "meetings"];
+export const MONTHLY_WIDGETS: WidgetId[] = ["monthly-donors", "designation-mix", "giving-trend"];
+export const OTHER_WIDGETS: WidgetId[] = ["top-donors", "recurring-giving-health", "tasks", "meetings"];
 
 function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;

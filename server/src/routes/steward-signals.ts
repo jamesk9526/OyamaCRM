@@ -950,31 +950,8 @@ async function performStewardSignalsIndexRebuild(params: {
     readStewardIndexState(params.organizationId, fingerprint),
   ]);
 
-  const operations: Prisma.PrismaPromise<unknown>[] = [];
-  const pushValueUpsert = (fieldKey: string, entityId: string, value: string) => {
-    const fieldId = fieldIds[fieldKey];
-    if (!fieldId) return;
-    operations.push(
-      prisma.customFieldValue.upsert({
-        where: {
-          fieldId_entityId: {
-            fieldId,
-            entityId,
-          },
-        },
-        create: {
-          fieldId,
-          entityId,
-          entityType: "constituent",
-          value,
-        },
-        update: {
-          value,
-        },
-      })
-    );
-  };
-
+  const signalFieldIds = Object.values(fieldIds);
+  const signalValues: Prisma.CustomFieldValueCreateManyInput[] = [];
   for (const constituent of constituents) {
     const lapseRisk = deriveLapseRisk(constituent.donorStatus, constituent.lastGiftDate);
     const generosityScore = deriveGenerosityScore({
@@ -998,20 +975,43 @@ async function performStewardSignalsIndexRebuild(params: {
       doNotCall: constituent.doNotCall,
     });
 
-    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.generosity, constituent.id, encodeSignalValue(generosityScore));
-    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.lapseRisk, constituent.id, encodeSignalValue(lapseRisk));
-    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.opportunity, constituent.id, encodeSignalValue(opportunityScore));
-    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.recommendation, constituent.id, encodeSignalValue(recommendation));
-    pushValueUpsert(STEWARD_SIGNAL_FIELD_KEYS.indexedAt, constituent.id, encodeSignalValue(indexedAtIso));
+    const values: Array<[string, string]> = [
+      [STEWARD_SIGNAL_FIELD_KEYS.generosity, encodeSignalValue(generosityScore)],
+      [STEWARD_SIGNAL_FIELD_KEYS.lapseRisk, encodeSignalValue(lapseRisk)],
+      [STEWARD_SIGNAL_FIELD_KEYS.opportunity, encodeSignalValue(opportunityScore)],
+      [STEWARD_SIGNAL_FIELD_KEYS.recommendation, encodeSignalValue(recommendation)],
+      [STEWARD_SIGNAL_FIELD_KEYS.indexedAt, encodeSignalValue(indexedAtIso)],
+    ];
 
-    if (operations.length >= 500) {
-      await prisma.$transaction(operations.splice(0, operations.length));
+    for (const [fieldKey, value] of values) {
+      const fieldId = fieldIds[fieldKey];
+      if (!fieldId) continue;
+      signalValues.push({
+        fieldId,
+        entityId: constituent.id,
+        entityType: "constituent",
+        value,
+      });
     }
   }
 
-  if (operations.length > 0) {
-    await prisma.$transaction(operations);
-  }
+  // A full rebuild replaces values owned by these five index fields.  Bulk writes
+  // avoid five independent upserts per constituent, which made a normal manual
+  // refresh slow enough to time out on larger CRM databases.
+  await prisma.$transaction(async (tx) => {
+    if (signalFieldIds.length > 0) {
+      await tx.customFieldValue.deleteMany({
+        where: { fieldId: { in: signalFieldIds } },
+      });
+    }
+
+    const batchSize = 500;
+    for (let offset = 0; offset < signalValues.length; offset += batchSize) {
+      await tx.customFieldValue.createMany({
+        data: signalValues.slice(offset, offset + batchSize),
+      });
+    }
+  }, { timeout: 25_000 });
 
   const nextState: StewardIndexState = {
     fingerprint,
