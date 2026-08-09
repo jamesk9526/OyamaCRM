@@ -105,6 +105,9 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(topBar).toContain("bg-slate-950/25");
     expect(topBar).toContain("Search records, workflows, reports, and tools");
     expect(topBar).toContain('aria-label="Open command search"');
+    expect(topBar).toContain('aria-label="Open Donor Research"');
+    expect(topBar).toContain('href="/donor-research"');
+    expect(topBar).toContain("DonorResearchIcon");
     expect(topBar).toContain("Command Search");
     expect(topBar).toContain("autoFocus wide");
     expect(topBar).toContain('bg-[#061a36]');

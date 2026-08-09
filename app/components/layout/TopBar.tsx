@@ -121,6 +121,17 @@ function BellIcon({ className = "w-5 h-5" }: { className?: string }) {
   );
 }
 
+/** Small research icon used for the global individual-donor research shortcut. */
+function DonorResearchIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="10.75" cy="10.75" r="5.75" />
+      <path strokeLinecap="round" d="m15 15 4.25 4.25" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 10.75h4.5M10.75 8.5v4.5" />
+    </svg>
+  );
+}
+
 /** Neutral AI icon for the donor topbar Steward workspace entry point. */
 function AiOrbIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -874,6 +885,11 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const darkIconButtonBase = isDonorEnterpriseChrome
     ? "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-300 transition-all duration-200 hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95"
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
+  const donorResearchMobileButtonBase = chromeButtonBase.replace("rounded-xl", "rounded-full");
+  const donorResearchDesktopButtonBase = darkIconButtonBase.replace("rounded-lg", "rounded-full");
+  const donorResearchActiveClass = pathname === "/donor-research"
+    ? (isDonorEnterpriseChrome ? "bg-emerald-400/20 text-emerald-100 ring-1 ring-emerald-300/50" : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200")
+    : "";
   const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
   const moduleChromePalette = resolveTopBarModuleChromePalette(moduleKey, donorChromeTint);
   const homeHref = resolveTopBarHomeHref(moduleKey);
@@ -1470,6 +1486,15 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           {/* Mobile top-right priority controls */}
           <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
             <WorkspaceStatusControl dark={isDonorEnterpriseChrome} />
+            <Link
+              href="/donor-research"
+              title="Open Donor Research"
+              aria-label="Open Donor Research"
+              aria-current={pathname === "/donor-research" ? "page" : undefined}
+              className={`${donorResearchMobileButtonBase} ${donorResearchActiveClass}`}
+            >
+              <DonorResearchIcon className="h-[18px] w-[18px]" />
+            </Link>
             {/* Search icon — opens full-screen overlay */}
             <button
               type="button"
@@ -1660,6 +1685,16 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               )}
 
               <div className={`mx-1 h-5 w-px shrink-0 ${isDonorEnterpriseChrome ? "bg-white/15" : "bg-slate-200"}`} />
+
+              <Link
+                href="/donor-research"
+                title="Open Donor Research"
+                aria-label="Open Donor Research"
+                aria-current={pathname === "/donor-research" ? "page" : undefined}
+                className={`${donorResearchDesktopButtonBase} ${donorResearchActiveClass}`}
+              >
+                <DonorResearchIcon />
+              </Link>
 
               <div ref={desktopNotificationsRef} className="relative shrink-0">
                 <button
