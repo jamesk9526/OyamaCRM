@@ -25,13 +25,19 @@ describe("donor research product wiring", () => {
     expect(read("app/components/layout/AppShell.tsx")).toContain('"donor-research",');
   });
 
-  it("keeps public lookups transient and prohibits automated wealth claims", () => {
+  it("keeps lookups transient and gates licensed individual screening", () => {
     const route = read("server/src/routes/donor-research.ts");
     const workspace = read("app/components/donor-research/DonorResearchWorkspace.tsx");
 
     expect(route).toContain('transientLookup: true');
     expect(route).toContain('"Automated net-worth claims"');
-    expect(workspace).toContain("Disclosed facts only");
+    expect(route).toContain('router.post("/lookup-person"');
+    expect(route).toContain("permissionConfirmed");
+    expect(route).toContain("signLicensedEvidence");
+    expect(route).toContain("evidence.result.synthetic");
+    expect(workspace).toContain("Screen individual");
+    expect(workspace).toContain("Facts and labeled estimates");
+    expect(workspace).toContain("Synthetic sandbox sample");
     expect(workspace).toContain("Save for review");
   });
 });

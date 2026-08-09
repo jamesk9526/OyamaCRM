@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 
-type ProviderKey = "propublica" | "sec_edgar";
+type ProviderKey = "propublica" | "sec_edgar" | "wealthengine";
 type Confidence = "LOW" | "MEDIUM" | "HIGH";
 type FindingStatus = "UNVERIFIED" | "VERIFIED" | "DISMISSED";
 
@@ -17,8 +17,10 @@ interface ConstituentOption {
   organizationName?: string | null;
   entityKind?: string | null;
   email?: string | null;
+  addressLine1?: string | null;
   city?: string | null;
   state?: string | null;
+  zip?: string | null;
   employer?: string | null;
   occupation?: string | null;
   type: string;
@@ -33,6 +35,8 @@ interface ProviderStatus {
   access: string;
   bestFor: string;
   limitation: string;
+  mode?: "sandbox" | "production";
+  category?: "individual";
 }
 
 interface PublicResearchResult {
@@ -49,6 +53,9 @@ interface PublicResearchResult {
   suggestedMatchConfidence: "LOW";
   suggestedMatchRationale: string;
   facts: Array<{ label: string; value: string }>;
+  synthetic?: boolean;
+  providerMode?: "sandbox" | "production";
+  evidenceToken?: string;
 }
 
 interface Finding {
@@ -106,6 +113,7 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
   const [matchRationale, setMatchRationale] = useState("");
   const [searchingConstituents, setSearchingConstituents] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  const [screeningPermissionConfirmed, setScreeningPermissionConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -178,6 +186,7 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
     setReviewingResult(null);
     setNotice(null);
     setError(null);
+    setScreeningPermissionConfirmed(false);
     if (constituent.entityKind === "ORGANIZATION") {
       setSourceQuery(constituent.organizationName || displayName(constituent));
     } else if (constituent.employer) {
@@ -213,6 +222,42 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
     }
   }
 
+  async function runPersonLookup() {
+    if (!selectedConstituent) {
+      setError("Choose the individual whose record you are researching first.");
+      return;
+    }
+    if (selectedConstituent.entityKind === "ORGANIZATION") {
+      setError("Individual wealth screening cannot run against an organization constituent record.");
+      return;
+    }
+    if (!screeningPermissionConfirmed) {
+      setError("Confirm that you are authorized to send this constituent's identity to WealthEngine.");
+      return;
+    }
+    setLookingUp(true);
+    setError(null);
+    setNotice(null);
+    setReviewingResult(null);
+    try {
+      const response = await apiFetch<{ results: PublicResearchResult[]; mode: "sandbox" | "production" }>("/api/donor-research/lookup-person", {
+        method: "POST",
+        body: JSON.stringify({ constituentId: selectedConstituent.id, permissionConfirmed: true }),
+      });
+      setSourceResults(response.results);
+      if (response.results.length === 0) {
+        setNotice("WealthEngine did not return a profile for the selected identity. Confirm the CRM email and mailing address before trying again.");
+      } else if (response.mode === "sandbox") {
+        setNotice("This is synthetic WealthEngine sandbox data for testing the workflow. It cannot be saved to the constituent record.");
+      }
+    } catch (requestError) {
+      setSourceResults([]);
+      setError(requestError instanceof Error ? requestError.message : "The individual screening lookup failed.");
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
   function beginReview(result: PublicResearchResult) {
     setReviewingResult(result);
     setMatchConfidence(result.suggestedMatchConfidence);
@@ -223,6 +268,10 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
 
   async function saveFinding() {
     if (!selectedConstituent || !reviewingResult) return;
+    if (reviewingResult.synthetic) {
+      setError("Synthetic sandbox results cannot be saved as donor research.");
+      return;
+    }
     if (matchRationale.trim().length < 12) {
       setError("Explain how this source record may match the constituent before saving it.");
       return;
@@ -279,7 +328,7 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
             <div className="max-w-4xl">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">Oyama Donor CRM / Prospect research</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Donor Research</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Find public foundation, nonprofit, and SEC filing evidence; document why it may match; and keep every result unverified until a staff review.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Research individual donors through a licensed wealth-screening provider, or find public foundation, nonprofit, and SEC evidence. Every result stays reviewable and source-attributed.</p>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:min-w-[330px]">
               <Stat label="Needs review" value={statusCounts.unverified} tone="amber" />
@@ -289,9 +338,9 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
           </div>
         </div>
         <div className="grid gap-px border-t border-slate-200 bg-slate-200 lg:grid-cols-3">
-          <Guardrail title="Disclosed facts only" detail="Oyama stores source facts and amounts as reported. It does not invent a net-worth estimate." />
+          <Guardrail title="Facts and labeled estimates" detail="Public disclosures stay distinct from licensed vendor estimates. Oyama never presents a wealth band as verified assets." />
           <Guardrail title="Human match review" detail="Name results begin at low confidence. Verify identifiers and relationships in the original record." />
-          <Guardrail title="Minimal retention" detail="Transient lookup results are not saved until you document a rationale and choose Save for review." />
+          <Guardrail title="Permissioned screening" detail="Individual identity data leaves Oyama only after an authorized staff member confirms the screening action." />
         </div>
       </section>
 
@@ -347,40 +396,62 @@ export default function DonorResearchWorkspace({ initialConstituentId }: { initi
         </section>
 
         <section className="h-fit rounded-xl border border-slate-200 bg-white shadow-sm">
-          <SectionHeading step="2" title="Search a public source" detail="Lookup results remain transient until saved." />
+          <SectionHeading step="2" title="Choose a research source" detail="Public and licensed lookup results remain transient until saved." />
           <div className="space-y-4 p-4">
             <div className="grid gap-2 sm:grid-cols-2">
               {providerStatuses.map((item) => (
-                <button key={item.key} type="button" onClick={() => { setProvider(item.key); setSourceResults([]); setReviewingResult(null); setSourceQuery(""); }} className={`rounded-lg border p-3 text-left transition ${provider === item.key ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 hover:border-blue-300"}`}>
+                <button key={item.key} type="button" onClick={() => { setProvider(item.key); setSourceResults([]); setReviewingResult(null); setSourceQuery(""); setScreeningPermissionConfirmed(false); setError(null); setNotice(null); }} className={`rounded-lg border p-3 text-left transition ${provider === item.key ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 hover:border-blue-300"}`}>
                   <div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold text-slate-950">{item.name}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.configured ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{item.configured ? "Ready" : "Setup"}</span></div>
                   <p className="mt-1 text-xs leading-5 text-slate-600">{item.bestFor}</p>
                 </button>
               ))}
             </div>
-            {providerStatus ? <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"><span className="font-semibold text-slate-800">Limit:</span> {providerStatus.limitation}</div> : null}
-            <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void runLookup(); }}>
-              <input
-                value={sourceQuery}
-                onChange={(event) => setSourceQuery(event.target.value)}
-                placeholder={provider === "propublica" ? "Foundation or nonprofit name" : "SEC CIK (1–10 digits)"}
-                className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                disabled={!selectedConstituent || providerStatus?.configured === false}
-              />
-              <button type="submit" disabled={!selectedConstituent || lookingUp || providerStatus?.configured === false} className="rounded-md bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">{lookingUp ? "Searching…" : "Search source"}</button>
-            </form>
+            {providerStatus ? <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600"><span className="font-semibold text-slate-800">Access:</span> {providerStatus.access}<br /><span className="font-semibold text-slate-800">Limit:</span> {providerStatus.limitation}</div> : null}
+            {provider === "wealthengine" ? (
+              <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-indigo-950">Screen the selected individual</p>
+                  <p className="mt-1 text-xs leading-5 text-indigo-800">The server sends the CRM identity below to WealthEngine. It prefers a complete name-and-address match and falls back to email; the browser cannot substitute another identity.</p>
+                </div>
+                {selectedConstituent ? (
+                  <dl className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-indigo-100"><dt className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Name</dt><dd className="mt-0.5 text-sm font-medium text-slate-900">{displayName(selectedConstituent)}</dd></div>
+                    <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-indigo-100"><dt className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Email</dt><dd className="mt-0.5 truncate text-sm font-medium text-slate-900">{selectedConstituent.email || "Not recorded"}</dd></div>
+                    <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-indigo-100 sm:col-span-2"><dt className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Mailing address</dt><dd className="mt-0.5 text-sm font-medium text-slate-900">{[selectedConstituent.addressLine1, selectedConstituent.city, selectedConstituent.state, selectedConstituent.zip].filter(Boolean).join(", ") || "Not recorded"}</dd></div>
+                  </dl>
+                ) : <p className="rounded-lg bg-white px-3 py-3 text-xs text-slate-600 ring-1 ring-indigo-100">Choose a constituent before screening.</p>}
+                {selectedConstituent?.entityKind === "ORGANIZATION" ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">This is an organization record. Choose an individual constituent for WealthEngine screening.</p> : null}
+                <label className="flex items-start gap-2 rounded-lg bg-white px-3 py-2.5 text-xs leading-5 text-slate-700 ring-1 ring-indigo-100">
+                  <input type="checkbox" checked={screeningPermissionConfirmed} onChange={(event) => setScreeningPermissionConfirmed(event.target.checked)} disabled={!selectedConstituent || selectedConstituent.entityKind === "ORGANIZATION" || providerStatus?.configured === false} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-700" />
+                  <span>I am authorized to send this constituent&apos;s identity to the configured screening provider for fundraising research.</span>
+                </label>
+                <button type="button" onClick={() => void runPersonLookup()} disabled={!selectedConstituent || selectedConstituent.entityKind === "ORGANIZATION" || !screeningPermissionConfirmed || lookingUp || providerStatus?.configured === false} className="w-full rounded-md bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-50">{lookingUp ? "Screening…" : "Screen individual"}</button>
+              </div>
+            ) : (
+              <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void runLookup(); }}>
+                <input
+                  value={sourceQuery}
+                  onChange={(event) => setSourceQuery(event.target.value)}
+                  placeholder={provider === "propublica" ? "Foundation or nonprofit name" : "SEC CIK (1–10 digits)"}
+                  className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  disabled={!selectedConstituent || providerStatus?.configured === false}
+                />
+                <button type="submit" disabled={!selectedConstituent || lookingUp || providerStatus?.configured === false} className="rounded-md bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">{lookingUp ? "Searching…" : "Search source"}</button>
+              </form>
+            )}
 
             <div className="space-y-3">
               {sourceResults.map((result) => (
                 <article key={`${result.provider}-${result.sourceRecordId}`} className="rounded-xl border border-slate-200 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0"><h3 className="font-semibold text-slate-950">{result.title}</h3><p className="mt-0.5 text-xs text-slate-500">{result.subtitle}</p></div>
-                    <a href={result.sourceUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-semibold text-blue-700 hover:underline">Open original ↗</a>
+                    <a href={result.sourceUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-semibold text-blue-700 hover:underline">{result.provider === "wealthengine" ? "Provider documentation ↗" : "Open original ↗"}</a>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-700">{result.summary}</p>
                   <dl className="mt-3 grid gap-2 sm:grid-cols-2">
                     {result.facts.map((fact) => <div key={fact.label} className="rounded-lg bg-slate-50 px-3 py-2"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{fact.label}</dt><dd className="mt-0.5 text-sm font-medium text-slate-900">{fact.value}</dd></div>)}
                   </dl>
-                  <button type="button" onClick={() => beginReview(result)} className="mt-3 rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100">Review match before saving</button>
+                  {result.synthetic ? <p className="mt-3 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800">Synthetic sandbox sample — saving is disabled.</p> : <button type="button" onClick={() => beginReview(result)} className="mt-3 rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100">Review match before saving</button>}
                 </article>
               ))}
             </div>

@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-09 (Donor CRM layout and public-research audit)
+Last updated: 2026-08-09 (Donor CRM layout and individual/public-research audit)
 
 This file is the release-gate source of truth for production readiness.
 
@@ -10,8 +10,9 @@ This file is the release-gate source of truth for production readiness.
 |---|---|---|
 | Donor public research is distinct from internal Steward analytics | Working | `/donor-research` uses explicit public-source adapters and review states; Steward Signals retains internal giving/cohort analysis. |
 | External evidence keeps provenance and review state | Working after migration | `DonorResearchFinding` and migration `20260809143000_add_donor_research_findings`; source URL/record ID, match rationale/confidence, creator/reviewer, verified/dismissed state, and audit events are durable. |
-| Public lookups do not auto-create wealth claims | Working | ProPublica/SEC normalization stores disclosed facts only, initializes matches at low confidence, keeps lookup results transient, and requires a separate save/review action. |
-| Source access is production-configurable | Partially Working | ProPublica is ready. SEC lookup is disabled until `SEC_EDGAR_USER_AGENT` identifies the application and a monitored contact. IRS bulk and commercial wealth-screening adapters remain Not Implemented. |
+| External lookups do not auto-create wealth claims | Working | ProPublica/SEC normalization stores disclosed facts only. WealthEngine bands are labeled as licensed vendor estimates rather than verified assets. Every match starts low-confidence, remains transient, and requires a separate save/review action. |
+| Individual identity transmission is permissioned and tamper-evident | Working | `POST /api/donor-research/lookup-person` requires `edit:constituents`, a per-action authorization confirmation, and a CRM-scoped individual. The server—not the browser—selects identity fields, logs the screening without PII, and signs each result against its constituent before save. |
+| Source access is production-configurable | Partially Working | ProPublica is ready. SEC lookup is disabled until `SEC_EDGAR_USER_AGENT` identifies the application and a monitored contact. WealthEngine is implemented but disabled until `WEALTHENGINE_API_KEY` is licensed/configured; its sandbox returns synthetic data that cannot be saved. IRS bulk remains Not Implemented. |
 | Constituents and reports remain actionable below desktop width | Working | Constituent selection/actions and generic report result cards are available on phone/tablet layouts; report discovery no longer depends on a dense five-column wall or hover-only actions. |
 | Jurisdiction-specific privacy policy and retention schedule | Release configuration required | Product guardrails follow data-minimization principles, but each operator must approve permitted sources, verifier roles, retention/deletion, constituent access/correction procedures, and commercial vendor terms. |
 | Database-backed Donor Research proof | Blocked | MySQL is reachable, but its migration table contains `20260509110045_add_compassion_crm_models`, which is absent from this checkout. Reconcile that existing history before applying the authored donor-research migration, then rerun authenticated create/verify/dismiss persistence. |

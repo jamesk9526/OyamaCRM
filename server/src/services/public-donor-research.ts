@@ -1,11 +1,12 @@
 /**
- * Normalized adapters for public donor-research sources.
+ * Normalized adapters for public and licensed donor-research sources.
  *
- * These adapters return disclosed source facts only. They do not calculate net worth,
- * propensity, or identity matches, and callers must keep results reviewable before saving.
+ * These adapters return disclosed facts or clearly labeled licensed-provider estimates.
+ * Oyama does not calculate net worth, propensity, or identity matches, and callers must
+ * keep every result reviewable before saving.
  */
 
-export type PublicResearchProvider = "propublica" | "sec_edgar";
+export type PublicResearchProvider = "propublica" | "sec_edgar" | "wealthengine";
 
 export interface PublicResearchFact {
   label: string;
@@ -16,7 +17,7 @@ export interface PublicResearchResult {
   provider: PublicResearchProvider;
   sourceRecordId: string;
   sourceUrl: string;
-  signalType: "FOUNDATION_ACTIVITY" | "NONPROFIT_LEADERSHIP" | "CORPORATE_AFFILIATION";
+  signalType: "FOUNDATION_ACTIVITY" | "NONPROFIT_LEADERSHIP" | "CORPORATE_AFFILIATION" | "WEALTH_SCREENING";
   title: string;
   subtitle: string;
   summary: string;
@@ -26,7 +27,28 @@ export interface PublicResearchResult {
   suggestedMatchConfidence: "LOW";
   suggestedMatchRationale: string;
   facts: PublicResearchFact[];
+  synthetic?: boolean;
+  providerMode?: "sandbox" | "production";
 }
+
+export interface WealthEnginePersonInput {
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  addressLine1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+}
+
+export interface WealthEngineConfiguration {
+  configured: boolean;
+  baseUrl: "https://api.wealthengine.com" | "https://api-sandbox.wealthengine.com";
+  mode: "sandbox" | "production";
+}
+
+const WEALTHENGINE_PRODUCTION_URL = "https://api.wealthengine.com" as const;
+const WEALTHENGINE_SANDBOX_URL = "https://api-sandbox.wealthengine.com" as const;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -63,17 +85,22 @@ function money(value: number): string {
   }).format(value);
 }
 
-async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
+async function fetchJson(
+  url: string,
+  options: { method?: "GET" | "POST"; headers?: Record<string, string>; body?: JsonRecord; redirect?: "follow" | "error" } = {},
+): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     const response = await fetch(url, {
-      method: "GET",
+      method: options.method ?? "GET",
       headers: {
         Accept: "application/json",
-        ...headers,
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
       },
-      redirect: "follow",
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      redirect: options.redirect ?? "follow",
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -88,6 +115,19 @@ async function fetchJson(url: string, headers: Record<string, string> = {}): Pro
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** Returns a non-user-controllable WealthEngine endpoint and whether it contains synthetic data. */
+export function getWealthEngineConfiguration(): WealthEngineConfiguration {
+  const requestedBaseUrl = process.env.WEALTHENGINE_API_BASE_URL?.trim().replace(/\/$/, "");
+  const baseUrl = requestedBaseUrl === WEALTHENGINE_PRODUCTION_URL
+    ? WEALTHENGINE_PRODUCTION_URL
+    : WEALTHENGINE_SANDBOX_URL;
+  return {
+    configured: Boolean(process.env.WEALTHENGINE_API_KEY?.trim()),
+    baseUrl,
+    mode: baseUrl === WEALTHENGINE_PRODUCTION_URL ? "production" : "sandbox",
+  };
 }
 
 /** Normalizes a ProPublica Nonprofit Explorer v2 search response. */
@@ -210,7 +250,140 @@ export async function lookupSecEdgar(cikInput: string, userAgent: string): Promi
   if (!digits || digits.length > 10) throw new Error("Enter a valid SEC CIK containing 1 to 10 digits.");
   const cik = digits.padStart(10, "0");
   const payload = await fetchJson(`https://data.sec.gov/submissions/CIK${cik}.json`, {
-    "User-Agent": userAgent,
+    headers: { "User-Agent": userAgent },
   });
   return normalizeSecPayload(payload);
+}
+
+function unwrapWealthEngineProfile(payload: unknown): JsonRecord {
+  const root = asRecord(payload);
+  for (const candidate of [root.profile, root.result, root.data]) {
+    if (Array.isArray(candidate)) return asRecord(candidate[0]);
+    const record = asRecord(candidate);
+    if (Object.keys(record).length) return record;
+  }
+  return root;
+}
+
+function labeledText(record: JsonRecord, key: string): string {
+  const value = record[key];
+  if (value && typeof value === "object") {
+    const nested = asRecord(value);
+    return textValue(nested.text || nested.label || nested.display || nested.value);
+  }
+  return textValue(value);
+}
+
+/**
+ * Normalizes a licensed WealthEngine response without converting vendor estimates into
+ * disclosed assets. The response remains low-confidence until staff confirms identity.
+ */
+export function normalizeWealthEnginePayload(
+  payload: unknown,
+  options: { mode?: "sandbox" | "production"; lookupMethod?: "address" | "email" } = {},
+): PublicResearchResult[] {
+  const profile = unwrapWealthEngineProfile(payload);
+  if (!Object.keys(profile).length) return [];
+
+  const identity = asRecord(profile.identity);
+  const wealth = asRecord(profile.wealth);
+  const giving = asRecord(profile.giving);
+  const locations = Array.isArray(profile.locations) ? profile.locations : [];
+  const primaryLocation = asRecord(locations[0]);
+  const address = asRecord(primaryLocation.address || profile.address);
+  const firstName = textValue(identity.first_name || identity.firstName || profile.first_name || profile.firstName);
+  const lastName = textValue(identity.last_name || identity.lastName || profile.last_name || profile.lastName);
+  const matchedName = [firstName, lastName].filter(Boolean).join(" ") || "Licensed individual profile";
+  const city = textValue(address.city);
+  const stateRecord = asRecord(address.state);
+  const state = textValue(stateRecord.text || stateRecord.code || address.state);
+  const location = [city, state].filter(Boolean).join(", ");
+  const netWorthBand = labeledText(wealth, "networth") || labeledText(wealth, "net_worth");
+  const giftCapacityBand = labeledText(giving, "gift_capacity") || labeledText(giving, "giftCapacity");
+  const profileId = textValue(
+    identity.we_id
+    || identity.weId
+    || identity.id
+    || profile.we_id
+    || profile.id,
+  ) || "licensed-profile";
+  const mode = options.mode ?? "production";
+  const facts: PublicResearchFact[] = [
+    { label: "Matched identity", value: matchedName },
+    ...(location ? [{ label: "Matched location", value: location }] : []),
+    ...(netWorthBand ? [{ label: "Estimated net worth band", value: netWorthBand }] : []),
+    ...(giftCapacityBand ? [{ label: "Estimated gift capacity", value: giftCapacityBand }] : []),
+    { label: "Provider profile ID", value: profileId },
+    { label: "Screening mode", value: mode === "sandbox" ? "Sandbox — synthetic sample" : "Licensed production data" },
+    ...(options.lookupMethod ? [{ label: "Match route", value: options.lookupMethod === "address" ? "Name and address" : "Email" }] : []),
+  ];
+  const estimates = [
+    netWorthBand ? `an estimated net-worth band of ${netWorthBand}` : null,
+    giftCapacityBand ? `an estimated gift-capacity band of ${giftCapacityBand}` : null,
+  ].filter(Boolean).join(" and ");
+
+  return [{
+    provider: "wealthengine",
+    sourceRecordId: profileId,
+    sourceUrl: "https://apidocs.wealthengine.com/documentation.html",
+    signalType: "WEALTH_SCREENING",
+    title: matchedName,
+    subtitle: [location, mode === "sandbox" ? "Synthetic WealthEngine sandbox profile" : "Licensed WealthEngine profile"].filter(Boolean).join(" · "),
+    summary: mode === "sandbox"
+      ? "WealthEngine returned synthetic sandbox data for workflow testing. This sample is not a real person and cannot be saved as donor research."
+      : estimates
+        ? `WealthEngine returned ${estimates}. These are licensed vendor estimates, not verified assets, a confirmed identity match, or a recommended ask.`
+        : "WealthEngine returned a licensed screening profile without a net-worth or gift-capacity band. Confirm the identity and review the provider record before using any indicator.",
+    disclosedAmount: null,
+    disclosedAmountLabel: null,
+    sourcePublishedAt: null,
+    suggestedMatchConfidence: "LOW",
+    suggestedMatchRationale: "Licensed screening result only. Confirm the matched name, address or email route, and provider profile before marking this finding verified.",
+    facts,
+    synthetic: mode === "sandbox",
+    providerMode: mode,
+  }];
+}
+
+/** Screens one CRM individual through a configured licensed WealthEngine account. */
+export async function lookupWealthEnginePerson(
+  person: WealthEnginePersonInput,
+  apiKey: string,
+  configuration = getWealthEngineConfiguration(),
+): Promise<PublicResearchResult[]> {
+  const firstName = person.firstName.trim();
+  const lastName = person.lastName.trim();
+  if (!firstName || !lastName) throw new Error("The constituent needs a first and last name before individual screening.");
+
+  const hasAddress = Boolean(
+    person.addressLine1?.trim()
+    && person.city?.trim()
+    && person.state?.trim()
+    && person.zip?.trim(),
+  );
+  const lookupMethod = hasAddress ? "address" as const : "email" as const;
+  if (!hasAddress && !person.email?.trim()) {
+    throw new Error("Add either a complete mailing address or an email address before individual screening.");
+  }
+
+  const endpoint = hasAddress
+    ? "/v1/profile/find_one/by_address/basic"
+    : "/v1/profile/find_one/by_email/basic";
+  const body: JsonRecord = hasAddress
+    ? {
+        first_name: firstName,
+        last_name: lastName,
+        address_line1: person.addressLine1?.trim(),
+        city: person.city?.trim(),
+        state: person.state?.trim(),
+        zip: person.zip?.trim(),
+      }
+    : { email: person.email?.trim() };
+  const payload = await fetchJson(`${configuration.baseUrl}${endpoint}`, {
+    method: "POST",
+    headers: { Authorization: `APIKey ${apiKey}` },
+    body,
+    redirect: "error",
+  });
+  return normalizeWealthEnginePayload(payload, { mode: configuration.mode, lookupMethod });
 }
