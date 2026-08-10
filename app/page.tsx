@@ -24,14 +24,15 @@ export default function DashboardPage() {
   const name = user ? `${user.firstName} ${user.lastName}` : "…";
 
   const widgetArea = (
-    <section className="mt-4 min-w-0 rounded-[4px] border border-[#d1d1d1] bg-white p-3.5 sm:p-5">
+    <section className="crm-card-surface mt-5 min-w-0 rounded-xl border p-4 sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3 px-1 sm:items-center">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Performance &amp; pipeline</h2>
-          <p className="text-xs text-slate-500">Core donor insights stay focused here. Use Customize to add deeper analysis without turning the home screen into a report wall.</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Optional intelligence</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Performance workspace</h2>
+          <p className="mt-1 text-xs text-slate-500">Add deeper analysis here when your team needs more than the core operating view.</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-[2px] bg-[#eff6fc] px-3 py-1.5 text-[11px] font-semibold text-[#0f548c] ring-1 ring-[#cfe4fa]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#0f6cbd]" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
           {dashboardState.visibleWidgetOrder.length} insights
         </span>
       </div>

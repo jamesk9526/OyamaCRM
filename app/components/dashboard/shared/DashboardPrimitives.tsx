@@ -5,8 +5,8 @@ import { useId, type ReactNode } from "react";
 
 export type DashboardMetricTone = "indigo" | "blue" | "violet" | "amber" | "sky";
 
-export const DASHBOARD_PANEL_CLASS = "min-w-0 overflow-hidden rounded-[2px] border border-[#d1d1d1] bg-white";
-export const DASHBOARD_PANEL_HEADER_CLASS = "flex items-center justify-between gap-3 border-b border-[#d1d1d1] bg-[#f3f2f1] px-5 py-3";
+export const DASHBOARD_PANEL_CLASS = "crm-card-surface min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white";
+export const DASHBOARD_PANEL_HEADER_CLASS = "flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-5 py-3";
 
 const METRIC_TONES: Record<DashboardMetricTone, { chip: string; stroke: string; iconPath: string }> = {
   indigo: { chip: "bg-[#eff6fc] text-[#0f6cbd]", stroke: "#0f6cbd", iconPath: "M12 5v14M5 12h14" },
