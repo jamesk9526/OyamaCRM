@@ -95,6 +95,8 @@ export interface DonationWidgetSettings {
   hostedPageEyebrow: string;
   /** Footer/support copy displayed on the hosted public page. */
   hostedPageFooter: string;
+  /** Optional HTTPS page where the donor is sent after Stripe completes checkout. */
+  checkoutReturnUrl: string;
   /** Mission headline shown at top of widget. */
   headline: string;
   /** Short supporting copy below headline. */
@@ -460,6 +462,7 @@ export function buildDefaultSiteEmbedWidgetSettings(): SiteEmbedWidgetSettings {
       hostedPageEnabled: false,
       hostedPageEyebrow: "Secure online giving",
       hostedPageFooter: "Questions about your gift? Contact our team for assistance.",
+      checkoutReturnUrl: "",
       headline: "Support Our Mission",
       supportingCopy: "Your generosity helps provide free, compassionate care and practical support to families in our community.",
       suggestedAmounts: [25, 50, 100, 250, 500],
@@ -694,6 +697,18 @@ function isSixDigitHexColor(value: unknown): value is string {
   return /^#[0-9a-fA-F]{6}$/.test(String(value ?? "").trim());
 }
 
+/** Keeps a saved post-checkout redirect to an absolute HTTPS URL only. */
+function normalizeCheckoutReturnUrl(value: unknown): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate || candidate.length > 2048) return "";
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === "https:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Normalizes site-wide appearance settings and prevents unsafe style values from persisting. */
 function normalizeSiteEmbedAppearanceSettings(value: unknown): SiteEmbedAppearanceSettings {
   const defaults = buildDefaultSiteEmbedAppearanceSettings();
@@ -805,6 +820,7 @@ function normalizeSiteWidgetSettings(value: unknown): SiteEmbedWidgetSettings {
     hostedPageEnabled: readBool(raw, "hostedPageEnabled", def.hostedPageEnabled),
     hostedPageEyebrow: readStr(raw, "hostedPageEyebrow", def.hostedPageEyebrow).trim().slice(0, 80),
     hostedPageFooter: readStr(raw, "hostedPageFooter", def.hostedPageFooter).trim().slice(0, 240),
+    checkoutReturnUrl: normalizeCheckoutReturnUrl(readStr(raw, "checkoutReturnUrl", def.checkoutReturnUrl)),
     headline: readStr(raw, "headline", def.headline),
     supportingCopy: readStr(raw, "supportingCopy", def.supportingCopy),
     suggestedAmounts: Array.isArray(raw.suggestedAmounts)
@@ -1659,6 +1675,11 @@ export function buildSiteEmbedLoaderScript(args: {
       window.removeEventListener('message', onStripeReturn);
       if (activeCheckout && typeof activeCheckout.destroy === 'function') {
         try { activeCheckout.destroy(); } catch (_destroyError) {}
+      }
+      var configuredReturnUrl = String(cfg.checkoutReturnUrl || '').trim();
+      if (configuredReturnUrl) {
+        window.location.assign(configuredReturnUrl);
+        return;
       }
       node.innerHTML = '';
       cardBase(node);

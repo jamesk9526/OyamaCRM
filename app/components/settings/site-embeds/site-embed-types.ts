@@ -52,6 +52,7 @@ export interface DonationWidgetSettings {
   hostedPageEnabled: boolean;
   hostedPageEyebrow: string;
   hostedPageFooter: string;
+  checkoutReturnUrl: string;
   headline: string;
   supportingCopy: string;
   suggestedAmounts: number[];

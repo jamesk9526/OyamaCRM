@@ -1500,7 +1500,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
   }
   try {
     const currency = runtime.currency.toLowerCase();
-    const returnUrl = `${resolveApiBaseUrl(req)}/api/site-embeds/public/donation-return?token=${encodeURIComponent(token)}`;
+    const returnUrl = `${resolveApiBaseUrl(req)}/api/site-embeds/public/donation-return?token=${encodeURIComponent(token)}&surface=${encodeURIComponent(checkoutSurface)}`;
 
     let sessionBody: URLSearchParams;
     if (giftType === "monthly") {
@@ -1642,15 +1642,20 @@ router.get("/public/donation-page", async (req, res) => {
  * GET /api/site-embeds/public/donation-return
  * Return URL after Stripe Embedded Checkout completes. Widgets use this to show a thank-you state.
  */
-router.get("/public/donation-return", (_req, res) => {
+router.get("/public/donation-return", async (req, res) => {
   // Stripe appends ?payment_intent=... or ?payment_intent_client_secret=... to this URL.
-  // The embedded widget reads these from postMessage/window.location. This endpoint just confirms the session.
+  // The embedded widget reads these from postMessage/window.location. This endpoint
+  // also returns the administrator-configured post-checkout destination, never a
+  // request-supplied URL, so the bridge cannot be used as an open redirect.
+  const token = readStringInput(req, "token");
+  const hit = token ? await findSiteByToken(token) : null;
+  const redirectUrl = hit?.site.widgets.donation_widget.checkoutReturnUrl || "";
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
 <script>
   // Notify parent frame that Stripe checkout completed.
   if (window.top && window.top !== window) {
-    window.top.postMessage({ oyama_stripe_return: true }, '*');
+    window.top.postMessage({ oyama_stripe_return: true, redirectUrl: ${JSON.stringify(redirectUrl)} }, '*');
   }
 </script></body></html>`);
 });

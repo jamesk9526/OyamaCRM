@@ -91,8 +91,13 @@ export default function HostedGivingPage({ token }: { token: string }) {
     function handleReturn(event: MessageEvent) {
       if (event.data?.oyama_stripe_return !== true) return;
       if (returnOriginRef.current && event.origin !== returnOriginRef.current) return;
+      const redirectUrl = typeof event.data?.redirectUrl === "string" ? event.data.redirectUrl : "";
       checkoutRef.current?.destroy();
       checkoutRef.current = null;
+      if (redirectUrl) {
+        window.location.assign(redirectUrl);
+        return;
+      }
       setCompleted(true);
       setCheckoutActive(false);
       window.scrollTo({ top: 0, behavior: "smooth" });

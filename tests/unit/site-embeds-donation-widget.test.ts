@@ -18,6 +18,7 @@ describe("Stripe donation widget configuration", () => {
 
     expect(widget.allowCustomAmount).toBe(true);
     expect(widget.hostedPageEnabled).toBe(false);
+    expect(widget.checkoutReturnUrl).toBe("");
     expect(widget.customAmountLabel).toBe("Other");
     expect(widget.requireDonorName).toBe(true);
     expect(widget.maximumAmountCents).toBeGreaterThan(widget.minimumAmountCents);
@@ -52,6 +53,35 @@ describe("Stripe donation widget configuration", () => {
     expect(widget.stylePreset).toBe("classic");
     expect(widget.formWidth).toBe("standard");
     expect(widget.buttonLabel.length).toBeLessThanOrEqual(80);
+  });
+
+  it("keeps only an absolute HTTPS post-checkout redirect", () => {
+    const site = buildDefaultSiteEmbedSiteConfig();
+    const parsed = parseSiteEmbedsConfig({
+      version: 2,
+      selectedSiteId: site.id,
+      sites: [{
+        ...site,
+        widgets: {
+          ...site.widgets,
+          donation_widget: { ...site.widgets.donation_widget, checkoutReturnUrl: "https://www.example.org/giving/thank-you" },
+        },
+      }],
+    });
+    expect(parsed.sites[0].widgets.donation_widget.checkoutReturnUrl).toBe("https://www.example.org/giving/thank-you");
+
+    const rejected = parseSiteEmbedsConfig({
+      version: 2,
+      selectedSiteId: site.id,
+      sites: [{
+        ...site,
+        widgets: {
+          ...site.widgets,
+          donation_widget: { ...site.widgets.donation_widget, checkoutReturnUrl: "javascript:alert(1)" },
+        },
+      }],
+    });
+    expect(rejected.sites[0].widgets.donation_widget.checkoutReturnUrl).toBe("");
   });
 
   it("ships runtime support for custom amount controls and embed style overrides", () => {
