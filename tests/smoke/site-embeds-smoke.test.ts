@@ -138,6 +138,13 @@ describe("site embeds smoke", () => {
     expect(hosted.body?.data?.form?.enabled).toBe(true);
     expect(typeof hosted.body?.data?.checkoutReady).toBe("boolean");
     expect(hosted.headers["cache-control"]).toBe("no-store");
+
+    const invalidCheckout = await request(app)
+      .post("/api/site-embeds/public/donation-checkout-embedded")
+      .send({ token: embedToken, surface: "hosted", amount: 0 });
+    expect(invalidCheckout.status).toBe(400);
+    expect(invalidCheckout.body?.error?.code).toBe("VALIDATION_ERROR");
+    expect(invalidCheckout.body?.error?.message).not.toBe("Route not found");
   });
 
   it("verifies the donation form on the configured website domain", async () => {

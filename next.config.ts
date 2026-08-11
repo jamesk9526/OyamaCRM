@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const apiProxyTarget = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const apiProxyTarget = String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000")
+  .trim()
+  .replace(/[?#].*$/, "")
+  .replace(/(?:\/api)+\/?$/i, "")
+  .replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["www.crm.partnertpcc.com"],

@@ -71,7 +71,7 @@ export default function HostedGivingPage({ token }: { token: string }) {
 
   useEffect(() => {
     let active = true;
-    void fetch(`/api/giving/${encodeURIComponent(token)}`, { cache: "no-store" })
+    void fetch(`/api/site-embeds/public/donation-page?token=${encodeURIComponent(token)}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json().catch(() => ({})) as { data?: HostedGivingPayload; error?: { message?: string } };
         if (!response.ok || !body.data) throw new Error(body.error?.message ?? "This giving page is unavailable.");
@@ -125,10 +125,12 @@ export default function HostedGivingPage({ token }: { token: string }) {
     setSubmitting(true);
     setFormError("");
     try {
-      const response = await fetch(`/api/giving/${encodeURIComponent(token)}`, {
+      const response = await fetch("/api/site-embeds/public/donation-checkout-embedded", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          token,
+          surface: "hosted",
           amount,
           giftType,
           designation,
