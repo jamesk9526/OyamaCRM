@@ -11,7 +11,6 @@ import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
 import ContextualTutorialModal from "@/app/components/help/ContextualTutorialModal";
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
-import MessengerPanel from "@/app/components/messenger/MessengerPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { SupportTicketModal } from "@/app/components/support/SupportTicketModal";
 import { apiFetch, API_BASE as AUTH_API_BASE } from "@/app/lib/auth-client";
@@ -34,7 +33,6 @@ import { buildHelpHref, mapModuleKeyToHelpScope } from "@/app/help-content";
 import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
 import {
   openFeedbackFromUserMenu,
-  openMessagesFromUserMenu,
   type TopBarPanelSetters,
 } from "@/app/components/layout/topbar/panel-callbacks";
 import {
@@ -138,16 +136,6 @@ function AiOrbIcon({ className = "w-4 h-4" }: { className?: string }) {
     <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="4.5" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5M18.54 5.46l-1.77 1.77M7.23 16.77l-1.77 1.77M18.54 18.54l-1.77-1.77M7.23 7.23L5.46 5.46" />
-    </svg>
-  );
-}
-
-/** Envelope icon used for donor-mode messages control to match enterprise topbar pattern. */
-function MailIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.75h17a1.75 1.75 0 0 1 1.75 1.75v7a1.75 1.75 0 0 1-1.75 1.75h-17a1.75 1.75 0 0 1-1.75-1.75v-7A1.75 1.75 0 0 1 3.5 6.75z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 8l8.25 6 8.25-6" />
     </svg>
   );
 }
@@ -857,10 +845,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [compactActionsOpen, setCompactActionsOpen] = useState(false);
-  const [messengerOpen, setMessengerOpen] = useState(false);
-  const [messengerUnread, setMessengerUnread] = useState(0);
-  const [incomingMsgToast, setIncomingMsgToast] = useState<{ senderName: string; senderInitials: string; colorClass: string; body: string; threadId: string } | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reportingModeJustChanged, setReportingModeJustChanged] = useState(false);
   const reactiveGlowFrameRef = useRef<number | null>(null);
   const reactiveGlowTimeoutRef = useRef<number | null>(null);
@@ -909,7 +893,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     setMobileQuickOpen,
     setMobileSearchOpen,
     setCompactActionsOpen,
-    setMessengerOpen,
   };
 
   /** Briefly pulses module accent glow to acknowledge meaningful workspace actions. */
@@ -970,7 +953,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         setNotificationsOpen(false);
         setMobileQuickOpen(false);
         setCompactActionsOpen(false);
-        setMessengerOpen(false);
         if (window.matchMedia("(min-width: 1280px)").matches) {
           setMobileSearchOpen(false);
           window.dispatchEvent(new CustomEvent("crm:focus-topbar-search"));
@@ -985,7 +967,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, []);
 
   useEffect(() => {
-    const hasOpenPanel = feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen || messengerOpen;
+    const hasOpenPanel = feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen;
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -997,12 +979,11 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       setMobileQuickOpen(false);
       setMobileSearchOpen(false);
       setCompactActionsOpen(false);
-      setMessengerOpen(false);
     }
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [compactActionsOpen, feedbackOpen, messengerOpen, mobileQuickOpen, mobileSearchOpen, notificationsOpen]);
+  }, [compactActionsOpen, feedbackOpen, mobileQuickOpen, mobileSearchOpen, notificationsOpen]);
 
   function toggleReportingYearMode() {
     const nextMode: ReportingYearMode = reportingYearMode === "fiscal" ? "calendar" : "fiscal";
@@ -1146,54 +1127,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     };
   }, [loadNotifications, loadUnreadCount, notificationsOpen]);
 
-  // Poll messenger unread count every 30 seconds.
-  useEffect(() => {
-    let active = true;
-    const poll = async () => {
-      try {
-        const { count } = await apiFetch<{ count: number }>("/api/messenger/unread-count");
-        if (active) setMessengerUnread(typeof count === "number" ? count : 0);
-      } catch {
-        // keep existing badge
-      }
-    };
-    void poll();
-    const interval = window.setInterval(() => { void poll(); }, 30000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, []);
-
-  // Background SSE: fires live notifications when the messenger panel is closed.
-  useEffect(() => {
-    if (!user || messengerOpen) return;
-    let es: EventSource;
-    try {
-      // Use normalized API base — avoids /api/api/messenger/sse in production.
-      es = new EventSource(`${AUTH_API_BASE}/api/messenger/sse`, { withCredentials: true });
-      es.addEventListener("message", (ev: MessageEvent) => {
-        try {
-          const payload = JSON.parse(ev.data as string) as {
-            threadId: string;
-            message: { body: string; sender: { id: string; firstName: string; lastName: string } };
-          };
-          if (payload.message.sender.id === user.id) return;
-          setMessengerUnread((prev) => prev + 1);
-          const fn = payload.message.sender.firstName;
-          const ln = payload.message.sender.lastName;
-          const initials = `${fn[0] ?? ""}${ln[0] ?? ""}`.toUpperCase();
-          const colors = ["bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-pink-500", "bg-teal-500"];
-          const colorClass = colors[(fn.charCodeAt(0) + ln.charCodeAt(0)) % colors.length] ?? "bg-violet-500";
-          setIncomingMsgToast({ senderName: `${fn} ${ln}`, senderInitials: initials, colorClass, body: payload.message.body, threadId: payload.threadId });
-          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-          toastTimerRef.current = setTimeout(() => setIncomingMsgToast(null), 5000);
-        } catch { /* ignore malformed */ }
-      });
-    } catch { return; }
-    return () => { es.close(); };
-  }, [user, messengerOpen]);
-
   useEffect(() => {
     const refresh = () => {
       void loadUnreadCount();
@@ -1211,7 +1144,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       setMobileQuickOpen(false);
       setMobileSearchOpen(false);
       setCompactActionsOpen(false);
-      setMessengerOpen(false);
     }, 0);
 
     return () => {
@@ -1302,45 +1234,11 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         moduleKey={moduleKey}
         pathname={pathname}
       />
-      {/* Steward and staff messaging remain separate so the assistant stays focused. */}
+      {/* Direct staff messaging is retired for now; a future module will be separately reviewed. */}
       <StewardDockPanel
         moduleKey={moduleKey}
         showLauncher
       />
-      <MessengerPanel open={messengerOpen} onClose={() => setMessengerOpen(false)} onUnreadChange={setMessengerUnread} />
-
-            {/* Incoming message toast — shown when panel is closed and a new message arrives */}
-            {incomingMsgToast && !messengerOpen && (
-              <div
-                role="alert"
-                aria-live="polite"
-                className="fixed bottom-3 left-3 right-3 z-[60] flex max-w-none cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_16px_48px_rgba(2,6,23,0.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-[340px]"
-                style={{ animation: "msgPanelIn 0.2s cubic-bezier(0.22,1,0.36,1)" }}
-                onClick={() => {
-                  setMessengerOpen(true);
-                  setIncomingMsgToast(null);
-                  if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-                }}
-              >
-                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${incomingMsgToast.colorClass}`}>
-                  {incomingMsgToast.senderInitials}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900">{incomingMsgToast.senderName}</p>
-                  <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-slate-500">{incomingMsgToast.body}</p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Dismiss notification"
-                  onClick={(e) => { e.stopPropagation(); setIncomingMsgToast(null); if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }}
-                  className="ml-0.5 flex-shrink-0 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
       {/* Command search modal — opened from the centered top-bar icon or Ctrl+K. */}
       {mobileSearchOpen && (
         <>
@@ -1420,15 +1318,15 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
         <div className={`relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-64" : "w-[520px]"} xl:block`}>
           {isDonorEnterpriseChrome ? (
-            <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-[2px] px-1 py-1 text-white transition-colors hover:bg-white/[0.07]" aria-label="Go to OyamaCRM v1.3 home">
+            <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-[2px] px-1 py-1 text-white transition-colors hover:bg-white/[0.07]" aria-label="Go to OyamaCRM v1.45b home">
               <span className="text-[15px] font-bold tracking-[-0.035em]">OyamaCRM</span>
-              <span className="rounded-[2px] bg-white/[0.1] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-[#cfe4fa] ring-1 ring-white/10">v1.31b</span>
+              <span className="rounded-[2px] bg-white/[0.1] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-[#cfe4fa] ring-1 ring-white/10">v1.45b</span>
             </Link>
           ) : (
           <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-2 py-1 transition-[top,opacity,background-color,border-color] ${shellMotionClass} hover:opacity-90 ${scrolled ? "top-2.5" : "top-4"}`} aria-label="Go to workspace home">
             <Image
               src={OYAMA_PRODUCT_LOGO}
-              alt="OyamaCRM v1.3"
+              alt="OyamaCRM v1.45b"
               width={260}
               height={74}
               className={`object-contain object-left transition-[height,width,opacity] ${shellMotionClass} ${scrolled ? "h-9 w-[128px]" : "h-11 w-[166px]"}`}
@@ -1459,13 +1357,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </svg>
               </button>
               {/* ── TopBar Brand ── */}
-              <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v1.3 home">
+              <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v1.45b home">
                 {isDonorEnterpriseChrome ? (
-                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v1.31b</span></span>
+                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v1.45b</span></span>
                 ) : (
                   <Image
                     src={OYAMA_PRODUCT_LOGO}
-                    alt="OyamaCRM v1.3"
+                    alt="OyamaCRM v1.45b"
                     width={144}
                     height={48}
                     className="block h-8 w-[116px] object-contain object-left transition-[width,height] duration-200 max-[430px]:w-[96px] max-[380px]:h-7 max-[380px]:w-[76px]"
@@ -1504,7 +1402,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 setNotificationsOpen(false);
                 setMobileQuickOpen(false);
                 setCompactActionsOpen(false);
-                setMessengerOpen(false);
                 setMobileSearchOpen(true);
               }}
               className={chromeButtonBase}
@@ -1523,7 +1420,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                     if (nextOpen) {
                       setMobileQuickOpen(false);
                       setCompactActionsOpen(false);
-                      setMessengerOpen(false);
                       setMobileSearchOpen(false);
                     }
                     return nextOpen;
@@ -1621,18 +1517,12 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 setNotificationsOpen(false);
                 setMobileSearchOpen(false);
                 setCompactActionsOpen(false);
-                setMessengerOpen(false);
               }}
               className={`${chromeButtonBase} relative`}
             >
               <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01" />
               </svg>
-              {messengerUnread > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold text-white flex items-center justify-center bg-violet-500">
-                  {Math.min(messengerUnread, 99)}
-                </span>
-              )}
             </button>
           </div>
         </div>
@@ -1704,7 +1594,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                       const nextOpen = !current;
                       if (nextOpen) {
                         setCompactActionsOpen(false);
-                        setMessengerOpen(false);
                         setMobileQuickOpen(false);
                         setMobileSearchOpen(false);
                       }
@@ -1802,31 +1691,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 )}
               </div>
 
-              <button
-                type="button"
-                title={isDonorEnterpriseChrome ? "Open messages" : "Open Steward and messages"}
-                aria-label={isDonorEnterpriseChrome ? "Open messages" : "Open Steward and messages"}
-                onClick={() => {
-                  setMessengerOpen(true);
-                  setNotificationsOpen(false);
-                  setCompactActionsOpen(false);
-                  setMobileQuickOpen(false);
-                  setMobileSearchOpen(false);
-                }}
-                className={`${darkIconButtonBase} relative ml-0.5`}
-              >
-                {isDonorEnterpriseChrome ? (
-                  <MailIcon className="h-4 w-4" />
-                ) : (
-                  <StewardAvatarIcon size={17} alt="" className="ring-slate-300/80" />
-                )}
-                {messengerUnread > 0 ? (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white">
-                    {Math.min(messengerUnread, 99)}
-                  </span>
-                ) : null}
-              </button>
-
               {isDonorEnterpriseChrome ? (
                 <>
                   <div className="mx-1 h-5 w-px shrink-0 bg-white/15" />
@@ -1881,8 +1745,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 showApps={showTopBarAppLauncher}
                 onOpenApps={() => router.push("/apps")}
                 onOpenFeedback={() => openFeedbackFromUserMenu(topBarPanelSetters)}
-                onToggleMessages={() => openMessagesFromUserMenu(topBarPanelSetters)}
-                messengerUnread={messengerUnread}
                 helpHref={helpHref}
                 reportingWindow={isDonorEnterpriseChrome
                   ? {
@@ -1947,27 +1809,6 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                     Apps
                   </button>
                 ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileQuickOpen(false);
-                    setMessengerOpen(true);
-                  }}
-                  className="flex w-full min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-medium text-slate-700"
-                >
-                  <span className="inline-flex min-w-0 items-center gap-3">
-                    <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                    </svg>
-                    Messages
-                  </span>
-                  {messengerUnread > 0 ? (
-                    <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">
-                      {Math.min(messengerUnread, 99)}
-                    </span>
-                  ) : null}
-                </button>
 
                 <button
                   onClick={() => {
@@ -2190,8 +2031,6 @@ interface UserMenuProps {
   showApps: boolean;
   onOpenApps: () => void;
   onOpenFeedback: () => void;
-  onToggleMessages: () => void;
-  messengerUnread: number;
   helpHref: string;
   reportingWindow?: {
     label: string;
@@ -2208,8 +2047,6 @@ function UserMenu({
   showApps,
   onOpenApps,
   onOpenFeedback,
-  onToggleMessages,
-  messengerUnread,
   helpHref,
   reportingWindow,
 }: UserMenuProps) {
@@ -2351,23 +2188,6 @@ function UserMenu({
                     <span className="min-w-0 truncate">My appearance</span>
                   </Link>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => runProfileAction(onToggleMessages)}
-                  className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                >
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                    </svg>
-                    <span className="min-w-0 truncate">Messages</span>
-                  </span>
-                  {messengerUnread > 0 ? (
-                    <span className="rounded-full bg-violet-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                      {Math.min(messengerUnread, 99)}
-                    </span>
-                  ) : null}
-                </button>
                 <Link
                   href="/steward-ai-workspace"
                   onClick={() => setOpen(false)}

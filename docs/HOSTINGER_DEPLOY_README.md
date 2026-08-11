@@ -319,7 +319,7 @@ Important:
 - Do not run `pnpm db:push` on production to bypass drift warnings.
 - Use deploy migrations only (`pnpm prisma migrate deploy`) so migration history remains consistent.
 
-### 6.8 Prisma P3018 table already exists (`20260519120000_add_crm_messenger`)
+### 6.8 Prisma P3018 legacy direct-message tables already exist (`20260519120000_add_crm_messenger`)
 
 Symptom:
 
@@ -330,7 +330,7 @@ Symptom:
 
 Cause:
 
-- The DB already contains one or more messenger tables (`CrmThread`, `CrmThreadParticipant`, `CrmMessage`) from a prior partial run/manual apply.
+- The DB already contains one or more legacy direct-message tables (`CrmThread`, `CrmThreadParticipant`, `CrmMessage`) from a prior partial run/manual apply. The v1.45b CRM no longer exposes this feature, but this migration must remain accounted for in deployment history.
 - Prisma migration history does not mark `20260519120000_add_crm_messenger` as applied yet.
 
 Production-safe recovery (no reset):

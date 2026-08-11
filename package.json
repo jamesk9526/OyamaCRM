@@ -1,6 +1,6 @@
 {
   "name": "agents-create-oyamam-crm-workspace",
-  "version": "1.31.0-beta",
+  "version": "1.45.0-beta",
   "license": "SEE LICENSE IN LICENSE.md",
   "private": true,
   "packageManager": "pnpm@10.11.0",

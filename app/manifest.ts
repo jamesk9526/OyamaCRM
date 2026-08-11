@@ -4,8 +4,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "OyamaCRM v1.31b",
-    short_name: "OyamaCRM v1.31b",
+    name: "OyamaCRM v1.45b",
+    short_name: "OyamaCRM v1.45b",
     description: "Nonprofit CRM for donor management, communications, events, and stewardship.",
     start_url: "/?source=pwa",
     scope: "/",

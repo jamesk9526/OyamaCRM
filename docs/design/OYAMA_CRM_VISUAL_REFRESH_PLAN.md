@@ -138,11 +138,9 @@ Done:
 - [x] Shared `CRMActionBar` aligned to the same Explorer-style command surface as `WorkspaceRibbon`.
 - [x] Constituents, Donations, Meetings, and Tasks action strips converted to grouped ribbon commands.
 - [x] Letter builder scroll containment fixed after page-scroll QA.
-- [x] Messenger panel refreshed with its own top bar, image attachment support, optional 2-day image expiry, and sender message editing.
 - [x] AGENTS visual refresh guidance added.
 - [x] Focused source smoke test added for shared primitives.
 - [x] `pnpm typecheck:web` passed.
-- [x] `pnpm typecheck:server` passed after messenger route updates.
 
 Not Done:
 

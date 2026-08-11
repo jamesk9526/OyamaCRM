@@ -2,7 +2,7 @@
 import AboutPage from "@/app/components/settings/AboutPage";
 
 export const metadata = {
-  title: "About OyamaCRM v1.3",
+  title: "About OyamaCRM v1.45b",
   description: "Software authorship, licensing information, and special acknowledgements.",
 };
 

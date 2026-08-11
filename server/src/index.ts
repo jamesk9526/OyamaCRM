@@ -62,7 +62,6 @@ import oyamaPasswordRoutes from "./routes/oyama-password.js";
 import triviaRoutes from "./routes/trivia.js";
 import helpAgentRoutes from "./routes/help-agent.js";
 import systemUpdatesRoutes from "./routes/system-updates.js";
-import messengerRoutes from "./routes/messenger.js";
 import pwaRoutes from "./routes/pwa.js";
 import oyamaEmailRoutes from "./routes/oyama-email.js";
 import dataToolsRoutes from "./routes/data-tools.js";
@@ -292,7 +291,8 @@ app.use("/api/oyama-password", oyamaPasswordRoutes);
 app.use("/api/livecom", liveComRoutes);
 app.use("/api/site-embeds", siteEmbedsRoutes);
 app.use("/api/apps/trivia", triviaRoutes);
-app.use("/api/messenger", messengerRoutes);
+// Direct staff messaging is intentionally unavailable in v1.45b. Reintroduce it
+// only as a separately reviewed feature with retention, permissions, and UX scope.
 app.use("/api/pwa", pwaRoutes);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────

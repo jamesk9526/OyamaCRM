@@ -465,7 +465,6 @@ model Organization {
 
   // ─── Plugin / Integration back-relations ────────────────────────────────
   pluginSettings         PluginSetting[]
-  crmThreads             CrmThread[]
   qbSyncQueueItems       QBSyncQueueItem[]
   emailRecipientLists    EmailRecipientList[]
   emailDeliveryEvents    EmailCampaignDeliveryEvent[]
@@ -560,8 +559,6 @@ model User {
   webmasterPagesUpdated         WebmasterPage[]          @relation("WebmasterPageUpdater")
   submittedFeedbackTickets      WatchdogFeedbackTicket[] @relation("FeedbackSubmittedBy")
   assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
-  crmThreadParticipations       CrmThreadParticipant[]   @relation("CrmThreadParticipantUser")
-  crmMessagesSent               CrmMessage[]             @relation("CrmMessageSender")
 
   // ─── Steward Paths ownership/review relations ───────────────────────────
   stewardPathsCreated            StewardPath[]              @relation("StewardPathCreatedBy")
@@ -2769,7 +2766,9 @@ model QBSyncQueueItem {
   @@index([donationId])
 }
 
-// ─── CRM Messenger ───────────────────────────────────────────────────────────
+// ─── Legacy direct-message persistence ──────────────────────────────────────
+// The staff DM feature is retired in v1.45b. Retain historical data until a
+// future replacement has an approved retention and migration plan.
 
 /// A direct-message thread between two (or more) staff users within the same org.
 model CrmThread {

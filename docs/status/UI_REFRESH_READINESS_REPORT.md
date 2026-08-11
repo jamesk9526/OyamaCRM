@@ -44,7 +44,6 @@ Date: May 19, 2026
 - Tasks page now uses the shared action strip and `CRMDataTable` shell without replacing task complete/delete behavior.
 - Letter builder scroll containment fixed so the builder header, side panels, floating command bar, canvas, and bottom status stay inside the document workspace instead of sliding under the global top bar.
 - Letter builder insert/format bars received icons.
-- Messenger panel refreshed with its own top bar, denser conversation surface, sender message editing, image attachments, and optional 2-day image auto-delete metadata.
 - Messenger runtime uploads are ignored at `/public/uploads/messenger/`.
 - Plan/checklist and component-system docs created.
 - Oyama Reports app replaced the legacy `/reports` workspace with a dedicated reporting product surface: left category rail, searchable prebuilt report cards, live API report runner, Recharts-powered summaries, dense data grid, presentation summary, and guided Report Builder Lite.

@@ -7,14 +7,14 @@ import PWARegister from "./components/pwa/PWARegister";
 import ReleaseUpdateBanner from "./components/layout/ReleaseUpdateBanner";
 
 export const metadata: Metadata = {
-  title: "OyamaCRM v1.31b",
+  title: "OyamaCRM v1.45b",
   description: "Nonprofit Donor Management",
-  applicationName: "OyamaCRM v1.31b",
+  applicationName: "OyamaCRM v1.45b",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "OyamaCRM v1.31b",
+    title: "OyamaCRM v1.45b",
   },
   formatDetection: {
     telephone: false,

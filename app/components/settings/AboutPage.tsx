@@ -6,7 +6,7 @@
 import React from "react";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const VERSION = "1.31b";
+const VERSION = "1.45b";
 
 /** A soft-ruled section divider with a title. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -35,12 +35,12 @@ export default function AboutPage() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-start gap-5">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">OyamaCRM v1.3</h1>
+          <h1 className="text-2xl font-bold text-gray-900">OyamaCRM v1.45b</h1>
           <p className="mt-1 text-sm text-gray-500">
             Version {VERSION} &nbsp;·&nbsp; Nonprofit CRM Platform
           </p>
           <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-            OyamaCRM v1.3 is an integrated nonprofit management platform covering donor
+            OyamaCRM v1.45b is an integrated nonprofit management platform covering donor
             management, constituent engagement, event management, and AI-powered
             stewardship — built to serve pregnancy centers and nonprofits of every size.
           </p>
@@ -52,7 +52,7 @@ export default function AboutPage() {
         <div className="bg-gray-50 rounded-lg p-4 space-y-1.5">
           <LicenseTerm label="Software Author" value="James Knox" />
           <LicenseTerm label="Copyright" value={`© ${CURRENT_YEAR} James Knox. All rights reserved.`} />
-          <LicenseTerm label="Platform" value="OyamaCRM v1.3 — Nonprofit CRM Platform" />
+          <LicenseTerm label="Platform" value="OyamaCRM v1.45b — Nonprofit CRM Platform" />
           <LicenseTerm label="Version" value={VERSION} />
         </div>
       </Section>
@@ -62,7 +62,7 @@ export default function AboutPage() {
         <div className="bg-green-50 border border-green-200 rounded-lg p-5 space-y-4">
           <div>
             <p className="text-sm font-semibold text-green-800 uppercase tracking-wide">
-              OyamaCRM v1.3 Free Use License — Nonprofit Edition
+              OyamaCRM v1.45b Free Use License — Nonprofit Edition
             </p>
             <p className="mt-1 text-xs text-green-700">Effective for all versions from 1.0.0 onwards</p>
           </div>
