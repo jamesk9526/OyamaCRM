@@ -17,7 +17,9 @@ import {
   buildSiteEmbedSnippets,
   createSiteEmbedToken,
   getActiveWidgetKeys,
+  getDonationDomainConfigurationIssues,
   isDomainAllowedForSite,
+  isValidEmbedDomainPattern,
   normalizeAllowedDomains,
   normalizeDomainCandidate,
   parseSiteEmbedsConfig,
@@ -30,6 +32,7 @@ import {
 } from "../services/site-embeds.js";
 import { readPaymentGatewayRuntimeConfig } from "../services/payment-gateway-settings.js";
 import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
+import { normalizePublicApiRootUrl } from "../lib/public-api-url.js";
 import {
   getStripeObjectMetadata,
   getStripeSiteToken,
@@ -58,7 +61,7 @@ function applyPublicEmbedCorsHeaders(res: import("express").Response): void {
 }
 
 /** Handles CORS preflight for embed routes installed on non-CRM public websites. */
-router.options(["/loader.js", "/public/ping", "/public/livecom", "/public/livecom-thread", "/public/widget-data", "/public/widget-submit", "/public/donation-checkout", "/public/donation-checkout-embedded", "/public/stripe-webhook"], (_req, res) => {
+router.options(["/loader.js", "/public/ping", "/public/livecom", "/public/livecom-thread", "/public/widget-data", "/public/widget-submit", "/public/donation-page", "/public/donation-checkout", "/public/donation-checkout-embedded", "/public/stripe-webhook"], (_req, res) => {
   applyPublicEmbedCorsHeaders(res);
   res.status(204).end();
 });
@@ -75,12 +78,12 @@ router.use((req, res, next) => {
 function resolveApiBaseUrl(req: import("express").Request): string {
   const explicit = String(process.env.NEXT_PUBLIC_API_URL ?? "").trim();
   if (explicit) {
-    return explicit.replace(/\/$/, "");
+    return normalizePublicApiRootUrl(explicit);
   }
 
   const protocol = req.protocol || "http";
   const host = req.get("host") || "localhost:4000";
-  return `${protocol}://${host}`;
+  return normalizePublicApiRootUrl(`${protocol}://${host}`);
 }
 
 /** Gets one string value from query/body and trims it safely. */
@@ -490,12 +493,34 @@ function mergeAppearanceSettings(current: SiteEmbedSiteConfig["appearance"], inc
 }
 
 /** Returns one JS response with warning output when loader generation cannot proceed. */
-function sendLoaderWarning(res: import("express").Response, status: number, message: string) {
+function sendLoaderWarning(res: import("express").Response, status: number, message: string, code = "EMBED_LOADER_ERROR") {
   res.status(status);
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   res.setHeader("Pragma", "no-cache");
-  res.send(`console.warn(${JSON.stringify(`[OyamaCRM Embed] ${message}`)});`);
+  res.send(`(function () {
+  var detail = ${JSON.stringify(`[OyamaCRM Embed] ${message}`)};
+  var code = ${JSON.stringify(code)};
+  console.warn(detail);
+  function report() {
+    var nodes = document.querySelectorAll('[data-oyama-embed]');
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      node.setAttribute('data-oyama-error', code);
+      if (!node.hasChildNodes()) {
+        node.setAttribute('role', 'status');
+        node.setAttribute('aria-live', 'polite');
+        var notice = document.createElement('p');
+        notice.textContent = 'This form is temporarily unavailable. Please contact the organization for assistance.';
+        notice.style.cssText = 'margin:0;padding:12px;border:1px solid #f3d08a;border-radius:8px;background:#fffbeb;color:#78350f;font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;';
+        node.appendChild(notice);
+      }
+    }
+    try { window.dispatchEvent(new CustomEvent('oyama:embed-error', { detail: { code: code, message: detail } })); } catch (_) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', report, { once: true });
+  else report();
+})();`);
 }
 
 /**
@@ -505,19 +530,19 @@ function sendLoaderWarning(res: import("express").Response, status: number, mess
 router.get("/loader.js", async (req, res) => {
   const token = readStringInput(req, "token");
   if (!token) {
-    sendLoaderWarning(res, 400, "Missing embed token.");
+    sendLoaderWarning(res, 400, "Missing embed token.", "TOKEN_REQUIRED");
     return;
   }
 
   const hit = await findSiteByToken(token);
   if (!hit || !hit.site.active) {
-    sendLoaderWarning(res, 404, "Embed configuration is missing or inactive.");
+    sendLoaderWarning(res, 404, "Embed configuration is missing or inactive.", "CONFIG_INACTIVE");
     return;
   }
 
   const observedDomain = resolveObservedDomain(req);
   if (!isDomainAllowedForSite(hit.site, observedDomain)) {
-    sendLoaderWarning(res, 403, "Domain is not allowed for this site embed token.");
+    sendLoaderWarning(res, 403, "Domain is not allowed for this site embed token.", "DOMAIN_NOT_ALLOWED");
     return;
   }
 
@@ -1029,6 +1054,12 @@ router.post("/public/donation-checkout", async (req, res) => {
     return;
   }
 
+  const domainConfigurationIssues = getDonationDomainConfigurationIssues(hit.site);
+  if (domainConfigurationIssues.length > 0) {
+    res.status(409).json({ error: { code: "DONATION_DOMAIN_INVALID", message: domainConfigurationIssues.join(" ") } });
+    return;
+  }
+
   const observedDomain = resolveObservedDomain(req);
   if (!isDomainAllowedForSite(hit.site, observedDomain)) {
     res.status(403).json({ error: { code: "DOMAIN_NOT_ALLOWED", message: "Domain is not allowed for this embed token" } });
@@ -1042,8 +1073,12 @@ router.post("/public/donation-checkout", async (req, res) => {
 
   const donationWidget = hit.site.widgets.donation_widget;
   const donationAmountCents = Math.round(amount * 100);
-  if (donationAmountCents < donationWidget.minimumAmountCents || donationAmountCents > 100_000_000) {
+  if (donationAmountCents < donationWidget.minimumAmountCents || donationAmountCents > donationWidget.maximumAmountCents) {
     res.status(400).json({ error: { code: "AMOUNT_OUT_OF_RANGE", message: "Donation amount is outside the allowed range." } });
+    return;
+  }
+  if (!donationWidget.allowCustomAmount && !donationWidget.suggestedAmounts.some((preset) => Math.round(preset * 100) === donationAmountCents)) {
+    res.status(400).json({ error: { code: "AMOUNT_NOT_ALLOWED", message: "Please choose one of the available gift amounts." } });
     return;
   }
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -1377,6 +1412,8 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
   const donorName = String(body.name ?? "").trim();
   const donorEmail = String(body.email ?? "").trim().toLowerCase();
   const donorPhone = String(body.phone ?? "").trim();
+  const requestId = String(body.requestId ?? "").trim();
+  const checkoutSurface = String(body.surface ?? "embed").trim().toLowerCase() === "hosted" ? "hosted" : "embed";
 
   if (!token) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "token is required" } });
@@ -1393,30 +1430,53 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
     return;
   }
 
-  const observedDomain = resolveObservedDomain(req);
-  if (!isDomainAllowedForSite(hit.site, observedDomain)) {
-    res.status(403).json({ error: { code: "DOMAIN_NOT_ALLOWED", message: "Domain is not allowed for this embed token" } });
-    return;
-  }
-
   if (!isPublicWidgetEnabled(hit.site, "donation_widget")) {
     res.status(409).json({ error: { code: "WIDGET_INACTIVE", message: "Donation widget is disabled for this site" } });
     return;
   }
 
   const widget = hit.site.widgets.donation_widget;
+  if (checkoutSurface === "hosted") {
+    if (!widget.hostedPageEnabled) {
+      res.status(404).json({ error: { code: "HOSTED_PAGE_INACTIVE", message: "This hosted giving page is not published." } });
+      return;
+    }
+  } else {
+    const domainConfigurationIssues = getDonationDomainConfigurationIssues(hit.site);
+    if (domainConfigurationIssues.length > 0) {
+      res.status(409).json({ error: { code: "DONATION_DOMAIN_INVALID", message: domainConfigurationIssues.join(" ") } });
+      return;
+    }
+    const observedDomain = resolveObservedDomain(req);
+    if (!isDomainAllowedForSite(hit.site, observedDomain)) {
+      res.status(403).json({ error: { code: "DOMAIN_NOT_ALLOWED", message: "Domain is not allowed for this embed token" } });
+      return;
+    }
+  }
   const amountCents = Math.round(amountRaw * 100);
-  if (amountCents < widget.minimumAmountCents || amountCents > 100_000_000) {
+  if (amountCents < widget.minimumAmountCents || amountCents > widget.maximumAmountCents) {
     res.status(400).json({
       error: {
         code: "AMOUNT_OUT_OF_RANGE",
-        message: `Gift amount must be between ${(widget.minimumAmountCents / 100).toFixed(2)} and 1,000,000.00.`,
+        message: `Gift amount must be between ${(widget.minimumAmountCents / 100).toFixed(2)} and ${(widget.maximumAmountCents / 100).toFixed(2)}.`,
       },
     });
     return;
   }
   if (!donorEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(donorEmail)) {
     res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid donor email is required." } });
+    return;
+  }
+  if (donorName.length > 160 || donorEmail.length > 254 || donorPhone.length > 40) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Donor contact details are too long." } });
+    return;
+  }
+  if (!widget.allowCustomAmount && !widget.suggestedAmounts.some((preset) => Math.round(preset * 100) === amountCents)) {
+    res.status(400).json({ error: { code: "AMOUNT_NOT_ALLOWED", message: "Please choose one of the available gift amounts." } });
+    return;
+  }
+  if (widget.requireDonorName && !donorName) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A donor name is required." } });
     return;
   }
   if (giftType !== "one-time" && giftType !== "monthly") {
@@ -1438,12 +1498,6 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
     res.status(503).json({ error: { code: "PAYMENT_NOT_CONFIGURED", message: "Stripe is not configured for this organization." } });
     return;
   }
-  const runtimeIsTest = runtime.stripe.mode === "sandbox";
-  if (widget.stripeTestMode !== runtimeIsTest) {
-    res.status(409).json({ error: { code: "STRIPE_MODE_MISMATCH", message: "The donation form mode does not match the connected Stripe account mode." } });
-    return;
-  }
-
   try {
     const currency = runtime.currency.toLowerCase();
     const returnUrl = `${resolveApiBaseUrl(req)}/api/site-embeds/public/donation-return?token=${encodeURIComponent(token)}`;
@@ -1464,12 +1518,14 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("metadata[giftType]", "monthly");
       sessionBody.set("metadata[designation]", designation);
       sessionBody.set("metadata[siteToken]", token);
+      sessionBody.set("metadata[checkoutSurface]", checkoutSurface);
       sessionBody.set("metadata[donorName]", donorName);
       sessionBody.set("metadata[donorPhone]", donorPhone);
       sessionBody.set("subscription_data[metadata][platform]", "oyamacrm");
       sessionBody.set("subscription_data[metadata][giftType]", "monthly");
       sessionBody.set("subscription_data[metadata][designation]", designation);
       sessionBody.set("subscription_data[metadata][siteToken]", token);
+      sessionBody.set("subscription_data[metadata][checkoutSurface]", checkoutSurface);
       sessionBody.set("subscription_data[metadata][donorName]", donorName);
       sessionBody.set("subscription_data[metadata][donorPhone]", donorPhone);
       if (donorEmail) sessionBody.set("customer_email", donorEmail);
@@ -1492,6 +1548,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("metadata[giftType]", "one-time");
       sessionBody.set("metadata[designation]", designation);
       sessionBody.set("metadata[siteToken]", token);
+      sessionBody.set("metadata[checkoutSurface]", checkoutSurface);
       sessionBody.set("metadata[donorName]", donorName);
       sessionBody.set("metadata[donorPhone]", donorPhone);
       if (donorEmail) sessionBody.set("customer_email", donorEmail);
@@ -1502,6 +1559,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       headers: {
         Authorization: `Bearer ${runtime.stripe.secretKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
+        ...(requestId && /^[a-zA-Z0-9_-]{8,255}$/.test(requestId) ? { "Idempotency-Key": requestId } : {}),
       },
       body: sessionBody.toString(),
     });
@@ -1523,6 +1581,8 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
         amount: amountRaw,
         currency,
         designation,
+        checkoutSurface,
+        returnOrigin: new URL(resolveApiBaseUrl(req)).origin,
       },
     });
   } catch (error) {
@@ -1534,6 +1594,48 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       },
     });
   }
+});
+
+/** Returns the public-safe configuration for an OyamaCRM-hosted giving page. */
+router.get("/public/donation-page", async (req, res) => {
+  const token = readStringInput(req, "token");
+  if (!token) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "token is required" } });
+    return;
+  }
+
+  const hit = await findSiteByToken(token);
+  const form = hit?.site.widgets.donation_widget;
+  if (!hit || !hit.site.active || !form?.enabled || !form.hostedPageEnabled) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Hosted giving page not found" } });
+    return;
+  }
+
+  const [brandingSetting, runtime] = await Promise.all([
+    prisma.pluginSetting.findUnique({
+      where: { organizationId_pluginKey: { organizationId: hit.organizationId, pluginKey: BRANDING_PLUGIN_KEY } },
+      select: { config: true },
+    }),
+    readPaymentGatewayRuntimeConfig(hit.organizationId),
+  ]);
+  const publicConfig = applyBrandingDefaultsToPublicConfig(
+    toPublicSiteEmbedConfig(hit.site),
+    readBrandingDefaults(brandingSetting?.config),
+  );
+
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    data: {
+      siteName: hit.site.name,
+      organizationName: publicConfig.widgets.liveCom.orgName || hit.site.name,
+      publicSiteId: hit.site.publicSiteId,
+      appearance: publicConfig.appearance,
+      form: publicConfig.widgets.donation_widget,
+      currency: runtime.currency,
+      checkoutReady: Boolean(runtime.stripe.enabled && runtime.stripe.publishableKey && runtime.stripe.secretKey && runtime.stripe.webhookSecret),
+      stripeMode: runtime.stripe.mode,
+    },
+  });
 });
 
 /**
@@ -1590,14 +1692,16 @@ router.post("/public/stripe-webhook", async (req, res) => {
   }
 
   const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
-  if (!runtime.stripe.webhookSecret) {
+  const eventMode = event.livemode === true ? "production" : "sandbox";
+  const eventCredentials = runtime.stripe.environments[eventMode];
+  if (!eventCredentials.webhookSecret) {
     res.status(503).json({ error: "Stripe webhook signing secret is not configured." });
     return;
   }
   if (!verifyStripeWebhookSignature({
     rawBody: rawBodyStr,
     signatureHeader: signature,
-    webhookSecret: runtime.stripe.webhookSecret,
+    webhookSecret: eventCredentials.webhookSecret,
   })) {
     res.status(400).json({ error: "Webhook signature verification failed." });
     return;
@@ -1653,10 +1757,26 @@ router.post("/public/stripe-webhook", async (req, res) => {
       }
     }
 
-    const isOneTimeCheckout = eventType === "checkout.session.completed"
+    const isOneTimeCheckout = (eventType === "checkout.session.completed" || eventType === "checkout.session.async_payment_succeeded")
       && String(stripeObject.mode ?? "payment") === "payment";
     const isRecurringInvoice = eventType === "invoice.paid";
+    const isPaymentFailure = eventType === "checkout.session.async_payment_failed" || eventType === "invoice.payment_failed";
     const paymentStatus = String(stripeObject.payment_status ?? "paid");
+
+    if (isPaymentFailure) {
+      await prisma.paymentWebhookEvent.update({
+        where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+        data: {
+          status: "FAILED",
+          errorMessage: eventType === "invoice.payment_failed"
+            ? "A recurring Stripe payment failed. Review the subscription and donor outreach in Stripe."
+            : "A delayed Stripe checkout payment failed. No CRM gift was recorded.",
+          processedAt: new Date(),
+        },
+      });
+      res.status(200).json({ received: true, action: "payment_failure_recorded" });
+      return;
+    }
 
     if ((!isOneTimeCheckout && !isRecurringInvoice) || (isOneTimeCheckout && paymentStatus !== "paid" && paymentStatus !== "no_payment_required")) {
       await prisma.paymentWebhookEvent.update({
@@ -2201,6 +2321,22 @@ router.put("/config", requireRole("admin"), async (req, res) => {
     widgets: mergeWidgetSettings(selectedSite.widgets, body.widgets),
   };
 
+  if (nextSite.widgets.donation_widget.enabled) {
+    const domainIssues = getDonationDomainConfigurationIssues(nextSite, {
+      requireConfigured: !nextSite.widgets.donation_widget.hostedPageEnabled,
+    });
+    if (domainIssues.length > 0) {
+      res.status(400).json({
+        error: {
+          code: "DONATION_DOMAIN_INVALID",
+          message: domainIssues.join(" "),
+          issues: domainIssues,
+        },
+      });
+      return;
+    }
+  }
+
   if (!nextSite.embedToken) {
     nextSite.embedToken = createSiteEmbedToken();
   }
@@ -2368,6 +2504,82 @@ router.post("/test-connection", requireRole("admin"), async (req, res) => {
     data: {
       result: nextSite.lastConnectionTestResult,
       site: nextSite,
+    },
+  });
+});
+
+/**
+ * POST /api/site-embeds/test-donation-domain
+ * Verifies that a saved donation form permits a domain and that its loader has checked in from that host.
+ */
+router.post("/test-donation-domain", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const config = await loadOrganizationConfig(organizationId);
+  const selectedSite = pickSite(config, readStringInput(req, "siteId"));
+  const requestedDomain = normalizeDomainCandidate(readStringInput(req, "domain") || selectedSite.primaryDomain);
+  const issues = getDonationDomainConfigurationIssues(selectedSite);
+
+  if (!requestedDomain || requestedDomain === "*" || requestedDomain.startsWith("*.") || !isValidEmbedDomainPattern(requestedDomain)) {
+    issues.push("Enter one exact website hostname to verify, such as give.example.org.");
+  }
+  if (!selectedSite.active) issues.push("The website connection is inactive.");
+  if (!selectedSite.widgets.donation_widget.enabled) issues.push("The donation form is disabled.");
+
+  const allowed = Boolean(requestedDomain) && isDomainAllowedForSite(selectedSite, requestedDomain);
+  if (requestedDomain && !allowed) issues.push(`${requestedDomain} is not in this connection's domain allow-list.`);
+
+  const lastLoad = selectedSite.lastSuccessfulScriptLoad;
+  const observedDomain = normalizeDomainCandidate(lastLoad?.domain);
+  const sameDomain = Boolean(requestedDomain && observedDomain === requestedDomain);
+  const donationObserved = Boolean(lastLoad?.activeWidgets.includes("donation_widget"));
+  let recent = false;
+  let ageMinutes: number | null = null;
+  if (lastLoad?.loadedAt) {
+    const loadedAt = new Date(lastLoad.loadedAt).getTime();
+    if (Number.isFinite(loadedAt)) {
+      ageMinutes = Math.max(0, Math.floor((Date.now() - loadedAt) / 60000));
+      recent = ageMinutes <= 60;
+    }
+  }
+
+  const installed = sameDomain && donationObserved && recent;
+  if (allowed && !installed) {
+    if (!sameDomain) issues.push(`No loader check-in has been received from ${requestedDomain}.`);
+    else if (!donationObserved) issues.push("The last loader check-in did not include the donation form.");
+    else if (!recent) issues.push(`The last loader check-in is stale${ageMinutes === null ? "" : ` (${ageMinutes} minutes ago)`}.`);
+  }
+
+  const ok = issues.length === 0;
+  await logAudit({
+    action: "SITE_EMBEDS_DONATION_DOMAIN_TESTED",
+    entity: "PluginSetting",
+    entityId: selectedSite.id,
+    userId: req.user?.sub,
+    organizationId,
+    metadata: { pluginKey: SITE_EMBEDS_PLUGIN_KEY, siteId: selectedSite.id, requestedDomain, allowed, installed, ok, issues },
+  });
+
+  res.json({
+    data: {
+      ok,
+      status: ok ? "ready" : allowed ? "awaiting_install" : "blocked",
+      domain: requestedDomain,
+      allowed,
+      installed,
+      observedDomain,
+      lastObservedAt: lastLoad?.loadedAt ?? null,
+      activeWidgets: lastLoad?.activeWidgets ?? [],
+      issues,
+      message: ok
+        ? `Donation form loader verified on ${requestedDomain}.`
+        : allowed
+          ? `Domain access is configured, but a recent donation-form check-in from ${requestedDomain} has not been verified.`
+          : "Donation form domain verification found configuration issues.",
     },
   });
 });

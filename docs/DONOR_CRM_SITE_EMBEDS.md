@@ -94,6 +94,8 @@ If the domain is not allowed:
 Production guidance:
 - Prefer explicit domains in production.
 - Use `*` only when temporarily testing embed behavior across many external websites.
+- Donation forms are stricter: at least one exact domain or scoped wildcard is required, and unrestricted `*` is rejected.
+- In Stripe Giving, install the loader and donation block, open the real donation page, then use **Save and verify domain**. A passing result confirms both allow-list access and a recent loader check-in that included the donation widget from that exact hostname.
 
 ### 3) Public-Safe Loader Config
 
@@ -152,7 +154,15 @@ CRM staff replies use `/api/livecom/conversations/:id/messages`.
 8. Install snippet on public website.
 9. Use Test Connection to validate ping health and config.
 
-For Stripe launch, also register the webhook URL shown in Stripe Giving and subscribe it to `checkout.session.completed` and `invoice.paid`.
+For Stripe launch, register the webhook URL shown in Stripe Giving and subscribe it to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, and `invoice.payment_failed`. The async events prevent delayed payment methods from being recorded before settlement, while recurring failures remain visible to staff without creating a completed CRM gift.
+
+Stripe Giving now includes four install-ready donation-form variants (standard, compact, campaign spotlight, and warm community). The saved form configuration controls the content, permitted preset/custom amounts, min/max safeguards, recurring-gift availability, required donor data, button text, and default presentation. Per-placement `data-oyama-style` and `data-oyama-width` attributes can select a library presentation without weakening the server-side payment rules.
+
+Stripe Giving can also publish a standalone OyamaCRM-hosted URL at `/give/{embedToken}`. This public page requires no website HTML installation and is intended for email buttons, social posts, QR codes, text messages, and nonprofits without direct website editing access. The hosted form uses semantic HTML labels and fieldsets, responsive layouts, the same saved content/payment constraints, Stripe Embedded Checkout, and the same verified webhook-to-CRM ledger pipeline as external embeds. Hosted-only forms may be published without an external domain; external embeds still fail closed unless their exact/scoped-wildcard domain configuration passes.
+
+Stripe Giving stores sandbox/test and live credentials independently, encrypted at rest. Test keys begin with `pk_test_` and `sk_test_`; live keys begin with `pk_live_` and `sk_live_`. Each Stripe webhook destination has its own `whsec_` signing secret, so save both the test and live secrets in their matching credential panels. Switching the active donation environment does not overwrite either set.
+
+The Connection screen can test either saved account independently. Its **Open sandbox form** action creates a real Stripe Embedded Checkout using only the saved test keys. Sandbox preview payments cannot charge real cards and intentionally omit the public site token, so they do not create CRM gifts or alter giving totals. Use the public installed form for the separate end-to-end webhook test that should create a test-mode CRM donation.
 
 ## Public Website Install
 
@@ -191,6 +201,12 @@ Fix:
 - Verify domain format in Site Embeds manager.
 - Ensure site is marked active.
 - Reinstall fresh snippet after token rotation.
+
+### Loader placeholder stays empty or URL contains `/api/api/`
+
+The canonical loader URL contains exactly one API segment: `https://crm.example.org/api/site-embeds/loader.js?token=...`. OyamaCRM now normalizes configured values ending in `/api` (including accidental repeated `/api/api`) before generating loader, callback, checkout-return, and Stripe webhook URLs. Re-save the donation form and copy the regenerated loader snippet after upgrading.
+
+Domain matching is intentionally exact. If donors may use both `example.org` and `www.example.org`, add both hostnames to the allow-list. Preview and localhost domains must also be added explicitly for embed testing; the OyamaCRM-hosted `/give/{token}` page does not require an external embed domain.
 
 ### Connection test reports stale ping
 

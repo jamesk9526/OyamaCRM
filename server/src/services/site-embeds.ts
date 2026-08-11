@@ -1,5 +1,6 @@
 /** Site embed registry, config parsing, snippet generation, and loader script builders for DonorCRM website embeds. */
 import { randomUUID } from "crypto";
+import { normalizePublicApiRootUrl } from "../lib/public-api-url.js";
 
 /** Plugin key used for storing site-embed settings in PluginSetting.config JSON. */
 export const SITE_EMBEDS_PLUGIN_KEY = "site_embeds";
@@ -88,22 +89,46 @@ export interface LiveComWidgetSettings {
 /** Donation widget settings with Stripe checkout support. */
 export interface DonationWidgetSettings {
   enabled: boolean;
+  /** Publishes a standalone OyamaCRM-hosted giving page in addition to external embeds. */
+  hostedPageEnabled: boolean;
+  /** Optional eyebrow displayed above the hosted page form. */
+  hostedPageEyebrow: string;
+  /** Footer/support copy displayed on the hosted public page. */
+  hostedPageFooter: string;
   /** Mission headline shown at top of widget. */
   headline: string;
   /** Short supporting copy below headline. */
   supportingCopy: string;
   /** Preset gift amounts shown as quick-select buttons. */
   suggestedAmounts: number[];
+  /** Whether donors can enter an amount outside the presets. */
+  allowCustomAmount: boolean;
+  /** Label for the custom amount choice. */
+  customAmountLabel: string;
   /** Minimum allowed gift amount in cents. */
   minimumAmountCents: number;
+  /** Maximum allowed gift amount in cents. */
+  maximumAmountCents: number;
   /** Whether monthly/recurring giving option is shown. */
   enableMonthlyGiving: boolean;
+  /** Initially selected giving cadence. */
+  defaultGiftType: "one-time" | "monthly";
+  /** Whether the donor must provide a name before checkout. */
+  requireDonorName: boolean;
+  /** Whether the optional phone field is displayed. */
+  collectPhone: boolean;
   /** Default gift designation. */
   defaultDesignation: string;
   /** All allowed gift designations (comma-separated or array). */
   allowedDesignations: string[];
   /** Accent color for amount buttons and CTA. Falls back to site accent. */
   accentColor: string;
+  /** Purposeful visual treatment for the public form. */
+  stylePreset: "classic" | "warm" | "minimal" | "bold";
+  /** Maximum public form width. */
+  formWidth: "compact" | "standard" | "wide";
+  /** Primary checkout button label. */
+  buttonLabel: string;
   /** Trust line shown near the CTA button. */
   trustLine: string;
   /** Success message shown after payment completes. */
@@ -432,14 +457,26 @@ export function buildDefaultSiteEmbedWidgetSettings(): SiteEmbedWidgetSettings {
     },
     donation_widget: {
       enabled: false,
+      hostedPageEnabled: false,
+      hostedPageEyebrow: "Secure online giving",
+      hostedPageFooter: "Questions about your gift? Contact our team for assistance.",
       headline: "Support Our Mission",
       supportingCopy: "Your generosity helps provide free, compassionate care and practical support to families in our community.",
       suggestedAmounts: [25, 50, 100, 250, 500],
+      allowCustomAmount: true,
+      customAmountLabel: "Other",
       minimumAmountCents: 500,
+      maximumAmountCents: 100000000,
       enableMonthlyGiving: true,
+      defaultGiftType: "one-time",
+      requireDonorName: true,
+      collectPhone: true,
       defaultDesignation: "General Fund",
       allowedDesignations: ["General Fund", "Client Services", "Events", "Material Resources"],
       accentColor: "",
+      stylePreset: "classic",
+      formWidth: "standard",
+      buttonLabel: "Continue to secure payment",
       trustLine: "Your information is sent securely.",
       successMessage: "Thank you for your gift! Your generosity makes a real difference.",
       failureMessage: "Your gift was not completed. No payment was recorded. You can try again or contact us directly.",
@@ -570,6 +607,53 @@ export function normalizeAllowedDomains(input: unknown): string[] {
     .filter((value) => value.length > 0);
 
   return Array.from(new Set(normalized));
+}
+
+/** Returns true when a normalized host or wildcard host is safe to persist in an embed allow-list. */
+export function isValidEmbedDomainPattern(value: unknown): boolean {
+  const normalized = normalizeDomainCandidate(value);
+  if (!normalized) return false;
+  if (normalized === "*") return true;
+
+  const host = normalized.startsWith("*.") ? normalized.slice(2) : normalized;
+  if (!host || host.length > 253 || host.includes("..")) return false;
+  if (host === "localhost") return true;
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
+    return host.split(".").every((part) => Number(part) >= 0 && Number(part) <= 255);
+  }
+
+  return host.split(".").every((label) => (
+    label.length > 0
+    && label.length <= 63
+    && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+  ));
+}
+
+/** Validates the domain restrictions required before a public donation form can be enabled. */
+export function getDonationDomainConfigurationIssues(
+  site: SiteEmbedSiteConfig,
+  options: { requireConfigured?: boolean } = {},
+): string[] {
+  const issues: string[] = [];
+  const requireConfigured = options.requireConfigured !== false;
+  const primaryDomain = normalizeDomainCandidate(site.primaryDomain);
+  const allowedDomains = normalizeAllowedDomains(site.allowedDomains);
+  const allDomains = normalizeAllowedDomains([primaryDomain, ...allowedDomains]);
+
+  if (requireConfigured && allDomains.length === 0) {
+    issues.push("Add a primary domain or at least one allowed domain before enabling the donation form.");
+  }
+  if (primaryDomain && (primaryDomain.startsWith("*.") || !isValidEmbedDomainPattern(primaryDomain))) {
+    issues.push("Primary domain must be one valid exact hostname, such as give.example.org.");
+  }
+  if (allowedDomains.some((domain) => !isValidEmbedDomainPattern(domain))) {
+    issues.push("One or more additional allowed domains are invalid.");
+  }
+  if (allDomains.includes("*")) {
+    issues.push("Donation forms cannot use the unrestricted * domain. Add exact domains or a scoped wildcard such as *.example.org.");
+  }
+
+  return issues;
 }
 
 /** Returns true when a domain matches one allowed-domain pattern. */
@@ -718,13 +802,25 @@ function normalizeSiteWidgetSettings(value: unknown): SiteEmbedWidgetSettings {
 
   const normDonation = (raw: Record<string, unknown>, def: DonationWidgetSettings): DonationWidgetSettings => ({
     enabled: readBool(raw, "enabled", def.enabled),
+    hostedPageEnabled: readBool(raw, "hostedPageEnabled", def.hostedPageEnabled),
+    hostedPageEyebrow: readStr(raw, "hostedPageEyebrow", def.hostedPageEyebrow).trim().slice(0, 80),
+    hostedPageFooter: readStr(raw, "hostedPageFooter", def.hostedPageFooter).trim().slice(0, 240),
     headline: readStr(raw, "headline", def.headline),
     supportingCopy: readStr(raw, "supportingCopy", def.supportingCopy),
     suggestedAmounts: Array.isArray(raw.suggestedAmounts)
       ? (raw.suggestedAmounts as unknown[]).map(Number).filter((n) => Number.isFinite(n) && n > 0)
       : def.suggestedAmounts,
-    minimumAmountCents: readNum(raw, "minimumAmountCents", def.minimumAmountCents),
+    allowCustomAmount: readBool(raw, "allowCustomAmount", def.allowCustomAmount),
+    customAmountLabel: readStr(raw, "customAmountLabel", def.customAmountLabel).slice(0, 40),
+    minimumAmountCents: Math.max(100, Math.round(readNum(raw, "minimumAmountCents", def.minimumAmountCents))),
+    maximumAmountCents: Math.max(
+      Math.max(100, Math.round(readNum(raw, "minimumAmountCents", def.minimumAmountCents))),
+      Math.min(100_000_000, Math.round(readNum(raw, "maximumAmountCents", def.maximumAmountCents))),
+    ),
     enableMonthlyGiving: readBool(raw, "enableMonthlyGiving", def.enableMonthlyGiving),
+    defaultGiftType: raw.defaultGiftType === "monthly" ? "monthly" : "one-time",
+    requireDonorName: readBool(raw, "requireDonorName", def.requireDonorName),
+    collectPhone: readBool(raw, "collectPhone", def.collectPhone),
     defaultDesignation: readStr(raw, "defaultDesignation", def.defaultDesignation),
     allowedDesignations: Array.isArray(raw.allowedDesignations)
       ? (raw.allowedDesignations as unknown[]).map(String)
@@ -732,6 +828,9 @@ function normalizeSiteWidgetSettings(value: unknown): SiteEmbedWidgetSettings {
         ? raw.allowedDesignations.split(",").map((s) => s.trim()).filter(Boolean)
         : def.allowedDesignations,
     accentColor: isSixDigitHexColor(raw.accentColor) ? String(raw.accentColor).trim() : def.accentColor,
+    stylePreset: raw.stylePreset === "warm" || raw.stylePreset === "minimal" || raw.stylePreset === "bold" ? raw.stylePreset : "classic",
+    formWidth: raw.formWidth === "compact" || raw.formWidth === "wide" ? raw.formWidth : "standard",
+    buttonLabel: readStr(raw, "buttonLabel", def.buttonLabel).slice(0, 80),
     trustLine: readStr(raw, "trustLine", def.trustLine),
     successMessage: readStr(raw, "successMessage", def.successMessage),
     failureMessage: readStr(raw, "failureMessage", def.failureMessage),
@@ -926,7 +1025,7 @@ export function getActiveWidgetKeys(site: SiteEmbedSiteConfig): string[] {
 
 /** Builds install-ready code snippets for one site connection. */
 export function buildSiteEmbedSnippets(site: SiteEmbedSiteConfig, apiBaseUrl: string): SiteEmbedSnippetBundle {
-  const safeApiBase = String(apiBaseUrl).replace(/\/$/, "");
+  const safeApiBase = normalizePublicApiRootUrl(apiBaseUrl);
   const safeToken = site.embedToken;
 
   const headSnippet = [
@@ -998,7 +1097,7 @@ export function buildSiteEmbedLoaderScript(args: {
   token: string;
   publicConfig: SiteEmbedsPublicConfig;
 }): string {
-  const apiBaseUrl = String(args.apiBaseUrl).replace(/\/$/, "");
+  const apiBaseUrl = normalizePublicApiRootUrl(args.apiBaseUrl);
   const token = jsStringLiteral(args.token);
   const publicConfigJson = JSON.stringify(args.publicConfig).replace(/</g, "\\u003c");
 
@@ -1240,12 +1339,19 @@ export function buildSiteEmbedLoaderScript(args: {
   function renderDonationWidget(node) {
     var cfg = getCfg('donation_widget');
     var col = accentColor(cfg);
+    var requestedPreset = String(node.getAttribute('data-oyama-style') || cfg.stylePreset || 'classic').toLowerCase();
+    var preset = ['classic', 'warm', 'minimal', 'bold'].indexOf(requestedPreset) >= 0 ? requestedPreset : 'classic';
+    var requestedWidth = String(node.getAttribute('data-oyama-width') || cfg.formWidth || 'standard').toLowerCase();
+    var formWidth = requestedWidth === 'compact' ? '440px' : requestedWidth === 'wide' ? '760px' : '560px';
     var colLight = col + '18'; // 10% opacity tint for backgrounds
     var colBorder = col + '44';
     cardBase(node);
-    node.style.maxWidth = '560px';
+    node.style.maxWidth = formWidth;
     node.style.marginLeft = 'auto';
     node.style.marginRight = 'auto';
+    if (preset === 'minimal') { node.style.border = 'none'; node.style.boxShadow = 'none'; }
+    if (preset === 'warm') { node.style.background = '#fffbeb'; node.style.borderColor = '#fde68a'; }
+    if (preset === 'bold') { node.style.borderTop = '7px solid ' + col; node.style.boxShadow = '0 10px 34px rgba(15,23,42,0.14)'; }
 
     var suggested = Array.isArray(cfg.suggestedAmounts) && cfg.suggestedAmounts.length
       ? cfg.suggestedAmounts : [25, 50, 100, 250, 500];
@@ -1256,25 +1362,26 @@ export function buildSiteEmbedLoaderScript(args: {
     var selAmount = suggested[1] || suggested[0] || 50;
     var customAmt = null;
     var showCustom = false;
-    var giftType = 'one-time';
+    var giftType = cfg.defaultGiftType === 'monthly' && allowMonthly ? 'monthly' : 'one-time';
     var designation = designations[0] || 'General Fund';
 
     // ── Outer scroll container
-    var wrap = el('div', { padding: responsivePadding('28px 28px 20px', '18px 14px 16px'), boxSizing: 'border-box' });
+    var wrap = el('form', { padding: responsivePadding('28px 28px 20px', '18px 14px 16px'), boxSizing: 'border-box' }, { 'aria-label': 'Secure donation form' });
 
     // ── Hero header
     var iconCircle = el('div', {
       width: '52px', height: '52px', borderRadius: '50%', background: colLight,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      margin: '0 auto 14px', fontSize: '24px'
+      alignItems: 'center', justifyContent: 'center',
+      margin: preset === 'minimal' ? '0 0 10px' : '0 auto 14px', fontSize: '24px',
+      display: preset === 'minimal' ? 'none' : 'flex'
     }, { html: '<svg viewBox="0 0 24 24" width="26" height="26" fill="' + col + '"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A5.98 5.98 0 0116.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' });
     var heroTitle = el('h3', {
       margin: '0 0 8px', fontSize: 'clamp(21px, 6vw, 26px)', fontWeight: '800', color: '#1a1a2e',
-      textAlign: 'center', lineHeight: '1.2', fontFamily: _FONT, letterSpacing: '0'
+      textAlign: preset === 'minimal' ? 'left' : 'center', lineHeight: '1.2', fontFamily: _FONT, letterSpacing: '0'
     }, { text: String(cfg.headline || 'Support Our Mission') });
     var heroSub = el('p', {
-      margin: '0 0 24px', fontSize: '15px', color: '#6b7280', textAlign: 'center',
-      lineHeight: '1.6', fontFamily: _FONT, maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto'
+      margin: '0 0 24px', fontSize: '15px', color: '#6b7280', textAlign: preset === 'minimal' ? 'left' : 'center',
+      lineHeight: '1.6', fontFamily: _FONT, maxWidth: preset === 'bold' ? '520px' : '460px', marginLeft: preset === 'minimal' ? '0' : 'auto', marginRight: 'auto'
     }, { text: String(cfg.supportingCopy || 'Your generosity helps power life-changing work in our community.') });
     ap(wrap, iconCircle, heroTitle, heroSub);
 
@@ -1319,8 +1426,8 @@ export function buildSiteEmbedLoaderScript(args: {
       border: '1.5px solid #e5e7eb', borderRadius: '10px',
       background: '#ffffff', color: '#374151', fontSize: '15px', fontWeight: '600',
       cursor: 'pointer', fontFamily: _FONT, transition: 'all .15s ease', minHeight: '44px', boxSizing: 'border-box'
-    }, { type: 'button', text: 'Custom' });
-    amtRow.appendChild(customBtn);
+    }, { type: 'button', text: String(cfg.customAmountLabel || 'Other') });
+    if (cfg.allowCustomAmount !== false) amtRow.appendChild(customBtn);
     ap(wrap, amtRow);
 
     // Custom amount input row
@@ -1337,7 +1444,7 @@ export function buildSiteEmbedLoaderScript(args: {
       paddingTop: '11px', paddingBottom: '11px',
       border: '1.5px solid ' + col, borderRadius: '10px', fontSize: '15px',
       fontFamily: _FONT, background: '#fff', color: '#111827', outline: 'none', minHeight: '44px'
-    }, { type: 'number', placeholder: 'Enter amount', min: '1', step: '1' });
+    }, { type: 'number', name: 'customAmount', 'aria-label': 'Custom gift amount', inputmode: 'decimal', placeholder: 'Enter amount', min: String(Number(cfg.minimumAmountCents || 100) / 100), max: String(Number(cfg.maximumAmountCents || 100000000) / 100), step: '0.01' });
     customInp.addEventListener('input', function () {
       var v = parseFloat(customInp.value);
       customAmt = v > 0 ? v : null;
@@ -1364,10 +1471,12 @@ export function buildSiteEmbedLoaderScript(args: {
         amtBtns[i].b.style.boxShadow = active ? ('0 0 0 3px ' + col + '28') : 'none';
         amtBtns[i].b.style.fontWeight = active ? '700' : '600';
       }
-      customBtn.style.background = showCustom ? colLight : '#ffffff';
-      customBtn.style.color = showCustom ? col : '#374151';
-      customBtn.style.borderColor = showCustom ? col : '#e5e7eb';
-      customBtn.style.fontWeight = showCustom ? '700' : '600';
+      if (cfg.allowCustomAmount !== false) {
+        customBtn.style.background = showCustom ? colLight : '#ffffff';
+        customBtn.style.color = showCustom ? col : '#374151';
+        customBtn.style.borderColor = showCustom ? col : '#e5e7eb';
+        customBtn.style.fontWeight = showCustom ? '700' : '600';
+      }
     }
     syncAmts();
 
@@ -1378,11 +1487,11 @@ export function buildSiteEmbedLoaderScript(args: {
       var giftRow = el('div', { display: 'flex', flexDirection: isNarrowViewport() ? 'column' : 'row', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' });
 
       function makeGiftCard(value, iconSvg, title, subtitle) {
-        var card = el('div', {
+        var card = el('button', {
           flex: '1 1 190px', width: '100%', padding: '14px', border: '1.5px solid #e5e7eb', borderRadius: '12px',
           cursor: 'pointer', background: '#fff', transition: 'all .15s ease', display: 'flex',
-          alignItems: 'flex-start', gap: '10px', boxSizing: 'border-box'
-        });
+          alignItems: 'flex-start', gap: '10px', boxSizing: 'border-box', textAlign: 'left'
+        }, { type: 'button', role: 'radio', 'aria-label': title, 'aria-checked': 'false' });
         var radio = el('div', {
           width: '18px', height: '18px', borderRadius: '50%', border: '2px solid #d1d5db',
           flexShrink: '0', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1419,6 +1528,7 @@ export function buildSiteEmbedLoaderScript(args: {
           cards[ci].style.background = active ? colLight : '#ffffff';
           cards[ci]._radio.style.borderColor = active ? col : '#d1d5db';
           cards[ci]._radioInner.style.background = active ? col : 'transparent';
+          cards[ci].setAttribute('aria-checked', active ? 'true' : 'false');
         }
         if (monthlyBanner) monthlyBanner.style.display = v === 'monthly' ? 'flex' : 'none';
       }
@@ -1439,7 +1549,7 @@ export function buildSiteEmbedLoaderScript(args: {
           { text: 'Make this a monthly gift and help provide steady support all year.' })
       );
       ap(wrap, monthlyBanner);
-      setGiftType('one-time');
+      setGiftType(giftType);
     }
 
     // ── Section 3: Designation
@@ -1451,6 +1561,8 @@ export function buildSiteEmbedLoaderScript(args: {
     var opts = [];
     for (var di = 0; di < designations.length; di++) opts.push({ value: designations[di], label: designations[di] });
     desigSelect = mkSelect(opts, { marginBottom: '6px', padding: '11px 14px', borderRadius: '10px', fontSize: '14px' });
+    desigSelect.setAttribute('name', 'designation');
+    desigSelect.setAttribute('aria-label', 'Gift designation');
     desigSelect.addEventListener('change', function () { designation = desigSelect.value; });
     desigHintEl = el('p', { margin: '0 0 16px', fontSize: '13px', color: '#6b7280', fontFamily: _FONT }, { text: desigHint });
     ap(wrap, desigSelect, desigHintEl);
@@ -1462,7 +1574,7 @@ export function buildSiteEmbedLoaderScript(args: {
     // 2-column field grid with icon prefix
     var fieldGrid = el('div', { display: 'grid', gridTemplateColumns: isNarrowViewport() ? '1fr' : 'repeat(auto-fit,minmax(180px,1fr))', gap: '10px', marginBottom: '10px' });
 
-    function iconField(icon, placeholder, type) {
+    function iconField(icon, placeholder, type, name, autocomplete, required) {
       var wrap2 = el('div', { position: 'relative', display: 'flex', alignItems: 'center' });
       var iconEl = el('span', {
         position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)',
@@ -1473,7 +1585,8 @@ export function buildSiteEmbedLoaderScript(args: {
         paddingTop: '10px', paddingBottom: '10px', border: '1.5px solid #e5e7eb',
         borderRadius: '10px', fontSize: '14px', fontFamily: _FONT, background: '#fafafa',
         color: '#111827', outline: 'none', minHeight: '44px'
-      }, { type: type || 'text', placeholder: placeholder });
+      }, { type: type || 'text', name: name, autocomplete: autocomplete, 'aria-label': placeholder, placeholder: placeholder, maxlength: type === 'email' ? '254' : type === 'tel' ? '40' : '80' });
+      if (required) inp.required = true;
       inp.addEventListener('focus', function () { inp.style.borderColor = col; inp.style.background = '#fff'; });
       inp.addEventListener('blur', function () { inp.style.borderColor = '#e5e7eb'; inp.style.background = '#fafafa'; });
       ap(wrap2, iconEl, inp);
@@ -1485,17 +1598,18 @@ export function buildSiteEmbedLoaderScript(args: {
     var emailSvg = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>';
     var phoneSvg = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.61 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72c.127.96.36 1.903.7 2.81a2 2 0 0 1-.45 2.11l-1.27 1.27a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.34 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 
-    var firstField = iconField(personSvg, 'First Name', 'text');
-    var lastField = iconField(personSvg, 'Last Name', 'text');
-    var emailField = iconField(emailSvg, 'Email Address', 'email');
-    var phoneField = iconField(phoneSvg, 'Phone (optional)', 'tel');
-    ap(fieldGrid, firstField, lastField, emailField, phoneField);
+    var firstField = iconField(personSvg, 'First Name', 'text', 'firstName', 'given-name', cfg.requireDonorName !== false);
+    var lastField = iconField(personSvg, 'Last Name', 'text', 'lastName', 'family-name', cfg.requireDonorName !== false);
+    var emailField = iconField(emailSvg, 'Email Address', 'email', 'email', 'email', true);
+    var phoneField = iconField(phoneSvg, 'Phone (optional)', 'tel', 'phone', 'tel', false);
+    ap(fieldGrid, firstField, lastField, emailField);
+    if (cfg.collectPhone !== false) fieldGrid.appendChild(phoneField);
     ap(wrap, fieldGrid);
 
     var privacyLine = el('p', {
       margin: '0 0 16px', fontSize: '12px', color: '#9ca3af', textAlign: 'center',
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', flexWrap: 'wrap', fontFamily: _FONT
-    }, { html: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> We respect your privacy and will never share your information.' });
+    }, { html: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Your information is used to process this gift and maintain your donor record.' });
     ap(wrap, privacyLine);
 
     // ── Stripe checkout mount (hidden until payment starts)
@@ -1503,7 +1617,7 @@ export function buildSiteEmbedLoaderScript(args: {
     ap(wrap, stripeMount);
 
     // ── Status / error message
-    var statusEl = el('p', { margin: '0 0 10px', fontSize: '13px', minHeight: '18px', color: '#6b7280', fontFamily: _FONT, textAlign: 'center' }, { text: '' });
+    var statusEl = el('p', { margin: '0 0 10px', fontSize: '13px', minHeight: '18px', color: '#6b7280', fontFamily: _FONT, textAlign: 'center' }, { text: '', role: 'status', 'aria-live': 'polite' });
     ap(wrap, statusEl);
 
     // ── CTA Button
@@ -1514,11 +1628,13 @@ export function buildSiteEmbedLoaderScript(args: {
       justifyContent: 'center', gap: '10px', letterSpacing: '0',
       boxShadow: '0 4px 16px ' + col + '44', transition: 'opacity .15s ease, transform .15s ease',
       minHeight: '48px', boxSizing: 'border-box'
-    }, { type: 'button',
+    }, { type: 'submit',
       html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' +
             '<span>Continue to Secure Payment</span>' +
             '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
     });
+    var ctaLabelNode = ctaBtn.querySelector('span');
+    if (ctaLabelNode) ctaLabelNode.textContent = String(cfg.buttonLabel || 'Continue to secure payment');
     ctaBtn.addEventListener('mouseover', function () { ctaBtn.style.opacity = '0.88'; ctaBtn.style.transform = 'translateY(-1px)'; });
     ctaBtn.addEventListener('mouseout', function () { ctaBtn.style.opacity = '1'; ctaBtn.style.transform = 'translateY(0)'; });
     ap(wrap, ctaBtn);
@@ -1558,19 +1674,25 @@ export function buildSiteEmbedLoaderScript(args: {
     window.addEventListener('message', onStripeReturn);
 
     // ── Submit handler
-    ctaBtn.addEventListener('click', function () {
+    wrap.addEventListener('submit', function (event) {
+      event.preventDefault();
       var amt = customAmt || selAmount;
       if (!amt || amt <= 0) { statusEl.textContent = 'Please select or enter a donation amount.'; statusEl.style.color = '#dc2626'; return; }
+      var minAmount = Number(cfg.minimumAmountCents || 100) / 100;
+      var maxAmount = Number(cfg.maximumAmountCents || 100000000) / 100;
+      if (amt < minAmount || amt > maxAmount) { statusEl.textContent = 'Gift amount must be between ' + formatMoney(minAmount) + ' and ' + formatMoney(maxAmount) + '.'; statusEl.style.color = '#dc2626'; return; }
       var email = String(emailField._inp.value || '').trim();
       if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) { statusEl.textContent = 'Please enter a valid email address.'; statusEl.style.color = '#dc2626'; return; }
+      var fullName = (String(firstField._inp.value || '').trim() + ' ' + String(lastField._inp.value || '').trim()).trim();
+      if (cfg.requireDonorName !== false && !fullName) { statusEl.textContent = 'Please enter your name.'; statusEl.style.color = '#dc2626'; return; }
       statusEl.textContent = 'Preparing secure checkout\u2026'; statusEl.style.color = '#6b7280';
       ctaBtn.disabled = true; ctaBtn.style.opacity = '0.6';
-      var fullName = (String(firstField._inp.value || '').trim() + ' ' + String(lastField._inp.value || '').trim()).trim();
       var body = new URLSearchParams();
       body.set('token', runtime.token); body.set('amount', String(amt));
       body.set('giftType', giftType); body.set('designation', designation);
       body.set('name', fullName || 'Website Donor'); body.set('email', email);
       body.set('phone', String(phoneField._inp.value || '').trim());
+      body.set('requestId', (window.crypto && typeof window.crypto.randomUUID === 'function') ? window.crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2));
       body.set('domain', window.location.hostname); body.set('pageUrl', window.location.href);
       fetch(runtime.apiBaseUrl + '/api/site-embeds/public/donation-checkout-embedded', {
         method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()

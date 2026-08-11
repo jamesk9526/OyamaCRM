@@ -10,12 +10,16 @@ export const PAYMENTS_PLUGIN_KEY = "payments_gateway";
 
 export type GatewayMode = "sandbox" | "production";
 
-export interface StripeGatewayConfig {
-  enabled: boolean;
-  mode: GatewayMode;
+export interface StripeCredentialSetConfig {
   publishableKey: string;
   secretKeyEncrypted: string;
   webhookSecretEncrypted: string;
+}
+
+export interface StripeGatewayConfig {
+  enabled: boolean;
+  mode: GatewayMode;
+  environments: Record<GatewayMode, StripeCredentialSetConfig>;
 }
 
 export interface PayPalGatewayConfig {
@@ -41,6 +45,11 @@ export interface PaymentGatewayPublicSettings {
     publishableKey: string;
     hasSecretKey: boolean;
     hasWebhookSecret: boolean;
+    environments: Record<GatewayMode, {
+      publishableKey: string;
+      hasSecretKey: boolean;
+      hasWebhookSecret: boolean;
+    }>;
   };
   paypal: {
     enabled: boolean;
@@ -59,6 +68,11 @@ export interface PaymentGatewayRuntimeConfig {
     publishableKey: string;
     secretKey: string;
     webhookSecret: string;
+    environments: Record<GatewayMode, {
+      publishableKey: string;
+      secretKey: string;
+      webhookSecret: string;
+    }>;
   };
   paypal: {
     enabled: boolean;
@@ -71,14 +85,15 @@ export interface PaymentGatewayRuntimeConfig {
 
 function defaultConfig(): PaymentGatewayConfig {
   return {
-    version: 1,
+    version: 2,
     currency: "USD",
     stripe: {
       enabled: false,
       mode: "sandbox",
-      publishableKey: "",
-      secretKeyEncrypted: "",
-      webhookSecretEncrypted: "",
+      environments: {
+        sandbox: { publishableKey: "", secretKeyEncrypted: "", webhookSecretEncrypted: "" },
+        production: { publishableKey: "", secretKeyEncrypted: "", webhookSecretEncrypted: "" },
+      },
     },
     paypal: {
       enabled: false,
@@ -100,7 +115,7 @@ function normalizeCurrency(value: unknown): string {
   return normalized;
 }
 
-function normalizeStoredConfig(raw: unknown): PaymentGatewayConfig {
+export function normalizeStoredPaymentGatewayConfig(raw: unknown): PaymentGatewayConfig {
   const defaults = defaultConfig();
   if (!raw || typeof raw !== "object") {
     return defaults;
@@ -109,16 +124,28 @@ function normalizeStoredConfig(raw: unknown): PaymentGatewayConfig {
   const input = raw as Record<string, unknown>;
   const stripe = (input.stripe ?? {}) as Record<string, unknown>;
   const paypal = (input.paypal ?? {}) as Record<string, unknown>;
+  const stripeMode = normalizeMode(stripe.mode);
+  const storedEnvironments = (stripe.environments ?? {}) as Record<string, unknown>;
+  const normalizeStripeEnvironment = (mode: GatewayMode): StripeCredentialSetConfig => {
+    const environment = (storedEnvironments[mode] ?? {}) as Record<string, unknown>;
+    const isLegacyActiveEnvironment = !stripe.environments && mode === stripeMode;
+    return {
+      publishableKey: String(environment.publishableKey ?? (isLegacyActiveEnvironment ? stripe.publishableKey : "") ?? "").trim(),
+      secretKeyEncrypted: String(environment.secretKeyEncrypted ?? (isLegacyActiveEnvironment ? stripe.secretKeyEncrypted : "") ?? "").trim(),
+      webhookSecretEncrypted: String(environment.webhookSecretEncrypted ?? (isLegacyActiveEnvironment ? stripe.webhookSecretEncrypted : "") ?? "").trim(),
+    };
+  };
 
   return {
-    version: Number.isFinite(Number(input.version)) ? Number(input.version) : defaults.version,
+    version: 2,
     currency: normalizeCurrency(input.currency),
     stripe: {
       enabled: typeof stripe.enabled === "boolean" ? stripe.enabled : defaults.stripe.enabled,
-      mode: normalizeMode(stripe.mode),
-      publishableKey: String(stripe.publishableKey ?? "").trim(),
-      secretKeyEncrypted: String(stripe.secretKeyEncrypted ?? "").trim(),
-      webhookSecretEncrypted: String(stripe.webhookSecretEncrypted ?? "").trim(),
+      mode: stripeMode,
+      environments: {
+        sandbox: normalizeStripeEnvironment("sandbox"),
+        production: normalizeStripeEnvironment("production"),
+      },
     },
     paypal: {
       enabled: typeof paypal.enabled === "boolean" ? paypal.enabled : defaults.paypal.enabled,
@@ -143,7 +170,7 @@ async function getSettingsRow(organizationId: string) {
 
 export async function readPaymentGatewayConfig(organizationId: string): Promise<PaymentGatewayConfig> {
   const row = await getSettingsRow(organizationId);
-  return normalizeStoredConfig(row?.config);
+  return normalizeStoredPaymentGatewayConfig(row?.config);
 }
 
 function decryptValue(value: string): string {
@@ -158,15 +185,27 @@ function decryptValue(value: string): string {
 
 export async function readPaymentGatewayRuntimeConfig(organizationId: string): Promise<PaymentGatewayRuntimeConfig> {
   const config = await readPaymentGatewayConfig(organizationId);
+  const stripeEnvironments = {
+    sandbox: {
+      publishableKey: config.stripe.environments.sandbox.publishableKey,
+      secretKey: decryptValue(config.stripe.environments.sandbox.secretKeyEncrypted),
+      webhookSecret: decryptValue(config.stripe.environments.sandbox.webhookSecretEncrypted),
+    },
+    production: {
+      publishableKey: config.stripe.environments.production.publishableKey,
+      secretKey: decryptValue(config.stripe.environments.production.secretKeyEncrypted),
+      webhookSecret: decryptValue(config.stripe.environments.production.webhookSecretEncrypted),
+    },
+  };
+  const activeStripe = stripeEnvironments[config.stripe.mode];
 
   return {
     currency: config.currency,
     stripe: {
       enabled: config.stripe.enabled,
       mode: config.stripe.mode,
-      publishableKey: config.stripe.publishableKey,
-      secretKey: decryptValue(config.stripe.secretKeyEncrypted),
-      webhookSecret: decryptValue(config.stripe.webhookSecretEncrypted),
+      ...activeStripe,
+      environments: stripeEnvironments,
     },
     paypal: {
       enabled: config.paypal.enabled,
@@ -180,15 +219,27 @@ export async function readPaymentGatewayRuntimeConfig(organizationId: string): P
 
 export async function readPaymentGatewayPublicSettings(organizationId: string): Promise<PaymentGatewayPublicSettings> {
   const config = await readPaymentGatewayConfig(organizationId);
+  const stripeEnvironments = {
+    sandbox: {
+      publishableKey: config.stripe.environments.sandbox.publishableKey,
+      hasSecretKey: Boolean(decryptValue(config.stripe.environments.sandbox.secretKeyEncrypted)),
+      hasWebhookSecret: Boolean(decryptValue(config.stripe.environments.sandbox.webhookSecretEncrypted)),
+    },
+    production: {
+      publishableKey: config.stripe.environments.production.publishableKey,
+      hasSecretKey: Boolean(decryptValue(config.stripe.environments.production.secretKeyEncrypted)),
+      hasWebhookSecret: Boolean(decryptValue(config.stripe.environments.production.webhookSecretEncrypted)),
+    },
+  };
+  const activeStripe = stripeEnvironments[config.stripe.mode];
 
   return {
     currency: config.currency,
     stripe: {
       enabled: config.stripe.enabled,
       mode: config.stripe.mode,
-      publishableKey: config.stripe.publishableKey,
-      hasSecretKey: Boolean(decryptValue(config.stripe.secretKeyEncrypted)),
-      hasWebhookSecret: Boolean(decryptValue(config.stripe.webhookSecretEncrypted)),
+      ...activeStripe,
+      environments: stripeEnvironments,
     },
     paypal: {
       enabled: config.paypal.enabled,
@@ -209,6 +260,13 @@ export interface PaymentGatewaySettingsUpdateInput {
     secretKey?: string;
     webhookSecret?: string;
     clearCredentials?: boolean;
+    clearAllCredentials?: boolean;
+    environments?: Partial<Record<GatewayMode, {
+      publishableKey?: string;
+      secretKey?: string;
+      webhookSecret?: string;
+      clearCredentials?: boolean;
+    }>>;
   };
   paypal?: {
     enabled?: boolean;
@@ -234,22 +292,38 @@ export async function savePaymentGatewaySettings(
   const paypalClientSecret = typeof input.paypal?.clientSecret === "string"
     ? input.paypal.clientSecret.trim()
     : "";
+  const stripeMode = input.stripe?.mode ? normalizeMode(input.stripe.mode) : current.stripe.mode;
+  const buildNextStripeEnvironment = (mode: GatewayMode): StripeCredentialSetConfig => {
+    const currentEnvironment = current.stripe.environments[mode];
+    const environmentInput = input.stripe?.environments?.[mode];
+    const isLegacyTarget = mode === stripeMode;
+    const environmentSecret = typeof environmentInput?.secretKey === "string" ? environmentInput.secretKey.trim() : isLegacyTarget ? stripeSecret : "";
+    const environmentWebhookSecret = typeof environmentInput?.webhookSecret === "string" ? environmentInput.webhookSecret.trim() : isLegacyTarget ? stripeWebhookSecret : "";
+    const clearEnvironment = environmentInput?.clearCredentials === true || (isLegacyTarget && input.stripe?.clearCredentials === true);
+    return {
+      publishableKey: typeof environmentInput?.publishableKey === "string"
+        ? environmentInput.publishableKey.trim()
+        : isLegacyTarget && typeof input.stripe?.publishableKey === "string"
+          ? input.stripe.publishableKey.trim()
+          : currentEnvironment.publishableKey,
+      secretKeyEncrypted: environmentSecret ? encryptCredential(environmentSecret) : clearEnvironment ? "" : currentEnvironment.secretKeyEncrypted,
+      webhookSecretEncrypted: environmentWebhookSecret ? encryptCredential(environmentWebhookSecret) : clearEnvironment ? "" : currentEnvironment.webhookSecretEncrypted,
+    };
+  };
+  const clearedEnvironment: StripeCredentialSetConfig = { publishableKey: "", secretKeyEncrypted: "", webhookSecretEncrypted: "" };
 
   const next: PaymentGatewayConfig = {
-    version: 1,
+    version: 2,
     currency: input.currency ? normalizeCurrency(input.currency) : current.currency,
     stripe: {
       enabled: typeof input.stripe?.enabled === "boolean" ? input.stripe.enabled : current.stripe.enabled,
-      mode: input.stripe?.mode ? normalizeMode(input.stripe.mode) : current.stripe.mode,
-      publishableKey: typeof input.stripe?.publishableKey === "string"
-        ? input.stripe.publishableKey.trim()
-        : current.stripe.publishableKey,
-      secretKeyEncrypted: stripeSecret
-        ? encryptCredential(stripeSecret)
-        : input.stripe?.clearCredentials ? "" : current.stripe.secretKeyEncrypted,
-      webhookSecretEncrypted: stripeWebhookSecret
-        ? encryptCredential(stripeWebhookSecret)
-        : input.stripe?.clearCredentials ? "" : current.stripe.webhookSecretEncrypted,
+      mode: stripeMode,
+      environments: input.stripe?.clearAllCredentials
+        ? { sandbox: clearedEnvironment, production: clearedEnvironment }
+        : {
+          sandbox: buildNextStripeEnvironment("sandbox"),
+          production: buildNextStripeEnvironment("production"),
+        },
     },
     paypal: {
       enabled: typeof input.paypal?.enabled === "boolean" ? input.paypal.enabled : current.paypal.enabled,

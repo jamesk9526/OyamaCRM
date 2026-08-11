@@ -5,6 +5,7 @@ const DEFAULT_TOLERANCE_SECONDS = 300;
 export interface StripeWebhookEnvelope {
   id?: string;
   type?: string;
+  livemode?: boolean;
   data?: {
     object?: Record<string, unknown>;
   };

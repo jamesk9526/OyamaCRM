@@ -49,14 +49,26 @@ export interface LiveComWidgetSettings {
 /** Donation widget settings – Stripe Embedded Checkout. */
 export interface DonationWidgetSettings {
   enabled: boolean;
+  hostedPageEnabled: boolean;
+  hostedPageEyebrow: string;
+  hostedPageFooter: string;
   headline: string;
   supportingCopy: string;
   suggestedAmounts: number[];
+  allowCustomAmount: boolean;
+  customAmountLabel: string;
   minimumAmountCents: number;
+  maximumAmountCents: number;
   enableMonthlyGiving: boolean;
+  defaultGiftType: "one-time" | "monthly";
+  requireDonorName: boolean;
+  collectPhone: boolean;
   defaultDesignation: string;
   allowedDesignations: string[];
   accentColor: string;
+  stylePreset: "classic" | "warm" | "minimal" | "bold";
+  formWidth: "compact" | "standard" | "wide";
+  buttonLabel: string;
   trustLine: string;
   successMessage: string;
   failureMessage: string;

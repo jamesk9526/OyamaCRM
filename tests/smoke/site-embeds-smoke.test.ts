@@ -71,7 +71,7 @@ describe("site embeds smoke", () => {
             greetingMessage: "Thanks for supporting our mission.",
           },
           campaign_meter: { enabled: true },
-          donation_widget: { enabled: true },
+          donation_widget: { enabled: true, hostedPageEnabled: true },
           event_card: { enabled: true },
           volunteer_signup: { enabled: true },
           newsletter_signup: { enabled: true },
@@ -107,11 +107,13 @@ describe("site embeds smoke", () => {
 
     expect(blocked.status).toBe(403);
     expect(String(blocked.text)).toContain("Domain is not allowed");
+    expect(String(blocked.text)).toContain("DOMAIN_NOT_ALLOWED");
+    expect(String(blocked.text)).toContain("temporarily unavailable");
   });
 
   it("records public ping status and stores latest script load metadata", async () => {
     const ping = await request(app)
-      .get(`/api/site-embeds/public/ping?token=${encodeURIComponent(embedToken)}&domain=${encodeURIComponent(primaryDomain)}&reason=smoke_ping&widgets=livecom`);
+      .get(`/api/site-embeds/public/ping?token=${encodeURIComponent(embedToken)}&domain=${encodeURIComponent(primaryDomain)}&reason=smoke_ping&widgets=livecom,donation_widget`);
 
     expect(ping.status).toBe(200);
     expect(ping.body?.data?.ok).toBe(true);
@@ -125,6 +127,38 @@ describe("site embeds smoke", () => {
     const selected = (config.body?.data?.sites ?? []).find((site: { id: string }) => site.id === siteId);
     expect(selected?.lastSuccessfulScriptLoad?.domain).toBe(primaryDomain);
     expect(selected?.lastSuccessfulScriptLoad?.reason).toBe("smoke_ping");
+  });
+
+  it("serves the published OyamaCRM-hosted giving page configuration", async () => {
+    const hosted = await request(app)
+      .get(`/api/site-embeds/public/donation-page?token=${encodeURIComponent(embedToken)}`);
+
+    expect(hosted.status).toBe(200);
+    expect(hosted.body?.data?.form?.hostedPageEnabled).toBe(true);
+    expect(hosted.body?.data?.form?.enabled).toBe(true);
+    expect(typeof hosted.body?.data?.checkoutReady).toBe("boolean");
+    expect(hosted.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("verifies the donation form on the configured website domain", async () => {
+    const verified = await request(app)
+      .post("/api/site-embeds/test-donation-domain")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ siteId, domain: primaryDomain });
+
+    expect(verified.status).toBe(200);
+    expect(verified.body?.data?.ok).toBe(true);
+    expect(verified.body?.data?.allowed).toBe(true);
+    expect(verified.body?.data?.installed).toBe(true);
+
+    const blocked = await request(app)
+      .post("/api/site-embeds/test-donation-domain")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ siteId, domain: blockedDomain });
+
+    expect(blocked.status).toBe(200);
+    expect(blocked.body?.data?.ok).toBe(false);
+    expect(blocked.body?.data?.status).toBe("blocked");
   });
 
   it("returns widget data payloads for implemented inline embeds", async () => {

@@ -52,6 +52,7 @@ Use a production env file with placeholder values.
 		FRONTEND_ORIGIN=https://<APP_DOMAIN>
 		NEXT_PUBLIC_APP_URL=https://<APP_DOMAIN>
 		NEXT_PUBLIC_API_URL=https://<APP_DOMAIN>/api
+		# The app accepts this conventional /api suffix and canonicalizes generated public loader/webhook URLs to one /api segment.
 
 		NEXT_PUBLIC_APP_ENV=production
 		NEXT_PUBLIC_APP_NAME=<APP_NAME>
