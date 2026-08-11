@@ -23,20 +23,28 @@ export default function EventPageBuilderSectionRail({
   onToggleSection,
 }: EventPageBuilderSectionRailProps) {
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
   const definitionMap = new Map(EVENT_PAGE_SECTION_DEFINITIONS.map((section) => [section.id, section]));
   const hiddenSections = useMemo(() => sections.filter((section) => !section.enabled), [sections]);
+  const filteredHiddenSections = useMemo(() => {
+    const normalized = libraryQuery.trim().toLowerCase();
+    return hiddenSections.filter((section) => {
+      const definition = getSectionDefinition(section.id);
+      return !normalized || `${definition.label} ${definition.description}`.toLowerCase().includes(normalized);
+    });
+  }, [hiddenSections, libraryQuery]);
   const visibleSections = useMemo(() => sections.filter((section) => section.enabled), [sections]);
   const selectedIndex = sections.findIndex((section) => section.id === selectedSectionId);
 
   return (
-    <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex h-full min-h-0 flex-col border-r border-[#d1d1d1] bg-white">
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold text-slate-950">Page Sections</h2>
             <p className="mt-1 text-xs text-slate-500">Arrange the public event page flow.</p>
           </div>
-          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">{visibleSections.length}/{sections.length}</span>
+          <span className="bg-[#eff6fc] px-2 py-0.5 text-xs font-semibold text-[#0f548c]">{visibleSections.length}/{sections.length}</span>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-2">
@@ -146,13 +154,14 @@ export default function EventPageBuilderSectionRail({
           + Add Section
         </button>
         {libraryOpen ? (
-          <div className="rounded-lg border border-violet-100 bg-violet-50 p-2">
-            <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">Available Blocks</p>
+          <div className="border border-[#d1d1d1] bg-[#fafafa] p-2">
+            <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0f548c]">Available blocks</p>
+            <input value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} placeholder="Search blocks" aria-label="Search page blocks" className="my-2 h-9 w-full border border-[#8a8886] bg-white px-2 text-xs outline-none focus:border-[#0f6cbd]" />
             {hiddenSections.length === 0 ? (
               <p className="px-2 py-2 text-xs text-violet-700">All block types are already on this page.</p>
             ) : (
               <div className="space-y-1">
-                {hiddenSections.map((section) => {
+                {filteredHiddenSections.map((section) => {
                   const definition = definitionMap.get(section.id) ?? getSectionDefinition(section.id);
                   return (
                     <button
@@ -163,12 +172,13 @@ export default function EventPageBuilderSectionRail({
                         onSelectSection(section.id);
                         setLibraryOpen(false);
                       }}
-                      className="w-full rounded-md bg-white px-2 py-2 text-left text-xs font-semibold text-slate-800 shadow-sm hover:bg-violet-100"
+                      className="w-full border border-transparent bg-white px-2 py-2 text-left text-xs font-semibold text-slate-800 hover:border-[#96c6eb] hover:bg-[#eff6fc]"
                     >
                       {definition.label}
                     </button>
                   );
                 })}
+                {filteredHiddenSections.length === 0 ? <p className="px-2 py-2 text-xs text-[#616161]">No blocks match that search.</p> : null}
               </div>
             )}
           </div>

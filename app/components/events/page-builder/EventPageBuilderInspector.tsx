@@ -1,7 +1,7 @@
 // Right inspector for event page section content, design, and data bindings.
 import { useEffect, useState } from "react";
 import { getSectionDefinition, getSectionSourceFields } from "@/app/components/events/page-builder/section-config";
-import type { EventPageSectionId, EventPageSectionState } from "@/app/components/events/page-builder/types";
+import type { EventPageBranding, EventPageSectionId, EventPageSectionState } from "@/app/components/events/page-builder/types";
 
 const MAX_PREVIEW_FIELDS = 5;
 
@@ -9,6 +9,7 @@ interface EventPageBuilderInspectorProps {
   section: EventPageSectionState;
   onUpdateSection: (sectionId: EventPageSectionId, updater: (current: EventPageSectionState) => EventPageSectionState) => void;
   onDeleteSection: (sectionId: EventPageSectionId) => void;
+  branding?: EventPageBranding;
 }
 
 function TextField({
@@ -62,7 +63,7 @@ function TextAreaField({
 }
 
 /** Inspector panel for section settings in the Events page builder. */
-export default function EventPageBuilderInspector({ section, onUpdateSection, onDeleteSection }: EventPageBuilderInspectorProps) {
+export default function EventPageBuilderInspector({ section, onUpdateSection, onDeleteSection, branding }: EventPageBuilderInspectorProps) {
   const [activeTab, setActiveTab] = useState<"Content" | "Design" | "Advanced">("Content");
   const definition = getSectionDefinition(section.id);
   const sourceFields = getSectionSourceFields(section.id);
@@ -83,6 +84,10 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
         [key]: value,
       },
     }));
+  }
+
+  function updateContentValue<K extends keyof NonNullable<EventPageSectionState["content"]>>(key: K, value: NonNullable<EventPageSectionState["content"]>[K]) {
+    onUpdateSection(section.id, (current) => ({ ...current, content: { ...(current.content ?? {}), [key]: value } }));
   }
 
   function updateDesign(key: keyof NonNullable<EventPageSectionState["design"]>, value: string | number | boolean) {
@@ -106,7 +111,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
   }
 
   return (
-    <aside className="flex min-h-0 flex-col border-l border-slate-200 bg-white">
+    <aside className="flex h-full min-h-0 flex-col border-l border-[#d1d1d1] bg-white">
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -118,7 +123,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
             onClick={() => onDeleteSection(section.id)}
             className="rounded-md px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
           >
-            Delete Section
+            Hide block
           </button>
         </div>
       </div>
@@ -211,6 +216,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                   <TextField label="Kicker Text" value={content.kicker ?? ""} onChange={(value) => updateContent("kicker", value)} />
                   <TextField label="Title Override" value={content.title ?? ""} placeholder="Defaults to event name" onChange={(value) => updateContent("title", value)} />
                   <TextField label="Subtitle" value={content.subtitle ?? ""} onChange={(value) => updateContent("subtitle", value)} />
+                  <TextField label="Attire / dress code" value={content.attire ?? ""} placeholder="Optional" onChange={(value) => updateContent("attire", value)} />
                   <TextField label="Primary Button" value={content.primaryButtonText ?? ""} onChange={(value) => updateContent("primaryButtonText", value)} />
                   <TextField label="Primary Link" value={content.primaryButtonLink ?? ""} onChange={(value) => updateContent("primaryButtonLink", value)} />
                   <TextField label="Secondary Button" value={content.secondaryButtonText ?? ""} onChange={(value) => updateContent("secondaryButtonText", value)} />
@@ -249,9 +255,14 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                     }} />
                   </>
                 ) : null}
-                {["video", "image-gallery"].includes(section.id) ? (
+                {section.id === "video" ? (
                   <TextField label="Media URL" value={content.mediaUrl ?? ""} placeholder="https://..." onChange={(value) => updateContent("mediaUrl", value)} />
                 ) : null}
+                {section.id === "image-gallery" ? <TextAreaField label="Image URLs (one per line)" value={(content.galleryImages ?? []).join("\n")} placeholder="https://..." onChange={(value) => updateContentValue("galleryImages", value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 6))} /> : null}
+                {section.id === "schedule" ? <div className="space-y-2"><p className="text-xs font-semibold text-slate-700">Schedule items</p>{(content.scheduleItems ?? []).map((item, index) => <div key={index} className="grid grid-cols-[90px_1fr_auto] gap-1"><input aria-label={`Schedule item ${index + 1} time`} value={item.time ?? ""} onChange={(event) => updateContentValue("scheduleItems", (content.scheduleItems ?? []).map((current, itemIndex) => itemIndex === index ? { ...current, time: event.target.value } : current))} placeholder="6:00 PM" className="h-9 border border-slate-300 px-2 text-xs" /><input aria-label={`Schedule item ${index + 1} label`} value={item.label ?? ""} onChange={(event) => updateContentValue("scheduleItems", (content.scheduleItems ?? []).map((current, itemIndex) => itemIndex === index ? { ...current, label: event.target.value } : current))} placeholder="Doors open" className="h-9 min-w-0 border border-slate-300 px-2 text-xs" /><button type="button" onClick={() => updateContentValue("scheduleItems", (content.scheduleItems ?? []).filter((_, itemIndex) => itemIndex !== index))} className="h-9 px-2 text-xs text-red-600" aria-label={`Remove schedule item ${index + 1}`}>×</button></div>)}<button type="button" onClick={() => updateContentValue("scheduleItems", [...(content.scheduleItems ?? []), { time: "", label: "" }].slice(0, 12))} className="event-studio-secondary-button w-full">+ Add schedule item</button></div> : null}
+                {section.id === "faq" ? <div className="space-y-2"><p className="text-xs font-semibold text-slate-700">Questions and answers</p>{(content.faqItems ?? []).map((item, index) => <div key={index} className="border border-slate-200 p-2"><input aria-label={`FAQ ${index + 1} question`} value={item.question ?? ""} onChange={(event) => updateContentValue("faqItems", (content.faqItems ?? []).map((current, itemIndex) => itemIndex === index ? { ...current, question: event.target.value } : current))} placeholder="Question" className="h-9 w-full border border-slate-300 px-2 text-xs" /><textarea aria-label={`FAQ ${index + 1} answer`} value={item.answer ?? ""} onChange={(event) => updateContentValue("faqItems", (content.faqItems ?? []).map((current, itemIndex) => itemIndex === index ? { ...current, answer: event.target.value } : current))} placeholder="Answer" rows={3} className="mt-2 w-full border border-slate-300 p-2 text-xs" /><button type="button" onClick={() => updateContentValue("faqItems", (content.faqItems ?? []).filter((_, itemIndex) => itemIndex !== index))} className="mt-1 text-xs font-semibold text-red-600">Remove</button></div>)}<button type="button" onClick={() => updateContentValue("faqItems", [...(content.faqItems ?? []), { question: "", answer: "" }].slice(0, 12))} className="event-studio-secondary-button w-full">+ Add FAQ</button></div> : null}
+                {section.id === "highlights" ? <div className="space-y-2"><p className="text-xs font-semibold text-slate-700">Highlight cards</p>{(content.highlightItems ?? []).map((item, index) => <div key={index} className="border border-slate-200 p-2"><input aria-label={`Highlight ${index + 1} title`} value={item.title ?? ""} onChange={(event) => updateContentValue("highlightItems", (content.highlightItems ?? []).map((current, itemIndex) => itemIndex === index ? { ...current, title: event.target.value } : current))} placeholder="Title" className="h-9 w-full border border-slate-300 px-2 text-xs" /><textarea aria-label={`Highlight ${index + 1} body`} value={item.body ?? ""} onChange={(event) => updateContentValue("highlightItems", (content.highlightItems ?? []).map((current, itemIndex) => itemIndex === index ? { ...current, body: event.target.value } : current))} placeholder="Short description" rows={2} className="mt-2 w-full border border-slate-300 p-2 text-xs" /><button type="button" onClick={() => updateContentValue("highlightItems", (content.highlightItems ?? []).filter((_, itemIndex) => itemIndex !== index))} className="mt-1 text-xs font-semibold text-red-600">Remove</button></div>)}<button type="button" onClick={() => updateContentValue("highlightItems", [...(content.highlightItems ?? []), { title: "", body: "" }].slice(0, 6))} className="event-studio-secondary-button w-full">+ Add highlight</button></div> : null}
+                {section.id === "testimonial" ? <><TextField label="Quote author" value={content.quoteAuthor ?? ""} onChange={(value) => updateContent("quoteAuthor", value)} /><TextField label="Author role / organization" value={content.quoteRole ?? ""} onChange={(value) => updateContent("quoteRole", value)} /></> : null}
               </div>
             </div>
           ) : null}
@@ -260,27 +271,15 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-950">Background</h3>
-                <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 text-xs font-semibold">
-                  {(["image", "color", "video"] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => updateDesign("backgroundType", type)}
-                      className={[
-                        "h-9 capitalize",
-                        (design.backgroundType ?? "image") === type ? "bg-violet-50 text-violet-700" : "bg-white text-slate-500 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
+                {section.id === "hero" ? <div className="mt-3 grid grid-cols-3 overflow-hidden border border-slate-200 text-xs font-semibold">
+                  {(["image", "color", "video"] as const).map((type) => <button key={type} type="button" onClick={() => updateDesign("backgroundType", type)} className={`h-9 capitalize ${(design.backgroundType ?? "image") === type ? "bg-[#eff6fc] text-[#0f6cbd]" : "bg-white text-slate-500 hover:bg-slate-50"}`}>{type}</button>)}
+                </div> : <p className="mt-1 text-xs text-slate-500">Choose a surface color for this block. Page accents inherit global branding unless overridden below.</p>}
                 <div className="mt-3 space-y-3">
-                  <TextField label="Image / Video URL" value={design.backgroundImageUrl ?? ""} placeholder="https://..." onChange={(value) => updateDesign("backgroundImageUrl", value)} />
-                  <TextField label="Background Color" value={design.backgroundColor ?? ""} placeholder="#120c3b" onChange={(value) => updateDesign("backgroundColor", value)} />
-                  <TextField label="Accent Color" value={design.accentColor ?? ""} placeholder="#8b5cf6" onChange={(value) => updateDesign("accentColor", value)} />
+                  {section.id === "hero" && design.backgroundType !== "color" ? <TextField label="Image / Video URL" value={design.backgroundImageUrl ?? ""} placeholder="https://..." onChange={(value) => updateDesign("backgroundImageUrl", value)} /> : null}
+                  <label className="block"><span className="text-xs font-medium text-slate-500">Background color</span><div className="mt-1 flex gap-2"><input type="color" value={design.backgroundColor || branding?.primaryColor || "#0f6cbd"} onChange={(event) => updateDesign("backgroundColor", event.target.value)} className="h-9 w-12 border border-slate-300 bg-white p-1" /><input value={design.backgroundColor ?? ""} onChange={(event) => updateDesign("backgroundColor", event.target.value)} placeholder={branding?.primaryColor || "#0f6cbd"} className="h-9 min-w-0 flex-1 border border-slate-300 px-2 text-xs" /></div></label>
+                  <label className="block"><span className="text-xs font-medium text-slate-500">Accent color</span><div className="mt-1 flex gap-2"><input type="color" value={design.accentColor || branding?.accentColor || "#5c2d91"} onChange={(event) => updateDesign("accentColor", event.target.value)} className="h-9 w-12 border border-slate-300 bg-white p-1" /><input value={design.accentColor ?? ""} onChange={(event) => updateDesign("accentColor", event.target.value)} placeholder={branding?.accentColor || "#5c2d91"} className="h-9 min-w-0 flex-1 border border-slate-300 px-2 text-xs" /></div></label>
                 </div>
-                <label className="mt-3 block">
+                {section.id === "hero" && design.backgroundType !== "color" ? <label className="mt-3 block">
                   <span className="flex items-center justify-between text-xs font-medium text-slate-500">
                     <span>Overlay Opacity</span>
                     <span>{design.overlayOpacity ?? 62}%</span>
@@ -291,13 +290,15 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                     max={90}
                     value={design.overlayOpacity ?? 62}
                     onChange={(event) => updateDesign("overlayOpacity", Number(event.target.value))}
-                    className="mt-2 w-full accent-violet-600"
+                    className="mt-2 w-full accent-[#0f6cbd]"
                   />
-                </label>
+                </label> : null}
               </div>
 
               <div>
                 <h3 className="text-sm font-semibold text-slate-950">Layout</h3>
+                <p className="mt-3 text-xs font-medium text-slate-500">Section surface</p><div className="mt-1 grid grid-cols-3 border border-slate-200 text-xs font-semibold">{(["default", "white", "soft"] as const).map((tone) => <button key={tone} type="button" onClick={() => updateDesign("backgroundTone", tone)} className={`h-9 capitalize ${(design.backgroundTone ?? "default") === tone ? "bg-[#eff6fc] text-[#0f6cbd]" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{tone}</button>)}</div>
+                <p className="mt-3 text-xs font-medium text-slate-500">Content width</p><div className="mt-1 grid grid-cols-3 border border-slate-200 text-xs font-semibold">{(["narrow", "standard", "wide"] as const).map((width) => <button key={width} type="button" onClick={() => updateDesign("contentWidth", width)} className={`h-9 capitalize ${(design.contentWidth ?? "standard") === width ? "bg-[#eff6fc] text-[#0f6cbd]" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{width}</button>)}</div>
                 <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-lg border border-slate-200 text-xs font-semibold">
                   {(["left", "center"] as const).map((align) => (
                     <button

@@ -1,6 +1,27 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-09 (Donor CRM layouts, reports, constituents, and individual/public research)_
+_Last focused audit: 2026-08-11 (Event page builder redesign and global-brand completion)_
+
+## 2026-08-11 Event Page Builder Completion Pass
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Fluent event page composition workspace | Working | `app/components/events/page-builder/EventPageBuilderShell.tsx`, `EventPageBuilderTopBar.tsx`, `EventPageBuilderSectionRail.tsx`, `EventPageBuilderInspector.tsx` | Replaced the dense builder chrome with a compact Microsoft-style command bar, searchable block library, focused settings inspector, and responsive Sections/Preview/Settings panels. |
+| Global organization branding | Working | `app/lib/branding-settings.ts`, `server/src/services/organization-branding.ts`, `server/src/routes/events.ts`, `EventPageBuilderPreview.tsx`, `PublicEventPage.tsx` | Builder previews and published event pages inherit the organization name, logos, primary/accent colors, tagline, mission, contact details, address, legal text, website, and social links. Section color overrides remain optional. |
+| Expanded working block library | Working | `app/components/events/page-builder/types.ts`, `section-config.ts`, `EventPageBuilderInspector.tsx`, `EventPageBuilderPreview.tsx`, `server/src/routes/events.ts` | Added persisted Organization Banner, Highlights, Testimonial, Contact Organizer, and Accessibility blocks. Schedule, FAQ, gallery, highlights, quote attribution, surfaces, widths, and colors now have real editors and public renderers. |
+| Page-builder persistence and responsive behavior | Working | `tests/smoke/events-crud.test.ts`, browser validation at desktop and 390×844 | Event section configuration continues to round-trip through the server; the focused 48-test Events suite passed. Mobile panels, preview dialog, and document overflow were exercised in the live app. |
+
+Audit: `docs/status/audit-artifacts/2026-08-11-event-page-builder-redesign.md`.
+
+## 2026-08-11 EventSTUDIO and Trivia Completion Pass
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Shared Microsoft-style event product chrome | Working | `app/components/events/EventsStudioShell.tsx`, `app/components/trivia/TriviaOpsShell.tsx`, `app/globals.css` | Both products use the same Segoe/Fluent shell language, neutral canvas, compact command bars, visible focus, collapsible desktop rails, and viewport-safe mobile drawers. Projector routes retain their purpose-built high-contrast show theme. |
+| Simplified event entry and discovery | Working | `app/events/page.tsx`, `app/components/events/EventsRegistryPage.tsx` | `/events` now redirects to the single canonical event library. The library replaces the dead import control and duplicate selector dashboard with search, Upcoming/All/Archived views, templates, creation, live counts, and one Open workspace action. |
+| Simplified Trivia resume and lifecycle controls | Working | `app/apps/trivia/page.tsx`, `app/apps/trivia/events/page.tsx`, `app/components/trivia/ops/TriviaOverviewWorkspace.tsx` | Home exposes a four-step Build → Register → Run → Score model and recent-event resume. The event library adds search/status views and one primary open/resume action; live, complete, projector, builder, and guarded delete actions remain in a secondary menu. |
+
+Audit: `docs/status/audit-artifacts/2026-08-11-events-trivia-ui-completion.md`.
 
 ## 2026-08-09 Donor CRM Layout and Research Audit
 
@@ -39,7 +60,7 @@ Audit: `docs/audits/event-system-audit-2026-08-09.md`.
 
 | Capability | Status | Evidence | Notes |
 |---|---|---|---|
-| Unified Microsoft-style CRM chrome | Working | `app/globals.css`, `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/layout/AppProductShell.tsx`, `app/compassion/layout.tsx`, `app/components/events/EventsShell.tsx`, `app/components/trivia/TriviaOpsShell.tsx` | Donor CRM, Compassion CRM, Events, Letters, Email, Trivia administration, and standalone app shells use Segoe typography, flat bordered surfaces, compact controls, and clear focus states. Donor keeps the requested dark graphite top/side bars; Trivia is a consistent dark Microsoft-inspired command center with a purple product identity across navigation, planning, night-of operations, remote access, and builder tools. Projector and public presentation routes remain purpose-specific. |
+| Unified Microsoft-style CRM chrome | Working | `app/globals.css`, `app/components/layout/AppShell.tsx`, `app/components/layout/TopBar.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/layout/AppProductShell.tsx`, `app/compassion/layout.tsx`, `app/components/events/EventsStudioShell.tsx`, `app/components/trivia/TriviaOpsShell.tsx` | Donor CRM, Compassion CRM, Events, Letters, Email, Trivia administration, and standalone app shells use Segoe typography, flat bordered surfaces, compact controls, and clear focus states. EventSTUDIO and Trivia now share a light neutral Fluent admin canvas with blue and purple product accents; Trivia projector and public presentation routes remain purpose-specific. |
 | Donor command bar and workspace rail | Working | `app/components/layout/TopBar.tsx`, `app/components/layout/DonorMegaMenu.tsx`, `app/components/layout/AppShell.tsx` | DonorCRM uses a restrained dark command surface with workspace switching, search, notifications, quick add, and account controls. The desktop rail groups work into Dashboard, Donors, Fundraising, Communications, and Operations; mobile uses the same information architecture in a header-triggered sheet. |
 | Shared communications launchpad | Working | `app/communications/page.tsx`, `app/components/communications/CommunicationsHub.tsx`, `app/components/oyama-email/OyamaEmailWorkspace.tsx`, `app/components/letters/OyamaLettersWorkspace.tsx` | `/communications` is the common email-and-print entry point. It launches template and delivery workflows by channel, directs staff to donor selection first, and exposes the existing reviewable email↔letter companion path without combining email send controls with print/mail controls. |
 | Historic donation acknowledgment range action | Working | `app/donations/page.tsx`, `server/src/routes/donations.ts` | The pending-acknowledgment queue can mark all currently unthanked completed gifts in an explicitly confirmed gift-date range as acknowledged. It never sends communications, and records the date range, count, user, and timestamp in the audit log. |

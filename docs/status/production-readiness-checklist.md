@@ -1,8 +1,26 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-09 (Donor CRM layout and individual/public-research audit)
+Last updated: 2026-08-11 (Event page builder redesign and global-brand completion)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-08-11 Event Page Builder Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Builder and published page use global organization branding | Working | Branding context is loaded in the editor and public Events API and rendered by the shared `EventPageDocument`; missing optional values fall back safely. |
+| New and existing block options are persisted and rendered | Working | Five new block types plus structured Schedule, FAQ, Gallery, Highlights, quote, width, surface, accent, and background settings are sanitized server-side and rendered by the shared preview/public component. |
+| Builder remains usable in resized windows and on phones | Working | At 390×844 the editor exposes focused Sections/Preview/Settings tabs, produces no document-level horizontal overflow, and retains working preview-dialog open/close behavior. |
+| Event configuration regression lane remains green | Working | `pnpm typecheck`; focused ESLint with zero errors; `tests/smoke/events-crud.test.ts` 48/48 passed; `git diff --check` passed. |
+
+## 2026-08-11 EventSTUDIO and Trivia UI Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Event and Trivia administration matches the shared Microsoft-style system | Working | `EventsStudioShell.tsx`, `TriviaOpsShell.tsx`, and scoped `app/globals.css` rules use neutral Fluent surfaces, compact commands, product accents, and visible focus without changing projector/public presentation themes. |
+| Primary event entry has one source of truth | Working | `/events` redirects to `/events/events`; the registry owns search, status views, templates, creation, and event opening. `/events/workspace` retains the legacy selector for compatibility. |
+| Planning and event-night actions remain reachable on phone and desktop | Working | Both shells use collapsible desktop navigation and modal mobile drawers. Browser checks at desktop and 390×844 confirmed no horizontal document overflow and accessible primary actions/navigation. |
+| Trivia destructive and status transitions remain reviewable | Working | `app/apps/trivia/events/page.tsx` keeps two-step live, complete, and permanent-delete actions inside the event action menu; delete text distinguishes Trivia game data from the retained EventSTUDIO record. |
 
 ## 2026-08-09 Donor CRM Research and Layout Snapshot
 

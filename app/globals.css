@@ -320,138 +320,125 @@ body {
   box-shadow: none !important;
 }
 
-/* Trivia is a deliberately dark command-center workspace. Projector and remote
-   routes remain separately presentation-focused. */
+/* EventSTUDIO and Trivia use the same restrained Fluent layout language as the
+   rest of Oyama. Product color identifies actions; it does not tint the whole UI. */
+.event-studio-shell,
 .trivia-admin-shell {
-  --trivia-accent: #8b5cf6;
-  --trivia-accent-hover: #a78bfa;
-  --trivia-surface: #0a1727;
-  --trivia-canvas: #071323;
-  --trivia-border: #243854;
+  color-scheme: light;
   font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
 }
 
-/* Shared shell follows the visual builder's navy command center rather than
-   treating every trivia route as a purple CRM card. */
-.trivia-admin-shell > header {
-  border-color: #243854 !important;
-  background: #0b1929 !important;
-}
-.trivia-admin-shell > div > aside {
-  border-color: #243854 !important;
-  background: #0d1b2c !important;
-}
-.trivia-admin-shell .trivia-admin-content { background: #071323 !important; }
-.trivia-admin-shell [class*="bg-[#372957]"] { background-color: #132840 !important; }
-.trivia-admin-shell [class*="bg-[#211833]"] { background-color: #112238 !important; }
-.trivia-admin-shell [class*="bg-[#161126]"] { background-color: #0b1929 !important; }
-.trivia-admin-shell [class*="border-[#4b3975]"],
-.trivia-admin-shell [class*="border-[#3f2c6e]"] { border-color: #243854 !important; }
-.trivia-admin-shell [class*="text-[#cbbef0]"],
-.trivia-admin-shell [class*="text-[#d9cffa]"] { color: #aebed1 !important; }
-
-/* Existing night-of workspaces use these shared utilities. Keeping the remap
-   inside the Trivia shell gives every non-projector route the same visual
-   language without leaking into Donor or Events. */
-.trivia-admin-content [class*="bg-slate-950"] { background-color: #071323 !important; }
-.trivia-admin-content [class*="bg-slate-900"] { background-color: #0b1929 !important; }
-.trivia-admin-content [class*="bg-slate-800"] { background-color: #132840 !important; }
-.trivia-admin-content [class*="bg-slate-700"] { background-color: #1b3551 !important; }
-.trivia-admin-content [class*="border-slate-700"],
-.trivia-admin-content [class*="border-slate-600"] { border-color: #2b4663 !important; }
-.trivia-admin-content [class*="text-slate-400"] { color: #9fb2c7 !important; }
-.trivia-admin-content [class*="text-slate-300"] { color: #c3d1df !important; }
-.trivia-admin-content [class*="text-slate-200"] { color: #dce7f1 !important; }
-
-.trivia-admin-content :is(.rounded-3xl, .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md) {
-  border-radius: 3px;
+.event-studio-nav-item,
+.trivia-nav-item {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 10px;
+  border-left: 3px solid transparent;
+  padding: 6px 9px;
+  color: #424242;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
-.trivia-admin-content :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
-  box-shadow: none;
+.event-studio-nav-item:hover,
+.trivia-nav-item:hover { background: #edebe9; color: #242424; }
+.event-studio-nav-item.is-active { border-left-color: #0f6cbd; background: #eff6fc; color: #0f548c; font-weight: 650; }
+.trivia-nav-item.is-active { border-left-color: #5c2d91; background: #f5f0f8; color: #4b1f78; font-weight: 650; }
+
+.event-studio-primary-button,
+.trivia-primary-button,
+.event-studio-secondary-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.event-studio-primary-button { background: #0f6cbd; color: #fff; }
+.event-studio-primary-button:hover { background: #115ea3; }
+.trivia-primary-button { background: #5c2d91; color: #fff; }
+.trivia-primary-button:hover { background: #4b1f78; }
+.event-studio-secondary-button { border-color: #8a8886; background: #fff; color: #242424; }
+.event-studio-secondary-button:hover { background: #f3f2f1; }
+
+.event-studio-shell :is(button, a, select):focus-visible,
+.trivia-admin-shell :is(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid #0f6cbd;
+  outline-offset: 2px;
 }
 
-.trivia-admin-content :is(input, textarea, select):focus-visible {
-  outline: 2px solid #a78bfa;
-  outline-offset: -1px;
-}
+.trivia-status-dot { display: inline-block; width: 8px; height: 8px; flex: none; border-radius: 999px; background: #8a8886; }
+.trivia-status-live { background: #107c10; box-shadow: 0 0 0 3px #dff6dd; }
+.trivia-status-paused { background: #986f0b; box-shadow: 0 0 0 3px #fff4ce; }
+.trivia-status-check_in_open { background: #5c2d91; box-shadow: 0 0 0 3px #f5f0f8; }
+.trivia-status-completed { background: #0f6cbd; box-shadow: 0 0 0 3px #eff6fc; }
 
-/* The visual game canvas, legacy admin cards, and focused authoring dialogs
-   stay inside one high-contrast dark control-room system.  The scoped class
-   lets existing workflow components inherit the theme without affecting the
-   print-only documents they can generate. */
-.trivia-game-map,
-.trivia-editor-modal,
-.trivia-dark-card {
-  color: #e9e2ff;
-}
+/* Convert legacy Trivia workspaces to a coherent light admin surface without
+   affecting the purpose-built dark projector and visual game canvas. */
+.trivia-admin-content > :not(.trivia-builder-page) [class*="bg-slate-950"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="bg-slate-900"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="bg-slate-800"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="bg-slate-700"] { background-color: #ffffff !important; }
+.trivia-admin-content > :not(.trivia-builder-page) [class*="border-slate-700"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="border-slate-600"] { border-color: #d1d1d1 !important; }
+.trivia-admin-content > :not(.trivia-builder-page) [class*="text-white"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="text-slate-100"] { color: #242424 !important; }
+.trivia-admin-content > :not(.trivia-builder-page) [class*="text-slate-200"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="text-slate-300"],
+.trivia-admin-content > :not(.trivia-builder-page) [class*="text-slate-400"] { color: #616161 !important; }
+.trivia-admin-content :is(.rounded-3xl, .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md) { border-radius: 3px; }
+.trivia-admin-content :is(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) { box-shadow: none; }
 
-.trivia-dark-card {
-  border-color: #4b3975 !important;
-  background-color: #161126 !important;
-}
-
-.trivia-game-map [class*="bg-white"],
-.trivia-editor-modal [class*="bg-white"],
-.trivia-dark-card [class*="bg-white"] {
-  background-color: #161126 !important;
-}
-
-.trivia-game-map [class*="bg-[#f6f2ff]"],
-.trivia-game-map [class*="bg-[#fbfaff]"],
-.trivia-editor-modal [class*="bg-[#f6f2ff]"],
-.trivia-editor-modal [class*="bg-[#f5f4f8]"],
+.trivia-dark-card { border-color: #d1d1d1 !important; background: #fff !important; color: #242424; }
+.trivia-dark-card [class*="bg-white"] { background: #fff !important; }
 .trivia-dark-card [class*="bg-[#f6f2ff]"],
 .trivia-dark-card [class*="bg-[#fbfaff]"],
-.trivia-dark-card [class*="bg-[#f5f4f8]"] {
-  background-color: #211833 !important;
-}
-
-.trivia-game-map [class*="border-[#d1c7e8]"],
-.trivia-game-map [class*="border-[#e7e0f5]"],
-.trivia-editor-modal [class*="border-[#d1c7e8]"],
+.trivia-dark-card [class*="bg-[#f5f4f8]"] { background: #fafafa !important; }
 .trivia-dark-card [class*="border-[#d1c7e8]"],
 .trivia-dark-card [class*="border-[#e7e0f5]"],
-.trivia-dark-card [class*="border-[#a99ad0]"] {
-  border-color: #4b3975 !important;
-}
-
-.trivia-game-map [class*="text-slate-9"],
-.trivia-game-map [class*="text-slate-8"],
-.trivia-editor-modal [class*="text-slate-9"],
-.trivia-editor-modal [class*="text-slate-8"],
+.trivia-dark-card [class*="border-[#a99ad0]"] { border-color: #d1d1d1 !important; }
 .trivia-dark-card [class*="text-slate-9"],
-.trivia-dark-card [class*="text-slate-8"] {
-  color: #ffffff !important;
-}
-
-.trivia-game-map [class*="text-slate-7"],
-.trivia-game-map [class*="text-slate-6"],
-.trivia-game-map [class*="text-slate-5"],
-.trivia-editor-modal [class*="text-slate-7"],
-.trivia-editor-modal [class*="text-slate-6"],
-.trivia-editor-modal [class*="text-slate-5"],
+.trivia-dark-card [class*="text-slate-8"] { color: #242424 !important; }
 .trivia-dark-card [class*="text-slate-7"],
 .trivia-dark-card [class*="text-slate-6"],
-.trivia-dark-card [class*="text-slate-5"] {
-  color: #d9cffa !important;
-}
-
+.trivia-dark-card [class*="text-slate-5"] { color: #616161 !important; }
 .trivia-dark-card [class*="text-[#5b3f9b]"],
-.trivia-dark-card [class*="text-[#4a327f]"] {
-  color: #c4b5fd !important;
-}
+.trivia-dark-card [class*="text-[#4a327f]"] { color: #5c2d91 !important; }
+.trivia-dark-card :is(input, textarea, select)[class*="bg-white"] { border-color: #8a8886 !important; background: #fff !important; color: #242424 !important; }
 
-.trivia-dark-card :is(input, textarea, select)[class*="bg-white"] {
-  border-color: #8067b7 !important;
-  background-color: #0d0a16 !important;
-  color: #ffffff !important;
-}
-
-.trivia-dark-card [class*="bg-emerald-50"] { background-color: #073a34 !important; }
-.trivia-dark-card [class*="text-emerald-800"] { color: #a7f3d0 !important; }
-.trivia-dark-card [class*="bg-amber-50"] { background-color: #46300a !important; }
-.trivia-dark-card [class*="text-amber-800"] { color: #fde68a !important; }
+/* Public EventSTUDIO pages inherit the organization brand kit while preserving
+   accessible neutral surfaces for registration and long-form content. */
+.event-public-document { --event-brand-primary: #0f6cbd; --event-brand-accent: #5c2d91; }
+.event-brand-primary-bg { background-color: var(--event-brand-primary) !important; }
+.event-brand-primary-text { color: var(--event-brand-primary) !important; }
+.event-brand-soft { background: color-mix(in srgb, var(--event-brand-primary) 9%, white) !important; color: color-mix(in srgb, var(--event-brand-primary) 82%, #111827) !important; }
+.event-brand-outline { border: 1px solid var(--event-brand-primary); color: var(--event-brand-primary); background: #fff; }
+.event-public-document [class*="bg-violet-600"],
+.event-public-document [class*="bg-violet-700"] { background-color: var(--event-brand-primary) !important; }
+.event-public-document [class*="text-violet-600"],
+.event-public-document [class*="text-violet-700"] { color: var(--event-brand-primary) !important; }
+.event-public-document [class*="text-violet-200"],
+.event-public-document [class*="text-violet-300"],
+.event-public-document [class*="text-violet-400"] { color: color-mix(in srgb, var(--event-brand-accent) 58%, white) !important; }
+.event-public-document [class*="bg-violet-50"],
+.event-public-document [class*="bg-violet-100"] { background-color: color-mix(in srgb, var(--event-brand-primary) 9%, white) !important; }
+.event-public-document [class*="border-violet-100"],
+.event-public-document [class*="border-violet-200"],
+.event-public-document [class*="border-violet-300"] { border-color: color-mix(in srgb, var(--event-brand-primary) 28%, white) !important; }
+.event-section-tone-white > section { background: #fff !important; }
+.event-section-tone-soft > section { background: color-mix(in srgb, var(--event-brand-primary) 6%, white) !important; }
+.event-section-custom-background > section { background: var(--event-section-background) !important; }
+.event-section-width-narrow > section > :not(.absolute) { max-width: 760px; margin-inline: auto; }
+.event-section-width-standard > section > :not(.absolute) { max-width: 1040px; margin-inline: auto; }
+.event-section-width-wide > section > :not(.absolute) { max-width: 1180px; margin-inline: auto; }
 
 /* Trivia visual builder: deliberately application-like rather than a stack of
    dashboard cards. The canvas can carry a complete game plan at a glance. */

@@ -1,78 +1,28 @@
-// Trivia events list page for opening builder, host, score, and display routes.
+// Searchable Trivia event library with safe lifecycle actions.
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { ArrowRight, Gamepad2, MoreHorizontal, Plus, Search } from "lucide-react";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 
-/**
- * TriviaEventsPage lists all persisted trivia events with operational route shortcuts.
- */
 export default function TriviaEventsPage() {
   const { state, deleteEvent, updateEventStatus } = useTriviaModuleState();
   const [armedAction, setArmedAction] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"active" | "all" | "completed">("active");
 
-  function guardedAction(key: string, action: () => void) {
-    if (armedAction !== key) {
-      setArmedAction(key);
-      return;
-    }
-    action();
-    setArmedAction(null);
-  }
+  function guardedAction(key: string, action: () => void) { if (armedAction !== key) { setArmedAction(key); return; } action(); setArmedAction(null); setOpenMenu(null); }
+  const events = useMemo(() => state.events.filter((event) => filter === "all" || (filter === "completed" ? ["completed", "archived"].includes(event.status) : !["completed", "archived"].includes(event.status))).filter((event) => !query.trim() || [event.name, event.venue, event.hostName].some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))), [state.events, filter, query]);
 
   return (
-    <section className="space-y-4">
-      <header className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-        <h1 className="text-2xl font-semibold text-white">Trivia Events</h1>
-        <p className="text-sm text-slate-300 mt-1">All events in the standalone trivia data store.</p>
-      </header>
-
-      <div className="space-y-3">
-        {state.events.map((event) => (
-          <article key={event.id} className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-            {(() => {
-              const questionCount = event.rounds.reduce((total, round) => total + round.questions.length, 0);
-              const reviewCount = Number(event.rounds.length === 0) + Number(questionCount === 0) + Number(event.teams.length === 0) + Number(!event.linkedEventsEventId);
-              const liveKey = `live:${event.id}`;
-              const completeKey = `complete:${event.id}`;
-              const deleteKey = `delete:${event.id}`;
-              return <>
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-white">{event.name}</h2>
-                <p className="text-sm text-slate-300 mt-1">{event.venue} • Host {event.hostName}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold"><span className="rounded-full border border-slate-600 px-2 py-0.5 text-slate-300">{event.status.replaceAll("_", " ")}</span><span className={reviewCount ? "rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-amber-200" : "rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-emerald-200"}>{reviewCount ? `${reviewCount} setup checks` : "Ready to run"}</span><span className="rounded-full border border-cyan-400/30 px-2 py-0.5 text-cyan-200">{event.teams.length} teams · {event.rounds.length} rounds · {questionCount} questions</span></div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => guardedAction(liveKey, () => updateEventStatus(event.id, "live"))} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-black">{armedAction === liveKey ? "Confirm Go Live" : "Go Live"}</button>
-                <button onClick={() => guardedAction(completeKey, () => updateEventStatus(event.id, "completed"))} className="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs text-white">{armedAction === completeKey ? "Confirm Complete" : "Complete"}</button>
-                <button onClick={() => guardedAction(deleteKey, () => deleteEvent(event.id))} className={`rounded-lg px-3 py-1.5 text-xs text-white ${armedAction === deleteKey ? "bg-rose-500 ring-2 ring-rose-300" : "bg-rose-800 hover:bg-rose-700"}`}>{armedAction === deleteKey ? "Delete permanently" : "Delete"}</button>
-              </div>
-            </div>
-
-            {armedAction === liveKey && reviewCount > 0 ? <p className="mt-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">This event still has {reviewCount} readiness check{reviewCount === 1 ? "" : "s"}. Confirm only if the host has reviewed the missing setup.</p> : null}
-            {armedAction === deleteKey ? <p className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">This permanently removes Trivia game content and score history. The linked EventSTUDIO RSVP record is retained for audit and guest follow-up.</p> : null}
-
-            <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2">
-              <Link href={`/apps/trivia/events/${event.id}/builder`} className="rounded-lg border border-slate-600 bg-slate-950 hover:bg-slate-800 px-3 py-2 text-xs text-center text-white">Builder</Link>
-              <Link href={`/apps/trivia/events/${event.id}/host`} className="rounded-lg border border-emerald-500/50 bg-emerald-500/15 hover:bg-emerald-500/25 px-3 py-2 text-xs text-center text-emerald-100">Host Panel</Link>
-              <Link href={`/apps/trivia/events/${event.id}/scores`} className="rounded-lg border border-cyan-500/50 bg-cyan-500/15 hover:bg-cyan-500/25 px-3 py-2 text-xs text-center text-cyan-100">Scores</Link>
-              <Link href={`/apps/trivia/events/${event.id}/answer-key`} className="rounded-lg border border-violet-500/50 bg-violet-500/15 hover:bg-violet-500/25 px-3 py-2 text-xs text-center text-violet-100">Answer Key</Link>
-              <Link href={`/apps/trivia/display/${event.id}`} target="_blank" className="rounded-lg border border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 px-3 py-2 text-xs text-center text-amber-100">Projector</Link>
-              <Link href={`/apps/trivia/events/${event.id}/host`} className="rounded-lg border border-fuchsia-500/50 bg-fuchsia-500/15 hover:bg-fuchsia-500/25 px-3 py-2 text-xs text-center text-fuchsia-100">Live Controls</Link>
-            </div>
-            </>;
-            })()}
-          </article>
-        ))}
-
-        {state.events.length === 0 ? (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-            No events exist yet. Create your first event to start hosting live trivia.
-          </div>
-        ) : null}
-      </div>
-    </section>
+    <div className="mx-auto max-w-[1320px] space-y-5">
+      <header className="flex flex-col gap-4 border-b border-[#d1d1d1] pb-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold text-[#5c2d91]">TRIVIA LIBRARY</p><h1 className="mt-1 text-2xl font-semibold">Events</h1><p className="mt-1 text-sm text-[#616161]">Open one workspace to plan, register, host, and score.</p></div><Link href="/apps/trivia/events/new" className="trivia-primary-button"><Plus className="h-4 w-4" />New trivia event</Link></header>
+      <section className="border border-[#d1d1d1] bg-white">
+        <div className="flex flex-col gap-3 border-b border-[#e1dfdd] p-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center" role="tablist">{(["active", "all", "completed"] as const).map((option) => <button key={option} type="button" role="tab" aria-selected={filter === option} onClick={() => setFilter(option)} className={`min-h-9 border-b-2 px-3 text-sm font-semibold capitalize ${filter === option ? "border-[#5c2d91] text-[#4b1f78]" : "border-transparent text-[#616161] hover:bg-[#f3f2f1]"}`}>{option}</button>)}</div><label className="relative block w-full sm:w-72"><span className="sr-only">Search trivia events</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-[#616161]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search events" className="h-9 w-full border border-[#8a8886] pl-9 pr-3 text-sm outline-none focus:border-[#5c2d91] focus:ring-1 focus:ring-[#5c2d91]" /></label></div>
+        {events.length ? <div className="divide-y divide-[#e1dfdd]">{events.map((event) => { const questionCount = event.rounds.reduce((total, round) => total + round.questions.length, 0); const reviewCount = Number(event.rounds.length === 0) + Number(questionCount === 0) + Number(event.teams.length === 0) + Number(!event.linkedEventsEventId); const resumeRoute = event.status === "live" || event.status === "check_in_open" ? "host" : "overview"; const liveKey = `live:${event.id}`; const completeKey = `complete:${event.id}`; const deleteKey = `delete:${event.id}`; return <article key={event.id} className="relative p-4 hover:bg-[#fafafa]"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-sm bg-[#f5f0f8] text-[#5c2d91]"><Gamepad2 className="h-5 w-5" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="truncate text-base font-semibold">{event.name}</h2><span className="inline-flex items-center gap-1.5 text-[11px] capitalize text-[#616161]"><span className={`trivia-status-dot trivia-status-${event.status}`} />{event.status.replaceAll("_", " ")}</span>{reviewCount ? <span className="bg-[#fff4ce] px-2 py-0.5 text-[11px] font-semibold text-[#835b00]">{reviewCount} setup check{reviewCount === 1 ? "" : "s"}</span> : <span className="bg-[#dff6dd] px-2 py-0.5 text-[11px] font-semibold text-[#0b6a0b]">Ready</span>}</div><p className="mt-1 truncate text-sm text-[#616161]">{event.venue || "Venue not set"} · Host {event.hostName || "not set"}</p><p className="mt-2 text-xs text-[#616161]">{event.teams.length} teams · {event.rounds.length} rounds · {questionCount} questions</p></div><Link href={`/apps/trivia/events/${event.id}/${resumeRoute}`} className="trivia-primary-button shrink-0"><span className="hidden sm:inline">{event.status === "live" ? "Resume live event" : "Open event"}</span><span className="sm:hidden">Open</span><ArrowRight className="h-4 w-4" /></Link><button type="button" className="grid h-9 w-9 shrink-0 place-items-center hover:bg-[#edebe9]" onClick={() => { setOpenMenu(openMenu === event.id ? null : event.id); setArmedAction(null); }} aria-label={`More actions for ${event.name}`} aria-expanded={openMenu === event.id}><MoreHorizontal className="h-5 w-5" /></button></div>{openMenu === event.id ? <div className="absolute right-4 top-14 z-10 w-56 border border-[#d1d1d1] bg-white p-1 shadow-lg"><Link href={`/apps/trivia/events/${event.id}/builder`} className="block min-h-9 px-3 py-2 text-sm hover:bg-[#f3f2f1]">Open game builder</Link><Link href={`/apps/trivia/display/${event.id}`} target="_blank" className="block min-h-9 px-3 py-2 text-sm hover:bg-[#f3f2f1]">Open projector</Link><button onClick={() => guardedAction(liveKey, () => updateEventStatus(event.id, "live"))} className="block min-h-9 w-full px-3 py-2 text-left text-sm hover:bg-[#f3f2f1]">{armedAction === liveKey ? `Confirm go live${reviewCount ? ` (${reviewCount} checks)` : ""}` : "Set event live"}</button><button onClick={() => guardedAction(completeKey, () => updateEventStatus(event.id, "completed"))} className="block min-h-9 w-full px-3 py-2 text-left text-sm hover:bg-[#f3f2f1]">{armedAction === completeKey ? "Confirm completion" : "Mark completed"}</button><button onClick={() => guardedAction(deleteKey, () => deleteEvent(event.id))} className={`block min-h-9 w-full px-3 py-2 text-left text-sm ${armedAction === deleteKey ? "bg-[#fde7e9] font-semibold text-[#a4262c]" : "text-[#a4262c] hover:bg-[#fde7e9]"}`}>{armedAction === deleteKey ? "Delete Trivia data permanently" : "Delete Trivia event…"}</button></div> : null}</article>; })}</div> : <div className="grid min-h-64 place-items-center p-8 text-center"><div><Gamepad2 className="mx-auto h-9 w-9 text-[#8a8886]" /><h2 className="mt-3 text-base font-semibold">No events match this view</h2><p className="mt-1 text-sm text-[#616161]">Adjust the filter or create a new trivia event.</p></div></div>}
+      </section>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 // Event page builder preview canvas styled as a public fundraising event page.
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import PublicEventRegistrationForm from "@/app/components/events/public/PublicEventRegistrationForm";
 import { getSectionDefinition } from "@/app/components/events/page-builder/section-config";
 import type {
@@ -83,7 +83,11 @@ function daysUntil(startDate: string): number {
 }
 
 function sectionPadding(section: EventPageSectionState): string {
-  return section.design?.compact ? "px-12 py-7" : "px-12 py-10";
+  return section.design?.compact ? "px-5 py-7 sm:px-8 lg:px-12" : "px-5 py-10 sm:px-8 lg:px-12";
+}
+
+function organizationName(data: EventPageBuilderWorkspaceData): string {
+  return data.branding?.organizationName?.trim() || data.branding?.legalOrganizationName?.trim() || "Event organizer";
 }
 
 function textAlignClass(section: EventPageSectionState): string {
@@ -107,7 +111,9 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
   const subtitle = content.subtitle?.trim() || "";
   const overlay = Math.max(0, Math.min(90, design.overlayOpacity ?? 62)) / 100;
   const backgroundImage = design.backgroundImageUrl?.trim() || "";
-  const backgroundColor = design.backgroundColor || "#120c3b";
+  const brandPrimary = data.branding?.primaryColor || "#0f6cbd";
+  const brandAccent = data.branding?.accentColor || "#5c2d91";
+  const backgroundColor = design.backgroundColor || brandPrimary;
   const primaryHref = publicHref(content.primaryButtonLink, "#registration");
   const secondaryHref = publicHref(content.secondaryButtonLink, "#event-details");
   const backgroundStyle = design.backgroundType === "color"
@@ -122,7 +128,7 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
           }
         : {
             // No image uploaded yet — show the base color gradient so the hero still looks composed.
-            background: `linear-gradient(135deg, ${backgroundColor} 0%, #1e1040 60%, #0f0820 100%)`,
+            background: `linear-gradient(135deg, ${backgroundColor} 0%, ${brandAccent} 72%, #111827 100%)`,
           };
 
   return (
@@ -144,10 +150,8 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
       <div className="relative mx-auto flex min-h-[410px] max-w-5xl flex-col px-8 py-7">
         <nav className="flex items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full border border-violet-300/50 bg-violet-500/18 font-bold text-violet-100">
-              {data.event.name.split(" ").map((w: string) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}
-            </div>
-            <div className="max-w-[120px] truncate font-semibold uppercase leading-4 tracking-[0.22em]">{data.event.name}</div>
+            {data.branding?.logoUrl || data.branding?.logoSquareUrl ? <img src={data.branding.logoUrl || data.branding.logoSquareUrl} alt={`${organizationName(data)} logo`} className="h-10 max-w-36 object-contain object-left" /> : <div className="grid h-9 w-9 place-items-center rounded-full border border-white/35 bg-white/10 font-bold text-white">{organizationName(data).split(" ").map((w: string) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}</div>}
+            <div className="max-w-[150px] truncate font-semibold uppercase leading-4 tracking-[0.16em]">{organizationName(data)}</div>
           </div>
           <div className="hidden items-center gap-7 text-white/82 md:flex">
             <span>About</span>
@@ -156,14 +160,14 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
             <span>Sponsors</span>
             <span>Contact</span>
           </div>
-          <a href={primaryHref} className="rounded-md bg-violet-600 px-5 py-2 font-semibold text-white shadow-lg shadow-violet-950/35">
+          <a href={primaryHref} className="event-brand-primary-bg rounded-md px-5 py-2 font-semibold text-white shadow-lg shadow-black/20">
             {content.primaryButtonText || "Get Tickets"}
           </a>
         </nav>
 
         <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
           {(content.kicker?.trim()) ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.42em] text-violet-200">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/80">
               {content.kicker.trim()}
             </p>
           ) : null}
@@ -177,7 +181,7 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
           </div>
 
           <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <a href={primaryHref} className="rounded-md bg-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-950/30">
+            <a href={primaryHref} className="event-brand-primary-bg rounded-md px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20">
               {content.primaryButtonText || "Get Tickets"}
             </a>
             <a href={secondaryHref} className="rounded-md border border-white/35 bg-white/8 px-7 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/12">
@@ -202,6 +206,19 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   const body = content.body || getSectionDefinition(section.id).description;
 
   if (section.id === "hero") return renderHero(section, data);
+
+  if (section.id === "organization-banner") {
+    const brand = data.branding;
+    return (
+      <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 sm:flex-row">
+          {brand?.logoUrl || brand?.logoSquareUrl ? <img src={brand.logoUrl || brand.logoSquareUrl} alt={`${organizationName(data)} logo`} className="max-h-20 w-auto max-w-56 object-contain" /> : <div className="grid h-16 w-16 place-items-center rounded-sm bg-slate-100 text-xl font-semibold text-slate-600">{organizationName(data).slice(0, 2).toUpperCase()}</div>}
+          <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Presented by</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || organizationName(data)}</h2>{content.body || brand?.tagline ? <p className="mt-2 text-sm text-slate-600">{content.body || brand?.tagline}</p> : null}</div>
+          {brand?.websiteUrl ? <a href={brand.websiteUrl} className="event-brand-outline inline-flex min-h-10 items-center px-4 text-sm font-semibold">Visit our website</a> : null}
+        </div>
+      </section>
+    );
+  }
 
   if (section.id === "countdown") {
     const startsIn = daysUntil(data.event.startDate);
@@ -470,6 +487,24 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     );
   }
 
+  if (section.id === "highlights") {
+    const items = content.highlightItems ?? [];
+    return <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}><div className="mx-auto max-w-5xl"><h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>{content.body ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{content.body}</p> : null}<div className="mt-6 grid gap-px overflow-hidden border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-3">{(items.length ? items : [{ title: "Meaningful impact", body: "Describe the outcome this event makes possible." }, { title: "A welcoming experience", body: "Share what guests can expect when they arrive." }, { title: "Easy ways to participate", body: "Explain how registration or giving supports the mission." }]).map((item, index) => <article key={index} className="bg-white p-5"><span className="event-brand-soft grid h-8 w-8 place-items-center rounded-full text-xs font-semibold">{index + 1}</span><h3 className="mt-4 text-base font-semibold text-slate-950">{item.title || `Highlight ${index + 1}`}</h3>{item.body ? <p className="mt-2 text-sm leading-6 text-slate-600">{item.body}</p> : null}</article>)}</div></div></section>;
+  }
+
+  if (section.id === "testimonial") {
+    return <section className={`${sectionPadding(section)} event-brand-soft ${textAlignClass(section)}`}><figure className="mx-auto max-w-3xl"><span className="event-brand-primary-text text-5xl leading-none">“</span><blockquote className="mt-2 text-balance text-2xl font-medium leading-9 text-slate-900">{content.body || "Add a short supporter, guest, or beneficiary quote that helps visitors understand why this event matters."}</blockquote><figcaption className="mt-5 text-sm"><strong className="block text-slate-900">{content.quoteAuthor || "Supporter name"}</strong>{content.quoteRole ? <span className="text-slate-600">{content.quoteRole}</span> : null}</figcaption></figure></section>;
+  }
+
+  if (section.id === "contact-organizer") {
+    const brand = data.branding;
+    return <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}><div className="mx-auto max-w-5xl border border-slate-200 p-5 sm:p-6"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Questions?</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || "Contact the event organizer"}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{content.body || `The ${organizationName(data)} team is ready to help with registration, accessibility, sponsorships, and event details.`}</p><div className="mt-5 flex flex-wrap gap-2">{brand?.contactEmail ? <a href={`mailto:${brand.contactEmail}`} className="event-brand-primary-bg inline-flex min-h-10 items-center px-4 text-sm font-semibold text-white">Email {brand.contactEmail}</a> : null}{brand?.contactPhone ? <a href={`tel:${brand.contactPhone}`} className="event-brand-outline inline-flex min-h-10 items-center px-4 text-sm font-semibold">Call {brand.contactPhone}</a> : null}{!brand?.contactEmail && !brand?.contactPhone ? <span className="text-sm text-slate-500">Add organization contact details in Settings → Branding.</span> : null}</div></div></section>;
+  }
+
+  if (section.id === "accessibility") {
+    return <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}><div className="mx-auto max-w-4xl"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Plan your visit</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || "Accessibility and arrival information"}</h2><p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">{content.body || "Add accessibility accommodations, parking, entrance, seating, interpretation, sensory, or dietary guidance here."}</p>{data.branding?.contactEmail ? <p className="mt-4 text-sm text-slate-600">Need another accommodation? <a href={`mailto:${data.branding.contactEmail}`} className="event-brand-primary-text font-semibold underline">Contact our team</a>.</p> : null}</div></section>;
+  }
+
   if (section.id === "cta-banner") {
     return (
       <section className={`${sectionPadding(section)} bg-violet-700 text-white ${textAlignClass(section)}`}>
@@ -577,23 +612,29 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     );
   }
 
-  return (
-    <footer className="bg-slate-950 px-12 py-8 text-sm text-white">
-      <p className="font-semibold">{data.event.name}</p>
-      <p className="mt-1 text-white/70">{new Date(data.event.startDate).getFullYear()} • Contact the events office for support.</p>
-    </footer>
-  );
+  const brand = data.branding;
+  return <footer className="bg-slate-950 px-5 py-8 text-sm text-white sm:px-8 lg:px-12"><div className="mx-auto flex max-w-5xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div>{brand?.logoUrl ? <img src={brand.logoUrl} alt={`${organizationName(data)} logo`} className="mb-3 max-h-12 max-w-44 object-contain object-left brightness-0 invert" /> : null}<p className="font-semibold">{organizationName(data)}</p><p className="mt-1 text-white/70">{brand?.tagline || data.event.name}</p>{brand?.addressLine ? <p className="mt-2 text-xs text-white/60">{brand.addressLine}</p> : null}</div><div className="text-left text-xs text-white/65 sm:text-right">{brand?.contactEmail ? <a className="block hover:text-white" href={`mailto:${brand.contactEmail}`}>{brand.contactEmail}</a> : null}{brand?.contactPhone ? <a className="mt-1 block hover:text-white" href={`tel:${brand.contactPhone}`}>{brand.contactPhone}</a> : null}<p className="mt-2">© {new Date(data.event.startDate).getFullYear()} {brand?.legalOrganizationName || organizationName(data)}</p>{brand?.footerLegalText ? <p className="mt-1 max-w-md">{brand.footerLegalText}</p> : null}</div></div></footer>;
 }
 
 /** Shared public-page document renderer used by both builder preview and published pages. */
 export function EventPageDocument({ sections, selectedSectionId, data, onSelectSection }: EventPageDocumentProps) {
   const visibleSections = sections.filter((section) => section.enabled);
+  const brandStyle = {
+    "--event-brand-primary": data.branding?.primaryColor || "#0f6cbd",
+    "--event-brand-accent": data.branding?.accentColor || "#5c2d91",
+  } as CSSProperties;
 
   return (
-    <div className="mx-auto max-w-6xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
+    <div className="event-public-document mx-auto max-w-6xl overflow-hidden border border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.10)]" style={brandStyle}>
       {visibleSections.map((section) => {
         const selected = section.id === selectedSectionId;
         const definition = getSectionDefinition(section.id);
+        const sectionStyle = {
+          ...(section.design?.accentColor ? { "--event-brand-primary": section.design.accentColor } : {}),
+          ...(section.design?.backgroundType === "color" && section.design.backgroundColor
+            ? { "--event-section-background": section.design.backgroundColor }
+            : {}),
+        } as CSSProperties;
         return (
           <div
             key={section.id}
@@ -608,9 +649,13 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
                 onSelectSection(section.id);
               }
             }}
+            style={sectionStyle}
             className={[
               "block w-full text-left transition",
               selected ? "relative z-[1] ring-2 ring-inset ring-violet-500" : onSelectSection ? "hover:ring-1 hover:ring-inset hover:ring-violet-200" : "",
+              section.design?.backgroundTone ? `event-section-tone-${section.design.backgroundTone}` : "",
+              section.design?.contentWidth ? `event-section-width-${section.design.contentWidth}` : "",
+              section.design?.backgroundType === "color" && section.design.backgroundColor ? "event-section-custom-background" : "",
               section.advanced?.customCssClass ?? "",
             ].join(" ")}
             aria-label={onSelectSection ? `Edit ${definition.label}` : undefined}

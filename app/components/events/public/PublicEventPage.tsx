@@ -9,6 +9,7 @@ import type {
   EventBuilderSponsor,
   EventBuilderTicketType,
   EventPageSectionState,
+  EventPageBranding,
 } from "@/app/components/events/page-builder/types";
 
 interface PublicEventPagePayload {
@@ -24,6 +25,7 @@ interface PublicEventPagePayload {
   status: "Draft" | "Published";
   paymentPolicy?: "OfflineFollowUp" | "NoPaymentRequired";
   sections: EventPageSectionState[] | null;
+  branding?: EventPageBranding;
 }
 
 interface PublicEventPageProps {
@@ -135,6 +137,7 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
             paymentPolicy: payload.paymentPolicy ?? "OfflineFollowUp",
             pageSlug: payload.pageSlug,
             isPublicRegistration: true,
+            branding: payload.branding,
           }}
         />
       </section>

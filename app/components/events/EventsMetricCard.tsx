@@ -13,13 +13,5 @@ interface EventsMetricCardProps {
  * EventsMetricCard displays a single metric using the Events CRM visual language.
  */
 export default function EventsMetricCard({ label, value, helper }: EventsMetricCardProps) {
-  return (
-    <div className="bg-white rounded-xl border border-violet-100 shadow-sm p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-600">{label}</p>
-      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-      {helper && (
-        <p className="text-xs text-gray-500 mt-1">{helper}</p>
-      )}
-    </div>
-  );
+  return <div className="min-w-0 bg-white p-4"><p className="text-xs font-medium text-[#616161]">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-[#242424]">{value}</p>{helper ? <p className="mt-1 truncate text-xs text-[#8a8886]">{helper}</p> : null}</div>;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { fetchBrandingSettings, formatBrandingAddress } from "@/app/lib/branding-settings";
 import EventPageBuilderTopBar from "@/app/components/events/page-builder/EventPageBuilderTopBar";
 import EventPageBuilderSectionRail from "@/app/components/events/page-builder/EventPageBuilderSectionRail";
 import EventPageBuilderPreview from "@/app/components/events/page-builder/EventPageBuilderPreview";
@@ -11,6 +12,7 @@ import { createDefaultEventPageSectionState, EVENT_PAGE_SECTION_DEFINITIONS } fr
 import type {
   EventPageBuilderConfig,
   EventPageBuilderWorkspaceData,
+  EventPageBranding,
   EventBuilderEventDetail,
   EventBuilderReport,
   EventBuilderSponsor,
@@ -140,6 +142,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [branding, setBranding] = useState<EventPageBranding | null>(null);
+  const [compactPanel, setCompactPanel] = useState<"sections" | "preview" | "settings">("preview");
   const hasLoadedSectionsRef = useRef(false);
 
   const resolvedDraftSlug = useMemo(() => {
@@ -158,12 +162,13 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
       const runtimeOrigin = resolveRuntimeOrigin();
 
       try {
-        const [eventData, ticketData, sponsorData, reportData, pageConfig] = await Promise.all([
+        const [eventData, ticketData, sponsorData, reportData, pageConfig, brandingData] = await Promise.all([
           apiFetch<EventBuilderEventDetail>(`/api/events/${eventId}`),
           apiFetch<EventBuilderTicketType[]>(`/api/events/${eventId}/ticket-types`),
           apiFetch<EventBuilderSponsor[]>(`/api/events/${eventId}/sponsors`),
           apiFetch<EventBuilderReport>(`/api/events/${eventId}/report`).catch(() => null),
           apiFetch<EventPageBuilderConfig>(`/api/events/${eventId}/page-builder-config`).catch(() => null),
+          fetchBrandingSettings(),
         ]);
 
         if (!active) return;
@@ -172,6 +177,26 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setTicketTypes(Array.isArray(ticketData) ? ticketData : []);
         setSponsors(Array.isArray(sponsorData) ? sponsorData : []);
         setReport(reportData);
+        setBranding({
+          organizationName: brandingData.organizationDisplayName || brandingData.legalOrganizationName,
+          legalOrganizationName: brandingData.legalOrganizationName,
+          tagline: brandingData.tagline,
+          missionStatement: brandingData.missionStatement,
+          logoUrl: brandingData.logoUrl,
+          logoSquareUrl: brandingData.logoSquareUrl,
+          primaryColor: brandingData.primaryColor,
+          accentColor: brandingData.accentColor,
+          contactEmail: brandingData.contactEmail,
+          contactPhone: brandingData.contactPhone,
+          websiteUrl: brandingData.websiteUrl,
+          addressLine: formatBrandingAddress(brandingData),
+          footerLegalText: brandingData.footerLegalText,
+          socialFacebook: brandingData.socialFacebook,
+          socialInstagram: brandingData.socialInstagram,
+          socialLinkedIn: brandingData.socialLinkedIn,
+          socialYoutube: brandingData.socialYoutube,
+          socialX: brandingData.socialX,
+        });
         const nextSections = mergeSectionsWithDefaults(pageConfig?.sections);
         setSections(nextSections);
         setSelectedSectionId(nextSections.find((section) => section.enabled)?.id ?? nextSections[0].id);
@@ -232,8 +257,9 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
       publicUrl: draftPreviewUrl,
       paymentPolicy,
       pageSlug,
+      branding: branding ?? undefined,
     };
-  }, [draftPreviewUrl, event, pageSlug, paymentPolicy, report, sponsors, ticketTypes]);
+  }, [branding, draftPreviewUrl, event, pageSlug, paymentPolicy, report, sponsors, ticketTypes]);
 
   useEffect(() => {
     if (!hasLoadedSectionsRef.current || loading || !event) return;
@@ -402,6 +428,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         deploymentHistory={deploymentHistory}
         autoSaveState={autoSaveState}
         publishReadiness={publishReadiness}
+        branding={branding ?? undefined}
         onPaymentPolicyChange={handlePaymentPolicyChange}
         onPageSlugDraftChange={setPageSlugDraft}
         onSavePageSlug={handleSavePageSlug}
@@ -409,8 +436,10 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         onPublishToggle={handlePublishToggle}
       />
 
-      <div className="grid min-h-0 flex-1 overflow-hidden border-t border-slate-200 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
-        <EventPageBuilderSectionRail
+      <div className="flex shrink-0 border-b border-[#d1d1d1] bg-white p-1 lg:hidden" role="tablist" aria-label="Page builder panels">{(["sections", "preview", "settings"] as const).map((panel) => <button key={panel} type="button" role="tab" aria-selected={compactPanel === panel} onClick={() => setCompactPanel(panel)} className={`min-h-9 flex-1 border-b-2 text-xs font-semibold capitalize ${compactPanel === panel ? "border-[#0f6cbd] text-[#0f548c]" : "border-transparent text-[#616161]"}`}>{panel}</button>)}</div>
+
+      <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)_360px]">
+        <div className={`${compactPanel === "sections" ? "block" : "hidden"} min-h-0 lg:block`}><EventPageBuilderSectionRail
           sections={sections}
           selectedSectionId={selectedSection.id}
           onSelectSection={setSelectedSectionId}
@@ -424,17 +453,18 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
             setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, enabled: !section.enabled } : section)));
             setSelectedSectionId(sectionId);
           }}
-        />
+        /></div>
 
-        <EventPageBuilderPreview
+        <div className={`${compactPanel === "preview" ? "block" : "hidden"} min-h-0 lg:block`}><EventPageBuilderPreview
           sections={sections}
           selectedSectionId={selectedSection.id}
           data={builderData}
           onSelectSection={setSelectedSectionId}
-        />
+        /></div>
 
-        <EventPageBuilderInspector
+        <div className={`${compactPanel === "settings" ? "block" : "hidden"} min-h-0 lg:block`}><EventPageBuilderInspector
           section={selectedSection}
+          branding={branding ?? undefined}
           onUpdateSection={(sectionId, updater) => {
             setSections((current) => current.map((section) => (section.id === sectionId ? updater(section) : section)));
           }}
@@ -443,7 +473,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
             const nextVisible = sections.find((section) => section.id !== sectionId && section.enabled);
             if (nextVisible) setSelectedSectionId(nextVisible.id);
           }}
-        />
+        /></div>
       </div>
 
       <EventPageBuilderPreviewDialog

@@ -1,11 +1,7 @@
-/** Events CRM module root route. */
+/** EventSTUDIO root keeps old entry links compatible while using one event library. */
 
-import EventsWorkspaceSelectorPage from "@/app/components/events/EventsWorkspaceSelectorPage";
+import { redirect } from "next/navigation";
 
-/**
- * EventsPage is the EventSTUDIO first-entry surface and requires staff to choose an event
- * before moving into event-scoped operations.
- */
 export default function EventsPage() {
-  return <EventsWorkspaceSelectorPage />;
+  redirect("/events/events");
 }

@@ -1,169 +1,46 @@
-import type { EventPageDeploymentHistoryEntry, EventPagePaymentPolicy, EventPageStatus } from "@/app/components/events/page-builder/types";
+import Link from "next/link";
+import { Check, CircleAlert, Eye, Globe2, Save, Settings2 } from "lucide-react";
+import type { EventPageBranding, EventPageDeploymentHistoryEntry, EventPagePaymentPolicy, EventPageStatus } from "@/app/components/events/page-builder/types";
 
-interface PublishReadinessItem {
-  label: string;
-  passed: boolean;
-}
-
+interface PublishReadinessItem { label: string; passed: boolean; }
 interface EventPageBuilderTopBarProps {
-  eventName: string;
-  resolvedPageUrl: string;
-  pageSlug: string;
-  pageSlugDraft: string;
-  saveUrlPending: boolean;
-  urlFeedback: string | null;
-  status: EventPageStatus;
-  lastPublishedAt: string | null;
-  paymentPolicy: EventPagePaymentPolicy;
-  deploymentHistory: EventPageDeploymentHistoryEntry[];
-  autoSaveState: "idle" | "saving" | "saved" | "error";
-  publishReadiness: PublishReadinessItem[];
-  onPaymentPolicyChange: (value: EventPagePaymentPolicy) => void;
-  onPageSlugDraftChange: (value: string) => void;
-  onSavePageSlug: () => void;
-  onPreview: () => void;
-  onPublishToggle: () => void;
+  eventName: string; resolvedPageUrl: string; pageSlug: string; pageSlugDraft: string; saveUrlPending: boolean;
+  urlFeedback: string | null; status: EventPageStatus; lastPublishedAt: string | null; paymentPolicy: EventPagePaymentPolicy;
+  deploymentHistory: EventPageDeploymentHistoryEntry[]; autoSaveState: "idle" | "saving" | "saved" | "error";
+  publishReadiness: PublishReadinessItem[]; branding?: EventPageBranding;
+  onPaymentPolicyChange: (value: EventPagePaymentPolicy) => void; onPageSlugDraftChange: (value: string) => void;
+  onSavePageSlug: () => void; onPreview: () => void; onPublishToggle: () => void;
 }
 
 function formatTimestamp(value: string | null): string {
-  if (!value) return "Never";
+  if (!value) return "Never published";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "Never";
-  return parsed.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return Number.isNaN(parsed.getTime()) ? "Never published" : `Published ${parsed.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
 }
 
-function getAutosaveIndicatorColor(autoSaveState: EventPageBuilderTopBarProps["autoSaveState"]): string {
-  if (autoSaveState === "saving") return "bg-amber-400";
-  if (autoSaveState === "error") return "bg-red-500";
-  return "bg-emerald-500";
-}
+/** Fluent command surface for page identity, preview, and guarded publishing. */
+export default function EventPageBuilderTopBar(props: EventPageBuilderTopBarProps) {
+  const publishReady = props.publishReadiness.every((item) => item.passed);
+  const readinessCount = props.publishReadiness.filter((item) => item.passed).length;
+  const saveLabel = props.autoSaveState === "saving" ? "Saving…" : props.autoSaveState === "error" ? "Save failed" : "Saved";
 
-/** Command header for the event-scoped page builder workspace. */
-export default function EventPageBuilderTopBar({
-  eventName,
-  resolvedPageUrl,
-  pageSlug,
-  pageSlugDraft,
-  saveUrlPending,
-  urlFeedback,
-  status,
-  lastPublishedAt,
-  paymentPolicy,
-  deploymentHistory,
-  autoSaveState,
-  publishReadiness,
-  onPaymentPolicyChange,
-  onPageSlugDraftChange,
-  onSavePageSlug,
-  onPreview,
-  onPublishToggle,
-}: EventPageBuilderTopBarProps) {
-  const publishReady = publishReadiness.every((item) => item.passed);
-  const readinessCount = publishReadiness.filter((item) => item.passed).length;
-  const latestDeployment = deploymentHistory[0] ?? null;
-  const paymentPolicyLabel = paymentPolicy === "NoPaymentRequired" ? "No payment required" : "Offline payment follow-up";
+  return <header className="shrink-0 border-b border-[#d1d1d1] bg-white">
+    <div className="flex min-h-14 flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
+      <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h1 className="truncate text-sm font-semibold text-[#242424]">Event page · {props.eventName}</h1><span className={`shrink-0 px-2 py-0.5 text-[11px] font-semibold ${props.status === "Published" ? "bg-[#dff6dd] text-[#0b6a0b]" : "bg-[#f3f2f1] text-[#616161]"}`}>{props.status}</span></div><p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#616161]"><Save className="h-3 w-3" />{saveLabel} · {formatTimestamp(props.lastPublishedAt)}</p></div>
+      <div className="hidden items-center gap-2 border border-[#e1dfdd] bg-[#fafafa] px-2 py-1.5 md:flex">{props.branding?.logoSquareUrl || props.branding?.logoUrl ? <img src={props.branding.logoSquareUrl || props.branding.logoUrl} alt="Organization logo" className="h-6 w-6 object-contain" /> : <span className="h-4 w-4 rounded-full" style={{ background: props.branding?.primaryColor || "#0f6cbd" }} />}<span className="max-w-32 truncate text-xs font-semibold">{props.branding?.organizationName || "Global branding"}</span><Link href="/settings/branding" className="text-[11px] font-semibold text-[#0f6cbd] hover:underline">Edit brand</Link></div>
+      <button type="button" onClick={props.onPreview} className="event-studio-secondary-button"><Eye className="h-4 w-4" />Preview</button>
+      <button type="button" onClick={props.onPublishToggle} disabled={props.status !== "Published" && !publishReady} title={props.status !== "Published" && !publishReady ? "Complete the readiness checks before publishing." : undefined} className="event-studio-primary-button disabled:cursor-not-allowed disabled:bg-[#c8c6c4]"><Globe2 className="h-4 w-4" />{props.status === "Published" ? "Unpublish" : "Publish"}</button>
+    </div>
 
-  return (
-    <header className="shrink-0 border-b border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">EventSTUDIO / Page Builder</span>
-        <span className="max-w-[30ch] truncate text-xs font-semibold text-slate-700">{eventName}</span>
-        <span
-          title="Public pages, registrations, check-in code return, deployment history, and an explicit payment policy are wired."
-          className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
-        >
-          Production Ready
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-          <span className={`h-1.5 w-1.5 rounded-full ${getAutosaveIndicatorColor(autoSaveState)}`} />
-          {autoSaveState === "saving" ? "Saving" : autoSaveState === "error" ? "Save issue" : "Saved"}
-        </span>
-        <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">{status}</span>
-        <span className={publishReady ? "text-[10px] font-semibold text-emerald-600" : "text-[10px] font-semibold text-amber-600"}>
-          Readiness {readinessCount}/{publishReadiness.length}
-        </span>
-        <span className="text-[10px] text-slate-500">Published {formatTimestamp(lastPublishedAt)}</span>
-        {latestDeployment ? (
-          <span className="text-[10px] text-slate-500">Last deployment {formatTimestamp(latestDeployment.deployedAt)}</span>
-        ) : null}
+    <details className="border-t border-[#edebe9] bg-[#fafafa] px-3 py-2 sm:px-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-[#424242]"><span className="flex items-center gap-2"><Settings2 className="h-4 w-4" />Page settings and readiness</span><span className={publishReady ? "text-[#107c10]" : "text-[#986f0b]"}>{readinessCount}/{props.publishReadiness.length} ready</span></summary>
+      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
+        <div><label className="text-[11px] font-semibold text-[#616161]">Public URL</label><div className="mt-1 flex min-w-0 items-center gap-2"><span className="hidden truncate text-xs text-[#616161] lg:block">{props.resolvedPageUrl.replace(props.pageSlugDraft, "")}</span><input value={props.pageSlugDraft} onChange={(event) => props.onPageSlugDraftChange(event.target.value)} placeholder="event-page-slug" className="h-9 min-w-0 flex-1 border border-[#8a8886] bg-white px-2 text-sm outline-none focus:border-[#0f6cbd] focus:ring-1 focus:ring-[#0f6cbd]" /><button type="button" onClick={props.onSavePageSlug} disabled={props.saveUrlPending || !props.pageSlugDraft.trim() || props.pageSlugDraft.trim() === props.pageSlug} className="event-studio-secondary-button disabled:opacity-50">{props.saveUrlPending ? "Saving…" : "Save URL"}</button></div></div>
+        <label className="text-[11px] font-semibold text-[#616161]">Registration payment policy<select value={props.paymentPolicy} onChange={(event) => props.onPaymentPolicyChange(event.target.value as EventPagePaymentPolicy)} className="mt-1 h-9 w-full border border-[#8a8886] bg-white px-2 text-sm font-medium text-[#242424] outline-none focus:border-[#0f6cbd]" aria-label="Registration payment policy"><option value="OfflineFollowUp">Offline payment follow-up</option><option value="NoPaymentRequired">No payment required</option></select></label>
       </div>
-
-      <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1fr)_220px_auto_auto] xl:items-center">
-        <div className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white text-emerald-500 shadow-sm">▣</span>
-          <input
-            type="text"
-            value={pageSlugDraft}
-            onChange={(event) => onPageSlugDraftChange(event.target.value)}
-            placeholder="event-page-slug"
-            className="h-7 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-800 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
-          />
-          <span className="hidden max-w-[34rem] truncate text-[11px] text-slate-500 lg:block">{resolvedPageUrl}</span>
-          <button
-            type="button"
-            onClick={onSavePageSlug}
-            disabled={saveUrlPending || pageSlugDraft.trim().length === 0 || pageSlugDraft.trim() === pageSlug}
-            className="inline-flex h-7 shrink-0 items-center justify-center rounded-md border border-violet-300 bg-white px-2.5 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saveUrlPending ? "Saving" : "Save"}
-          </button>
-        </div>
-        <label className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700">
-          <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] text-slate-400">Policy</span>
-          <select
-            value={paymentPolicy}
-            onChange={(event) => onPaymentPolicyChange(event.target.value as EventPagePaymentPolicy)}
-            className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-slate-800 outline-none"
-            aria-label="Registration payment policy"
-          >
-            <option value="OfflineFollowUp">Offline follow-up</option>
-            <option value="NoPaymentRequired">No payment required</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={onPreview}
-          className="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-        >
-          View Page
-        </button>
-        <button
-          type="button"
-          onClick={onPublishToggle}
-          disabled={status !== "Published" && !publishReady}
-          title={status !== "Published" && !publishReady ? "Complete the publish readiness checklist before publishing." : undefined}
-          className="inline-flex h-8 items-center justify-center rounded-md bg-violet-600 px-3 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          {status === "Published" ? "Unpublish" : "Publish"}
-        </button>
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {publishReadiness.map((item) => (
-          <span
-            key={item.label}
-            className={[
-              "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-              item.passed ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700",
-            ].join(" ")}
-          >
-            {item.passed ? "✓" : "!"} {item.label}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold text-slate-600">
-        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Payment: {paymentPolicyLabel}</span>
-        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">Deployments: {deploymentHistory.length}</span>
-      </div>
-
-      {urlFeedback ? <p className="mt-2 rounded-md border border-violet-100 bg-violet-50 px-2.5 py-1.5 text-[11px] font-medium text-violet-800">{urlFeedback}</p> : null}
-    </header>
-  );
+      <div className="mt-3 flex flex-wrap gap-1.5">{props.publishReadiness.map((item) => <span key={item.label} className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] font-semibold ${item.passed ? "border-[#9fd89f] bg-[#dff6dd] text-[#0b6a0b]" : "border-[#e5c365] bg-[#fff4ce] text-[#835b00]"}`}>{item.passed ? <Check className="h-3 w-3" /> : <CircleAlert className="h-3 w-3" />}{item.label}</span>)}</div>
+      {props.urlFeedback ? <p className="mt-2 border border-[#96c6eb] bg-[#eff6fc] px-3 py-2 text-xs text-[#0f548c]">{props.urlFeedback}</p> : null}
+      <p className="mt-2 text-[11px] text-[#616161]">Production Ready · {props.deploymentHistory.length} deployment record{props.deploymentHistory.length === 1 ? "" : "s"} · Organization branding is inherited from Settings.</p>
+    </details>
+  </header>;
 }

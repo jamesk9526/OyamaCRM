@@ -25,6 +25,7 @@ export interface EventPageBuilderConfig {
 }
 
 export type EventPageSectionId =
+  | "organization-banner"
   | "hero"
   | "countdown"
   | "event-details"
@@ -41,6 +42,10 @@ export type EventPageSectionId =
   | "video"
   | "image-gallery"
   | "impact-story"
+  | "highlights"
+  | "testimonial"
+  | "contact-organizer"
+  | "accessibility"
   | "cta-banner"
   | "documents"
   | "schedule"
@@ -83,6 +88,11 @@ export interface EventPageSectionState {
     faqItems?: Array<{ question?: string; answer?: string }>;
     /** Image URLs for the Image Gallery section. */
     galleryImages?: string[];
+    /** Structured feature cards used by Highlights. */
+    highlightItems?: Array<{ title?: string; body?: string }>;
+    /** Testimonial attribution fields. */
+    quoteAuthor?: string;
+    quoteRole?: string;
   };
   design?: {
     backgroundType?: "image" | "color" | "video";
@@ -93,6 +103,10 @@ export interface EventPageSectionState {
     accentColor?: string;
     textAlign?: "left" | "center";
     compact?: boolean;
+    /** Optional section surface override. */
+    backgroundTone?: "default" | "white" | "soft";
+    /** Optional content measure override. */
+    contentWidth?: "standard" | "narrow" | "wide";
   };
   advanced?: {
     anchorId?: string;
@@ -175,4 +189,27 @@ export interface EventPageBuilderWorkspaceData {
   pageSlug?: string;
   /** True only on the external public page, not inside the builder preview. */
   isPublicRegistration?: boolean;
+  /** Organization-wide branding inherited from Settings → Branding. */
+  branding?: EventPageBranding;
+}
+
+export interface EventPageBranding {
+  organizationName: string;
+  legalOrganizationName?: string;
+  tagline: string;
+  missionStatement?: string;
+  logoUrl: string;
+  logoSquareUrl: string;
+  primaryColor: string;
+  accentColor: string;
+  contactEmail: string;
+  contactPhone: string;
+  websiteUrl: string;
+  addressLine: string;
+  footerLegalText: string;
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialLinkedIn?: string;
+  socialYoutube?: string;
+  socialX?: string;
 }

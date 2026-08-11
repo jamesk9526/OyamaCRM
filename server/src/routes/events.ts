@@ -33,6 +33,7 @@ import { createWalkInGuest, listEventGuests } from "../services/event-guest-serv
 import { getEventReportingSnapshot } from "../services/event-reporting-service.js";
 import { evaluateRecipientEligibility } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
+import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
 import type {
   EventCheckInExceptionStatus,
   EventGuestPaymentStatus,
@@ -163,6 +164,7 @@ type EventPagePaymentPolicy = "OfflineFollowUp" | "NoPaymentRequired";
 type EventPageDeploymentAction = "Published" | "Unpublished";
 
 type StoredEventPageSectionId =
+  | "organization-banner"
   | "hero"
   | "countdown"
   | "event-details"
@@ -179,6 +181,10 @@ type StoredEventPageSectionId =
   | "video"
   | "image-gallery"
   | "impact-story"
+  | "highlights"
+  | "testimonial"
+  | "contact-organizer"
+  | "accessibility"
   | "cta-banner"
   | "documents"
   | "schedule"
@@ -211,6 +217,9 @@ interface StoredEventPageBuilderSection {
     scheduleItems?: Array<{ time?: string; label?: string }>;
     faqItems?: Array<{ question?: string; answer?: string }>;
     galleryImages?: string[];
+    highlightItems?: Array<{ title?: string; body?: string }>;
+    quoteAuthor?: string;
+    quoteRole?: string;
   };
   design?: {
     backgroundType?: "image" | "color" | "video";
@@ -221,6 +230,8 @@ interface StoredEventPageBuilderSection {
     accentColor?: string;
     textAlign?: "left" | "center";
     compact?: boolean;
+    backgroundTone?: "default" | "white" | "soft";
+    contentWidth?: "standard" | "narrow" | "wide";
   };
   advanced?: {
     anchorId?: string;
@@ -313,6 +324,7 @@ function normalizeEventPagePaymentPolicy(value: unknown): EventPagePaymentPolicy
 }
 
 const ALLOWED_EVENT_PAGE_SECTION_IDS = new Set<StoredEventPageSectionId>([
+  "organization-banner",
   "hero",
   "countdown",
   "event-details",
@@ -329,6 +341,10 @@ const ALLOWED_EVENT_PAGE_SECTION_IDS = new Set<StoredEventPageSectionId>([
   "video",
   "image-gallery",
   "impact-story",
+  "highlights",
+  "testimonial",
+  "contact-organizer",
+  "accessibility",
   "cta-banner",
   "documents",
   "schedule",
@@ -377,6 +393,19 @@ function sanitizePageBuilderFaqItems(value: unknown): Array<{ question?: string;
     }))
     .filter((item) => item.question || item.answer)
     .slice(0, 12);
+  return items.length > 0 ? items : undefined;
+}
+
+function sanitizePageBuilderHighlightItems(value: unknown): Array<{ title?: string; body?: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value
+    .filter(isRecord)
+    .map((item) => ({
+      title: safePageBuilderText(item.title, 120),
+      body: safePageBuilderText(item.body, 360),
+    }))
+    .filter((item) => item.title || item.body)
+    .slice(0, 6);
   return items.length > 0 ? items : undefined;
 }
 
@@ -443,6 +472,9 @@ function sanitizeEventPageBuilderSections(value: unknown): StoredEventPageBuilde
         scheduleItems: sanitizePageBuilderScheduleItems(rawContent.scheduleItems),
         faqItems: sanitizePageBuilderFaqItems(rawContent.faqItems),
         galleryImages: safePageBuilderTextList(rawContent.galleryImages, 6, 800),
+        highlightItems: sanitizePageBuilderHighlightItems(rawContent.highlightItems),
+        quoteAuthor: safePageBuilderText(rawContent.quoteAuthor, 120),
+        quoteRole: safePageBuilderText(rawContent.quoteRole, 160),
       },
       design: {
         backgroundType: backgroundTypeRaw === "color" || backgroundTypeRaw === "video" ? backgroundTypeRaw : "image",
@@ -453,6 +485,8 @@ function sanitizeEventPageBuilderSections(value: unknown): StoredEventPageBuilde
         accentColor: safePageBuilderText(rawDesign.accentColor, 32),
         textAlign: textAlignRaw === "center" ? "center" : "left",
         compact: Boolean(rawDesign.compact),
+        backgroundTone: rawDesign.backgroundTone === "white" || rawDesign.backgroundTone === "soft" ? rawDesign.backgroundTone : "default",
+        contentWidth: rawDesign.contentWidth === "narrow" || rawDesign.contentWidth === "wide" ? rawDesign.contentWidth : "standard",
       },
       advanced: {
         anchorId: safePageBuilderText(rawAdvanced.anchorId, 80),
@@ -1073,6 +1107,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     : null;
 
   const origin = resolveEventPageOrigin(req);
+  const branding = await loadOrganizationBrandingContext(match.organizationId);
 
   res.json({
     event: {
@@ -1107,6 +1142,26 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     status: match.status,
     paymentPolicy: match.paymentPolicy,
     sections: match.sections ?? null,
+    branding: {
+      organizationName: branding.organizationName,
+      legalOrganizationName: branding.legalOrganizationName,
+      tagline: branding.tagline,
+      missionStatement: branding.missionStatement,
+      logoUrl: branding.logoUrl,
+      logoSquareUrl: branding.logoSquareUrl,
+      primaryColor: branding.primaryColor,
+      accentColor: branding.accentColor,
+      contactEmail: branding.contactEmail,
+      contactPhone: branding.contactPhone,
+      websiteUrl: branding.websiteUrl,
+      addressLine: branding.addressLine,
+      footerLegalText: branding.footerLegalText,
+      socialFacebook: branding.socialFacebook,
+      socialInstagram: branding.socialInstagram,
+      socialLinkedIn: branding.socialLinkedIn,
+      socialYoutube: branding.socialYoutube,
+      socialX: branding.socialX,
+    },
   });
 });
 

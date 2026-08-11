@@ -2,6 +2,7 @@ import type { EventPageSectionDefinition, EventPageSectionId, EventPageSectionSt
 
 /** Canonical section catalog for event-scoped public page composition. */
 export const EVENT_PAGE_SECTION_DEFINITIONS: EventPageSectionDefinition[] = [
+  { id: "organization-banner", label: "Organization Banner", description: "Global organization logo, name, tagline, and website identity." },
   { id: "hero", label: "Hero Section", description: "Event hero banner, headline, date, location, and CTA buttons." },
   { id: "countdown", label: "Countdown", description: "Event countdown panel for the public page." },
   { id: "event-details", label: "Event Details", description: "Date, time, location, registration deadline, and event context." },
@@ -18,6 +19,10 @@ export const EVENT_PAGE_SECTION_DEFINITIONS: EventPageSectionDefinition[] = [
   { id: "video", label: "Video", description: "Embedded campaign or event promotion video section." },
   { id: "image-gallery", label: "Image Gallery", description: "Visual gallery for venue, past event, or impact photos." },
   { id: "impact-story", label: "Impact Story", description: "Narrative section for mission impact and donor motivation." },
+  { id: "highlights", label: "Highlights", description: "A structured grid of benefits, outcomes, or reasons to attend." },
+  { id: "testimonial", label: "Testimonial", description: "A supporter, guest, or beneficiary quote with attribution." },
+  { id: "contact-organizer", label: "Contact Organizer", description: "Organization-wide contact details with an event-specific call to action." },
+  { id: "accessibility", label: "Accessibility", description: "Accessibility, accommodations, parking, and arrival guidance." },
   { id: "cta-banner", label: "CTA Banner", description: "Focused conversion block for registration, giving, or table hosting." },
   { id: "documents", label: "Documents", description: "Links to sponsorship packets, event details, or downloadable resources." },
   { id: "schedule", label: "Schedule", description: "Event timeline and agenda cadence." },
@@ -29,6 +34,7 @@ export const EVENT_PAGE_SECTION_DEFINITIONS: EventPageSectionDefinition[] = [
 ];
 
 const SOURCE_FIELD_MAP: Record<EventPageSectionId, string[]> = {
+  "organization-banner": ["branding.logoUrl", "branding.organizationName", "branding.tagline", "branding.websiteUrl"],
   hero: ["event.name", "event.startDate", "event.location", "event.status"],
   countdown: ["event.startDate"],
   "event-details": ["event.startDate", "event.endDate", "event.location", "event.registrationDeadline"],
@@ -45,6 +51,10 @@ const SOURCE_FIELD_MAP: Record<EventPageSectionId, string[]> = {
   video: ["event.description"],
   "image-gallery": ["sponsors.logoUrl", "event.location"],
   "impact-story": ["event.description", "report.revenue.goal"],
+  highlights: ["event.description", "branding.missionStatement"],
+  testimonial: ["section.content", "branding.primaryColor"],
+  "contact-organizer": ["branding.contactEmail", "branding.contactPhone", "branding.websiteUrl", "branding.addressLine"],
+  accessibility: ["event.location", "event.address", "branding.contactEmail"],
   "cta-banner": ["ticketTypes", "publicUrl"],
   documents: ["publicUrl"],
   schedule: ["event.startDate", "event.endDate"],
@@ -61,14 +71,7 @@ const SOURCE_FIELD_MAP: Record<EventPageSectionId, string[]> = {
  * Hero defaults to enabled; optional sections start hidden.
  */
 export function createDefaultEventPageSectionState(): EventPageSectionState[] {
-  const optionalSections = new Set<EventPageSectionId>([
-    "auction-preview",
-    "donation-form",
-    "video",
-    "image-gallery",
-    "documents",
-    "volunteer-callout",
-  ]);
+  const defaultVisibleSections = new Set<EventPageSectionId>(["hero", "event-details", "registration-form", "footer"]);
 
   return EVENT_PAGE_SECTION_DEFINITIONS.map((section) => {
     if (section.id === "hero") {
@@ -101,7 +104,7 @@ export function createDefaultEventPageSectionState(): EventPageSectionState[] {
 
     return {
       id: section.id,
-      enabled: !optionalSections.has(section.id),
+      enabled: defaultVisibleSections.has(section.id),
       lockToEventData: true,
       // No pre-filled content — staff add their own copy per event.
       content: {},

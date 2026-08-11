@@ -8,6 +8,7 @@ export type OrganizationBrandingContext = {
   organizationName: string;
   legalOrganizationName: string;
   tagline: string;
+  missionStatement: string;
   logoUrl: string;
   logoSquareUrl: string;
   primaryColor: string;
@@ -24,6 +25,11 @@ export type OrganizationBrandingContext = {
   globalHeaderHtml: string;
   globalFooterHtml: string;
   defaultSignerTitle: string;
+  socialFacebook: string;
+  socialInstagram: string;
+  socialLinkedIn: string;
+  socialYoutube: string;
+  socialX: string;
   /** Public CRM origin used to turn stored /uploads paths into recipient-loadable email URLs. */
   publicAssetBaseUrl: string;
 };
@@ -103,6 +109,7 @@ export async function loadOrganizationBrandingContext(
     organizationName,
     legalOrganizationName: asText(config.legalOrganizationName) || organizationName,
     tagline: asText(config.tagline),
+    missionStatement: asText(config.missionStatement),
     logoUrl: asText(config.logoUrl),
     logoSquareUrl: asText(config.logoSquareUrl),
     primaryColor: asHex(config.primaryColor, "#16a34a"),
@@ -119,6 +126,11 @@ export async function loadOrganizationBrandingContext(
     globalHeaderHtml: asText(config.globalHeaderHtml),
     globalFooterHtml: asText(config.globalFooterHtml),
     defaultSignerTitle: asText(config.defaultLetterSignerTitle),
+    socialFacebook: asText(config.socialFacebook),
+    socialInstagram: asText(config.socialInstagram),
+    socialLinkedIn: asText(config.socialLinkedIn),
+    socialYoutube: asText(config.socialYoutube),
+    socialX: asText(config.socialX),
     publicAssetBaseUrl: publicAssetBaseUrl(),
   };
 }

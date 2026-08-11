@@ -1,6 +1,7 @@
 // Main Night-of Operations dashboard for a single trivia event.
 
 import Link from "next/link";
+import { ArrowRight, BarChart3, BookOpenCheck, ClipboardCheck, FileOutput, MonitorPlay, Radio, Settings2, ShieldCheck, Trophy, Users } from "lucide-react";
 import type { TriviaEvent, TriviaLiveState, TriviaScoreAction } from "@/app/apps/trivia/lib/trivia-types";
 import TriviaEventOpsHeader from "@/app/components/trivia/ops/TriviaEventOpsHeader";
 import TriviaEventsLinkPanel from "@/app/components/trivia/TriviaEventsLinkPanel";
@@ -35,67 +36,23 @@ export default function TriviaOverviewWorkspace({ event, live, scoreHistory, onR
 
       <section className="trivia-dark-card border border-[#d1c7e8] bg-white"><header className="border-b border-[#d1c7e8] bg-[#f6f2ff] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b3f9b]">Event readiness</p><h2 className="mt-1 text-lg font-semibold text-slate-900">What to finish before doors open</h2></header><div className="grid gap-px bg-[#d1c7e8] sm:grid-cols-2 xl:grid-cols-3">{readiness.map((item) => <div key={item.label} className="bg-white px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.label}</p><span className={item.ready ? "border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800" : "border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800"}>{item.ready ? "Ready" : "Review"}</span></div><p className="mt-1 text-xs text-slate-600">{item.detail}</p></div>)}</div></section>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Link href={`${base}/check-in`} className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/15 p-4 hover:bg-fuchsia-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-fuchsia-200">Night Of</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Check-In Open</h2>
-          <p className="mt-1 text-sm text-fuchsia-100/90">Front desk workflow for expected, late, and walk-in teams.</p>
-        </Link>
-
-        <Link href={`${base}/registration`} className="rounded-xl border border-cyan-500/40 bg-cyan-500/15 p-4 hover:bg-cyan-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-cyan-200">Before the event</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Registration & Public Page</h2>
-          <p className="mt-1 text-sm text-cyan-100/90">Publish signup, configure table or seat pricing, and collect hosts and guest names.</p>
-        </Link>
-
-        <Link href={`${base}/host`} className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-4 hover:bg-emerald-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-emerald-200">Night Of</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Host Panel</h2>
-          <p className="mt-1 text-sm text-emerald-100/90">Run stage flow, timer, emergency blank, and projector controls.</p>
-        </Link>
-
-        <Link href={`${base}/scores`} className="rounded-xl border border-cyan-500/40 bg-cyan-500/15 p-4 hover:bg-cyan-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-cyan-200">Night Of</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Scorekeeper</h2>
-          <p className="mt-1 text-sm text-cyan-100/90">Fast scoring actions, per-team controls, and undo workflows.</p>
-        </Link>
-
-        <Link href={`${base}/judge`} className="rounded-xl border border-violet-500/40 bg-violet-500/15 p-4 hover:bg-violet-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-violet-200">Night Of</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Judge / Answer Review</h2>
-          <p className="mt-1 text-sm text-violet-100/90">Review accepted answers and award correct/partial scoring safely.</p>
-        </Link>
-
-        <Link href={`${base}/scoreboard`} className="rounded-xl border border-amber-500/40 bg-amber-500/15 p-4 hover:bg-amber-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-amber-200">Night Of</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Live Scoreboards</h2>
-          <p className="mt-1 text-sm text-amber-100/90">Host-private ranking plus projector-ready leaderboard launchers.</p>
-        </Link>
-
-        <Link href={`/apps/trivia/display/${event.id}`} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-500/40 bg-slate-700/20 p-4 hover:bg-slate-700/35 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-slate-300">Display</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Projector Display</h2>
-          <p className="mt-1 text-sm text-slate-200/90">Audience-safe game screen with stage-driven rendering.</p>
-        </Link>
-
-        <Link href={`${base}/answer-key`} className="rounded-xl border border-indigo-500/40 bg-indigo-500/15 p-4 hover:bg-indigo-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-indigo-200">Operations</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Answer Key</h2>
-          <p className="mt-1 text-sm text-indigo-100/90">Private host notes, accepted alternates, and reveal copy.</p>
-        </Link>
-
-        <Link href={`${base}/recovery`} className="rounded-xl border border-rose-500/40 bg-rose-500/15 p-4 hover:bg-rose-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-rose-200">Operations</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Recovery</h2>
-          <p className="mt-1 text-sm text-rose-100/90">Snapshots, restore tools, emergency export, and audit timeline.</p>
-        </Link>
-
-        <Link href={`${base}/printables`} className="rounded-xl border border-sky-500/40 bg-sky-500/15 p-4 hover:bg-sky-500/25 transition-colors">
-          <p className="text-[11px] uppercase tracking-wide text-sky-200">Operations</p>
-          <h2 className="text-lg font-semibold text-white mt-1">Printables</h2>
-          <p className="mt-1 text-sm text-sky-100/90">Host packet, answer key, check-in roster, and score sheets.</p>
-        </Link>
-      </div>
+      <section className="border border-[#d1d1d1] bg-white">
+        <header className="border-b border-[#e1dfdd] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#5c2d91]">Workspace</p><h2 className="mt-1 text-lg font-semibold">Choose the next task</h2><p className="mt-1 text-xs text-[#616161]">Planning tools come first; live controls stay together for event night.</p></header>
+        <div className="grid gap-px bg-[#e1dfdd] md:grid-cols-2">
+          {[
+            { group: "Prepare", title: "Game builder", text: "Rounds, questions, answers, and media.", href: `${base}/builder`, icon: Settings2 },
+            { group: "Prepare", title: "Registration", text: "Public signup, team pricing, and roster sync.", href: `${base}/registration`, icon: Users },
+            { group: "Run", title: "Check-in", text: "Expected teams, walk-ins, table assignments.", href: `${base}/check-in`, icon: ClipboardCheck },
+            { group: "Run", title: "Host controls", text: "Stages, timer, projector, and emergency blank.", href: `${base}/host`, icon: Radio },
+            { group: "Run", title: "Scorekeeper", text: "Fast scoring, corrections, and undo history.", href: `${base}/scores`, icon: BarChart3 },
+            { group: "Run", title: "Judge answers", text: "Accepted answers and partial-credit review.", href: `${base}/judge`, icon: ShieldCheck },
+            { group: "Display", title: "Scoreboard", text: "Private ranking and leaderboard controls.", href: `${base}/scoreboard`, icon: Trophy },
+            { group: "Display", title: "Projector", text: "Open the audience-safe presentation screen.", href: `/apps/trivia/display/${event.id}`, icon: MonitorPlay, external: true },
+            { group: "Close", title: "Answer key", text: "Host notes, accepted alternatives, reveal copy.", href: `${base}/answer-key`, icon: BookOpenCheck },
+            { group: "Close", title: "Print & backups", text: "Host packet, roster, score sheets, and exports.", href: `${base}/printables`, icon: FileOutput },
+          ].map((action) => { const Icon = action.icon; return <Link key={action.title} href={action.href} target={action.external ? "_blank" : undefined} rel={action.external ? "noopener noreferrer" : undefined} className="group flex min-w-0 items-center gap-3 bg-white p-4 hover:bg-[#fafafa]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-[#f5f0f8] text-[#5c2d91]"><Icon className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-[#616161]">{action.group}</span><strong className="mt-0.5 block text-sm">{action.title}</strong><span className="mt-0.5 block truncate text-xs text-[#616161]">{action.text}</span></span><ArrowRight className="h-4 w-4 shrink-0 text-[#8a8886] group-hover:text-[#5c2d91]" /></Link>; })}
+        </div>
+      </section>
 
       <div className="trivia-dark-card border border-[#d1c7e8] bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Operational status</h3>
