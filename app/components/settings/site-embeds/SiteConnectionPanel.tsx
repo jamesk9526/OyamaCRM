@@ -120,14 +120,14 @@ export default function SiteConnectionPanel({
             rows={3}
             value={allowedDomainsText}
             onChange={(event) => onAllowedDomainsChange(event.target.value)}
-            placeholder="example.org\nwww.example.org\n*.support.example.org\n* (allow any domain)"
+            placeholder="example.org\nwww.example.org\n*.support.example.org"
             className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800"
           />
         </label>
       </div>
 
       <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
-        Tip: Use <span className="font-mono">*</span> in Allowed Domains for multi-website testing. For production security, prefer explicit domains.
+        The loader is available to any browser origin. For donation safety, approve the exact website hosts that may show checkout; use a scoped wildcard such as <span className="font-mono">*.campaigns.example.org</span> for related subdomains.
       </p>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -146,14 +146,15 @@ export default function SiteConnectionPanel({
           Active site connection
         </label>
 
-        <button
-          type="button"
-          onClick={onRegenerateToken}
-          disabled={regeneratingToken}
-          className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
-        >
-          {regeneratingToken ? "Regenerating..." : "Regenerate Token"}
-        </button>
+        <details className="relative">
+          <summary className="cursor-pointer rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100">Advanced: rotate token</summary>
+          <div className="absolute right-0 z-10 mt-2 w-72 rounded-lg border border-amber-200 bg-white p-3 text-xs text-gray-700 shadow-lg">
+            <p>Only rotate after a suspected leak. Existing installed forms will stop working until their loader code is replaced.</p>
+            <button type="button" onClick={onRegenerateToken} disabled={regeneratingToken} className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60">
+              {regeneratingToken ? "Rotating..." : "Rotate token now"}
+            </button>
+          </div>
+        </details>
 
         <button
           type="button"

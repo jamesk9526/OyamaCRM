@@ -1507,7 +1507,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       // Subscription checkout
       sessionBody = new URLSearchParams();
       sessionBody.set("mode", "subscription");
-      sessionBody.set("ui_mode", "embedded");
+      sessionBody.set("ui_mode", "embedded_page");
       sessionBody.set("return_url", returnUrl);
       sessionBody.set("line_items[0][quantity]", "1");
       sessionBody.set("line_items[0][price_data][currency]", currency);
@@ -1533,7 +1533,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       // One-time payment checkout
       sessionBody = new URLSearchParams();
       sessionBody.set("mode", "payment");
-      sessionBody.set("ui_mode", "embedded");
+      sessionBody.set("ui_mode", "embedded_page");
       sessionBody.set("return_url", returnUrl);
       sessionBody.set("line_items[0][quantity]", "1");
       sessionBody.set("line_items[0][price_data][currency]", currency);
@@ -2444,8 +2444,12 @@ router.post("/test-connection", requireRole("admin"), async (req, res) => {
     issues.push("Site connection is inactive.");
   }
 
-  if (!selectedSite.widgets.liveCom.enabled) {
-    issues.push("LiveCom widget is disabled.");
+  if (activeWidgets.length === 0) {
+    issues.push("Enable at least one website widget before testing the connection.");
+  }
+
+  if (selectedSite.widgets.donation_widget.enabled) {
+    issues.push(...getDonationDomainConfigurationIssues(selectedSite));
   }
 
   if (!selectedSite.lastSuccessfulScriptLoad) {

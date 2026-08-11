@@ -346,7 +346,7 @@ router.post("/stripe/sandbox-checkout", requireRole("admin"), async (req, res) =
     const baseUrl = resolveWebhookUrl(req).replace(/\/api\/site-embeds\/public\/stripe-webhook$/, "");
     const sessionBody = new URLSearchParams();
     sessionBody.set("mode", "payment");
-    sessionBody.set("ui_mode", "embedded");
+    sessionBody.set("ui_mode", "embedded_page");
     sessionBody.set("return_url", `${baseUrl}/api/site-embeds/public/donation-return?stripe_preview=1`);
     sessionBody.set("line_items[0][quantity]", "1");
     sessionBody.set("line_items[0][price_data][currency]", runtime.currency.toLowerCase());

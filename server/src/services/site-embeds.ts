@@ -1030,7 +1030,7 @@ export function buildSiteEmbedSnippets(site: SiteEmbedSiteConfig, apiBaseUrl: st
 
   const headSnippet = [
     "<!-- OyamaCRM Site Embed Loader (Head) -->",
-    `<script src=\"${safeApiBase}/api/site-embeds/loader.js?token=${safeToken}\" data-oyama-site-id=\"${site.publicSiteId}\" defer></script>`,
+    `<script src=\"${safeApiBase}/api/site-embeds/loader.js?token=${safeToken}\" defer></script>`,
   ].join("\n");
 
   const footerSnippet = [
@@ -1050,7 +1050,7 @@ export function buildSiteEmbedSnippets(site: SiteEmbedSiteConfig, apiBaseUrl: st
     ].join("\n"),
     donation_widget: [
       "<!-- OyamaCRM Donation Widget Placeholder -->",
-      `<div data-oyama-embed=\"donation-widget\" data-oyama-site-token=\"${safeToken}\" data-designation=\"general-fund\"></div>`,
+      `<div data-oyama-embed=\"donation-widget\"></div>`,
     ].join("\n"),
     event_card: [
       "<!-- OyamaCRM Event Card Placeholder -->",

@@ -23,7 +23,7 @@ describe("Stripe donation widget configuration", () => {
     expect(widget.maximumAmountCents).toBeGreaterThan(widget.minimumAmountCents);
     expect(widget.stylePreset).toBe("classic");
     expect(buildSiteEmbedSnippets(site, "https://crm.example.org").embedBlocks.donation_widget)
-      .toContain('data-oyama-embed="donation-widget"');
+      .toContain('<div data-oyama-embed="donation-widget"></div>');
   });
 
   it("normalizes legacy and hostile amount/style values", () => {

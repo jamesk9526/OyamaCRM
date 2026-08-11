@@ -254,10 +254,10 @@ export default function StripeIntegrationWorkspace() {
   const embedSnippet = sitePayload?.snippets.embedBlocks.donation_widget ?? "";
   const hostedGivingUrl = siteDraft && publicAppOrigin ? `${publicAppOrigin}/give/${encodeURIComponent(siteDraft.embedToken)}` : "";
   const embedVariants = siteDraft ? [
-    { key: "standard", title: "Standard giving form", description: "Balanced card for most donation pages.", code: `<div data-oyama-embed="donation-widget" data-oyama-site-token="${siteDraft.embedToken}" data-oyama-style="classic" data-oyama-width="standard"></div>` },
-    { key: "compact", title: "Compact sidebar form", description: "Narrow layout for sidebars and campaign pages.", code: `<div data-oyama-embed="donation-widget" data-oyama-site-token="${siteDraft.embedToken}" data-oyama-style="minimal" data-oyama-width="compact"></div>` },
-    { key: "spotlight", title: "Campaign spotlight", description: "Wide, higher-emphasis treatment for landing pages.", code: `<div data-oyama-embed="donation-widget" data-oyama-site-token="${siteDraft.embedToken}" data-oyama-style="bold" data-oyama-width="wide"></div>` },
-    { key: "warm", title: "Warm community form", description: "Soft treatment for care, faith, and community programs.", code: `<div data-oyama-embed="donation-widget" data-oyama-site-token="${siteDraft.embedToken}" data-oyama-style="warm" data-oyama-width="standard"></div>` },
+    { key: "standard", title: "Standard giving form", description: "Balanced card for most donation pages.", code: '<div data-oyama-embed="donation-widget"></div>' },
+    { key: "compact", title: "Compact sidebar form", description: "Narrow layout for sidebars and campaign pages.", code: '<div data-oyama-embed="donation-widget" data-oyama-style="minimal" data-oyama-width="compact"></div>' },
+    { key: "spotlight", title: "Campaign spotlight", description: "Wide, higher-emphasis treatment for landing pages.", code: '<div data-oyama-embed="donation-widget" data-oyama-style="bold" data-oyama-width="wide"></div>' },
+    { key: "warm", title: "Warm community form", description: "Soft treatment for care, faith, and community programs.", code: '<div data-oyama-embed="donation-widget" data-oyama-style="warm" data-oyama-width="standard"></div>' },
   ] : [];
   const readiness = useMemo(() => [
     { label: "Stripe credentials", ready: Boolean(health?.stripeCheckoutReady), detail: "Publishable and secret keys match the selected mode." },
@@ -372,7 +372,7 @@ export default function StripeIntegrationWorkspace() {
         }),
       });
       await load();
-      if (showSuccess) setMessage({ tone: "success", text: "Donation form saved and install code regenerated." });
+      if (showSuccess) setMessage({ tone: "success", text: "Donation form saved. Your installed code stays the same." });
       return true;
     } catch (error) {
       setMessage({ tone: "error", text: error instanceof Error ? error.message : "Donation form could not be saved." });
@@ -723,7 +723,7 @@ export default function StripeIntegrationWorkspace() {
 
         {tab === "install" ? (
           <div className="space-y-5">
-            <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>Choose hosted or embedded delivery.</strong> Share the OyamaCRM public link with no website code, or install the loader and donation block on an approved external domain. Both options use identical payment rules and verified webhook recording.</section>
+            <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><strong>Choose hosted or embedded delivery.</strong> Share the OyamaCRM public link with no website code, or install the loader once and add a form block where it belongs. The token and installed code stay stable when you save form changes; only an explicit token rotation replaces them.</section>
             <section className="rounded-lg border border-slate-200 bg-white p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-slate-950">Public OyamaCRM giving link</h2><p className="mt-1 text-xs leading-5 text-slate-500">Best for email buttons, social posts, text messages, printed QR codes, and organizations without a website editor.</p></div><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${widget?.hostedPageEnabled ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{widget?.hostedPageEnabled ? "Published" : "Not published"}</span></div>
               <div className="mt-4 flex flex-col gap-2 rounded-md bg-slate-50 p-3 sm:flex-row sm:items-center"><code className="min-w-0 flex-1 break-all text-xs text-slate-700">{hostedGivingUrl || "Save the form to generate the public URL."}</code><div className="flex shrink-0 gap-2"><button type="button" disabled={!hostedGivingUrl} onClick={() => void copyCode("install-hosted-url", hostedGivingUrl)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Copy className="size-3.5" />{copied === "install-hosted-url" ? "Copied" : "Copy link"}</button>{widget?.hostedPageEnabled && hostedGivingUrl ? <a href={hostedGivingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"><ExternalLink className="size-3.5" />Open</a> : null}</div></div>
@@ -736,6 +736,7 @@ export default function StripeIntegrationWorkspace() {
                 </section>
               ))}
             </div>
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">The loader can be requested from any website origin. For donor safety, a live embedded payment form still runs only on domains you approve in <strong>Donation form</strong>. Use the hosted giving link when you need a payment page without an approved website domain.</p>
             <section className="rounded-lg border border-slate-200 bg-white p-5">
               <div><h2 className="font-semibold text-slate-950">Embeddable giving library</h2><p className="mt-1 text-xs text-slate-500">Use any variant after installing the loader once. Each inherits the saved content and payment rules while selecting a presentation suited to its placement.</p></div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
