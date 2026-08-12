@@ -242,7 +242,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         label: "Visitor action block",
         passed: visibleSections.some((section) => section.id === "registration-form" || section.id === "donation-form" || section.id === "cta-banner" || section.id === "live-appeal"),
       },
-      { label: "Payment policy set", passed: paymentPolicy === "OfflineFollowUp" || paymentPolicy === "NoPaymentRequired" },
+      { label: "Payment policy set", passed: paymentPolicy === "StripeCheckout" || paymentPolicy === "OfflineFollowUp" || paymentPolicy === "NoPaymentRequired" },
       { label: "Autosave complete", passed: autoSaveState !== "saving" },
     ];
   }, [autoSaveState, pageSlugDraft, paymentPolicy, sections]);
@@ -355,7 +355,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setUrlFeedback("Publish blocked: add a registration, donation, or CTA section so visitors have a clear next step.");
         return;
       }
-      if (paymentPolicy !== "OfflineFollowUp" && paymentPolicy !== "NoPaymentRequired") {
+      if (paymentPolicy !== "StripeCheckout" && paymentPolicy !== "OfflineFollowUp" && paymentPolicy !== "NoPaymentRequired") {
         setUrlFeedback("Publish blocked: choose a registration payment policy.");
         return;
       }

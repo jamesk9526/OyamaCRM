@@ -26,6 +26,7 @@ interface RecordGiftModalProps {
   grantTitle?: string;
   funderName?: string;
   suggestedAmount?: string;
+  eventId?: string;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }
@@ -45,6 +46,7 @@ export default function RecordGiftModal({
   grantTitle = "",
   funderName = "",
   suggestedAmount = "",
+  eventId = "",
   onClose,
   onSaved,
 }: RecordGiftModalProps) {
@@ -109,6 +111,7 @@ export default function RecordGiftModal({
   const defaultDonationValues = useMemo(() => {
     const amount = suggestedAmount && !Number.isNaN(Number(suggestedAmount)) ? String(Number(suggestedAmount)) : "";
     return {
+      ...(eventId ? { eventId } : {}),
       ...(campaignId ? { campaignId } : {}),
       ...(source === "grant-award"
         ? {
@@ -117,7 +120,7 @@ export default function RecordGiftModal({
           }
         : {}),
     };
-  }, [campaignId, funderName, grantTitle, source, suggestedAmount]);
+  }, [campaignId, eventId, funderName, grantTitle, source, suggestedAmount]);
 
   const statusLabel = source === "grant-award"
     ? "Grant Handoff"
@@ -128,7 +131,9 @@ export default function RecordGiftModal({
     ? "Recording awarded grant revenue in the Donations ledger"
     : source === "campaign" && campaignId
       ? `Recording a donation for ${campaignName || "the selected campaign"}`
-      : "Enter donation details and stewardship data";
+      : source === "event" && eventId
+        ? "Recording a donation directly against this event"
+        : "Enter donation details and stewardship data";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#201f1e]/45 p-2 backdrop-blur-[2px] sm:items-center sm:p-4">

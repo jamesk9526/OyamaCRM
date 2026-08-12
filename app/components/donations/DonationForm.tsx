@@ -85,6 +85,7 @@ type FormData = {
   frequency: string;
   taxDeductible: boolean;
   notes: string;
+  eventId: string;
 };
 
 function getTodayInputValue(): string {
@@ -98,7 +99,7 @@ function getTodayInputValue(): string {
 const EMPTY: FormData = {
   constituentId: "", amount: "", date: getTodayInputValue(),
   paymentMethod: "ONLINE", checkNumber: "", campaignId: "", designationId: "",
-  status: "COMPLETED", isRecurring: false, frequency: "", taxDeductible: true, notes: "",
+  status: "COMPLETED", isRecurring: false, frequency: "", taxDeductible: true, notes: "", eventId: "",
 };
 
 export default function DonationForm({ mode = "create", donationId, defaultValues, constituents, campaigns, designations, onCancel, onSaved }: Props) {

@@ -211,11 +211,18 @@ export function useTriviaModuleState() {
 
     const intervalId = window.setInterval(() => {
       void pullServerState(false);
-    }, 5000);
+    }, 2000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void pullServerState(false);
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       active = false;
       window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [syncMode]);
 

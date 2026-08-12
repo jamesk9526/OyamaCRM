@@ -11,7 +11,6 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
 interface EventItem {
   id: string;
@@ -117,18 +116,12 @@ export default function EventHostsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <FeatureStatusWarning
-        status="Partially Implemented"
-        title="Table Host Manager is partially working"
-        description="Host invite links, resend controls, and host portal workflows are still in development. Use this workspace for host coverage tracking and staff handoff planning."
-      />
-
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Events CRM", href: "/events/events" },
           { label: "Hosts" },
         ]}
-        statusLabel="Partially Working"
+        statusLabel="Ready"
         metadata={`${hostedTables.length.toLocaleString()} hosted tables · ${missingHostCoverage.length.toLocaleString()} sponsor tables missing host owner`}
         accentTone="purple"
       />
@@ -138,6 +131,7 @@ export default function EventHostsPage() {
           <EventScopedRibbonButton label="Tables" eventId={selectedEventId} eventPath="tables" accentTone="purple" />
           <EventScopedRibbonButton label="Guests" eventId={selectedEventId} eventPath="guests" accentTone="purple" />
           <EventScopedRibbonButton label="Follow-Up" eventId={selectedEventId} eventPath="follow-up" accentTone="purple" />
+          <EventScopedRibbonButton label="Email Hosts" eventId={selectedEventId} eventPath="emails" accentTone="purple" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Actions">
           <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace(selectedEventId)} disabled={!selectedEventId} accentTone="purple" />
@@ -249,8 +243,8 @@ export default function EventHostsPage() {
                 </table>
               </div>
             )}
-            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Host invite links and one-click resend controls are still in development. Use table records and manual communication handoff for now.
+            <p className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              Open Table Manager to create or revoke each host portal link, manage the public table code, and invite guests. Use Email Hosts for a reviewed message to every eligible host address.
             </p>
           </section>
         </>

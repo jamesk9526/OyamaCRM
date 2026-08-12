@@ -1,8 +1,29 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-11 (Event page builder redesign and global-brand completion)
+Last updated: 2026-08-11 (Event communications, reservation self-service, fundraising, hosts, and Trivia live controls)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-08-11 Event Communications and Trivia Live Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Registration receipt gives the registrant a recoverable self-service path | Working | Receipt UI and transactional email include the order number, random reservation PIN, and `/event-reservations` login. The public API is rate-limited and allow-lists attendee contact, dietary, and accessibility fields only. |
+| Event email delivery is explicit and auditable | Working | Staff must preview an audience and explicitly confirm; transactional eligibility is applied, duplicate addresses are removed, global branding wraps delivery, and every attempt receives SENT/FAILED log state plus an audit summary. |
+| Event donations reconcile into event reporting | Working | Record Event Gift passes `eventId`; the Donations API verifies organization ownership before saving the relation; Event reporting already aggregates those tagged ledger rows separately from ticket orders. |
+| Host and sponsor operations are connected | Working | Hosts workspace links to working TableLink access issue/revoke controls and host-audience email. Sponsor manager retains event-scoped create/edit/delete and summary operations. |
+| Trivia permits untimed questions without phantom countdown controls | Working | Builder persists zero seconds, server start/reset preserves zero, host hides timer-only actions, and projector omits timer stages/components for untimed questions. Shared state pulls every two seconds and after focus/visibility recovery. |
+| Focused automated verification | Working | `pnpm typecheck`; Events, Stripe webhook, Donations, and Trivia event-night suites — 83/83 passed. |
+
+## 2026-08-11 Event Payment and Check-In Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Paid event registration has an authoritative settlement path | Working | `event-stripe-checkout.ts`, `events.ts`, and `site-embeds.ts`; totals come only from the saved order, Stripe Checkout receives scoped metadata, and only the signed idempotent webhook can confirm the order and mark guests paid after exact amount/organization/event verification. |
+| Checkout failure does not lose a reservation or create false payment state | Working | The registration transaction completes before checkout creation. Missing configuration, provider errors, cancellation, and delayed-payment failure keep the order pending and guests due, with truthful browser/email guidance. |
+| Check-in exposes payment state without blocking door operations | Working | The Fluent check-in workspace labels paid/due/check-pending/complimentary/sponsored states and warns staff to route unpaid arrivals to the payment desk while preserving check-in and exception workflows. |
+| Check-in remains usable at desktop and phone widths | Working | Live browser checks at 1440×900 and 390×844 showed no document-level horizontal overflow; Search, Scan, Tables, walk-ins, replacements, exceptions, and focused volunteer mode remained reachable; no console errors were recorded. |
+| Live Stripe account proof | Release configuration required | Enter the organization’s Stripe Test and Live credentials plus webhook secrets, subscribe the existing webhook endpoint to Checkout completion and asynchronous payment events, then run a low-dollar sandbox and live event registration before public launch. |
 
 ## 2026-08-11 Event Page Builder Snapshot
 
@@ -43,7 +64,7 @@ This file is the release-gate source of truth for production readiness.
 | New Trivia events have a usable public RSVP site | Working | Unified create page and Events public page/register routes; free RSVPs confirm online, paid reservations are explicitly offline-follow-up. |
 | Event navigation exposes the complete event journey | Working | Mounted `EventsStudioShell.tsx` uses the canonical workspace config and event-preserving switcher. |
 | Table positions are operational and server validated | Working | Interactive floor canvas in `app/events/tables/page.tsx`; persisted `xPosition`/`yPosition`; API rejects invalid coordinates. |
-| Verified online Event ticket payment | Not Implemented | Public paid reservations remain pending and require staff follow-up; do not market them as completed online payments. |
+| Verified online Event ticket payment | Working after Stripe configuration | Paid registrations can redirect to Stripe Checkout; a signed, idempotent, exact-amount webhook confirms the order and synchronizes all guest payment states. Offline and no-payment policies remain available. |
 | Current database integration proof | Blocked | MySQL was unavailable at `localhost:3306` on 2026-08-09. Web/server typechecks and focused source tests passed; database-backed event lanes must be rerun. |
 
 ## 2026-07-29 Stripe Giving Integration Snapshot

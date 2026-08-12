@@ -11,7 +11,6 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
 interface EventItem {
   id: string;
@@ -72,6 +71,12 @@ export default function EventCommunicationsPage() {
   const [guests, setGuests] = useState<EventGuest[]>([]);
   const [report, setReport] = useState<EventReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [audience, setAudience] = useState("all");
+  const [subject, setSubject] = useState("Important information for {eventName}");
+  const [messageBody, setMessageBody] = useState("Hello {firstName},\n\nWe are looking forward to seeing you at {eventName} on {eventDate}.\n\nLocation: {eventLocation}\nOrder: {orderNumber}\nReservation PIN: {reservationPin}\nManage reservation: {manageReservationUrl}\n\nThank you.");
+  const [sendPreview, setSendPreview] = useState<{ eligibleCount: number; skippedCount: number; recipients: Array<{ name: string; email: string; tableName?: string }> } | null>(null);
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendMessage, setSendMessage] = useState("");
 
   useEffect(() => {
     if (workspaceEventId) setSelectedEventId(workspaceEventId);
@@ -133,24 +138,41 @@ export default function EventCommunicationsPage() {
   const paymentFollowUp = guests.filter((guest) => guest.paymentStatus === "DUE" || guest.paymentStatus === "PENDING_CHECK");
   const checkedInGuests = guests.filter((guest) => guest.checkedIn);
 
+  async function reviewOrSend(confirmed: boolean) {
+    if (!selectedEventId) return;
+    setSendBusy(true);
+    setSendMessage("");
+    try {
+      const response = await apiFetch<{ preview: boolean; eligibleCount: number; skippedCount?: number; recipients?: Array<{ name: string; email: string; tableName?: string }>; sentCount?: number; failedCount?: number }>(`/api/events/${selectedEventId}/emails/send`, {
+        method: "POST",
+        body: JSON.stringify({ audience, subject, message: messageBody, confirmed }),
+      });
+      if (confirmed) {
+        setSendPreview(null);
+        setSendMessage(`${response.sentCount ?? 0} email${response.sentCount === 1 ? "" : "s"} sent${response.failedCount ? `; ${response.failedCount} failed` : ""}.`);
+      } else {
+        setSendPreview({ eligibleCount: response.eligibleCount, skippedCount: response.skippedCount ?? 0, recipients: response.recipients ?? [] });
+        setSendMessage("Audience reviewed. Confirm the recipient count before sending.");
+      }
+    } catch (error) {
+      setSendMessage(error instanceof Error ? error.message : "Email action failed.");
+    } finally {
+      setSendBusy(false);
+    }
+  }
+
   if (!eventScoped) {
     return <RequireEventSelectionNotice tool="event email communications" />;
   }
 
   return (
     <div className="space-y-6 p-6">
-      <FeatureStatusWarning
-        status="Partially Implemented"
-        title="Event email sending is partially wired"
-        description="Audience preparation and workspace routing are available, but scheduling and send execution still depend on central communications orchestration."
-      />
-
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Events CRM", href: "/events/events" },
           { label: "Emails" },
         ]}
-        statusLabel="Partially Working"
+        statusLabel="Ready"
         metadata={`${guestsWithEmail.length.toLocaleString()} emailable guests · ${report?.donorInsights.needsFollowUp ?? 0} follow-up targets`}
         accentTone="purple"
       />
@@ -202,6 +224,17 @@ export default function EventCommunicationsPage() {
         </section>
       ) : (
         <>
+          <section className="border border-[#d1d1d1] bg-white p-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0f6cbd]">Send event email</p><h2 className="mt-1 text-lg font-semibold text-[#242424]">Choose an audience, review it, then send</h2><p className="mt-1 max-w-3xl text-sm text-[#616161]">Every send rechecks communication eligibility. Use merge fields such as <code>{"{firstName}"}</code>, <code>{"{eventName}"}</code>, <code>{"{eventDate}"}</code>, <code>{"{orderNumber}"}</code>, <code>{"{reservationPin}"}</code>, <code>{"{manageReservationUrl}"}</code>, and <code>{"{tableName}"}</code>.</p></div><Link href="/event-reservations" target="_blank" className="text-sm font-semibold text-[#0f6cbd] hover:underline">Preview reservation manager ↗</Link></div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <div><label className="block text-sm font-semibold text-[#424242]">Audience<select value={audience} onChange={(event) => { setAudience(event.target.value); setSendPreview(null); }} className="mt-1 min-h-11 w-full border border-[#8a8886] bg-white px-3 text-sm"><option value="all">All emailable guests</option><option value="payment_due">Payment due</option><option value="checked_in">Checked-in guests</option><option value="no_show">Confirmed no-shows</option><option value="hosts">Table hosts</option></select></label><div className="mt-3 border border-[#d1d1d1] bg-[#faf9f8] p-3 text-xs text-[#616161]"><strong className="block text-[#242424]">How it works</strong><ol className="mt-2 space-y-1"><li>1. Review resolves the live audience.</li><li>2. Ineligible or suppressed addresses are skipped.</li><li>3. Send uses the organization email provider and records audit evidence.</li></ol></div></div>
+              <div className="space-y-3"><label className="block text-sm font-semibold text-[#424242]">Subject<input value={subject} onChange={(event) => { setSubject(event.target.value); setSendPreview(null); }} className="mt-1 min-h-11 w-full border border-[#8a8886] px-3 text-sm" /></label><label className="block text-sm font-semibold text-[#424242]">Message<textarea value={messageBody} onChange={(event) => { setMessageBody(event.target.value); setSendPreview(null); }} rows={8} className="mt-1 w-full border border-[#8a8886] p-3 text-sm leading-6" /></label></div>
+            </div>
+            {sendPreview ? <div className="mt-4 border-l-4 border-[#0f6cbd] bg-[#f2f7fc] p-4"><p className="font-semibold">{sendPreview.eligibleCount} eligible recipient{sendPreview.eligibleCount === 1 ? "" : "s"} · {sendPreview.skippedCount} skipped</p><p className="mt-1 text-xs text-[#616161]">{sendPreview.recipients.slice(0, 6).map((recipient) => `${recipient.name} <${recipient.email}>`).join(" · ") || "No eligible recipients"}</p></div> : null}
+            {sendMessage ? <p className="mt-3 text-sm text-[#424242]" aria-live="polite">{sendMessage}</p> : null}
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void reviewOrSend(false)} disabled={sendBusy || !subject.trim() || !messageBody.trim()} className="min-h-11 border border-[#0f6cbd] px-4 text-sm font-semibold text-[#0f6cbd] hover:bg-[#f2f7fc] disabled:opacity-50">{sendBusy ? "Working…" : "Review audience"}</button><button type="button" onClick={() => void reviewOrSend(true)} disabled={sendBusy || !sendPreview || sendPreview.eligibleCount === 0} className="min-h-11 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:bg-[#c8c6c4]">Confirm and send to {sendPreview?.eligibleCount ?? 0}</button></div>
+          </section>
+
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Emailable Guests</p>
@@ -237,11 +270,9 @@ export default function EventCommunicationsPage() {
               </ul>
             </article>
 
-            <article className="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-violet-900">Production status</h2>
-              <p className="mt-2 text-xs leading-5 text-violet-900">
-                Event email scheduling and send execution still depend on the central communications engine. This workspace is production-usable for segment prep and handoff links, with send orchestration marked partially working.
-              </p>
+            <article className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+              <h2 className="text-sm font-semibold text-blue-950">Email and reservation access</h2>
+              <p className="mt-2 text-xs leading-5 text-blue-900">Registration receipts include the order number, reservation PIN, check-in codes, payment state, and a link to the safe attendee editor. Event sends remain review-first and enforce recipient eligibility at send time.</p>
               <div className="mt-3 space-y-2 text-xs">
                 <Link href="/communications" className="block font-semibold text-violet-700 hover:text-violet-900">Open central communications workspace</Link>
                 <Link href={selectedEventId ? `/events/${selectedEventId}/reports` : "/events/reports"} className="block font-semibold text-violet-700 hover:text-violet-900">Review event report outcomes</Link>

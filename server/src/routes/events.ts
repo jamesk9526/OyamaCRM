@@ -14,6 +14,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { readPaymentGatewayPublicSettings, type PaymentGatewayPublicSettings } from "../services/payment-gateway-settings.js";
+import { createEventStripeCheckout, EventStripeCheckoutError } from "../services/event-stripe-checkout.js";
 import { createEventTable } from "../services/event-table-service.js";
 import { createCheckInRecord, reverseCheckIn, getCheckInLiveCounts } from "../services/checkin-service.js";
 import { createCheckInException, dismissCheckInException, listCheckInExceptions, resolveCheckInException } from "../services/checkin-exception-service.js";
@@ -64,6 +65,13 @@ const publicEventRegistrationLimiter = rateLimit({
       message: "Too many registration attempts. Wait a while or contact the event organizer.",
     },
   },
+});
+const publicReservationAccessLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 12,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: { code: "TOO_MANY_ATTEMPTS", message: "Too many reservation access attempts. Wait 15 minutes and try again." } },
 });
 const CHECK_IN_EXCEPTION_STATUSES = new Set<EventCheckInExceptionStatus>(["OPEN", "RESOLVED", "DISMISSED"]);
 const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
@@ -160,7 +168,7 @@ interface EventsManagerIntegrationSnapshot extends EventsManagerIntegrationSourc
 }
 
 type EventPageBuilderStatus = "Draft" | "Published";
-type EventPagePaymentPolicy = "OfflineFollowUp" | "NoPaymentRequired";
+type EventPagePaymentPolicy = "StripeCheckout" | "OfflineFollowUp" | "NoPaymentRequired";
 type EventPageDeploymentAction = "Published" | "Unpublished";
 
 type StoredEventPageSectionId =
@@ -320,7 +328,8 @@ function normalizeEventPageStatus(value: unknown): EventPageBuilderStatus {
 }
 
 function normalizeEventPagePaymentPolicy(value: unknown): EventPagePaymentPolicy {
-  return value === "NoPaymentRequired" ? "NoPaymentRequired" : "OfflineFollowUp";
+  if (value === "StripeCheckout" || value === "NoPaymentRequired") return value;
+  return "OfflineFollowUp";
 }
 
 const ALLOWED_EVENT_PAGE_SECTION_IDS = new Set<StoredEventPageSectionId>([
@@ -579,6 +588,15 @@ function escapeEventEmailHtml(value: unknown): string {
     .replace(/'/g, "&#039;");
 }
 
+function safeEventEmailImageUrl(value: string): string {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 async function sendPublicEventRegistrationConfirmation(params: {
   organizationId: string;
   event: { id: string; name: string; startDate: Date };
@@ -589,6 +607,10 @@ async function sendPublicEventRegistrationConfirmation(params: {
   ticketName: string;
   ticketUnits: number;
   totalAmount: number;
+  paymentPolicy: EventPagePaymentPolicy;
+  checkoutUrl?: string;
+  manageReservationUrl: string;
+  reservationPin: string;
 }): Promise<{ status: "sent" | "skipped" | "failed"; detail: string }> {
   const subject = `Registration confirmed: ${params.event.name}`;
   let emailLogId: string | null = null;
@@ -607,6 +629,9 @@ async function sendPublicEventRegistrationConfirmation(params: {
   }
 
   try {
+    const branding = await loadOrganizationBrandingContext(params.organizationId);
+    const brandName = branding.organizationName || "Oyama Events";
+    const brandLogoUrl = safeEventEmailImageUrl(branding.logoUrl || branding.logoSquareUrl);
     const eligibility = await evaluateRecipientEligibility({
       organizationId: params.organizationId,
       purpose: "TRANSACTIONAL",
@@ -633,16 +658,22 @@ async function sendPublicEventRegistrationConfirmation(params: {
     const tableSummary = params.table
       ? `Table ${params.table.tableNumber ?? "pending"} — ${params.table.name} (${params.table.capacity} seats)`
       : "Individual registration";
-    const amountSummary = params.totalAmount > 0
-      ? `$${params.totalAmount.toFixed(2)} is due. Event staff will follow up with payment instructions.`
-      : "No payment is due.";
+    const amountSummary = params.totalAmount <= 0
+      ? "No payment is due."
+      : params.paymentPolicy === "StripeCheckout"
+        ? `$${params.totalAmount.toFixed(2)} is due through secure Stripe checkout.`
+        : `$${params.totalAmount.toFixed(2)} is due. Event staff will follow up with payment instructions.`;
+    const paymentActionHtml = params.checkoutUrl
+      ? `<p style="margin:20px 0"><a href="${escapeEventEmailHtml(params.checkoutUrl)}" style="display:inline-block;background:#0f6cbd;color:#ffffff;text-decoration:none;padding:11px 18px;font-weight:600">Complete secure payment</a></p>`
+      : "";
+    const manageReservationHtml = `<div style="margin:18px 0;padding:14px;background:#faf9f8;border:1px solid #d1d1d1"><strong>Manage this reservation</strong><div style="margin-top:6px"><a href="${escapeEventEmailHtml(params.manageReservationUrl)}">${escapeEventEmailHtml(params.manageReservationUrl)}</a></div><div style="margin-top:6px">Order: <strong>${escapeEventEmailHtml(params.order.orderNumber)}</strong> · PIN: <strong>${escapeEventEmailHtml(params.reservationPin)}</strong></div><div style="margin-top:6px;font-size:12px;color:#616161">The PIN can update attendee contact, dietary, and accessibility information. It cannot change payment, price, seating, or check-in state.</div></div>`;
     const attendeeHtml = params.guests
       .map((guest) => {
         const name = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim() || "Guest";
         return `<li style="margin:6px 0">${escapeEventEmailHtml(name)}${guest.checkinCode ? ` — code <strong>${escapeEventEmailHtml(guest.checkinCode)}</strong>` : ""}</li>`;
       })
       .join("");
-    const html = `<!doctype html><html><body style="margin:0;background:#f3f4f6;font-family:Segoe UI,Arial,sans-serif;color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #d7dce5"><tr><td style="padding:24px;border-top:5px solid #5b3fa3"><div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#5b3fa3">Oyama Events</div><h1 style="margin:8px 0 0;font-size:26px;color:#172033">Registration confirmed</h1></td></tr><tr><td style="padding:0 24px 24px;font-size:15px;line-height:1.6"><p>Hello ${escapeEventEmailHtml(params.buyer.firstName)},</p><p>Your registration for <strong>${escapeEventEmailHtml(params.event.name)}</strong> was successful.</p><div style="margin:18px 0;padding:16px;background:#f4f1fb;border-left:4px solid #5b3fa3"><div><strong>Event:</strong> ${escapeEventEmailHtml(params.event.name)}</div><div><strong>Date:</strong> ${escapeEventEmailHtml(eventDate)}</div><div><strong>Registration:</strong> ${escapeEventEmailHtml(params.ticketName)} × ${params.ticketUnits}</div><div><strong>Order:</strong> ${escapeEventEmailHtml(params.order.orderNumber)}</div><div><strong>Seating:</strong> ${escapeEventEmailHtml(tableSummary)}</div><div><strong>Payment:</strong> ${escapeEventEmailHtml(amountSummary)}</div></div><p><strong>Guests and check-in codes</strong></p><ul style="padding-left:20px">${attendeeHtml}</ul><p>Please keep this email available for check-in.</p></td></tr></table></td></tr></table></body></html>`;
+    const html = `<!doctype html><html><body style="margin:0;background:${branding.emailBackgroundColor};font-family:${escapeEventEmailHtml(branding.emailFontFamily)};color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:${branding.emailContentWidth}px;background:#ffffff;border:1px solid #d7dce5"><tr><td style="padding:24px;border-top:5px solid ${branding.primaryColor}">${brandLogoUrl ? `<img src="${escapeEventEmailHtml(brandLogoUrl)}" alt="${escapeEventEmailHtml(brandName)}" style="display:block;max-width:160px;max-height:64px;margin:0 0 14px" />` : ""}<div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:${branding.primaryColor}">${escapeEventEmailHtml(brandName)}</div><h1 style="margin:8px 0 0;font-size:26px;color:#172033">${params.totalAmount > 0 ? "Registration reserved" : "Registration confirmed"}</h1></td></tr><tr><td style="padding:0 24px 24px;font-size:15px;line-height:1.6"><p>Hello ${escapeEventEmailHtml(params.buyer.firstName)},</p><p>Your registration for <strong>${escapeEventEmailHtml(params.event.name)}</strong> was saved.</p><div style="margin:18px 0;padding:16px;background:#f2f7fc;border-left:4px solid ${branding.primaryColor}"><div><strong>Event:</strong> ${escapeEventEmailHtml(params.event.name)}</div><div><strong>Date:</strong> ${escapeEventEmailHtml(eventDate)}</div><div><strong>Registration:</strong> ${escapeEventEmailHtml(params.ticketName)} × ${params.ticketUnits}</div><div><strong>Order:</strong> ${escapeEventEmailHtml(params.order.orderNumber)}</div><div><strong>Seating:</strong> ${escapeEventEmailHtml(tableSummary)}</div><div><strong>Payment:</strong> ${escapeEventEmailHtml(amountSummary)}</div></div>${paymentActionHtml}${manageReservationHtml}<p><strong>Guests and check-in codes</strong></p><ul style="padding-left:20px">${attendeeHtml}</ul><p>Please keep this email available for check-in.</p>${branding.footerLegalText ? `<p style="margin-top:26px;padding-top:14px;border-top:1px solid #e5e7eb;color:#616161;font-size:12px">${escapeEventEmailHtml(branding.footerLegalText)}</p>` : ""}</td></tr></table></td></tr></table></body></html>`;
 
     const sender = await createOrganizationEmailSender(params.organizationId);
     await sender.send({
@@ -655,6 +686,9 @@ async function sendPublicEventRegistrationConfirmation(params: {
         `Order: ${params.order.orderNumber}`,
         `Seating: ${tableSummary}`,
         `Payment: ${amountSummary}`,
+        ...(params.checkoutUrl ? [`Complete payment: ${params.checkoutUrl}`] : []),
+        `Manage reservation: ${params.manageReservationUrl}`,
+        `Reservation PIN: ${params.reservationPin}`,
         "",
         "Guests and check-in codes:",
         ...attendeeLines,
@@ -846,6 +880,11 @@ interface EventOrderItemRequest {
 function normalizePositiveInt(value: unknown, fallback = 1): number {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizePublicRegistrationEmail(value: unknown): string | null {
+  const email = normalizeTextInput(value, 160).toLowerCase();
+  return email && isValidPublicRegistrationEmail(email) ? email : null;
 }
 
 function normalizeEventTableNumber(value: unknown): number | null {
@@ -1544,6 +1583,35 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
     return;
   }
 
+  let stripeCheckout: Awaited<ReturnType<typeof createEventStripeCheckout>> | null = null;
+  let checkoutError: { code: string; message: string } | null = null;
+  if (totalAmount > 0 && match.paymentPolicy === "StripeCheckout") {
+    try {
+      stripeCheckout = await createEventStripeCheckout({
+        organizationId: event.organizationId,
+        eventId: event.id,
+        eventName: event.name,
+        orderId: result.order.id,
+        orderNumber: result.order.orderNumber,
+        pageSlug,
+        buyerEmail: buyer.email,
+        ticketName: ticketType.name,
+        quantity: ticketUnits,
+        totalAmount,
+        returnOrigin: resolveEventPageOrigin(req),
+      });
+      await prisma.eventOrder.update({
+        where: { id: result.order.id },
+        data: { transactionId: `stripe:checkout:${stripeCheckout.sessionId}` },
+      });
+    } catch (error) {
+      checkoutError = {
+        code: error instanceof EventStripeCheckoutError ? error.code : "STRIPE_CHECKOUT_FAILED",
+        message: error instanceof Error ? error.message : "Secure checkout could not be opened. Your reservation is still saved.",
+      };
+    }
+  }
+
   const emailResult = await sendPublicEventRegistrationConfirmation({
     organizationId: event.organizationId,
     event,
@@ -1554,6 +1622,10 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
     ticketName: ticketType.name,
     ticketUnits,
     totalAmount,
+    paymentPolicy: match.paymentPolicy,
+    checkoutUrl: stripeCheckout?.checkoutUrl,
+    manageReservationUrl: `${resolveEventPageOrigin(req).replace(/\/$/, "")}/event-reservations`,
+    reservationPin: result.guests[0]?.checkinCode ?? "",
   });
 
   res.status(201).json({
@@ -1575,9 +1647,28 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
       capacity: result.table.capacity,
       hostName: result.table.hostName,
     } : null,
-    message: totalAmount > 0
-      ? "Registration saved. Payment collection is not connected yet, so staff will follow up."
-      : "Registration confirmed.",
+    message: totalAmount <= 0
+      ? "Registration confirmed."
+      : stripeCheckout
+        ? "Registration reserved. Continue to Stripe to complete secure payment."
+        : "Registration reserved. Payment is still due; event staff can help complete it.",
+    payment: totalAmount > 0 ? {
+      required: true,
+      provider: match.paymentPolicy === "StripeCheckout" ? "stripe" : "offline",
+      checkoutUrl: stripeCheckout?.checkoutUrl ?? null,
+      mode: stripeCheckout?.mode ?? null,
+      error: checkoutError,
+    } : {
+      required: false,
+      provider: "none",
+      checkoutUrl: null,
+      mode: null,
+      error: null,
+    },
+    reservationAccess: {
+      manageUrl: `${resolveEventPageOrigin(req).replace(/\/$/, "")}/event-reservations`,
+      pin: result.guests[0]?.checkinCode ?? "",
+    },
     email: {
       status: emailResult.status,
       detail: emailResult.status === "sent"
@@ -1585,6 +1676,94 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
         : "Registration is complete, but a confirmation email could not be delivered. Save the order and check-in codes shown here.",
     },
   });
+});
+
+function publicReservationResponse(order: {
+  orderNumber: string;
+  status: string;
+  totalAmount: Prisma.Decimal;
+  paidAt: Date | null;
+  event: { name: string; startDate: Date; location: string | null };
+  guests: Array<{
+    id: string; firstName: string | null; lastName: string | null; email: string | null; phone: string | null;
+    dietaryRestrictions: string | null; specialNeeds: string | null; paymentStatus: EventGuestPaymentStatus;
+    rsvpStatus: EventGuestRsvpStatus; table: { name: string } | null; seat: { seatNumber: number } | null;
+  }>;
+}) {
+  return {
+    order: { orderNumber: order.orderNumber, status: order.status, totalAmount: Number(order.totalAmount), paidAt: order.paidAt },
+    event: order.event,
+    guests: order.guests,
+  };
+}
+
+async function findPublicReservation(orderNumber: string, pin: string) {
+  return prisma.eventOrder.findFirst({
+    where: {
+      orderNumber: orderNumber.trim().toUpperCase(),
+      guests: { some: { checkinCode: pin.trim().toUpperCase() } },
+    },
+    select: {
+      orderNumber: true, status: true, totalAmount: true, paidAt: true,
+      event: { select: { name: true, startDate: true, location: true } },
+      guests: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true, firstName: true, lastName: true, email: true, phone: true,
+          dietaryRestrictions: true, specialNeeds: true, paymentStatus: true, rsvpStatus: true,
+          table: { select: { name: true } }, seat: { select: { seatNumber: true } },
+        },
+      },
+    },
+  });
+}
+
+/** POST /api/events/public/reservation-access — Verify order number + reservation PIN. */
+router.post("/public/reservation-access", publicReservationAccessLimiter, async (req, res) => {
+  const orderNumber = normalizeTextInput(req.body?.orderNumber, 80);
+  const pin = normalizeTextInput(req.body?.pin, 24);
+  if (!orderNumber || !pin) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "Order number and reservation PIN are required." } });
+    return;
+  }
+  const order = await findPublicReservation(orderNumber, pin);
+  if (!order) {
+    res.status(404).json({ error: { code: "RESERVATION_NOT_FOUND", message: "That order number and PIN did not match an active reservation." } });
+    return;
+  }
+  res.json(publicReservationResponse(order));
+});
+
+/** PATCH /api/events/public/reservation-access — Update safe attendee-owned fields. */
+router.patch("/public/reservation-access", publicReservationAccessLimiter, async (req, res) => {
+  const orderNumber = normalizeTextInput(req.body?.orderNumber, 80);
+  const pin = normalizeTextInput(req.body?.pin, 24);
+  const order = orderNumber && pin ? await findPublicReservation(orderNumber, pin) : null;
+  if (!order) {
+    res.status(404).json({ error: { code: "RESERVATION_NOT_FOUND", message: "That order number and PIN did not match an active reservation." } });
+    return;
+  }
+  const allowedIds = new Set(order.guests.map((guest) => guest.id));
+  const attendeeUpdates: Array<Record<string, unknown>> = Array.isArray(req.body?.guests)
+    ? req.body.guests.filter(isRecord).slice(0, 50)
+    : [];
+  if (!attendeeUpdates.length || attendeeUpdates.some((guest) => !allowedIds.has(String(guest.id ?? "")))) {
+    res.status(400).json({ error: { code: "INVALID_ATTENDEES", message: "Provide attendee updates for this reservation only." } });
+    return;
+  }
+  await prisma.$transaction(attendeeUpdates.map((guest) => prisma.eventGuest.update({
+    where: { id: String(guest.id) },
+    data: {
+      firstName: normalizeTextInput(guest.firstName, 100) || undefined,
+      lastName: normalizeTextInput(guest.lastName, 100) || undefined,
+      email: normalizePublicRegistrationEmail(guest.email),
+      phone: normalizeTextInput(guest.phone, 40) || null,
+      dietaryRestrictions: normalizeTextInput(guest.dietaryRestrictions, 500) || null,
+      specialNeeds: normalizeTextInput(guest.specialNeeds, 500) || null,
+    },
+  })));
+  const updated = await findPublicReservation(orderNumber, pin);
+  res.json(updated ? publicReservationResponse(updated) : publicReservationResponse(order));
 });
 
 async function buildEventsManagerIntegrationSourcePreview(
@@ -4561,6 +4740,143 @@ router.get("/:eventId/emails/logs", async (req, res) => {
 
   const logs = await listEventEmailLogs(event.id);
   res.json(logs);
+});
+
+/** POST /api/events/:eventId/emails/send — Preview or send one reviewed event email audience. */
+router.post("/:eventId/emails/send", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+  const event = await prisma.event.findFirst({
+    where: { id: req.params.eventId, organizationId },
+    select: { id: true, name: true, startDate: true, location: true },
+  });
+  if (!event) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found." } });
+    return;
+  }
+
+  const audience = String(req.body?.audience ?? "all");
+  const allowedAudiences = new Set(["all", "payment_due", "checked_in", "no_show", "hosts"]);
+  if (!allowedAudiences.has(audience)) {
+    res.status(400).json({ error: { code: "INVALID_AUDIENCE", message: "Choose a supported event email audience." } });
+    return;
+  }
+  const subject = normalizeTextInput(req.body?.subject, 180);
+  const message = normalizeTextInput(req.body?.message, 10_000);
+  if (!subject || !message) {
+    res.status(400).json({ error: { code: "INVALID_MESSAGE", message: "Subject and message are required." } });
+    return;
+  }
+
+  const guestWhere: Prisma.EventGuestWhereInput = {
+    eventId: event.id,
+    email: { not: null },
+    ...(audience === "payment_due" ? { paymentStatus: { in: ["DUE", "PENDING_CHECK"] } }
+      : audience === "checked_in" ? { checkedIn: true }
+        : audience === "no_show" ? { checkedIn: false, rsvpStatus: "CONFIRMED" }
+          : {}),
+  };
+  const [guests, hostTables] = await Promise.all([
+    audience === "hosts" ? Promise.resolve([]) : prisma.eventGuest.findMany({
+      where: guestWhere,
+      take: 500,
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: {
+        id: true, firstName: true, lastName: true, email: true, checkinCode: true,
+        order: { select: { orderNumber: true } }, table: { select: { name: true } },
+      },
+    }),
+    audience === "hosts" ? prisma.eventTable.findMany({
+      where: { eventId: event.id, hostEmail: { not: null } },
+      take: 500,
+      orderBy: [{ tableNumber: "asc" }, { name: "asc" }],
+      select: { id: true, hostName: true, hostEmail: true, name: true },
+    }) : Promise.resolve([]),
+  ]);
+  const candidates = audience === "hosts"
+    ? hostTables.map((table) => ({ id: table.id, firstName: table.hostName || "Table host", lastName: "", email: table.hostEmail || "", orderNumber: "", pin: "", tableName: table.name }))
+    : guests.map((guest) => ({ id: guest.id, firstName: guest.firstName || "Guest", lastName: guest.lastName || "", email: guest.email || "", orderNumber: guest.order?.orderNumber || "", pin: guest.checkinCode || "", tableName: guest.table?.name || "" }));
+  const uniqueCandidates = [...new Map(candidates.filter((candidate) => isValidPublicRegistrationEmail(candidate.email)).map((candidate) => [candidate.email.toLowerCase(), candidate])).values()];
+  const eligibility = await evaluateRecipientEligibility({
+    organizationId,
+    purpose: "TRANSACTIONAL",
+    candidates: uniqueCandidates.map((candidate) => ({ email: candidate.email.toLowerCase() })),
+  });
+  const eligibleSet = new Set(eligibility.recipients.map((email) => email.toLowerCase()));
+  const recipients = uniqueCandidates.filter((candidate) => eligibleSet.has(candidate.email.toLowerCase()));
+
+  if (req.body?.confirmed !== true) {
+    res.json({
+      preview: true,
+      audience,
+      eligibleCount: recipients.length,
+      skippedCount: uniqueCandidates.length - recipients.length,
+      recipients: recipients.slice(0, 20).map((recipient) => ({ name: `${recipient.firstName} ${recipient.lastName}`.trim(), email: recipient.email, tableName: recipient.tableName })),
+    });
+    return;
+  }
+  if (recipients.length === 0) {
+    res.status(409).json({ error: { code: "NO_ELIGIBLE_RECIPIENTS", message: "No eligible recipients matched this audience." } });
+    return;
+  }
+
+  const [sender, branding] = await Promise.all([
+    createOrganizationEmailSender(organizationId),
+    loadOrganizationBrandingContext(organizationId),
+  ]);
+  const brandName = branding.organizationName || event.name;
+  const brandLogoUrl = safeEventEmailImageUrl(branding.logoUrl || branding.logoSquareUrl);
+  let sent = 0;
+  const failures: Array<{ email: string; message: string }> = [];
+  const eventDate = event.startDate.toLocaleString();
+  const manageReservationUrl = `${resolveEventPageOrigin(req).replace(/\/$/, "")}/event-reservations`;
+  for (const recipient of recipients) {
+    const replacements: Record<string, string> = {
+      "{firstName}": recipient.firstName,
+      "{lastName}": recipient.lastName,
+      "{eventName}": event.name,
+      "{eventDate}": eventDate,
+      "{eventLocation}": event.location || "To be announced",
+      "{orderNumber}": recipient.orderNumber,
+      "{reservationPin}": recipient.pin,
+      "{manageReservationUrl}": manageReservationUrl,
+      "{tableName}": recipient.tableName,
+    };
+    const merge = (value: string) => Object.entries(replacements).reduce(
+      (result, [key, replacement]) => result.split(key).join(replacement),
+      value,
+    );
+    const mergedSubject = merge(subject);
+    const mergedMessage = merge(message);
+    const log = await createEventEmailLog({
+      eventId: event.id,
+      guestId: audience === "hosts" ? undefined : recipient.id,
+      tableId: audience === "hosts" ? recipient.id : undefined,
+      type: audience === "hosts" ? "HOST_ACCESS" : "GUEST_CONFIRMATION",
+      recipientEmail: recipient.email,
+      subject: mergedSubject,
+    });
+    try {
+      await sender.send({
+        to: recipient.email,
+        subject: mergedSubject,
+        text: mergedMessage,
+        html: `<div style="margin:0;background:${branding.emailBackgroundColor};padding:24px;font-family:${escapeEventEmailHtml(branding.emailFontFamily)};line-height:1.6;color:#242424"><div style="max-width:${branding.emailContentWidth}px;margin:0 auto;background:#fff;border-top:5px solid ${branding.primaryColor};padding:24px">${brandLogoUrl ? `<img src="${escapeEventEmailHtml(brandLogoUrl)}" alt="${escapeEventEmailHtml(brandName)}" style="display:block;max-width:160px;max-height:64px;margin-bottom:14px" />` : ""}<div style="color:${branding.primaryColor};font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">${escapeEventEmailHtml(brandName)}</div><h1 style="font-size:22px">${escapeEventEmailHtml(mergedSubject)}</h1>${mergedMessage.split(/\n+/).map((line) => `<p>${escapeEventEmailHtml(line)}</p>`).join("")}${branding.footerLegalText ? `<p style="margin-top:26px;padding-top:14px;border-top:1px solid #e5e7eb;color:#616161;font-size:12px">${escapeEventEmailHtml(branding.footerLegalText)}</p>` : ""}</div></div>`,
+        fromNameOverride: event.name,
+      });
+      await setEventEmailLogStatus(log.id, "SENT");
+      sent += 1;
+    } catch (error) {
+      const failureMessage = error instanceof Error ? error.message : "Delivery failed";
+      await setEventEmailLogStatus(log.id, "FAILED", failureMessage).catch(() => undefined);
+      failures.push({ email: recipient.email, message: failureMessage });
+    }
+  }
+  await logAudit({ action: "EVENT_EMAIL_AUDIENCE_SENT", entity: "Event", entityId: event.id, userId: req.user?.sub, organizationId, metadata: { audience, eligible: recipients.length, sent, failed: failures.length, subject } });
+  res.json({ preview: false, audience, eligibleCount: recipients.length, sentCount: sent, failedCount: failures.length, failures: failures.slice(0, 20) });
 });
 
 /** POST /api/events/:eventId/tablelink/request-access — issue host access token for a table by public code/email. */

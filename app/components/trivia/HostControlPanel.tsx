@@ -165,6 +165,7 @@ export default function HostControlPanel({
 
   const questionCount = activeRound?.questions.length ?? 0;
   const nextQuestion = activeRound?.questions[live.activeQuestionIndex + 1] ?? null;
+  const timerEnabled = (activeQuestion?.timeLimitSec ?? live.timerDefaultSec) > 0;
   const sharedStateSafe = serverSyncEnabled && connectionStatus === "connected";
   const actionClass = "min-h-14 touch-manipulation border px-3 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45";
 
@@ -233,7 +234,7 @@ export default function HostControlPanel({
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {STAGE_BUTTONS.map((button) => (
+            {STAGE_BUTTONS.filter((button) => timerEnabled || button.stage !== "timer_only").map((button) => (
               <button
                 key={button.stage}
                 disabled={!sharedStateSafe}
@@ -267,18 +268,18 @@ export default function HostControlPanel({
               {activeQuestion ? `Question ${live.activeQuestionIndex + 1} in ${activeRound?.title ?? "current round"}` : "No active question selected"}
             </p>
             <p className="text-xs text-slate-200">Answer {live.answerRevealed ? "revealed" : "hidden"}</p>
-            <p className="text-xs text-slate-200">Timer {live.timerRunning ? "running" : "paused"}</p>
+            <p className="text-xs text-slate-200">Timer {timerEnabled ? (live.timerRunning ? "running" : "paused") : "disabled for this question"}</p>
             <p className="text-xs text-slate-200">Leaderboard {live.stage === "leaderboard" ? "visible" : "hidden"}</p>
             <p className="text-xs text-slate-200">Break screen {live.stage === "break" ? "active" : "inactive"}</p>
             <p className="text-xs text-slate-300">Display window {live.displayOpenedAt ? "opened" : "not launched"}</p>
           </div>
 
-          <div className={`border p-4 text-center ${live.timerRemainingSec <= 5 && live.timerRunning ? "animate-pulse border-rose-400 bg-rose-500/15" : "border-slate-700 bg-slate-950"}`}>
-            <p className="text-xs uppercase tracking-wide text-slate-400">Timer Remaining</p>
+          {timerEnabled ? <div className={`border p-4 text-center ${live.timerRemainingSec <= 5 && live.timerRunning ? "animate-pulse border-rose-400 bg-rose-500/15" : "border-slate-700 bg-slate-950"}`}>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Timer remaining</p>
             <p className="mt-1 text-5xl font-bold tabular-nums text-emerald-300">{live.timerRemainingSec}s</p>
-          </div>
+          </div> : <div className="border border-cyan-400/35 bg-cyan-500/10 p-4 text-center"><p className="text-sm font-semibold text-cyan-100">Untimed question</p><p className="mt-1 text-xs text-slate-300">Advance when the room is ready.</p></div>}
 
-          <div className="grid grid-cols-2 gap-2">
+          {timerEnabled ? <><div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => onSetTimerRunning(true)}
               disabled={!sharedStateSafe || live.timerRemainingSec <= 0}
@@ -293,7 +294,7 @@ export default function HostControlPanel({
 
           <button onClick={() => runGuarded("reset-timer", onResetTimer)} className={`${actionClass} w-full border-slate-600 bg-slate-700 text-white hover:bg-slate-600`}>
             {confirmationKey === "reset-timer" ? "Confirm timer reset" : "Reset timer"}
-          </button>
+          </button></> : null}
 
           <button
             onClick={openProjectorDisplay}

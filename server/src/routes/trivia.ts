@@ -1145,12 +1145,13 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
       nextLive.activeQuestionIndex = action === "next_question" ? Math.min(questions.length - 1, currentIndex + 1) : Math.max(0, currentIndex - 1);
       nextLive.stage = round?.roundType === "final_wager" ? "final_question" : round?.roundType === "tiebreaker" ? "tiebreaker" : "question";
       const question = questions[Number(nextLive.activeQuestionIndex)];
-      const seconds = Number(question?.timeLimitSec) || 30;
+      const configuredSeconds = Number(question?.timeLimitSec);
+      const seconds = Number.isFinite(configuredSeconds) && configuredSeconds >= 0 ? configuredSeconds : 30;
       nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; nextLive.answerRevealed = false;
     }
-    if (action === "timer_start") nextLive.timerRunning = true;
+    if (action === "timer_start") nextLive.timerRunning = Number(nextLive.timerDefaultSec) > 0;
     if (action === "timer_pause") nextLive.timerRunning = false;
-    if (action === "timer_reset") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); const question = Array.isArray(round?.questions) ? round.questions[Number(nextLive.activeQuestionIndex ?? 0)] : null; const seconds = Number(isObject(question) ? question.timeLimitSec : 30) || 30; nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; }
+    if (action === "timer_reset") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); const question = Array.isArray(round?.questions) ? round.questions[Number(nextLive.activeQuestionIndex ?? 0)] : null; const configuredSeconds = Number(isObject(question) ? question.timeLimitSec : 30); const seconds = Number.isFinite(configuredSeconds) && configuredSeconds >= 0 ? configuredSeconds : 30; nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; }
     nextLive.lastHostAction = `Remote ${action.replace(/_/g, " ")}`;
     nextLive.updatedAt = nowIso();
     setLive(access.orgStore, eventId, nextLive);

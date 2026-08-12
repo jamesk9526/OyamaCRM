@@ -1,7 +1,7 @@
 /** Shared types for the event-scoped Events CRM page builder workspace. */
 
 export type EventPageStatus = "Draft" | "Published";
-export type EventPagePaymentPolicy = "OfflineFollowUp" | "NoPaymentRequired";
+export type EventPagePaymentPolicy = "StripeCheckout" | "OfflineFollowUp" | "NoPaymentRequired";
 export type EventPageDeploymentAction = "Published" | "Unpublished";
 
 export interface EventPageDeploymentHistoryEntry {

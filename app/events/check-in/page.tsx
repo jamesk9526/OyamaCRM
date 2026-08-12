@@ -8,10 +8,6 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
 type StudioTab = "search" | "scan" | "tables" | "walkin" | "replacement" | "exceptions";
 
@@ -32,6 +28,8 @@ interface Guest {
   checkedInAt?: string | null;
   checkinCode?: string;
   source?: string;
+  paymentStatus?: "PAID" | "DUE" | "PENDING_CHECK" | "COMP" | "SPONSORED";
+  rsvpStatus?: "PENDING" | "CONFIRMED" | "DECLINED" | "WAITLISTED" | "CANCELLED";
   tableId?: string | null;
   table?: { id: string; name: string } | null;
   seat?: { id: string; seatNumber: number } | null;
@@ -88,6 +86,7 @@ export default function EventCheckInPage() {
 
   const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
   const eventScoped = workspaceEventId.length > 0;
+  const volunteerMode = searchParams.get("mode") === "volunteer";
 
   useEffect(() => {
     if (!eventScoped) {
@@ -119,6 +118,12 @@ export default function EventCheckInPage() {
   const [exceptionForm, setExceptionForm] = useState({ guestName: "", issueType: "OTHER", claimedTable: "", claimedEmail: "", claimedPhone: "", notes: "" });
 
   const scanInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (workspaceEventId) setSelectedEventId(workspaceEventId);
@@ -204,6 +209,8 @@ export default function EventCheckInPage() {
 
       if (record.status === "DUPLICATE_ATTEMPT") {
         setWarning("Duplicate check-in attempt detected. This guest appears to already be checked in.");
+      } else if (guest.paymentStatus === "DUE" || guest.paymentStatus === "PENDING_CHECK") {
+        setWarning("Guest checked in. Payment is still marked due; route the order to the payment desk for follow-up.");
       } else {
         setToast("Guest checked in.");
       }
@@ -265,6 +272,7 @@ export default function EventCheckInPage() {
     if (!selectedEventId) return;
     setWarning(null);
     const candidateGuestIds = (table.guests ?? []).filter((guest) => !guest.checkedIn).map((guest) => guest.id);
+    const unpaidCount = (table.guests ?? []).filter((guest) => !guest.checkedIn && (guest.paymentStatus === "DUE" || guest.paymentStatus === "PENDING_CHECK")).length;
     if (candidateGuestIds.length === 0) {
       setToast("No unchecked guests at this table.");
       return;
@@ -280,7 +288,9 @@ export default function EventCheckInPage() {
       );
       const duplicateCount = response.results.filter((result) => result.status === "DUPLICATE_ATTEMPT").length;
       const checkedInCount = response.results.filter((result) => result.status === "CHECKED_IN").length;
-      if (duplicateCount > 0) {
+      if (unpaidCount > 0) {
+        setWarning(`${checkedInCount} guests checked in. ${unpaidCount} ${unpaidCount === 1 ? "guest is" : "guests are"} still marked payment due.`);
+      } else if (duplicateCount > 0) {
         setWarning(`${checkedInCount} checked in. ${duplicateCount} duplicate attempts were ignored.`);
       } else {
         setToast(`${checkedInCount} guests checked in from table ${table.name}.`);
@@ -391,70 +401,72 @@ export default function EventCheckInPage() {
     });
   }, [tables]);
 
+  const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null;
+  const tabs: Array<{ id: StudioTab; label: string; secondary?: boolean }> = [
+    { id: "search", label: "Guest search" },
+    { id: "scan", label: "Scan code" },
+    { id: "tables", label: "Tables" },
+    { id: "walkin", label: "Walk-in", secondary: true },
+    { id: "replacement", label: "Replacement", secondary: true },
+    { id: "exceptions", label: `Exceptions${liveCounts.openExceptions ? ` (${liveCounts.openExceptions})` : ""}`, secondary: true },
+  ];
+
   if (!eventScoped) {
     return <RequireEventSelectionNotice tool="Check-In Studio" />;
   }
 
   return (
-    <div className="space-y-5 p-5 text-slate-100 sm:p-6">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Events CRM", href: "/events/events" },
-          { label: "Check-In Studio" },
-        ]}
-        statusLabel="Event Scoped"
-        metadata={`${liveCounts.checkedIn}/${liveCounts.expected} checked in · ${liveCounts.openExceptions} open exceptions`}
-        accentTone="purple"
-      />
+    <main className="min-h-full bg-[#f5f5f5] p-4 text-[#242424] sm:p-6">
+      <header className="border border-[#d1d1d1] bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[#616161]"><Link href="/events/events" className="font-semibold text-[#0f6cbd] hover:underline">Events</Link><span aria-hidden="true">/</span><span>Check-in</span>{volunteerMode ? <span className="bg-[#f2f7fc] px-2 py-0.5 font-semibold text-[#0f6cbd]">Volunteer mode</span> : null}</div>
+            <h1 className="mt-1 truncate text-xl font-semibold sm:text-2xl">{selectedEvent?.name ?? "Event check-in"}</h1>
+            <p className="mt-1 text-sm text-[#616161]">{selectedEvent ? new Date(selectedEvent.startDate).toLocaleString() : "Loading event details…"} · This workspace is locked to one event.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setAutoRefresh((value) => !value)} aria-pressed={autoRefresh} className="min-h-10 border border-[#d1d1d1] bg-white px-3 text-sm font-semibold hover:bg-[#f5f5f5]">Live updates {autoRefresh ? "on" : "off"}</button>
+            <button type="button" onClick={() => void refreshStudio()} disabled={refreshing} className="min-h-10 border border-[#d1d1d1] bg-white px-3 text-sm font-semibold hover:bg-[#f5f5f5] disabled:text-[#a19f9d]">{refreshing ? "Refreshing…" : "Refresh"}</button>
+            <Link href={volunteerMode ? `/events/${selectedEventId}/check-in` : `/events/${selectedEventId}/check-in?mode=volunteer`} className="inline-flex min-h-10 items-center bg-[#0f6cbd] px-4 text-sm font-semibold text-white hover:bg-[#115ea3]">{volunteerMode ? "Exit volunteer mode" : "Volunteer mode"}</Link>
+          </div>
+        </div>
+      </header>
 
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Modes">
-          <WorkspaceRibbonButton label="Search" onClick={() => setActiveTab("search")} variant={activeTab === "search" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Scan" onClick={() => { setActiveTab("scan"); setTimeout(() => scanInputRef.current?.focus(), 40); }} variant={activeTab === "scan" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Tables" onClick={() => setActiveTab("tables")} variant={activeTab === "tables" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Walk-In" onClick={() => setActiveTab("walkin")} variant={activeTab === "walkin" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Replacement" onClick={() => setActiveTab("replacement")} variant={activeTab === "replacement" ? "primary" : "secondary"} accentTone="purple" />
-          <WorkspaceRibbonButton label="Exceptions" onClick={() => setActiveTab("exceptions")} variant={activeTab === "exceptions" ? "primary" : "secondary"} accentTone="purple" />
-        </WorkspaceRibbonGroup>
+      <nav className="mt-4 overflow-x-auto border-b border-[#d1d1d1]" aria-label="Check-in modes"><div className="flex min-w-max" role="tablist">{tabs.filter((tab) => !volunteerMode || !tab.secondary).map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => { setActiveTab(tab.id); if (tab.id === "scan") setTimeout(() => scanInputRef.current?.focus(), 40); }} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${activeTab === tab.id ? "border-[#0f6cbd] bg-white text-[#0f6cbd]" : "border-transparent text-[#424242] hover:bg-white"}`}>{tab.label}</button>)}</div></nav>
 
-        <WorkspaceRibbonGroup label="Actions">
-          <WorkspaceRibbonButton label={refreshing ? "Refreshing..." : "Refresh"} onClick={() => void refreshStudio()} accentTone="purple" />
-          <WorkspaceRibbonButton label={autoRefresh ? "Auto On" : "Auto Off"} onClick={() => setAutoRefresh((previous) => !previous)} variant={autoRefresh ? "primary" : "secondary"} accentTone="purple" />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
-
-      <div className="rounded-lg border border-violet-300/40 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
-        Event lock is active for this route. Switch events from <Link href="/events/events" className="font-semibold underline">Event Registry</Link>.
+      <div aria-live="polite" className="mt-4 space-y-2">
+        {toast ? <div className="border-l-4 border-emerald-600 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">{toast}</div> : null}
+        {warning ? <div className="border-l-4 border-amber-600 bg-amber-50 px-4 py-3 text-sm text-amber-950">{warning}</div> : null}
       </div>
 
-      {toast ? <div className="rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{toast}</div> : null}
-      {warning ? <div className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{warning}</div> : null}
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-        <MetricCard label="Expected" value={liveCounts.expected} color="text-slate-100" />
-        <MetricCard label="Checked In" value={liveCounts.checkedIn} color="text-emerald-300" />
-        <MetricCard label="Rate" value={`${liveCounts.attendanceRate}%`} color="text-violet-300" />
-        <MetricCard label="Walk-Ins" value={liveCounts.walkIns} color="text-cyan-300" />
-        <MetricCard label="Replacements" value={liveCounts.replacements} color="text-fuchsia-300" />
-        <MetricCard label="Exceptions" value={liveCounts.openExceptions} color="text-amber-300" />
+      <div className={`mt-4 grid grid-cols-2 border border-[#d1d1d1] bg-white ${volunteerMode ? "sm:grid-cols-3" : "sm:grid-cols-3 xl:grid-cols-6"}`}>
+        <MetricCard label="Expected" value={liveCounts.expected} />
+        <MetricCard label="Checked in" value={liveCounts.checkedIn} accent />
+        <MetricCard label="Arrival rate" value={`${liveCounts.attendanceRate}%`} accent />
+        {!volunteerMode ? <MetricCard label="Walk-ins" value={liveCounts.walkIns} /> : null}
+        {!volunteerMode ? <MetricCard label="Replacements" value={liveCounts.replacements} /> : null}
+        {!volunteerMode ? <MetricCard label="Exceptions" value={liveCounts.openExceptions} warning={liveCounts.openExceptions > 0} /> : null}
       </div>
 
       {loading ? (
-        <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-8 text-center text-slate-300">Loading Check-In Studio...</div>
+        <div className="mt-4 border border-[#d1d1d1] bg-white p-10 text-center text-sm text-[#616161]">Loading check-in operations…</div>
       ) : activeTab === "search" ? (
-        <section className="space-y-3">
-          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-300">Fast search</label>
+        <section className="mt-4 space-y-3">
+          <div className="border border-[#d1d1d1] bg-white p-4">
+            <label htmlFor="guest-search" className="mb-2 block text-sm font-semibold">Find a guest</label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
+                id="guest-search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") void loadSearchGuests(searchQuery); }}
                 placeholder="Name, email, phone, table, check-in code"
-                className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                className="min-h-11 w-full border border-[#8a8886] bg-white px-3 text-sm outline-none focus:border-[#0f6cbd] focus:ring-1 focus:ring-[#0f6cbd]"
               />
               <button
+                type="button"
                 onClick={() => void loadSearchGuests(searchQuery)}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+                className="min-h-11 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3]"
               >
                 Search
               </button>
@@ -463,7 +475,7 @@ export default function EventCheckInPage() {
 
           <div className="space-y-2">
             {searchGuests.length === 0 ? (
-              <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-6 text-center text-slate-300">No guests found for this event/query.</div>
+              <div className="border border-dashed border-[#c8c6c4] bg-white p-8 text-center text-sm text-[#616161]">No guests found. Search by name, email, phone, table, or code.</div>
             ) : (
               searchGuests.map((guest) => (
                 <GuestCard
@@ -477,21 +489,24 @@ export default function EventCheckInPage() {
           </div>
         </section>
       ) : activeTab === "scan" ? (
-        <section className="max-w-2xl space-y-3">
-          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-300">QR / code scan</label>
+        <section className="mt-4 max-w-3xl space-y-3">
+          <div className="border border-[#d1d1d1] bg-white p-5">
+            <label htmlFor="checkin-code" className="mb-1 block text-sm font-semibold">Scan or enter a check-in code</label>
+            <p className="mb-3 text-sm text-[#616161]">USB and Bluetooth scanners can submit with Enter.</p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
+                id="checkin-code"
                 ref={scanInputRef}
                 value={scanCode}
                 onChange={(event) => setScanCode(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") void verifyScanCode(); }}
                 placeholder="Scan or enter check-in code"
-                className="w-full rounded-lg border-2 border-slate-600 bg-slate-950 px-3 py-2 font-mono text-lg tracking-wider text-slate-100"
+                className="min-h-12 w-full border-2 border-[#8a8886] bg-white px-3 font-mono text-lg tracking-wider outline-none focus:border-[#0f6cbd]"
               />
               <button
                 onClick={() => void verifyScanCode()}
                 disabled={scanLoading || !scanCode.trim()}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+                className="min-h-12 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:bg-[#c8c6c4]"
               >
                 {scanLoading ? "Looking up..." : "Verify"}
               </button>
@@ -507,30 +522,30 @@ export default function EventCheckInPage() {
           ) : null}
         </section>
       ) : activeTab === "tables" ? (
-        <section className="space-y-3">
+        <section className="mt-4 space-y-3">
           {sortedTables.length === 0 ? (
-            <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-6 text-center text-slate-300">No tables found for this event.</div>
+            <div className="border border-dashed border-[#c8c6c4] bg-white p-8 text-center text-sm text-[#616161]">No tables found for this event.</div>
           ) : (
             sortedTables.map((table) => {
               const guestsAtTable = table.guests ?? [];
               const checkedIn = guestsAtTable.filter((guest) => guest.checkedIn).length;
               return (
-                <div key={table.id} className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
+                <article key={table.id} className="border border-[#d1d1d1] bg-white p-4">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-slate-100">{table.tableNumber != null ? `#${table.tableNumber} ` : ""}{table.name}</p>
-                      <p className="text-xs text-slate-400">{checkedIn}/{guestsAtTable.length || table._count?.guests || 0} checked in</p>
+                      <p className="text-sm font-semibold">{table.tableNumber != null ? `Table ${table.tableNumber} · ` : ""}{table.name}</p>
+                      <p className="text-xs text-[#616161]">{checkedIn}/{guestsAtTable.length || table._count?.guests || 0} checked in</p>
                     </div>
                     <button
                       onClick={() => void bulkCheckInTable(table)}
-                      className="rounded-lg border border-violet-400/50 px-3 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/10"
+                      className="min-h-10 border border-[#0f6cbd] px-3 text-xs font-semibold text-[#0f6cbd] hover:bg-[#f2f7fc]"
                     >
                       Bulk Check-In
                     </button>
                   </div>
                   <div className="space-y-2">
                     {guestsAtTable.length === 0 ? (
-                      <p className="text-xs text-slate-400">No guests assigned to this table yet.</p>
+                      <p className="text-xs text-[#616161]">No guests assigned to this table yet.</p>
                     ) : (
                       guestsAtTable.map((guest) => (
                         <GuestCard
@@ -543,7 +558,7 @@ export default function EventCheckInPage() {
                       ))
                     )}
                   </div>
-                </div>
+                </article>
               );
             })
           )}
@@ -569,13 +584,13 @@ export default function EventCheckInPage() {
           onSubmit={() => void submitReplacement()}
         />
       ) : (
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">Create Exception</h2>
-            <p className="mt-1 text-xs text-slate-400">Queue issues that need manager review during event-night operations.</p>
-            <div className="mt-3 grid gap-2">
-              <input value={exceptionForm.guestName} onChange={(event) => setExceptionForm((previous) => ({ ...previous, guestName: event.target.value }))} placeholder="Guest name" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-              <select value={exceptionForm.issueType} onChange={(event) => setExceptionForm((previous) => ({ ...previous, issueType: event.target.value }))} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm">
+        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="border border-[#d1d1d1] bg-white p-5">
+            <h2 className="text-lg font-semibold">Create exception</h2>
+            <p className="mt-1 text-sm text-[#616161]">Queue issues that need manager review without blocking the door line.</p>
+            <div className="mt-4 grid gap-3">
+              <Field label="Guest name" required><input value={exceptionForm.guestName} onChange={(event) => setExceptionForm((previous) => ({ ...previous, guestName: event.target.value }))} className={inputClass} /></Field>
+              <Field label="Issue type"><select value={exceptionForm.issueType} onChange={(event) => setExceptionForm((previous) => ({ ...previous, issueType: event.target.value }))} className={inputClass}>
                 <option value="NOT_FOUND">Not Found</option>
                 <option value="DUPLICATE">Duplicate</option>
                 <option value="WRONG_TABLE">Wrong Table</option>
@@ -583,29 +598,29 @@ export default function EventCheckInPage() {
                 <option value="UNCONFIRMED">Unconfirmed</option>
                 <option value="NO_TICKET">No Ticket</option>
                 <option value="OTHER">Other</option>
-              </select>
-              <input value={exceptionForm.claimedTable} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedTable: event.target.value }))} placeholder="Claimed table" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-              <input value={exceptionForm.claimedEmail} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedEmail: event.target.value }))} placeholder="Claimed email" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-              <input value={exceptionForm.claimedPhone} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedPhone: event.target.value }))} placeholder="Claimed phone" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-              <textarea value={exceptionForm.notes} onChange={(event) => setExceptionForm((previous) => ({ ...previous, notes: event.target.value }))} placeholder="Notes" rows={3} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-              <button onClick={() => void createException()} className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700">Queue Exception</button>
+              </select></Field>
+              <Field label="Claimed table"><input value={exceptionForm.claimedTable} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedTable: event.target.value }))} className={inputClass} /></Field>
+              <Field label="Claimed email"><input type="email" value={exceptionForm.claimedEmail} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedEmail: event.target.value }))} className={inputClass} /></Field>
+              <Field label="Claimed phone"><input value={exceptionForm.claimedPhone} onChange={(event) => setExceptionForm((previous) => ({ ...previous, claimedPhone: event.target.value }))} className={inputClass} /></Field>
+              <Field label="Notes"><textarea value={exceptionForm.notes} onChange={(event) => setExceptionForm((previous) => ({ ...previous, notes: event.target.value }))} rows={3} className={`${inputClass} py-2`} /></Field>
+              <button type="button" onClick={() => void createException()} className="min-h-11 bg-[#0f6cbd] px-4 text-sm font-semibold text-white hover:bg-[#115ea3]">Queue exception</button>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">Open Exceptions</h2>
+          <div className="border border-[#d1d1d1] bg-white p-5">
+            <h2 className="text-lg font-semibold">Open exceptions</h2>
             <div className="mt-3 space-y-2">
               {exceptions.length === 0 ? (
-                <p className="text-sm text-slate-400">No open exceptions.</p>
+                <p className="text-sm text-[#616161]">No open exceptions.</p>
               ) : (
                 exceptions.map((item) => (
-                  <div key={item.id} className="rounded-lg border border-slate-600 bg-slate-900/60 p-3">
-                    <p className="text-sm font-semibold text-slate-100">{item.guestName || "Unknown guest"}</p>
-                    <p className="text-xs text-slate-400">{item.issueType} · {new Date(item.createdAt).toLocaleTimeString()}</p>
-                    {item.notes ? <p className="mt-1 text-xs text-slate-300">{item.notes}</p> : null}
+                  <div key={item.id} className="border border-[#d1d1d1] bg-[#faf9f8] p-3">
+                    <p className="text-sm font-semibold">{item.guestName || "Unknown guest"}</p>
+                    <p className="text-xs text-[#616161]">{item.issueType} · {new Date(item.createdAt).toLocaleTimeString()}</p>
+                    {item.notes ? <p className="mt-1 text-xs text-[#424242]">{item.notes}</p> : null}
                     <div className="mt-2 flex gap-2">
-                      <button onClick={() => void resolveException(item.id)} className="rounded border border-emerald-400/50 px-2 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10">Resolve</button>
-                      <button onClick={() => void dismissException(item.id)} className="rounded border border-slate-500 px-2 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-700/50">Dismiss</button>
+                      <button type="button" onClick={() => void resolveException(item.id)} className="min-h-9 border border-emerald-700 px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">Resolve</button>
+                      <button type="button" onClick={() => void dismissException(item.id)} className="min-h-9 border border-[#8a8886] px-3 text-xs font-semibold hover:bg-white">Dismiss</button>
                     </div>
                   </div>
                 ))
@@ -625,15 +640,15 @@ export default function EventCheckInPage() {
           </select>
         </div>
       ) : null}
-    </div>
+    </main>
   );
 }
 
-function MetricCard({ label, value, color }: { label: string; value: string | number; color: string }) {
+function MetricCard({ label, value, accent = false, warning = false }: { label: string; value: string | number; accent?: boolean; warning?: boolean }) {
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
-      <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${color}`}>{value}</p>
+    <div className="min-w-0 border-b border-r border-[#edebe9] p-4 last:border-r-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#616161]">{label}</p>
+      <p className={`mt-1 text-xl font-semibold tabular-nums ${warning ? "text-[#8a4b08]" : accent ? "text-[#0f6cbd]" : "text-[#242424]"}`}>{value}</p>
     </div>
   );
 }
@@ -650,28 +665,40 @@ function GuestCard({
   compact?: boolean;
 }) {
   const name = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim() || "Unnamed guest";
+  const paymentDue = guest.paymentStatus === "DUE" || guest.paymentStatus === "PENDING_CHECK";
   return (
-    <div className={`rounded-lg border p-3 ${guest.checkedIn ? "border-emerald-500/50 bg-emerald-500/10" : "border-slate-700 bg-slate-900/70"}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className={`font-semibold text-slate-100 ${compact ? "text-sm" : "text-base"}`}>{name}</p>
-          <p className="text-xs text-slate-400">
+    <article className={`border bg-white p-3 ${guest.checkedIn ? "border-emerald-500 border-l-4" : paymentDue ? "border-amber-400 border-l-4" : "border-[#d1d1d1]"}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2"><p className={`font-semibold text-[#242424] ${compact ? "text-sm" : "text-base"}`}>{name}</p>{guest.checkedIn ? <StatusBadge tone="success">Checked in</StatusBadge> : null}{guest.paymentStatus ? <StatusBadge tone={paymentDue ? "warning" : "neutral"}>{formatPaymentStatus(guest.paymentStatus)}</StatusBadge> : null}{guest.rsvpStatus && guest.rsvpStatus !== "CONFIRMED" ? <StatusBadge tone="warning">{guest.rsvpStatus.toLowerCase()}</StatusBadge> : null}</div>
+          <p className="mt-1 break-words text-xs text-[#616161]">
             {guest.email || guest.phone || "No contact"}
             {guest.table ? ` · ${guest.table.name}` : ""}
             {guest.seat ? ` · Seat ${guest.seat.seatNumber}` : ""}
           </p>
-          {guest.checkinCode ? <p className="text-[11px] text-slate-500">Code: {guest.checkinCode}</p> : null}
+          {guest.checkinCode ? <p className="mt-1 font-mono text-[11px] text-[#616161]">Code: {guest.checkinCode}</p> : null}
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           {guest.checkedIn ? (
-            <button onClick={onReverse} className="rounded border border-slate-500 px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-700">Reverse</button>
+            <button type="button" onClick={onReverse} className="min-h-10 border border-[#8a8886] bg-white px-3 text-xs font-semibold hover:bg-[#f5f5f5]">Reverse</button>
           ) : (
-            <button onClick={onCheckIn} className="rounded bg-violet-600 px-3 py-1 text-xs font-semibold text-white hover:bg-violet-700">Check In</button>
+            <button type="button" onClick={onCheckIn} className="min-h-10 bg-[#0f6cbd] px-4 text-xs font-semibold text-white hover:bg-[#115ea3]">Check in</button>
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
+}
+
+function StatusBadge({ children, tone }: { children: React.ReactNode; tone: "success" | "warning" | "neutral" }) {
+  const styles = tone === "success" ? "bg-emerald-50 text-emerald-800" : tone === "warning" ? "bg-amber-50 text-amber-900" : "bg-[#f2f7fc] text-[#0f6cbd]";
+  return <span className={`px-2 py-0.5 text-[11px] font-semibold ${styles}`}>{children}</span>;
+}
+
+function formatPaymentStatus(value: NonNullable<Guest["paymentStatus"]>) {
+  if (value === "PENDING_CHECK") return "Check pending";
+  if (value === "COMP") return "Complimentary";
+  return value.charAt(0) + value.slice(1).toLowerCase();
 }
 
 function EntryForm({
@@ -692,23 +719,26 @@ function EntryForm({
   onSubmit: () => void;
 }) {
   return (
-    <section className="max-w-3xl rounded-lg border border-slate-700 bg-slate-900/70 p-4">
-      <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
-      <p className="mt-1 text-xs text-slate-400">{description}</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <input value={form.firstName} onChange={(event) => onChange({ ...form, firstName: event.target.value })} placeholder="First name" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-        <input value={form.lastName} onChange={(event) => onChange({ ...form, lastName: event.target.value })} placeholder="Last name" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-        <input value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} placeholder="Email" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-        <input value={form.phone} onChange={(event) => onChange({ ...form, phone: event.target.value })} placeholder="Phone" className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm" />
-        <select value={form.tableId} onChange={(event) => onChange({ ...form, tableId: event.target.value })} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm sm:col-span-2">
+    <section className="max-w-3xl border border-[#d1d1d1] bg-white p-5">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="mt-1 text-sm text-[#616161]">{description}</p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field label="First name" required><input value={form.firstName} onChange={(event) => onChange({ ...form, firstName: event.target.value })} className={inputClass} /></Field>
+        <Field label="Last name" required><input value={form.lastName} onChange={(event) => onChange({ ...form, lastName: event.target.value })} className={inputClass} /></Field>
+        <Field label="Email"><input type="email" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} className={inputClass} /></Field>
+        <Field label="Phone"><input value={form.phone} onChange={(event) => onChange({ ...form, phone: event.target.value })} className={inputClass} /></Field>
+        <Field label="Table assignment" className="sm:col-span-2"><select value={form.tableId} onChange={(event) => onChange({ ...form, tableId: event.target.value })} className={inputClass}>
           <option value="">No table assignment</option>
           {tables.map((table) => (
             <option key={table.id} value={table.id}>{table.tableNumber != null ? `#${table.tableNumber} ` : ""}{table.name}</option>
           ))}
-        </select>
-        <textarea value={form.notes} onChange={(event) => onChange({ ...form, notes: event.target.value })} placeholder="Notes" rows={3} className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm sm:col-span-2" />
+        </select></Field>
+        <Field label="Operations notes" className="sm:col-span-2"><textarea value={form.notes} onChange={(event) => onChange({ ...form, notes: event.target.value })} rows={3} className={`${inputClass} py-2`} /></Field>
       </div>
-      <button onClick={onSubmit} className="mt-3 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">{actionLabel}</button>
+      <button type="button" onClick={onSubmit} className="mt-4 min-h-11 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3]">{actionLabel}</button>
     </section>
   );
 }
+
+const inputClass = "min-h-11 w-full border border-[#8a8886] bg-white px-3 text-sm outline-none focus:border-[#0f6cbd] focus:ring-1 focus:ring-[#0f6cbd]";
+function Field({ label, required = false, className = "", children }: { label: string; required?: boolean; className?: string; children: React.ReactNode }) { return <label className={`block text-sm font-semibold text-[#424242] ${className}`}>{label}{required ? <span className="ml-1 text-red-700" aria-hidden="true">*</span> : null}<span className="mt-1 block">{children}</span></label>; }

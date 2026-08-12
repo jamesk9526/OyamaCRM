@@ -97,6 +97,7 @@ export async function listEventGuests(eventId: string, search?: string) {
               { lastName: { contains: normalizedSearch } },
               { email: { contains: normalizedSearch } },
               { phone: { contains: normalizedSearch } },
+              { checkinCode: { contains: normalizedSearch.toUpperCase() } },
               { table: { name: { contains: normalizedSearch } } },
             ],
           }

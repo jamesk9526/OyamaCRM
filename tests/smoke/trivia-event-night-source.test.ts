@@ -133,12 +133,19 @@ describe("Trivia event-night controls", () => {
 
   it("keeps builder and projector useable for event staff", () => {
     const builder = read("app/components/trivia/RoundQuestionBuilderPanel.tsx");
+    const hostControls = read("app/components/trivia/HostControlPanel.tsx");
+    const projector = read("app/components/trivia/ProjectorDisplayView.tsx");
+    const route = read("server/src/routes/trivia.ts");
     const host = read("app/apps/trivia/events/[eventId]/host/page.tsx");
     const display = read("app/apps/trivia/display/[eventId]/page.tsx");
 
     expect(builder).toContain("Build rounds, then add questions");
     expect(builder).toContain("QUESTION_TYPE_HELP");
     expect(builder).toContain("Save Question to");
+    expect(builder).toContain("No timer for this question");
+    expect(hostControls).toContain("Untimed question");
+    expect(projector).toContain("timerEnabled");
+    expect(route).toContain("configuredSeconds >= 0");
     expect(host).toContain("Event-night connection");
     expect(host).toContain('setSyncMode("server")');
     expect(display).toContain('setSyncMode("server")');

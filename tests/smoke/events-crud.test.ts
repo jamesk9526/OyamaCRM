@@ -18,6 +18,8 @@ let sponsorId = "";
 let supportConstituentId = "";
 let checkinCode = "";
 let savedEventPageSlug = "";
+let publicReservationOrderNumber = "";
+let publicReservationPin = "";
 
 beforeAll(async () => {
   const mod = await import("@/server/src/index");
@@ -557,7 +559,7 @@ describe("events CRUD", () => {
     expect(typeof res.body.pageUrl).toBe("string");
     expect(res.body.pageUrl).toContain(`/${res.body.pageSlug}`);
     expect(["Draft", "Published"]).toContain(res.body.status);
-    expect(["OfflineFollowUp", "NoPaymentRequired"]).toContain(res.body.paymentPolicy);
+    expect(["StripeCheckout", "OfflineFollowUp", "NoPaymentRequired"]).toContain(res.body.paymentPolicy);
     expect(Array.isArray(res.body.deploymentHistory)).toBe(true);
   });
 
@@ -717,8 +719,55 @@ describe("events CRUD", () => {
     expect(Array.isArray(res.body.guests)).toBe(true);
     expect(res.body.guests).toHaveLength(1);
     expect(res.body.guests[0].checkinCode).toMatch(/^[A-Z0-9]{6,}$/);
+    expect(res.body.reservationAccess?.manageUrl).toContain("/event-reservations");
+    expect(res.body.reservationAccess?.pin).toBe(res.body.guests[0].checkinCode);
+    publicReservationOrderNumber = res.body.order.orderNumber;
+    publicReservationPin = res.body.reservationAccess.pin;
     expect(["sent", "skipped", "failed"]).toContain(res.body.email?.status);
     expect(typeof res.body.email?.detail).toBe("string");
+    expect(res.body.payment).toMatchObject({ required: true, provider: "offline", checkoutUrl: null });
+  });
+
+  it("protects and updates public reservation details with the emailed PIN", async () => {
+    const denied = await request(app)
+      .post("/api/events/public/reservation-access")
+      .send({ orderNumber: publicReservationOrderNumber, pin: "WRONGPIN" });
+    expect(denied.status).toBe(404);
+
+    const access = await request(app)
+      .post("/api/events/public/reservation-access")
+      .send({ orderNumber: publicReservationOrderNumber, pin: publicReservationPin });
+    expect(access.status).toBe(200);
+    expect(access.body.order?.orderNumber).toBe(publicReservationOrderNumber);
+    expect(access.body.guests).toHaveLength(1);
+
+    const guest = access.body.guests[0];
+    const update = await request(app)
+      .patch("/api/events/public/reservation-access")
+      .send({
+        orderNumber: publicReservationOrderNumber,
+        pin: publicReservationPin,
+        guests: [{ ...guest, dietaryRestrictions: "Vegetarian; nut allergy", specialNeeds: "Near an exit" }],
+      });
+    expect(update.status).toBe(200);
+    expect(update.body.guests[0]).toMatchObject({ dietaryRestrictions: "Vegetarian; nut allergy", specialNeeds: "Near an exit" });
+    expect(update.body.order?.totalAmount).toBe(access.body.order?.totalAmount);
+  });
+
+  it("previews an event email audience before sending", async () => {
+    const res = await request(app)
+      .post(`/api/events/${eventId}/emails/send`)
+      .set(auth())
+      .send({
+        audience: "all",
+        subject: "Your {eventName} registration",
+        message: "Hello {firstName}, your order is {orderNumber}. Your reservation PIN is {reservationPin}.",
+        confirmed: false,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.preview).toBe(true);
+    expect(res.body.eligibleCount).toBeGreaterThan(0);
+    expect(Array.isArray(res.body.recipients)).toBe(true);
   });
 
   it("creates a durable uniquely numbered table from public table registration", async () => {
@@ -836,6 +885,30 @@ describe("events CRUD", () => {
     expect(res.body.guests[0]?.paymentStatus).toBe("COMP");
   });
 
+  it("preserves a paid reservation when Stripe checkout is not configured", async () => {
+    const policy = await request(app)
+      .patch(`/api/events/${eventId}/page-builder-config`)
+      .set(auth())
+      .send({ pageSlug: savedEventPageSlug, status: "Published", paymentPolicy: "StripeCheckout" });
+
+    expect(policy.status).toBe(200);
+    expect(policy.body.paymentPolicy).toBe("StripeCheckout");
+
+    const res = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .send({
+        ticketTypeId,
+        quantity: 1,
+        consentAccepted: true,
+        attendees: [{ firstName: "Stripe", lastName: "Fallback", email: `stripe-fallback-${Date.now()}@example.org` }],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.order?.status).toBe("PENDING");
+    expect(res.body.payment).toMatchObject({ required: true, provider: "stripe", checkoutUrl: null });
+    expect(res.body.payment?.error?.code).toBe("STRIPE_NOT_READY");
+  });
+
   it("tracks remaining ticket availability after staff and public registrations", async () => {
     expect(eventId).toBeTruthy();
     expect(ticketTypeId).toBeTruthy();
@@ -846,7 +919,7 @@ describe("events CRUD", () => {
 
     expect(res.status).toBe(200);
     const ticket = (res.body as Array<{ id: string; available?: number | null }>).find((row) => row.id === ticketTypeId);
-    expect(ticket?.available).toBe(144);
+    expect(ticket?.available).toBe(143);
   });
 
   it("does not expose draft event pages publicly", async () => {

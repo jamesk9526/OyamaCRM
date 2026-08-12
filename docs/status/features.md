@@ -1,6 +1,27 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-11 (Event page builder redesign and global-brand completion)_
+_Last focused audit: 2026-08-11 (Event communications, reservation self-service, fundraising, hosts, and Trivia live controls)_
+
+## 2026-08-11 Event Communications and Trivia Live Completion Pass
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Branded registration receipts and reservation login | Working | `server/src/routes/events.ts`, `app/event-reservations/page.tsx`, `PublicEventRegistrationForm.tsx` | Every public registration response and transactional receipt exposes the order number, a random reservation PIN, and the public reservation manager URL. Organization name, logo, email colors, font, width, and legal footer come from global branding. Rate-limited public access permits only attendee contact, dietary, and accessibility edits; it cannot change payment, pricing, seating, RSVP, or check-in state. |
+| Review-first event email sending | Working | `app/events/communications/page.tsx`, `POST /api/events/:eventId/emails/send`, `EventEmailLog` | Staff select all guests, payment due, checked in, no-show, or hosts; review the eligible audience; then explicitly confirm delivery. Compliance eligibility, merge fields, global organization branding, per-message sent/failed logs, and an audit event are wired. |
+| Event-tagged donations and host tools | Working | `app/events/fundraising/page.tsx`, `DonationForm.tsx`, `server/src/routes/donations.ts`, `app/events/hosts/page.tsx` | Record Event Gift carries a server-validated event ID into the donation ledger and report. Host coverage links to the working TableLink issue/revoke portal controls and the reviewed host-email audience. Sponsor CRUD remains event-scoped and operational. |
+| Simplified live Trivia behavior | Working | `TriviaEventsLinkPanel.tsx`, `RoundQuestionBuilderPanel.tsx`, `HostControlPanel.tsx`, `ProjectorDisplayView.tsx`, `useTriviaModuleState.ts`, `server/src/routes/trivia.ts` | Fixed the unreadable linked-Events panel, added explicit zero/no-timer questions end to end, removed timer controls/stages when disabled, refreshed shared live state every two seconds and on focus/visibility changes, and retained animated projector stage transitions with reduced-motion support. |
+| Focused regression | Working | `pnpm typecheck`; Events, Stripe webhook, Donations, and Trivia event-night suites | Web/server typechecks pass and the focused lane passes 83/83 tests, including wrong-PIN denial, reservation updates, email audience preview, Stripe fallback/settlement contracts, donation CRUD, linked-Events controls, and untimed Trivia behavior. |
+
+## 2026-08-11 Event Registration Payment and Check-In Pass
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Verified Stripe event checkout | Working | `server/src/services/event-stripe-checkout.ts`, `server/src/routes/events.ts`, `server/src/routes/site-embeds.ts` | Paid public registrations can use server-priced Stripe Checkout. The existing raw-body signed webhook verifies organization, event order, and exact amount before confirming the order, marking guests paid, and writing activity/audit evidence. Reservations remain safely pending if checkout is cancelled or unavailable. |
+| Payment-aware public registration | Working | `app/components/events/public/PublicEventRegistrationForm.tsx`, `app/components/events/page-builder/*`, `tests/smoke/events-crud.test.ts` | The builder now offers Stripe Checkout, offline follow-up, or no-payment policies. Stripe handoff, cancellation/return guidance, truthful pending receipts, and a reusable payment link in email are implemented without collecting card data in OyamaCRM. |
+| Fluent live check-in workspace | Working | `app/events/check-in/page.tsx`, `server/src/services/event-guest-service.ts` | Check-in now uses the shared Microsoft-style light canvas, responsive mode tabs, keyboard search/scan, payment and RSVP badges, payment-desk warnings, walk-in/replacement forms with visible labels, exception handling, and a focused volunteer mode. |
+| Responsive and functional regression | Working | Browser validation at 1440×900 and 390×844; focused Events and Stripe tests | Desktop and phone checks showed no document-level horizontal overflow, all core modes remained reachable, volunteer mode reduced the workspace to Search/Scan/Tables, and the browser reported no console errors. |
+
+Audit: `docs/status/audit-artifacts/2026-08-11-event-payment-checkin-completion.md`.
 
 ## 2026-08-11 Event Page Builder Completion Pass
 
@@ -44,7 +65,7 @@ Validation: the original focused donor/report/research coverage passed 134/134, 
 | Unified Trivia/Event creation | Working | `server/src/routes/trivia.ts`, `app/apps/trivia/events/new/page.tsx` | Creating Trivia also creates and links a durable EventSTUDIO event, table ticket, and published RSVP page. |
 | Simplified EventSTUDIO journey | Working | `app/components/events/EventsStudioShell.tsx`, `events-workspace-config.ts` | All event tools are organized by Plan, Fill, Fundraise, Run, and Follow Up with in-context event switching. |
 | Visual table layout | Working | `app/events/tables/page.tsx`, `server/src/routes/events.ts` | Drag, snap, persist, auto-arrange, print, capacity, host coverage, and TableLink drill-in are live. |
-| Public RSVP for free/offline events | Working | Events public page and registration routes | Published pages create durable orders, tables, seats, guests, and check-in codes. Card payment verification remains Not Implemented. |
+| Public RSVP and verified Stripe checkout | Working | Events public page, registration routes, and signed Stripe webhook | Published pages create durable orders, tables, seats, guests, and check-in codes. Stripe Checkout is server-priced and only a verified, amount-matched webhook marks an order and its guests paid. |
 
 Audit: `docs/audits/event-system-audit-2026-08-09.md`.
 
@@ -916,8 +937,8 @@ This document treats a feature as complete only when it uses real data, saves co
 | Events CRM | Orders + guests + tables + check-in | Working | Real API Data | `app/events/orders|guests|tables|check-in` are wired to DB-backed event endpoints. | Add reconciliation workflows for unlinked/duplicate guests. |
 | Events CRM | Event reports + donor activity sync | Working | Real API Data | `/events/reports` uses `/api/events/reports/*`; event actions write `Activity` entries in `events.ts`; Phase 9 adds attendance, table completion, meals, exceptions, email delivery, sponsor/table attendance, and CSV exports. | Add ticket-type reporting slices and raw guest-list export. |
 | Events CRM | Tickets, sponsors, page builder, guests, tables, check-in | Working | Real API Data | Ticket CRUD, sponsor manager, public page registration, guest provisioning, TableLink, and check-in endpoints are DB-backed. | Add richer reconciliation and export workflows for unlinked/duplicate guests. |
-| Events CRM | Communications, tasks, volunteers, files, settings | Demo Only / Partially Working | Mixed Real/Demo Data | Communications/settings have partial wiring; tasks, volunteers, and files remain scaffold-level. | Build dedicated APIs and replace each scaffold with live data pages. |
-| Events CRM | Public ticketing page + hosted checkout | Working | Real API Data | Published EventSTUDIO pages expose ticket registration through `/api/events/public/page/:slug/register`; hosted payment processing is intentionally represented by offline/no-payment policies until a provider flow is added. | Add payment-provider checkout when Events payment policy moves beyond offline/no-payment registration. |
+| Events CRM | Communications, tasks, volunteers, files, settings | Working / Partially Working | Mixed Real/Demo Data | Event email composition, audience preview, confirmed send, compliance filtering, delivery logs, and reservation receipts are live; tasks, volunteers, and files remain scaffold-level. | Build dedicated APIs for tasks, volunteers, and files. |
+| Events CRM | Public ticketing page + hosted checkout | Working | Real API Data | Published EventSTUDIO pages expose ticket registration through `/api/events/public/page/:slug/register`; paid events can use server-priced Stripe Checkout, offline follow-up, or no-payment policies. Signed idempotent webhooks settle exact order amounts and synchronize guest payment state. | Configure Test and Live Stripe credentials/webhook secrets and complete provider-account proof payments before public launch. |
 | OyamaWatchdog | Security feed + encrypted vault + admin controls | Partially Working | External DB + Real API Data | `/watchdog` module and `/api/watchdog/*` routes are scaffolded with encrypted secret storage and permission key checks. | Add full permission matrix UI, runbook actions, and production-ready health/alert wiring. |
 | OyamaWebMaster | Website command center + site manager + builder shell | Partially Working | Real API Data + Builder Shell | `/webmaster` now includes persisted site metadata, type-based filtering, archive/restore/duplicate lifecycle APIs, quick page creation, and visual builder shell persistence via `/api/webmaster`. | Expand templates, CMS/forms, preflight checks, publish targets, version history, and rollback controls. |
 | Platform | Authentication + session | Working | Real API Data | JWT auth, refresh, logout, `/api/auth/me`, optional email MFA, and a privacy-preserving password-recovery flow are active. Reset links are single-use, expiry-bound, invalidate existing sessions, and the login/recovery screens provide accessible password visibility and live policy guidance. | Add session list and user-managed revocation UI. |
@@ -948,7 +969,7 @@ This document treats a feature as complete only when it uses real data, saves co
 
 - **Real data confirmed:** event CRUD, orders, guests, tables, check-in, reports, and donor timeline sync (`server/src/routes/events.ts`; `app/events/orders`, `app/events/guests`, `app/events/tables`, `app/events/check-in`, `app/events/reports`).
 - **Mixed:** dashboard/registry combine real API responses with static narrative/status cards (`app/events/dashboard/page.tsx`, `app/events/list/page.tsx`).
-- **UI-only:** tickets/sponsors/communications/tasks/volunteers/files/settings/fundraising scaffolds are static workspace pages (`app/events/*/page.tsx` using `app/components/events/EventsWorkspacePage.tsx`).
+- **Operational event tools:** tickets, sponsors, reviewed email sends/logs, event fundraising, host coverage/TableLink, settings, and public reservation self-service use real API data. Tasks, volunteers, and files remain scaffold-level and must not be represented as complete.
 
 ### OyamaWatchdog
 

@@ -23,7 +23,7 @@ interface PublicEventPagePayload {
   pageSlug: string;
   pageUrl: string;
   status: "Draft" | "Published";
-  paymentPolicy?: "OfflineFollowUp" | "NoPaymentRequired";
+  paymentPolicy?: "StripeCheckout" | "OfflineFollowUp" | "NoPaymentRequired";
   sections: EventPageSectionState[] | null;
   branding?: EventPageBranding;
 }

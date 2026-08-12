@@ -79,6 +79,7 @@ export default function DonationsPage() {
   const recordGiftGrantTitle = searchParams.get("grantTitle") ?? "";
   const recordGiftFunderName = searchParams.get("funderName") ?? "";
   const recordGiftSuggestedAmount = searchParams.get("suggestedAmount") ?? "";
+  const recordGiftEventId = searchParams.get("eventId") ?? "";
   const [recordGiftDismissed, setRecordGiftDismissed] = useState(false);
   const [defaultRange] = useState(getCurrentYearDateInputs);
   const [donations, setDonations] = useState<DonationRow[]>([]);
@@ -754,6 +755,7 @@ export default function DonationsPage() {
         grantTitle={recordGiftGrantTitle}
         funderName={recordGiftFunderName}
         suggestedAmount={recordGiftSuggestedAmount}
+        eventId={recordGiftEventId}
         onClose={closeRecordGiftModal}
         onSaved={load}
       />

@@ -39,6 +39,14 @@ interface RegistrationResult {
     status: "sent" | "skipped" | "failed";
     detail: string;
   };
+  payment?: {
+    required: boolean;
+    provider: "stripe" | "offline" | "none";
+    checkoutUrl: string | null;
+    mode: "sandbox" | "production" | null;
+    error: { code: string; message: string } | null;
+  };
+  reservationAccess?: { manageUrl: string; pin: string };
 }
 
 interface AttendeeDraft {
@@ -82,6 +90,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RegistrationResult | null>(null);
+  const [paymentReturn, setPaymentReturn] = useState<"returned" | "cancelled" | null>(null);
 
   const selectedTicket = activeTickets.find((ticket) => ticket.id === ticketTypeId) ?? activeTickets[0] ?? null;
   const requestedTicketUnits = Math.max(1, Math.min(10, Number(quantity) || 1));
@@ -98,6 +107,12 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
     && consentAccepted
     && !previewOnly,
   );
+
+  useEffect(() => {
+    const state = new URLSearchParams(window.location.search).get("registration");
+    if (state === "payment-return") setPaymentReturn("returned");
+    if (state === "payment-cancelled") setPaymentReturn("cancelled");
+  }, []);
 
   useEffect(() => {
     if (!activeTickets.length) return;
@@ -142,7 +157,12 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
       if (!response.ok) {
         throw new Error(payload?.error?.message ?? "Registration could not be completed.");
       }
-      setResult(payload as RegistrationResult);
+      const completed = payload as RegistrationResult;
+      setResult(completed);
+      if (completed.payment?.checkoutUrl) {
+        window.location.assign(completed.payment.checkoutUrl);
+        return;
+      }
     } catch (registrationError) {
       setError(registrationError instanceof TypeError
         ? "Unable to connect to the event registration server. Please check your connection and try again."
@@ -196,31 +216,40 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
             </div>
           ))}
         </div>
+        {result.reservationAccess ? <div className="mt-4 border border-[#c7e0f4] bg-[#f2f7fc] p-3 text-sm text-[#242424]"><p className="font-semibold">Manage attendee details later</p><p className="mt-1 text-xs text-[#616161]">Use order {result.order.orderNumber} and reservation PIN <span className="font-mono font-semibold text-[#0f6cbd]">{result.reservationAccess.pin}</span>. The same details are in your confirmation email.</p><a href={result.reservationAccess.manageUrl} className="mt-2 inline-block font-semibold text-[#0f6cbd] hover:underline">Open reservation manager</a></div> : null}
       </section>
     );
   }
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm">
+      {paymentReturn ? (
+        <div role="status" className={`mb-5 border-l-4 px-4 py-3 text-sm ${paymentReturn === "returned" ? "border-emerald-600 bg-emerald-50 text-emerald-950" : "border-amber-600 bg-amber-50 text-amber-950"}`}>
+          <p className="font-semibold">{paymentReturn === "returned" ? "Payment submitted" : "Payment not completed"}</p>
+          <p className="mt-1">{paymentReturn === "returned" ? "Stripe returned successfully. Your order will update as soon as the signed payment confirmation is processed." : "Your reservation is still saved. Use the secure payment link in your registration email when you are ready."}</p>
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-700">Registration</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0f6cbd]">Registration</p>
           <h3 className="mt-1 text-lg font-semibold text-slate-950">Reserve seats for this event</h3>
           <p className="mt-1 text-sm text-slate-600">
             {paymentPolicy === "NoPaymentRequired"
               ? "Choose a ticket, enter attendee details, and receive check-in codes after confirmation."
-              : "Choose a ticket, enter attendee details, and receive check-in codes. Staff will follow up on payment when needed."}
+              : paymentPolicy === "StripeCheckout"
+                ? "Choose a ticket, enter attendee details, then pay securely with Stripe. Your reservation is saved before checkout opens."
+                : "Choose a ticket, enter attendee details, and receive check-in codes. Staff will follow up on payment when needed."}
           </p>
         </div>
-        <div className="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2 text-right">
-          <p className="text-xs font-semibold text-violet-700">Estimated total</p>
-          <p className="text-lg font-bold text-violet-950">{formatMoney(totalAmount)}</p>
+        <div className="border border-[#c7e0f4] bg-[#f2f7fc] px-3 py-2 text-right">
+          <p className="text-xs font-semibold text-[#0f6cbd]">Estimated total</p>
+          <p className="text-lg font-bold text-[#242424]">{formatMoney(totalAmount)}</p>
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         {activeTickets.slice(0, 4).map((ticket) => (
-          <label key={ticket.id} className={`rounded-lg border p-4 shadow-sm ${ticketTypeId === ticket.id ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white"}`}>
+          <label key={ticket.id} className={`border p-4 ${ticketTypeId === ticket.id ? "border-[#0f6cbd] bg-[#f2f7fc] ring-1 ring-[#0f6cbd]" : "border-slate-200 bg-white hover:border-slate-400"}`}>
             <input
               type="radio"
               name="ticketTypeId"
@@ -236,7 +265,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
                 <span className="mt-1 block text-xs text-slate-500">{ticket.isTable ? `${ticket.seatsIncluded ?? 1} seats included` : "Individual registration"}</span>
                 {ticket.available != null ? <span className="mt-1 block text-[11px] font-medium text-slate-500">{ticket.available} available</span> : null}
               </span>
-              <span className="text-sm font-bold text-violet-700">{formatMoney(ticket.price)}</span>
+              <span className="text-sm font-bold text-[#0f6cbd]">{formatMoney(ticket.price)}</span>
             </span>
             {ticket.description ? <span className="mt-3 block text-xs leading-5 text-slate-600">{ticket.description}</span> : null}
           </label>
@@ -313,6 +342,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
       </label>
 
       {paymentPolicy === "OfflineFollowUp" ? <p className="mt-3 text-xs text-slate-500">Payment policy: staff offline follow-up for paid registrations.</p> : null}
+      {paymentPolicy === "StripeCheckout" && totalAmount > 0 ? <p className="mt-3 text-xs text-slate-600">You will continue to Stripe&apos;s secure checkout. Payment details are not entered or stored on this page.</p> : null}
       {previewOnly ? <p className="mt-3 text-xs text-amber-700">Preview mode: publish the event page to enable live registration.</p> : null}
       {error ? <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
 
@@ -320,9 +350,9 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
         type="button"
         onClick={() => void submitRegistration()}
         disabled={!canSubmit || submitting}
-        className="mt-4 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="mt-4 min-h-11 bg-[#0f6cbd] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#115ea3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0f6cbd] disabled:cursor-not-allowed disabled:bg-slate-300"
       >
-        {submitting ? "Registering..." : totalAmount > 0 ? "Reserve registration" : "Register"}
+        {submitting ? (paymentPolicy === "StripeCheckout" && totalAmount > 0 ? "Opening secure checkout…" : "Registering…") : paymentPolicy === "StripeCheckout" && totalAmount > 0 ? `Continue to payment · ${formatMoney(totalAmount)}` : totalAmount > 0 ? "Reserve registration" : "Register"}
       </button>
       {!allAttendeesNamed ? <p className="mt-2 text-xs text-slate-500">Enter first and last names for every seat before submitting.</p> : null}
     </section>

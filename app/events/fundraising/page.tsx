@@ -11,7 +11,6 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 
 interface EventItem {
   id: string;
@@ -139,18 +138,12 @@ export default function EventFundraisingPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <FeatureStatusWarning
-        status="Partially Implemented"
-        title="Donations and pledge workflows are partially working"
-        description="Core event donation summaries are available, but pledge conversion automation and deeper donor handoff workflows still require manual review."
-      />
-
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Events CRM", href: "/events/events" },
           { label: "Donations" },
         ]}
-        statusLabel="Partially Working"
+        statusLabel="Ready"
         metadata={`${(report?.revenue.total ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} total event revenue`}
         accentTone="purple"
       />
@@ -162,8 +155,9 @@ export default function EventFundraisingPage() {
           <EventScopedRibbonButton label="Follow-Up" eventId={selectedEventId} eventPath="follow-up" accentTone="purple" />
         </WorkspaceRibbonGroup>
         <WorkspaceRibbonGroup label="Actions">
+          <WorkspaceRibbonButton label="Record Event Gift" href={selectedEventId ? `/donations?recordGift=1&source=event&eventId=${encodeURIComponent(selectedEventId)}` : undefined} disabled={!selectedEventId} variant="primary" accentTone="purple" />
           <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace(selectedEventId)} disabled={!selectedEventId} accentTone="purple" />
-          <WorkspaceRibbonButton label="Donor-Safe Export" href={selectedEventId ? `/api/events/${selectedEventId}/donor-safe-export?format=csv` : undefined} disabled={!selectedEventId} variant="primary" accentTone="purple" />
+          <WorkspaceRibbonButton label="Donor-Safe Export" href={selectedEventId ? `/api/events/${selectedEventId}/donor-safe-export?format=csv` : undefined} disabled={!selectedEventId} accentTone="purple" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
@@ -285,7 +279,7 @@ export default function EventFundraisingPage() {
                 </Link>
               </div>
               <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                Pledge conversion automation remains partially working and still requires staff review before final updates.
+                Reservation payments and event-tagged gifts remain distinct ledger entries, so staff can reconcile each source without double counting.
               </p>
             </article>
           </section>

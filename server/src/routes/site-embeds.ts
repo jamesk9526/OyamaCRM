@@ -1688,15 +1688,25 @@ router.post("/public/stripe-webhook", async (req, res) => {
     metadata?: Record<string, unknown>;
     customer_details?: Record<string, unknown>;
   };
+  const stripeMetadata = getStripeObjectMetadata(stripeObject);
+  const eventOrderId = String(stripeMetadata.eventOrderId ?? "").trim();
+  const isEventRegistration = stripeMetadata.platform === "oyamacrm_event_registration" && Boolean(eventOrderId);
   const siteToken = getStripeSiteToken(stripeObject);
 
   const hit = siteToken ? await findSiteByToken(siteToken) : null;
-  if (!hit) {
+  const eventOrderReference = isEventRegistration
+    ? await prisma.eventOrder.findUnique({
+        where: { id: eventOrderId },
+        select: { id: true, eventId: true, event: { select: { organizationId: true } } },
+      })
+    : null;
+  const organizationId = eventOrderReference?.event.organizationId ?? hit?.organizationId ?? null;
+  if (!organizationId) {
     res.status(200).json({ received: true, action: "skipped_unknown_token" });
     return;
   }
 
-  const runtime = await readPaymentGatewayRuntimeConfig(hit.organizationId);
+  const runtime = await readPaymentGatewayRuntimeConfig(organizationId);
   const eventMode = event.livemode === true ? "production" : "sandbox";
   const eventCredentials = runtime.stripe.environments[eventMode];
   if (!eventCredentials.webhookSecret) {
@@ -1746,7 +1756,7 @@ router.post("/public/stripe-webhook", async (req, res) => {
       try {
         await prisma.paymentWebhookEvent.create({
           data: {
-            organizationId: hit.organizationId,
+            organizationId,
             provider: "stripe",
             externalEventId: eventId,
             eventType,
@@ -1767,6 +1777,110 @@ router.post("/public/stripe-webhook", async (req, res) => {
     const isRecurringInvoice = eventType === "invoice.paid";
     const isPaymentFailure = eventType === "checkout.session.async_payment_failed" || eventType === "invoice.payment_failed";
     const paymentStatus = String(stripeObject.payment_status ?? "paid");
+
+    if (isEventRegistration) {
+      const isEventCheckout = eventType === "checkout.session.completed" || eventType === "checkout.session.async_payment_succeeded";
+      const isEventFailure = eventType === "checkout.session.async_payment_failed";
+      if (!isEventCheckout && !isEventFailure) {
+        await prisma.paymentWebhookEvent.update({
+          where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+          data: { status: "IGNORED", processedAt: new Date() },
+        });
+        res.status(200).json({ received: true, action: "ignored_event_type" });
+        return;
+      }
+
+      if (isEventFailure) {
+        await prisma.paymentWebhookEvent.update({
+          where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+          data: {
+            status: "FAILED",
+            errorMessage: "Stripe reported that the delayed event registration payment failed. The reservation remains unpaid.",
+            processedAt: new Date(),
+          },
+        });
+        res.status(200).json({ received: true, action: "event_payment_failure_recorded", orderId: eventOrderId });
+        return;
+      }
+
+      if (paymentStatus !== "paid" && paymentStatus !== "no_payment_required") {
+        await prisma.paymentWebhookEvent.update({
+          where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+          data: { status: "IGNORED", processedAt: new Date() },
+        });
+        res.status(200).json({ received: true, action: "event_payment_pending", orderId: eventOrderId });
+        return;
+      }
+
+      const amountCents = Number(stripeObject.amount_total);
+      const order = await prisma.eventOrder.findFirst({
+        where: { id: eventOrderId, eventId: eventOrderReference?.eventId },
+        select: {
+          id: true,
+          orderNumber: true,
+          totalAmount: true,
+          status: true,
+          constituentId: true,
+          eventId: true,
+          event: { select: { name: true, organizationId: true } },
+        },
+      });
+      if (!order || order.event.organizationId !== organizationId) {
+        throw new Error("Stripe event registration order could not be verified.");
+      }
+      if (!Number.isSafeInteger(amountCents) || amountCents !== Math.round(Number(order.totalAmount) * 100)) {
+        throw new Error("Stripe event registration amount did not match the saved order total.");
+      }
+
+      const providerTransactionId = `stripe:${String(stripeObject.payment_intent ?? stripeObject.id ?? eventId)}`;
+      const paidAtSeconds = Number(stripeObject.status_transitions && (stripeObject.status_transitions as Record<string, unknown>).paid_at);
+      const paidAt = Number.isFinite(paidAtSeconds) && paidAtSeconds > 0 ? new Date(paidAtSeconds * 1000) : new Date();
+      await prisma.$transaction(async (tx) => {
+        await tx.eventOrder.update({
+          where: { id: order.id },
+          data: {
+            status: "CONFIRMED",
+            paymentMethod: "CREDIT_CARD",
+            transactionId: providerTransactionId,
+            paidAt,
+          },
+        });
+        await tx.eventGuest.updateMany({
+          where: { orderId: order.id },
+          data: { paymentStatus: "PAID", rsvpStatus: "CONFIRMED" },
+        });
+        await tx.activity.create({
+          data: {
+            constituentId: order.constituentId,
+            eventId: order.eventId,
+            type: "EVENT_REGISTRATION",
+            description: `Stripe payment confirmed for ${order.event.name} order ${order.orderNumber}.`,
+            metadata: {
+              source: "stripe_webhook",
+              provider: "stripe",
+              stripeEventId: eventId,
+              transactionId: providerTransactionId,
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              amount: amountCents / 100,
+            },
+          },
+        });
+      });
+      await prisma.paymentWebhookEvent.update({
+        where: { provider_externalEventId: { provider: "stripe", externalEventId: eventId } },
+        data: { status: "PROCESSED", processedAt: new Date() },
+      });
+      await logAudit({
+        action: "STRIPE_EVENT_REGISTRATION_COMPLETED",
+        entity: "EventOrder",
+        entityId: order.id,
+        organizationId,
+        metadata: { stripeEventId: eventId, amount: amountCents / 100, orderNumber: order.orderNumber },
+      });
+      res.status(200).json({ received: true, orderId: order.id, orderNumber: order.orderNumber });
+      return;
+    }
 
     if (isPaymentFailure) {
       await prisma.paymentWebhookEvent.update({
@@ -1824,14 +1938,14 @@ router.post("/public/stripe-webhook", async (req, res) => {
 
       let constituent = donorEmail
         ? await tx.constituent.findFirst({
-            where: { organizationId: hit.organizationId, email: donorEmail },
+            where: { organizationId, email: donorEmail },
             select: { id: true },
           })
         : null;
       if (!constituent) {
         constituent = await tx.constituent.create({
           data: {
-            organizationId: hit.organizationId,
+            organizationId,
             type: "DONOR",
             firstName: parsedName.firstName,
             lastName: parsedName.lastName,
@@ -1853,7 +1967,7 @@ router.post("/public/stripe-webhook", async (req, res) => {
       });
       const campaign = campaignId
         ? await tx.campaign.findFirst({
-            where: { id: campaignId, organizationId: hit.organizationId },
+            where: { id: campaignId, organizationId },
             select: { id: true },
           })
         : null;
@@ -1937,7 +2051,7 @@ router.post("/public/stripe-webhook", async (req, res) => {
       action: "STRIPE_DONATION_COMPLETED",
       entity: "Donation",
       entityId: donation.id,
-      organizationId: hit.organizationId,
+      organizationId,
       metadata: { stripeEventId: eventId, amount, currency, designation: designationName, giftType },
     });
 

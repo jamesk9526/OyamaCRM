@@ -540,7 +540,7 @@ router.get("/:id", async (req, res) => {
 /** POST /api/donations — Record a new donation. Defaults: paymentMethod=ONLINE, status=COMPLETED, taxDeductible=true. */
 router.post("/", async (req, res) => {
   const {
-    constituentId, campaignId, designationId, pledgeId,
+    constituentId, campaignId, designationId, pledgeId, eventId,
     amount, date, paymentMethod, checkNumber, transactionId, isRecurring,
     frequency, status, taxDeductible, notes,
   } = req.body;
@@ -571,12 +571,24 @@ router.post("/", async (req, res) => {
     }
   }
 
+  if (eventId) {
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, organizationId },
+      select: { id: true },
+    });
+    if (!event) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid eventId for your organization" } });
+      return;
+    }
+  }
+
   const donation = await prisma.donation.create({
     data: {
       constituentId,
       campaignId:    campaignId    || undefined,
       designationId: designationId || undefined,
       pledgeId:      pledgeId      || undefined,
+      eventId:       eventId       || undefined,
       amount,
       date:          parseDonationDateInput(date) ?? new Date(),
       paymentMethod: paymentMethod || "ONLINE",
@@ -597,7 +609,7 @@ router.post("/", async (req, res) => {
       donationId: donation.id,
       type: "DONATION",
       description: `Donation recorded: $${Number(donation.amount).toFixed(2)}`,
-      metadata: { source: "api/donations:create" },
+      metadata: { source: "api/donations:create", eventId: eventId || null },
     },
   });
 
@@ -607,7 +619,7 @@ router.post("/", async (req, res) => {
     entity: "Donation",
     entityId: donation.id,
     userId: req.user?.sub,
-    metadata: { amount: Number(donation.amount), status: donation.status, constituentId: donation.constituentId },
+    metadata: { amount: Number(donation.amount), status: donation.status, constituentId: donation.constituentId, eventId: eventId || null },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
   });
