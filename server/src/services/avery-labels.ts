@@ -52,18 +52,24 @@ export async function renderAvery5160Pdf(labels: Avery5160Label[], options?: { s
   const startSlot = Math.max(0, Math.min(29, Math.trunc((options?.startPosition ?? 1) - 1)));
   let activePage = 0;
 
+  const drawGuideSheet = () => {
+    if (!options?.showGuides) return;
+    doc.setDrawColor(185, 185, 185);
+    doc.setLineWidth(0.35);
+    for (let slot = 0; slot < AVERY_5160_LAYOUT.labelsPerPage; slot += 1) {
+      const position = avery5160SlotPosition(slot);
+      doc.rect(position.x, position.y, AVERY_5160_LAYOUT.labelWidth, AVERY_5160_LAYOUT.labelHeight);
+    }
+  };
+  drawGuideSheet();
+
   for (let index = 0; index < labels.length; index += 1) {
     const slotIndex = startSlot + index;
     const position = avery5160SlotPosition(slotIndex);
     while (activePage < position.page) {
       doc.addPage("letter", "portrait");
       activePage += 1;
-    }
-
-    if (options?.showGuides) {
-      doc.setDrawColor(185, 185, 185);
-      doc.setLineWidth(0.35);
-      doc.rect(position.x, position.y, AVERY_5160_LAYOUT.labelWidth, AVERY_5160_LAYOUT.labelHeight);
+      drawGuideSheet();
     }
 
     const lines = avery5160AddressLines(labels[index]).slice(0, 5);
@@ -75,11 +81,14 @@ export async function renderAvery5160Pdf(labels: Avery5160Label[], options?: { s
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
       doc.setFont("helvetica", lineIndex === 0 ? "bold" : "normal");
-      doc.setFontSize(lineIndex === 0 ? 9.5 : 9);
-      const clipped = doc.splitTextToSize(lines[lineIndex], maxWidth) as string[];
-      const line = clipped[0] ?? "";
-      (doc.text as unknown as (value: string, x: number, y: number, settings: { maxWidth: number }) => JsPdfDocument)
-        .call(doc, line, textX, textY, { maxWidth });
+      let fontSize = lineIndex === 0 ? 9.5 : 9;
+      doc.setFontSize(fontSize);
+      while (doc.getTextWidth(lines[lineIndex]) > maxWidth && fontSize > 6.5) {
+        fontSize -= 0.25;
+        doc.setFontSize(fontSize);
+      }
+      (doc.text as unknown as (value: string, x: number, y: number) => JsPdfDocument)
+        .call(doc, lines[lineIndex], textX, textY);
       textY += lineHeight;
     }
   }
