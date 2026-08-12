@@ -158,6 +158,7 @@ describe("GET /api/reports/library/:reportKey", () => {
     "donor-notes",
     "first-time-donors",
     "lapsed-donors",
+    "lapsed-donor-history",
     "never-given",
     "top-donors",
   ];
@@ -197,11 +198,23 @@ describe("GET /api/reports/library/:reportKey", () => {
     expect(donationCsv.status).toBe(200);
     expect(donationCsv.headers["content-type"]).toContain("text/csv");
     expect(donationCsv.headers["content-disposition"]).toContain("donations-");
-    expect(donationCsv.text).toContain("Gift date,Donor,Email,Designation,Payment method,Amount,Receipt #");
+    expect(donationCsv.text).toContain("Gift date,Donor,Email,Street address,Designation,Payment method,Amount,Receipt #");
 
     const analysisCsv = await authGet("/api/reports/exports/library/comprehensive-donor-analysis.csv?year=2026");
     expect(analysisCsv.status).toBe(200);
     expect(analysisCsv.text).toContain("Donor group,Metric,Current year (2026),Prior year (2025),Two years prior (2024),vs. prior year");
+  });
+
+  it("supports full-history lapsed donor modes with donor contact columns", async () => {
+    for (const query of [
+      "lapseMode=all",
+      "lapseMode=lastGiftRange&lapseFromYear=2022&lapseThroughYear=2024",
+      "lapseMode=notSince&lapseNotSinceYear=2024",
+    ]) {
+      const res = await authGet(`/api/reports/library/lapsed-donor-history?${query}`);
+      expect(res.status).toBe(200);
+      expect(res.body.columns.map((column: { key: string }) => column.key)).toEqual(expect.arrayContaining(["donorName", "email", "address", "firstGiftDate", "lastGiftDate"]));
+    }
   });
 
   it("rejects an unknown report rather than serving an empty placeholder", async () => {

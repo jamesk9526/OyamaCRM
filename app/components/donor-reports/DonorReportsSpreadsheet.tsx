@@ -29,6 +29,7 @@ type ReportKey =
   | "donor-notes"
   | "first-time-donors"
   | "lapsed-donors"
+  | "lapsed-donor-history"
   | "never-given"
   | "top-donors"
   | "payment-method-summary"
@@ -46,7 +47,7 @@ interface ReportDefinition {
   description: string;
   source: string;
   capabilities: string;
-  scope: "date" | "year" | "none";
+  scope: "date" | "year" | "lapse" | "none";
   group: "Gift reports" | "Donor reports";
   supportsPayment?: boolean;
   supportsDesignation?: boolean;
@@ -100,6 +101,7 @@ const REPORTS: ReportDefinition[] = [
   { key: "donor-notes", title: "Donor Notes", description: "A report of profile notes recorded on donor files.", source: "Donor files", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "first-time-donors", title: "First Time Donors", description: "Find donors whose first completed gift falls in the selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Donor reports" },
   { key: "lapsed-donors", title: "Lapsed Donors (SYBUNTY)", description: "Find donors who gave in the prior year but not in the selected year.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "year", group: "Donor reports" },
+  { key: "lapsed-donor-history", title: "Lapsed Donor History", description: "Find all stored lapsed donors, donors whose last gift falls in a selected year range, or donors who have not given since a selected year.", source: "All completed donation history + donor files", capabilities: "Grid, CSV, Print, Outreach", scope: "lapse", group: "Donor reports" },
   { key: "never-given", title: "Never Given Report", description: "List donor files with no completed donation record.", source: "Donor files + completed donations", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "top-donors", title: "Top Donors", description: "Rank donors by completed giving within a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Donor reports", supportsLimit: true },
   { key: "payment-method-summary", title: "Payment Method Summary", description: "Compare gift volume, donor count, and giving by payment method.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports" },
@@ -188,6 +190,10 @@ export default function DonorReportsSpreadsheet() {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [designationId, setDesignationId] = useState("");
   const [limit, setLimit] = useState("25");
+  const [lapseMode, setLapseMode] = useState<"all" | "lastGiftRange" | "notSince">("all");
+  const [lapseFromYear, setLapseFromYear] = useState(() => String(new Date().getFullYear() - 2));
+  const [lapseThroughYear, setLapseThroughYear] = useState(() => String(new Date().getFullYear()));
+  const [lapseNotSinceYear, setLapseNotSinceYear] = useState(() => String(new Date().getFullYear() - 1));
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,11 +224,17 @@ export default function DonorReportsSpreadsheet() {
       params.set("through", through);
     }
     if (selected.scope === "year") params.set("year", year);
+    if (selected.scope === "lapse") {
+      params.set("lapseMode", lapseMode);
+      params.set("lapseFromYear", lapseFromYear);
+      params.set("lapseThroughYear", lapseThroughYear);
+      params.set("lapseNotSinceYear", lapseNotSinceYear);
+    }
     if (selected.supportsPayment && paymentMethod) params.set("paymentMethod", paymentMethod);
     if (selected.supportsDesignation && designationId) params.set("designationId", designationId);
     if (selected.supportsLimit) params.set("limit", limit);
     return params;
-  }, [selected, from, through, year, paymentMethod, designationId, limit, reportingMode]);
+  }, [selected, from, through, year, lapseMode, lapseFromYear, lapseThroughYear, lapseNotSinceYear, paymentMethod, designationId, limit, reportingMode]);
 
   const loadReport = useCallback(async (definition: ReportDefinition, mode: "open" | "refresh" = "open") => {
     if (mode === "open") setSelected(definition);
@@ -240,6 +252,12 @@ export default function DonorReportsSpreadsheet() {
         params.set("through", through);
       }
       if (definition.scope === "year") params.set("year", year);
+      if (definition.scope === "lapse") {
+        params.set("lapseMode", lapseMode);
+        params.set("lapseFromYear", lapseFromYear);
+        params.set("lapseThroughYear", lapseThroughYear);
+        params.set("lapseNotSinceYear", lapseNotSinceYear);
+      }
       if (definition.supportsPayment && paymentMethod) params.set("paymentMethod", paymentMethod);
       if (definition.supportsDesignation && designationId) params.set("designationId", designationId);
       if (definition.supportsLimit) params.set("limit", limit);
@@ -255,7 +273,7 @@ export default function DonorReportsSpreadsheet() {
     } finally {
       setLoading(false);
     }
-  }, [from, through, year, paymentMethod, designationId, limit, reportingMode]);
+  }, [from, through, year, lapseMode, lapseFromYear, lapseThroughYear, lapseNotSinceYear, paymentMethod, designationId, limit, reportingMode]);
 
   useEffect(() => {
     if (typeof window === "undefined" || selected) return;
@@ -352,6 +370,10 @@ export default function DonorReportsSpreadsheet() {
           paymentMethod={paymentMethod}
           designationId={designationId}
           limit={limit}
+          lapseMode={lapseMode}
+          lapseFromYear={lapseFromYear}
+          lapseThroughYear={lapseThroughYear}
+          lapseNotSinceYear={lapseNotSinceYear}
           loading={loading}
           exporting={exporting}
           error={error}
@@ -367,6 +389,10 @@ export default function DonorReportsSpreadsheet() {
           onPaymentMethodChange={setPaymentMethod}
           onDesignationChange={setDesignationId}
           onLimitChange={setLimit}
+          onLapseModeChange={setLapseMode}
+          onLapseFromYearChange={setLapseFromYear}
+          onLapseThroughYearChange={setLapseThroughYear}
+          onLapseNotSinceYearChange={setLapseNotSinceYear}
           onRun={() => void loadReport(selected, "refresh")}
           onExport={() => void handleExport()}
           onPrint={handlePrint}
@@ -413,7 +439,7 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
                 </div>
                 <p className="mt-3 text-sm leading-5 text-slate-600">{report.description}</p>
                 <p className="mt-1 text-xs text-slate-500" title="The live CRM records used to build this report">Source: {report.source}</p>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] font-medium text-slate-500">{report.scope === "date" ? "Date filters" : report.scope === "year" ? "Year comparison" : "All records"}</span><button type="button" onClick={() => onRun(report)} className="rounded-md bg-[#0f6cbd] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a9d]">Run report</button></div>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] font-medium text-slate-500">{report.scope === "date" ? "Date filters" : report.scope === "year" ? "Year comparison" : report.scope === "lapse" ? "Lapse history filters" : "All records"}</span><button type="button" onClick={() => onRun(report)} className="rounded-md bg-[#0f6cbd] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a9d]">Run report</button></div>
               </article>
             ))}
           </div>
@@ -434,6 +460,10 @@ function ReportRunner({
   paymentMethod,
   designationId,
   limit,
+  lapseMode,
+  lapseFromYear,
+  lapseThroughYear,
+  lapseNotSinceYear,
   loading,
   exporting,
   error,
@@ -446,6 +476,10 @@ function ReportRunner({
   onPaymentMethodChange,
   onDesignationChange,
   onLimitChange,
+  onLapseModeChange,
+  onLapseFromYearChange,
+  onLapseThroughYearChange,
+  onLapseNotSinceYearChange,
   onRun,
   onExport,
   onPrint,
@@ -463,6 +497,10 @@ function ReportRunner({
   paymentMethod: string;
   designationId: string;
   limit: string;
+  lapseMode: "all" | "lastGiftRange" | "notSince";
+  lapseFromYear: string;
+  lapseThroughYear: string;
+  lapseNotSinceYear: string;
   loading: boolean;
   exporting: boolean;
   error: string | null;
@@ -475,6 +513,10 @@ function ReportRunner({
   onPaymentMethodChange: (value: string) => void;
   onDesignationChange: (value: string) => void;
   onLimitChange: (value: string) => void;
+  onLapseModeChange: (value: "all" | "lastGiftRange" | "notSince") => void;
+  onLapseFromYearChange: (value: string) => void;
+  onLapseThroughYearChange: (value: string) => void;
+  onLapseNotSinceYearChange: (value: string) => void;
   onRun: () => void;
   onExport: () => void;
   onPrint: () => void;
@@ -529,10 +571,16 @@ function ReportRunner({
             <FilterField label="End date"><input type="date" value={through} onChange={(event) => onThroughChange(event.target.value)} className="report-input" /></FilterField>
           </> : null}
           {definition.scope === "year" ? <FilterField label="Comparison year"><input type="number" min="2000" max="2100" value={year} onChange={(event) => onYearChange(event.target.value)} className="report-input w-32" /></FilterField> : null}
+          {definition.scope === "lapse" ? <>
+            <FilterField label="Lapsed donor view"><select value={lapseMode} onChange={(event) => onLapseModeChange(event.target.value as "all" | "lastGiftRange" | "notSince")} className="report-input min-w-56"><option value="all">All marked lapsed</option><option value="lastGiftRange">Last gift year range</option><option value="notSince">No gift since year</option></select></FilterField>
+            {lapseMode === "lastGiftRange" ? <><FilterField label="Last gift from"><input type="number" min="1900" max="2100" value={lapseFromYear} onChange={(event) => onLapseFromYearChange(event.target.value)} className="report-input w-28" /></FilterField><FilterField label="Last gift through"><input type="number" min="1900" max="2100" value={lapseThroughYear} onChange={(event) => onLapseThroughYearChange(event.target.value)} className="report-input w-28" /></FilterField></> : null}
+            {lapseMode === "notSince" ? <FilterField label="No completed gift since"><input type="number" min="1900" max="2100" value={lapseNotSinceYear} onChange={(event) => onLapseNotSinceYearChange(event.target.value)} className="report-input w-32" /></FilterField> : null}
+          </> : null}
           {definition.supportsPayment ? <FilterField label="Payment type"><select value={paymentMethod} onChange={(event) => onPaymentMethodChange(event.target.value)} className="report-input">{PAYMENT_METHODS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FilterField> : null}
           {definition.supportsDesignation ? <FilterField label="Designation"><select value={designationId} onChange={(event) => onDesignationChange(event.target.value)} className="report-input"><option value="">All designations</option>{designations.map((designation) => <option key={designation.id} value={designation.id}>{designation.name}</option>)}</select></FilterField> : null}
           {definition.supportsLimit ? <FilterField label="Donors shown"><input type="number" min="1" max="1000" value={limit} onChange={(event) => onLimitChange(event.target.value)} className="report-input w-24" /></FilterField> : null}
           {definition.scope === "none" ? <p className="pb-1 text-sm text-slate-600">This report uses the current organization-wide donor record set.</p> : null}
+          {definition.scope === "lapse" && lapseMode === "all" ? <p className="max-w-xl pb-1 text-sm text-slate-600">Includes every donor currently marked Lapsed and summarizes their full completed-gift history.</p> : null}
         </div>
         {definition.scope === "date" ? <div className="mt-3 flex flex-wrap gap-2"><span className="pt-1 text-xs font-medium text-slate-600">Quick range:</span><button type="button" onClick={() => { const range = lastMonthToDateRange(); onFromChange(range.from); onThroughChange(range.through); }} className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">Last month to date</button><button type="button" onClick={() => { const today = new Date(); onFromChange(localDateInput(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29))); onThroughChange(localDateInput(today)); }} className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">Last 30 days</button></div> : null}
       </div>

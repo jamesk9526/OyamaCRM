@@ -25,6 +25,7 @@ export const DONOR_LIBRARY_REPORT_KEYS = [
   "donor-notes",
   "first-time-donors",
   "lapsed-donors",
+  "lapsed-donor-history",
   "never-given",
   "top-donors",
   "payment-method-summary",
@@ -80,6 +81,10 @@ export interface DonorLibraryReportOptions {
   selectedYear: number;
   dateBasis: ReportingYearBasis;
   fiscalYearStart: number;
+  lapseMode: "all" | "lastGiftRange" | "notSince";
+  lapseFromYear: number;
+  lapseThroughYear: number;
+  lapseNotSinceYear: number;
 }
 
 const PAYMENT_METHODS: PaymentMethod[] = ["CREDIT_CARD", "ACH", "CHECK", "WIRE", "STOCK", "IN_KIND", "CASH", "ONLINE"];
@@ -127,6 +132,10 @@ export function parseDonorLibraryReportOptions(
     ? getFiscalYearForDate(now, fiscalYearStart)
     : now.getFullYear();
   const requestedYear = Number.parseInt(typeof query.year === "string" ? query.year : "", 10);
+  const requestedLapseFromYear = Number.parseInt(typeof query.lapseFromYear === "string" ? query.lapseFromYear : "", 10);
+  const requestedLapseThroughYear = Number.parseInt(typeof query.lapseThroughYear === "string" ? query.lapseThroughYear : "", 10);
+  const requestedLapseNotSinceYear = Number.parseInt(typeof query.lapseNotSinceYear === "string" ? query.lapseNotSinceYear : "", 10);
+  const lapseMode = query.lapseMode === "lastGiftRange" || query.lapseMode === "notSince" ? query.lapseMode : "all";
 
   return {
     ...range,
@@ -136,6 +145,10 @@ export function parseDonorLibraryReportOptions(
     selectedYear: Number.isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : currentReportingYear,
     dateBasis,
     fiscalYearStart,
+    lapseMode,
+    lapseFromYear: Number.isFinite(requestedLapseFromYear) && requestedLapseFromYear >= 1900 && requestedLapseFromYear <= 2100 ? requestedLapseFromYear : currentReportingYear - 2,
+    lapseThroughYear: Number.isFinite(requestedLapseThroughYear) && requestedLapseThroughYear >= 1900 && requestedLapseThroughYear <= 2100 ? requestedLapseThroughYear : currentReportingYear,
+    lapseNotSinceYear: Number.isFinite(requestedLapseNotSinceYear) && requestedLapseNotSinceYear >= 1900 && requestedLapseNotSinceYear <= 2100 ? requestedLapseNotSinceYear : currentReportingYear - 1,
   };
 }
 
@@ -145,6 +158,11 @@ function donorName(donor: { displayName?: string | null; organizationName?: stri
     || `${donor.firstName} ${donor.lastName}`.trim()
     || donor.email?.trim()
     || "Unnamed donor";
+}
+
+function donorAddress(donor: { addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; zip?: string | null }): string | null {
+  const locality = [donor.city, donor.state, donor.zip].filter(Boolean).join(" ").trim();
+  return [donor.addressLine1, donor.addressLine2, locality].filter((value) => Boolean(value?.trim())).join(", ") || null;
 }
 
 function cents(value: unknown): number {
@@ -204,6 +222,11 @@ const donationSelection = {
       displayName: true,
       organizationName: true,
       email: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
+      state: true,
+      zip: true,
     },
   },
   designation: { select: { id: true, name: true } },
@@ -236,12 +259,13 @@ async function donationRowsReport(
   const totalCents = donations.reduce((total, donation) => total + cents(donation.amount), 0);
 
   if (reportKey === "batch-receipts") {
-    const donors = new Map<string, { donorId: string; donorName: string; email: string | null; giftCount: number; totalCents: number; latestGiftDate: string; receiptCount: number; acknowledgedCount: number }>();
+    const donors = new Map<string, { donorId: string; donorName: string; email: string | null; address: string | null; giftCount: number; totalCents: number; latestGiftDate: string; receiptCount: number; acknowledgedCount: number }>();
     for (const donation of donations) {
       const existing = donors.get(donation.constituent.id) ?? {
         donorId: donation.constituent.id,
         donorName: donorName(donation.constituent),
         email: donation.constituent.email,
+        address: donorAddress(donation.constituent),
         giftCount: 0,
         totalCents: 0,
         latestGiftDate: donation.date.toISOString(),
@@ -261,6 +285,7 @@ async function donationRowsReport(
         donorId: donor.donorId,
         donorName: donor.donorName,
         email: donor.email,
+        address: donor.address,
         giftCount: donor.giftCount,
         totalAmount: dollars(donor.totalCents),
         latestGiftDate: donor.latestGiftDate,
@@ -277,6 +302,7 @@ async function donationRowsReport(
       columns: [
         { key: "donorName", label: "Donor", linkToDonor: true },
         { key: "email", label: "Email" },
+        { key: "address", label: "Street address" },
         { key: "giftCount", label: "Gifts", type: "number" },
         { key: "totalAmount", label: "Gift total", type: "currency" },
         { key: "latestGiftDate", label: "Latest gift", type: "date" },
@@ -299,6 +325,7 @@ async function donationRowsReport(
       { key: "date", label: "Gift date", type: "date" },
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "designation", label: "Designation" },
       { key: "paymentMethod", label: "Payment method" },
       { key: "amount", label: "Amount", type: "currency" },
@@ -309,6 +336,7 @@ async function donationRowsReport(
       date: donation.date.toISOString(),
       donorName: donorName(donation.constituent),
       email: donation.constituent.email,
+      address: donorAddress(donation.constituent),
       designation: donation.designation?.name ?? "General / undesignated",
       paymentMethod: donation.paymentMethod.replace(/_/g, " "),
       amount: dollars(cents(donation.amount)),
@@ -334,6 +362,7 @@ async function unacknowledgedGiftsReport(
     donorId: donation.constituent.id,
     donorName: donorName(donation.constituent),
     email: donation.constituent.email,
+    address: donorAddress(donation.constituent),
     giftDate: donation.date.toISOString(),
     amount: dollars(cents(donation.amount)),
     designation: donation.designation?.name ?? "Unassigned",
@@ -349,6 +378,7 @@ async function unacknowledgedGiftsReport(
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "giftDate", label: "Gift date", type: "date" },
       { key: "amount", label: "Gift amount", type: "currency" },
       { key: "designation", label: "Designation" },
@@ -365,7 +395,7 @@ async function donorsByDesignationReport(organizationId: string, options: DonorL
     select: donationSelection,
     orderBy: { date: "desc" },
   });
-  const rowsByPair = new Map<string, { donorId: string; donorName: string; email: string | null; designation: string; giftCount: number; totalCents: number; lastGiftDate: string }>();
+  const rowsByPair = new Map<string, { donorId: string; donorName: string; email: string | null; address: string | null; designation: string; giftCount: number; totalCents: number; lastGiftDate: string }>();
   let totalCents = 0;
   for (const donation of donations) {
     totalCents += cents(donation.amount);
@@ -375,6 +405,7 @@ async function donorsByDesignationReport(organizationId: string, options: DonorL
       donorId: donation.constituent.id,
       donorName: donorName(donation.constituent),
       email: donation.constituent.email,
+      address: donorAddress(donation.constituent),
       designation,
       giftCount: 0,
       totalCents: 0,
@@ -399,6 +430,7 @@ async function donorsByDesignationReport(organizationId: string, options: DonorL
       { key: "designation", label: "Designation" },
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "giftCount", label: "Gifts", type: "number" },
       { key: "totalAmount", label: "Total", type: "currency" },
       { key: "lastGiftDate", label: "Last gift", type: "date" },
@@ -412,6 +444,8 @@ async function donorGivingRows(organizationId: string, date?: Prisma.DateTimeFil
   donorId: string;
   donorName: string;
   email: string | null;
+  address: string | null;
+  donorStatus: string;
   firstGiftDate: string;
   lastGiftDate: string;
   giftCount: number;
@@ -424,17 +458,19 @@ async function donorGivingRows(organizationId: string, date?: Prisma.DateTimeFil
       amount: true,
       date: true,
       constituent: {
-        select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true },
+        select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, zip: true, donorStatus: true },
       },
     },
     orderBy: { date: "asc" },
   });
-  const donors = new Map<string, { donorId: string; donorName: string; email: string | null; firstGiftDate: string; lastGiftDate: string; giftCount: number; totalCents: number; largestGiftCents: number }>();
+  const donors = new Map<string, { donorId: string; donorName: string; email: string | null; address: string | null; donorStatus: string; firstGiftDate: string; lastGiftDate: string; giftCount: number; totalCents: number; largestGiftCents: number }>();
   for (const donation of donations) {
     const existing = donors.get(donation.constituent.id) ?? {
       donorId: donation.constituent.id,
       donorName: donorName(donation.constituent),
       email: donation.constituent.email,
+      address: donorAddress(donation.constituent),
+      donorStatus: donation.constituent.donorStatus,
       firstGiftDate: donation.date.toISOString(),
       lastGiftDate: donation.date.toISOString(),
       giftCount: 0,
@@ -471,6 +507,7 @@ async function lifetimeGivingReport(organizationId: string, options: DonorLibrar
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "lifetimeTotal", label: "Lifetime giving", type: "currency" },
       { key: "giftCount", label: "Gifts", type: "number" },
       { key: "firstGiftDate", label: "First gift", type: "date" },
@@ -497,6 +534,7 @@ async function monthlyGivingReport(organizationId: string, options: DonorLibrary
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "giftCount", label: "Gifts", type: "number" },
       { key: "totalAmount", label: "Gift total", type: "currency" },
       { key: "firstGiftDate", label: "First gift", type: "date" },
@@ -647,7 +685,7 @@ async function donorFilesReport(organizationId: string, options: DonorLibraryRep
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
       { key: "phone", label: "Phone" },
-      { key: "address", label: "Address" },
+      { key: "address", label: "Street address" },
       { key: "mailPreference", label: "Mail preference" },
       { key: "lifetimeGiving", label: "Lifetime giving", type: "currency" },
     ],
@@ -663,6 +701,8 @@ async function givingCapacityInterestReport(organizationId: string, options: Don
     .map((donor) => ({
       donorId: donor.id,
       donorName: donorName(donor),
+      email: donor.email,
+      address: donorAddress(donor),
       tags: donor.tags.map((entry) => entry.tag.name).sort().join(", "),
       lifetimeGiving: dollars(cents(donor.totalLifetimeGiving)),
       lastGiftDate: iso(donor.lastGiftDate),
@@ -675,6 +715,8 @@ async function givingCapacityInterestReport(organizationId: string, options: Don
     summary: [{ label: "Tagged donors", value: rows.length, type: "number" }],
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
+      { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "tags", label: "Interest / capacity tags" },
       { key: "donorStatus", label: "Donor status" },
       { key: "lifetimeGiving", label: "Lifetime giving", type: "currency" },
@@ -699,7 +741,7 @@ async function donorFollowUpReport(organizationId: string, options: DonorLibrary
       dueDate: true,
       priority: true,
       status: true,
-      constituent: { select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true } },
+      constituent: { select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true, addressLine1: true, addressLine2: true, city: true, state: true, zip: true } },
       assignee: { select: { firstName: true, lastName: true, email: true } },
     },
     orderBy: [{ dueDate: "asc" }, { priority: "desc" }],
@@ -708,6 +750,8 @@ async function donorFollowUpReport(organizationId: string, options: DonorLibrary
     taskId: task.id,
     donorId: task.constituent?.id ?? null,
     donorName: task.constituent ? donorName(task.constituent) : "Unlinked task",
+    email: task.constituent?.email ?? null,
+    address: task.constituent ? donorAddress(task.constituent) : null,
     task: task.title,
     dueDate: iso(task.dueDate),
     priority: task.priority,
@@ -723,6 +767,8 @@ async function donorFollowUpReport(organizationId: string, options: DonorLibrary
     ],
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
+      { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "task", label: "Follow-up" },
       { key: "dueDate", label: "Due date", type: "date" },
       { key: "priority", label: "Priority" },
@@ -741,6 +787,8 @@ async function donorNotesReport(organizationId: string, options: DonorLibraryRep
     .map((donor) => ({
       donorId: donor.id,
       donorName: donorName(donor),
+      email: donor.email,
+      address: donorAddress(donor),
       notes: donor.notes?.trim() ?? "",
       lastGiftDate: iso(donor.lastGiftDate),
       lifetimeGiving: dollars(cents(donor.totalLifetimeGiving)),
@@ -751,6 +799,8 @@ async function donorNotesReport(organizationId: string, options: DonorLibraryRep
     summary: [{ label: "Donors with notes", value: rows.length, type: "number" }],
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
+      { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "notes", label: "Profile notes" },
       { key: "lastGiftDate", label: "Last gift", type: "date" },
       { key: "lifetimeGiving", label: "Lifetime giving", type: "currency" },
@@ -768,6 +818,7 @@ async function firstTimeDonorsReport(organizationId: string, options: DonorLibra
       donorId: donor.id,
       donorName: donorName(donor),
       email: donor.email,
+      address: donorAddress(donor),
       firstGiftDate: iso(donor.firstGiftDate),
       firstGiftAmount: donor.lastGiftDate?.getTime() === donor.firstGiftDate?.getTime() ? dollars(cents(donor.lastGiftAmount)) : null,
       lifetimeGiving: dollars(cents(donor.totalLifetimeGiving)),
@@ -780,6 +831,7 @@ async function firstTimeDonorsReport(organizationId: string, options: DonorLibra
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "firstGiftDate", label: "First gift", type: "date" },
       { key: "firstGiftAmount", label: "Only gift amount", type: "currency" },
       { key: "lifetimeGiving", label: "Lifetime giving", type: "currency" },
@@ -809,6 +861,7 @@ async function lapsedDonorsReport(organizationId: string, options: DonorLibraryR
       donorId: donor.donorId,
       donorName: donor.donorName,
       email: donor.email,
+      address: donor.address,
       priorYearGiving: dollars(donor.totalCents),
       priorYearGifts: donor.giftCount,
       lastGiftDate: donor.lastGiftDate,
@@ -821,6 +874,7 @@ async function lapsedDonorsReport(organizationId: string, options: DonorLibraryR
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "priorYearGiving", label: "Prior-year giving", type: "currency" },
       { key: "priorYearGifts", label: "Prior-year gifts", type: "number" },
       { key: "lastGiftDate", label: "Last gift", type: "date" },
@@ -830,19 +884,85 @@ async function lapsedDonorsReport(organizationId: string, options: DonorLibraryR
   };
 }
 
+async function lapsedDonorHistoryReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
+  const donors = await donorGivingRows(organizationId);
+  const fromYear = Math.min(options.lapseFromYear, options.lapseThroughYear);
+  const throughYear = Math.max(options.lapseFromYear, options.lapseThroughYear);
+  const rangeStart = selectedYearRange(options, fromYear).gte;
+  const rangeEnd = selectedYearRange(options, throughYear).lt;
+  const notSinceStart = selectedYearRange(options, options.lapseNotSinceYear).gte;
+  const filtered = donors.filter((donor) => {
+    const lastGift = new Date(donor.lastGiftDate);
+    if (options.lapseMode === "lastGiftRange") return lastGift >= rangeStart && lastGift < rangeEnd;
+    if (options.lapseMode === "notSince") return lastGift < notSinceStart;
+    return donor.donorStatus === "LAPSED";
+  });
+  const rows = filtered
+    .sort((a, b) => new Date(a.lastGiftDate).getTime() - new Date(b.lastGiftDate).getTime() || b.totalCents - a.totalCents)
+    .map((donor) => ({
+      donorId: donor.donorId,
+      donorName: donor.donorName,
+      email: donor.email,
+      address: donor.address,
+      donorStatus: donor.donorStatus.replace(/_/g, " "),
+      lifetimeGiving: dollars(donor.totalCents),
+      giftCount: donor.giftCount,
+      firstGiftDate: donor.firstGiftDate,
+      lastGiftDate: donor.lastGiftDate,
+      largestGift: dollars(donor.largestGiftCents),
+    }));
+  const description = options.lapseMode === "lastGiftRange"
+    ? `Donors whose last completed gift falls from ${fromYear} through ${throughYear}, with all completed giving history included.`
+    : options.lapseMode === "notSince"
+      ? `Donors with completed giving history but no completed gift since ${options.lapseNotSinceYear}.`
+      : "Every donor currently marked Lapsed, with lifetime completed-giving history.";
+  const reportPeriod = options.lapseMode === "lastGiftRange"
+    ? { from: rangeStart.toISOString(), through: new Date(rangeEnd.getTime() - 1).toISOString(), label: `${fromYear}–${throughYear} last gift` }
+    : options.lapseMode === "notSince"
+      ? { from: new Date(0).toISOString(), through: new Date(notSinceStart.getTime() - 1).toISOString(), label: `No gift since ${options.lapseNotSinceYear}` }
+      : null;
+  return {
+    ...emptyReport("lapsed-donor-history", "Lapsed donor history", description, options),
+    period: reportPeriod,
+    summary: [
+      { label: "Lapsed donors", value: rows.length, type: "number" },
+      { label: "Lifetime giving", value: rows.reduce((sum, row) => sum + row.lifetimeGiving, 0), type: "currency" },
+      { label: "Completed gifts", value: rows.reduce((sum, row) => sum + row.giftCount, 0), type: "number" },
+    ],
+    columns: [
+      { key: "donorName", label: "Donor", linkToDonor: true },
+      { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
+      { key: "donorStatus", label: "Stored status" },
+      { key: "lifetimeGiving", label: "Lifetime giving", type: "currency" },
+      { key: "giftCount", label: "All gifts", type: "number" },
+      { key: "firstGiftDate", label: "First gift", type: "date" },
+      { key: "lastGiftDate", label: "Last gift", type: "date" },
+      { key: "largestGift", label: "Largest gift", type: "currency" },
+    ],
+    rows,
+    notices: [
+      options.lapseMode === "all"
+        ? "All mode uses the donor file's stored LAPSED status. Range modes use completed gift history and also show the stored status for review."
+        : "Range modes are based on the latest completed gift in the full database history, not only the displayed years.",
+    ],
+  };
+}
+
 async function neverGivenReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
   const donors = await prisma.constituent.findMany({
     where: {
       organizationId,
       donations: { none: { status: "COMPLETED" } },
     },
-    select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true, phone: true, createdAt: true, donorStatus: true },
+    select: { id: true, firstName: true, lastName: true, displayName: true, organizationName: true, email: true, phone: true, addressLine1: true, addressLine2: true, city: true, state: true, zip: true, createdAt: true, donorStatus: true },
     orderBy: { createdAt: "desc" },
   });
   const rows = donors.map((donor) => ({
     donorId: donor.id,
     donorName: donorName(donor),
     email: donor.email,
+    address: donorAddress(donor),
     phone: donor.phone,
     donorStatus: donor.donorStatus.replace(/_/g, " "),
     fileCreated: donor.createdAt.toISOString(),
@@ -854,6 +974,7 @@ async function neverGivenReport(organizationId: string, options: DonorLibraryRep
     columns: [
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "phone", label: "Phone" },
       { key: "donorStatus", label: "Donor status" },
       { key: "fileCreated", label: "File created", type: "date" },
@@ -873,6 +994,7 @@ async function topDonorsReport(organizationId: string, options: DonorLibraryRepo
       donorId: donor.donorId,
       donorName: donor.donorName,
       email: donor.email,
+      address: donor.address,
       totalGiving: dollars(donor.totalCents),
       giftCount: donor.giftCount,
       largestGift: dollars(donor.largestGiftCents),
@@ -888,6 +1010,7 @@ async function topDonorsReport(organizationId: string, options: DonorLibraryRepo
       { key: "rank", label: "Rank", type: "number" },
       { key: "donorName", label: "Donor", linkToDonor: true },
       { key: "email", label: "Email" },
+      { key: "address", label: "Street address" },
       { key: "totalGiving", label: "Total giving", type: "currency" },
       { key: "giftCount", label: "Gifts", type: "number" },
       { key: "largestGift", label: "Largest gift", type: "currency" },
@@ -999,9 +1122,9 @@ async function crmPerformanceScorecardReport(organizationId: string, options: Do
 async function recurringGivingReport(organizationId: string, options: DonorLibraryReportOptions): Promise<DonorLibraryReport> {
   const donations = await prisma.donation.findMany({ where: baseDonationWhere(organizationId, options), select: donationSelection, orderBy: { date: "desc" } });
   const recurring = donations.filter((donation) => donation.isRecurring);
-  const byDonor = new Map<string, { donorId: string; donorName: string; email: string | null; giftCount: number; totalCents: number; lastGiftDate: string }>();
+  const byDonor = new Map<string, { donorId: string; donorName: string; email: string | null; address: string | null; giftCount: number; totalCents: number; lastGiftDate: string }>();
   for (const donation of recurring) {
-    const row = byDonor.get(donation.constituent.id) ?? { donorId: donation.constituent.id, donorName: donorName(donation.constituent), email: donation.constituent.email, giftCount: 0, totalCents: 0, lastGiftDate: donation.date.toISOString() };
+    const row = byDonor.get(donation.constituent.id) ?? { donorId: donation.constituent.id, donorName: donorName(donation.constituent), email: donation.constituent.email, address: donorAddress(donation.constituent), giftCount: 0, totalCents: 0, lastGiftDate: donation.date.toISOString() };
     row.giftCount += 1;
     row.totalCents += cents(donation.amount);
     if (donation.date.toISOString() > row.lastGiftDate) row.lastGiftDate = donation.date.toISOString();
@@ -1011,7 +1134,7 @@ async function recurringGivingReport(organizationId: string, options: DonorLibra
   return {
     ...emptyReport("recurring-giving", "Recurring giving", "Donors and gift activity marked recurring in the selected date range.", options),
     summary: [{ label: "Recurring gifts", value: recurring.length, type: "number" }, { label: "Recurring giving", value: dollars(recurring.reduce((sum, donation) => sum + cents(donation.amount), 0)), type: "currency" }, { label: "Recurring donors", value: rows.length, type: "number" }],
-    columns: [{ key: "donorName", label: "Donor", linkToDonor: true }, { key: "email", label: "Email" }, { key: "giftCount", label: "Recurring gifts", type: "number" }, { key: "totalAmount", label: "Recurring giving", type: "currency" }, { key: "lastGiftDate", label: "Last gift", type: "date" }],
+    columns: [{ key: "donorName", label: "Donor", linkToDonor: true }, { key: "email", label: "Email" }, { key: "address", label: "Street address" }, { key: "giftCount", label: "Recurring gifts", type: "number" }, { key: "totalAmount", label: "Recurring giving", type: "currency" }, { key: "lastGiftDate", label: "Last gift", type: "date" }],
     rows,
     notices: ["Recurring status reflects the donation record flag and does not predict future gifts."],
   };
@@ -1064,6 +1187,7 @@ export async function buildDonorLibraryReport(
     case "donor-notes": return donorNotesReport(organizationId, options);
     case "first-time-donors": return firstTimeDonorsReport(organizationId, options);
     case "lapsed-donors": return lapsedDonorsReport(organizationId, options);
+    case "lapsed-donor-history": return lapsedDonorHistoryReport(organizationId, options);
     case "never-given": return neverGivenReport(organizationId, options);
     case "top-donors": return topDonorsReport(organizationId, options);
     case "payment-method-summary": return paymentMethodSummaryReport(organizationId, options);

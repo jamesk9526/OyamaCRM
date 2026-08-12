@@ -3730,6 +3730,9 @@ function GenerateWorkspace() {
   );
   const [query, setQuery] = useState("");
   const [recipientPickerOpen, setRecipientPickerOpen] = useState(false);
+  const [recipientReviewOpen, setRecipientReviewOpen] = useState(false);
+  const [recipientReviewSearch, setRecipientReviewSearch] = useState("");
+  const [excludedRecipientIds, setExcludedRecipientIds] = useState<string[]>([]);
   const [pickerTab, setPickerTab] = useState<"individuals" | "lists" | "segments" | "filters">("individuals");
   const [pickerSearch, setPickerSearch] = useState("");
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
@@ -3755,6 +3758,7 @@ function GenerateWorkspace() {
   const [pdfViewerFileName, setPdfViewerFileName] = useState("generated-letter.pdf");
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [previewBulkDownload, setPreviewBulkDownload] = useState<"individual" | "batch" | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfFileName, setPreviewPdfFileName] = useState("letter-preview.pdf");
@@ -3997,6 +4001,7 @@ function GenerateWorkspace() {
     }
 
     setSelectedRecipientIds(finalIds);
+    setExcludedRecipientIds([]);
     setConstituentId(finalIds.length === 1 ? finalIds[0] : "");
     setRecipientPickerOpen(false);
     setNotice(`${finalIds.length} recipients selected for generation.`);
@@ -4194,6 +4199,43 @@ function GenerateWorkspace() {
     }
   }
 
+  async function downloadPreviewBundle(output: "individual" | "batch") {
+    if (includedRecipientIds.length === 0) {
+      setPdfError("Include at least one recipient before downloading the batch preview.");
+      return;
+    }
+    setPdfLoading(true);
+    setPreviewBulkDownload(output);
+    setPdfError(null);
+    try {
+      const pdf = await requestPdfBlobUrl(
+        `/api/letters/generated/preview-pdf-batch${output === "individual" ? "?format=zip" : ""}`,
+        {
+          templateId,
+          constituentIds: includedRecipientIds,
+          ...buildDonationContextPayload(),
+          ...buildMergeContextPayload(),
+        },
+        output === "individual"
+          ? `letter_previews_${new Date().toISOString().slice(0, 10)}.zip`
+          : `letters_batch_preview_${new Date().toISOString().slice(0, 10)}.pdf`,
+      );
+      const download = document.createElement("a");
+      download.href = pdf.objectUrl;
+      download.download = pdf.fileName;
+      document.body.appendChild(download);
+      download.click();
+      download.remove();
+      setTimeout(() => URL.revokeObjectURL(pdf.objectUrl), 30_000);
+      setNotice(`${output === "individual" ? "Individual preview PDFs" : "Batch preview PDF"} downloaded for ${includedRecipientIds.length} recipient${includedRecipientIds.length === 1 ? "" : "s"}.`);
+    } catch (requestError) {
+      setPdfError(errorMessage(requestError, "Failed to download the batch preview PDF."));
+    } finally {
+      setPdfLoading(false);
+      setPreviewBulkDownload(null);
+    }
+  }
+
   async function loadProductionPreviewPdf(previewRecipientId: string) {
     setPreviewPdfLoading(true);
     setPreviewPdfError(null);
@@ -4238,7 +4280,7 @@ function GenerateWorkspace() {
 
   async function runPreview(targetRecipientId?: string) {
     if (!templateId) return setError("Choose a template first.");
-    const previewRecipientId = targetRecipientId || constituentId || selectedRecipientIds[0] || pendingRecipientIds[0];
+    const previewRecipientId = targetRecipientId || includedRecipientIds[0];
     if (!previewRecipientId) return setError("Pick at least one recipient before previewing.");
     setWorking(true);
     setError(null);
@@ -4269,7 +4311,7 @@ function GenerateWorkspace() {
     if (selectedTemplate?.status !== "ACTIVE") {
       return setError("Only ACTIVE templates can be generated. Publish this template first.");
     }
-    const targetRecipientId = constituentId || selectedRecipientIds[0] || pendingRecipientIds[0];
+    const targetRecipientId = includedRecipientIds.includes(constituentId) ? constituentId : includedRecipientIds[0];
     if (!targetRecipientId) return setError("Pick at least one recipient before generating a letter.");
     setWorking(true);
     setError(null);
@@ -4306,7 +4348,7 @@ function GenerateWorkspace() {
     if (!dryRun && selectedTemplate?.status !== "ACTIVE") {
       return setError("Only ACTIVE templates can be generated. Publish this template first.");
     }
-    const runtimeRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
+    const runtimeRecipientIds = includedRecipientIds;
     setWorking(true);
     setError(null);
     try {
@@ -4342,26 +4384,33 @@ function GenerateWorkspace() {
   }
 
   const selectedTemplate = templates.find((template) => template.id === templateId) ?? null;
-  const selectedDirectRecipientId = constituentId || activeRecipientIds[0] || pendingRecipientIds[0] || "";
-  const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   const effectiveRecipientIds = activeRecipientIds.length > 0 ? activeRecipientIds : pendingRecipientIds;
+  const excludedRecipientIdSet = new Set(excludedRecipientIds);
+  const includedRecipientIds = effectiveRecipientIds.filter((id) => !excludedRecipientIdSet.has(id));
+  const selectedDirectRecipientId = includedRecipientIds.includes(constituentId) ? constituentId : includedRecipientIds[0] || "";
+  const selectedConstituent = constituents.find((row) => row.id === selectedDirectRecipientId) ?? null;
   useEffect(() => {
     if (modeParam === "single" || modeParam === "batch") return;
-    if (effectiveRecipientIds.length === 1) {
+    if (includedRecipientIds.length === 1) {
       setGenerateMode("single");
-    } else if (effectiveRecipientIds.length > 1) {
+    } else if (includedRecipientIds.length > 1) {
       setGenerateMode("batch");
     }
-  }, [effectiveRecipientIds.length, modeParam]);
+  }, [includedRecipientIds.length, modeParam]);
   const constituentById = new Map(constituents.map((row) => [row.id, row]));
-  const sourceRecipients = effectiveRecipientIds
+  const audienceRecipients = effectiveRecipientIds
     .map((id) => constituentById.get(id))
     .filter((row): row is ConstituentLookup => Boolean(row));
+  const sourceRecipients = audienceRecipients.filter((row) => !excludedRecipientIdSet.has(row.id));
   const searchedRecipients = sourceRecipients.filter((row) => {
     if (!query.trim()) return true;
     const needle = query.trim().toLowerCase();
     return recipientSearchText(row, formatAddress(row)).includes(needle);
   });
+  const recipientReviewNeedle = recipientReviewSearch.trim().toLowerCase();
+  const recipientReviewRows = audienceRecipients.filter((row) => (
+    !recipientReviewNeedle || recipientSearchText(row, formatAddress(row)).includes(recipientReviewNeedle)
+  ));
   const missingRequired = sourceRecipients.filter((row) => !hasRecipientName(row)).length;
   const totalRecipients = sourceRecipients.length;
   const missingAddress = sourceRecipients.filter((row) => !hasAddress(row)).length;
@@ -4417,8 +4466,8 @@ function GenerateWorkspace() {
         : "Most recent donation (per recipient)";
   const qualifyingDonationRecipients = donationMode === "none" ? 0 : totalRecipients;
   const generatedForTemplate = generated.filter((row) => row.templateId === templateId);
-  const generatedForAudience = activeRecipientIds.length > 0
-    ? generatedForTemplate.filter((row) => (row.constituentId ? activeRecipientIds.includes(row.constituentId) : false))
+  const generatedForAudience = includedRecipientIds.length > 0
+    ? generatedForTemplate.filter((row) => (row.constituentId ? includedRecipientIds.includes(row.constituentId) : false))
     : generatedForTemplate;
   const batchPdfIds = (
     batch?.generatedIds
@@ -4438,10 +4487,10 @@ function GenerateWorkspace() {
     || pendingRecipientIds.length > 0
     || activeRecipientIds.length > 0;
   const canOpenRecipientsStep = Boolean(templateId);
-  const canAdvanceFromSelection = Boolean(templateId && hasRecipientIntent);
+  const canAdvanceFromSelection = Boolean(templateId && hasRecipientIntent && includedRecipientIds.length > 0);
   const generationBlockedByTemplate = selectedTemplate ? selectedTemplate.status !== "ACTIVE" : false;
-  const previewRecipientPool = sourceRecipients.length > 0 ? sourceRecipients : constituents;
-  const previewFocusId = constituentId || previewRecipientPool[0]?.id || "";
+  const previewRecipientPool = sourceRecipients;
+  const previewFocusId = includedRecipientIds.includes(constituentId) ? constituentId : previewRecipientPool[0]?.id || "";
   const previewFocusIndex = Math.max(previewRecipientPool.findIndex((row) => row.id === previewFocusId), 0);
   const previewFocus = previewRecipientPool[previewFocusIndex] ?? null;
   const previewMissingFieldCount = preview?.missingFields?.length ?? 0;
@@ -4475,6 +4524,21 @@ function GenerateWorkspace() {
     setConstituentId(target.id);
     if (wizardStep === 4) {
       void runPreview(target.id);
+    }
+  }
+
+  function setRecipientIncluded(recipientId: string, included: boolean) {
+    setExcludedRecipientIds((previous) => included
+      ? previous.filter((id) => id !== recipientId)
+      : previous.includes(recipientId) ? previous : [...previous, recipientId]);
+  }
+
+  function closeRecipientReview() {
+    setRecipientReviewOpen(false);
+    const nextFocus = sourceRecipients.find((row) => row.id === constituentId) ?? sourceRecipients[0];
+    if (nextFocus && nextFocus.id !== constituentId) {
+      setConstituentId(nextFocus.id);
+      if (wizardStep === 4) void runPreview(nextFocus.id);
     }
   }
 
@@ -4876,6 +4940,7 @@ function GenerateWorkspace() {
                   setSelectedListIds([]);
                   setSelectedTagNames([]);
                   setSelectedDonorStatuses([]);
+                  setExcludedRecipientIds([]);
                   setConstituentId("");
                 }}
               >
@@ -5069,6 +5134,13 @@ function GenerateWorkspace() {
                 <SummaryNumber label="Missing Address" value={String(missingAddress)} tone="red" />
                 <SummaryNumber label="Missing Required Data" value={String(missingRequired)} tone="red" />
               </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold">{totalRecipients}</span> included for rendering
+                  {excludedRecipientIds.length > 0 ? <span> · <span className="font-semibold text-amber-800">{excludedRecipientIds.length}</span> excluded</span> : null}
+                </p>
+                <Button onClick={() => setRecipientReviewOpen(true)}>Review Recipient List</Button>
+              </div>
               <div className="mt-4 divide-y divide-slate-200 rounded-md border border-slate-200">
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Template</span><span className="text-slate-900">{selectedTemplate?.name || "-"}</span></div>
                 <div className="flex items-center justify-between px-3 py-2 text-sm"><span className="font-semibold text-slate-700">Recipient Source</span><span className="text-slate-900">{selectedSourceLabel}</span></div>
@@ -5142,13 +5214,13 @@ function GenerateWorkspace() {
               <Button onClick={() => previewFocus ? void loadProductionPreviewPdf(previewFocus.id) : undefined} disabled={!previewFocus || previewPdfLoading}>{previewPdfLoading ? "Preparing preview..." : "Prepare PDF Preview"}</Button>
             )}
             {previewPdfUrl ? (
-              <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-700">More preview options</summary>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <a href={previewPdfUrl} download={previewPdfFileName} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Download preview PDF</a>
-                  <Button onClick={() => void runPreview()} disabled={working}>Refresh preview data</Button>
-                </div>
-              </details>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <a href={previewPdfUrl} download={previewPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Download this PDF</a>
+                <Button onClick={() => void downloadPreviewBundle("individual")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "individual" ? "Preparing files..." : `Download all PDFs (${includedRecipientIds.length})`}</Button>
+                <Button onClick={() => void downloadPreviewBundle("batch")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "batch" ? "Preparing batch..." : `Download batch PDF (${includedRecipientIds.length})`}</Button>
+                <Button onClick={() => setRecipientReviewOpen(true)}>Review Recipient List</Button>
+                <Button onClick={() => void runPreview(previewFocus?.id)} disabled={working || !previewFocus}>Refresh Preview</Button>
+              </div>
             ) : null}
           </aside>
         </section>
@@ -5285,6 +5357,87 @@ function GenerateWorkspace() {
             </div>
           </aside>
         </section>
+      ) : null}
+
+      {recipientReviewOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5">
+          <button
+            type="button"
+            aria-label="Close recipient review"
+            className="absolute inset-0 bg-slate-950/55"
+            onClick={closeRecipientReview}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recipient-review-title"
+            className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl"
+          >
+            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+              <div>
+                <h2 id="recipient-review-title" className="text-lg font-semibold text-slate-900">Recipients to Render</h2>
+                <p className="text-sm text-slate-600">Clear a row to exclude that recipient from previews and generation.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusPill label={`${includedRecipientIds.length} included`} tone={includedRecipientIds.length > 0 ? "green" : "red"} />
+                <StatusPill label={`${excludedRecipientIds.length} excluded`} tone={excludedRecipientIds.length > 0 ? "orange" : "slate"} />
+              </div>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-[220px] flex-1 sm:max-w-md">
+                  <SearchBox value={recipientReviewSearch} onChange={setRecipientReviewSearch} placeholder="Search name, email, or address..." />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setExcludedRecipientIds((previous) => previous.filter((id) => !recipientReviewRows.some((row) => row.id === id)))}>Include Visible</button>
+                  <button type="button" className="h-9 rounded border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setExcludedRecipientIds((previous) => [...new Set([...previous, ...recipientReviewRows.map((row) => row.id)])])}>Exclude Visible</button>
+                </div>
+              </div>
+              {includedRecipientIds.length === 0 ? <Alert tone="amber">No recipients are included. Include at least one row before downloading or generating.</Alert> : null}
+              <div className="min-h-0 flex-1 overflow-auto rounded-md border border-slate-300">
+                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                  <thead className="sticky top-0 z-10 bg-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-[0_1px_0_#cbd5e1]">
+                    <tr>
+                      <th className="w-24 border-r border-slate-300 px-3 py-2">Render</th>
+                      <th className="border-r border-slate-300 px-3 py-2">Recipient</th>
+                      <th className="border-r border-slate-300 px-3 py-2">Address</th>
+                      <th className="w-36 border-r border-slate-300 px-3 py-2">Donor Status</th>
+                      <th className="w-36 px-3 py-2">Data Check</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {recipientReviewRows.map((row, index) => {
+                      const included = !excludedRecipientIdSet.has(row.id);
+                      const dataStatus = row.doNotMail ? "Do Not Mail" : !hasRecipientName(row) ? "Missing name" : !hasAddress(row) ? "Missing address" : "Ready";
+                      return (
+                        <tr key={row.id} className={included ? (index % 2 === 0 ? "bg-white" : "bg-slate-50/60") : "bg-amber-50 text-slate-500"}>
+                          <td className="border-r border-slate-200 px-3 py-2">
+                            <label className="inline-flex cursor-pointer items-center gap-2 font-semibold">
+                              <input type="checkbox" checked={included} onChange={(event) => setRecipientIncluded(row.id, event.target.checked)} aria-label={`Render letter for ${personName(row)}`} />
+                              {included ? "Yes" : "No"}
+                            </label>
+                          </td>
+                          <td className="border-r border-slate-200 px-3 py-2">
+                            <p className="font-semibold text-slate-900">{personName(row)}</p>
+                            <p className="text-xs text-slate-500">{row.email || "No email"}</p>
+                          </td>
+                          <td className="border-r border-slate-200 px-3 py-2 text-slate-700">{formatAddress(row) || "No address"}</td>
+                          <td className="border-r border-slate-200 px-3 py-2">{row.donorStatus?.replaceAll("_", " ") || "Unknown"}</td>
+                          <td className="px-3 py-2"><StatusPill label={dataStatus} tone={dataStatus === "Ready" ? "green" : dataStatus === "Missing address" ? "orange" : "red"} /></td>
+                        </tr>
+                      );
+                    })}
+                    {recipientReviewRows.length === 0 ? <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-500">No recipients match this search.</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+              <p className="text-xs text-slate-600">Changes apply to the preview batch and the final Generate step.</p>
+              <Button onClick={closeRecipientReview} tone="primary" disabled={includedRecipientIds.length === 0}>Apply Recipient List</Button>
+            </footer>
+          </section>
+        </div>
       ) : null}
 
       {pdfViewerOpen && pdfViewerUrl ? (

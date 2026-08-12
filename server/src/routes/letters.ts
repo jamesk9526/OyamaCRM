@@ -2685,6 +2685,68 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
   return Buffer.from(pdfBytes);
 }
 
+/** Builds a standards-compatible uncompressed ZIP archive for already-compressed PDF files. */
+function buildStoredZip(entries: Array<{ name: string; data: Buffer }>, timestamp = new Date()): Buffer {
+  const crcTable = Array.from({ length: 256 }, (_, index) => {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) value = (value & 1) ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    return value >>> 0;
+  });
+  const crc32 = (data: Buffer) => {
+    let crc = 0xffffffff;
+    for (const byte of data) crc = crcTable[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const year = Math.max(1980, timestamp.getFullYear());
+  const dosTime = (timestamp.getHours() << 11) | (timestamp.getMinutes() << 5) | Math.floor(timestamp.getSeconds() / 2);
+  const dosDate = ((year - 1980) << 9) | ((timestamp.getMonth() + 1) << 5) | timestamp.getDate();
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const checksum = crc32(entry.data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(dosTime, 10);
+    local.writeUInt16LE(dosDate, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(entry.data.length, 18);
+    local.writeUInt32LE(entry.data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    localParts.push(local, name, entry.data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(dosTime, 12);
+    central.writeUInt16LE(dosDate, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(entry.data.length, 20);
+    central.writeUInt32LE(entry.data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + entry.data.length;
+  }
+
+  const centralSize = centralParts.reduce((size, part) => size + part.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, ...centralParts, end]);
+}
+
 /** Evaluates one permission key with explicit user override support. */
 async function hasPermission(req: { user?: { sub?: string; role?: string } }, permission: "letters.view_sensitive_merge_data"): Promise<boolean> {
   const userId = req.user?.sub;
@@ -5252,6 +5314,158 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
         message,
       },
     });
+  }
+});
+
+/** POST /api/letters/generated/preview-pdf-batch — Renders selected preview recipients into one PDF without saving letters. */
+router.post("/generated/preview-pdf-batch", requirePermission("letters.generate"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const templateId = typeof req.body?.templateId === "string" ? req.body.templateId : "";
+  const requestedIds = Array.isArray(req.body?.constituentIds)
+    ? (req.body.constituentIds as unknown[]).map((value) => String(value).trim()).filter(Boolean)
+    : [];
+  const constituentIds = [...new Set(requestedIds)];
+  if (!templateId) {
+    res.status(400).json({ error: { code: "TEMPLATE_REQUIRED", message: "templateId is required." } });
+    return;
+  }
+  if (constituentIds.length === 0) {
+    res.status(400).json({ error: { code: "CONSTITUENT_IDS_REQUIRED", message: "Select at least one recipient for the batch preview." } });
+    return;
+  }
+  if (constituentIds.length > 500) {
+    res.status(400).json({ error: { code: "TOO_MANY_RECIPIENTS", message: "Batch PDF preview supports up to 500 recipients per request." } });
+    return;
+  }
+
+  const template = await getTemplateForGeneration(organizationId, templateId, { activeOnly: true });
+  if (!template) {
+    res.status(404).json({ error: { code: "TEMPLATE_NOT_ACTIVE", message: "Template not found or not ACTIVE." } });
+    return;
+  }
+
+  const [templateChrome, constituents, branding, defaultPresets] = await Promise.all([
+    prisma.letterTemplate.findFirst({
+      where: { id: templateId, organizationId, status: "ACTIVE" },
+      select: { headerPreset: true, footerPreset: true, signatureBlock: true, printLayoutJson: true },
+    }),
+    prisma.constituent.findMany({
+      where: { id: { in: constituentIds }, organizationId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        displayName: true,
+        organizationName: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        zip: true,
+      },
+    }),
+    getLetterPdfBrandingContext(organizationId),
+    getDefaultLetterPdfPresets(organizationId),
+  ]);
+  const constituentById = new Map(constituents.map((row) => [row.id, row]));
+  const orderedConstituents = constituentIds.map((id) => constituentById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
+  if (orderedConstituents.length !== constituentIds.length) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "One or more selected preview recipients were not found." } });
+    return;
+  }
+
+  const year = typeof req.body?.year === "number" ? req.body.year : Number.parseInt(String(req.body?.year ?? ""), 10);
+  const donationMode = parseEnum(req.body?.donationMode, LETTER_DONATION_MODES) ?? (req.body?.donationId ? "specific" : "none");
+  const selectedDonationIds = parseDonationIds(req.body?.donationIds);
+  const selectedDonationIdByConstituent = donationMode === "selected"
+    ? await buildSelectedDonationIdByConstituent({ organizationId, donationIds: selectedDonationIds })
+    : undefined;
+  const donationWhere = buildDonationContextFilter(req.body);
+  const generatedAt = new Date();
+
+  try {
+    const items = await Promise.all(orderedConstituents.map(async (constituent) => {
+      const donationId = await resolveDonationIdForRecipient({
+        organizationId,
+        constituentId: constituent.id,
+        donationMode,
+        specificDonationId: typeof req.body?.donationId === "string" ? req.body.donationId : undefined,
+        selectedDonationIds,
+        selectedDonationIdByConstituent,
+        donationWhere,
+      });
+      const merged = await resolveLetterMergeContext({
+        organizationId,
+        template,
+        constituentId: constituent.id,
+        donationId,
+        campaignId: typeof req.body?.campaignId === "string" ? req.body.campaignId : undefined,
+        eventId: typeof req.body?.eventId === "string" ? req.body.eventId : undefined,
+        year: Number.isFinite(year) ? year : undefined,
+        actorUserId: userId,
+      });
+      const constituentName = [constituent.firstName, constituent.lastName].filter(Boolean).join(" ").trim()
+        || constituent.displayName?.trim()
+        || constituent.organizationName?.trim()
+        || "Preview Recipient";
+      return {
+        templateName: template.name,
+        subject: recipientFacingLetterSubject(merged.mergedPrintSubject || template.printSubject),
+        constituentName,
+        recipient: {
+          fullName: constituentName,
+          addressLine1: constituent.addressLine1 ?? "",
+          addressLine2: constituent.addressLine2 ?? "",
+          city: constituent.city ?? "",
+          state: constituent.state ?? "",
+          zip: constituent.zip ?? "",
+        },
+        generatedAt,
+        mergedPrintBody: merged.mergedPrintBody || "",
+        branding,
+        printLayout: templateChrome?.printLayoutJson ?? template.printLayoutJson,
+        presets: {
+          headerPreset: defaultPresets.headerPreset ?? templateChrome?.headerPreset,
+          footerPreset: defaultPresets.footerPreset ?? templateChrome?.footerPreset,
+          signatureBlock: defaultPresets.signatureBlock ?? templateChrome?.signatureBlock,
+        },
+      };
+    }));
+    const timestamp = generatedAt.toISOString().slice(0, 10);
+    if (req.query.format === "zip") {
+      const pdfs = await Promise.all(items.map(async (item, index) => ({
+        name: `${String(index + 1).padStart(3, "0")}_${sanitizePdfFilename(item.constituentName || "recipient")}.pdf`,
+        data: await renderGeneratedLetterPdf(item),
+      })));
+      const zipBuffer = buildStoredZip(pdfs, generatedAt);
+      const fileName = `${sanitizePdfFilename(template.name)}_individual_previews_${timestamp}.zip`;
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).send(zipBuffer);
+      return;
+    }
+    const pdfBuffer = await renderGeneratedLettersBatchPdf(items);
+    const fileName = `${sanitizePdfFilename(template.name)}_batch_preview_${timestamp}.pdf`;
+    const dispositionType = req.query.preview === "1" || req.query.inline === "1" ? "inline" : "attachment";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `${dispositionType}; filename="${fileName}"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(pdfBuffer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown batch preview PDF failure";
+    console.error("[letters] Batch preview PDF failed", { templateId, constituentIds, organizationId, error: message });
+    if (error instanceof LetterPdfLayoutError) {
+      res.status(422).json({ error: { code: error.code, message } });
+      return;
+    }
+    res.status(500).json({ error: { code: "PDF_PREVIEW_FAILED", message } });
   }
 });
 

@@ -1,6 +1,17 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-11 (Event communications, reservation self-service, fundraising, hosts, and Trivia live controls)_
+_Last focused audit: 2026-08-12 (letter batch preview and donor report contact/lapse coverage)_
+
+## 2026-08-12 Letter Preview and Donor Reporting Pass
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Pre-generation letter downloads | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `POST /api/letters/generated/preview-pdf-batch` | Preview exposes the current PDF, a ZIP containing one production PDF per included recipient, and one combined batch PDF. These paths do not create generated-letter records. |
+| Recipient render review | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | A searchable, viewport-safe spreadsheet modal can include/exclude recipients. The same included IDs drive preview navigation, preview batch download, validation, and final generation. |
+| Donor report contact columns | Working | `server/src/services/donor-report-library.ts` | Every donor-level report row and its CSV includes Email and Street address when stored. Aggregate-only report rows remain aggregate because they do not represent one donor. |
+| Full-history lapsed donor report | Working | `app/components/donor-reports/DonorReportsSpreadsheet.tsx`, `server/src/services/donor-report-library.ts` | Lapsed Donor History supports all donor files marked Lapsed, an inclusive last-gift year range, and no-completed-gift-since year. Results summarize all completed gift history and retain the existing SYBUNTY report separately. |
+
+Validation: web/server typechecks pass; focused letter and report source suites pass. Database-backed report smoke coverage could not run because the local MySQL service at `localhost:3306` was unavailable.
 
 ## 2026-08-11 Event Communications and Trivia Live Completion Pass
 

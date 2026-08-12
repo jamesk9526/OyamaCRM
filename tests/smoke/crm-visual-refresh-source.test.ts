@@ -259,6 +259,7 @@ describe("Donor CRM visual refresh foundation", () => {
     const donationsPage = read("app/donations/page.tsx");
     const donationsRoute = read("server/src/routes/donations.ts");
     const reportsWorkbook = read("app/components/donor-reports/DonorReportsSpreadsheet.tsx");
+    const reportLibrary = read("server/src/services/donor-report-library.ts");
 
     expect(donationsPage).toContain("Mark date range thanked");
     expect(donationsPage).toContain("/api/donations/acknowledgments/bulk");
@@ -269,6 +270,11 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(reportsWorkbook).toContain("/api/reports/library/${definition.key}");
     expect(reportsWorkbook).toContain("/api/reports/exports/library/${selected.key}.csv");
     expect(reportsWorkbook).toContain("comprehensive-donor-analysis");
+    expect(reportsWorkbook).toContain("lapsed-donor-history");
+    expect(reportsWorkbook).toContain("No completed gift since");
+    expect(reportLibrary).toContain('{ key: "address", label: "Street address" }');
+    expect(reportLibrary).toContain('case "lapsed-donor-history"');
+    expect(reportLibrary).toContain('options.lapseMode === "notSince"');
     expect(reportsWorkbook).toContain("handlePrint");
   });
 

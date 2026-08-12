@@ -169,9 +169,12 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Gift details");
     expect(workspace).toContain("Edit optional details");
     expect(workspace).toContain("Open Full PDF Preview");
-    expect(workspace).toContain("More preview options");
+    expect(workspace).toContain("Download this PDF");
+    expect(workspace).toContain("Download all PDFs");
+    expect(workspace).toContain("Download batch PDF");
+    expect(workspace).toContain("Recipients to Render");
     expect(workspace).toContain("Advanced generation tools");
-    expect(workspace).toContain('effectiveRecipientIds.length === 1');
+    expect(workspace).toContain('includedRecipientIds.length === 1');
     expect(workspace).toContain("Selected from the recipient count automatically");
     expect(workspace).toContain('wizardStep === 4 ? 2');
     expect(workspace).not.toContain("canOpenFinalStep");

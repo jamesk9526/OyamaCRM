@@ -1,6 +1,6 @@
 # OyamaLetters
 
-Last updated: May 27, 2026
+Last updated: August 12, 2026
 
 ## Current Workspace
 
@@ -28,6 +28,8 @@ Canonical routes:
 - Merged HTML preview from `POST /api/letters/generated/preview`.
 - Batch dry-run, generated document persistence, and generated-document activity logging through the existing `GeneratedLetter` model.
 - Server PDF generation and inline browser PDF preview from actual PDF blobs.
+- Pre-generation recipient review with searchable spreadsheet-style include/exclude controls shared by preview and final generation.
+- Pre-generation ZIP download with one PDF per included recipient and a combined batch PDF through `POST /api/letters/generated/preview-pdf-batch`; both use the production renderer without creating generated-letter records.
 - Download, print/open, and mark-printed actions for generated PDFs.
 
 ## Partial

@@ -41,6 +41,7 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("/api/letters/templates");
     expect(workspace).toContain("/api/letters/generated/preview");
     expect(workspace).toContain("/api/letters/generated/preview-pdf?preview=1&inline=1");
+    expect(workspace).toContain("/api/letters/generated/preview-pdf-batch");
     expect(workspace).toContain("/api/letters/generated/batch");
     expect(workspace).toContain("buildMergeContextPayload");
     expect(workspace).toContain('searchParams.get("campaignId")');
@@ -54,6 +55,9 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(lettersApi).toContain("sample-preview-recipient");
     expect(lettersApi).toContain("syntheticPreviewRecipient");
     expect(lettersApi).toContain("production-faithful preview PDF");
+    expect(lettersApi).toContain('router.post("/generated/preview-pdf-batch"');
+    expect(lettersApi).toContain('req.query.format === "zip"');
+    expect(lettersApi).toContain("buildStoredZip");
     expect(lettersApi).toContain("eventId,");
     expect(lettersApi).toContain("campaignId,");
     expect(workspace).not.toContain("fake");
