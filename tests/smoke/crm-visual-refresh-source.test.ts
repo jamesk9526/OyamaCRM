@@ -272,6 +272,9 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(reportsWorkbook).toContain("comprehensive-donor-analysis");
     expect(reportsWorkbook).toContain("lapsed-donor-history");
     expect(reportsWorkbook).toContain("No completed gift since");
+    expect(reportsWorkbook).toContain("Save as audience list");
+    expect(reportsWorkbook).toContain('apiFetch("/api/email-campaigns/lists"');
+    expect(reportsWorkbook).toContain("Open audience lists");
     expect(reportLibrary).toContain('{ key: "address", label: "Street address" }');
     expect(reportLibrary).toContain('case "lapsed-donor-history"');
     expect(reportLibrary).toContain('options.lapseMode === "notSince"');

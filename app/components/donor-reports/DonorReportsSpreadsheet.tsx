@@ -101,7 +101,7 @@ const REPORTS: ReportDefinition[] = [
   { key: "donor-notes", title: "Donor Notes", description: "A report of profile notes recorded on donor files.", source: "Donor files", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "first-time-donors", title: "First Time Donors", description: "Find donors whose first completed gift falls in the selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Donor reports" },
   { key: "lapsed-donors", title: "Lapsed Donors (SYBUNTY)", description: "Find donors who gave in the prior year but not in the selected year.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "year", group: "Donor reports" },
-  { key: "lapsed-donor-history", title: "Lapsed Donor History", description: "Find all stored lapsed donors, donors whose last gift falls in a selected year range, or donors who have not given since a selected year.", source: "All completed donation history + donor files", capabilities: "Grid, CSV, Print, Outreach", scope: "lapse", group: "Donor reports" },
+  { key: "lapsed-donor-history", title: "Lapsed Donor History", description: "Find all stored lapsed donors, donors whose last gift falls in a selected year range, or donors who have not given since a selected year.", source: "All completed donation history + donor files", capabilities: "Grid, CSV, Print, Outreach, Audience list", scope: "lapse", group: "Donor reports" },
   { key: "never-given", title: "Never Given Report", description: "List donor files with no completed donation record.", source: "Donor files + completed donations", capabilities: "Grid, CSV, Print", scope: "none", group: "Donor reports" },
   { key: "top-donors", title: "Top Donors", description: "Rank donors by completed giving within a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Donor reports", supportsLimit: true },
   { key: "payment-method-summary", title: "Payment Method Summary", description: "Compare gift volume, donor count, and giving by payment method.", source: "Completed donations", capabilities: "Grid, Visual, CSV, Print", scope: "date", group: "Gift reports" },
@@ -601,6 +601,57 @@ function ReportLoading() {
 
 function ReportOutput({ report, displayMode, onGenerateLetters }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void }) {
   const donorRowCount = report.rows.filter((row) => typeof row.donorId === "string").length;
+  const [showAudienceDialog, setShowAudienceDialog] = useState(false);
+  const [audienceName, setAudienceName] = useState("");
+  const [audienceDescription, setAudienceDescription] = useState("");
+  const [savingAudience, setSavingAudience] = useState(false);
+  const [audienceMessage, setAudienceMessage] = useState<string | null>(null);
+  const [audienceError, setAudienceError] = useState<string | null>(null);
+  const donorRows = report.rows.filter((row) => typeof row.donorId === "string");
+  const audienceDonorIds = Array.from(new Set(donorRows.map((row) => String(row.donorId))));
+  const audienceEmails = Array.from(new Set(donorRows
+    .filter((row) => typeof row.email === "string")
+    .map((row) => String(row.email).trim().toLowerCase())
+    .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))));
+
+  useEffect(() => {
+    if (!showAudienceDialog) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !savingAudience) setShowAudienceDialog(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [savingAudience, showAudienceDialog]);
+
+  function openAudienceDialog() {
+    setAudienceName(`${report.title}${report.period?.label ? ` — ${report.period.label}` : ""}`);
+    setAudienceDescription(`Saved from ${report.title}. ${report.description}`);
+    setAudienceError(null);
+    setShowAudienceDialog(true);
+  }
+
+  async function saveAudience() {
+    if (!audienceName.trim() || audienceDonorIds.length === 0) return;
+    setSavingAudience(true);
+    setAudienceError(null);
+    try {
+      await apiFetch("/api/email-campaigns/lists", {
+        method: "POST",
+        body: JSON.stringify({
+          name: audienceName.trim(),
+          description: audienceDescription.trim(),
+          recipientEmails: audienceEmails,
+        }),
+      });
+      setShowAudienceDialog(false);
+      setAudienceMessage(`Contacts Manager audience “${audienceName.trim()}” saved with ${audienceEmails.length.toLocaleString()} recipient email${audienceEmails.length === 1 ? "" : "s"}.`);
+    } catch (requestError) {
+      setAudienceError(requestError instanceof Error ? requestError.message : "Unable to save this audience.");
+    } finally {
+      setSavingAudience(false);
+    }
+  }
+
   return (
     <div className="space-y-4 p-4 sm:p-5">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
@@ -609,9 +660,11 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
         </div>
         <p className="text-xs text-slate-500">Generated {formatDateTime(report.generatedAt)}{report.period ? ` · ${report.period.label}` : ""}</p>
       </div>
-      {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Open the letter generation workspace with {donorRowCount.toLocaleString()} donor{donorRowCount === 1 ? "" : "s"} preselected.</p></div><button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div> : null}
+      {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Open letter generation with {donorRowCount.toLocaleString()} donors, or save its email-bearing donors for later.</p></div><div className="flex flex-wrap gap-2">{report.report === "lapsed-donor-history" ? <button type="button" onClick={openAudienceDialog} className="rounded-md border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Save as audience list</button> : null}<button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div></div> : null}
+      {audienceMessage ? <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span>{audienceMessage}</span><div className="flex items-center gap-3"><Link href="/contacts-manager/lists" className="font-semibold hover:underline">Open audience lists →</Link><button type="button" onClick={() => setAudienceMessage(null)} className="font-semibold hover:underline">Dismiss</button></div></div> : null}
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
       {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
+      {showAudienceDialog ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingAudience) setShowAudienceDialog(false); }}><section role="dialog" aria-modal="true" aria-labelledby="save-lapsed-audience-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl"><div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5"><div><h2 id="save-lapsed-audience-title" className="text-lg font-semibold text-slate-950">Save to Contacts Manager</h2><p className="mt-1 text-sm text-slate-600">Create a reusable audience list from this Lapsed Donor History result.</p></div><button type="button" onClick={() => setShowAudienceDialog(false)} disabled={savingAudience} aria-label="Close save audience dialog" className="rounded p-1 text-xl leading-none text-slate-500 hover:bg-slate-100 disabled:opacity-50">×</button></div><div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5"><div className="grid grid-cols-2 gap-2"><div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Report donors</p><p className="font-semibold tabular-nums text-slate-900">{audienceDonorIds.length.toLocaleString()}</p></div><div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Recipient emails</p><p className="font-semibold tabular-nums text-slate-900">{audienceEmails.length.toLocaleString()}</p></div></div>{audienceDonorIds.length > audienceEmails.length ? <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{(audienceDonorIds.length - audienceEmails.length).toLocaleString()} donor{audienceDonorIds.length - audienceEmails.length === 1 ? " has" : "s have"} no email and cannot be stored in the current Contacts Manager audience-list format.</p> : null}<label htmlFor="lapsed-audience-name" className="mt-4 block text-sm font-semibold text-slate-800">Audience name</label><input id="lapsed-audience-name" autoFocus value={audienceName} onChange={(event) => setAudienceName(event.target.value)} maxLength={160} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><label htmlFor="lapsed-audience-description" className="mt-4 block text-sm font-semibold text-slate-800">Notes <span className="font-normal text-slate-500">(optional)</span></label><textarea id="lapsed-audience-description" value={audienceDescription} onChange={(event) => setAudienceDescription(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><p className="mt-3 text-xs leading-5 text-slate-500">The list is saved in Contacts Manager. Email suppression and opt-out rules are still enforced when the list is used.</p>{audienceError ? <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{audienceError}</p> : null}</div><div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-5"><button type="button" onClick={() => setShowAudienceDialog(false)} disabled={savingAudience} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Cancel</button><button type="button" onClick={() => void saveAudience()} disabled={savingAudience || !audienceName.trim() || audienceEmails.length === 0} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">{savingAudience ? "Saving audience..." : "Save audience"}</button></div></section></div> : null}
     </div>
   );
 }
