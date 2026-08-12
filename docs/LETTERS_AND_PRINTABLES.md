@@ -36,7 +36,7 @@ Canonical routes:
 
 - The server PDF renderer is the existing jsPDF renderer, not Playwright/Chromium.
 - Browser PDF preview uses the browser PDF viewer in an iframe. PDF.js/react-pdf is not installed.
-- Labels use the shared generation flow, but Avery grid layout rendering is not fully implemented.
+- Mailing Labels at `/oyama-letters/labels` provides a dedicated Avery 5160 mail merge: 30-up US Letter PDF output, Contacts Manager audience-list loading, searchable recipient review, mail-suppression and complete-address validation, partially used sheet starting positions, optional plain-paper alignment guides, and multi-sheet generation.
 - Save Draft, Save Template, Create Task, ZIP export, cover page, table of contents, and advanced PDF settings are exposed only where they have safe behavior or a clear in-progress notice.
 
 ## Data Model

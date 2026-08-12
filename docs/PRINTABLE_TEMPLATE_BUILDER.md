@@ -41,6 +41,6 @@ Template cards show:
 ## Partial
 
 - Donation tables and receipt summary blocks are still represented by template HTML rather than first-class structured blocks.
-- Avery label presets are listed as a product requirement but need a dedicated renderer.
+- Avery 5160 uses the dedicated mailing-label renderer at `/oyama-letters/labels`; additional label products remain future presets.
 - Drag-to-insert is not implemented; click/copy/insert is the supported workflow.
 - Template-level page setup exists through presets, but advanced PDF settings do not fully alter server PDF output yet.

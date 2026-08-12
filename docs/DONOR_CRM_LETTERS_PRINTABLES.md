@@ -47,7 +47,7 @@ Reason:
 - Constituent and donation preview context uses searchable API lookups.
 - Single-letter and batch generation now share `/oyama-letters/generate`, with document type selection, template cards, real constituent search, saved audience list matching, report-result handoff IDs, campaign donors, date-range donors, segment search, dry-run checks, merged HTML preview, actual PDF blob preview, PDF download/open, and mark-printed actions.
 - Letter-to-email draft bridge is persisted and linked.
-- PDF export and batch generation are working through the existing `GeneratedLetter` model. Server-rendered PDFs preserve common editor formatting including line height, white-space blocks, images, active-block alignment, table header rows, multiline table cells, and basic cell alignment. Chromium-grade PDF fidelity, Avery label grids, ZIP export, cover pages, and TOC generation are still partial/in-development.
+- PDF export and batch generation are working through the existing `GeneratedLetter` model. Server-rendered PDFs preserve common editor formatting including line height, white-space blocks, images, active-block alignment, table header rows, multiline table cells, and basic cell alignment. Avery 5160 label grids are production-rendered through the dedicated Mailing Labels tool. Chromium-grade letter fidelity, cover pages, and TOC generation remain partial/in-development.
 
 ## Implemented Routes
 

@@ -31,6 +31,7 @@ import {
 } from "../services/letters-merge.js";
 import { parseStewardAiConfig, runStewardAiChat, type StewardAiChatMessage } from "../services/steward-ai-ollama.js";
 import { withStewardAiTask } from "../services/steward-ai-runtime-status.js";
+import { renderAvery5160Pdf, type Avery5160Label } from "../services/avery-labels.js";
 import {
   createDefaultEmailTemplateDocument,
   normalizeEmailTemplateDocument,
@@ -5318,6 +5319,94 @@ router.post("/generated/preview-pdf", requirePermission("letters.generate"), asy
 });
 
 /** POST /api/letters/generated/preview-pdf-batch — Renders selected preview recipients into one PDF without saving letters. */
+/** POST /api/letters/labels/avery-5160.pdf — Creates a reviewed 30-up mailing-label sheet without storing generated letters. */
+router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), async (req, res) => {
+  const organizationId = await requireOrganizationId(req);
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(400).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const requestedIds = Array.isArray(req.body?.constituentIds)
+    ? (req.body.constituentIds as unknown[]).map((value) => String(value).trim()).filter(Boolean)
+    : [];
+  const constituentIds = [...new Set(requestedIds)];
+  const startPosition = Number.parseInt(String(req.body?.startPosition ?? "1"), 10);
+  const showGuides = req.body?.showGuides === true;
+  if (constituentIds.length === 0) {
+    res.status(400).json({ error: { code: "RECIPIENTS_REQUIRED", message: "Select at least one recipient for the label merge." } });
+    return;
+  }
+  if (constituentIds.length > 3_000) {
+    res.status(400).json({ error: { code: "TOO_MANY_RECIPIENTS", message: "A label merge supports up to 3,000 recipients at a time." } });
+    return;
+  }
+  if (!Number.isInteger(startPosition) || startPosition < 1 || startPosition > 30) {
+    res.status(400).json({ error: { code: "INVALID_START_POSITION", message: "The first label position must be from 1 through 30." } });
+    return;
+  }
+
+  const constituents = await prisma.constituent.findMany({
+    where: { organizationId, id: { in: constituentIds } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      organizationName: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
+      state: true,
+      zip: true,
+      country: true,
+      doNotMail: true,
+      doNotContact: true,
+    },
+  });
+  const byId = new Map(constituents.map((constituent) => [constituent.id, constituent]));
+  const labels: Avery5160Label[] = constituentIds.flatMap((id) => {
+    const constituent = byId.get(id);
+    if (!constituent || constituent.doNotMail || constituent.doNotContact) return [];
+    if (!constituent.addressLine1?.trim() || !constituent.city?.trim() || !constituent.state?.trim() || !constituent.zip?.trim()) return [];
+    const name = constituent.displayName?.trim()
+      || constituent.organizationName?.trim()
+      || [constituent.firstName, constituent.lastName].filter(Boolean).join(" ").trim()
+      || "Resident";
+    return [{
+      name,
+      addressLine1: constituent.addressLine1.trim(),
+      addressLine2: constituent.addressLine2?.trim() || null,
+      city: constituent.city.trim(),
+      state: constituent.state.trim(),
+      zip: constituent.zip.trim(),
+      country: constituent.country,
+    }];
+  });
+  if (labels.length === 0) {
+    res.status(422).json({ error: { code: "NO_MAIL_READY_RECIPIENTS", message: "None of the selected recipients has a complete, mail-eligible address." } });
+    return;
+  }
+
+  const pdf = await renderAvery5160Pdf(labels, { startPosition, showGuides });
+  const date = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="avery_5160_labels_${date}.pdf"`);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Labels-Rendered", String(labels.length));
+  res.setHeader("X-Recipients-Skipped", String(constituentIds.length - labels.length));
+  await logAudit({
+    action: "AVERY_5160_LABELS_EXPORTED",
+    entity: "Constituent",
+    entityId: organizationId,
+    organizationId,
+    userId,
+    metadata: { labelsRendered: labels.length, recipientsSkipped: constituentIds.length - labels.length, startPosition, showGuides },
+  }).catch(() => undefined);
+  res.status(200).send(pdf);
+});
+
 router.post("/generated/preview-pdf-batch", requirePermission("letters.generate"), async (req, res) => {
   const organizationId = await requireOrganizationId(req);
   const userId = req.user?.sub;

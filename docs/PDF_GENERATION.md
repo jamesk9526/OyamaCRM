@@ -32,12 +32,12 @@ PDF export status is stored in `GeneratedLetter.metadataJson.pdfExport`:
 - Current server renderer is jsPDF, not Playwright/Chromium.
 - The block parser preserves headings, paragraphs, spacing, dividers, semantic bullet/numbered lists, nested list indentation, basic tables, alignment, uploaded images, and signatures.
 - Exact browser CSS and mixed inline typography such as bold/italic/color runs are not fully preserved because jsPDF receives normalized layout blocks rather than a browser render tree.
-- Advanced tables, Avery labels, cover pages, and table of contents need a dedicated layout implementation or Chromium renderer before they can be considered production-complete.
+- Advanced tables, cover pages, and table of contents need a dedicated layout implementation or Chromium renderer before they can be considered production-complete. Avery 5160 labels now use their own production-sized 30-up renderer at `/oyama-letters/labels`.
 - Browser preview uses native PDF rendering, not PDF.js/react-pdf.
 
 ## Next Tasks
 
 - Add Playwright/Chromium PDF rendering with jsPDF fallback.
 - Persist generated PDF files and populate `GeneratedLetter.pdfUrl`.
-- Add Avery label layout renderer.
+- Add additional Avery/product label presets beyond the production-ready 5160 layout.
 - Add page count extraction and persisted `recipientCount/pageCount` metadata.

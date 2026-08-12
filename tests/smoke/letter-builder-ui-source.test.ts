@@ -159,6 +159,7 @@ describe("letter builder UI redesign source contract", () => {
 
   it("keeps the generation path simple while retaining optional context and advanced tools", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersRoute = read("server/src/routes/letters.ts");
     const docsRoute = read("app/oyama-letters/docs/page.tsx");
     const legacyHowToRoute = read("app/oyama-letters/how-to/page.tsx");
 
@@ -172,6 +173,12 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Download this PDF");
     expect(workspace).toContain("Download all PDFs");
     expect(workspace).toContain("Download batch PDF");
+    expect(workspace).toContain("startDirectDownload");
+    expect(workspace).toContain("downloadPreparedPreviewPdf");
+    expect(workspace).toContain('href: "/oyama-letters/labels"');
+    expect(workspace).toContain("MailMergeLabelsWorkspace");
+    expect(lettersRoute).toContain('router.post("/labels/avery-5160.pdf"');
+    expect(lettersRoute).toContain("AVERY_5160_LABELS_EXPORTED");
     expect(workspace).toContain("Recipients to Render");
     expect(workspace).toContain("Advanced generation tools");
     expect(workspace).toContain('includedRecipientIds.length === 1');

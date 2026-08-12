@@ -11,6 +11,7 @@ import { getConstituentDisplayName } from "@/app/components/constituents/constit
 import { formatDonationDate } from "@/app/components/donations/donation-utils";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import LetterPage from "@/app/components/letters/LetterPage";
+import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -28,7 +29,7 @@ import type {
   SignatureBlock,
 } from "@/app/components/letters/types";
 
-type WorkspaceView = "library" | "builder" | "publish" | "generate" | "queue" | "settings" | "howto";
+type WorkspaceView = "library" | "builder" | "publish" | "generate" | "labels" | "queue" | "settings" | "howto";
 type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 type TemplateOwnershipScope = "MINE" | "TEAM" | "ALL";
 type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
@@ -479,6 +480,7 @@ const LETTERS_TEMPLATE_SETUP_HINT_COMPLETED_KEY = "oyamaLetters.templateSetupHin
 const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
   { label: "Generate Letters", href: "/oyama-letters/generate" },
+  { label: "Mailing Labels", href: "/oyama-letters/labels" },
   { label: "Print & Mail Queue", href: "/oyama-letters/queue" },
   { label: "Docs & Walkthroughs", href: "/oyama-letters/docs" },
   { label: "Settings", href: "/oyama-letters/settings" },
@@ -517,6 +519,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
           {view === "builder" ? <TemplateBuilder templateId={templateId} /> : null}
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
           {view === "generate" ? <GenerateWorkspace /> : null}
+          {view === "labels" ? <MailMergeLabelsWorkspace /> : null}
           {view === "queue" ? <QueueWorkspace /> : null}
           {view === "howto" ? <LettersHowToWorkspace /> : null}
           {view === "settings" ? <SettingsWorkspace /> : null}
@@ -550,6 +553,7 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
+            || (item.href === "/oyama-letters/labels" && activeView === "labels")
             || (item.href === "/oyama-letters/queue" && activeView === "queue")
             || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
@@ -626,6 +630,7 @@ function LettersSidebar({
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
+            || (item.href === "/oyama-letters/labels" && activeView === "labels")
             || (item.href === "/oyama-letters/queue" && activeView === "queue")
             || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
@@ -4077,6 +4082,22 @@ function GenerateWorkspace() {
     };
   }
 
+  function startDirectDownload(objectUrl: string, fileName: string) {
+    const download = document.createElement("a");
+    download.href = objectUrl;
+    download.download = fileName;
+    download.style.display = "none";
+    document.body.appendChild(download);
+    download.click();
+    download.remove();
+  }
+
+  function downloadPreparedPreviewPdf() {
+    if (!previewPdfUrl) return;
+    startDirectDownload(previewPdfUrl, previewPdfFileName);
+    setNotice("Current preview PDF download started.");
+  }
+
   async function createOrOpenEmailDraft(row: GeneratedLetterSummary) {
     if (row.emailCampaignId) {
       router.push(`/oyama-email/campaigns/${encodeURIComponent(row.emailCampaignId)}`);
@@ -4220,12 +4241,7 @@ function GenerateWorkspace() {
           ? `letter_previews_${new Date().toISOString().slice(0, 10)}.zip`
           : `letters_batch_preview_${new Date().toISOString().slice(0, 10)}.pdf`,
       );
-      const download = document.createElement("a");
-      download.href = pdf.objectUrl;
-      download.download = pdf.fileName;
-      document.body.appendChild(download);
-      download.click();
-      download.remove();
+      startDirectDownload(pdf.objectUrl, pdf.fileName);
       setTimeout(() => URL.revokeObjectURL(pdf.objectUrl), 30_000);
       setNotice(`${output === "individual" ? "Individual preview PDFs" : "Batch preview PDF"} downloaded for ${includedRecipientIds.length} recipient${includedRecipientIds.length === 1 ? "" : "s"}.`);
     } catch (requestError) {
@@ -5215,7 +5231,7 @@ function GenerateWorkspace() {
             )}
             {previewPdfUrl ? (
               <div className="grid gap-2 sm:grid-cols-2">
-                <a href={previewPdfUrl} download={previewPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Download this PDF</a>
+                <Button onClick={downloadPreparedPreviewPdf}>Download this PDF</Button>
                 <Button onClick={() => void downloadPreviewBundle("individual")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "individual" ? "Preparing files..." : `Download all PDFs (${includedRecipientIds.length})`}</Button>
                 <Button onClick={() => void downloadPreviewBundle("batch")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "batch" ? "Preparing batch..." : `Download batch PDF (${includedRecipientIds.length})`}</Button>
                 <Button onClick={() => setRecipientReviewOpen(true)}>Review Recipient List</Button>
@@ -7177,6 +7193,7 @@ function LineIcon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     "Template Library": "M6 3h10l4 4v14H6V3Zm4 9h6m-6 4h6",
     "Generate Letters": "M4 7h16M4 12h10M4 17h16",
+    "Mailing Labels": "M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Z",
     "Print & Mail Queue": "M6 9V3h12v6M6 17H4v-6h16v6h-2M7 14h10v7H7v-7Z",
     Batches: "M5 19h14M8 16V9m4 7V5m4 11v-4",
     "Letters How To": "M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Zm0 0A2.5 2.5 0 0 1 6.5 8H20M9 12h6m-6 4h4",
@@ -7508,6 +7525,7 @@ function viewLabel(view: WorkspaceView): string {
   if (view === "builder") return "Canvas Builder";
   if (view === "publish") return "Publish Workspace";
   if (view === "generate") return "Generate Letters";
+  if (view === "labels") return "Mailing Labels";
   if (view === "queue") return "Print & Mail Queue";
   if (view === "howto") return "Letters How To";
   return "Settings";
