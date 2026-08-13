@@ -43,6 +43,7 @@ describe("OyamaEmail workspace source contract", () => {
     const workspace = read("app/components/oyama-email/OyamaEmailWorkspace.tsx");
     const builder = read("app/components/oyama-email/OyamaEmailBuilderWorkspace.tsx");
     const contactsManager = read("app/components/contacts-manager/ContactsManagerPage.tsx");
+    const campaignRoutes = read("server/src/routes/email-campaigns.ts");
 
     expect(workspace).toContain("/api/email-campaigns?limit=100");
     expect(workspace).toContain("/api/oyama-email/templates?limit=100");
@@ -133,6 +134,11 @@ expect(builder).toContain("Ready-made layouts");
     expect(builder).toContain("Choose an image that is 5MB or smaller.");
     expect(builder).toContain("Choose a PDF, DOCX, XLSX, CSV, or TXT file.");
     expect(builder).toContain("File uploaded and linked from this block.");
+    expect(builder).toContain('onUploadFile={onUploadFile}');
+    expect(campaignRoutes).toContain("decodeVerifiedEmailDocument");
+    expect(campaignRoutes).toContain('Buffer.from("word/document.xml")');
+    expect(campaignRoutes).toContain('Buffer.from("xl/workbook.xml")');
+    expect(campaignRoutes).toContain("10 * 1024 * 1024");
     expect(builder).toContain("refreshServerPreview({ silent: false, templateId: previewTemplateId })");
     expect(workspace).toContain("TestSendDialog");
     expect(workspace).toContain("Create Campaign Copy");

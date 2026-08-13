@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import csv
+import ctypes
+import json
+import os
 import queue
 import threading
 from datetime import datetime
 from pathlib import Path
 from tkinter import Canvas, Tk, StringVar, BooleanVar, filedialog, messagebox
+from ctypes import wintypes
 from tkinter import ttk
 from typing import Any, Callable
 
@@ -22,10 +26,44 @@ MUTED = "#627d98"
 SURFACE = "#f5f8fb"
 WHITE = "#ffffff"
 SUCCESS = "#16794a"
+SESSION_FILE = Path(os.environ.get("APPDATA", Path.home())) / "OyamaCRM Desktop" / "session.dat"
 
 
 class ApiError(Exception):
     """A readable error returned by the OyamaCRM API."""
+
+
+class DataBlob(ctypes.Structure):
+    _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+
+def _protect(data: bytes, unprotect: bool = False) -> bytes:
+    """Encrypt local session data for this Windows user using DPAPI."""
+    if os.name != "nt": raise OSError("Secure saved sign-in is available on Windows only.")
+    source = (ctypes.c_byte * len(data)).from_buffer_copy(data)
+    source_blob = DataBlob(len(data), ctypes.cast(source, ctypes.POINTER(ctypes.c_byte)))
+    target_blob = DataBlob()
+    crypt32, kernel32 = ctypes.windll.crypt32, ctypes.windll.kernel32
+    function = crypt32.CryptUnprotectData if unprotect else crypt32.CryptProtectData
+    ok = function(ctypes.byref(source_blob), None, None, None, None, 0, ctypes.byref(target_blob))
+    if not ok: raise ctypes.WinError()
+    try: return ctypes.string_at(target_blob.pbData, target_blob.cbData)
+    finally: kernel32.LocalFree(target_blob.pbData)
+
+
+def _saved_session() -> dict[str, Any] | None:
+    try: return json.loads(_protect(SESSION_FILE.read_bytes(), unprotect=True).decode("utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError): return None
+
+
+def _save_session(payload: dict[str, Any]) -> None:
+    SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SESSION_FILE.write_bytes(_protect(json.dumps(payload).encode("utf-8")))
+
+
+def _forget_session() -> None:
+    try: SESSION_FILE.unlink(missing_ok=True)
+    except OSError: pass
 
 
 class OyamaApi:
@@ -75,6 +113,12 @@ class OyamaApi:
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/api/health")
 
+    def refresh_session(self) -> dict[str, Any]:
+        return self._request("POST", "/api/auth/refresh", json={})
+
+    def current_user(self) -> dict[str, Any]:
+        return self._request("GET", "/api/auth/me")
+
 
 class OyamaDesktop(Tk):
     def __init__(self) -> None:
@@ -94,6 +138,7 @@ class OyamaDesktop(Tk):
         self._style()
         self._build_login()
         self.after(100, self._process_queue)
+        self.after(250, self._restore_session)
 
     def _style(self) -> None:
         style = ttk.Style(self)
@@ -140,13 +185,16 @@ class OyamaDesktop(Tk):
         self.api_url = StringVar(value=DEFAULT_API_URL)
         self.email = StringVar()
         self.password = StringVar()
+        self.remember_me = BooleanVar(value=True)
         self._login_field(card, "OyamaCRM API URL", self.api_url, 2)
         self._login_field(card, "Email address", self.email, 4)
         self._login_field(card, "Password", self.password, 6, show="•")
+        ttk.Checkbutton(card, text="Remember this sign-in on this Windows account", variable=self.remember_me).grid(row=8, column=0, sticky="w", pady=(0, 8))
         self.login_status = StringVar(value="Use the same URL you use to access the CRM API.")
-        ttk.Label(card, textvariable=self.login_status, style="Muted.TLabel", wraplength=420).grid(row=8, column=0, sticky="w", pady=(0, 14))
+        ttk.Label(card, textvariable=self.login_status, style="Muted.TLabel", wraplength=420).grid(row=9, column=0, sticky="w", pady=(0, 14))
         self.sign_in_button = ttk.Button(card, text="Sign in", style="Accent.TButton", command=self._sign_in)
-        self.sign_in_button.grid(row=9, column=0, sticky="ew")
+        self.sign_in_button.grid(row=10, column=0, sticky="ew")
+        ttk.Button(card, text="Forget saved sign-in", command=lambda: (_forget_session(), self.login_status.set("Saved sign-in removed."))).grid(row=11, column=0, sticky="ew", pady=(8, 0))
         self.bind("<Return>", lambda _event: self._sign_in() if self.login_view.winfo_ismapped() else None)
 
     def _login_field(self, parent: ttk.Frame, label: str, variable: StringVar, row: int, show: str | None = None) -> None:
@@ -170,6 +218,7 @@ class OyamaDesktop(Tk):
             return
         self.api.token = data["accessToken"]
         self.user = data.get("user", {})
+        self._persist_session()
         self._build_workspace()
 
     def _show_mfa(self, destination: str) -> None:
@@ -193,8 +242,32 @@ class OyamaDesktop(Tk):
     def _complete_mfa(self, data: dict[str, Any], dialog: ttk.Frame, status: StringVar) -> None:
         self.api.token = data["accessToken"]
         self.user = data.get("user", {})
+        self._persist_session()
         dialog.destroy()
         self._build_workspace()
+
+    def _persist_session(self) -> None:
+        if not self.remember_me.get(): _forget_session(); return
+        cookies = [{"name": cookie.name, "value": cookie.value, "domain": cookie.domain, "path": cookie.path} for cookie in self.api.session.cookies]
+        try: _save_session({"apiUrl": self.api.base_url, "email": self.email.get().strip(), "accessToken": self.api.token, "cookies": cookies})
+        except OSError: self.login_status.set("Signed in, but this device could not save the session.")
+
+    def _restore_session(self) -> None:
+        saved = _saved_session()
+        if not saved or not self.login_view.winfo_exists(): return
+        self.api.configure(str(saved.get("apiUrl", DEFAULT_API_URL))); self.api_url.set(self.api.base_url); self.email.set(str(saved.get("email", "")))
+        for cookie in saved.get("cookies", []):
+            if isinstance(cookie, dict) and cookie.get("name") and cookie.get("value"):
+                self.api.session.cookies.set(cookie["name"], cookie["value"], domain=cookie.get("domain") or "", path=cookie.get("path") or "/")
+        self.login_status.set("Restoring your saved secure session…"); self.sign_in_button.configure(state="disabled")
+        self._run(self.api.refresh_session, (), self._complete_restore)
+
+    def _complete_restore(self, data: dict[str, Any]) -> None:
+        self.api.token = data["accessToken"]
+        self._run(self.api.current_user, (), self._finish_restore)
+
+    def _finish_restore(self, user: dict[str, Any]) -> None:
+        self.user = user; self._persist_session(); self._build_workspace()
 
     def _build_workspace(self) -> None:
         self.login_view.destroy()
@@ -351,7 +424,9 @@ class OyamaDesktop(Tk):
                     self.sign_in_button.configure(state="normal") if hasattr(self, "sign_in_button") else None
                     self.run_report_button.configure(state="normal") if hasattr(self, "run_report_button") else None
                     self.dashboard_refresh.configure(state="normal") if hasattr(self, "dashboard_refresh") else None
-                    messagebox.showerror(APP_NAME, str(result)); self.login_status.set(str(result)) if hasattr(self, "login_status") else None
+                    if hasattr(self, "login_view") and self.login_view.winfo_exists() and self.login_status.get().startswith("Restoring"):
+                        _forget_session(); self.login_status.set("Your saved session expired. Please sign in again.")
+                    else: messagebox.showerror(APP_NAME, str(result)); self.login_status.set(str(result)) if hasattr(self, "login_status") else None
                 elif done: done(result)
         except queue.Empty: pass
         self.after(100, self._process_queue)

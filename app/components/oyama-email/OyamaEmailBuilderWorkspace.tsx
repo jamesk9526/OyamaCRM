@@ -348,14 +348,6 @@ const COLUMN_TEMPLATE_CHOICES = [
 
 type ColumnTemplateId = typeof COLUMN_TEMPLATE_CHOICES[number]["id"];
 
-const PURPOSE_OPTIONS = [
-  { value: "MARKETING", label: "Marketing" },
-  { value: "TRANSACTIONAL", label: "Transactional" },
-  { value: "STEWARDSHIP", label: "Stewardship" },
-  { value: "EVENT_PROMOTION", label: "Event" },
-  { value: "RECEIPT", label: "Receipt" },
-];
-
 const PREFERENCE_OPTIONS = [
   { value: "GENERAL_UPDATES", label: "General Updates" },
   { value: "FUNDRAISING", label: "Fundraising" },
@@ -1223,7 +1215,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [previewDeltaSummary, setPreviewDeltaSummary] = useState<string | null>(null);
   const [sendingPreviewToSelf, setSendingPreviewToSelf] = useState(false);
   const [globalBranding, setGlobalBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
-  const [currentUserDisplayName, setCurrentUserDisplayName] = useState("");
   const [smtpDefaults, setSmtpDefaults] = useState<{ fromEmail: string; replyToEmail: string }>({
     fromEmail: "",
     replyToEmail: "",
@@ -1334,13 +1325,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         const me = await apiFetch<AuthMeResponse>("/api/auth/me");
         userDisplayName = [me?.data?.firstName || "", me?.data?.lastName || ""].join(" ").trim();
         if (!cancelled) {
-          setCurrentUserDisplayName(userDisplayName);
           setCurrentUserEmail(me?.data?.email?.trim() || "");
         }
       } catch {
         userDisplayName = "";
         if (!cancelled) {
-          setCurrentUserDisplayName("");
           setCurrentUserEmail("");
         }
       }
@@ -1727,15 +1716,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       previewMode: "random",
     };
   }, [previewMode, previewRecipients, selectedPreviewRecipientId, testRecipientEmail]);
-
-  const addBlock = useCallback((type: BuilderBlockType) => {
-    const block = createBlock(type);
-    setTemplateDocument({
-      ...draftRef.current.template,
-      blocks: [...draftRef.current.template.blocks, block],
-    });
-    setSelectedBlockId(block.id);
-  }, [setTemplateDocument]);
 
   const moveBlock = useCallback((blockId: string, direction: -1 | 1) => {
     const blocks = [...draftRef.current.template.blocks];
@@ -2878,7 +2858,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-500" style={{ width: `${readinessPercent}%` }} />
             </div>
             <span className="whitespace-nowrap text-[11px] font-semibold text-slate-700">{readinessPercent}% ready</span>
-            <span title="Select a block to edit · drag to reorder · double-click for advanced controls" className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 xl:inline">{draft.template.blocks.length} blocks · {builderWarnings.length ? `${builderWarnings.length} to review` : "Preflight clear"}</span>
+            <span title="Select a block to edit it in the right inspector; drag blocks to reorder them." className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 xl:inline">{draft.template.blocks.length} blocks · {builderWarnings.length ? `${builderWarnings.length} to review` : "Preflight clear"}</span>
           </div>
           <div className="mb-1 flex min-w-max items-center gap-2">
             <details className="relative hidden xl:block">
@@ -2887,7 +2867,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 <p className="font-semibold">{managedHeaderEnabled ? "Organization header is included automatically" : "Organization header is not configured"}</p>
                 <p className="mt-0.5 text-[11px] leading-4 text-indigo-800">{managedHeaderEnabled ? "It appears above your canvas in the sent email. Use In-body Header only when you intentionally want a second header." : "Set it in Branding Settings; an In-body Header is part of this email’s content."}</p>
                 <p className="mt-2 font-semibold">{managedFooterEnabled ? "Footer and compliance bar are managed automatically" : "Footer controls need configuration"}</p>
-                <p className="mt-0.5 text-[11px] leading-4 text-indigo-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Manage footer text and address in Email Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-indigo-800">{draft.settings.includeUnsubscribeLink ? "The sent email includes unsubscribe and preferences links below your canvas. Footer identity and address come from Branding Settings." : "Enable unsubscribe and address controls in Email Settings before sending marketing email."}</p>
               </div>
             </details>
             <div className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-1.5">

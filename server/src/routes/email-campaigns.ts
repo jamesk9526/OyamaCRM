@@ -2291,7 +2291,14 @@ function decodeVerifiedEmailDocument(dataBase64: string, mimeType: string): Buff
   if (normalized === "application/pdf") return buffer.subarray(0, 5).toString("ascii") === "%PDF-" ? buffer : null;
   if (normalized === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     || normalized === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
-    return buffer[0] === 0x50 && buffer[1] === 0x4b ? buffer : null;
+    if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) return null;
+    // OOXML ZIP entry names remain visible in the central directory even when
+    // their XML payloads are compressed. Check the expected package root so a
+    // generic ZIP cannot be relabeled as an email attachment.
+    const expectedEntry = normalized.endsWith("wordprocessingml.document")
+      ? Buffer.from("word/document.xml")
+      : Buffer.from("xl/workbook.xml");
+    return buffer.includes(expectedEntry) && buffer.includes(Buffer.from("[Content_Types].xml")) ? buffer : null;
   }
   if (normalized === "text/plain" || normalized === "text/csv") {
     return buffer.includes(0) ? null : buffer;

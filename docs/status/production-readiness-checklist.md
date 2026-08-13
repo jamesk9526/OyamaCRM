@@ -1,8 +1,20 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-11 (Event communications, reservation self-service, fundraising, hosts, and Trivia live controls)
+Last updated: 2026-08-12 (OyamaEmail builder rewrite and compatibility hardening)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-08-12 OyamaEmail Builder Rewrite Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Builder has one block insertion flow and one block editing source | Working | The active `OyamaEmailBuilderWorkspace` uses a grouped `+ Add block` modal and a persistent right inspector. The prior always-open left library and duplicate advanced-editor workflow are not reachable. |
+| Global branding is authoritative in delivered email | Working | Builder load/preview and `email-render-service.ts` apply organization email font, color, width, background, managed header/footer, name, and address over legacy template-local branding. A focused regression proves legacy values cannot win. |
+| Blocks and uploads survive structured nesting | Working | Recursive block updates cover top-level and column-contained content. Image validation remains active; File Link accepts validated PDF/DOCX/XLSX/CSV/TXT up to 10 MB through the organization-scoped media endpoint. |
+| Existing email projects upgrade without starter-template data loss | Working | `oyama-email.ts` retains raw/wrapped JSON and HTML/text fallback recovery; the renderer normalizes legacy block types; email↔letter conversion tests retain the canonical round-trip envelope. |
+| Preview, proof, and send use the production renderer | Working | Recipient preview, proof email, and campaign delivery continue through the server renderer and provider path; the UI does not substitute a browser-only rendering path. |
+| Focused automated verification | Working | Server typecheck passed; focused ESLint completed with zero errors; builder source, renderer, conversion, compliance, and public-media suites passed 35/35. |
+| Authenticated live send proof | Blocked by local dependency | The web/API services started, but local MySQL at `localhost:3306` is unavailable. Authentication and database-backed send/API suites could not be completed in this environment. |
 
 ## 2026-08-11 Event Communications and Trivia Live Snapshot
 
@@ -135,7 +147,7 @@ Validation: focused Trivia smoke coverage passed 6/6; web and server typechecks 
 | Organization logos and uploaded images use absolute public URLs in recipient HTML | Working | Public-origin enrichment in `server/src/services/organization-branding.ts`; shared render-time URL resolution in `server/src/services/oyama-email/email-render-service.ts`; renderer coverage passed. |
 | Advanced Editor bullets and numbered lists remain formatted after delivery | Working | Top-level Advanced HTML uses the shared email-safe rich-text formatter, which inlines list markers and spacing and produces readable plain-text list fallbacks. |
 | Builder distinguishes managed header/footer chrome from in-email content and provides uploadable image-column templates | Working | `OyamaEmailBuilderWorkspace` explicitly labels the organization header plus footer/unsubscribe bar as rendered outside the canvas. Responsive Two Image Cards and Image + Copy templates insert direct-upload image slots. |
-| Builder organizes authoring blocks and merge data into focused drawers | Working | `OyamaEmailBuilderWorkspace` provides collapsible Content, Layout, and Engagement drawers, a closed-by-default Merge Field Drawer, reusable email-section templates, and draggable palette blocks with canvas insertion targets. |
+| Builder organizes authoring blocks without a permanent palette rail | Working | `OyamaEmailBuilderWorkspace` provides one grouped `+ Add block` modal, reusable email-section templates, explicit canvas insertion targets, and one right-side block inspector. Merge data remains contextual to the field being edited. |
 | Email and letter authoring bars preserve canvas space | Working | The email workspace condenses workflow, readiness, zoom, preview, and managed-chrome guidance into a compact two-row indigo/blue bar. The letter workspace now has categorized Writing, Layout, Giving & sign-off, and Data & Merge Fields drawers with click-or-drag insertion into the printable document canvas; File, Insert, Format, Layout, Review, and View tools open on demand, and AI stays closed until staff choose the chat control. |
 | Template libraries provide focused, live-data organization | Working | Email and letter libraries expose real ownership, authoring-provenance, category, lifecycle, search, sort, import, export, and layout controls in dedicated browse rails rather than a generic template list. |
 | Communication branding has one discoverable source of truth | Working | Settings → Branding → Communication Header + Footer contains global email chrome plus a direct Letter Output Defaults panel. The printed-letter upper-right header can globally use organization information, donor/recipient name and address, or custom merge fields; logo, header, footer, default signature, page number, and footer contact options are controlled there. Email and letter editors link to these inherited values rather than duplicating the controls. |
