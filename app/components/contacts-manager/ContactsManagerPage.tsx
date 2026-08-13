@@ -55,6 +55,7 @@ type ContactsPageSize = 20 | 50 | 100 | 250 | 500 | "ALL";
 type ContactsSortKey = "name" | "email" | "type" | "status" | "giving";
 type ContactsSortDirection = "asc" | "desc";
 type ListMembershipFilter = "ALL" | "IN_ANY_LIST" | "NOT_IN_ANY_LIST" | "IN_SELECTED_LIST";
+type ChurchTagFilter = "ANY" | "INCLUDE" | "EXCLUDE";
 
 interface SegmentRecipe {
   id: string;
@@ -121,11 +122,12 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionHydrated, setSelectionHydrated] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ContactFilter>("ALL");
   const [listMembershipFilter, setListMembershipFilter] = useState<ListMembershipFilter>("ALL");
   const [membershipListId, setMembershipListId] = useState("");
+  const [churchTagFilter, setChurchTagFilter] = useState<ChurchTagFilter>("ANY");
   const [listRecipientsById, setListRecipientsById] = useState<Record<string, SavedAudienceDetail["recipients"]>>({});
   const [activeTag, setActiveTag] = useState("");
   const [pageSize, setPageSize] = useState<ContactsPageSize>(100);
@@ -143,6 +145,8 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const [tagEditor, setTagEditor] = useState<{ constituent: ConstituentRow; tags: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [listReloadNonce, setListReloadNonce] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,17 +175,19 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       if (filter === "MISSING_EMAIL" && row.email) return false;
       const inAnyList = allListConstituentIds.has(row.id) || (rowEmail && allListRecipientEmails.has(rowEmail));
       const inSelectedList = selectedMembershipConstituentIds.has(row.id) || (rowEmail && selectedMembershipEmails.has(rowEmail));
+      const hasChurchTag = row.tags?.some((entry) => entry.tag.name.trim().toLowerCase().includes("church")) ?? false;
       if (listMembershipFilter === "IN_ANY_LIST" && !inAnyList) return false;
       if (listMembershipFilter === "NOT_IN_ANY_LIST" && inAnyList) return false;
       if (listMembershipFilter === "IN_SELECTED_LIST" && (!membershipListId || !inSelectedList)) return false;
+      if (churchTagFilter === "INCLUDE" && !hasChurchTag) return false;
+      if (churchTagFilter === "EXCLUDE" && hasChurchTag) return false;
       if (activeTag && !row.tags?.some((entry) => entry.tag.name === activeTag)) return false;
       if (!query) return true;
       return contactHaystack(row).toLowerCase().includes(query);
     });
-  }, [activeTag, allListConstituentIds, allListRecipientEmails, constituents, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
+  }, [activeTag, allListConstituentIds, allListRecipientEmails, churchTagFilter, constituents, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
 
   const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
-  const selectedBaseListMembers = useMemo(() => selectedListId ? listRecipientsById[selectedListId] ?? [] : [], [listRecipientsById, selectedListId]);
   const selectedEmails = useMemo(
     () => selectedRows.map((row) => row.email?.trim().toLowerCase()).filter(Boolean) as string[],
     [selectedRows],
@@ -196,6 +202,14 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const allVisibleSelected = visibleConstituents.length > 0 && visibleConstituents.every((row) => selectedIds.has(row.id));
   const someVisibleSelected = visibleConstituents.some((row) => selectedIds.has(row.id));
   const missingSelectedEmails = selectedRows.length - selectedEmails.length;
+  const filteredBaseListMembers = useMemo(() => {
+    if (!selectedListId) return [];
+    const visibleIds = new Set(filteredConstituents.map((row) => row.id));
+    const visibleEmails = new Set(filteredConstituents.flatMap((row) => row.email?.trim() ? [row.email.trim().toLowerCase()] : []));
+    return (listRecipientsById[selectedListId] ?? []).filter((member) =>
+      Boolean((member.constituentId && visibleIds.has(member.constituentId)) || (member.email && visibleEmails.has(member.email.trim().toLowerCase()))),
+    );
+  }, [filteredConstituents, listRecipientsById, selectedListId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -284,6 +298,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
           .flatMap((row) => row.email?.trim() ? [row.email.trim().toLowerCase()] : [])
           .filter((email) => !matchedEmails.has(email))
           .join("\n"));
+        setHasUnsavedChanges(false);
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Failed to load audience list.");
       }
@@ -292,9 +307,10 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     return () => {
       cancelled = true;
     };
-  }, [constituents, selectedListId]);
+  }, [constituents, listReloadNonce, selectedListId]);
 
   function toggleSelected(id: string) {
+    setHasUnsavedChanges(true);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -304,6 +320,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   }
 
   function selectDisplayed() {
+    setHasUnsavedChanges(true);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const row of visibleConstituents) next.add(row.id);
@@ -313,11 +330,13 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   }
 
   function selectFiltered() {
+    setHasUnsavedChanges(true);
     setSelectedIds(new Set(filteredConstituents.map((row) => row.id)));
     setBuilderOpen(true);
   }
 
   function toggleDisplayedSelection() {
+    setHasUnsavedChanges(true);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
@@ -331,15 +350,21 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   }
 
   function clearSelection() {
+    setHasUnsavedChanges(true);
     setSelectedIds(new Set());
     window.localStorage.removeItem(CONTACT_SELECTION_STORAGE_KEY);
   }
 
   function startNewList() {
+    if (hasUnsavedChanges && !window.confirm("Discard the unsaved audience changes and start a new list?")) return;
     setSelectedListId(null);
     setListName("");
     setDescription("");
     setExternalEmails("");
+    setMembershipListId("");
+    setListMembershipFilter("ALL");
+    setSelectedIds(new Set());
+    setHasUnsavedChanges(false);
     setMessage(null);
     setError(null);
     setBuilderOpen(true);
@@ -357,18 +382,33 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   function applyRecipe(recipe: SegmentRecipe) {
     const matches = constituents.filter(recipe.matches);
     setSelectedIds(new Set(matches.map((row) => row.id)));
-    setListName(recipe.name);
-    setDescription(recipe.description);
+    if (!selectedListId) {
+      setListName(recipe.name);
+      setDescription(recipe.description);
+    }
     setBulkTagNames(recipe.tags.join(", "));
     setActiveTag("");
     setMessage(`${recipe.name} segment selected ${matches.length} constituents.`);
     setBuilderOpen(true);
+    setHasUnsavedChanges(true);
   }
 
   function listFromCurrentView() {
     setSelectedIds(new Set(filteredConstituents.map((row) => row.id)));
-    setListName(activeTag ? `${activeTag} Audience` : "Filtered Audience");
-    setDescription(`Built from Contacts Manager view with ${filteredConstituents.length} matching constituents.`);
+    if (!selectedListId) {
+      setListName(activeTag ? `${activeTag} Audience` : "Filtered Audience");
+      setDescription(`Built from Contacts Manager view with ${filteredConstituents.length} matching constituents.`);
+    }
+    setBuilderOpen(true);
+    setHasUnsavedChanges(true);
+  }
+
+  function selectAudienceList(listId: string, showOnlyMembers = false) {
+    if (hasUnsavedChanges && listId !== (selectedListId ?? "") && !window.confirm("Discard the unsaved changes and open another base list?")) return;
+    setSelectedListId(listId || null);
+    setMembershipListId(listId);
+    if (listId && showOnlyMembers) setListMembershipFilter("IN_SELECTED_LIST");
+    if (!listId && listMembershipFilter === "IN_SELECTED_LIST") setListMembershipFilter("ALL");
     setBuilderOpen(true);
   }
 
@@ -385,7 +425,9 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
         : await apiFetch<SavedAudienceList>("/api/email-campaigns/lists", { method: "POST", body: JSON.stringify(payload) });
 
       setSelectedListId(saved.id);
+      setMembershipListId(saved.id);
       await load();
+      setHasUnsavedChanges(false);
       setMessage(`${selectedListId ? "Saved base audience list updated" : "Audience list saved"} with ${recipientConstituentIds.length} CRM contact${recipientConstituentIds.length === 1 ? "" : "s"} and ${recipientEmails.length} external email${recipientEmails.length === 1 ? "" : "s"}.`);
       if (audienceCampaignId) {
         router.push(`/oyama-email/campaigns/${encodeURIComponent(audienceCampaignId)}?tab=audience&audienceListId=${encodeURIComponent(saved.id)}`);
@@ -397,15 +439,22 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     }
   }
 
-  async function removeConstituentFromList(row: ConstituentRow) {
-    if (!selectedListId) {
+  function constituentIsInMembershipList(row: ConstituentRow): boolean {
+    const rowEmail = row.email?.trim().toLowerCase() ?? "";
+    return selectedMembershipConstituentIds.has(row.id) || Boolean(rowEmail && selectedMembershipEmails.has(rowEmail));
+  }
+
+  async function removeConstituentFromList(row: ConstituentRow, requestedListId?: string) {
+    const targetListId = requestedListId || selectedListId;
+    if (!targetListId) {
       toggleSelected(row.id);
       return;
     }
 
     const normalizedEmail = row.email?.trim().toLowerCase() ?? "";
-    const member = selectedBaseListMembers.find((candidate) => candidate.constituentId === row.id)
-      ?? selectedBaseListMembers.find((candidate) => normalizedEmail && candidate.email?.trim().toLowerCase() === normalizedEmail);
+    const targetMembers = listRecipientsById[targetListId] ?? [];
+    const member = targetMembers.find((candidate) => candidate.constituentId === row.id)
+      ?? targetMembers.find((candidate) => normalizedEmail && candidate.email?.trim().toLowerCase() === normalizedEmail);
     if (!member) {
       toggleSelected(row.id);
       setMessage(`Removed ${contactName(row)} from the pending segment changes. Save the base list to keep this change.`);
@@ -416,7 +465,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     setError(null);
     setMessage(null);
     try {
-      await apiFetch(`/api/email-campaigns/lists/${selectedListId}/recipients/${member.id}`, { method: "DELETE" });
+      await apiFetch(`/api/email-campaigns/lists/${targetListId}/recipients/${member.id}`, { method: "DELETE" });
       setSelectedIds((current) => {
         const next = new Set(current);
         next.delete(row.id);
@@ -424,14 +473,45 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       });
       setListRecipientsById((current) => ({
         ...current,
-        [selectedListId]: (current[selectedListId] ?? []).filter((candidate) => candidate.id !== member.id),
+        [targetListId]: (current[targetListId] ?? []).filter((candidate) => candidate.id !== member.id),
       }));
-      setLists((current) => current.map((list) => list.id === selectedListId
+      setLists((current) => current.map((list) => list.id === targetListId
         ? { ...list, recipientsCount: Math.max(0, list.recipientsCount - 1) }
         : list));
-      setMessage(`Removed ${contactName(row)} from ${selectedList?.name ?? "the saved base list"}.`);
+      const targetListName = lists.find((list) => list.id === targetListId)?.name ?? "the saved base list";
+      setMessage(`Removed ${contactName(row)} from ${targetListName}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to remove constituent from the saved list.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeFilteredFromBaseList() {
+    if (!selectedListId || filteredBaseListMembers.length === 0) return;
+    const listLabel = selectedList?.name ?? "this list";
+    if (!window.confirm(`Remove ${filteredBaseListMembers.length} filtered member${filteredBaseListMembers.length === 1 ? "" : "s"} from "${listLabel}"? This updates the saved base list immediately.`)) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const memberIds = filteredBaseListMembers.map((member) => member.id);
+      await apiFetch(`/api/email-campaigns/lists/${selectedListId}/recipients/remove`, {
+        method: "POST",
+        body: JSON.stringify({ memberIds }),
+      });
+      const removedIds = new Set(filteredBaseListMembers.flatMap((member) => member.constituentId ? [member.constituentId] : []));
+      setSelectedIds((current) => new Set(Array.from(current).filter((id) => !removedIds.has(id))));
+      setListRecipientsById((current) => ({
+        ...current,
+        [selectedListId]: (current[selectedListId] ?? []).filter((member) => !memberIds.includes(member.id)),
+      }));
+      setLists((current) => current.map((list) => list.id === selectedListId
+        ? { ...list, recipientsCount: Math.max(0, list.recipientsCount - memberIds.length) }
+        : list));
+      setMessage(`Removed ${memberIds.length} filtered member${memberIds.length === 1 ? "" : "s"} from ${listLabel}. Future email and letter uses now read the updated list.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to remove filtered members from the saved list.");
     } finally {
       setSaving(false);
     }
@@ -553,25 +633,52 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
-      <section className={fullscreen ? "shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2" : "rounded-xl border border-gray-200 bg-white p-4"}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Segment Builder</h2>
-            {!fullscreen && <p className="mt-1 text-xs text-gray-500">Start with a common list, refine it with search or tags, then save it once for communications and print workflows.</p>}
+      <section className="shrink-0 overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm" aria-labelledby="audience-builder-title">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-4 py-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 id="audience-builder-title" className="text-base font-semibold text-gray-950">Audience List Builder</h1>
+              <span className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-xs font-semibold ${hasUnsavedChanges ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"}`} role="status">
+                <span className={`h-1.5 w-1.5 rounded-full ${hasUnsavedChanges ? "bg-amber-500" : "bg-emerald-600"}`} aria-hidden="true" />
+                {hasUnsavedChanges ? "Unsaved changes" : selectedList ? "Base list saved" : "New list"}
+              </span>
+            </div>
+            {!fullscreen && <p className="mt-1 text-sm text-gray-600">Edit one reusable base list. Every future email, letter, label, and export reads its latest saved membership.</p>}
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{constituents.length} constituents</span>
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{selectedIds.size} selected</span>
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{selectedEmails.length} selected emails</span>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+            <span>{selectedIds.size} members</span>
+            <span aria-hidden="true">•</span>
+            <span>{selectedEmails.length} with email</span>
           </div>
         </div>
-        <div className={fullscreen ? "mt-2 grid gap-2 md:grid-cols-5" : "mt-3 grid gap-3 md:grid-cols-5"}>
+
+        <div className="flex flex-wrap items-end gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2" aria-label="Audience list commands">
+          <label className="min-w-56 flex-1 text-xs font-semibold text-gray-700">
+            Base audience list
+            <select value={selectedListId ?? ""} onChange={(event) => selectAudienceList(event.target.value, true)} className="mt-1 min-h-9 w-full rounded-sm border border-gray-400 bg-white px-2.5 text-sm font-normal text-gray-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200">
+              <option value="">New audience list</option>
+              {lists.map((list) => <option key={list.id} value={list.id}>{list.name} ({list.recipientsCount})</option>)}
+            </select>
+          </label>
+          <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim() || (!hasUnsavedChanges && Boolean(selectedList))} className="min-h-9 rounded-sm bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:bg-gray-300">
+            {saving ? "Saving..." : selectedList ? "Save changes" : "Create list"}
+          </button>
+          <button type="button" onClick={startNewList} className="min-h-9 rounded-sm border border-gray-400 bg-white px-3 text-xs font-semibold text-gray-800 hover:bg-gray-100">New list</button>
+          <button type="button" onClick={() => setListReloadNonce((value) => value + 1)} disabled={!selectedList || !hasUnsavedChanges || saving} className="min-h-9 rounded-sm border border-gray-400 bg-white px-3 text-xs font-semibold text-gray-800 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50">Discard changes</button>
+          <button type="button" onClick={() => setActiveModal("LISTS")} className="min-h-9 rounded-sm border border-gray-400 bg-white px-3 text-xs font-semibold text-gray-800 hover:bg-gray-100">Manage lists</button>
+          <button type="button" onClick={() => void removeFilteredFromBaseList()} disabled={!selectedList || filteredBaseListMembers.length === 0 || saving} className="min-h-9 rounded-sm border border-red-300 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">
+            Remove filtered ({filteredBaseListMembers.length})
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
+          <span className="mr-1 text-xs font-semibold text-gray-600">Quick start:</span>
           {SEGMENT_RECIPES.map((recipe) => (
-            <button key={recipe.id} type="button" onClick={() => applyRecipe(recipe)} className={fullscreen ? "rounded-md border border-gray-200 px-2 py-1.5 text-left hover:border-green-300 hover:bg-green-50" : "rounded-lg border border-gray-200 p-3 text-left hover:border-green-300 hover:bg-green-50"}>
-              <span className="text-sm font-semibold text-gray-900">{recipe.name}</span>
-              {!fullscreen && <span className="mt-1 block text-xs text-gray-500">{recipe.description}</span>}
+            <button key={recipe.id} type="button" onClick={() => applyRecipe(recipe)} className="min-h-8 rounded-sm border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-800 hover:border-blue-400 hover:bg-blue-50" title={recipe.description}>
+              {recipe.name}
             </button>
           ))}
+          <button type="button" onClick={listFromCurrentView} className="min-h-8 rounded-sm border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-800 hover:border-blue-400 hover:bg-blue-50">Use filtered view</button>
         </div>
       </section>
 
@@ -593,13 +700,18 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               <option value="NOT_IN_ANY_LIST">Not in lists</option>
               <option value="IN_SELECTED_LIST">Only selected list</option>
             </select>
-            <select value={membershipListId} onChange={(event) => { setMembershipListId(event.target.value); if (event.target.value) setListMembershipFilter("IN_SELECTED_LIST"); }} className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs">
-              <option value="">Choose list</option>
+            <select value={membershipListId} onChange={(event) => selectAudienceList(event.target.value, true)} className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs" aria-label="Base list to view and edit">
+              <option value="">Choose base list</option>
               {lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
             </select>
             <select value={activeTag} onChange={(event) => setActiveTag(event.target.value)} className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs">
               <option value="">Any tag</option>
               {tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
+            </select>
+            <select value={churchTagFilter} onChange={(event) => setChurchTagFilter(event.target.value as ChurchTagFilter)} className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs" aria-label="Church tag inclusion filter">
+              <option value="ANY">Any Church tag status</option>
+              <option value="INCLUDE">Include Church tags</option>
+              <option value="EXCLUDE">Exclude Church tags</option>
             </select>
             <label className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5 text-xs text-gray-600">
               Show
@@ -667,12 +779,16 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                     <td className="px-2 py-1.5 text-right">
                       <button
                         type="button"
-                        onClick={() => selectedIds.has(row.id) ? void removeConstituentFromList(row) : toggleSelected(row.id)}
+                        onClick={() => constituentIsInMembershipList(row) && membershipListId
+                          ? void removeConstituentFromList(row, membershipListId)
+                          : selectedIds.has(row.id)
+                            ? void removeConstituentFromList(row)
+                            : toggleSelected(row.id)}
                         disabled={saving}
-                        className={`inline-flex min-h-7 items-center justify-center rounded-md border px-2 text-[11px] font-semibold disabled:opacity-50 ${selectedIds.has(row.id) ? "border-red-200 bg-white text-red-700 hover:bg-red-50" : "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"}`}
-                        title={selectedIds.has(row.id) ? "Remove this constituent from the list" : "Add this constituent to the list"}
+                        className={`inline-flex min-h-7 items-center justify-center rounded-md border px-2 text-[11px] font-semibold disabled:opacity-50 ${selectedIds.has(row.id) || constituentIsInMembershipList(row) ? "border-red-200 bg-white text-red-700 hover:bg-red-50" : "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"}`}
+                        title={selectedIds.has(row.id) || constituentIsInMembershipList(row) ? "Remove this constituent from the list" : "Add this constituent to the list"}
                       >
-                        {selectedIds.has(row.id) ? "Remove from list" : "Add to list"}
+                        {selectedIds.has(row.id) || constituentIsInMembershipList(row) ? "Remove from list" : "Add to list"}
                       </button>
                     </td>
                   </tr>
@@ -703,15 +819,13 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                 </button>
               </div>
             </div>
-            <select value={selectedListId ?? ""} onChange={(event) => setSelectedListId(event.target.value || null)} className="mt-2 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm">
-              <option value="">New segment</option>
-              {lists.map((list) => <option key={list.id} value={list.id}>{list.name} ({list.recipientsCount})</option>)}
-            </select>
             {selectedList ? (
-              <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs text-blue-900" role="status">
-                Editing saved base list <span className="font-semibold">{selectedList.name}</span>. Remove or add people, then save your changes below.
+              <div className="mt-2 border-l-2 border-blue-600 bg-blue-50 px-2.5 py-2 text-xs text-blue-950" role="status">
+                Editing <span className="font-semibold">{selectedList.name}</span>. Row removals update the base list immediately; additions and list details are applied with Save changes.
               </div>
-            ) : null}
+            ) : (
+              <div className="mt-2 border-l-2 border-gray-400 bg-gray-50 px-2.5 py-2 text-xs text-gray-700">Building a new reusable audience. Name it and select members before creating it.</div>
+            )}
           </div>
 
           <div className="shrink-0 border-b border-gray-200 p-3">
@@ -724,20 +838,20 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
           </div>
 
           <div className="shrink-0 space-y-2 p-3">
-            <input value={listName} onChange={(event) => setListName(event.target.value)} placeholder="Spring Newsletter Audience" className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm" />
-            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Purpose, criteria, or AI notes" className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm" />
-            <textarea value={externalEmails} onChange={(event) => setExternalEmails(event.target.value)} rows={2} placeholder="External emails, one per line" className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm" />
+            <label className="block text-xs font-semibold text-gray-700">List name<input value={listName} onChange={(event) => { setListName(event.target.value); setHasUnsavedChanges(true); }} placeholder="Spring Newsletter Audience" className="mt-1 w-full rounded-sm border border-gray-400 px-2.5 py-1.5 text-sm font-normal" /></label>
+            <label className="block text-xs font-semibold text-gray-700">Description<input value={description} onChange={(event) => { setDescription(event.target.value); setHasUnsavedChanges(true); }} placeholder="Purpose, criteria, or notes" className="mt-1 w-full rounded-sm border border-gray-400 px-2.5 py-1.5 text-sm font-normal" /></label>
+            <label className="block text-xs font-semibold text-gray-700">External emails<textarea value={externalEmails} onChange={(event) => { setExternalEmails(event.target.value); setHasUnsavedChanges(true); }} rows={2} placeholder="One email per line" className="mt-1 w-full resize-y rounded-sm border border-gray-400 px-2.5 py-1.5 text-sm font-normal" /></label>
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{selectedRows.length}</span><span className="text-gray-500">selected</span></div>
               <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{selectedEmails.length}</span><span className="text-gray-500">emails</span></div>
               <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{missingSelectedEmails}</span><span className="text-gray-500">no email</span></div>
             </div>
-            <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim()} className="min-h-9 w-full rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">{saving ? "Saving..." : selectedList ? `Save changes to ${selectedList.name}` : "Save Segment"}</button>
+            <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim() || (!hasUnsavedChanges && Boolean(selectedList))} className="min-h-9 w-full rounded-sm bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300">{saving ? "Saving..." : selectedList ? `Save changes to ${selectedList.name}` : "Create audience list"}</button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Selected People</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">List members</h3>
               <button type="button" onClick={clearSelection} disabled={selectedIds.size === 0} className="text-xs font-semibold text-gray-600 hover:text-gray-900 disabled:opacity-50">Clear</button>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.55)_transparent]">

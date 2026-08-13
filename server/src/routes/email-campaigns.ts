@@ -3897,32 +3897,57 @@ router.put("/lists/:listId", async (req, res) => {
     return;
   }
 
-  if (recipientEmails !== undefined || recipientConstituentIds !== undefined) {
-    const normalized = await buildRecipientListMembers({
+  const normalizedMembers = recipientEmails !== undefined || recipientConstituentIds !== undefined
+    ? await buildRecipientListMembers({
       organizationId,
       recipientConstituentIds: normalizeRecipientConstituentIds(recipientConstituentIds),
       recipientEmails,
-    });
-    await prisma.emailRecipientListMember.deleteMany({ where: { listId: existing.id } });
-    if (normalized.length > 0) {
-      await prisma.emailRecipientListMember.createMany({
-        data: normalized.map((member) => ({ listId: existing.id, ...member })),
-        skipDuplicates: true,
-      });
-    }
-  }
+    })
+    : null;
 
-  const updated = await prisma.emailRecipientList.update({
-    where: { id: existing.id },
+  // Replacing a base audience is atomic: future email, letter, label, and export
+  // workflows either see the complete old membership or the complete new one.
+  const updated = await prisma.$transaction(async (transaction) => {
+    if (normalizedMembers) {
+      await transaction.emailRecipientListMember.deleteMany({ where: { listId: existing.id } });
+      if (normalizedMembers.length > 0) {
+        await transaction.emailRecipientListMember.createMany({
+          data: normalizedMembers.map((member) => ({ listId: existing.id, ...member })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    return transaction.emailRecipientList.update({
+      where: { id: existing.id },
+      data: {
+        ...(safeName !== undefined ? { name: safeName } : {}),
+        ...(description !== undefined ? { description: description?.trim() || null } : {}),
+        ...(normalizedMembers ? { updatedAt: new Date() } : {}),
+      },
+      include: {
+        _count: {
+          select: { recipients: true },
+        },
+      },
+    });
+  });
+
+  await prisma.auditLog.create({
     data: {
-      ...(safeName !== undefined ? { name: safeName } : {}),
-      ...(description !== undefined ? { description: description?.trim() || null } : {}),
-    },
-    include: {
-      _count: {
-        select: { recipients: true },
+      organizationId,
+      userId,
+      action: normalizedMembers ? "EMAIL_RECIPIENT_LIST_MEMBERS_REPLACED" : "EMAIL_RECIPIENT_LIST_UPDATED",
+      entity: "EmailRecipientList",
+      entityId: updated.id,
+      metadata: {
+        recipientsCount: updated._count.recipients,
+        nameChanged: safeName !== undefined && safeName !== existing.name,
+        descriptionChanged: description !== undefined,
       },
     },
+  }).catch(() => {
+    // Best-effort audit write.
   });
 
   res.json({

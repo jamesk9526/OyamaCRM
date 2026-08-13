@@ -49,6 +49,25 @@ describe("email campaign workflow api", () => {
       .set(auth);
     expect(updatedDetail.body?.recipients).toHaveLength(1);
     expect(updatedDetail.body.recipients[0]?.email).toBe(`keep-${suffix}@example.org`);
+
+    const replacementEmail = `replacement-${suffix}@example.org`;
+    const replaced = await request(app)
+      .put(`/api/email-campaigns/lists/${created.body.id}`)
+      .set(auth)
+      .send({
+        name: `Renamed editable audience ${suffix}`,
+        recipientEmails: [replacementEmail],
+        recipientConstituentIds: [],
+      });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body?.recipientsCount).toBe(1);
+
+    const replacedDetail = await request(app)
+      .get(`/api/email-campaigns/lists/${created.body.id}`)
+      .set(auth);
+    expect(replacedDetail.body?.name).toBe(`Renamed editable audience ${suffix}`);
+    expect(replacedDetail.body?.recipients).toHaveLength(1);
+    expect(replacedDetail.body.recipients[0]?.email).toBe(replacementEmail);
   });
 
   it("returns blockers on validate and blocks scheduling when campaign is not ready", async () => {
