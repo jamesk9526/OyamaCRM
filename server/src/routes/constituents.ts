@@ -1378,6 +1378,100 @@ router.put("/:id", async (req, res) => {
   res.json(constituent);
 });
 
+/** POST /api/constituents/:id/close — Soft-close an account and block all future operational use. */
+router.post("/:id/close", async (req, res) => {
+  const id = req.params.id as string;
+  const organizationId = await resolveOrganizationId({ req });
+  const userId = req.user?.sub;
+  if (!organizationId || !userId) {
+    res.status(403).json({ error: { code: "ORG_OR_USER_REQUIRED", message: "Organization and user are required." } });
+    return;
+  }
+
+  const existing = await prisma.constituent.findFirst({
+    where: { id, organizationId },
+    select: { id: true, email: true, firstName: true, lastName: true },
+  });
+  if (!existing) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Active constituent account not found." } });
+    return;
+  }
+
+  const reason = typeof req.body?.reason === "string" && req.body.reason.trim()
+    ? req.body.reason.trim().slice(0, 2_000)
+    : "Closed by staff";
+  const closedAt = new Date();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const closed = await tx.constituent.updateMany({
+      where: { id, organizationId, closedAt: null },
+      data: {
+        closedAt,
+        closedReason: reason,
+        closedByUserId: userId,
+        doNotEmail: true,
+        doNotCall: true,
+        doNotMail: true,
+        doNotContact: true,
+        emailOptOut: true,
+      },
+    });
+    if (closed.count !== 1) return { closed: false, removedMemberships: 0 };
+
+    const removedMemberships = await tx.emailRecipientListMember.deleteMany({
+      where: {
+        list: { organizationId },
+        OR: [
+          { constituentId: id },
+          ...(existing.email ? [{ email: existing.email.trim().toLowerCase() }] : []),
+        ],
+      },
+    });
+    await Promise.all([
+      tx.task.updateMany({
+        where: { organizationId, constituentId: id, archivedAt: null },
+        data: { archivedAt: closedAt },
+      }),
+      tx.stewardPathEnrollment.updateMany({
+        where: { organizationId, constituentId: id, status: { in: ["ACTIVE", "PAUSED"] } },
+        data: { status: "CANCELLED", pausedAt: closedAt, pausedReason: `Constituent account closed: ${reason}` },
+      }),
+      tx.emailSubscription.updateMany({
+        where: { organizationId, OR: [{ constituentId: id }, ...(existing.email ? [{ email: existing.email }] : [])] },
+        data: { globalStatus: "SUPPRESSED", unsubscribedAt: closedAt },
+      }),
+      tx.emailSendRecipient.updateMany({
+        where: {
+          organizationId,
+          sentAt: null,
+          eligibilityStatus: "ELIGIBLE",
+          OR: [{ constituentId: id }, ...(existing.email ? [{ email: existing.email }] : [])],
+        },
+        data: { eligibilityStatus: "SKIPPED_DO_NOT_CONTACT", ineligibilityReason: "Constituent account closed", queuedAt: null },
+      }),
+    ]);
+    return { closed: true, removedMemberships: removedMemberships.count };
+  });
+
+  if (!result.closed) {
+    res.status(409).json({ error: { code: "ALREADY_CLOSED", message: "This constituent account is already closed." } });
+    return;
+  }
+
+  await logAudit({
+    action: "CONSTITUENT_ACCOUNT_CLOSED",
+    entity: "Constituent",
+    entityId: id,
+    organizationId,
+    userId,
+    metadata: { reason, removedAudienceMemberships: result.removedMemberships },
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ id, closedAt: closedAt.toISOString(), removedAudienceMemberships: result.removedMemberships });
+});
+
 /**
  * POST /api/constituents/import — Batch-import constituent records from a mapped CSV.
  *

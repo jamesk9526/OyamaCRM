@@ -1234,6 +1234,7 @@ async function buildRecipientListMembers(params: {
   recipientConstituentIds: string[];
   recipientEmails: string[] | undefined;
 }): Promise<Array<{ constituentId?: string; email?: string; firstName?: string | null; lastName?: string | null }>> {
+  const normalizedExternalEmails = normalizeRecipientEmails(params.recipientEmails);
   const constituents = params.recipientConstituentIds.length > 0
     ? await prisma.constituent.findMany({
       where: { organizationId: params.organizationId, id: { in: params.recipientConstituentIds } },
@@ -1241,7 +1242,14 @@ async function buildRecipientListMembers(params: {
     })
     : [];
   const constituentEmails = new Set(constituents.flatMap((constituent) => constituent.email ? [constituent.email.trim().toLowerCase()] : []));
-  const externalEmails = normalizeRecipientEmails(params.recipientEmails).filter((email) => !constituentEmails.has(email));
+  const closedEmailRows = normalizedExternalEmails.length > 0
+    ? await prisma.constituent.findMany({
+      where: { organizationId: params.organizationId, closedAt: { not: null }, email: { in: normalizedExternalEmails } },
+      select: { email: true },
+    })
+    : [];
+  const closedEmails = new Set(closedEmailRows.flatMap((row) => row.email ? [row.email.trim().toLowerCase()] : []));
+  const externalEmails = normalizedExternalEmails.filter((email) => !constituentEmails.has(email) && !closedEmails.has(email));
 
   return [
     // Keep CRM members keyed only by constituentId. This preserves every selected
@@ -3982,6 +3990,62 @@ router.delete("/lists/:listId/recipients/:memberId", async (req, res) => {
     removedMemberId: member.id,
     recipientsCount: updatedList._count.recipients,
   });
+});
+
+/** POST /api/email-campaigns/lists/:listId/recipients/remove — Remove checked members or empty the base list. */
+router.post("/lists/:listId/recipients/remove", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const list = await prisma.emailRecipientList.findFirst({
+    where: { id: req.params.listId, organizationId },
+    select: { id: true },
+  });
+  if (!list) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Saved recipient list not found." } });
+    return;
+  }
+
+  const removeAll = req.body?.removeAll === true;
+  const memberIds = Array.isArray(req.body?.memberIds)
+    ? Array.from(new Set((req.body.memberIds as unknown[]).map((value) => String(value).trim()).filter(Boolean))).slice(0, 5_000)
+    : [];
+  if (!removeAll && memberIds.length === 0) {
+    res.status(400).json({ error: { code: "MEMBERS_REQUIRED", message: "Select at least one list member to remove." } });
+    return;
+  }
+
+  const [, removed] = await prisma.$transaction([
+    prisma.emailRecipientList.update({ where: { id: list.id }, data: { updatedAt: new Date() } }),
+    prisma.emailRecipientListMember.deleteMany({
+      where: { listId: list.id, ...(removeAll ? {} : { id: { in: memberIds } }) },
+    }),
+  ]);
+  const recipientsCount = await prisma.emailRecipientListMember.count({ where: { listId: list.id } });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: removeAll ? "EMAIL_RECIPIENT_LIST_EMPTIED" : "EMAIL_RECIPIENT_LIST_MEMBERS_REMOVED",
+      entity: "EmailRecipientList",
+      entityId: list.id,
+      metadata: { removedCount: removed.count, requestedMemberIds: removeAll ? undefined : memberIds },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json({ listId: list.id, removedCount: removed.count, recipientsCount });
 });
 
 /** DELETE /api/email-campaigns/lists/:listId — Remove a saved recipient list and all members. */

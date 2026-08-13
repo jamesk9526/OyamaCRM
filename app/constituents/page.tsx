@@ -184,14 +184,14 @@ export default function ConstituentsPage() {
     createTemporaryLettersList(ids);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this constituent? This cannot be undone.")) return;
+  async function handleCloseAccount(id: string) {
+    if (!confirm("Close this constituent account everywhere? The record history will be retained, but the person will disappear from normal CRM use and all future outreach.")) return;
     try {
-      await apiFetch(`/api/constituents/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/constituents/${id}/close`, { method: "POST", body: JSON.stringify({ reason: "Closed from constituent directory" }) });
       setConstituents((prev) => prev.filter((c) => c.id !== id));
       setTotal((prev) => Math.max(prev - 1, 0));
     } catch {
-      alert("Failed to delete constituent. Please try again.");
+      alert("Failed to close constituent account. Please try again.");
     }
   }
 
@@ -458,7 +458,7 @@ export default function ConstituentsPage() {
         <ConstituentTable
           constituents={constituents}
           loading={loading && !error}
-          onDelete={handleDelete}
+          onCloseAccount={handleCloseAccount}
           onEmailTemplate={(id) => handleEmailTemplate([id])}
           onLetterTemplate={(id) => handleLetterTemplate([id])}
           selectedIds={selectedIds}

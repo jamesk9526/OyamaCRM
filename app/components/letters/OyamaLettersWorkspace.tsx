@@ -36,6 +36,16 @@ type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
 type LetterTextAlign = "left" | "center" | "right" | "justify";
 type LetterTableBorderStyle = "solid" | "dashed" | "none";
 const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
+const PREVIEW_EXPORT_RECIPIENTS_PER_PART = 40;
+
+type PreparedBulkDownload = {
+  objectUrl: string;
+  fileName: string;
+  output: "individual" | "batch";
+  part: number;
+  totalParts: number;
+  recipientCount: number;
+};
 
 const LETTER_BLOCK_LIBRARY = [
   {
@@ -3806,11 +3816,9 @@ function GenerateWorkspace() {
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [previewBulkDownload, setPreviewBulkDownload] = useState<"individual" | "batch" | null>(null);
-  const [preparedBulkDownload, setPreparedBulkDownload] = useState<{
-    objectUrl: string;
-    fileName: string;
-    output: "individual" | "batch";
-  } | null>(null);
+  const [preparedBulkDownloads, setPreparedBulkDownloads] = useState<PreparedBulkDownload[]>([]);
+  const preparedBulkDownloadsRef = useRef<PreparedBulkDownload[]>([]);
+  const [previewBulkProgress, setPreviewBulkProgress] = useState<{ part: number; totalParts: number } | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfFileName, setPreviewPdfFileName] = useState("letter-preview.pdf");
@@ -4138,10 +4146,12 @@ function GenerateWorkspace() {
   }, [previewPdfUrl]);
 
   useEffect(() => {
-    return () => {
-      if (preparedBulkDownload) URL.revokeObjectURL(preparedBulkDownload.objectUrl);
-    };
-  }, [preparedBulkDownload]);
+    preparedBulkDownloadsRef.current = preparedBulkDownloads;
+  }, [preparedBulkDownloads]);
+
+  useEffect(() => () => {
+    preparedBulkDownloadsRef.current.forEach((download) => URL.revokeObjectURL(download.objectUrl));
+  }, []);
 
   function readPdfFileName(response: Response, fallback: string): string {
     const disposition = response.headers.get("content-disposition") ?? "";
@@ -4193,6 +4203,15 @@ function GenerateWorkspace() {
     // Some embedded and managed browsers cancel a blob download when its
     // initiating element is removed in the same task as the click.
     window.setTimeout(() => download.remove(), 1_000);
+  }
+
+  function partFileName(fileName: string, part: number, totalParts: number): string {
+    if (totalParts === 1) return fileName;
+    const extensionIndex = fileName.lastIndexOf(".");
+    const suffix = `_part_${String(part).padStart(2, "0")}_of_${String(totalParts).padStart(2, "0")}`;
+    return extensionIndex > 0
+      ? `${fileName.slice(0, extensionIndex)}${suffix}${fileName.slice(extensionIndex)}`
+      : `${fileName}${suffix}`;
   }
 
   async function createOrOpenEmailDraft(row: GeneratedLetterSummary) {
@@ -4362,29 +4381,57 @@ function GenerateWorkspace() {
     }
     setPdfLoading(true);
     setPreviewBulkDownload(output);
-    setPreparedBulkDownload(null);
+    setPreparedBulkDownloads((current) => {
+      current.forEach((download) => URL.revokeObjectURL(download.objectUrl));
+      return [];
+    });
     setPdfError(null);
+    const recipientParts = Array.from(
+      { length: Math.ceil(includedRecipientIds.length / PREVIEW_EXPORT_RECIPIENTS_PER_PART) },
+      (_, index) => includedRecipientIds.slice(
+        index * PREVIEW_EXPORT_RECIPIENTS_PER_PART,
+        (index + 1) * PREVIEW_EXPORT_RECIPIENTS_PER_PART,
+      ),
+    );
+    let activePart = 1;
     try {
-      const pdf = await requestPdfBlobUrl(
-        `/api/letters/generated/preview-pdf-batch${output === "individual" ? "?format=zip" : ""}`,
-        {
-          templateId,
-          constituentIds: includedRecipientIds,
-          ...buildDonationContextPayload(),
-          ...buildMergeContextPayload(),
-        },
-        output === "individual"
-          ? `letter_previews_${new Date().toISOString().slice(0, 10)}.zip`
-          : `letters_batch_preview_${new Date().toISOString().slice(0, 10)}.pdf`,
-      );
-      startDirectDownload(pdf.objectUrl, pdf.fileName);
-      setPreparedBulkDownload({ objectUrl: pdf.objectUrl, fileName: pdf.fileName, output });
-      setNotice(`${output === "individual" ? "Individual preview PDFs" : "Batch preview PDF"} prepared for ${includedRecipientIds.length} recipient${includedRecipientIds.length === 1 ? "" : "s"}. If the download did not appear, use the ready link in PDF Preview.`);
+      for (const [index, recipientIds] of recipientParts.entries()) {
+        const part = index + 1;
+        activePart = part;
+        setPreviewBulkProgress({ part, totalParts: recipientParts.length });
+        const pdf = await requestPdfBlobUrl(
+          `/api/letters/generated/preview-pdf-batch${output === "individual" ? "?format=zip" : ""}`,
+          {
+            templateId,
+            constituentIds: recipientIds,
+            ...buildDonationContextPayload(),
+            ...buildMergeContextPayload(),
+          },
+          output === "individual"
+            ? `letter_previews_${new Date().toISOString().slice(0, 10)}.zip`
+            : `letters_batch_preview_${new Date().toISOString().slice(0, 10)}.pdf`,
+        );
+        const prepared = {
+          objectUrl: pdf.objectUrl,
+          fileName: partFileName(pdf.fileName, part, recipientParts.length),
+          output,
+          part,
+          totalParts: recipientParts.length,
+          recipientCount: recipientIds.length,
+        } satisfies PreparedBulkDownload;
+        setPreparedBulkDownloads((current) => [...current, prepared]);
+        // A single file can be downloaded immediately. Large exports retain
+        // explicit native download links because browsers commonly suppress
+        // multiple programmatic downloads after an asynchronous request.
+        if (recipientParts.length === 1) startDirectDownload(prepared.objectUrl, prepared.fileName);
+      }
+      setNotice(`${output === "individual" ? "Individual preview PDFs" : "Batch preview PDF"} prepared in ${recipientParts.length} download part${recipientParts.length === 1 ? "" : "s"} for ${includedRecipientIds.length} recipient${includedRecipientIds.length === 1 ? "" : "s"}. Use the ready link${recipientParts.length === 1 ? "" : "s"} in PDF Preview.`);
     } catch (requestError) {
-      setPdfError(errorMessage(requestError, "Failed to download the batch preview PDF."));
+      setPdfError(`${errorMessage(requestError, "Failed to download the batch preview PDF.")} Part ${activePart} of ${recipientParts.length} failed; any completed parts remain available below.`);
     } finally {
       setPdfLoading(false);
       setPreviewBulkDownload(null);
+      setPreviewBulkProgress(null);
     }
   }
 
@@ -5349,23 +5396,34 @@ function GenerateWorkspace() {
                 >
                   Download this PDF
                 </a>
-                <Button onClick={() => void downloadPreviewBundle("individual")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "individual" ? "Preparing files..." : `Download all PDFs (${includedRecipientIds.length})`}</Button>
-                <Button onClick={() => void downloadPreviewBundle("batch")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "batch" ? "Preparing batch..." : `Download batch PDF (${includedRecipientIds.length})`}</Button>
+                <Button onClick={() => void downloadPreviewBundle("individual")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "individual" ? `Preparing part ${previewBulkProgress?.part ?? 1} of ${previewBulkProgress?.totalParts ?? 1}...` : `Download all PDFs (${includedRecipientIds.length})`}</Button>
+                <Button onClick={() => void downloadPreviewBundle("batch")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "batch" ? `Preparing part ${previewBulkProgress?.part ?? 1} of ${previewBulkProgress?.totalParts ?? 1}...` : `Download batch PDF (${includedRecipientIds.length})`}</Button>
                 <Button onClick={() => setRecipientReviewOpen(true)}>Review Recipient List</Button>
                 <Button onClick={() => void runPreview(previewFocus?.id)} disabled={working || !previewFocus}>Refresh Preview</Button>
               </div>
             ) : null}
-            {preparedBulkDownload ? (
+            {preparedBulkDownloads.length > 0 ? (
               <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950" role="status">
-                <p className="font-semibold">Your {preparedBulkDownload.output === "individual" ? "ZIP file" : "batch PDF"} is ready.</p>
-                <p className="mt-1 text-xs text-emerald-900">If your browser did not show the automatic download, use this direct link.</p>
-                <a
-                  href={preparedBulkDownload.objectUrl}
-                  download={preparedBulkDownload.fileName}
-                  className="mt-2 inline-flex min-h-9 items-center justify-center rounded-[2px] bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
-                >
-                  {preparedBulkDownload.output === "individual" ? "Save prepared ZIP" : "Save prepared batch PDF"}
-                </a>
+                <p className="font-semibold">
+                  {preparedBulkDownloads.length === preparedBulkDownloads[0]?.totalParts
+                    ? `Your ${preparedBulkDownloads[0]?.totalParts === 1 ? "download is" : "downloads are"} ready.`
+                    : `${preparedBulkDownloads.length} of ${preparedBulkDownloads[0]?.totalParts} parts ready.`}
+                </p>
+                <p className="mt-1 text-xs text-emerald-900">Large exports are split into gateway-safe parts. Use each native save link below; completed parts remain available if a later part fails.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {preparedBulkDownloads.map((download) => (
+                    <a
+                      key={`${download.part}-${download.objectUrl}`}
+                      href={download.objectUrl}
+                      download={download.fileName}
+                      className="inline-flex min-h-9 items-center justify-center rounded-[2px] bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+                    >
+                      {download.totalParts === 1
+                        ? download.output === "individual" ? "Save prepared ZIP" : "Save prepared batch PDF"
+                        : `Save part ${download.part} of ${download.totalParts} (${download.recipientCount})`}
+                    </a>
+                  ))}
+                </div>
               </div>
             ) : null}
           </aside>

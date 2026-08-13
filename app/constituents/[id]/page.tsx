@@ -163,6 +163,10 @@ export default function ConstituentDetailPage() {
   const [deletingDonationId, setDeletingDonationId] = useState<string | null>(null);
   const [reversibleMerge, setReversibleMerge] = useState<ReversibleMerge | null>(null);
   const [undoingMerge, setUndoingMerge] = useState(false);
+  const [closeAccountOpen, setCloseAccountOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
+  const [closingAccount, setClosingAccount] = useState(false);
+  const [closeAccountError, setCloseAccountError] = useState<string | null>(null);
 
   const isHousehold = constituent?.type === "HOUSEHOLD";
 
@@ -228,6 +232,25 @@ export default function ConstituentDetailPage() {
       alert(e instanceof Error ? e.message : "Failed to delete donation.");
     } finally {
       setDeletingDonationId(null);
+    }
+  }
+
+  async function handleCloseAccount() {
+    if (!closeReason.trim()) {
+      setCloseAccountError("Enter a reason before closing this account.");
+      return;
+    }
+    setClosingAccount(true);
+    setCloseAccountError(null);
+    try {
+      await apiFetch(`/api/constituents/${id}/close`, {
+        method: "POST",
+        body: JSON.stringify({ reason: closeReason.trim() }),
+      });
+      router.replace("/constituents?accountClosed=1");
+    } catch (requestError) {
+      setCloseAccountError(requestError instanceof Error ? requestError.message : "Failed to close constituent account.");
+      setClosingAccount(false);
     }
   }
 
@@ -340,8 +363,9 @@ export default function ConstituentDetailPage() {
           <span className="font-medium text-gray-900 truncate">{fullName}</span>
         </nav>
 
-        <CRMActionBar
-          context={{
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
+          <CRMActionBar
+            context={{
             flags: {
               hasOpenTasks: openTasks.length > 0,
               hasReceiptableGift: c.donations.some((gift) => gift.status === "COMPLETED"),
@@ -363,8 +387,10 @@ export default function ConstituentDetailPage() {
             "profile-overview-tab": () => setTab("overview"),
             "profile-giving-tab": () => setTab("giving"),
             "profile-timeline-tab": () => setTab("timeline"),
-          }}
-        />
+            }}
+          />
+          <button type="button" onClick={() => setCloseAccountOpen(true)} className="min-h-10 shrink-0 rounded-md border border-red-300 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">Close account</button>
+        </div>
 
         {/* Profile Header */}
         <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_4%_0%,rgba(99,102,241,0.12),transparent_36%),linear-gradient(135deg,#f8f9ff_0%,#ffffff_58%,#f0f7ff_100%)] shadow-[0_12px_30px_rgba(15,23,42,0.055)]">
@@ -707,6 +733,24 @@ export default function ConstituentDetailPage() {
             }}
           />
         )}
+
+        {closeAccountOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="close-account-title">
+            <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl bg-white p-5 shadow-xl">
+              <h2 id="close-account-title" className="text-lg font-semibold text-gray-950">Close {fullName}&apos;s account?</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600">The record and history will be retained for audit purposes, but this person will become invisible throughout OyamaCRM. They will be removed from saved lists, blocked from email and letters, and future tasks and stewardship workflows will stop.</p>
+              {closeAccountError ? <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{closeAccountError}</p> : null}
+              <label className="mt-4 block text-sm font-semibold text-gray-800">
+                Reason for closing
+                <textarea value={closeReason} onChange={(event) => setCloseReason(event.target.value)} rows={4} placeholder="For example: duplicate historical account, deceased, organization dissolved…" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-normal outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </label>
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => { setCloseAccountOpen(false); setCloseReason(""); setCloseAccountError(null); }} disabled={closingAccount} className="min-h-10 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={() => void handleCloseAccount()} disabled={closingAccount || !closeReason.trim()} className="min-h-10 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50">{closingAccount ? "Closing account…" : "Close account everywhere"}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <p className="text-xs text-gray-400">Record created {formatDate(c.createdAt)}</p>
       </div>

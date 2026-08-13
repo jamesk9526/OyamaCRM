@@ -2686,6 +2686,26 @@ async function renderGeneratedLettersBatchPdf(items: Array<{
   return Buffer.from(pdfBytes);
 }
 
+/** Preserves input order while preventing large exports from exhausting the DB or renderer pool. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  const workerCount = Math.max(1, Math.min(Math.floor(concurrency), items.length));
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index] as T, index);
+    }
+  }));
+  return results;
+}
+
 /** Builds a standards-compatible uncompressed ZIP archive for already-compressed PDF files. */
 function buildStoredZip(entries: Array<{ name: string; data: Buffer }>, timestamp = new Date()): Buffer {
   const crcTable = Array.from({ length: 256 }, (_, index) => {
@@ -5479,7 +5499,7 @@ router.post("/generated/preview-pdf-batch", requirePermission("letters.generate"
   const generatedAt = new Date();
 
   try {
-    const items = await Promise.all(orderedConstituents.map(async (constituent) => {
+    const items = await mapWithConcurrency(orderedConstituents, 8, async (constituent) => {
       const donationId = await resolveDonationIdForRecipient({
         organizationId,
         constituentId: constituent.id,
@@ -5525,13 +5545,13 @@ router.post("/generated/preview-pdf-batch", requirePermission("letters.generate"
           signatureBlock: defaultPresets.signatureBlock ?? templateChrome?.signatureBlock,
         },
       };
-    }));
+    });
     const timestamp = generatedAt.toISOString().slice(0, 10);
     if (req.query.format === "zip") {
-      const pdfs = await Promise.all(items.map(async (item, index) => ({
+      const pdfs = await mapWithConcurrency(items, 4, async (item, index) => ({
         name: `${String(index + 1).padStart(3, "0")}_${sanitizePdfFilename(item.constituentName || "recipient")}.pdf`,
         data: await renderGeneratedLetterPdf(item),
-      })));
+      }));
       const zipBuffer = buildStoredZip(pdfs, generatedAt);
       const fileName = `${sanitizePdfFilename(template.name)}_individual_previews_${timestamp}.zip`;
       res.setHeader("Content-Type", "application/zip");

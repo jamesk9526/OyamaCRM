@@ -84,7 +84,13 @@ describe("OyamaEmail workspace source contract", () => {
     expect(audienceListManager).toContain("updates that list immediately");
     expect(audienceListManager).toContain("Edit in Segment Builder");
     expect(audienceListManager).toContain("removeMember(row.member)");
+    expect(audienceListManager).toContain("Remove selected (");
+    expect(audienceListManager).toContain("Remove all");
+    expect(audienceListManager).toContain("Include Church tags");
+    expect(audienceListManager).toContain("Exclude Church tags");
+    expect(audienceListManager).toContain("Closed accounts are always excluded system-wide");
     expect(campaignRoutes).toContain('router.delete("/lists/:listId/recipients/:memberId"');
+    expect(campaignRoutes).toContain('router.post("/lists/:listId/recipients/remove"');
     expect(workspace).toContain("About This Flow");
     expect(workspace).toContain("Templates are reusable content. Campaigns are send records that lock the audience, review state, queue history, and delivery results for one outbound run.");
     expect(workspace).toContain("Choose Audience Source");

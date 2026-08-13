@@ -1,7 +1,7 @@
 /** Saved audience list management tools for Contacts Manager. */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface ConstituentRow {
@@ -11,6 +11,7 @@ interface ConstituentRow {
   email?: string | null;
   phone?: string | null;
   employer?: string | null;
+  tags?: Array<{ tag: { name: string; color?: string | null } }>;
 }
 
 interface SavedAudienceList {
@@ -55,6 +56,8 @@ export default function AudienceListManager({
   const [duplicateName, setDuplicateName] = useState("");
   const [mergeName, setMergeName] = useState("Merged Audience");
   const [memberSearch, setMemberSearch] = useState("");
+  const [churchTagFilter, setChurchTagFilter] = useState<"ANY" | "INCLUDE" | "EXCLUDE">("ANY");
+  const [checkedMemberIds, setCheckedMemberIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
   const activeList = lists.find((list) => list.id === activeListId) ?? lists[0] ?? null;
@@ -69,6 +72,9 @@ export default function AudienceListManager({
   }));
   const visibleMemberRows = memberRows.filter((row) => {
     const query = memberSearch.trim().toLowerCase();
+    const hasChurchTag = row.contact?.tags?.some((entry) => entry.tag.name.trim().toLowerCase().includes("church")) ?? false;
+    if (churchTagFilter === "INCLUDE" && !hasChurchTag) return false;
+    if (churchTagFilter === "EXCLUDE" && hasChurchTag) return false;
     if (!query) return true;
     return [
       row.member.email,
@@ -82,6 +88,13 @@ export default function AudienceListManager({
   });
   const selectedLists = lists.filter((list) => checkedListIds.has(list.id));
   const selectedRecipientCount = new Set(selectedLists.flatMap((list) => (listRecipientsById[list.id] ?? []).map((member) => member.constituentId ? `constituent:${member.constituentId}` : `email:${member.email?.trim().toLowerCase() ?? member.id}`))).size;
+  const allVisibleMembersChecked = visibleMemberRows.length > 0 && visibleMemberRows.every((row) => checkedMemberIds.has(row.member.id));
+
+  useEffect(() => {
+    setCheckedMemberIds(new Set());
+    setMemberSearch("");
+    setChurchTagFilter("ANY");
+  }, [activeList?.id]);
 
   async function runAction(action: () => Promise<string>) {
     setSaving(true);
@@ -110,6 +123,50 @@ export default function AudienceListManager({
     await runAction(async () => {
       await apiFetch(`/api/email-campaigns/lists/${activeList.id}/recipients/${member.id}`, { method: "DELETE" });
       return `Removed ${memberDisplayName(member)} from the saved base list.`;
+    });
+  }
+
+  function toggleMember(memberId: string) {
+    setCheckedMemberIds((current) => {
+      const next = new Set(current);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  }
+
+  function toggleVisibleMembers() {
+    setCheckedMemberIds((current) => {
+      const next = new Set(current);
+      if (allVisibleMembersChecked) visibleMemberRows.forEach((row) => next.delete(row.member.id));
+      else visibleMemberRows.forEach((row) => next.add(row.member.id));
+      return next;
+    });
+  }
+
+  async function removeCheckedMembers() {
+    if (!activeList || checkedMemberIds.size === 0) return;
+    const count = checkedMemberIds.size;
+    await runAction(async () => {
+      await apiFetch(`/api/email-campaigns/lists/${activeList.id}/recipients/remove`, {
+        method: "POST",
+        body: JSON.stringify({ memberIds: Array.from(checkedMemberIds) }),
+      });
+      setCheckedMemberIds(new Set());
+      return `Removed ${count} selected member${count === 1 ? "" : "s"} from the saved base list.`;
+    });
+  }
+
+  async function removeAllMembers() {
+    if (!activeList || activeMembers.length === 0) return;
+    if (!window.confirm(`Remove all ${activeMembers.length} people from "${activeList.name}"? The saved list will remain, but it will be empty.`)) return;
+    await runAction(async () => {
+      await apiFetch(`/api/email-campaigns/lists/${activeList.id}/recipients/remove`, {
+        method: "POST",
+        body: JSON.stringify({ removeAll: true }),
+      });
+      setCheckedMemberIds(new Set());
+      return `Removed all members from ${activeList.name}.`;
     });
   }
 
@@ -156,20 +213,42 @@ export default function AudienceListManager({
               This is the saved base list used by communications and print workflows. Removing a person here updates that list immediately.
             </div>
           ) : null}
-          <label className="mt-3 block text-xs font-semibold text-gray-700">
-            Find a list member
-            <input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Search name, email, or organization" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-normal" />
-          </label>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_190px]">
+            <label className="block text-xs font-semibold text-gray-700">
+              Find a list member
+              <input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Search name, email, or organization" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-normal" />
+            </label>
+            <label className="block text-xs font-semibold text-gray-700">
+              Church tags
+              <select value={churchTagFilter} onChange={(event) => setChurchTagFilter(event.target.value as typeof churchTagFilter)} className="mt-1 h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-sm font-normal">
+                <option value="ANY">Include and exclude</option>
+                <option value="INCLUDE">Include Church tags</option>
+                <option value="EXCLUDE">Exclude Church tags</option>
+              </select>
+            </label>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700">
+              <input type="checkbox" checked={allVisibleMembersChecked} onChange={toggleVisibleMembers} disabled={visibleMemberRows.length === 0} className="rounded border-gray-300 text-green-600" />
+              Select all shown ({visibleMemberRows.length})
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void removeCheckedMembers()} disabled={saving || checkedMemberIds.size === 0} className="min-h-9 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Remove selected ({checkedMemberIds.size})</button>
+              <button type="button" onClick={() => void removeAllMembers()} disabled={saving || activeMembers.length === 0} className="min-h-9 rounded-md bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50">Remove all</button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">Closed accounts are always excluded system-wide and cannot be added to a saved list.</p>
           <div className="mt-3 max-h-64 overflow-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-100 text-xs">
               <thead className="bg-gray-50 text-left font-semibold uppercase tracking-wide text-gray-500">
-                <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Matched Contact</th><th className="px-3 py-2">Organization</th><th className="px-3 py-2 text-right">Action</th></tr>
+                <tr><th className="w-10 px-3 py-2"><span className="sr-only">Select</span></th><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Matched Contact</th><th className="px-3 py-2">Organization</th><th className="px-3 py-2 text-right">Action</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {visibleMemberRows.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">{activeMembers.length === 0 ? "No recipients in this list." : "No list members match this search."}</td></tr>
+                  <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">{activeMembers.length === 0 ? "No recipients in this list." : "No list members match these filters."}</td></tr>
                 ) : visibleMemberRows.map((row) => (
                   <tr key={row.member.id}>
+                    <td className="px-3 py-2"><input type="checkbox" checked={checkedMemberIds.has(row.member.id)} onChange={() => toggleMember(row.member.id)} aria-label={`Select ${memberDisplayName(row.member)} for removal`} className="rounded border-gray-300 text-red-600" /></td>
                     <td className="px-3 py-2 text-gray-700">{row.member.email || row.contact?.email || <span className="text-gray-400">No email</span>}</td>
                     <td className="px-3 py-2 font-medium text-gray-900">{row.contact ? `${row.contact.firstName} ${row.contact.lastName}`.trim() || "Unnamed" : "Not matched"}</td>
                     <td className="px-3 py-2 text-gray-500">{row.contact?.employer || row.contact?.phone || ""}</td>

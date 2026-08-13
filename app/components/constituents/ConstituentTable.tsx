@@ -20,7 +20,7 @@ import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 interface Props {
   constituents: ConstituentRow[];
   loading?: boolean;
-  onDelete?: (id: string) => void;
+  onCloseAccount?: (id: string) => void;
   onEmailTemplate?: (id: string) => void;
   onLetterTemplate?: (id: string) => void;
   selectedIds?: string[];
@@ -44,12 +44,12 @@ type ConstituentTag = ConstituentRow["tags"][number];
 
 function ConstituentRowMoreMenu({
   constituent,
-  onDelete,
+  onCloseAccount,
   onEmailTemplate,
   onLetterTemplate,
 }: {
   constituent: ConstituentRow;
-  onDelete?: (id: string) => void;
+  onCloseAccount?: (id: string) => void;
   onEmailTemplate?: (id: string) => void;
   onLetterTemplate?: (id: string) => void;
 }) {
@@ -126,16 +126,16 @@ function ConstituentRowMoreMenu({
           >
             Letter from Template
           </button>
-          {onDelete ? (
+          {onCloseAccount ? (
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
-                onDelete(constituent.id);
+                onCloseAccount(constituent.id);
               }}
               className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-red-600 hover:bg-red-50"
             >
-              Delete
+              Close account
             </button>
           ) : null}
         </div>
@@ -147,7 +147,7 @@ function ConstituentRowMoreMenu({
 export default function ConstituentTable({
   constituents,
   loading,
-  onDelete,
+  onCloseAccount,
   onEmailTemplate,
   onLetterTemplate,
   selectedIds = [],
@@ -299,7 +299,7 @@ export default function ConstituentTable({
                   Research
                 </Link>
               </div>
-              <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
+              <ConstituentRowMoreMenu constituent={c} onCloseAccount={onCloseAccount} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
             </div>
           </article>
         ))}
@@ -343,7 +343,7 @@ export default function ConstituentTable({
                 <td className="px-4 py-2.5 align-top">
                   <div className="flex items-center justify-end gap-1">
                     <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50">Edit</Link>
-                    <ConstituentRowMoreMenu constituent={c} onDelete={onDelete} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
+                    <ConstituentRowMoreMenu constituent={c} onCloseAccount={onCloseAccount} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
                   </div>
                 </td>
               </tr>

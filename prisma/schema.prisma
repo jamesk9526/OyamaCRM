@@ -717,6 +717,12 @@ model Constituent {
   doNotContact Boolean @default(false)
   emailOptOut  Boolean @default(false)
 
+  // Closed accounts are retained for audit/history but excluded from all
+  // operational constituent queries by the shared Prisma client.
+  closedAt       DateTime?
+  closedReason   String?   @db.Text
+  closedByUserId String?
+
   // Giving summary (denormalized for performance)
   totalLifetimeGiving Decimal   @default(0) @db.Decimal(12, 2)
   totalYtdGiving      Decimal   @default(0) @db.Decimal(12, 2)
@@ -757,6 +763,8 @@ model Constituent {
   emailConsentEvents  EmailConsentEvent[]
   emailSuppressions   EmailSuppression[]
   emailSendRecipients EmailSendRecipient[]
+
+  @@index([organizationId, closedAt])
 }
 
 /// Reviewable, sourced public-record evidence linked to a constituent.
