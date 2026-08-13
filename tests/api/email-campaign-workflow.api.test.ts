@@ -17,6 +17,40 @@ beforeAll(async () => {
 });
 
 describe("email campaign workflow api", () => {
+  it("removes one member from the saved base audience list", async () => {
+    const auth = { Authorization: `Bearer ${adminToken}` };
+    const suffix = Date.now();
+    const created = await request(app)
+      .post("/api/email-campaigns/lists")
+      .set(auth)
+      .send({
+        name: `Editable audience ${suffix}`,
+        recipientEmails: [`keep-${suffix}@example.org`, `remove-${suffix}@example.org`],
+      });
+
+    expect(created.status).toBe(201);
+    expect(created.body?.recipientsCount).toBe(2);
+
+    const detail = await request(app)
+      .get(`/api/email-campaigns/lists/${created.body.id}`)
+      .set(auth);
+    const member = detail.body?.recipients?.find((row: { email?: string }) => row.email === `remove-${suffix}@example.org`);
+    expect(member?.id).toBeTruthy();
+
+    const removed = await request(app)
+      .delete(`/api/email-campaigns/lists/${created.body.id}/recipients/${member.id}`)
+      .set(auth);
+
+    expect(removed.status).toBe(200);
+    expect(removed.body?.recipientsCount).toBe(1);
+
+    const updatedDetail = await request(app)
+      .get(`/api/email-campaigns/lists/${created.body.id}`)
+      .set(auth);
+    expect(updatedDetail.body?.recipients).toHaveLength(1);
+    expect(updatedDetail.body.recipients[0]?.email).toBe(`keep-${suffix}@example.org`);
+  });
+
   it("returns blockers on validate and blocks scheduling when campaign is not ready", async () => {
     const auth = { Authorization: `Bearer ${adminToken}` };
 

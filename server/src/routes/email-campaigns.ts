@@ -3928,6 +3928,62 @@ router.put("/lists/:listId", async (req, res) => {
   });
 });
 
+/** DELETE /api/email-campaigns/lists/:listId/recipients/:memberId — Remove one member from the saved base list. */
+router.delete("/lists/:listId/recipients/:memberId", async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+    return;
+  }
+
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const member = await prisma.emailRecipientListMember.findFirst({
+    where: {
+      id: req.params.memberId,
+      listId: req.params.listId,
+      list: { organizationId },
+    },
+    select: { id: true, listId: true, constituentId: true, email: true },
+  });
+  if (!member) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Saved list member not found." } });
+    return;
+  }
+
+  const [, updatedList] = await prisma.$transaction([
+    prisma.emailRecipientListMember.delete({ where: { id: member.id } }),
+    prisma.emailRecipientList.update({
+      where: { id: member.listId },
+      data: { updatedAt: new Date() },
+      include: { _count: { select: { recipients: true } } },
+    }),
+  ]);
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId,
+      action: "EMAIL_RECIPIENT_LIST_MEMBER_REMOVED",
+      entity: "EmailRecipientList",
+      entityId: member.listId,
+      metadata: { memberId: member.id, constituentId: member.constituentId, email: member.email },
+    },
+  }).catch(() => {
+    // Best-effort audit write.
+  });
+
+  res.json({
+    listId: updatedList.id,
+    removedMemberId: member.id,
+    recipientsCount: updatedList._count.recipients,
+  });
+});
+
 /** DELETE /api/email-campaigns/lists/:listId — Remove a saved recipient list and all members. */
 router.delete("/lists/:listId", async (req, res) => {
   const userId = req.user?.sub;

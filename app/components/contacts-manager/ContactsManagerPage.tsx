@@ -385,7 +385,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
 
       setSelectedListId(saved.id);
       await load();
-      setMessage(`Audience list saved with ${recipientConstituentIds.length} CRM contact${recipientConstituentIds.length === 1 ? "" : "s"} and ${recipientEmails.length} external email${recipientEmails.length === 1 ? "" : "s"}.`);
+      setMessage(`${selectedListId ? "Saved base audience list updated" : "Audience list saved"} with ${recipientConstituentIds.length} CRM contact${recipientConstituentIds.length === 1 ? "" : "s"} and ${recipientEmails.length} external email${recipientEmails.length === 1 ? "" : "s"}.`);
       if (audienceCampaignId) {
         router.push(`/oyama-email/campaigns/${encodeURIComponent(audienceCampaignId)}?tab=audience&audienceListId=${encodeURIComponent(saved.id)}`);
       }
@@ -660,6 +660,11 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               <option value="">New segment</option>
               {lists.map((list) => <option key={list.id} value={list.id}>{list.name} ({list.recipientsCount})</option>)}
             </select>
+            {selectedList ? (
+              <div className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs text-blue-900" role="status">
+                Editing saved base list <span className="font-semibold">{selectedList.name}</span>. Remove or add people, then save your changes below.
+              </div>
+            ) : null}
           </div>
 
           <div className="shrink-0 border-b border-gray-200 p-3">
@@ -680,7 +685,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{selectedEmails.length}</span><span className="text-gray-500">emails</span></div>
               <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{missingSelectedEmails}</span><span className="text-gray-500">no email</span></div>
             </div>
-            <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim()} className="w-full rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">{saving ? "Saving..." : selectedList ? "Update Segment" : "Save Segment"}</button>
+            <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim()} className="min-h-9 w-full rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">{saving ? "Saving..." : selectedList ? `Save changes to ${selectedList.name}` : "Save Segment"}</button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 p-3">

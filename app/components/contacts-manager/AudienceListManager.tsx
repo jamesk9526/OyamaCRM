@@ -54,6 +54,7 @@ export default function AudienceListManager({
   const [renameValue, setRenameValue] = useState("");
   const [duplicateName, setDuplicateName] = useState("");
   const [mergeName, setMergeName] = useState("Merged Audience");
+  const [memberSearch, setMemberSearch] = useState("");
   const [saving, setSaving] = useState(false);
 
   const activeList = lists.find((list) => list.id === activeListId) ?? lists[0] ?? null;
@@ -62,10 +63,23 @@ export default function AudienceListManager({
     return new Map(constituents.map((row) => [row.email?.trim().toLowerCase(), row]).filter(([email]) => Boolean(email)) as Array<[string, ConstituentRow]>);
   }, [constituents]);
   const contactsById = useMemo(() => new Map(constituents.map((row) => [row.id, row])), [constituents]);
-  const previewRows = activeMembers.slice(0, 75).map((member) => ({
+  const memberRows = activeMembers.map((member) => ({
     member,
     contact: member.constituentId ? contactsById.get(member.constituentId) : contactsByEmail.get(member.email?.trim().toLowerCase() ?? ""),
   }));
+  const visibleMemberRows = memberRows.filter((row) => {
+    const query = memberSearch.trim().toLowerCase();
+    if (!query) return true;
+    return [
+      row.member.email,
+      row.member.firstName,
+      row.member.lastName,
+      row.contact?.firstName,
+      row.contact?.lastName,
+      row.contact?.email,
+      row.contact?.employer,
+    ].filter(Boolean).join(" ").toLowerCase().includes(query);
+  });
   const selectedLists = lists.filter((list) => checkedListIds.has(list.id));
   const selectedRecipientCount = new Set(selectedLists.flatMap((list) => (listRecipientsById[list.id] ?? []).map((member) => member.constituentId ? `constituent:${member.constituentId}` : `email:${member.email?.trim().toLowerCase() ?? member.id}`))).size;
 
@@ -88,6 +102,14 @@ export default function AudienceListManager({
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
+    });
+  }
+
+  async function removeMember(member: SavedAudienceMember) {
+    if (!activeList) return;
+    await runAction(async () => {
+      await apiFetch(`/api/email-campaigns/lists/${activeList.id}/recipients/${member.id}`, { method: "DELETE" });
+      return `Removed ${memberDisplayName(member)} from the saved base list.`;
     });
   }
 
@@ -123,25 +145,37 @@ export default function AudienceListManager({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">{activeList?.name ?? "No list selected"}</h3>
-              <p className="mt-1 text-xs text-gray-500">{activeMembers.length} recipients · {previewRows.filter((row) => row.contact).length} matched constituents</p>
+              <p className="mt-1 text-xs text-gray-500">{activeMembers.length} recipients · {memberRows.filter((row) => row.contact).length} matched constituents</p>
             </div>
             {activeList && onLoadList && (
-              <button type="button" onClick={() => onLoadList(activeList.id)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Load in Builder</button>
+              <button type="button" onClick={() => onLoadList(activeList.id)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Edit in Segment Builder</button>
             )}
           </div>
+          {activeList ? (
+            <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              This is the saved base list used by communications and print workflows. Removing a person here updates that list immediately.
+            </div>
+          ) : null}
+          <label className="mt-3 block text-xs font-semibold text-gray-700">
+            Find a list member
+            <input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Search name, email, or organization" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-normal" />
+          </label>
           <div className="mt-3 max-h-64 overflow-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-100 text-xs">
               <thead className="bg-gray-50 text-left font-semibold uppercase tracking-wide text-gray-500">
-                <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Matched Contact</th><th className="px-3 py-2">Organization</th></tr>
+                <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Matched Contact</th><th className="px-3 py-2">Organization</th><th className="px-3 py-2 text-right">Action</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {previewRows.length === 0 ? (
-                  <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-500">No recipients in this list.</td></tr>
-                ) : previewRows.map((row) => (
+                {visibleMemberRows.length === 0 ? (
+                  <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">{activeMembers.length === 0 ? "No recipients in this list." : "No list members match this search."}</td></tr>
+                ) : visibleMemberRows.map((row) => (
                   <tr key={row.member.id}>
                     <td className="px-3 py-2 text-gray-700">{row.member.email || row.contact?.email || <span className="text-gray-400">No email</span>}</td>
                     <td className="px-3 py-2 font-medium text-gray-900">{row.contact ? `${row.contact.firstName} ${row.contact.lastName}`.trim() || "Unnamed" : "Not matched"}</td>
                     <td className="px-3 py-2 text-gray-500">{row.contact?.employer || row.contact?.phone || ""}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button type="button" onClick={() => void removeMember(row.member)} disabled={saving} className="rounded-md border border-red-200 bg-white px-2 py-1 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50" aria-label={`Remove ${memberDisplayName(row.member)} from ${activeList?.name ?? "saved list"}`}>Remove</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -208,4 +242,8 @@ function ToolPanel({ title, children }: { title: string; children: React.ReactNo
       <div className="mt-3">{children}</div>
     </div>
   );
+}
+
+function memberDisplayName(member: SavedAudienceMember): string {
+  return [member.firstName, member.lastName].filter(Boolean).join(" ").trim() || member.email || "recipient";
 }

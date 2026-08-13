@@ -3806,6 +3806,11 @@ function GenerateWorkspace() {
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [previewBulkDownload, setPreviewBulkDownload] = useState<"individual" | "batch" | null>(null);
+  const [preparedBulkDownload, setPreparedBulkDownload] = useState<{
+    objectUrl: string;
+    fileName: string;
+    output: "individual" | "batch";
+  } | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewPdfFileName, setPreviewPdfFileName] = useState("letter-preview.pdf");
@@ -4132,6 +4137,12 @@ function GenerateWorkspace() {
     };
   }, [previewPdfUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (preparedBulkDownload) URL.revokeObjectURL(preparedBulkDownload.objectUrl);
+    };
+  }, [preparedBulkDownload]);
+
   function readPdfFileName(response: Response, fallback: string): string {
     const disposition = response.headers.get("content-disposition") ?? "";
     const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -4173,16 +4184,15 @@ function GenerateWorkspace() {
     const download = document.createElement("a");
     download.href = objectUrl;
     download.download = fileName;
-    download.style.display = "none";
+    download.setAttribute("aria-hidden", "true");
+    download.style.position = "fixed";
+    download.style.left = "-10000px";
+    download.style.top = "0";
     document.body.appendChild(download);
     download.click();
-    download.remove();
-  }
-
-  function downloadPreparedPreviewPdf() {
-    if (!previewPdfUrl) return;
-    startDirectDownload(previewPdfUrl, previewPdfFileName);
-    setNotice("Current preview PDF download started.");
+    // Some embedded and managed browsers cancel a blob download when its
+    // initiating element is removed in the same task as the click.
+    window.setTimeout(() => download.remove(), 1_000);
   }
 
   async function createOrOpenEmailDraft(row: GeneratedLetterSummary) {
@@ -4352,6 +4362,7 @@ function GenerateWorkspace() {
     }
     setPdfLoading(true);
     setPreviewBulkDownload(output);
+    setPreparedBulkDownload(null);
     setPdfError(null);
     try {
       const pdf = await requestPdfBlobUrl(
@@ -4367,8 +4378,8 @@ function GenerateWorkspace() {
           : `letters_batch_preview_${new Date().toISOString().slice(0, 10)}.pdf`,
       );
       startDirectDownload(pdf.objectUrl, pdf.fileName);
-      setTimeout(() => URL.revokeObjectURL(pdf.objectUrl), 30_000);
-      setNotice(`${output === "individual" ? "Individual preview PDFs" : "Batch preview PDF"} downloaded for ${includedRecipientIds.length} recipient${includedRecipientIds.length === 1 ? "" : "s"}.`);
+      setPreparedBulkDownload({ objectUrl: pdf.objectUrl, fileName: pdf.fileName, output });
+      setNotice(`${output === "individual" ? "Individual preview PDFs" : "Batch preview PDF"} prepared for ${includedRecipientIds.length} recipient${includedRecipientIds.length === 1 ? "" : "s"}. If the download did not appear, use the ready link in PDF Preview.`);
     } catch (requestError) {
       setPdfError(errorMessage(requestError, "Failed to download the batch preview PDF."));
     } finally {
@@ -5330,11 +5341,31 @@ function GenerateWorkspace() {
             )}
             {previewPdfUrl ? (
               <div className="grid gap-2 sm:grid-cols-2">
-                <Button onClick={downloadPreparedPreviewPdf}>Download this PDF</Button>
+                <a
+                  href={previewPdfUrl}
+                  download={previewPdfFileName}
+                  className="inline-flex h-9 items-center justify-center rounded-[2px] border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-800 transition hover:bg-[#f3f2f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd] focus-visible:ring-offset-2"
+                  onClick={() => setNotice("Current preview PDF download started.")}
+                >
+                  Download this PDF
+                </a>
                 <Button onClick={() => void downloadPreviewBundle("individual")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "individual" ? "Preparing files..." : `Download all PDFs (${includedRecipientIds.length})`}</Button>
                 <Button onClick={() => void downloadPreviewBundle("batch")} disabled={pdfLoading || includedRecipientIds.length === 0}>{previewBulkDownload === "batch" ? "Preparing batch..." : `Download batch PDF (${includedRecipientIds.length})`}</Button>
                 <Button onClick={() => setRecipientReviewOpen(true)}>Review Recipient List</Button>
                 <Button onClick={() => void runPreview(previewFocus?.id)} disabled={working || !previewFocus}>Refresh Preview</Button>
+              </div>
+            ) : null}
+            {preparedBulkDownload ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950" role="status">
+                <p className="font-semibold">Your {preparedBulkDownload.output === "individual" ? "ZIP file" : "batch PDF"} is ready.</p>
+                <p className="mt-1 text-xs text-emerald-900">If your browser did not show the automatic download, use this direct link.</p>
+                <a
+                  href={preparedBulkDownload.objectUrl}
+                  download={preparedBulkDownload.fileName}
+                  className="mt-2 inline-flex min-h-9 items-center justify-center rounded-[2px] bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+                >
+                  {preparedBulkDownload.output === "individual" ? "Save prepared ZIP" : "Save prepared batch PDF"}
+                </a>
               </div>
             ) : null}
           </aside>

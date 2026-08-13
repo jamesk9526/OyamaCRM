@@ -174,7 +174,9 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("Download all PDFs");
     expect(workspace).toContain("Download batch PDF");
     expect(workspace).toContain("startDirectDownload");
-    expect(workspace).toContain("downloadPreparedPreviewPdf");
+    expect(workspace).toContain("download={previewPdfFileName}");
+    expect(workspace).toContain("Save prepared ZIP");
+    expect(workspace).toContain("Save prepared batch PDF");
     expect(workspace).toContain('href: "/oyama-letters/labels"');
     expect(workspace).toContain("MailMergeLabelsWorkspace");
     expect(lettersRoute).toContain('router.post("/labels/avery-5160.pdf"');
