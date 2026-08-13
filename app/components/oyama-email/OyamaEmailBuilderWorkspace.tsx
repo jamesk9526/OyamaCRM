@@ -1248,7 +1248,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [mergeLinePreviewLoading, setMergeLinePreviewLoading] = useState(false);
   const [mergeLinePreviewError, setMergeLinePreviewError] = useState<string | null>(null);
   const [collapsedMergeGroups, setCollapsedMergeGroups] = useState<Set<string>>(new Set());
-  const [brandingExpanded, setBrandingExpanded] = useState(false);
   const [addContentExpanded, setAddContentExpanded] = useState(true);
   const [activeBlockLibraryDrawer, setActiveBlockLibraryDrawer] = useState<BlockLibraryDrawerId | null>("content");
   const [mergeFieldsExpanded, setMergeFieldsExpanded] = useState(false);
@@ -1994,6 +1993,19 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }, [activeTemplateId, saveTemplate, updateBlock]);
 
   const uploadFileLink = useCallback(async (blockId: string, file: File) => {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const inferredMimeType = extension === "pdf"
+      ? "application/pdf"
+      : extension === "docx"
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : extension === "xlsx"
+          ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          : extension === "csv"
+            ? "text/csv"
+            : extension === "txt"
+              ? "text/plain"
+              : "";
+    const mimeType = file.type.toLowerCase() || inferredMimeType;
     const allowedTypes = new Set([
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -2001,7 +2013,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       "text/plain",
       "text/csv",
     ]);
-    if (!allowedTypes.has(file.type.toLowerCase())) {
+    if (!allowedTypes.has(mimeType)) {
       setError("Choose a PDF, DOCX, XLSX, CSV, or TXT file.");
       return;
     }
@@ -2016,7 +2028,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       if (!templateIdForUpload) throw new Error("The draft could not be saved before the file upload.");
       const response = await apiFetch<{ url: string }>(`/api/email-campaigns/${templateIdForUpload}/media`, {
         method: "POST",
-        body: JSON.stringify({ fileName: file.name, mimeType: file.type, dataBase64: await fileToBase64(file) }),
+        body: JSON.stringify({ fileName: file.name, mimeType, dataBase64: await fileToBase64(file) }),
       });
       updateBlock(blockId, (block) => block.type === "fileLink" ? { ...block, fileUrl: response.url, fileLabel: block.fileLabel || file.name } : block);
       setNotice("File uploaded and linked from this block.");
@@ -2243,8 +2255,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const handleInsertBlock = useCallback((type: BuilderBlockType, afterIndex?: number) => {
     const block = type === "header" ? createHeaderBlock(globalBranding) : createBlock(type);
     const blocks = [...draftRef.current.template.blocks];
-    if (afterIndex !== undefined && afterIndex >= 0) {
-      blocks.splice(afterIndex + 1, 0, block);
+    if (afterIndex !== undefined) {
+      blocks.splice(Math.max(0, afterIndex + 1), 0, block);
     } else {
       blocks.push(block);
     }
@@ -2268,8 +2280,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
 
   const insertBlocks = useCallback((newBlocks: BuilderBlock[], afterIndex?: number) => {
     const blocks = [...draftRef.current.template.blocks];
-    if (afterIndex !== undefined && afterIndex >= 0) {
-      blocks.splice(afterIndex + 1, 0, ...newBlocks);
+    if (afterIndex !== undefined) {
+      blocks.splice(Math.max(0, afterIndex + 1), 0, ...newBlocks);
     } else {
       blocks.push(...newBlocks);
     }
@@ -4759,6 +4771,7 @@ function ColumnBlockStackEditor({
   mergeFieldGroups,
   onChange,
   onUploadImage,
+  onUploadFile,
   uploadingImage,
   canUpload,
   depth = 0,
@@ -4769,6 +4782,7 @@ function ColumnBlockStackEditor({
   mergeFieldGroups: MergeFieldGroup[];
   onChange: (patch: Partial<BuilderBlock>) => void;
   onUploadImage: (blockId: string, file: File) => void;
+  onUploadFile?: (blockId: string, file: File) => void;
   uploadingImage: boolean;
   canUpload: boolean;
   depth?: number;
@@ -4854,6 +4868,7 @@ function ColumnBlockStackEditor({
             onChange={(patch) => patchColumn(selected.column, (items) => items.map((item) => item.id === selectedBlock.id ? { ...item, ...patch } : item))}
             onSetInsertTarget={() => undefined}
             onUploadImage={onUploadImage}
+            onUploadFile={onUploadFile}
             onGenerateAiSmartHtml={() => undefined}
             aiSmartBusy={false}
             aiSmartError={null}
@@ -5265,6 +5280,7 @@ function BlockInspector({
           mergeFieldGroups={mergeFieldGroups}
           onChange={onChange}
           onUploadImage={onUploadImage}
+          onUploadFile={onUploadFile}
           uploadingImage={uploadingImage}
           canUpload={canUpload}
         />

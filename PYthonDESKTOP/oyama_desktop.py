@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import csv
-import json
 import queue
 import threading
 from datetime import datetime
 from pathlib import Path
-from tkinter import Tk, StringVar, BooleanVar, filedialog, messagebox
+from tkinter import Canvas, Tk, StringVar, BooleanVar, filedialog, messagebox
 from tkinter import ttk
 from typing import Any, Callable
 
@@ -73,6 +72,9 @@ class OyamaApi:
         params = {"scope": "ALL_YEARS"} if all_years else {}
         return self._request("GET", "/api/donations/stats", params=params)
 
+    def health(self) -> dict[str, Any]:
+        return self._request("GET", "/api/health")
+
 
 class OyamaDesktop(Tk):
     def __init__(self) -> None:
@@ -83,6 +85,7 @@ class OyamaDesktop(Tk):
         self.mfa_ticket: str | None = None
         self.search_rows: list[dict[str, str]] = []
         self.report_rows: list[tuple[str, str]] = []
+        self.dashboard_summary: dict[str, Any] = {}
 
         self.title(APP_NAME)
         self.geometry("1080x700")
@@ -201,9 +204,65 @@ class OyamaDesktop(Tk):
         name = " ".join(filter(None, [self.user.get("firstName", ""), self.user.get("lastName", "")])) or self.user.get("email", "Signed in")
         ttk.Label(header, text=f"Signed in as {name}", style="SubTitle.TLabel").pack(side="right")
         notebook = ttk.Notebook(root); notebook.pack(fill="both", expand=True, padx=20, pady=20)
-        self.search_tab = ttk.Frame(notebook, padding=20); self.reports_tab = ttk.Frame(notebook, padding=20)
-        notebook.add(self.search_tab, text="  Search records  "); notebook.add(self.reports_tab, text="  Reports  ")
-        self._build_search_tab(); self._build_reports_tab()
+        self.dashboard_tab = ttk.Frame(notebook, padding=20); self.search_tab = ttk.Frame(notebook, padding=20); self.reports_tab = ttk.Frame(notebook, padding=20)
+        notebook.add(self.dashboard_tab, text="  Dashboard  "); notebook.add(self.search_tab, text="  Search records  "); notebook.add(self.reports_tab, text="  Reports  ")
+        self._build_dashboard_tab(); self._build_search_tab(); self._build_reports_tab()
+        self._refresh_dashboard()
+
+    def _build_dashboard_tab(self) -> None:
+        self.dashboard_tab.columnconfigure(0, weight=1)
+        self.dashboard_tab.rowconfigure(3, weight=1)
+        title_row = ttk.Frame(self.dashboard_tab); title_row.grid(row=0, column=0, sticky="ew")
+        ttk.Label(title_row, text="Fundraising overview", style="Heading.TLabel").pack(side="left")
+        self.dashboard_refresh = ttk.Button(title_row, text="Refresh", style="Accent.TButton", command=self._refresh_dashboard)
+        self.dashboard_refresh.pack(side="right")
+        self.dashboard_status = StringVar(value="Loading live CRM figures…")
+        ttk.Label(self.dashboard_tab, textvariable=self.dashboard_status, style="Muted.TLabel").grid(row=1, column=0, sticky="w", pady=(4, 16))
+        self.kpi_grid = ttk.Frame(self.dashboard_tab); self.kpi_grid.grid(row=2, column=0, sticky="ew")
+        for index in range(4): self.kpi_grid.columnconfigure(index, weight=1, uniform="kpi")
+        self.kpi_values: dict[str, StringVar] = {}
+        for index, (key, label) in enumerate((("giving", "Giving total"), ("donors", "Active donors"), ("campaigns", "Active campaigns"), ("tasks", "Tasks needing attention"))):
+            card = self._card(self.kpi_grid, 16); card.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 6, 0 if index == 3 else 6))
+            ttk.Label(card, text=label, style="Muted.TLabel").pack(anchor="w")
+            value = StringVar(value="—"); self.kpi_values[key] = value
+            ttk.Label(card, textvariable=value, style="Heading.TLabel").pack(anchor="w", pady=(8, 0))
+        chart_card = self._card(self.dashboard_tab, 18); chart_card.grid(row=3, column=0, sticky="nsew", pady=(18, 0)); chart_card.columnconfigure(0, weight=1); chart_card.rowconfigure(1, weight=1)
+        ttk.Label(chart_card, text="Giving pace", style="Heading.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(chart_card, text="Current week, month-to-date, and selected reporting total", style="Muted.TLabel").grid(row=0, column=0, sticky="e")
+        self.giving_chart = Canvas(chart_card, background=WHITE, highlightthickness=0, height=260)
+        self.giving_chart.grid(row=1, column=0, sticky="nsew", pady=(12, 0)); self.giving_chart.bind("<Configure>", lambda _event: self._draw_giving_chart())
+
+    def _refresh_dashboard(self) -> None:
+        self.dashboard_refresh.configure(state="disabled"); self.dashboard_status.set("Refreshing live CRM figures…")
+        self._run(self.api.report_summary, (False,), self._show_dashboard)
+
+    def _show_dashboard(self, data: dict[str, Any]) -> None:
+        self.dashboard_summary = data; self.dashboard_refresh.configure(state="normal")
+        money = lambda value: f"${float(value or 0):,.0f}"
+        self.kpi_values["giving"].set(money(data.get("ytdAmount")))
+        self.kpi_values["donors"].set(f"{data.get('activeDonors', 0):,}")
+        self.kpi_values["campaigns"].set(f"{data.get('activeCampaigns', 0):,}")
+        attention = int(data.get("pendingTasks", 0) or 0) + int(data.get("overdueTasks", 0) or 0)
+        self.kpi_values["tasks"].set(f"{attention:,}")
+        self.dashboard_status.set(f"Live data updated {datetime.now().strftime('%b %d, %Y at %I:%M %p')}")
+        self._draw_giving_chart()
+
+    def _draw_giving_chart(self) -> None:
+        if not hasattr(self, "giving_chart"): return
+        chart = self.giving_chart; chart.delete("all")
+        width, height = max(chart.winfo_width(), 300), max(chart.winfo_height(), 220)
+        values = [("This week", float(self.dashboard_summary.get("weekAmount") or 0)), ("Month to date", float(self.dashboard_summary.get("monthAmount") or self.dashboard_summary.get("mtdAmount") or 0)), ("Giving total", float(self.dashboard_summary.get("ytdAmount") or 0))]
+        maximum = max((value for _, value in values), default=1) or 1
+        left, bottom, top = 68, height - 48, 26
+        available_height = bottom - top; bar_width = min(110, max(44, (width - left - 36) // 5))
+        positions = [left + 45, width // 2 - bar_width // 2, width - bar_width - 45]
+        chart.create_line(left - 16, bottom, width - 24, bottom, fill="#bcccdc", width=1)
+        for (label, value), x in zip(values, positions):
+            bar_height = max(4, available_height * value / maximum)
+            y = bottom - bar_height
+            chart.create_rectangle(x, y, x + bar_width, bottom, fill=BLUE, outline="")
+            chart.create_text(x + bar_width / 2, y - 12, text=f"${value:,.0f}", fill=INK, font=("Segoe UI Semibold", 10))
+            chart.create_text(x + bar_width / 2, bottom + 20, text=label, fill=MUTED, font=("Segoe UI", 9))
 
     def _build_search_tab(self) -> None:
         self.search_tab.columnconfigure(0, weight=1); self.search_tab.rowconfigure(2, weight=1)
@@ -217,8 +276,9 @@ class OyamaDesktop(Tk):
         for key, title, width in (("type", "Type", 120), ("name", "Name", 300), ("details", "Details", 460)):
             self.results.heading(key, text=title); self.results.column(key, width=width, anchor="w")
         self.results.grid(row=2, column=0, sticky="nsew")
-        ttk.Scrollbar(self.search_tab, orient="vertical", command=self.results.yview).grid(row=2, column=1, sticky="ns")
-        self.results.configure(yscrollcommand=lambda first, last: None)
+        scrollbar = ttk.Scrollbar(self.search_tab, orient="vertical", command=self.results.yview)
+        scrollbar.grid(row=2, column=1, sticky="ns")
+        self.results.configure(yscrollcommand=scrollbar.set)
         self.search_status = StringVar(value="Search by name, email, campaign, gift receipt, or a CRM tool.")
         ttk.Label(self.search_tab, textvariable=self.search_status, style="Muted.TLabel").grid(row=3, column=0, sticky="w", pady=(12, 0))
 
@@ -290,6 +350,7 @@ class OyamaDesktop(Tk):
                 if isinstance(result, Exception):
                     self.sign_in_button.configure(state="normal") if hasattr(self, "sign_in_button") else None
                     self.run_report_button.configure(state="normal") if hasattr(self, "run_report_button") else None
+                    self.dashboard_refresh.configure(state="normal") if hasattr(self, "dashboard_refresh") else None
                     messagebox.showerror(APP_NAME, str(result)); self.login_status.set(str(result)) if hasattr(self, "login_status") else None
                 elif done: done(result)
         except queue.Empty: pass
