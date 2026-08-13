@@ -47,6 +47,12 @@ type PreparedBulkDownload = {
   recipientCount: number;
 };
 
+type PreparedMasterPdf = {
+  objectUrl: string;
+  fileName: string;
+  partCount: number;
+};
+
 const LETTER_BLOCK_LIBRARY = [
   {
     id: "writing",
@@ -3818,6 +3824,9 @@ function GenerateWorkspace() {
   const [previewBulkDownload, setPreviewBulkDownload] = useState<"individual" | "batch" | null>(null);
   const [preparedBulkDownloads, setPreparedBulkDownloads] = useState<PreparedBulkDownload[]>([]);
   const preparedBulkDownloadsRef = useRef<PreparedBulkDownload[]>([]);
+  const [preparedMasterPdf, setPreparedMasterPdf] = useState<PreparedMasterPdf | null>(null);
+  const preparedMasterPdfRef = useRef<PreparedMasterPdf | null>(null);
+  const [masterPdfProgress, setMasterPdfProgress] = useState<{ part: number; totalParts: number } | null>(null);
   const [previewBulkProgress, setPreviewBulkProgress] = useState<{ part: number; totalParts: number } | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
@@ -4149,8 +4158,13 @@ function GenerateWorkspace() {
     preparedBulkDownloadsRef.current = preparedBulkDownloads;
   }, [preparedBulkDownloads]);
 
+  useEffect(() => {
+    preparedMasterPdfRef.current = preparedMasterPdf;
+  }, [preparedMasterPdf]);
+
   useEffect(() => () => {
     preparedBulkDownloadsRef.current.forEach((download) => URL.revokeObjectURL(download.objectUrl));
+    if (preparedMasterPdfRef.current) URL.revokeObjectURL(preparedMasterPdfRef.current.objectUrl);
   }, []);
 
   function readPdfFileName(response: Response, fallback: string): string {
@@ -4212,6 +4226,50 @@ function GenerateWorkspace() {
     return extensionIndex > 0
       ? `${fileName.slice(0, extensionIndex)}${suffix}${fileName.slice(extensionIndex)}`
       : `${fileName}${suffix}`;
+  }
+
+  async function combinePreparedBatchParts() {
+    const batchParts = preparedBulkDownloads
+      .filter((download) => download.output === "batch")
+      .sort((left, right) => left.part - right.part);
+    const totalParts = batchParts[0]?.totalParts ?? 0;
+    if (totalParts < 2 || batchParts.length !== totalParts) {
+      setPdfError(`Wait for all ${totalParts || "batch"} parts before creating the master PDF.`);
+      return;
+    }
+
+    setPdfError(null);
+    setMasterPdfProgress({ part: 1, totalParts });
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const master = await PDFDocument.create();
+      for (const [index, part] of batchParts.entries()) {
+        setMasterPdfProgress({ part: index + 1, totalParts });
+        const sourceBytes = await fetch(part.objectUrl).then((response) => response.arrayBuffer());
+        const source = await PDFDocument.load(sourceBytes);
+        const pages = await master.copyPages(source, source.getPageIndices());
+        pages.forEach((page) => master.addPage(page));
+      }
+      const masterBytes = await master.save();
+      const masterBuffer = masterBytes.buffer.slice(
+        masterBytes.byteOffset,
+        masterBytes.byteOffset + masterBytes.byteLength,
+      ) as ArrayBuffer;
+      const objectUrl = URL.createObjectURL(new Blob([masterBuffer], { type: "application/pdf" }));
+      const originalName = batchParts[0].fileName.replace(/_part_\d+_of_\d+(?=\.pdf$)/i, "");
+      const fileName = originalName.replace(/\.pdf$/i, "_master.pdf");
+      const prepared = { objectUrl, fileName, partCount: totalParts } satisfies PreparedMasterPdf;
+      setPreparedMasterPdf((current) => {
+        if (current) URL.revokeObjectURL(current.objectUrl);
+        return prepared;
+      });
+      startDirectDownload(objectUrl, fileName);
+      setNotice(`Master PDF created from all ${totalParts} prepared parts and the download started.`);
+    } catch (mergeError) {
+      setPdfError(errorMessage(mergeError, "Failed to combine the prepared PDF parts."));
+    } finally {
+      setMasterPdfProgress(null);
+    }
   }
 
   async function createOrOpenEmailDraft(row: GeneratedLetterSummary) {
@@ -4384,6 +4442,10 @@ function GenerateWorkspace() {
     setPreparedBulkDownloads((current) => {
       current.forEach((download) => URL.revokeObjectURL(download.objectUrl));
       return [];
+    });
+    setPreparedMasterPdf((current) => {
+      if (current) URL.revokeObjectURL(current.objectUrl);
+      return null;
     });
     setPdfError(null);
     const recipientParts = Array.from(
@@ -5410,6 +5472,33 @@ function GenerateWorkspace() {
                     : `${preparedBulkDownloads.length} of ${preparedBulkDownloads[0]?.totalParts} parts ready.`}
                 </p>
                 <p className="mt-1 text-xs text-emerald-900">Large exports are split into gateway-safe parts. Use each native save link below; completed parts remain available if a later part fails.</p>
+                {preparedBulkDownloads[0]?.output === "batch" && (preparedBulkDownloads[0]?.totalParts ?? 0) > 1 ? (
+                  <div className="mt-3 border-t border-emerald-200 pt-3">
+                    {preparedMasterPdf ? (
+                      <a
+                        href={preparedMasterPdf.objectUrl}
+                        download={preparedMasterPdf.fileName}
+                        className="inline-flex min-h-10 w-full items-center justify-center rounded-[2px] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd] focus-visible:ring-offset-2"
+                      >
+                        Download master PDF ({preparedMasterPdf.partCount} parts combined)
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void combinePreparedBatchParts()}
+                        disabled={Boolean(masterPdfProgress) || preparedBulkDownloads.length !== preparedBulkDownloads[0].totalParts}
+                        className="inline-flex min-h-10 w-full items-center justify-center rounded-[2px] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f6cbd] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                      >
+                        {masterPdfProgress
+                          ? `Combining part ${masterPdfProgress.part} of ${masterPdfProgress.totalParts}...`
+                          : preparedBulkDownloads.length === preparedBulkDownloads[0].totalParts
+                            ? "Combine all parts and download master PDF"
+                            : `Master PDF available when all ${preparedBulkDownloads[0].totalParts} parts are ready`}
+                      </button>
+                    )}
+                    <p className="mt-1 text-[11px] text-emerald-900">The parts are merged locally in this browser, avoiding another long server request.</p>
+                  </div>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {preparedBulkDownloads.map((download) => (
                     <a

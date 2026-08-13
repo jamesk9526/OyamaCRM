@@ -44,6 +44,9 @@ describe("OyamaLetters generate workspace source contract", () => {
     expect(workspace).toContain("/api/letters/generated/preview-pdf-batch");
     expect(workspace).toContain("PREVIEW_EXPORT_RECIPIENTS_PER_PART = 40");
     expect(workspace).toContain("Large exports are split into gateway-safe parts");
+    expect(workspace).toContain('const { PDFDocument } = await import("pdf-lib")');
+    expect(workspace).toContain("Combine all parts and download master PDF");
+    expect(workspace).toContain("The parts are merged locally in this browser");
     expect(workspace).toContain("/api/letters/generated/batch");
     expect(workspace).toContain("buildMergeContextPayload");
     expect(workspace).toContain('searchParams.get("campaignId")');
