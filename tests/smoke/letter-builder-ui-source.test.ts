@@ -189,6 +189,18 @@ describe("letter builder UI redesign source contract", () => {
     expect(legacyHowToRoute).toContain('redirect("/oyama-letters/docs")');
   });
 
+  it("loads and displays the complete constituent audience in advanced recipient selection", () => {
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+
+    expect(workspace).toContain('"/api/constituents?limit=all"');
+    expect(workspace).toContain("Showing all matching individuals:");
+    expect(workspace).toContain("Individuals ({constituents.length})");
+    expect(workspace).toContain("Select All {pickerSearch.trim() ? \"Matches\" : \"Individuals\"}");
+    expect(workspace).toContain("Clear {pickerSearch.trim() ? \"Matches\" : \"Individuals\"}");
+    expect(workspace).toContain("pickerIndividuals.map((row) => (");
+    expect(workspace).not.toContain("pickerIndividuals.slice(0, 250)");
+  });
+
   it("keeps signature blocks optional across publishing and donation handoff", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
     const lettersRoute = read("server/src/routes/letters.ts");

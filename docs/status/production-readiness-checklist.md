@@ -1,8 +1,25 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-12 (OyamaEmail builder rewrite and compatibility hardening)
+Last updated: 2026-08-13 (Letters complete recipient selection)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-08-13 Letters Complete Recipient Selection Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Advanced recipient audience is complete and reviewable | Working | The selector requests the full constituent dataset, renders every matching row inside its scroll-safe dialog, clearly separates available from selected counts, and provides searchable bulk select/clear controls. Saved lists, segments, filters, recipient preview, and final generation retain the same recipient-resolution path. |
+| Focused automated verification | Working | `tests/smoke/letter-builder-ui-source.test.ts` asserts the unbounded `limit=all` load and no 250-row render cap; focused lint/type verification was run for the modified workspace. |
+
+## 2026-08-13 DonorDash Customization Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Dashboard highlights important live operating information first | Working | The DonorDash header contains live fundraising pace, retention, follow-up health, reporting period, freshness, and direct drill-ins. All values use existing dashboard/report contracts. |
+| Widgets can be shown, hidden, resized, reordered, and dragged | Working | Reorder mode exposes pointer drag and persistent up/down controls; the customization dialog continues to offer visibility and width controls with responsive phone alternatives. Preferences persist locally and new widget IDs are merged safely with saved layouts. |
+| Smart and compatibility layouts are explicit | Working | Smart responsive layout and fixed Reading-order layout are selectable. Smart presets are Balanced, Focus first, Alternating, and Compact; cards remain one column on smaller screens so actions are reachable. |
+| Dashboard visualization motion is accessible | Working | Chart/bar animation is single-run and disabled with `prefers-reduced-motion`; no visual state relies on animation alone. |
+| Focused automated verification | Working with environment caveat | Focused dashboard source coverage and focused ESLint passed. Full web typecheck is blocked by unrelated stale `.next` output for a removed route; authenticated browser verification cannot complete without the local MySQL dependency. |
 
 ## 2026-08-12 OyamaEmail Builder Rewrite Snapshot
 

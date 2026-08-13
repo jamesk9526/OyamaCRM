@@ -12,6 +12,7 @@ import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutMo
 import {
   DEFAULT_WIDGET_ORDER,
   DEFAULT_WIDGET_SIZES,
+  DEFAULT_HIDDEN_WIDGETS,
   INTELLIGENCE_WIDGETS,
   LS_AI_WIDGETS_ENABLED_KEY,
   LS_AUTO_ARRANGE_PRESET_KEY,
@@ -78,6 +79,8 @@ export interface DashboardLayoutApplySettings {
   manualRevenueGoalAmount: number;
   hiddenWidgetIds: string[];
   widgetSizes: Record<string, DashboardWidgetSize>;
+  layoutMode: DashboardLayoutMode;
+  autoArrangePreset: AutoArrangePreset;
 }
 
 function isWidgetId(value: string): value is WidgetId {
@@ -95,11 +98,11 @@ export function useDashboardPageState() {
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
   const [hiddenWidgets, setHiddenWidgets] = useState<WidgetId[]>(loadHiddenWidgets);
   const [editMode, setEditMode] = useState(false);
-  const [locked] = useState(loadLocked);
+  const [locked, setLocked] = useState(loadLocked);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   const [aiWidgetsEnabled, setAiWidgetsEnabled] = useState(loadAiWidgetsEnabled);
-  const [layoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
-  const [autoArrangePreset] = useState<AutoArrangePreset>(loadAutoArrangePreset);
+  const [layoutMode, setLayoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
+  const [autoArrangePreset, setAutoArrangePreset] = useState<AutoArrangePreset>(loadAutoArrangePreset);
   const [widgetSizes, setWidgetSizes] = useState<Record<WidgetId, DashboardWidgetSize>>(loadWidgetSizes);
   const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
 
@@ -308,15 +311,36 @@ export function useDashboardPageState() {
     setManualRevenueGoalAmount(settings.manualRevenueGoalAmount);
     setHiddenWidgets(normalizedHidden);
     setWidgetSizes({ ...DEFAULT_WIDGET_SIZES, ...(settings.widgetSizes as Partial<Record<WidgetId, DashboardWidgetSize>>) });
+    setLayoutMode(settings.layoutMode);
+    setAutoArrangePreset(settings.autoArrangePreset);
   }
 
   function resetLayout() {
     setWidgetOrder([...DEFAULT_WIDGET_ORDER]);
     setWidgetSizes({ ...DEFAULT_WIDGET_SIZES });
+    setHiddenWidgets([...DEFAULT_HIDDEN_WIDGETS]);
+    setLayoutMode("MASONRY");
+    setAutoArrangePreset("BALANCED");
+    setEditMode(false);
   }
 
   function showAllWidgets() {
     setHiddenWidgets([]);
+  }
+
+  function toggleEditMode() {
+    if (locked) return;
+    setEditMode((current) => !current);
+  }
+
+  function applySmartLayout(preset: AutoArrangePreset = "BALANCED") {
+    setLayoutMode("MASONRY");
+    setAutoArrangePreset(preset);
+    setEditMode(false);
+  }
+
+  function toggleLayoutLock() {
+    setLocked((current) => !current);
   }
 
   return {
@@ -328,6 +352,7 @@ export function useDashboardPageState() {
     widgetOrder,
     hiddenWidgets,
     editMode,
+    locked,
     layoutMode,
     autoArrangePreset,
     autoArrangePresetLabel: getAutoArrangePresetLabel(autoArrangePreset),
@@ -357,6 +382,9 @@ export function useDashboardPageState() {
     applyCustomizeSettings,
     resetLayout,
     showAllWidgets,
+    toggleEditMode,
+    applySmartLayout,
+    toggleLayoutLock,
     getWidgetFrameProps,
   };
 }

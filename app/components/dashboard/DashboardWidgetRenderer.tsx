@@ -27,6 +27,8 @@ import MonthlyDonationsWidget from "./MonthlyDonationsWidget";
 import DesignationMixWidget from "./DesignationMixWidget";
 import CampaignScorecardWidget from "./CampaignScorecardWidget";
 import RecurringGivingHealthWidget from "./RecurringGivingHealthWidget";
+import AtAGlanceWidget from "./AtAGlanceWidget";
+import DonorPipelineWidget from "./DonorPipelineWidget";
 import type { ReportingYearMode } from "@/app/lib/fiscal-year";
 import type { DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutModal";
@@ -68,6 +70,18 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
   };
 
   switch (id) {
+    case "at-a-glance":
+      return (
+        <DashboardWidget key={id} id={id} title="At a Glance" subtitle="Giving pace, retention, and immediate follow-up health" {...editProps}>
+          <AtAGlanceWidget summary={data.summary} retention={data.retention} revenueGoal={data.revenueGoal} loading={data.loading} />
+        </DashboardWidget>
+      );
+    case "donor-pipeline":
+      return (
+        <DashboardWidget key={id} id={id} title="Donor Pipeline" subtitle="Active donor base and relationship growth" {...editProps}>
+          <DonorPipelineWidget summary={data.summary} loading={data.loading} />
+        </DashboardWidget>
+      );
     case "actionable-insights":
       return (
         <DashboardWidget

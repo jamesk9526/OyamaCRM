@@ -4012,6 +4012,20 @@ function GenerateWorkspace() {
     if (!needle) return constituents;
     return constituents.filter((row) => recipientSearchText(row).includes(needle));
   }, [constituents, pickerSearch]);
+  const pickerVisibleIndividualIds = useMemo(() => pickerIndividuals.map((row) => row.id), [pickerIndividuals]);
+  const pickerVisibleSelectedCount = useMemo(
+    () => pickerVisibleIndividualIds.filter((id) => selectedIndividualIds.includes(id)).length,
+    [pickerVisibleIndividualIds, selectedIndividualIds],
+  );
+
+  function selectPickerIndividuals() {
+    setSelectedIndividualIds((previous) => Array.from(new Set([...previous, ...pickerVisibleIndividualIds])));
+  }
+
+  function clearPickerIndividuals() {
+    const visibleIds = new Set(pickerVisibleIndividualIds);
+    setSelectedIndividualIds((previous) => previous.filter((id) => !visibleIds.has(id)));
+  }
 
   async function toggleListSelection(listId: string) {
     const willSelect = !selectedListIds.includes(listId);
@@ -5598,7 +5612,7 @@ function GenerateWorkspace() {
               </div>
             </div>
             <div className="flex gap-5 overflow-x-auto border-b border-slate-200 px-5">
-              <button type="button" onClick={() => setPickerTab("individuals")} className={["h-11 shrink-0 border-b-2 text-xs font-semibold uppercase tracking-wide", pickerTab === "individuals" ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Individuals ({selectedIndividualIds.length})</button>
+              <button type="button" onClick={() => setPickerTab("individuals")} className={["h-11 shrink-0 border-b-2 text-xs font-semibold uppercase tracking-wide", pickerTab === "individuals" ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Individuals ({constituents.length})</button>
               <button type="button" onClick={() => setPickerTab("lists")} className={["h-11 shrink-0 border-b-2 text-xs font-semibold uppercase tracking-wide", pickerTab === "lists" ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Saved Lists ({selectedListIds.length})</button>
               <button type="button" onClick={() => setPickerTab("segments")} className={["h-11 shrink-0 border-b-2 text-xs font-semibold uppercase tracking-wide", pickerTab === "segments" ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Segments ({selectedTagNames.length})</button>
               <button type="button" onClick={() => setPickerTab("filters")} className={["h-11 shrink-0 border-b-2 text-xs font-semibold uppercase tracking-wide", pickerTab === "filters" ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>More Filters ({selectedDonorStatuses.length})</button>
@@ -5607,17 +5621,34 @@ function GenerateWorkspace() {
             <div className="max-h-[62vh] overflow-y-auto p-5">
               {pickerTab === "individuals" ? (
                 <div className="space-y-3">
-                  <SearchBox value={pickerSearch} onChange={setPickerSearch} placeholder="Search constituents by name or email..." />
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                    <span>
+                      Showing all matching individuals: <span className="font-semibold text-slate-900">{pickerIndividuals.length}</span>
+                      {pickerSearch.trim() ? <> of <span className="font-semibold text-slate-900">{constituents.length}</span></> : null}
+                      {" · "}
+                      Selected: <span className="font-semibold text-emerald-800">{pickerVisibleSelectedCount}</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button type="button" className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-700" onClick={selectPickerIndividuals} disabled={pickerVisibleIndividualIds.length === 0 || pickerVisibleSelectedCount === pickerVisibleIndividualIds.length}>Select All {pickerSearch.trim() ? "Matches" : "Individuals"}</button>
+                      <button type="button" className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-700" onClick={clearPickerIndividuals} disabled={pickerVisibleSelectedCount === 0}>Clear {pickerSearch.trim() ? "Matches" : "Individuals"}</button>
+                    </div>
+                  </div>
+                  <SearchBox value={pickerSearch} onChange={setPickerSearch} placeholder="Search all constituents by name or email..." />
                   <div className="overflow-hidden rounded-md border border-slate-200">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
                         <tr><th className="w-16 px-3 py-2">Pick</th><th className="px-3 py-2">Constituent</th><th className="px-3 py-2">Email</th><th className="px-3 py-2">Status</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {pickerIndividuals.slice(0, 250).map((row) => (
+                        {pickerIndividuals.map((row) => (
                           <tr key={row.id}>
                             <td className="px-3 py-2">
-                              <input type="checkbox" checked={selectedIndividualIds.includes(row.id)} onChange={() => toggleSelection(row.id, setSelectedIndividualIds)} />
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${personName(row)}`}
+                                checked={selectedIndividualIds.includes(row.id)}
+                                onChange={() => toggleSelection(row.id, setSelectedIndividualIds)}
+                              />
                             </td>
                             <td className="px-3 py-2 font-semibold">{personName(row)}</td>
                             <td className="px-3 py-2 text-slate-600">{row.email || "-"}</td>

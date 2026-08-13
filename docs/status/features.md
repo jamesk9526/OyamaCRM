@@ -1,6 +1,25 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-12 (OyamaEmail builder simplification, global branding authority, and document links)_
+_Last focused audit: 2026-08-13 (Letters complete recipient selection)_
+
+## 2026-08-13 Letters Complete Recipient Selection
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Advanced recipient source selector displays the full audience | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` | The selector continues to request `limit=all` and now renders every matching constituent rather than truncating the table at 250. It shows available and selected counts, supports searchable select-all/clear actions, and retains the existing saved-list, segment, filter, preview, and generation paths. |
+
+Validation: focused letter-builder source suite and lint/type checks for the edited workspace.
+
+## 2026-08-13 DonorDash Customizable Operating View
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Information-rich operating header | Working | `app/components/dashboard/NaturalisticDonorDashboard.tsx`, `DashboardHeaderPulse.tsx` | The header now exposes live YTD pace, retention, and follow-up health with restrained progress visuals, clear drill-ins, refresh state, reporting window, and primary customization actions. |
+| Customizable at-a-glance widgets | Working | `app/components/dashboard/AtAGlanceWidget.tsx`, `DonorPipelineWidget.tsx`, `DashboardWidgetRenderer.tsx`, `dashboardPageConfig.ts` | New real-data At a Glance and Donor Pipeline widgets complement the existing widget catalog. Widgets retain saved order, visibility, and width settings and do not introduce mock analytics. |
+| Direct drag, keyboard-safe ordering, and smart layouts | Working | `app/page.tsx`, `DashboardWidget.tsx`, `useDashboardPageState.ts`, `DashboardLayoutModal.tsx` | Reorder mode makes widgets draggable and retains move buttons/size controls for keyboard and touch-friendly alternatives. The customizer now supports Smart and fixed Reading-order compatibility layouts plus Balanced, Focus first, Alternating, and Compact presets. Existing local layouts are normalized and new widget IDs are appended safely. |
+| Motion accessibility | Working | `app/globals.css`, `GivingTrendChart.tsx` | Lightweight chart and progress-bar reveals communicate refresh without continuous decoration; `prefers-reduced-motion` disables the animation. |
+
+Validation: focused dashboard source test passes; focused ESLint passes with zero errors. Full source suite has one pre-existing TopBar version-label expectation mismatch, and web typecheck is blocked only by stale generated `.next` references to a removed `oyama-beta-features` route. Live authenticated dashboard inspection remains blocked because the local MySQL-backed authentication environment is not available.
 
 ## 2026-08-12 OyamaEmail Builder Rewrite
 

@@ -36,6 +36,7 @@ import CRMCard from "@/app/components/ui/crm/CRMCard";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
 import CRMPageHeader from "@/app/components/ui/crm/CRMPageHeader";
 import CRMQuickActionCard from "@/app/components/ui/crm/CRMQuickActionCard";
+import DashboardHeaderPulse from "./DashboardHeaderPulse";
 
 interface NaturalisticDonorDashboardProps {
   greeting: string;
@@ -69,6 +70,7 @@ export default function NaturalisticDonorDashboard({
   loading: summaryLoading,
   summary,
   retention,
+  revenueGoal,
   dataThroughLabel,
   reportingYearMode,
   headerActions,
@@ -223,13 +225,14 @@ export default function NaturalisticDonorDashboard({
                   Donor operations
                 </div>
                 <h2 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-[28px]">{greeting}, {firstName}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Start with the highest-signal work, then move into the performance detail below. Your dashboard is connected to the live donor ledger.</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Start with the highest-signal work, then arrange the live metrics below around the way your team works. Every value is connected to the donor ledger.</p>
               </div>
               <div className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-right sm:block">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Last refreshed</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{dataThroughLabel}</p>
               </div>
             </div>
+            <DashboardHeaderPulse summary={summary} retention={retention} revenueGoal={revenueGoal} />
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <BriefMetric label="Donors in scope" value={totalDonorsValue} href="/constituents" />
               <BriefMetric label="Open tasks" value={(summary?.pendingTasks ?? 0).toLocaleString()} href="/tasks" />

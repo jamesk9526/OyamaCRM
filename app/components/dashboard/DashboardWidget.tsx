@@ -93,6 +93,7 @@ export default function DashboardWidget({
   return (
     <div
       data-widget-id={id}
+      data-dashboard-widget="true"
       /* Only participates in drag-and-drop during edit mode */
       draggable={editMode}
       onDragStart={editMode ? onDragStart : undefined}
@@ -100,7 +101,7 @@ export default function DashboardWidget({
       onDrop={editMode ? onDrop : undefined}
       onDragEnd={editMode ? onDragEnd : undefined}
       className={`
-        group/widget ${DASHBOARD_PANEL_CLASS} flex flex-col transition-colors
+        dashboard-widget-card group/widget ${DASHBOARD_PANEL_CLASS} flex flex-col transition-[border-color,opacity,transform] duration-150
         ${editMode && isDragging ? "opacity-40 scale-[0.98] shadow-none" : ""}
         ${editMode && isDragOver ? "ring-2 ring-emerald-400 ring-offset-1 border-transparent" : ""}
         ${editMode ? "ring-2 ring-[#0f6cbd]/70 ring-offset-2 ring-offset-[#eff6fc]" : "hover:border-[#0f6cbd]"}
@@ -109,7 +110,7 @@ export default function DashboardWidget({
       `}
     >
       {/* ── Card header ── */}
-      <div className="flex min-w-0 min-h-14 items-center gap-2.5 border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-3 select-none">
+      <div className="flex min-w-0 min-h-14 items-center gap-2.5 border-b border-[#d1d1d1] bg-[#f8f9fa] px-4 py-3 select-none">
 
         {/* Six-dot drag handle — visible only in edit mode */}
         {editMode && (

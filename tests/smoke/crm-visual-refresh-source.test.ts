@@ -38,6 +38,9 @@ describe("Donor CRM visual refresh foundation", () => {
     const designationMix = read("app/components/dashboard/DesignationMixWidget.tsx");
     const campaignScorecard = read("app/components/dashboard/CampaignScorecardWidget.tsx");
     const recurringGivingHealth = read("app/components/dashboard/RecurringGivingHealthWidget.tsx");
+    const atAGlance = read("app/components/dashboard/AtAGlanceWidget.tsx");
+    const donorPipeline = read("app/components/dashboard/DonorPipelineWidget.tsx");
+    const dashboardLayoutModal = read("app/components/dashboard/DashboardLayoutModal.tsx");
     const donationsPage = read("app/donations/page.tsx");
     const donationsRoute = read("server/src/routes/donations.ts");
     const monthlyDonations = read("app/components/dashboard/MonthlyDonationsWidget.tsx");
@@ -86,6 +89,17 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(dashboardConfig).toContain("designation-mix");
     expect(dashboardConfig).toContain("campaign-scorecard");
     expect(dashboardConfig).toContain("recurring-giving-health");
+    expect(dashboardConfig).toContain('"at-a-glance"');
+    expect(dashboardConfig).toContain('"donor-pipeline"');
+    expect(page).toContain("Done arranging");
+    expect(page).toContain("Smart layout");
+    expect(dashboardState).toContain("toggleEditMode");
+    expect(dashboardState).toContain("applySmartLayout");
+    expect(dashboardLayoutModal).toContain("Reading-order layout");
+    expect(dashboardLayoutModal).toContain("Smart layout emphasis");
+    expect(atAGlance).toContain("Giving pace");
+    expect(atAGlance).toContain("Follow-up health");
+    expect(donorPipeline).toContain("Active relationship coverage");
     expect(designationMix).toContain("/api/reports/designations-summary");
     expect(campaignScorecard).toContain("/api/campaigns?active=true&limit=5");
     expect(recurringGivingHealth).toContain("donor.getRecurringGivingHealth");

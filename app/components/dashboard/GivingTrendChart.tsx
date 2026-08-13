@@ -214,7 +214,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
           <p className="text-xs text-slate-500 mt-1">Record donations to populate the trend graph.</p>
         </div>
       ) : (
-        <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+        <div className="dashboard-chart-reveal relative flex-1 overflow-hidden rounded-2xl border border-slate-100 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
           {hovered ? (
             <div className="absolute left-3 top-2 z-10 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-[11px] shadow-[0_12px_28px_rgba(15,23,42,0.13)] backdrop-blur-md">
               <p className="font-semibold text-slate-800">{hovered.label}</p>

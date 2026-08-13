@@ -20,6 +20,8 @@ export const PREVIOUS_DEFAULT_WIDGET_ORDER = [
 
 /** Ordered list of widget IDs (CRM default). */
 export const DEFAULT_WIDGET_ORDER = [
+  "at-a-glance",
+  "donor-pipeline",
   "actionable-insights",
   "ai-insights",
   "ai-opportunities",
@@ -56,6 +58,8 @@ export type AutoArrangePreset = "BALANCED" | "ALTERNATING_WIDE" | "FEATURE_FIRST
  * deeper views that add context without repeating the command-center cards.
  */
 export const DEFAULT_DASHBOARD_INSIGHT_WIDGETS: WidgetId[] = [
+  "at-a-glance",
+  "donor-pipeline",
   "giving-trend",
   "designation-mix",
   "campaign-scorecard",
@@ -78,6 +82,8 @@ type WidgetMeta = {
 
 /** Human-readable label + description for each widget (used in the layout modal). */
 export const WIDGET_META: WidgetMeta[] = [
+  { id: "at-a-glance", label: "At a Glance", description: "Giving pace, retention, and current workload" },
+  { id: "donor-pipeline", label: "Donor Pipeline", description: "Active donor base and new relationship growth" },
   { id: "actionable-insights", label: "Actionable Insights", description: "Cross-workspace priorities and quick links" },
   { id: "ai-insights", label: "AI Runtime + Controls", description: "Steward AI status and dashboard AI toggle" },
   { id: "ai-opportunities", label: "AI Opportunities", description: "Top suggested stewardship opportunities" },
@@ -124,6 +130,8 @@ export const LS_WIDGET_DEFAULTS_VERSION_KEY = "dashboard-widget-defaults-version
 export const DASHBOARD_WIDGET_DEFAULTS_VERSION = "2026-07-compact-insights";
 
 export const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
+  "at-a-glance": "wide",
+  "donor-pipeline": "standard",
   "actionable-insights": "wide",
   "ai-insights": "standard",
   "ai-opportunities": "standard",
@@ -150,6 +158,8 @@ export const DEFAULT_WIDGET_SIZES: Record<WidgetId, DashboardWidgetSize> = {
 };
 
 export const TOP_KPI_WIDGETS: WidgetId[] = [
+  "at-a-glance",
+  "donor-pipeline",
   "revenue",
   "goal-health",
   "campaign-scorecard",

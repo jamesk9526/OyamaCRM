@@ -4,6 +4,7 @@
 
 import { useRef, useState } from "react";
 import type { DashboardWidgetSize } from "@/app/components/dashboard/DashboardWidget";
+import type { AutoArrangePreset, DashboardLayoutMode } from "./dashboardPageConfig";
 
 export interface WidgetMeta {
   id: string;
@@ -21,6 +22,8 @@ interface DashboardWidgetSettings {
   manualRevenueGoalAmount: number;
   hiddenWidgetIds: string[];
   widgetSizes: Record<string, DashboardWidgetSize>;
+  layoutMode: DashboardLayoutMode;
+  autoArrangePreset: AutoArrangePreset;
 }
 
 interface Props {
@@ -34,6 +37,8 @@ interface Props {
   initialManualRevenueGoalAmount: number;
   initialHiddenWidgetIds: string[];
   initialWidgetSizes: Record<string, DashboardWidgetSize>;
+  initialLayoutMode: DashboardLayoutMode;
+  initialAutoArrangePreset: AutoArrangePreset;
 }
 
 const WIDGET_SIZE_OPTIONS: Array<{ value: DashboardWidgetSize; label: string }> = [
@@ -55,6 +60,8 @@ export default function DashboardLayoutModal({
   initialManualRevenueGoalAmount,
   initialHiddenWidgetIds,
   initialWidgetSizes,
+  initialLayoutMode,
+  initialAutoArrangePreset,
 }: Props) {
   const [localOrder, setLocalOrder] = useState<string[]>(order);
   const [localHiddenWidgets, setLocalHiddenWidgets] = useState<Set<string>>(
@@ -70,7 +77,9 @@ export default function DashboardLayoutModal({
   );
   const [localWidgetSizes, setLocalWidgetSizes] =
     useState<Record<string, DashboardWidgetSize>>(initialWidgetSizes);
-  const [activeTab, setActiveTab] = useState<"widgets" | "settings">("widgets");
+  const [localLayoutMode, setLocalLayoutMode] = useState<DashboardLayoutMode>(initialLayoutMode);
+  const [localAutoArrangePreset, setLocalAutoArrangePreset] = useState<AutoArrangePreset>(initialAutoArrangePreset);
+  const [activeTab, setActiveTab] = useState<"widgets" | "layout" | "settings">("widgets");
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -141,6 +150,8 @@ export default function DashboardLayoutModal({
       manualRevenueGoalAmount: Math.max(0, Number(localManualRevenueGoalAmount || 0)),
       hiddenWidgetIds: Array.from(localHiddenWidgets),
       widgetSizes: localWidgetSizes,
+      layoutMode: localLayoutMode,
+      autoArrangePreset: localAutoArrangePreset,
     });
     onClose();
   }
@@ -192,6 +203,16 @@ export default function DashboardLayoutModal({
             <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
               {activeOrder.length} visible
             </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("layout")}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
+              activeTab === "layout"
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Layout
           </button>
           <button
             onClick={() => setActiveTab("settings")}
@@ -496,6 +517,43 @@ export default function DashboardLayoutModal({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "layout" && (
+            <div className="max-w-2xl space-y-5">
+              <div className="rounded-xl border border-[#cfe4fa] bg-[#eff6fc] px-4 py-3 text-xs leading-5 text-[#0f548c]">
+                Smart layout keeps cards in a useful order at every width. Reading-order layout keeps your chosen widths in a predictable 12-column grid for teams that prefer a fixed dashboard.
+              </div>
+              <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
+                <legend className="px-1 text-sm font-semibold text-slate-800">Layout behavior</legend>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className={`cursor-pointer rounded-lg border p-3 ${localLayoutMode === "MASONRY" ? "border-[#0f6cbd] bg-[#eff6fc]" : "border-slate-200 hover:border-slate-300"}`}>
+                    <input className="sr-only" type="radio" name="dashboard-layout" checked={localLayoutMode === "MASONRY"} onChange={() => setLocalLayoutMode("MASONRY")} />
+                    <span className="block text-sm font-semibold text-slate-800">Smart layout</span><span className="mt-1 block text-xs text-slate-500">Responsive, balanced placement with priority cards given room to breathe.</span>
+                  </label>
+                  <label className={`cursor-pointer rounded-lg border p-3 ${localLayoutMode === "GRID" ? "border-[#0f6cbd] bg-[#eff6fc]" : "border-slate-200 hover:border-slate-300"}`}>
+                    <input className="sr-only" type="radio" name="dashboard-layout" checked={localLayoutMode === "GRID"} onChange={() => setLocalLayoutMode("GRID")} />
+                    <span className="block text-sm font-semibold text-slate-800">Reading-order layout</span><span className="mt-1 block text-xs text-slate-500">A fixed, predictable grid that respects every widget width selection.</span>
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
+                <legend className="px-1 text-sm font-semibold text-slate-800">Smart layout emphasis</legend>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {([
+                    ["BALANCED", "Balanced", "Equal visual weight across your selected widgets."],
+                    ["FEATURE_FIRST", "Focus first", "Bring at-a-glance, follow-up, and trend widgets forward."],
+                    ["ALTERNATING_WIDE", "Alternating", "A varied cadence of wide and compact cards."],
+                    ["COMPACT", "Compact", "Fit more useful signal into the same space."],
+                  ] as Array<[AutoArrangePreset, string, string]>).map(([value, label, description]) => (
+                    <label key={value} className={`cursor-pointer rounded-lg border px-3 py-2.5 ${localAutoArrangePreset === value ? "border-[#0f6cbd] bg-[#eff6fc]" : "border-slate-200 hover:border-slate-300"}`}>
+                      <input className="sr-only" type="radio" name="dashboard-preset" checked={localAutoArrangePreset === value} onChange={() => { setLocalAutoArrangePreset(value); setLocalLayoutMode("MASONRY"); }} />
+                      <span className="block text-sm font-semibold text-slate-800">{label}</span><span className="mt-0.5 block text-[11px] text-slate-500">{description}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             </div>
           )}
 
