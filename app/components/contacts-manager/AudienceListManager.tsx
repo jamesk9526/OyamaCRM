@@ -21,7 +21,7 @@ interface SavedAudienceList {
   updatedAt: string;
 }
 
-interface SavedAudienceMember {
+export interface SavedAudienceMember {
   id: string;
   constituentId?: string | null;
   email?: string | null;

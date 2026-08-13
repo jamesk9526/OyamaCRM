@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import AudienceListManager from "@/app/components/contacts-manager/AudienceListManager";
+import AudienceListManager, { type SavedAudienceMember } from "@/app/components/contacts-manager/AudienceListManager";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface ConstituentRow {
@@ -28,14 +28,14 @@ interface SavedAudienceDetail {
   id: string;
   name: string;
   description?: string | null;
-  recipients: Array<{ id: string; email: string }>;
+  recipients: SavedAudienceMember[];
 }
 
 /** Renders the saved list manager as a focused full-page workspace. */
 export default function ContactsManagerListsPage() {
   const [constituents, setConstituents] = useState<ConstituentRow[]>([]);
   const [lists, setLists] = useState<SavedAudienceList[]>([]);
-  const [listRecipientsById, setListRecipientsById] = useState<Record<string, string[]>>({});
+  const [listRecipientsById, setListRecipientsById] = useState<Record<string, SavedAudienceMember[]>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -46,7 +46,7 @@ export default function ContactsManagerListsPage() {
     ]);
     const listDetails = await Promise.all(listRows.map(async (list) => {
       const detail = await apiFetch<SavedAudienceDetail>(`/api/email-campaigns/lists/${list.id}`);
-      return [list.id, detail.recipients.map((row) => row.email.trim().toLowerCase()).filter(Boolean)] as const;
+      return [list.id, detail.recipients] as const;
     }));
     setConstituents(contactRows);
     setLists(listRows);
