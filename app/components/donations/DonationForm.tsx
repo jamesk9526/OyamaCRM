@@ -107,7 +107,6 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
   const [form, setForm] = useState<FormData>({ ...EMPTY, ...defaultValues });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [addToQB, setAddToQB] = useState(false);
   const [constituentQuery, setConstituentQuery] = useState("");
   const [constituentResults, setConstituentResults] = useState<ConstituentOption[]>([]);
   const [constituentSearchOpen, setConstituentSearchOpen] = useState(false);
@@ -214,18 +213,6 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
             notes:         form.notes || null,
           }),
         }) as { id?: string };
-
-        // After a new donation is created, optionally add it to the QB sync queue
-        if (mode === "create" && addToQB && savedRes?.id) {
-          try {
-            await apiFetch("/api/quickbooks/sync-queue", {
-              method: "POST",
-              body: JSON.stringify({ donationId: savedRes.id }),
-            });
-          } catch {
-            // QB queue add failure is non-fatal — donation was saved successfully
-          }
-        }
 
         if (onSaved) {
           await onSaved(savedRes?.id);
@@ -401,17 +388,11 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
           className="rounded-sm border border-[#8a8886] bg-white px-5 py-2 text-sm font-semibold text-[#323130] hover:bg-[#f3f2f1] focus:outline-none focus:ring-2 focus:ring-[#0078d4] focus:ring-offset-2">
           Cancel
         </button>
-        {/* QB sync checkbox — only shows on create when the QB plugin is enabled */}
+        {/* Queueing is server-owned so every gift entry path behaves consistently. */}
         {mode === "create" && qbEnabled && (
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none ml-auto">
-            <input
-              type="checkbox"
-              checked={addToQB}
-              onChange={(e) => setAddToQB(e.target.checked)}
-              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            <span>Add to QuickBooks Queue</span>
-          </label>
+          <p className="ml-auto text-sm font-medium text-green-700" role="status">
+            Completed gifts are automatically queued for QuickBooks.
+          </p>
         )}
       </div>
     </form>

@@ -11,6 +11,11 @@ interface ConstituentRow {
   email?: string | null;
   phone?: string | null;
   employer?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   tags?: Array<{ tag: { name: string; color?: string | null } }>;
 }
 
@@ -83,6 +88,11 @@ export default function AudienceListManager({
       row.contact?.firstName,
       row.contact?.lastName,
       row.contact?.email,
+      row.contact?.addressLine1,
+      row.contact?.addressLine2,
+      row.contact?.city,
+      row.contact?.state,
+      row.contact?.zip,
       row.contact?.employer,
     ].filter(Boolean).join(" ").toLowerCase().includes(query);
   });
@@ -241,16 +251,17 @@ export default function AudienceListManager({
           <div className="mt-3 max-h-64 overflow-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-100 text-xs">
               <thead className="bg-gray-50 text-left font-semibold uppercase tracking-wide text-gray-500">
-                <tr><th className="w-10 px-3 py-2"><span className="sr-only">Select</span></th><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Matched Contact</th><th className="px-3 py-2">Organization</th><th className="px-3 py-2 text-right">Action</th></tr>
+                <tr><th className="w-10 px-3 py-2"><span className="sr-only">Select</span></th><th className="px-3 py-2">Email</th><th className="px-3 py-2">Matched Contact</th><th className="px-3 py-2">Street address</th><th className="px-3 py-2">Organization</th><th className="px-3 py-2 text-right">Action</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {visibleMemberRows.length === 0 ? (
-                  <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">{activeMembers.length === 0 ? "No recipients in this list." : "No list members match these filters."}</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">{activeMembers.length === 0 ? "No recipients in this list." : "No list members match these filters."}</td></tr>
                 ) : visibleMemberRows.map((row) => (
                   <tr key={row.member.id}>
                     <td className="px-3 py-2"><input type="checkbox" checked={checkedMemberIds.has(row.member.id)} onChange={() => toggleMember(row.member.id)} aria-label={`Select ${memberDisplayName(row.member)} for removal`} className="rounded border-gray-300 text-red-600" /></td>
                     <td className="px-3 py-2 text-gray-700">{row.member.email || row.contact?.email || <span className="text-gray-400">No email</span>}</td>
                     <td className="px-3 py-2 font-medium text-gray-900">{row.contact ? `${row.contact.firstName} ${row.contact.lastName}`.trim() || "Unnamed" : "Not matched"}</td>
+                    <td className="px-3 py-2 text-gray-600">{row.contact ? formatMemberAddress(row.contact) || "No street address" : "—"}</td>
                     <td className="px-3 py-2 text-gray-500">{row.contact?.employer || row.contact?.phone || ""}</td>
                     <td className="px-3 py-2 text-right">
                       <button type="button" onClick={() => void removeMember(row.member)} disabled={saving} className="rounded-md border border-red-200 bg-white px-2 py-1 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50" aria-label={`Remove ${memberDisplayName(row.member)} from ${activeList?.name ?? "saved list"}`}>Remove</button>
@@ -312,6 +323,12 @@ export default function AudienceListManager({
       </section>
     </div>
   );
+}
+
+function formatMemberAddress(row: ConstituentRow): string {
+  const street = [row.addressLine1, row.addressLine2].filter(Boolean).join(", ");
+  const locality = [row.city, [row.state, row.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return [street, locality].filter(Boolean).join(" · ");
 }
 
 function ToolPanel({ title, children }: { title: string; children: React.ReactNode }) {

@@ -20,6 +20,11 @@ interface ConstituentRow {
   phone?: string | null;
   employer?: string | null;
   occupation?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   type: string;
   donorStatus: string;
   totalLifetimeGiving?: number | string | null;
@@ -726,7 +731,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
           </div>
 
           <div className={fullscreen ? "min-h-0 flex-1 overflow-auto" : "max-h-[calc(100vh-18rem)] overflow-auto"}>
-            <table className="min-w-[1040px] divide-y divide-gray-200 text-xs">
+            <table className="min-w-[1220px] divide-y divide-gray-200 text-xs">
               <thead className="sticky top-0 z-10 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm">
                 <tr>
                   <th className={`${selectionMode ? "w-10" : "w-0"} px-2 py-2`}>
@@ -736,6 +741,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                   </th>
                   <SortableHeader label="Constituent" sortKey="name" activeKey={sortKey} direction={sortDirection} onSort={updateSort} />
                   <SortableHeader label="Email" sortKey="email" activeKey={sortKey} direction={sortDirection} onSort={updateSort} />
+                  <th className="px-2 py-2">Street address</th>
                   <SortableHeader label="Type" sortKey="type" activeKey={sortKey} direction={sortDirection} onSort={updateSort} />
                   <SortableHeader label="Status" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={updateSort} />
                   <th className="px-2 py-2">Tags</th>
@@ -746,9 +752,9 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
-                  <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500">Loading constituents...</td></tr>
+                  <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-500">Loading constituents...</td></tr>
                 ) : filteredConstituents.length === 0 ? (
-                  <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500">No constituents match this view.</td></tr>
+                  <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-500">No constituents match this view.</td></tr>
                 ) : visibleConstituents.map((row) => (
                   <tr key={row.id} className={`${selectedIds.has(row.id) ? "bg-green-50/50" : "bg-white"} hover:bg-gray-50`}>
                     <td className="px-2 py-1.5">
@@ -760,6 +766,9 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                     </td>
                     <td className="px-2 py-1.5 text-gray-600">
                       <span className="block max-w-52 truncate">{row.email || "No email"}</span>
+                    </td>
+                    <td className="px-2 py-1.5 text-gray-600">
+                      <span className="block max-w-64 whitespace-normal break-words">{formatStreetAddress(row) || "No street address"}</span>
                     </td>
                     <td className="px-2 py-1.5">
                       <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700">{labelFor(row.type)}</span>
@@ -1048,10 +1057,21 @@ function contactHaystack(row: ConstituentRow): string {
     row.phone ?? "",
     row.employer ?? "",
     row.occupation ?? "",
+    row.addressLine1 ?? "",
+    row.addressLine2 ?? "",
+    row.city ?? "",
+    row.state ?? "",
+    row.zip ?? "",
     row.type,
     row.donorStatus,
     ...(row.tags?.map((item) => item.tag.name) ?? []),
   ].join(" ");
+}
+
+function formatStreetAddress(row: ConstituentRow): string {
+  const street = [row.addressLine1, row.addressLine2].filter(Boolean).join(", ");
+  const locality = [row.city, [row.state, row.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return [street, locality].filter(Boolean).join(" · ");
 }
 
 function labelFor(value: string): string {

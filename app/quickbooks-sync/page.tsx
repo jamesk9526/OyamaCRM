@@ -31,7 +31,7 @@ type FilterValue = (typeof STATUS_FILTERS)[number]["value"];
  * Shows connection status, ribbon-based queue controls, queue table, and sync-all actions.
  */
 export default function QBSyncPage() {
-  const { qbEnabled, qbConnected, loading: pluginLoading, refresh: refreshPlugin } = usePlugins();
+  const { qbEnabled, qbConnected, qbDailySyncEnabled, qbDailySyncHour, qbLastDailySyncDate, loading: pluginLoading, refresh: refreshPlugin } = usePlugins();
   const [items, setItems] = useState<QBSyncItem[]>([]);
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState<FilterValue>("PENDING");
@@ -176,6 +176,15 @@ export default function QBSyncPage() {
 
       {/* Connection status */}
       <QBConnectionStatus onConnect={handleConnect} onDisconnect={handleDisconnect} />
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        <p className="font-semibold">One-way donation sink</p>
+        <p className="mt-1 text-xs leading-5 text-blue-800">
+          Completed CRM gifts are queued automatically and never pulled back from QuickBooks. Manual sync is always available.
+          {qbDailySyncEnabled ? ` Daily sync runs after ${String(qbDailySyncHour).padStart(2, "0")}:00 in the organization timezone.` : " Daily sync is disabled."}
+          {qbLastDailySyncDate ? ` Last daily run: ${qbLastDailySyncDate}.` : " No daily run has completed yet."}
+        </p>
+      </div>
 
       {/* Sync-all result banner */}
       {syncResult && (

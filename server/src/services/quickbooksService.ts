@@ -11,6 +11,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import type { Prisma } from "@prisma/client";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,11 +28,63 @@ export interface QBTokenPayload {
 
 /** Donation data shape needed to create a QB Sales Receipt */
 export interface QBDonationPayload {
+  donationId: string;
+  queueItemId: string;
   customerName: string;
   amount: number;
   memo?: string;
   qbAccount?: string;
   date: string; // YYYY-MM-DD
+}
+
+type QBApiClient = Awaited<ReturnType<typeof getAuthorizedClient>>;
+
+function qboString(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+}
+
+function responseData<T>(response: unknown): T {
+  const shaped = response as { json?: unknown; data?: unknown };
+  const raw = shaped.json ?? shaped.data ?? {};
+  if (typeof raw === "string") return JSON.parse(raw) as T;
+  return raw as T;
+}
+
+async function queryQB<T>(client: QBApiClient, baseUrl: string, realmId: string, query: string): Promise<T> {
+  const response = await client.makeApiCall({
+    url: `${baseUrl}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}&minorversion=75`,
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  return responseData<T>(response);
+}
+
+async function resolveCustomerRef(client: QBApiClient, baseUrl: string, realmId: string, displayName: string) {
+  const query = `select Id, DisplayName from Customer where DisplayName = '${qboString(displayName)}' maxresults 1`;
+  const found = await queryQB<{ QueryResponse?: { Customer?: Array<{ Id: string; DisplayName?: string }> } }>(client, baseUrl, realmId, query);
+  const existing = found.QueryResponse?.Customer?.[0];
+  if (existing?.Id) return { value: existing.Id, name: existing.DisplayName ?? displayName };
+
+  const response = await client.makeApiCall({
+    url: `${baseUrl}/v3/company/${realmId}/customer?minorversion=75`,
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ DisplayName: displayName }),
+  });
+  const created = responseData<{ Customer?: { Id?: string; DisplayName?: string } }>(response).Customer;
+  if (!created?.Id) throw new Error("QuickBooks did not return a customer ID.");
+  return { value: created.Id, name: created.DisplayName ?? displayName };
+}
+
+async function resolveItemRef(client: QBApiClient, baseUrl: string, realmId: string, requestedName?: string) {
+  const candidateNames = Array.from(new Set([requestedName?.trim(), "Donations", "Services"].filter(Boolean) as string[]));
+  for (const name of candidateNames) {
+    const query = `select Id, Name from Item where Name = '${qboString(name)}' and Active = true maxresults 1`;
+    const found = await queryQB<{ QueryResponse?: { Item?: Array<{ Id: string; Name?: string }> } }>(client, baseUrl, realmId, query);
+    const item = found.QueryResponse?.Item?.[0];
+    if (item?.Id) return { value: item.Id, name: item.Name ?? name };
+  }
+  throw new Error("No active QuickBooks donation item was found. Create an active 'Donations' service item or set the queue item's QB item name.");
 }
 
 interface QBCredentials {
@@ -214,9 +267,26 @@ export async function buildAuthUri(organizationId: string): Promise<string> {
   }
   const { default: OAuthClient } = await import("intuit-oauth");
   const client = await createOAuthClient(credentials);
+  const nonce = randomBytes(32).toString("base64url");
+  const state = `${organizationId}.${nonce}`;
+  const plugin = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+  });
+  await prisma.pluginSetting.upsert({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+    create: {
+      organizationId,
+      pluginKey: "quickbooks",
+      enabled: false,
+      config: { qbOAuthStateHash: createHash("sha256").update(state).digest("hex"), qbOAuthStateExpiresAt: Date.now() + 10 * 60_000 },
+    },
+    update: {
+      config: mergeConfig(plugin?.config, { qbOAuthStateHash: createHash("sha256").update(state).digest("hex"), qbOAuthStateExpiresAt: Date.now() + 10 * 60_000 }) as Prisma.InputJsonValue,
+    },
+  });
   return client.authorizeUri({
     scope: [OAuthClient.scopes.Accounting],
-    state: organizationId,
+    state,
   });
 }
 
@@ -228,8 +298,22 @@ export async function buildAuthUri(organizationId: string): Promise<string> {
  */
 export async function handleOAuthCallback(
   callbackUrl: string,
-  organizationId: string
+  state: string
 ): Promise<QBTokenPayload> {
+  const separator = state.indexOf(".");
+  const organizationId = separator > 0 ? state.slice(0, separator) : "";
+  if (!organizationId) throw new Error("Invalid QuickBooks OAuth state.");
+  const statePlugin = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
+  });
+  const stateConfig = asRecord(statePlugin?.config);
+  const expectedHash = String(stateConfig.qbOAuthStateHash ?? "");
+  const actualHash = createHash("sha256").update(state).digest("hex");
+  const expiresAt = Number(stateConfig.qbOAuthStateExpiresAt ?? 0);
+  if (!expectedHash || expiresAt < Date.now() || expectedHash.length !== actualHash.length
+    || !timingSafeEqual(Buffer.from(expectedHash), Buffer.from(actualHash))) {
+    throw new Error("QuickBooks OAuth state is invalid or expired.");
+  }
   const credentials = await resolveCredentials(organizationId);
   if (!credentials) {
     throw new Error("QuickBooks runtime credentials are missing.");
@@ -256,7 +340,11 @@ export async function handleOAuthCallback(
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
   });
 
-  const mergedConfig = mergeConfig(existing?.config, payload as unknown as Record<string, unknown>);
+  const mergedConfig = mergeConfig(existing?.config, {
+    ...(payload as unknown as Record<string, unknown>),
+    qbOAuthStateHash: null,
+    qbOAuthStateExpiresAt: null,
+  });
 
   await prisma.pluginSetting.upsert({
     where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
@@ -391,34 +479,46 @@ export async function pushDonationToQB(
   });
   const stored = plugin?.config as unknown as QBTokenPayload | null;
   const realmId = stored?.realmId ?? "";
+  if (!realmId) throw new Error("QuickBooks connection is missing a company realm ID. Reconnect QuickBooks.");
 
   const baseUrl = credentials.environment === "production"
     ? "https://quickbooks.api.intuit.com"
     : "https://sandbox-quickbooks.api.intuit.com";
 
-  // Build a minimal QB Sales Receipt payload.
-  // The "Line" item maps to a donation income account.
+  const docNumber = `OY-${createHash("sha256").update(donation.donationId).digest("hex").slice(0, 17)}`;
+  const existingReceipt = await queryQB<{ QueryResponse?: { SalesReceipt?: Array<{ Id: string }> } }>(
+    client,
+    baseUrl,
+    realmId,
+    `select Id from SalesReceipt where DocNumber = '${docNumber}' maxresults 1`,
+  );
+  const existingId = existingReceipt.QueryResponse?.SalesReceipt?.[0]?.Id;
+  if (existingId) return existingId;
+
+  const [customerRef, itemRef] = await Promise.all([
+    resolveCustomerRef(client, baseUrl, realmId, donation.customerName),
+    resolveItemRef(client, baseUrl, realmId, donation.qbAccount),
+  ]);
+
   const receiptBody = {
     Line: [
       {
         Amount: donation.amount,
         DetailType: "SalesItemLineDetail",
         SalesItemLineDetail: {
-          // QB requires an ItemRef — "1" is the default "Services" item in sandbox
-          ItemRef: { value: "1", name: "Services" },
+          ItemRef: itemRef,
         },
         Description: donation.memo ?? "Donation",
       },
     ],
-    CustomerRef: {
-      // QB looks up by name; org should map donors to QB customers before syncing
-      name: donation.customerName,
-    },
+    CustomerRef: customerRef,
+    DocNumber: docNumber,
     TxnDate: donation.date,
     PrivateNote: donation.memo ?? undefined,
   };
 
-  const url = `${baseUrl}/v3/company/${realmId}/salesreceipt?minorversion=65`;
+  const requestId = createHash("sha256").update(donation.queueItemId).digest("hex").slice(0, 32);
+  const url = `${baseUrl}/v3/company/${realmId}/salesreceipt?minorversion=75&requestid=${requestId}`;
   const response = await client.makeApiCall({
     url,
     method: "POST",
@@ -427,7 +527,7 @@ export async function pushDonationToQB(
   });
 
   // Both response.json and response.data are supported (see intuit-oauth 4.2.3 FAQ)
-  const data = (response.json ?? (response as unknown as { data: unknown }).data) as { SalesReceipt?: { Id?: string } };
+  const data = responseData<{ SalesReceipt?: { Id?: string } }>(response);
   const entityId = data?.SalesReceipt?.Id ?? "";
 
   if (!entityId) {

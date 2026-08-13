@@ -942,7 +942,9 @@ model PaymentWebhookEvent {
 
   @@unique([provider, externalEventId])
   @@index([organizationId, createdAt])
-  @@index([donationId])
+  // A CRM donation is a one-way sink record: it can have only one QB queue
+  // identity for an organization, regardless of retries or worker concurrency.
+  @@unique([organizationId, donationId])
 }
 
 model Pledge {

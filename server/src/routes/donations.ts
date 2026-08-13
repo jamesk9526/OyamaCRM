@@ -26,6 +26,7 @@ import { buildInclusiveCalendarDateFilter } from "../lib/dateOnlyRanges.js";
 import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js";
 import { enrollConstituentInTriggeredStewardPaths } from "../services/steward-path-enrollment-service.js";
 import { sendCampaignNow } from "./email-campaigns.js";
+import { ensureDonationQueuedForQuickBooks } from "./quickbooks.js";
 
 const router = Router();
 
@@ -660,6 +661,12 @@ router.post("/", async (req, res) => {
   // Keep constituent giving rollups aligned with all-time donation history.
   await recalculateConstituentGivingRollups(donation.constituentId);
 
+  // Completed gifts enter the one-way accounting sink on the server. This is
+  // intentionally independent of browser state so every entry path is reliable.
+  await ensureDonationQueuedForQuickBooks(organizationId, donation.id).catch((queueError) => {
+    console.error("Failed to queue donation for QuickBooks", { donationId: donation.id, queueError });
+  });
+
   res.status(201).json(donation);
 });
 
@@ -715,6 +722,9 @@ router.put("/:id", async (req, res) => {
 
   // Keep constituent giving rollups aligned after manual edits.
   await recalculateConstituentGivingRollups(donation.constituentId);
+  await ensureDonationQueuedForQuickBooks(organizationId, donation.id).catch((queueError) => {
+    console.error("Failed to queue updated donation for QuickBooks", { donationId: donation.id, queueError });
+  });
 
   res.json(donation);
 });

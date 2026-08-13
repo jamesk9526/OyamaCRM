@@ -32,7 +32,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import {
   isQBConfigured,
@@ -72,6 +72,70 @@ async function resolveOrg(req: import("express").Request): Promise<string> {
   return orgId;
 }
 
+function configRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+/** Adds one completed CRM donation to the one-way QB queue exactly once. */
+export async function ensureDonationQueuedForQuickBooks(organizationId: string, donationId: string) {
+  const plugin = await getQBPlugin(organizationId);
+  if (!plugin?.enabled) return { item: null, created: false, reason: "disabled" as const };
+
+  const donation = await prisma.donation.findFirst({
+    where: { id: donationId, status: "COMPLETED", constituent: { organizationId } },
+    include: {
+      constituent: { select: { firstName: true, lastName: true } },
+      campaign: { select: { name: true } },
+      designation: { select: { name: true } },
+    },
+  });
+  if (!donation) return { item: null, created: false, reason: "not-eligible" as const };
+
+  const existing = await prisma.qBSyncQueueItem.findFirst({ where: { organizationId, donationId } });
+  if (existing) return { item: existing, created: false, reason: "exists" as const };
+
+  const memo = [donation.campaign?.name, donation.designation?.name].filter(Boolean).join(" — ") || "Donation";
+  try {
+    const item = await prisma.qBSyncQueueItem.create({
+      data: {
+        organizationId,
+        donationId,
+        customerName: `${donation.constituent.firstName} ${donation.constituent.lastName}`.trim() || "Donor",
+        memo,
+        amount: donation.amount,
+      },
+    });
+    return { item, created: true, reason: "created" as const };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const item = await prisma.qBSyncQueueItem.findFirst({ where: { organizationId, donationId } });
+      return { item, created: false, reason: "exists" as const };
+    }
+    throw error;
+  }
+}
+
+/** Backfills completed gifts created since QB sync was enabled, including imports. */
+export async function queueEligibleQuickBooksDonations(organizationId: string): Promise<number> {
+  const plugin = await getQBPlugin(organizationId);
+  if (!plugin?.enabled) return 0;
+  const config = configRecord(plugin.config);
+  const enabledAtRaw = String(config.qbSyncEnabledAt ?? plugin.createdAt.toISOString());
+  const enabledAt = Number.isNaN(new Date(enabledAtRaw).getTime()) ? plugin.createdAt : new Date(enabledAtRaw);
+  const donations = await prisma.donation.findMany({
+    where: { status: "COMPLETED", createdAt: { gte: enabledAt }, constituent: { organizationId }, qbSyncQueueItems: { none: {} } },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: 5000,
+  });
+  let created = 0;
+  for (const donation of donations) {
+    const result = await ensureDonationQueuedForQuickBooks(organizationId, donation.id);
+    if (result.created) created += 1;
+  }
+  return created;
+}
+
 // ─── Status ──────────────────────────────────────────────────────────────────
 
 /**
@@ -97,6 +161,10 @@ router.get("/status", async (req, res) => {
         runtimeSource: runtime.source,
         redirectUri: runtime.redirectUri,
         clientIdPreview: runtime.clientIdPreview,
+        autoQueue: config?.qbAutoQueue !== false,
+        dailySyncEnabled: config?.qbDailySyncEnabled !== false,
+        dailySyncHour: Number(config?.qbDailySyncHour ?? 23),
+        lastDailySyncDate: typeof config?.qbLastDailySyncDate === "string" ? config.qbLastDailySyncDate : null,
       },
     });
   } catch (err) {
@@ -121,10 +189,19 @@ router.put("/plugin", requireRole("admin"), async (req, res) => {
       return res.status(400).json({ error: { code: "INVALID_INPUT", message: "enabled must be a boolean." } });
     }
 
+    const existingPlugin = await getQBPlugin(organizationId);
+    const existingConfig = configRecord(existingPlugin?.config);
+    const nextConfig = enabled ? {
+      ...existingConfig,
+      qbSyncEnabledAt: existingConfig.qbSyncEnabledAt ?? new Date().toISOString(),
+      qbAutoQueue: true,
+      qbDailySyncEnabled: existingConfig.qbDailySyncEnabled ?? true,
+      qbDailySyncHour: existingConfig.qbDailySyncHour ?? 23,
+    } : existingConfig;
     const plugin = await prisma.pluginSetting.upsert({
       where: { organizationId_pluginKey: { organizationId, pluginKey: "quickbooks" } },
-      create: { organizationId, pluginKey: "quickbooks", enabled },
-      update: { enabled },
+      create: { organizationId, pluginKey: "quickbooks", enabled, config: nextConfig as Prisma.InputJsonValue },
+      update: { enabled, config: nextConfig as Prisma.InputJsonValue },
     });
 
     await logAudit({
@@ -259,12 +336,13 @@ router.get("/callback", async (req, res) => {
     const callbackUrl = `${protocol}://${host}${req.originalUrl}`;
 
     await handleOAuthCallback(callbackUrl, state);
+    const organizationId = state.split(".", 1)[0];
 
     await logAudit({
       action: "QB_CONNECTED",
       entity: "PluginSetting",
-      entityId: state,
-      organizationId: state,
+      entityId: organizationId,
+      organizationId,
       metadata: { pluginKey: "quickbooks" },
     });
 
@@ -384,9 +462,10 @@ router.post("/sync-queue", async (req, res) => {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found." } });
     }
 
-    // Prevent duplicate queue entries (non-skipped)
+    // A donation remains linked to one immutable queue identity even after a
+    // skip or failure. This prevents later retries from creating a second QB row.
     const existing = await prisma.qBSyncQueueItem.findFirst({
-      where: { organizationId, donationId, status: { in: ["PENDING", "SYNCED", "FAILED"] } },
+      where: { organizationId, donationId },
     });
     if (existing) {
       return res.status(409).json({
@@ -515,7 +594,7 @@ router.delete("/sync-queue/:id", async (req, res) => {
  * Attempts to sync one QBSyncQueueItem to QuickBooks.
  * Updates item status, syncedAt, errorMessage, and attemptCount in DB.
  */
-async function syncOneItem(
+export async function syncOneQuickBooksItem(
   itemId: string,
   organizationId: string
 ): Promise<{ success: boolean; qbEntityId?: string; error?: string }> {
@@ -540,6 +619,8 @@ async function syncOneItem(
 
   try {
     const payload: QBDonationPayload = {
+      donationId: item.donationId ?? item.id,
+      queueItemId: item.id,
       customerName: item.customerName
         ?? `${item.donation?.constituent.firstName ?? "Unknown"} ${item.donation?.constituent.lastName ?? "Donor"}`,
       amount: Number(item.amount ?? item.donation?.amount ?? 0),
@@ -586,13 +667,14 @@ router.post("/sync-queue/sync-all", async (req, res) => {
       return res.status(403).json({ error: { code: "QB_NOT_CONNECTED", message: "QuickBooks not connected." } });
     }
 
+    const queued = await queueEligibleQuickBooksDonations(organizationId);
     const pendingItems = await prisma.qBSyncQueueItem.findMany({
       where: { organizationId, status: "PENDING" },
       orderBy: { createdAt: "asc" },
     });
 
     if (pendingItems.length === 0) {
-      return res.json({ data: { synced: 0, failed: 0, message: "No pending items to sync." } });
+      return res.json({ data: { synced: 0, failed: 0, queued, total: 0, message: "No pending items to sync." } });
     }
 
     let synced = 0;
@@ -601,7 +683,7 @@ router.post("/sync-queue/sync-all", async (req, res) => {
 
     // Sequential to respect QB rate limits
     for (const item of pendingItems) {
-      const result = await syncOneItem(item.id, organizationId);
+      const result = await syncOneQuickBooksItem(item.id, organizationId);
       if (result.success) {
         synced++;
       } else {
@@ -623,7 +705,7 @@ router.post("/sync-queue/sync-all", async (req, res) => {
       metadata: { synced, failed, total: pendingItems.length },
     });
 
-    return res.json({ data: { synced, failed, errors, total: pendingItems.length } });
+    return res.json({ data: { synced, failed, queued, errors, total: pendingItems.length } });
   } catch (err) {
     console.error("[QB] sync-all error:", err);
     return res.status(500).json({ error: { code: "QB_SYNC_ERROR", message: "Sync-all failed." } });
@@ -647,7 +729,7 @@ router.post("/sync-queue/:id/sync", async (req, res) => {
       return res.status(403).json({ error: { code: "QB_NOT_CONNECTED", message: "QuickBooks not connected." } });
     }
 
-    const result = await syncOneItem(req.params.id, organizationId);
+    const result = await syncOneQuickBooksItem(req.params.id, organizationId);
     if (!result.success) {
       return res.status(422).json({ error: { code: "QB_SYNC_FAILED", message: result.error ?? "Sync failed." } });
     }

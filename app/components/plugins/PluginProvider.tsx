@@ -28,6 +28,10 @@ export interface PluginState {
   qbRedirectUri: string | null;
   /** Masked client id preview for UI diagnostics */
   qbClientIdPreview: string | null;
+  qbAutoQueue: boolean;
+  qbDailySyncEnabled: boolean;
+  qbDailySyncHour: number;
+  qbLastDailySyncDate: string | null;
   /** True while the initial status fetch is in progress */
   loading: boolean;
   /** Refetch plugin status (e.g. after connecting or disconnecting) */
@@ -43,6 +47,10 @@ const defaultState: PluginState = {
   qbRuntimeSource: null,
   qbRedirectUri: null,
   qbClientIdPreview: null,
+  qbAutoQueue: true,
+  qbDailySyncEnabled: true,
+  qbDailySyncHour: 23,
+  qbLastDailySyncDate: null,
   loading: true,
   refresh: () => {},
 };
@@ -91,6 +99,10 @@ export function PluginProvider({ children }: { children: ReactNode }) {
           runtimeSource?: "env" | "plugin" | null;
           redirectUri?: string | null;
           clientIdPreview?: string | null;
+          autoQueue?: boolean;
+          dailySyncEnabled?: boolean;
+          dailySyncHour?: number;
+          lastDailySyncDate?: string | null;
         }>("/api/quickbooks/status");
         if (!data) {
           throw new Error("QuickBooks status returned no data.");
@@ -105,6 +117,10 @@ export function PluginProvider({ children }: { children: ReactNode }) {
             qbRuntimeSource: data.runtimeSource ?? null,
             qbRedirectUri: data.redirectUri ?? null,
             qbClientIdPreview: data.clientIdPreview ?? null,
+            qbAutoQueue: data.autoQueue !== false,
+            qbDailySyncEnabled: data.dailySyncEnabled !== false,
+            qbDailySyncHour: data.dailySyncHour ?? 23,
+            qbLastDailySyncDate: data.lastDailySyncDate ?? null,
             loading: false,
           });
         }

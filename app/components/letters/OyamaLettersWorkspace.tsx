@@ -4052,6 +4052,16 @@ function GenerateWorkspace() {
   async function toggleListSelection(listId: string) {
     const willSelect = !selectedListIds.includes(listId);
     setSelectedListIds((previous) => (willSelect ? [...previous, listId] : previous.filter((value) => value !== listId)));
+    // A saved list is a complete recipient filter for letter generation. Do not
+    // silently retain people selected earlier from another source tab.
+    setSelectedRecipientIds([]);
+    setExcludedRecipientIds([]);
+    if (willSelect) {
+      setSelectedIndividualIds([]);
+      setSelectedTagNames([]);
+      setSelectedDonorStatuses([]);
+      setConstituentId("");
+    }
     if (!willSelect || listMembersById[listId]) return;
     setPickerError(null);
     setPickerLoadingListId(listId);
@@ -4073,7 +4083,9 @@ function GenerateWorkspace() {
   async function applyRecipientSelection(nextStep: 2 | 3 = 2): Promise<string[] | null> {
     setPickerError(null);
     let nextListMembersById = listMembersById;
-    const missingListIds = selectedListIds.filter((listId) => !nextListMembersById[listId]);
+    // Always refresh selected lists before applying. Audience lists are edited in
+    // another workspace and stale cached membership must never drive a print run.
+    const missingListIds = selectedListIds;
 
     if (missingListIds.length > 0) {
       try {

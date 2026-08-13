@@ -71,6 +71,7 @@ import { prisma } from "./lib/prisma.js";
 import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
 import { getStewardPathsWorkerStatus, startStewardPathsWorker } from "./services/steward-paths-worker.js";
+import { getQuickBooksSyncWorkerStatus, startQuickBooksSyncWorker } from "./services/quickbooks-sync-worker.js";
 
 const stewardAiRoutes =
   (((stewardAiRoutesModule as { default?: express.Router }).default ?? stewardAiRoutesModule) as unknown as express.Router);
@@ -216,6 +217,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
   const appInfo = getAppInfo();
   const queue = getEmailQueueWorkerStatus();
   const stewardPaths = getStewardPathsWorkerStatus();
+  const quickBooks = getQuickBooksSyncWorkerStatus();
   res.json({
     status: dbStatus === "ok" ? "ok" : "degraded",
     appName: appInfo.appName,
@@ -230,6 +232,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
     timestamp: new Date().toISOString(),
     queue,
     stewardPaths,
+    quickBooks,
   });
 }
 
@@ -319,6 +322,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
   startStewardPathsWorker();
+  startQuickBooksSyncWorker();
   app.listen(PORT, () => {
     console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);
   });
