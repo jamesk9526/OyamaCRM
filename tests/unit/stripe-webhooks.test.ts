@@ -46,6 +46,12 @@ describe("Stripe webhook safety", () => {
     })).toMatchObject({ siteToken: "site_123", giftType: "monthly" });
   });
 
+  it("keeps organization routing metadata available for signed deliveries", () => {
+    expect(getStripeObjectMetadata({
+      metadata: { organizationId: "org_123", siteToken: "site_123" },
+    })).toMatchObject({ organizationId: "org_123", siteToken: "site_123" });
+  });
+
   it("creates stable payload fingerprints", () => {
     expect(hashStripePayload("{}")).toHaveLength(64);
     expect(hashStripePayload("{}")).toBe(hashStripePayload("{}"));

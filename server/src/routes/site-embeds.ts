@@ -220,6 +220,7 @@ function toMinorUnits(amount: number): number {
 /** Creates one Stripe Checkout Session via direct API call and returns hosted checkout URL. */
 async function createStripeCheckoutSession(args: {
   secretKey: string;
+  organizationId: string;
   amount: number;
   currency: string;
   successUrl: string;
@@ -250,6 +251,10 @@ async function createStripeCheckoutSession(args: {
   params.set("metadata[donorName]", args.donorName || "Website Visitor");
   params.set("metadata[giftType]", "one-time");
   params.set("metadata[siteToken]", args.siteToken);
+  // Site tokens can be regenerated. Keep a durable organization marker on
+  // every Stripe object that can later produce a webhook delivery.
+  params.set("metadata[organizationId]", args.organizationId);
+  params.set("payment_intent_data[metadata][organizationId]", args.organizationId);
 
   const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
@@ -1119,6 +1124,7 @@ router.post("/public/donation-checkout", async (req, res) => {
     const checkout = useStripe && runtime.stripe.enabled && runtime.stripe.secretKey
       ? await createStripeCheckoutSession({
         secretKey: runtime.stripe.secretKey,
+        organizationId: hit.organizationId,
         amount,
         currency: runtime.currency,
         successUrl,
@@ -1518,6 +1524,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("metadata[giftType]", "monthly");
       sessionBody.set("metadata[designation]", designation);
       sessionBody.set("metadata[siteToken]", token);
+      sessionBody.set("metadata[organizationId]", hit.organizationId);
       sessionBody.set("metadata[checkoutSurface]", checkoutSurface);
       sessionBody.set("metadata[donorName]", donorName);
       sessionBody.set("metadata[donorPhone]", donorPhone);
@@ -1525,6 +1532,7 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("subscription_data[metadata][giftType]", "monthly");
       sessionBody.set("subscription_data[metadata][designation]", designation);
       sessionBody.set("subscription_data[metadata][siteToken]", token);
+      sessionBody.set("subscription_data[metadata][organizationId]", hit.organizationId);
       sessionBody.set("subscription_data[metadata][checkoutSurface]", checkoutSurface);
       sessionBody.set("subscription_data[metadata][donorName]", donorName);
       sessionBody.set("subscription_data[metadata][donorPhone]", donorPhone);
@@ -1542,12 +1550,14 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       sessionBody.set("payment_intent_data[metadata][platform]", "oyamacrm");
       sessionBody.set("payment_intent_data[metadata][designation]", designation);
       sessionBody.set("payment_intent_data[metadata][siteToken]", token);
+      sessionBody.set("payment_intent_data[metadata][organizationId]", hit.organizationId);
       sessionBody.set("payment_intent_data[metadata][donorName]", donorName);
       sessionBody.set("payment_intent_data[receipt_email]", donorEmail);
       sessionBody.set("metadata[platform]", "oyamacrm");
       sessionBody.set("metadata[giftType]", "one-time");
       sessionBody.set("metadata[designation]", designation);
       sessionBody.set("metadata[siteToken]", token);
+      sessionBody.set("metadata[organizationId]", hit.organizationId);
       sessionBody.set("metadata[checkoutSurface]", checkoutSurface);
       sessionBody.set("metadata[donorName]", donorName);
       sessionBody.set("metadata[donorPhone]", donorPhone);
@@ -1692,15 +1702,20 @@ router.post("/public/stripe-webhook", async (req, res) => {
   const eventOrderId = String(stripeMetadata.eventOrderId ?? "").trim();
   const isEventRegistration = stripeMetadata.platform === "oyamacrm_event_registration" && Boolean(eventOrderId);
   const siteToken = getStripeSiteToken(stripeObject);
-
-  const hit = siteToken ? await findSiteByToken(siteToken) : null;
-  const eventOrderReference = isEventRegistration
-    ? await prisma.eventOrder.findUnique({
-        where: { id: eventOrderId },
-        select: { id: true, eventId: true, event: { select: { organizationId: true } } },
-      })
-    : null;
-  const organizationId = eventOrderReference?.event.organizationId ?? hit?.organizationId ?? null;
+  const metadataOrganizationId = String(stripeMetadata.organizationId ?? "").trim();
+  const [hit, metadataOrganization, eventOrderReference] = await Promise.all([
+    siteToken ? findSiteByToken(siteToken) : Promise.resolve(null),
+    metadataOrganizationId
+      ? prisma.organization.findUnique({ where: { id: metadataOrganizationId }, select: { id: true } })
+      : Promise.resolve(null),
+    isEventRegistration
+      ? prisma.eventOrder.findUnique({
+          where: { id: eventOrderId },
+          select: { id: true, eventId: true, event: { select: { organizationId: true } } },
+        })
+      : Promise.resolve(null),
+  ]);
+  const organizationId = eventOrderReference?.event.organizationId ?? hit?.organizationId ?? metadataOrganization?.id ?? null;
   if (!organizationId) {
     res.status(200).json({ received: true, action: "skipped_unknown_token" });
     return;
@@ -1719,6 +1734,10 @@ router.post("/public/stripe-webhook", async (req, res) => {
     webhookSecret: eventCredentials.webhookSecret,
   })) {
     res.status(400).json({ error: "Webhook signature verification failed." });
+    return;
+  }
+  if (hit && metadataOrganization && hit.organizationId !== metadataOrganization.id) {
+    res.status(400).json({ error: "Webhook metadata did not match the giving form organization." });
     return;
   }
 

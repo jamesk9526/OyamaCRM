@@ -200,6 +200,11 @@ router.get("/health", requireRole("admin"), async (req, res) => {
       && Boolean(runtime.stripe.secretKey);
     const stripeWebhookReady = stripeCheckoutReady && Boolean(runtime.stripe.webhookSecret);
     const stripeReady = stripeCheckoutReady && stripeWebhookReady;
+    const latestStripeEvent = await prisma.paymentWebhookEvent.findFirst({
+      where: { organizationId, provider: "stripe" },
+      orderBy: { createdAt: "desc" },
+      select: { status: true, createdAt: true, processedAt: true },
+    });
     const stripeEnvironments = {
       sandbox: {
         checkoutReady: Boolean(settings.stripe.environments.sandbox.publishableKey && runtime.stripe.environments.sandbox.secretKey),
@@ -245,6 +250,12 @@ router.get("/health", requireRole("admin"), async (req, res) => {
         stripeReady,
         stripeCheckoutReady,
         stripeWebhookReady,
+        stripeDelivery: {
+          verified: Boolean(latestStripeEvent),
+          latestStatus: latestStripeEvent?.status ?? null,
+          latestReceivedAt: latestStripeEvent?.createdAt ?? null,
+          latestProcessedAt: latestStripeEvent?.processedAt ?? null,
+        },
         stripeEnvironments,
         paypalReady,
         currency: settings.currency,

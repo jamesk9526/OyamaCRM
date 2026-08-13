@@ -45,6 +45,12 @@ interface PaymentHealthPayload {
   stripeReady: boolean;
   stripeCheckoutReady: boolean;
   stripeWebhookReady: boolean;
+  stripeDelivery: {
+    verified: boolean;
+    latestStatus: string | null;
+    latestReceivedAt: string | null;
+    latestProcessedAt: string | null;
+  };
   currency: string;
   issues: string[];
   webhookUrl: string;
@@ -494,8 +500,8 @@ export default function StripeIntegrationWorkspace() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-semibold text-slate-950">Stripe Giving</h1>
-                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone(Boolean(health?.stripeReady))}`}>
-                  {health?.stripeReady ? "Ready" : "Setup required"}
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone(Boolean(health?.stripeReady && health?.stripeDelivery?.verified))}`}>
+                  {health?.stripeReady && health?.stripeDelivery?.verified ? "Delivery verified" : health?.stripeReady ? "Configured — verify delivery" : "Setup required"}
                 </span>
               </div>
               <p className="mt-0.5 text-sm text-slate-500">Connect Stripe, build an embeddable giving form, and record verified gifts in Donor CRM.</p>
@@ -525,6 +531,12 @@ export default function StripeIntegrationWorkspace() {
           <div className={`mb-5 flex items-start gap-2 rounded-md border px-4 py-3 text-sm ${message.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>
             {message.tone === "success" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
             {message.text}
+          </div>
+        ) : null}
+        {health?.stripeReady && !health.stripeDelivery?.verified ? (
+          <div className="mb-5 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <p>Stripe credentials are saved, but Donor CRM has not received a verified webhook yet. Complete a donation through the published form, then check the Stripe event delivery and retry it if needed.</p>
           </div>
         ) : null}
 
