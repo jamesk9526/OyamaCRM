@@ -58,7 +58,6 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
     items: [
       { label: "Desktop App", href: "/settings/desktop-app", description: "Windows application", iconSlug: "documentation" },
       { label: "System Updates", href: "/settings/system-updates", description: "Release management", iconSlug: "giving-trends" },
-      { label: "System Status", href: "/settings/system-status", description: "Health and readiness", iconSlug: "reports" },
       { label: "About", href: "/settings/about", description: "Version and support", iconSlug: "help" },
     ],
   },

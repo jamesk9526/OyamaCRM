@@ -329,7 +329,7 @@ interface DonorMegaMenuProps {
   scrolled?: boolean;
 }
 
-interface LightAccentTheme {
+interface DarkAccentTheme {
   navActive: string;
   navRing: string;
   navText: string;
@@ -340,46 +340,46 @@ interface LightAccentTheme {
   badge: string;
 }
 
-const LIGHT_ACCENT_THEMES: Record<DonorAccentTone, LightAccentTheme> = {
+const DARK_ACCENT_THEMES: Record<DonorAccentTone, DarkAccentTheme> = {
   green: {
-    navActive: "bg-[#eff6fc]",
-    navRing: "ring-1 ring-[#cfe4fa] border-[#0f6cbd]",
-    navText: "text-[#0f548c]",
-    navTextStrong: "text-[#0f3b61]",
-    iconTint: "text-[#0f6cbd]",
-    iconTintSoft: "bg-[#eff6fc]",
-    iconBorder: "border-[#cfe4fa]",
-    badge: "bg-[#eff6fc] text-[#0f548c] ring-1 ring-[#cfe4fa]",
+    navActive: "bg-[#0f6cbd]/25",
+    navRing: "ring-1 ring-[#60cdff]/60 border-[#3a96dd]",
+    navText: "text-[#bde7ff]",
+    navTextStrong: "text-white",
+    iconTint: "text-[#bde7ff]",
+    iconTintSoft: "bg-[#0f6cbd]/30",
+    iconBorder: "border-[#3a96dd]/70",
+    badge: "bg-[#0f6cbd]/35 text-[#d8f2ff] ring-1 ring-[#60cdff]/30",
   },
   blue: {
-    navActive: "bg-blue-50",
-    navRing: "ring-1 ring-blue-200/80 border-blue-200",
-    navText: "text-blue-800",
-    navTextStrong: "text-blue-950",
-    iconTint: "text-blue-700",
-    iconTintSoft: "bg-blue-50",
-    iconBorder: "border-blue-200",
-    badge: "bg-blue-50 text-blue-700 ring-1 ring-blue-100",
+    navActive: "bg-blue-500/20",
+    navRing: "ring-1 ring-blue-300/50 border-blue-400/70",
+    navText: "text-blue-100",
+    navTextStrong: "text-white",
+    iconTint: "text-blue-200",
+    iconTintSoft: "bg-blue-500/20",
+    iconBorder: "border-blue-400/60",
+    badge: "bg-blue-500/20 text-blue-100 ring-1 ring-blue-300/30",
   },
   teal: {
-    navActive: "bg-teal-50",
-    navRing: "ring-1 ring-teal-200/80 border-teal-200",
-    navText: "text-teal-800",
-    navTextStrong: "text-teal-950",
-    iconTint: "text-teal-700",
-    iconTintSoft: "bg-teal-50",
-    iconBorder: "border-teal-200",
-    badge: "bg-teal-50 text-teal-700 ring-1 ring-teal-100",
+    navActive: "bg-teal-500/20",
+    navRing: "ring-1 ring-teal-300/50 border-teal-400/70",
+    navText: "text-teal-100",
+    navTextStrong: "text-white",
+    iconTint: "text-teal-200",
+    iconTintSoft: "bg-teal-500/20",
+    iconBorder: "border-teal-400/60",
+    badge: "bg-teal-500/20 text-teal-100 ring-1 ring-teal-300/30",
   },
   amber: {
-    navActive: "bg-amber-50",
-    navRing: "ring-1 ring-amber-200/80 border-amber-200",
-    navText: "text-amber-800",
-    navTextStrong: "text-amber-950",
-    iconTint: "text-amber-700",
-    iconTintSoft: "bg-amber-50",
-    iconBorder: "border-amber-200",
-    badge: "bg-amber-50 text-amber-700 ring-1 ring-amber-100",
+    navActive: "bg-amber-500/20",
+    navRing: "ring-1 ring-amber-300/50 border-amber-400/70",
+    navText: "text-amber-100",
+    navTextStrong: "text-white",
+    iconTint: "text-amber-200",
+    iconTintSoft: "bg-amber-500/20",
+    iconBorder: "border-amber-400/60",
+    badge: "bg-amber-500/20 text-amber-100 ring-1 ring-amber-300/30",
   },
 };
 
@@ -391,7 +391,7 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const { qbEnabled } = usePlugins();
-  const accentTheme = LIGHT_ACCENT_THEMES[donorAccentTone] ?? LIGHT_ACCENT_THEMES.blue;
+  const accentTheme = DARK_ACCENT_THEMES[donorAccentTone] ?? DARK_ACCENT_THEMES.blue;
 
   // Build the full nav sections, injecting QB Sync into Fundraising when enabled.
   const navSections: NavSection[] = useMemo(() => BASE_NAV_SECTIONS.map((section) => {
@@ -581,28 +581,31 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
 
     <nav
       aria-label="DonorCRM primary navigation"
-      className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r md:flex"
+      className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r md:flex shadow-[12px_0_30px_rgba(0,0,0,0.12)]"
       style={chromeTint ? { background: `linear-gradient(180deg, ${chromeTint.mid}, ${chromeTint.dark} 76%)`, borderColor: chromeTint.border } : { background: "#292929", borderColor: "#4b4b4b" }}
     >
-      <div className="border-b border-white/10 px-4 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">DonorCRM</p>
-        <p className="mt-1 text-sm font-semibold text-white">Fundraising workspace</p>
+      <div className="border-b border-white/10 bg-white/[0.025] px-4 py-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">DonorCRM</p>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-[#3a96dd] shadow-[0_0_10px_rgba(58,150,221,0.8)]" aria-hidden="true" />
+          <p className="text-sm font-semibold text-white">Fundraising workspace</p>
+        </div>
       </div>
-      <div className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
-        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Workspaces</p>
+      <div className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
+        <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Workspaces</p>
         {navSections.map((section) => {
           const active = isSectionActive(section);
           const open = openSection === section.id;
           const itemClass = active || open
-            ? "border-[#3a96dd] bg-white/[0.1] text-white"
-            : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.06] hover:text-white";
+            ? "border-[#3a96dd]/80 bg-[#0f6cbd]/25 text-white shadow-[inset_3px_0_0_#60cdff,0_8px_18px_rgba(0,0,0,0.12)]"
+            : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.07] hover:text-white";
 
           if (section.href) {
             return (
               <Link
                 key={section.id}
                 href={section.href}
-                className={`relative flex min-h-10 items-center gap-3 rounded-[2px] border px-3 text-[13px] font-semibold transition-colors ${itemClass}`}
+                className={`relative flex min-h-11 items-center gap-3 rounded-xl border px-3 text-[13px] font-semibold transition-all ${itemClass}`}
               >
                 {active ? <span className="absolute inset-y-1 left-0 w-0.5 bg-[#3a96dd]" aria-hidden="true" /> : null}
                 <span className="text-slate-300"><NavGlyph id={section.id} /></span>
@@ -627,7 +630,7 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
               aria-expanded={open}
               aria-haspopup="menu"
               aria-controls={open ? `donor-mega-menu-${section.id}` : undefined}
-              className={`relative flex min-h-10 w-full items-center gap-3 rounded-[2px] border px-3 text-left text-[13px] font-semibold transition-colors ${itemClass}`}
+              className={`relative flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 text-left text-[13px] font-semibold transition-all ${itemClass}`}
             >
               {active || open ? <span className="absolute inset-y-1 left-0 w-0.5 bg-[#3a96dd]" aria-hidden="true" /> : null}
               <span className="text-slate-300"><NavGlyph id={section.id} /></span>
@@ -637,11 +640,11 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
           );
         })}
       </div>
-      <div className="border-t border-white/10 p-3">
+      <div className="border-t border-white/10 bg-black/10 p-3">
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("crm:focus-topbar-search"))}
-          className="flex w-full items-center gap-2 rounded-[2px] border border-white/10 bg-white/[0.05] px-3 py-2 text-left text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.1] hover:text-white"
+          className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-left text-xs font-medium text-slate-300 transition-all hover:border-[#3a96dd]/60 hover:bg-[#0f6cbd]/20 hover:text-white"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" d="m20 20-4.2-4.2M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" /></svg>
           Search DonorCRM
@@ -658,22 +661,22 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
           onClick={() => setMobileSectionId(null)}
           className="absolute inset-0 bg-slate-950/25 backdrop-blur-[2px]"
         />
-        <div className="absolute inset-x-2 bottom-2 flex max-h-[82dvh] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.22)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 bg-[radial-gradient(circle_at_10%_0%,rgba(16,185,129,0.09),transparent_34%),linear-gradient(90deg,#ffffff,#f8fafc)] px-4 py-3">
+        <div className="absolute inset-x-2 bottom-2 flex max-h-[82dvh] flex-col overflow-hidden rounded-2xl border border-[#4b4b4b] bg-[#242424] text-slate-100 shadow-[0_28px_80px_rgba(0,0,0,0.48)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[radial-gradient(circle_at_10%_0%,rgba(58,150,221,0.18),transparent_34%),linear-gradient(90deg,#292929,#202020)] px-4 py-3">
             <div className="flex min-w-0 items-center gap-3">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
                 <NavGlyph id={activeMobileSection.id} />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-950">{activeMobileSection.label}</p>
-                <p className="truncate text-xs text-slate-500">Choose a donor workspace or workflow.</p>
+                <p className="truncate text-sm font-semibold text-white">{activeMobileSection.label}</p>
+                <p className="truncate text-xs text-slate-400">Choose a donor workspace or workflow.</p>
               </div>
             </div>
             <button
               type="button"
               aria-label="Close menu"
               onClick={() => setMobileSectionId(null)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-300 shadow-sm transition-colors hover:bg-white/[0.12] hover:text-white"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -693,14 +696,14 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
                   className={`group flex items-start gap-3 rounded-xl border px-3 py-3 transition-colors ${
                     itemActive
                       ? `${accentTheme.navRing} ${accentTheme.navActive} ${accentTheme.navText}`
-                      : "border-slate-100 text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950"
+                      : "border-white/10 text-slate-200 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
                   }`}
                 >
-                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-slate-50 text-slate-400 group-hover:bg-white"}`}>
+                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-white/[0.06] text-slate-400 group-hover:bg-white/[0.12] group-hover:text-slate-200"}`}>
                     <NavGlyph id={activeMobileSection.id} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`flex items-center gap-1.5 text-sm font-semibold leading-tight ${itemActive ? accentTheme.navTextStrong : ""}`}>
+                    <span className={`flex items-center gap-1.5 text-sm font-semibold leading-tight ${itemActive ? accentTheme.navTextStrong : "text-slate-100"}`}>
                       <span className="truncate">{item.label}</span>
                       {item.badge ? (
                         <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.badge}`}>
@@ -709,7 +712,7 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
                       ) : null}
                     </span>
                     {item.description ? (
-                      <span className="mt-0.5 block text-xs leading-snug text-slate-500">{item.description}</span>
+                    <span className="mt-0.5 block text-xs leading-snug text-slate-400">{item.description}</span>
                     ) : null}
                   </span>
                 </Link>
@@ -741,17 +744,17 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
           id={portalId}
           role="menu"
           aria-label={`${activeSectionForPortal.label} navigation`}
-          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.18)]"
+          className="overflow-hidden rounded-2xl border border-[#4b4b4b] bg-[#242424] text-slate-100 shadow-[0_28px_80px_rgba(0,0,0,0.5)]"
         >
           {/* Panel header */}
-          <div className="border-b border-slate-100 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.09),transparent_34%),linear-gradient(90deg,#ffffff,#f8fafc)] px-4 py-3">
+          <div className="border-b border-white/10 bg-[radial-gradient(circle_at_15%_0%,rgba(58,150,221,0.18),transparent_34%),linear-gradient(90deg,#292929,#202020)] px-4 py-3">
             <div className="flex items-center gap-3">
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
                 <NavGlyph id={activeSectionForPortal.id} />
               </span>
               <div>
-                <p className="text-sm font-semibold text-slate-950">{activeSectionForPortal.label}</p>
-                <p className="text-xs text-slate-500">Open the canonical donor workspace or workflow.</p>
+                <p className="text-sm font-semibold text-white">{activeSectionForPortal.label}</p>
+                <p className="text-xs text-slate-400">Open the canonical donor workspace or workflow.</p>
               </div>
             </div>
           </div>
@@ -772,15 +775,15 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
                       className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
                         itemActive
                           ? `${accentTheme.navRing} ${accentTheme.navActive} ${accentTheme.navText}`
-                          : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950"
+                        : "border-transparent text-slate-200 hover:border-white/15 hover:bg-white/[0.07] hover:text-white"
                       }`}
                     >
-                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-slate-50 text-slate-400 group-hover:bg-white"}`}>
+                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-white/[0.06] text-slate-400 group-hover:bg-white/[0.12] group-hover:text-slate-200"}`}>
                         <NavGlyph id={activeSectionForPortal.id} />
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className={`text-sm font-medium leading-tight ${itemActive ? accentTheme.navTextStrong : ""}`}>
+                          <span className={`text-sm font-medium leading-tight ${itemActive ? accentTheme.navTextStrong : "text-slate-100"}`}>
                             {item.label}
                           </span>
                           {item.badge && (
@@ -790,7 +793,7 @@ export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: 
                           )}
                         </div>
                         {item.description && (
-                          <p className="mt-0.5 text-xs leading-snug text-slate-500">{item.description}</p>
+                          <p className="mt-0.5 text-xs leading-snug text-slate-400">{item.description}</p>
                         )}
                       </div>
                     </Link>

@@ -24,12 +24,6 @@ export default function SystemSettingsPage() {
           >
             Open System Updates
           </Link>
-          <Link
-            href="/settings/system-status"
-            className="inline-flex w-fit items-center rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
-          >
-            Open System Status &amp; Feature Readiness
-          </Link>
         </div>
       </div>
 

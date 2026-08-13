@@ -1981,12 +1981,12 @@ function ModuleSwitcher({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed inset-x-2 bottom-2 z-50 mt-0 w-auto max-w-none overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_20px_54px_rgba(2,6,23,0.2)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:w-[330px] lg:max-w-[calc(100vw-1rem)] lg:pb-0">
-            <div className="border-b border-slate-200 bg-slate-50 px-4 pt-3 pb-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Switch Workspace</p>
+          <div className={`fixed inset-x-2 bottom-2 z-50 mt-0 w-auto max-w-none overflow-hidden rounded-2xl shadow-[0_20px_54px_rgba(0,0,0,0.45)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:w-[330px] lg:max-w-[calc(100vw-1rem)] lg:pb-0 ${isDonorWorkspace ? "border border-[#4b4b4b] bg-[#242424] text-slate-100" : "border border-slate-300 bg-white"}`}>
+            <div className={`border-b px-4 pt-3 pb-2.5 ${isDonorWorkspace ? "border-white/10 bg-[#292929]" : "border-slate-200 bg-slate-50"}`}>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>Switch Workspace</p>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-[11px] text-slate-500">Move between modules without leaving your session.</p>
-                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                <p className={`text-[11px] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>Move between modules without leaving your session.</p>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDonorWorkspace ? "bg-white/[0.08] text-slate-300 ring-1 ring-white/10" : "bg-slate-100 text-slate-600"}`}>
                   {modules.length} active
                 </span>
               </div>
@@ -1996,22 +1996,22 @@ function ModuleSwitcher({
                 <button
                   key={m.key}
                   onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${m.active ? switcherTone.activeItem : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${m.active ? switcherTone.activeItem : isDonorWorkspace ? "border-transparent bg-transparent hover:border-white/15 hover:bg-white/[0.07]" : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.active ? switcherTone.activeIcon : "border-slate-200 bg-white text-slate-600"}`}>
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.active ? switcherTone.activeIcon : isDonorWorkspace ? "border-white/10 bg-white/[0.06] text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
                       {m.icon}
                     </span>
                     <div className="min-w-0 flex-1 px-0.5">
-                      <p className="truncate text-[12px] font-semibold text-slate-900">{m.label}</p>
-                      <p className="mt-0.5 truncate text-[10px] text-slate-500">{m.helper}</p>
+                      <p className={`truncate text-[12px] font-semibold ${isDonorWorkspace ? "text-slate-100" : "text-slate-900"}`}>{m.label}</p>
+                      <p className={`mt-0.5 truncate text-[10px] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>{m.helper}</p>
                     </div>
                     {m.active ? (
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${switcherTone.activePill}`}>
                         Current
                       </span>
                     ) : (
-                      <svg className="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`h-3.5 w-3.5 ${isDonorWorkspace ? "text-slate-500" : "text-slate-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 6l6 6-6 6" />
                       </svg>
                     )}
@@ -2067,7 +2067,6 @@ function UserMenu({
     { label: "Data Tools", href: "/data-tools", icon: "M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" },
     { label: "Custom Fields", href: "/custom-fields", icon: "M4 6h16M4 10h10M4 14h16M4 18h8M16 8v4m-2-2h4" },
     { label: "Audit Log", href: "/settings/audit", icon: "M7 4h10M7 8h10M7 12h6m-8 8h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-    { label: "System Status", href: "/settings/system-status", icon: "M4 13h3l2-6 4 12 2-6h5" },
   ];
 
   async function handleSignOut() {

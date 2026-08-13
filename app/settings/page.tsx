@@ -13,7 +13,7 @@ const PRIMARY_ACTIONS = [
 const GROUPS = [
   { title: "Personalize", description: "Control how OyamaCRM looks for you and your team.", icon: Sparkles, links: [["My appearance", "/settings/appearance"], ["Dashboard appearance", "/settings/dashboard-appearance"], ["Branding", "/settings/branding"]] },
   { title: "Configure workspaces", description: "Choose the modules and tools your organization uses.", icon: Wrench, links: [["CRM modules", "/settings/modules"], ["Events CRM", "/settings/events"], ["AI assistant", "/settings/ai"], ["Site embeds", "/settings/site-embeds"]] },
-  { title: "Protect your data", description: "Review access, move data safely, and check operational health.", icon: ShieldCheck, links: [["Security & audit", "/settings/security"], ["Roles & scopes", "/settings/roles"], ["Import & export", "/settings/import-export"], ["System status", "/settings/system-status"]] },
+  { title: "Protect your data", description: "Review access controls and move organizational data safely.", icon: ShieldCheck, links: [["Security & audit", "/settings/security"], ["Roles & scopes", "/settings/roles"], ["Import & export", "/settings/import-export"]] },
 ] as const;
 
 const TONES = { blue: "bg-blue-50 text-blue-700", emerald: "bg-emerald-50 text-emerald-700", violet: "bg-violet-50 text-violet-700", amber: "bg-amber-50 text-amber-700" };
