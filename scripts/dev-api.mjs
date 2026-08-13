@@ -23,7 +23,10 @@ function startServer() {
   if (startedServer || !readyToStart || !existsSync(entry)) return;
   startedServer = true;
 
-  serverProcess = spawn(process.execPath, ["--preserve-symlinks", "--preserve-symlinks-main", "--watch", entry], {
+  // Let Node resolve pnpm package symlinks to their real package locations.
+  // Preserving them makes @prisma/client load the stale root .prisma output
+  // instead of the client generated beside the installed package.
+  serverProcess = spawn(process.execPath, ["--watch", entry], {
     stdio: "inherit",
     shell: false,
     env: process.env,

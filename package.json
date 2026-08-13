@@ -13,7 +13,7 @@
     "build": "next build --webpack",
     "build:server": "tsc --project server/tsconfig.json",
     "start": "next start",
-    "start:server": "node --preserve-symlinks --preserve-symlinks-main dist/server/index.js",
+    "start:server": "node dist/server/index.js",
     "lint": "eslint",
     "typecheck:web": "tsc --noEmit",
     "typecheck:server": "tsc --project server/tsconfig.json --noEmit",
