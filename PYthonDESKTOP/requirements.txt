@@ -1,0 +1,4 @@
+requests>=2.32,<3
+pyinstaller>=6.0,<7
+# PyInstaller still imports pkg_resources on some Windows/Python combinations.
+setuptools>=70,<81

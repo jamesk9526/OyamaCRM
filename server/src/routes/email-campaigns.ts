@@ -2279,6 +2279,26 @@ function decodeVerifiedEmailImage(dataBase64: string, mimeType: string): Buffer 
     ? buffer : null;
 }
 
+/** Decodes a restricted downloadable document used by an email file-link block. */
+function decodeVerifiedEmailDocument(dataBase64: string, mimeType: string): Buffer | null {
+  const match = /^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i.exec(dataBase64);
+  const encoded = match ? match[2] : dataBase64;
+  if (!/^[a-z0-9+/=\s]+$/i.test(encoded)) return null;
+  if (match && match[1].toLowerCase() !== mimeType.toLowerCase()) return null;
+  const buffer = Buffer.from(encoded.replace(/\s/g, ""), "base64");
+  if (buffer.length === 0) return null;
+  const normalized = mimeType.toLowerCase();
+  if (normalized === "application/pdf") return buffer.subarray(0, 5).toString("ascii") === "%PDF-" ? buffer : null;
+  if (normalized === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    || normalized === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    return buffer[0] === 0x50 && buffer[1] === 0x4b ? buffer : null;
+  }
+  if (normalized === "text/plain" || normalized === "text/csv") {
+    return buffer.includes(0) ? null : buffer;
+  }
+  return null;
+}
+
 /** Rebuilds campaign-level delivery counters from event rows. */
 async function recalculateCampaignDeliveryStats(campaignId: string) {
   const [queued, delivered, opened, clicked, bounced] = await Promise.all([
@@ -3062,20 +3082,30 @@ router.post("/:id/media", async (req, res) => {
     return;
   }
   const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
-  if (!allowedImageMimeTypes.has(mimeType.toLowerCase())) {
-    res.status(400).json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Email image uploads must be PNG, JPG, WEBP, or GIF." } });
+  const allowedDocumentMimeTypes = new Set([
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+  ]);
+  const normalizedMimeType = mimeType.toLowerCase();
+  if (!allowedImageMimeTypes.has(normalizedMimeType) && !allowedDocumentMimeTypes.has(normalizedMimeType)) {
+    res.status(400).json({ error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Upload a PNG, JPG, WEBP, GIF, PDF, DOCX, XLSX, CSV, or TXT file." } });
     return;
   }
 
-  const buffer = decodeVerifiedEmailImage(dataBase64, mimeType);
+  const buffer = allowedImageMimeTypes.has(normalizedMimeType)
+    ? decodeVerifiedEmailImage(dataBase64, mimeType)
+    : decodeVerifiedEmailDocument(dataBase64, mimeType);
   if (!buffer) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The upload is not a valid image matching its selected file type." } });
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The upload does not match its selected file type." } });
     return;
   }
 
-  const maxBytes = 5 * 1024 * 1024;
+  const maxBytes = allowedImageMimeTypes.has(normalizedMimeType) ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
   if (buffer.byteLength > maxBytes) {
-    res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: "Media upload must be 5MB or smaller" } });
+    res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: `Upload must be ${maxBytes / 1024 / 1024}MB or smaller` } });
     return;
   }
 

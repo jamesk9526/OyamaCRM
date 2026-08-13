@@ -1233,6 +1233,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   // UI state
   const [activeTab, setActiveTab] = useState<ActiveTab>("edit");
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [blockLibraryModalOpen, setBlockLibraryModalOpen] = useState(false);
   const [plainTextModalOpen, setPlainTextModalOpen] = useState(false);
   const [testEmailDialogOpen, setTestEmailDialogOpen] = useState(false);
   const [saveConflictModal, setSaveConflictModal] = useState<SaveConflictState | null>(null);
@@ -1404,7 +1405,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
           purpose: template.purpose,
           preferenceCategory: template.preferenceCategory,
           template: normalizeTemplateForUi(template.template),
-          settings: template.settings,
+          settings: {
+            ...template.settings,
+            physicalAddress: formatBrandingAddress(brandingSnapshot),
+            footerBrandingText: brandingSnapshot.footerLegalText || brandingSnapshot.organizationDisplayName || brandingSnapshot.legalOrganizationName || "",
+          },
         });
         setStatus(template.status || "DRAFT");
         setLastSavedAt(template.updatedAt || null);
@@ -1467,15 +1472,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }, [previewRecipients, selectedPreviewRecipientId]);
 
   const templateTextStyle = useMemo<React.CSSProperties>(() => ({
-    fontFamily: draft.template.fontFamily || DEFAULT_TEMPLATE.fontFamily,
+    fontFamily: globalBranding.emailFontFamily || DEFAULT_TEMPLATE.fontFamily,
     fontSize: `${clampNumber(Number(draft.template.baseFontSize || DEFAULT_TEMPLATE.baseFontSize), 12, 22)}px`,
     lineHeight: String(clampNumber(Number(draft.template.lineHeight || DEFAULT_TEMPLATE.lineHeight), 1.2, 2.2)),
     color: draft.template.textColor || DEFAULT_TEMPLATE.textColor,
-  }), [draft.template]);
+  }), [draft.template.baseFontSize, draft.template.lineHeight, draft.template.textColor, globalBranding.emailFontFamily]);
 
   useEffect(() => {
     if (!selectedBlock) {
-      setBlockInspectorModalOpen(false);
       setBlockActionMenuFor(null);
     }
   }, [selectedBlock]);
@@ -1989,6 +1993,40 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     }
   }, [activeTemplateId, saveTemplate, updateBlock]);
 
+  const uploadFileLink = useCallback(async (blockId: string, file: File) => {
+    const allowedTypes = new Set([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/plain",
+      "text/csv",
+    ]);
+    if (!allowedTypes.has(file.type.toLowerCase())) {
+      setError("Choose a PDF, DOCX, XLSX, CSV, or TXT file.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Choose a file that is 10MB or smaller.");
+      return;
+    }
+    setUploadingImage(true);
+    setError(null);
+    try {
+      const templateIdForUpload = activeTemplateId ?? await saveTemplate(false);
+      if (!templateIdForUpload) throw new Error("The draft could not be saved before the file upload.");
+      const response = await apiFetch<{ url: string }>(`/api/email-campaigns/${templateIdForUpload}/media`, {
+        method: "POST",
+        body: JSON.stringify({ fileName: file.name, mimeType: file.type, dataBase64: await fileToBase64(file) }),
+      });
+      updateBlock(blockId, (block) => block.type === "fileLink" ? { ...block, fileUrl: response.url, fileLabel: block.fileLabel || file.name } : block);
+      setNotice("File uploaded and linked from this block.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "File upload failed.");
+    } finally {
+      setUploadingImage(false);
+    }
+  }, [activeTemplateId, saveTemplate, updateBlock]);
+
   const insertMergeToken = useCallback((token: string) => {
     if (insertTarget?.scope === "template") {
       const field = insertTarget.field;
@@ -2142,7 +2180,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     if (needsComplianceControls && !draft.settings.includeUnsubscribeLink) {
       warnings.push("Compliance warning: marketing/fundraising templates should include unsubscribe and preferences links.");
     }
-    if (draft.settings.includePhysicalAddress && !draft.settings.physicalAddress.trim()) {
+    if (draft.settings.includePhysicalAddress && !formatBrandingAddress(globalBranding).trim()) {
       warnings.push("Compliance warning: physical address is enabled but empty.");
     }
 
@@ -2188,7 +2226,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       });
 
     return Array.from(new Set(warnings));
-  }, [draft, knownMergeTokens, mergeFieldGroups]);
+  }, [draft, globalBranding, knownMergeTokens, mergeFieldGroups]);
 
   const toggleMergeGroup = useCallback((key: string) => {
     setCollapsedMergeGroups((prev) => {
@@ -2213,6 +2251,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setTemplateDocument({ ...draftRef.current.template, blocks });
     setSelectedBlockId(block.id);
     setInsertAfterIndex(null);
+    setBlockLibraryModalOpen(false);
   }, [globalBranding, setTemplateDocument]);
 
   const handlePaletteDragStart = useCallback((event: DragEvent<HTMLButtonElement>, type: BuilderBlockType) => {
@@ -2242,7 +2281,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const handleInsertColumnTemplate = useCallback((template: ColumnTemplateId) => {
     const block = createColumnTemplate(template);
     insertBlocks([block], insertAfterIndex ?? undefined);
-    setBlockInspectorModalOpen(true);
+    setBlockLibraryModalOpen(false);
   }, [insertAfterIndex, insertBlocks]);
 
   const handleInsertPremadeSection = useCallback((preset: PremadeSectionId) => {
@@ -2669,14 +2708,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     }
   }, [draft.name, draft.previewText, draft.purpose, draft.subject, selectedBlock, writingBusy, writingPrompt, writingTarget, writingTone]);
 
-  const canvasWidth = activeTab === "mobilePreview" ? 375 : Math.min(620, Math.max(420, draft.template.contentWidth));
+  const canvasWidth = activeTab === "mobilePreview" ? 375 : Math.min(760, Math.max(420, globalBranding.emailContentWidth || 600));
   const scaledStyle: React.CSSProperties | undefined = zoom !== 100 ? { transform: `scale(${zoom / 100})`, transformOrigin: "top center" } : undefined;
   const readinessChecks = [
     Boolean(draft.name.trim()),
     Boolean(draft.subject.trim()),
     draft.template.blocks.length > 0,
     draft.settings.includeUnsubscribeLink,
-    draft.settings.includePhysicalAddress && Boolean(draft.settings.physicalAddress.trim()),
+    draft.settings.includePhysicalAddress && Boolean(formatBrandingAddress(globalBranding).trim()),
     builderWarnings.length === 0,
   ];
   const readinessPercent = Math.round((readinessChecks.filter(Boolean).length / readinessChecks.length) * 100);
@@ -2691,7 +2730,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const managedFooterEnabled = Boolean(
     globalBranding.globalFooterHtml
     || globalBranding.footerLegalText
-    || draft.settings.footerBrandingText
+    || globalBranding.organizationDisplayName
     || draft.settings.includePhysicalAddress
     || draft.settings.includeUnsubscribeLink,
   );
@@ -2803,6 +2842,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
 
         {/* Row 2: Ribbon tabs + zoom + device toggle */}
         <div className="flex min-h-12 flex-wrap items-center gap-2 overflow-x-auto border-t border-slate-100/80 px-3 py-1.5 sm:px-6 lg:px-8">
+          <button type="button" onClick={() => { setInsertAfterIndex(draft.template.blocks.length - 1); setBlockLibraryModalOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-600" aria-label="Add email block"><span className="text-lg leading-none">+</span> Add block</button>
           <div className="mr-2 flex min-w-max items-center gap-1 rounded-xl bg-slate-100/80 p-1 sm:mr-4">
             <button
               type="button"
@@ -2884,9 +2924,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       </header>
 
       {/* ── 3-col layout ─────────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 lg:flex-row lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto bg-[#f4f6f7] p-0 lg:flex-row lg:overflow-hidden">
         {/* LEFT PANEL */}
-        <aside className="order-1 flex max-h-[36dvh] w-full flex-none flex-col overflow-hidden rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[272px]">
+        <aside className="hidden" aria-hidden="true">
           <div className="flex-1 overflow-y-auto px-3 py-3">
             {/* Block Library */}
             <div className="mb-4">
@@ -3099,7 +3139,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </aside>
 
         {/* CANVAS */}
-        <main className="order-2 flex min-h-[60dvh] flex-1 flex-col overflow-auto rounded-[24px] border border-white/90 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.95),transparent_34%),linear-gradient(180deg,#edf3f6_0%,#e7eeec_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_55px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 lg:order-none lg:min-h-0">
+        <main className="order-2 flex min-h-[60dvh] min-w-0 flex-1 flex-col overflow-auto border-r border-slate-200 bg-[#f4f6f7] lg:order-none lg:min-h-0">
           <div
             className="mx-auto my-4 w-full px-3 sm:my-8 sm:px-6 lg:my-10 lg:px-10"
             style={{ maxWidth: activeTab === "mobilePreview" ? 480 : canvasWidth + 160 }}
@@ -3120,7 +3160,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                     </svg>
                   </div>
                   <p className="text-sm font-medium text-slate-500">No blocks yet</p>
-                  <p className="text-xs text-slate-500">Choose a block from the library or drop one here.</p>
+                  <p className="text-xs text-slate-500">Use the plus button to add the first block.</p>
+                  <button type="button" onClick={() => { setInsertAfterIndex(null); setBlockLibraryModalOpen(true); }} className="mt-2 inline-flex h-10 items-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-600">+ Add block</button>
                 </div>
               ) : (
                 <>
@@ -3138,7 +3179,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           {insertAfterIndex === index - 1 ? (
                             <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                               <div className="flex-1 border-t-2 border-dashed border-emerald-400" />
-                              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white shadow">+ Insert</span>
+                              <button type="button" onClick={(event) => { event.stopPropagation(); setInsertAfterIndex(index - 1); setBlockLibraryModalOpen(true); }} className="rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-bold text-white shadow hover:bg-emerald-500">+ Insert</button>
                               <div className="flex-1 border-t-2 border-dashed border-emerald-400" />
                             </div>
                           ) : null}
@@ -3148,10 +3189,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                           onClick={() => {
                             setSelectedBlockId(block.id);
                             setBlockActionMenuFor(null);
-                          }}
-                          onDoubleClick={() => {
-                            setSelectedBlockId(block.id);
-                            setBlockInspectorModalOpen(true);
                           }}
                           onDragStart={(event) => handleBlockDragStart(event, block.id)}
                           onDragOver={(event) => handleBlockDragOver(event, block.id)}
@@ -3211,7 +3248,6 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       setSelectedBlockId(block.id);
-                                      setBlockInspectorModalOpen(true);
                                       setBlockActionMenuFor(null);
                                     }}
                                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50"
@@ -3219,7 +3255,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                                     <svg viewBox="0 0 20 20" className="h-4 w-4 text-emerald-700" fill="currentColor">
                                       <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2H3V4zm0 5h14v7a1 1 0 01-1 1H4a1 1 0 01-1-1V9zm3 2a1 1 0 100 2h4a1 1 0 100-2H6z" />
                                     </svg>
-                                    Advanced Editor
+                                    Edit in inspector
                                   </button>
                                   <button
                                     type="button"
@@ -3258,17 +3294,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                             <CanvasBlockPreview block={block} />
                             {isSelected ? (
                               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-4 py-3 text-xs text-emerald-900">
-                                <p className="font-semibold">Final Preview Mode active for this block.</p>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setBlockInspectorModalOpen(true);
-                                  }}
-                                  className="inline-flex h-8 items-center rounded-md border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
-                                >
-                                  Open Advanced Editor
-                                </button>
+                                <p className="font-semibold">Edit this block in the inspector on the right.</p>
                               </div>
                             ) : null}
                           </div>
@@ -3278,7 +3304,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   })}
                   <div
                     className="flex cursor-pointer items-center gap-2 border-t border-dashed border-emerald-200 px-6 py-4 hover:bg-emerald-50/60 transition-colors"
-                    onClick={() => setAddContentExpanded(true)}
+                    onClick={() => { setInsertAfterIndex(draft.template.blocks.length - 1); setBlockLibraryModalOpen(true); }}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => handlePaletteDrop(event, draft.template.blocks.length - 1)}
                   >
@@ -3287,7 +3313,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                       </svg>
                     </div>
-                    <span className="text-xs font-medium text-slate-500">Add or drop a block</span>
+                    <span className="text-xs font-medium text-slate-500">Add a block</span>
                   </div>
                 </>
               )}
@@ -3296,8 +3322,42 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="order-3 flex max-h-[40dvh] w-full flex-none flex-col overflow-hidden rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none lg:w-[320px]">
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+        <aside className="order-3 flex max-h-[55dvh] w-full flex-none flex-col overflow-hidden bg-white lg:order-none lg:max-h-none lg:w-[390px] xl:w-[430px]">
+          <div className="flex border-b border-slate-200 px-5" role="tablist" aria-label="Builder inspector">
+            <button type="button" role="tab" aria-selected={Boolean(selectedBlock)} onClick={() => selectedBlockId || setSelectedBlockId(draft.template.blocks[0]?.id ?? null)} className={["h-13 border-b-2 px-3 text-sm font-semibold", selectedBlock ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Content</button>
+            <button type="button" role="tab" aria-selected={!selectedBlock} onClick={() => setSelectedBlockId(null)} className={["h-13 border-b-2 px-3 text-sm font-semibold", !selectedBlock ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Email settings</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            {selectedBlock ? (
+              <div>
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div><p className="text-base font-semibold text-slate-950">{blockDisplayLabel(selectedBlock)}</p><p className="mt-1 text-xs text-slate-500">Block {selectedBlockIndex + 1} of {draft.template.blocks.length}</p></div>
+                  <div className="flex gap-1">
+                    <button type="button" onClick={() => moveBlock(selectedBlock.id, -1)} disabled={selectedBlockIndex <= 0} title="Move up" className="h-8 rounded border border-slate-200 px-2 text-xs font-semibold disabled:opacity-40">↑</button>
+                    <button type="button" onClick={() => moveBlock(selectedBlock.id, 1)} disabled={selectedBlockIndex >= draft.template.blocks.length - 1} title="Move down" className="h-8 rounded border border-slate-200 px-2 text-xs font-semibold disabled:opacity-40">↓</button>
+                    <button type="button" onClick={() => duplicateBlock(selectedBlock.id)} title="Duplicate" className="h-8 rounded border border-slate-200 px-2 text-xs font-semibold">Copy</button>
+                  </div>
+                </div>
+                <BlockInspector
+                  block={selectedBlock}
+                  template={draft.template}
+                  branding={globalBranding}
+                  mergeFieldGroups={mergeFieldGroups}
+                  onChange={(patch) => updateBlock(selectedBlock.id, (current) => ({ ...current, ...patch }))}
+                  onSetInsertTarget={(field) => setInsertTarget({ scope: "block", blockId: selectedBlock.id, field })}
+                  onUploadImage={(blockId, file) => void uploadImage(blockId, file)}
+                  onUploadFile={(blockId, file) => void uploadFileLink(blockId, file)}
+                  onGenerateAiSmartHtml={(description, tone, instruction, objective) => void generateAiSmartHtml(selectedBlock.id, description, tone, instruction, objective)}
+                  aiSmartBusy={aiSmartBusyBlockId === selectedBlock.id}
+                  aiSmartError={aiSmartBusyBlockId === selectedBlock.id ? aiSmartError : null}
+                  uploadingImage={uploadingImage}
+                  canUpload
+                  className="mt-0"
+                />
+                <button type="button" onClick={() => deleteBlock(selectedBlock.id)} className="mt-5 text-xs font-semibold text-red-600 hover:text-red-700">Delete block</button>
+              </div>
+            ) : (
+            <>
             <p className="text-base font-semibold text-slate-950">Email Settings</p>
             {builderWarnings.length > 0 ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
@@ -3364,10 +3424,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   className="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-2 text-xs text-slate-800"
                 />
               </label>
-              {selectedBlock?.type === "text" && writingTarget === "selectedBlock" ? (
-                <p className="mt-2 text-[11px] text-slate-600">Selected block content will be replaced with the streamed draft.</p>
-              ) : null}
-              {writingTarget === "selectedBlock" && selectedBlock?.type !== "text" ? (
+              {writingTarget === "selectedBlock" ? (
                 <p className="mt-2 text-[11px] text-amber-800">Selected block is not a text block. Switch target to “Insert new text block” or select a text block.</p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -3473,71 +3530,59 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               >
                 Edit plain-text override
               </button>
-              {draft.settings.includePhysicalAddress ? (
-                <textarea
-                  value={draft.settings.physicalAddress}
-                  onChange={(e) => setDraftField("settings", { ...draft.settings, physicalAddress: e.target.value })}
-                  onFocus={() => setInsertTarget({ scope: "template", field: "physicalAddress" })}
-                  rows={2}
-                  placeholder="123 Main St, City, ST 00000"
-                  className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:border-emerald-400 focus:outline-none"
-                />
-              ) : null}
+              {draft.settings.includePhysicalAddress ? <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">{formatBrandingAddress(globalBranding) || "No global mailing address is configured."}</p> : null}
             </div>
 
             {/* Branding & Footer */}
             <div className="mt-4 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={() => setBrandingExpanded((v) => !v)}
-                className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500"
-              >
-                Branding &amp; Footer
-                <svg viewBox="0 0 20 20" className={["h-4 w-4 transition-transform", brandingExpanded ? "rotate-180" : ""].join(" ")} fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-              {brandingExpanded ? (
-                <textarea
-                  value={draft.settings.footerBrandingText}
-                  onChange={(e) => setDraftField("settings", { ...draft.settings, footerBrandingText: e.target.value })}
-                  onFocus={() => setInsertTarget({ scope: "template", field: "footerBrandingText" })}
-                  rows={3}
-                  placeholder="Footer / branding text…"
-                  className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:border-emerald-400 focus:outline-none"
-                />
-              ) : null}
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Global branding</p>
+              <p className="mt-2 text-xs leading-5 text-slate-600">Logo, header, footer, organization identity, font, canvas width, background, and sender defaults come from Branding Settings.</p>
+              <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Settings →</Link>
             </div>
 
-            {/* Block Inspector */}
-            {selectedBlock ? (
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected Block</p>
-                  <p className="mt-1 text-xs font-medium text-slate-700">{blockDisplayLabel(selectedBlock)}</p>
-                  <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2" style={templateTextStyle}>
-                    <CanvasBlockPreview block={selectedBlock} />
-                  </div>
-                  <p className="mt-3 text-[11px] text-slate-500">Most content editing now happens inline on the canvas after you click a block.</p>
-                  <button
-                    type="button"
-                    onClick={() => setBlockInspectorModalOpen(true)}
-                    className="mt-3 inline-flex h-8 items-center rounded-md border border-emerald-600 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-500"
-                  >
-                    Open Advanced Editor
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-400">
-                Click a block to inspect &amp; edit it
-              </div>
+            <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">Select a canvas block to switch this panel to its editor.</div>
+            </>
             )}
           </div>
         </aside>
       </div>
 
-      {/* Block Inspector Modal */}
+      {blockLibraryModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+          <button type="button" aria-label="Close block library" className="absolute inset-0 bg-slate-950/50" onClick={() => setBlockLibraryModalOpen(false)} />
+          <section role="dialog" aria-modal="true" aria-labelledby="email-block-library-title" className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+              <div><h2 id="email-block-library-title" className="text-lg font-semibold text-slate-950">Add content</h2><p className="mt-1 text-sm text-slate-600">Choose one block. Its single editing panel will open on the right.</p></div>
+              <button type="button" onClick={() => setBlockLibraryModalOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-lg text-slate-600 hover:bg-slate-50" aria-label="Close">×</button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="space-y-6">
+                {BLOCK_LIBRARY_DRAWERS.map((group) => (
+                  <section key={group.id}>
+                    <div><h3 className="text-sm font-semibold text-slate-900">{group.label}</h3><p className="text-xs text-slate-500">{group.detail}</p></div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {BLOCK_CHOICES.filter((choice) => group.types.includes(choice.type)).map((choice) => (
+                        <button key={choice.type} type="button" onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)} className="flex min-h-16 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 hover:border-emerald-400 hover:bg-emerald-50">
+                          <BlockTypeIcon type={choice.type} />
+                          <span>{choice.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-900">Ready-made layouts</h3>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {COLUMN_TEMPLATE_CHOICES.map((choice) => <button key={choice.id} type="button" onClick={() => handleInsertColumnTemplate(choice.id)} className="rounded-lg border border-slate-200 px-3 py-3 text-left hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-sm font-semibold text-slate-900">{choice.label}</span><span className="mt-1 block text-xs text-slate-500">{choice.description}</span></button>)}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {/* Legacy advanced inspector removed: the right panel is the only block editor. */}
       {blockInspectorModalOpen && selectedBlock ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -4831,6 +4876,7 @@ function BlockInspector({
   onChange,
   onSetInsertTarget,
   onUploadImage,
+  onUploadFile,
   onGenerateAiSmartHtml,
   aiSmartBusy,
   aiSmartError,
@@ -4845,6 +4891,7 @@ function BlockInspector({
   onChange: (patch: Partial<BuilderBlock>) => void;
   onSetInsertTarget: (field: string) => void;
   onUploadImage: (blockId: string, file: File) => void;
+  onUploadFile?: (blockId: string, file: File) => void;
   onGenerateAiSmartHtml: (description: string, tone: WritingTone, instruction?: string, objective?: AiSmartObjective) => void;
   aiSmartBusy: boolean;
   aiSmartError: string | null;
@@ -5401,6 +5448,22 @@ function BlockInspector({
 
       {block.type === "fileLink" ? (
         <>
+          <label className="block text-xs font-semibold text-slate-700">
+            Upload File
+            <input
+              type="file"
+              accept=".pdf,.docx,.xlsx,.csv,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
+              disabled={!canUpload || uploadingImage || !onUploadFile}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file || !onUploadFile) return;
+                onUploadFile(block.id, file);
+                event.currentTarget.value = "";
+              }}
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs text-slate-700 disabled:bg-slate-100"
+            />
+            <span className="mt-1 block font-normal text-slate-500">PDF, DOCX, XLSX, CSV, or TXT · 10MB maximum</span>
+          </label>
           <label className="block text-xs font-semibold text-slate-700">
             Button Label
             <input

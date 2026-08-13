@@ -91,6 +91,37 @@ describe("oyama email render service", () => {
     expect(rendered.html).toContain("{{unsubscribeUrl}}");
   });
 
+  it("treats global branding as the render authority over legacy template branding", () => {
+    const template = normalizeEmailTemplateDocument({
+      contentWidth: 420,
+      backgroundColor: "#ff0000",
+      fontFamily: "Comic Sans MS",
+      linkColor: "#ff00ff",
+      blocks: [{ id: "body", type: "text", content: '<p><a href="https://example.org">Branded link</a></p>' }],
+    });
+    const settings = normalizeEmailTemplateSettings({ footerBrandingText: "Legacy footer", physicalAddress: "Legacy address" });
+
+    const rendered = renderEmailTemplateDocument(template, settings, {
+      organizationName: "Global Organization",
+      emailContentWidth: 680,
+      emailBackgroundColor: "#eef4f0",
+      emailFontFamily: "Arial, Helvetica, sans-serif",
+      primaryColor: "#14532d",
+      globalFooterHtml: "<strong>Global footer</strong>",
+      addressLine: "100 Global Way",
+    });
+
+    expect(rendered.html).toContain('width="680"');
+    expect(rendered.html).toContain("background:#eef4f0");
+    expect(rendered.html).toContain("Arial, Helvetica, sans-serif");
+    expect(rendered.html).toContain("#14532d");
+    expect(rendered.html).toContain("Global footer");
+    expect(rendered.html).toContain("100 Global Way");
+    expect(rendered.html).not.toContain("Legacy footer");
+    expect(rendered.html).not.toContain("Legacy address");
+    expect(rendered.html).not.toContain("Comic Sans MS");
+  });
+
   it("renders email-safe list markers and readable plain-text lists", () => {
     const template = normalizeEmailTemplateDocument({
       blocks: [
