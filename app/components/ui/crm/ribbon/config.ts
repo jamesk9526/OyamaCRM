@@ -839,7 +839,7 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
   workspaceLabel: "OyamaLetters",
   pageLabel: "OyamaLetters",
   statusLabel: "Working",
-  summaryText: "Templates, merge fields, recipients, and print queues",
+  summaryText: "Templates, merge fields, recipients, and production PDF output",
   primaryCommandId: "new-letter",
   defaultTabId: "home",
   tabs: [
@@ -910,16 +910,15 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
       ],
     },
     {
-      id: "print-mail",
-      label: "Print & Mail",
+      id: "pdf-output",
+      label: "PDF Output",
       groups: [
         {
-          id: "letters-output",
+          id: "letters-pdf-output",
           label: "Output",
           commands: [
             { id: "generate-pdf", label: "Generate PDF" },
-            { id: "print-queue", label: "Print Queue", href: "/letters-printables" },
-            { id: "mail-queue", label: "Mail Queue", disabledReason: "Mail queue is not connected from this ribbon yet." },
+            { id: "letters-open-generate", label: "Open Generate", href: "/oyama-letters/generate" },
             { id: "letters-export", label: "Export" },
           ],
         },
@@ -951,7 +950,6 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
           commands: [
             { id: "letters-library-view", label: "Library", href: "/oyama-letters" },
             { id: "letters-generate-view", label: "Generate", href: "/oyama-letters/generate" },
-            { id: "letters-queue-view", label: "Queue", href: "/oyama-letters/queue" },
           ],
         },
       ],

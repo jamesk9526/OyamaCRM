@@ -1,7 +1,6 @@
-/** OyamaLetters queue route. */
-import OyamaLettersWorkspace from "@/app/components/letters/OyamaLettersWorkspace";
+import { redirect } from "next/navigation";
 
-/** Opens generated-letter activity and queue review inside the dedicated workspace. */
+/** Legacy queue URL: generation, preview, and PDF download now live in one workspace. */
 export default function OyamaLettersQueuePage() {
-  return <OyamaLettersWorkspace view="queue" />;
+  redirect("/oyama-letters/generate");
 }

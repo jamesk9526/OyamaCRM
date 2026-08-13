@@ -29,7 +29,7 @@ import type {
   SignatureBlock,
 } from "@/app/components/letters/types";
 
-type WorkspaceView = "library" | "builder" | "publish" | "generate" | "labels" | "queue" | "settings" | "howto";
+type WorkspaceView = "library" | "builder" | "publish" | "generate" | "labels" | "settings" | "howto";
 type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 type TemplateOwnershipScope = "MINE" | "TEAM" | "ALL";
 type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
@@ -354,6 +354,24 @@ interface TemplateRecoverySnapshot {
   updatedAt: string;
 }
 
+interface GenerationProjectSettings {
+  version: 1;
+  generateMode: GenerateMode;
+  donationMode: DonationMode;
+  donationId: string;
+  donationDateRange: string;
+  donationType: string;
+  donationMinimum: string;
+  recipientStepTab: "lists" | "segments" | "filters" | "individuals";
+  selectedRecipientIds: string[];
+  selectedIndividualIds: string[];
+  selectedListIds: string[];
+  selectedTagNames: string[];
+  selectedDonorStatuses: string[];
+  excludedRecipientIds: string[];
+  focusRecipientId: string;
+}
+
 const CATEGORIES = [
   "THANK_YOU",
   "TAX_RECEIPT",
@@ -431,6 +449,40 @@ function withLetterPdfLayout(value: unknown, pageSize: LetterPageSize, margins: 
   };
 }
 
+function readGenerationProjectSettings(value: unknown): GenerationProjectSettings | null {
+  const project = asPlainRecord(asPlainRecord(value).generationProject);
+  if (project.version !== 1) return null;
+  const readIds = (key: string) => Array.isArray(project[key]) ? project[key].filter((value): value is string => typeof value === "string") : [];
+  const generateMode: GenerateMode = project.generateMode === "single" ? "single" : "batch";
+  const donationMode: DonationMode = ["recent", "specific", "none", "selected"].includes(String(project.donationMode))
+    ? project.donationMode as DonationMode
+    : "recent";
+  const recipientStepTab = ["lists", "segments", "filters", "individuals"].includes(String(project.recipientStepTab))
+    ? project.recipientStepTab as GenerationProjectSettings["recipientStepTab"]
+    : "segments";
+  return {
+    version: 1,
+    generateMode,
+    donationMode,
+    donationId: typeof project.donationId === "string" ? project.donationId : "",
+    donationDateRange: typeof project.donationDateRange === "string" ? project.donationDateRange : "All time",
+    donationType: typeof project.donationType === "string" ? project.donationType : "All Types",
+    donationMinimum: typeof project.donationMinimum === "string" ? project.donationMinimum : "",
+    recipientStepTab,
+    selectedRecipientIds: readIds("selectedRecipientIds"),
+    selectedIndividualIds: readIds("selectedIndividualIds"),
+    selectedListIds: readIds("selectedListIds"),
+    selectedTagNames: readIds("selectedTagNames"),
+    selectedDonorStatuses: readIds("selectedDonorStatuses"),
+    excludedRecipientIds: readIds("excludedRecipientIds"),
+    focusRecipientId: typeof project.focusRecipientId === "string" ? project.focusRecipientId : "",
+  };
+}
+
+function withGenerationProjectSettings(value: unknown, project: GenerationProjectSettings): Record<string, unknown> {
+  return { ...asPlainRecord(value), generationProject: project };
+}
+
 const DEFAULT_TABLE_BUILDER: TableBuilderDraft = {
   rows: 3,
   columns: 3,
@@ -481,7 +533,6 @@ const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
   { label: "Generate Letters", href: "/oyama-letters/generate" },
   { label: "Mailing Labels", href: "/oyama-letters/labels" },
-  { label: "Print & Mail Queue", href: "/oyama-letters/queue" },
   { label: "Docs & Walkthroughs", href: "/oyama-letters/docs" },
   { label: "Settings", href: "/oyama-letters/settings" },
 ];
@@ -520,7 +571,6 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
           {view === "generate" ? <GenerateWorkspace /> : null}
           {view === "labels" ? <MailMergeLabelsWorkspace /> : null}
-          {view === "queue" ? <QueueWorkspace /> : null}
           {view === "howto" ? <LettersHowToWorkspace /> : null}
           {view === "settings" ? <SettingsWorkspace /> : null}
         </div>
@@ -554,7 +604,6 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
             || (item.href === "/oyama-letters/labels" && activeView === "labels")
-            || (item.href === "/oyama-letters/queue" && activeView === "queue")
             || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (
@@ -631,7 +680,6 @@ function LettersSidebar({
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
             || (item.href === "/oyama-letters/labels" && activeView === "labels")
-            || (item.href === "/oyama-letters/queue" && activeView === "queue")
             || (item.href === "/oyama-letters/docs" && activeView === "howto")
             || (item.href === "/oyama-letters/settings" && activeView === "settings");
           return (
@@ -681,7 +729,7 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
   const { user, signOut } = useAuth();
   const initials = user ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U" : "U";
   const templateLabel = templateId ? titleFromId(templateId) : "New Template";
-  const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate" || view === "queue";
+  const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate";
 
   return (
     <header className="z-30 flex min-h-[52px] flex-wrap items-center gap-3 border-b border-[#d1d1d1] bg-white px-3 py-2 sm:px-5 lg:sticky lg:top-0 xl:px-8">
@@ -717,7 +765,6 @@ function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?
     { key: "builder", label: "Canvas Builder", href: templateId ? `/oyama-letters/templates/${templateId}` : "/oyama-letters/templates/new" },
     { key: "publish", label: "Publish Review", href: templateId ? `/oyama-letters/templates/${templateId}/publish` : "/oyama-letters/templates/new" },
     { key: "generate", label: "Generate Letters", href: "/oyama-letters/generate" },
-    { key: "queue", label: "Print & Mail Queue", href: "/oyama-letters/queue" },
   ] as const;
   const activeIndex = steps.findIndex((step) => step.key === view);
 
@@ -799,25 +846,23 @@ function LettersHowToWorkspace() {
       steps: [
         "Go to Generate Letters and choose an ACTIVE template.",
         "Pick recipients from segments, lists, filters, or individuals.",
-        "Select donation mode and delivery target.",
+        "Select donation mode and save the template's project settings when you want to reuse the setup.",
         "Use Refresh Preview and Open PDF Preview to verify output.",
       ],
       actions: [
         { href: "/oyama-letters/generate", label: "Open Generate Letters" },
-        { href: "/oyama-letters/queue", label: "Open Print & Mail Queue" },
       ],
     },
     {
-      title: "3. Process Queue and Batches",
-      summary: "Move generated letters through the print and mail queue workflow.",
+      title: "3. Generate and Download PDFs",
+      summary: "Generate, preview, and download production-ready PDFs in one workspace.",
       steps: [
-        "Use Print & Mail Queue to review statuses and priority.",
         "Open Preview or PDF for quality checks before final delivery.",
-        "Use queue controls to approve, print, or move mail-ready items.",
+        "Use the server-rendered preview, then download individual or batch PDFs when ready.",
         "Return to Generate Letters when you need to run another batch.",
       ],
       actions: [
-        { href: "/oyama-letters/queue", label: "Open Queue" },
+        { href: "/oyama-letters/generate", label: "Open Generate Letters" },
         { href: "/oyama-letters/generate", label: "Back to Generate" },
       ],
     },
@@ -3279,7 +3324,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       setNotice(validationIssueCount > 0
         ? "Template published with validation notes. Review the browser console for developer diagnostics."
         : "Template published. Opening Generate workspace...");
-      router.push(`/oyama-letters/generate?templateId=${encodeURIComponent(templateId)}&mode=batch&target=print`);
+      router.push(`/oyama-letters/generate?templateId=${encodeURIComponent(templateId)}&mode=batch`);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to publish template."));
     } finally {
@@ -3715,24 +3760,21 @@ function GenerateWorkspace() {
   const [tagCatalog, setTagCatalog] = useState<ConstituentTagCatalog[]>([]);
   const [listMembersById, setListMembersById] = useState<Record<string, RecipientListDetail["recipients"]>>({});
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
-  const [workflowPolicy, setWorkflowPolicy] = useState<WorkflowPolicy | null>(null);
   const [donations, setDonations] = useState<DonationLookup[]>([]);
   const [templateId, setTemplateId] = useState(searchParams.get("templateId") ?? "");
   const [constituentId, setConstituentId] = useState(searchParams.get("constituentId") ?? "");
   const [donationId, setDonationId] = useState(searchParams.get("donationId") ?? "");
   const campaignId = searchParams.get("campaignId")?.trim() ?? "";
   const eventId = searchParams.get("eventId")?.trim() ?? "";
+  const hasLaunchContext = Boolean(temporaryListId || searchParams.get("constituentId") || campaignId || eventId);
   const requestedYear = Number.parseInt(searchParams.get("year") ?? "", 10);
   const mergeYear = Number.isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 3000
     ? requestedYear
     : new Date().getFullYear();
   const modeParam = (searchParams.get("mode") ?? "").toLowerCase();
-  const targetParam = (searchParams.get("target") ?? "").toLowerCase();
   const quickPrint = searchParams.get("quickPrint") === "1";
   const [generateMode, setGenerateMode] = useState<GenerateMode>(modeParam === "single" ? "single" : "batch");
-  const [deliveryTarget, setDeliveryTarget] = useState<DeliveryTarget>(
-    targetParam === "mail" ? "MAIL_QUEUE" : targetParam === "print" ? "PRINT_QUEUE" : "PDF_ONLY",
-  );
+  const deliveryTarget: DeliveryTarget = "PDF_ONLY";
   const [query, setQuery] = useState("");
   const [recipientPickerOpen, setRecipientPickerOpen] = useState(false);
   const [recipientReviewOpen, setRecipientReviewOpen] = useState(false);
@@ -3775,6 +3817,7 @@ function GenerateWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [validationOverrideAcknowledged, setValidationOverrideAcknowledged] = useState(false);
+  const restoredProjectTemplateId = useRef<string | null>(null);
 
   useEffect(() => {
     const list = readTemporaryRecipientList(temporaryListId);
@@ -3793,14 +3836,13 @@ function GenerateWorkspace() {
     setLoading(true);
     setError(null);
     try {
-      const [templateRows, generatedRows, constituentRows, listRows, tagRows, brandingRow, workflowPolicyRow] = await Promise.all([
+      const [templateRows, generatedRows, constituentRows, listRows, tagRows, brandingRow] = await Promise.all([
         apiFetch<LetterTemplateSummary[]>("/api/letters/templates"),
         apiFetch<GeneratedLetterSummary[]>("/api/letters/generated?limit=25"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
         apiFetch<RecipientListSummary[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<ConstituentTagCatalog[]>("/api/constituents/tags/catalog").catch(() => []),
         apiFetch<BrandingSettings>("/api/settings/branding").catch(() => DEFAULT_BRANDING_SETTINGS),
-        apiFetch<WorkflowPolicy>("/api/letters/workflow-settings").catch(() => null),
       ]);
       setTemplates(templateRows);
       setGenerated(generatedRows);
@@ -3808,7 +3850,6 @@ function GenerateWorkspace() {
       setRecipientLists(listRows);
       setTagCatalog(tagRows);
       setBranding(normalizeBrandingSettings(brandingRow));
-      setWorkflowPolicy(workflowPolicyRow);
       if (!templateId && templateRows.length > 0) setTemplateId((templateRows.find((item) => item.status === "ACTIVE") ?? templateRows[0]).id);
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load generation workspace."));
@@ -3851,18 +3892,50 @@ function GenerateWorkspace() {
 
   useEffect(() => {
     setGenerateMode(modeParam === "single" ? "single" : "batch");
-    setDeliveryTarget(targetParam === "mail" ? "MAIL_QUEUE" : targetParam === "print" ? "PRINT_QUEUE" : "PDF_ONLY");
-  }, [modeParam, targetParam]);
+  }, [modeParam]);
 
   useEffect(() => {
     setValidationOverrideAcknowledged(false);
   }, [templateId, deliveryTarget, generateMode]);
 
   useEffect(() => {
-    if (workflowPolicy && !workflowPolicy.allowDirectMailQueue && deliveryTarget === "MAIL_QUEUE") {
-      setDeliveryTarget("PRINT_QUEUE");
+    if (!selectedTemplateDetail || selectedTemplateDetail.id !== templateId || restoredProjectTemplateId.current === templateId) return;
+    restoredProjectTemplateId.current = templateId;
+    if (hasLaunchContext) return;
+    const project = readGenerationProjectSettings(selectedTemplateDetail.printLayoutJson);
+    if (!project) {
+      setGenerateMode("batch");
+      setDonationMode("recent");
+      setDonationId("");
+      setDonationDateRange("All time");
+      setDonationType("All Types");
+      setDonationMinimum("");
+      setRecipientStepTab("segments");
+      setSelectedRecipientIds([]);
+      setSelectedIndividualIds([]);
+      setSelectedListIds([]);
+      setSelectedTagNames([]);
+      setSelectedDonorStatuses([]);
+      setExcludedRecipientIds([]);
+      setConstituentId("");
+      return;
     }
-  }, [deliveryTarget, workflowPolicy]);
+    setGenerateMode(project.generateMode);
+    setDonationMode(project.donationMode);
+    setDonationId(project.donationId);
+    setDonationDateRange(project.donationDateRange);
+    setDonationType(project.donationType);
+    setDonationMinimum(project.donationMinimum);
+    setRecipientStepTab(project.recipientStepTab);
+    setSelectedRecipientIds(project.selectedRecipientIds);
+    setSelectedIndividualIds(project.selectedIndividualIds);
+    setSelectedListIds(project.selectedListIds);
+    setSelectedTagNames(project.selectedTagNames);
+    setSelectedDonorStatuses(project.selectedDonorStatuses);
+    setExcludedRecipientIds(project.excludedRecipientIds);
+    setConstituentId(project.focusRecipientId || project.selectedRecipientIds[0] || "");
+    setNotice("Saved project settings restored for this template.");
+  }, [hasLaunchContext, selectedTemplateDetail, templateId]);
 
   useEffect(() => {
     const params = new URLSearchParams({ limit: "25" });
@@ -4144,6 +4217,44 @@ function GenerateWorkspace() {
     };
   }
 
+  async function saveProjectSettings() {
+    if (!templateId || !selectedTemplateDetail) {
+      setError("Choose a template before saving project settings.");
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      const generationProject: GenerationProjectSettings = {
+        version: 1,
+        generateMode,
+        donationMode,
+        donationId,
+        donationDateRange,
+        donationType,
+        donationMinimum,
+        recipientStepTab,
+        selectedRecipientIds,
+        selectedIndividualIds,
+        selectedListIds,
+        selectedTagNames,
+        selectedDonorStatuses,
+        excludedRecipientIds,
+        focusRecipientId: constituentId,
+      };
+      const updated = await apiFetch<LetterTemplateDetail>(`/api/letters/templates/${encodeURIComponent(templateId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ printLayoutJson: withGenerationProjectSettings(selectedTemplateDetail.printLayoutJson, generationProject) }),
+      });
+      setSelectedTemplateDetail(updated);
+      setNotice("Project settings saved to this template.");
+    } catch (requestError) {
+      setError(errorMessage(requestError, "Failed to save project settings."));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   function printCurrentPdf() {
     if (!pdfViewerUrl) return;
     const printWindow = window.open("", "_blank", "width=1100,height=900");
@@ -4343,13 +4454,7 @@ function GenerateWorkspace() {
           ...buildMergeContextPayload(),
         }),
       });
-      if (deliveryTarget === "PRINT_QUEUE") {
-        setNotice(workflowPolicy?.requirePrintApproval ? "Letter generated for print review." : "Letter generated and queued for print.");
-      } else if (deliveryTarget === "MAIL_QUEUE") {
-        setNotice("Letter generated and queued for mail workflow.");
-      } else {
-        setNotice("Letter generated.");
-      }
+      setNotice("Letter generated. Open or download its production PDF below.");
       await load();
       setWizardStep(5);
     } catch (requestError) {
@@ -4383,13 +4488,7 @@ function GenerateWorkspace() {
       });
 
       setBatch(result);
-      setNotice(dryRun
-        ? "Batch validation complete."
-        : deliveryTarget === "MAIL_QUEUE"
-          ? "Batch generated and queued for mail workflow."
-          : deliveryTarget === "PRINT_QUEUE"
-            ? workflowPolicy?.requirePrintApproval ? "Batch generated for print review." : "Batch generated and queued for print."
-            : "Batch generated.");
+      setNotice(dryRun ? "Batch validation complete." : "Batch generated. Open or download the production PDF below.");
       if (!dryRun) await load();
       setWizardStep(5);
     } catch (requestError) {
@@ -4511,23 +4610,13 @@ function GenerateWorkspace() {
   const previewFocus = previewRecipientPool[previewFocusIndex] ?? null;
   const previewMissingFieldCount = preview?.missingFields?.length ?? 0;
   const previewUnsupportedFieldCount = preview?.unsupportedFields?.length ?? 0;
-  const deliveryLabel = deliveryTarget === "MAIL_QUEUE"
-    ? "Mail Queue"
-    : deliveryTarget === "PRINT_QUEUE"
-      ? workflowPolicy?.requirePrintApproval ? "Print Review Queue" : "Print Queue"
-      : "PDF Only";
-  const mailQueueUnavailable = workflowPolicy ? !workflowPolicy.allowDirectMailQueue : false;
-  const queuePolicyMessage = mailQueueUnavailable
-    ? "Direct mail queue is disabled by workflow policy. Generate to PDF or print review first."
-    : workflowPolicy?.requirePrintApproval
-      ? "Print queue generation starts in Needs Review until approved."
-      : "Print queue generation is queued for print immediately.";
+  const deliveryLabel = "Production PDF";
   const selectedSegmentSummary = selectedTagNames.length > 0 ? selectedTagNames.slice(0, 2).join(", ") : "No segment";
   const wizardSteps: Array<{ id: 1 | 2 | 4 | 5; title: string; helper: string }> = [
     { id: 1, title: "Setup", helper: "Choose a template and optional gift details" },
     { id: 2, title: "Recipients", helper: "Choose who receives the letter" },
     { id: 4, title: "Preview", helper: "Check one production-ready sample" },
-    { id: 5, title: "Generate", helper: "Create PDFs or add them to a queue" },
+    { id: 5, title: "Generate", helper: "Create and download PDFs" },
   ];
 
   function cyclePreviewRecipient(direction: "prev" | "next") {
@@ -4586,7 +4675,7 @@ function GenerateWorkspace() {
         ? !canAdvanceFromSelection
         : wizardStep === 4
           ? !preview || previewPdfLoading
-          : working || !canAdvanceFromSelection || generationBlockedByTemplate || (deliveryTarget === "MAIL_QUEUE" && mailQueueUnavailable);
+          : working || !canAdvanceFromSelection || generationBlockedByTemplate;
 
   function handleWorkflowBack() {
     if (wizardStep === 1) {
@@ -4631,7 +4720,7 @@ function GenerateWorkspace() {
       <PageHero
         title="Generate Letters"
         subtitle="Create and deliver personalized letters in a few simple steps."
-        tooltip="Generation creates a live batch from one reusable template plus one recipient selection. Preview and queue actions in this workspace do not rewrite the underlying template."
+        tooltip="Generation creates production PDFs from a reusable template. Saved project settings keep each template's recipient and donation setup ready for the next run."
       >
         <div className="w-full max-w-4xl">
           <WorkflowActionBar
@@ -4640,7 +4729,7 @@ function GenerateWorkspace() {
             nextLabel={topNextLabel}
             onNext={handleTopNext}
             nextDisabled={topNextDisabled}
-            secondaryAction={<Button onClick={() => setNotice("Generation setup saved as draft for this session.")}>Save session draft</Button>}
+            secondaryAction={<Button onClick={() => void saveProjectSettings()} disabled={working || !templateId}>Save project settings</Button>}
           />
         </div>
       </PageHero>
@@ -4751,15 +4840,11 @@ function GenerateWorkspace() {
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
-                <div className="flex items-start gap-3">
-                  <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-700"><LettersPackIcon name="print-queue" className="h-5 w-5" fallback="Q" /></div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Delivery</p>
-                    <p className="text-sm text-slate-700">{deliveryLabel}</p>
-                    <p className="text-xs text-slate-500">{queuePolicyMessage}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Output</p>
+                  <p className="text-sm text-slate-700">Production PDF preview and download</p>
+                  <p className="text-xs text-slate-500">The preview and generated files use the same server PDF path.</p>
                 </div>
-                <span className="text-xs font-semibold text-slate-500">Set after preview</span>
               </div>
             </div>
 
@@ -5247,13 +5332,13 @@ function GenerateWorkspace() {
           <div className="space-y-3">
             <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Generate Letters</p>
-              <p className="mt-1 text-xs text-slate-600">Choose the output once, generate, then open the finished PDF or continue to its queue.</p>
+              <p className="mt-1 text-xs text-slate-600">Generate the finalized letters, then open or download the finished PDFs here.</p>
               {generationBlockedByTemplate ? (
                 <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
                   Selected template is {selectedTemplate?.status ?? "not active"}. Only ACTIVE templates can generate production letters.
                 </p>
               ) : null}
-              <div className="mt-3 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Mode</p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -5261,15 +5346,6 @@ function GenerateWorkspace() {
                     <button type="button" onClick={() => setGenerateMode("batch")} className={["rounded border px-2 py-1 text-xs font-semibold", generateMode === "batch" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Batch</button>
                   </div>
                   <p className="mt-2 text-[11px] text-slate-500">Selected from the recipient count automatically. Change it here only when needed.</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Delivery Target</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDeliveryTarget("PDF_ONLY")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "PDF_ONLY" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>PDF Only</button>
-                    <button type="button" onClick={() => setDeliveryTarget("PRINT_QUEUE")} className={["rounded border px-2 py-1 text-xs font-semibold", deliveryTarget === "PRINT_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Print Queue</button>
-                    <button type="button" onClick={() => setDeliveryTarget("MAIL_QUEUE")} disabled={mailQueueUnavailable} title={mailQueueUnavailable ? queuePolicyMessage : undefined} className={["rounded border px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50", deliveryTarget === "MAIL_QUEUE" ? "border-emerald-700 bg-emerald-50 text-emerald-800" : "border-slate-300 bg-white text-slate-700"].join(" ")}>Mail Queue</button>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">{queuePolicyMessage}</p>
                 </div>
               </div>
               <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
@@ -5281,21 +5357,20 @@ function GenerateWorkspace() {
                 />
                 <span>
                   <span className="font-semibold">I understand the validation notes and want to generate anyway.</span>
-                  <span className="mt-0.5 block text-amber-800">Use this only after review. It can bypass missing merge-data and PDF-only address validation; Do Not Mail and mail-queue address protections remain enforced.</span>
+                  <span className="mt-0.5 block text-amber-800">Use this only after review. It can bypass missing merge-data and PDF address validation.</span>
                 </span>
               </label>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   onClick={() => (generateMode === "single" ? void generateOne() : void runBatch(false))}
                   tone="primary"
-                  disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate || (deliveryTarget === "MAIL_QUEUE" && mailQueueUnavailable)}
+                  disabled={working || !canAdvanceFromSelection || generationBlockedByTemplate}
                 >
                   {generateMode === "single" ? "Generate One Letter" : "Generate Batch"}
                 </Button>
                 <Button onClick={() => generateMode === "batch" ? void openBatchPdf(batchPdfIds) : focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined} disabled={pdfLoading || (generateMode === "batch" ? batchPdfIds.length === 0 : !focusedGenerated)}>
                   {generateMode === "batch" ? "Open Batch PDF" : "Open Latest PDF"}
                 </Button>
-                <Button href="/oyama-letters/queue">Continue to Queue</Button>
               </div>
               <details className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <summary className="cursor-pointer text-xs font-semibold text-slate-700">Advanced generation tools</summary>
@@ -6677,7 +6752,7 @@ function WorkflowPolicyPanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-semibold">Workflow Policy</p>
-          <p className="mt-1 text-sm text-slate-600">Print approval, queue defaults, address gates, and PDF fallback behavior from the live letters API.</p>
+          <p className="mt-1 text-sm text-slate-600">Address validation and production PDF rendering controls for the simplified letters workflow.</p>
         </div>
         <Button onClick={() => void save()} tone="primary" disabled={!policy || saving}>{saving ? "Saving..." : "Save Policy"}</Button>
       </div>
@@ -6686,23 +6761,8 @@ function WorkflowPolicyPanel() {
       {notice ? <Alert tone="green">{notice}</Alert> : null}
       {policy ? (
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <CheckField label="Auto-queue batch letters to print" checked={policy.autoQueueBatchToPrint} onChange={(value) => patchPolicy({ autoQueueBatchToPrint: value })} />
-          <CheckField label="Require print approval" checked={policy.requirePrintApproval} onChange={(value) => patchPolicy({ requirePrintApproval: value })} />
-          <CheckField label="Allow direct mail queue" checked={policy.allowDirectMailQueue} onChange={(value) => patchPolicy({ allowDirectMailQueue: value })} />
           <CheckField label="Gate incomplete addresses" checked={policy.enableAddressValidationGate} onChange={(value) => patchPolicy({ enableAddressValidationGate: value })} />
-          <LabeledSelect label="Default Priority" value={policy.defaultPriority} onChange={(value) => patchPolicy({ defaultPriority: value as WorkflowPolicy["defaultPriority"] })} options={["LOW", "NORMAL", "HIGH", "URGENT"]} />
           <LabeledSelect label="PDF Fallback" value={policy.pdfFallbackMode} onChange={(value) => patchPolicy({ pdfFallbackMode: value as WorkflowPolicy["pdfFallbackMode"] })} options={["SERVER_RENDER", "BROWSER_PRINT", "DISABLED"]} />
-          <label className="block text-xs font-semibold text-slate-700">
-            Mailing SLA Days
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={policy.mailingSlaDays}
-              onChange={(event) => patchPolicy({ mailingSlaDays: Number(event.target.value) })}
-              className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-normal"
-            />
-          </label>
           <div className="lg:col-span-2">
             <TextArea label="Policy Notes" value={policy.notes} onChange={(value) => patchPolicy({ notes: value })} />
           </div>
@@ -7526,7 +7586,6 @@ function viewLabel(view: WorkspaceView): string {
   if (view === "publish") return "Publish Workspace";
   if (view === "generate") return "Generate Letters";
   if (view === "labels") return "Mailing Labels";
-  if (view === "queue") return "Print & Mail Queue";
   if (view === "howto") return "Letters How To";
   return "Settings";
 }
