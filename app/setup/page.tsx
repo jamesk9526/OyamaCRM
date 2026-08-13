@@ -3,8 +3,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE, apiRequestUrl } from "@/app/lib/auth-client";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const SUCCESS_REDIRECT_DELAY_MS = 900;
 const DASHBOARD_GOAL_MODE_KEY = "dashboard-revenue-goal-mode";
 const DASHBOARD_MANUAL_GOAL_KEY = "dashboard-manual-revenue-goal";
@@ -115,7 +115,7 @@ export default function SetupPage() {
     watchdogDatabaseUrl: "",
     watchdogEncryptionKey: "",
     jwtSecret: "",
-    nextPublicApiUrl: API,
+    nextPublicApiUrl: API_BASE,
     inviteTeamLater: true,
     teamUsers: [],
   });
@@ -134,7 +134,7 @@ export default function SetupPage() {
       setStatusLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API}/api/setup/status`);
+        const response = await fetch(apiRequestUrl("/api/setup/status"));
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = (await response.json()) as SetupStatusResponse;
         if (!cancelled && payload?.data?.setupCompleted) {
@@ -260,7 +260,7 @@ export default function SetupPage() {
           }));
 
     try {
-      const response = await fetch(`${API}/api/setup/complete`, {
+      const response = await fetch(apiRequestUrl("/api/setup/complete"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

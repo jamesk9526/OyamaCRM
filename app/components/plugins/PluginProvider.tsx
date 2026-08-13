@@ -8,6 +8,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 
 /** Shape of QuickBooks plugin state exposed to the app */
 export interface PluginState {
@@ -63,6 +64,7 @@ export function usePlugins(): PluginState {
  * @param children - Child components that can call usePlugins()
  */
 export function PluginProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [state, setState] = useState<Omit<PluginState, "refresh">>({ ...defaultState });
   const [tick, setTick] = useState(0);
 
@@ -72,21 +74,27 @@ export function PluginProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    if (authLoading) return () => { cancelled = true; };
+    if (!user) {
+      setState({ ...defaultState, loading: false });
+      return () => { cancelled = true; };
+    }
+
     async function fetchStatus() {
       try {
-        const res = await apiFetch("/api/quickbooks/status");
-        const { data } = res as {
-          data: {
-            configured: boolean;
-            enabled: boolean;
-            connected: boolean;
-            realmId: string | null;
-            environment: string;
-            runtimeSource?: "env" | "plugin" | null;
-            redirectUri?: string | null;
-            clientIdPreview?: string | null;
-          };
-        };
+        const data = await apiFetch<{
+          configured: boolean;
+          enabled: boolean;
+          connected: boolean;
+          realmId: string | null;
+          environment: string;
+          runtimeSource?: "env" | "plugin" | null;
+          redirectUri?: string | null;
+          clientIdPreview?: string | null;
+        }>("/api/quickbooks/status");
+        if (!data) {
+          throw new Error("QuickBooks status returned no data.");
+        }
         if (!cancelled) {
           setState({
             qbConfigured: data.configured,
@@ -110,7 +118,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
 
     fetchStatus();
     return () => { cancelled = true; };
-  }, [tick]);
+  }, [authLoading, tick, user]);
 
   return (
     <PluginContext.Provider value={{ ...state, refresh }}>

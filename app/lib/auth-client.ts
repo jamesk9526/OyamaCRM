@@ -6,7 +6,20 @@
 // Accept either "https://domain" or "https://domain/api" in env; normalize
 // to a root origin-like base so request paths can safely include "/api/...".
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-export const API_BASE = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
+export const API_BASE = RAW_API_BASE.trim()
+  .replace(/[?#].*$/, "")
+  .replace(/(?:\/api)+\/?$/i, "")
+  .replace(/\/+$/, "");
+
+/**
+ * Browser requests use the app's same-origin `/api` proxy so refresh cookies
+ * remain first-party in browsers that block cross-site cookies. Server-side
+ * callers retain the configured absolute API origin.
+ */
+export function apiRequestUrl(path: string): string {
+  if (typeof window !== "undefined" && path.startsWith("/")) return path;
+  return `${API_BASE}${path}`;
+}
 
 export interface AuthUser {
   id: string;
@@ -57,7 +70,7 @@ export function getAccessToken(): string | null {
 // ─── Login ─────────────────────────────────────────────────────────────────
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
+  const res = await fetch(apiRequestUrl("/api/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -79,7 +92,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
 /** Completes one email-based MFA login challenge and returns authenticated user profile. */
 export async function verifyEmailMfa(ticket: string, code: string): Promise<AuthUser> {
-  const res = await fetch(`${API_BASE}/api/auth/mfa/verify`, {
+  const res = await fetch(apiRequestUrl("/api/auth/mfa/verify"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -97,7 +110,7 @@ export async function verifyEmailMfa(ticket: string, code: string): Promise<Auth
 
 /** Requests one password reset email. Response is intentionally generic for account privacy. */
 export async function requestPasswordReset(email: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+  const res = await fetch(apiRequestUrl("/api/auth/forgot-password"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -111,7 +124,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
 
 /** Resets password with one-time token issued by forgot-password flow. */
 export async function resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+  const res = await fetch(apiRequestUrl("/api/auth/reset-password"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -132,10 +145,26 @@ export async function refreshAccessToken(): Promise<string | null> {
 
   _refreshInFlight = (async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+      let res = await fetch(apiRequestUrl("/api/auth/refresh"), {
         method: "POST",
         credentials: "include",
       });
+
+      // Another browser tab may have rotated the shared refresh cookie while
+      // this request was in flight. Retry once after that Set-Cookie can land.
+      if (res.status === 409) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        res = await fetch(apiRequestUrl("/api/auth/refresh"), {
+          method: "POST",
+          credentials: "include",
+          headers: { "X-Oyama-Refresh-Retry": "1" },
+        });
+      }
+
+      if (res.status === 204) {
+        setAccessToken(null);
+        return null;
+      }
 
       if (!res.ok) {
         setAccessToken(null);
@@ -259,14 +288,14 @@ export async function apiFetchResponse(path: string, init: RequestInit = {}): Pr
     };
 
     try {
-      return await fetch(`${API_BASE}${path}`, requestInit);
+      return await fetch(apiRequestUrl(path), requestInit);
     } catch (error) {
       if (isAbortError(error)) {
         throw error;
       }
 
       // Fallback for embedded/dev contexts where API is reverse-proxied on the same origin.
-      if (path.startsWith("/api/")) {
+      if (path.startsWith("/api/") && apiRequestUrl(path) !== path) {
         try {
           return await fetch(path, requestInit);
         } catch (fallbackError) {

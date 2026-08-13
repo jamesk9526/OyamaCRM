@@ -813,12 +813,12 @@ function VisualReport({ report }: { report: ReportData }) {
   const isBreakdown = !report.comparisonMatrix && visual.metrics.length > 0;
   const pieData = visual.rows.map((row) => ({ name: String(row[visual.labelKey]), value: Number(row[visual.metrics[0]] ?? 0) }));
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="rounded border border-slate-200 bg-white p-4">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="min-w-0 rounded border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">{visual.title}</h3>
         <p className="mt-1 text-xs text-slate-500">Showing up to 12 rows from the current live report.</p>
-        <div className="mt-4 h-[360px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="mt-4 h-[360px] min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
             <BarChart data={visual.rows} margin={{ top: 12, right: 12, left: 8, bottom: 48 }}>
               <XAxis dataKey={visual.labelKey} angle={-28} textAnchor="end" interval={0} height={82} tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
@@ -829,7 +829,7 @@ function VisualReport({ report }: { report: ReportData }) {
           </ResponsiveContainer>
         </div>
       </section>
-      {isBreakdown ? <section className="rounded border border-slate-200 bg-white p-4"><h3 className="text-sm font-semibold text-slate-900">{visual.labels[0]} mix</h3><div className="mt-4 h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={100} paddingAngle={2}>{pieData.map((entry, index) => <Cell key={entry.name} fill={VISUAL_COLORS[index % VISUAL_COLORS.length]} />)}</Pie><Tooltip formatter={(value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })} /></PieChart></ResponsiveContainer></div><ul className="space-y-1 text-xs text-slate-600">{pieData.map((entry, index) => <li key={entry.name} className="flex justify-between gap-2"><span className="truncate"><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: VISUAL_COLORS[index % VISUAL_COLORS.length] }} />{entry.name}</span><span className="tabular-nums">{entry.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></li>)}</ul></section> : null}
+      {isBreakdown ? <section className="min-w-0 rounded border border-slate-200 bg-white p-4"><h3 className="text-sm font-semibold text-slate-900">{visual.labels[0]} mix</h3><div className="mt-4 h-[300px] min-w-0"><ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}><PieChart><Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={100} paddingAngle={2}>{pieData.map((entry, index) => <Cell key={entry.name} fill={VISUAL_COLORS[index % VISUAL_COLORS.length]} />)}</Pie><Tooltip formatter={(value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })} /></PieChart></ResponsiveContainer></div><ul className="space-y-1 text-xs text-slate-600">{pieData.map((entry, index) => <li key={entry.name} className="flex justify-between gap-2"><span className="truncate"><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: VISUAL_COLORS[index % VISUAL_COLORS.length] }} />{entry.name}</span><span className="tabular-nums">{entry.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span></li>)}</ul></section> : null}
     </div>
   );
 }

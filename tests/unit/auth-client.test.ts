@@ -144,6 +144,28 @@ describe("auth-client", () => {
       expect(getAccessToken()).toBeNull();
     });
 
+    it("treats a 204 session probe as a normal signed-out state", async () => {
+      setAccessToken("stale");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(jsonResponse(undefined, { status: 204 })),
+      );
+      expect(await refreshAccessToken()).toBeNull();
+      expect(getAccessToken()).toBeNull();
+    });
+
+    it("retries once when another tab rotated the refresh cookie", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({}, { status: 409 }))
+        .mockResolvedValueOnce(jsonResponse({ data: { accessToken: "cross-tab-token" } }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      expect(await refreshAccessToken()).toBe("cross-tab-token");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(getAccessToken()).toBe("cross-tab-token");
+    });
+
     it("clears the stored token and returns null when fetch throws", async () => {
       setAccessToken("stale");
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));

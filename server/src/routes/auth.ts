@@ -683,42 +683,57 @@ router.post("/reset-password", async (req: Request, res: Response) => {
  */
 router.post("/refresh", async (req: Request, res: Response) => {
   const token = req.cookies?.[REFRESH_COOKIE];
+  const isRotationRetry = req.get("X-Oyama-Refresh-Retry") === "1";
 
   if (!token) {
-    return res.status(401).json({ error: { code: "NO_REFRESH_TOKEN", message: "No refresh token" } });
+    return res.status(204).end();
   }
 
   let payload: { sub: string };
   try {
     payload = verifyRefreshToken(token);
   } catch {
-    return res.status(401).json({ error: { code: "REFRESH_TOKEN_INVALID", message: "Refresh token is expired or invalid" } });
+    res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+    return res.status(204).end();
   }
 
-  // Validate token exists in DB (rotation check)
-  // If token is not found it may have already been used (possible token theft)
+  // A missing row can be a legitimate cross-tab rotation race. Preserve the
+  // newly set cookie on the first miss and let the browser retry it once.
   const stored = await prisma.refreshToken.findUnique({ where: { token } });
-  if (!stored || stored.userId !== payload.sub || stored.expiresAt < new Date()) {
+  if (!stored) {
+    if (isRotationRetry) {
+      res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+      return res.status(204).end();
+    }
+    return res.status(409).json({ error: { code: "REFRESH_ROTATED", message: "Refresh token was rotated by another session." } });
+  }
+  if (stored.userId !== payload.sub || stored.expiresAt < new Date()) {
     res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
-    return res.status(401).json({ error: { code: "REFRESH_TOKEN_REVOKED", message: "Refresh token has been revoked" } });
+    return res.status(204).end();
   }
 
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
   if (!user || !user.active) {
-    return res.status(401).json({ error: { code: "USER_INACTIVE", message: "Account is inactive" } });
+    res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+    return res.status(204).end();
   }
 
-  // Rotate: delete old, issue new
-  await prisma.refreshToken.delete({ where: { token } });
-
   const newRefresh = signRefreshToken(user.id);
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      token: newRefresh,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
+  const rotated = await prisma.$transaction(async (tx) => {
+    const deleted = await tx.refreshToken.deleteMany({ where: { token, userId: user.id } });
+    if (deleted.count !== 1) return false;
+    await tx.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: newRefresh,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+    return true;
   });
+  if (!rotated) {
+    return res.status(409).json({ error: { code: "REFRESH_ROTATED", message: "Refresh token was rotated by another session." } });
+  }
 
   const accessToken = signAccessToken({
     sub: user.id,

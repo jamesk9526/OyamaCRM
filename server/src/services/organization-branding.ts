@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { usableBrandingAssetUrl } from "../lib/branding-assets.js";
 
 const BRANDING_PLUGIN_KEY = "organization-branding";
 
@@ -104,14 +105,18 @@ export async function loadOrganizationBrandingContext(
     asText(config.organizationDisplayName)
     || asText(config.legalOrganizationName)
     || fallbackOrganizationName.trim();
+  const [logoUrl, logoSquareUrl] = await Promise.all([
+    usableBrandingAssetUrl(config.logoUrl, organizationId),
+    usableBrandingAssetUrl(config.logoSquareUrl, organizationId),
+  ]);
 
   return {
     organizationName,
     legalOrganizationName: asText(config.legalOrganizationName) || organizationName,
     tagline: asText(config.tagline),
     missionStatement: asText(config.missionStatement),
-    logoUrl: asText(config.logoUrl),
-    logoSquareUrl: asText(config.logoSquareUrl),
+    logoUrl,
+    logoSquareUrl,
     primaryColor: asHex(config.primaryColor, "#16a34a"),
     accentColor: asHex(config.accentColor, "#0f766e"),
     emailBackgroundColor: asHex(config.emailBackgroundColor, "#f5f5f5"),

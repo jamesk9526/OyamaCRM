@@ -7,10 +7,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import LoginBrandPanel, { LoginMobileBrand } from "@/app/components/auth/LoginBrandPanel";
 import PasswordInput from "@/app/components/auth/PasswordInput";
-import { verifyEmailMfa, type LoginMfaChallenge } from "@/app/lib/auth-client";
+import { apiRequestUrl, verifyEmailMfa, type LoginMfaChallenge } from "@/app/lib/auth-client";
 import { fetchWorkspaceSettings, resolveWorkspaceLandingPath } from "@/app/lib/workspace-settings";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /** LoginPage renders the authentication form and redirects to /setup when first-run is incomplete. */
 export default function LoginPage() {
@@ -35,7 +33,7 @@ export default function LoginPage() {
     async function checkSetupStatus() {
       setCheckingSetup(true);
       try {
-        const res = await fetch(`${API}/api/setup/status`);
+        const res = await fetch(apiRequestUrl("/api/setup/status"));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const payload = await res.json();
         if (!cancelled && !payload?.data?.setupCompleted) {

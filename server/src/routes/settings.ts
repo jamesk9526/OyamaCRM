@@ -27,6 +27,7 @@ import {
 } from "../services/auth-security.js";
 import { resetCrmInstallation } from "../services/reset-crm.js";
 import { getFiscalYearEndMonth, normalizeFiscalYearStart } from "../lib/dateRanges.js";
+import { usableBrandingAssetUrl } from "../lib/branding-assets.js";
 
 const router = Router();
 
@@ -825,9 +826,15 @@ router.get("/branding", requireAuth, async (req: Request, res: Response) => {
 
     const normalized = normalizeBrandingPayload(setting?.config ?? {});
     const displayName = normalized.organizationDisplayName || organization?.name || "";
+    const [logoUrl, logoSquareUrl] = await Promise.all([
+      usableBrandingAssetUrl(normalized.logoUrl, organizationId),
+      usableBrandingAssetUrl(normalized.logoSquareUrl, organizationId),
+    ]);
 
     return res.json({
       ...normalized,
+      logoUrl,
+      logoSquareUrl,
       organizationDisplayName: displayName,
       legalOrganizationName: normalized.legalOrganizationName || displayName,
     });

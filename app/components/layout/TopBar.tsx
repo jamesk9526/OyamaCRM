@@ -13,7 +13,7 @@ import ContextualTutorialModal from "@/app/components/help/ContextualTutorialMod
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { SupportTicketModal } from "@/app/components/support/SupportTicketModal";
-import { apiFetch, API_BASE as AUTH_API_BASE } from "@/app/lib/auth-client";
+import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { OYAMA_PRODUCT_LOGO } from "@/app/lib/product-branding";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -1108,22 +1108,50 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, [loadUnreadCount]);
 
   useEffect(() => {
-    // Use the normalized API base (strips trailing /api) so we don't produce /api/api/… in production.
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource(`${AUTH_API_BASE}/api/notifications/sse`, { withCredentials: true });
-      const refresh = () => {
-        void loadUnreadCount();
-        if (notificationsOpen) void loadNotifications();
-      };
-      es.addEventListener("ready", refresh);
-      es.addEventListener("changed", refresh);
-    } catch {
-      return;
-    }
+    const controller = new AbortController();
+    let closed = false;
+    let reconnectTimer: number | null = null;
+
+    const refresh = () => {
+      void loadUnreadCount();
+      if (notificationsOpen) void loadNotifications();
+    };
+
+    const connect = async () => {
+      try {
+        const response = await apiFetchResponse("/api/notifications/sse", {
+          headers: { Accept: "text/event-stream" },
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffered = "";
+        while (!closed) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffered += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+          const messages = buffered.split("\n\n");
+          buffered = messages.pop() ?? "";
+          for (const message of messages) {
+            const eventName = message.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim();
+            if (eventName === "ready" || eventName === "changed") refresh();
+          }
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      } finally {
+        if (!closed) reconnectTimer = window.setTimeout(() => { void connect(); }, 5_000);
+      }
+    };
+
+    void connect();
 
     return () => {
-      es?.close();
+      closed = true;
+      controller.abort();
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
     };
   }, [loadNotifications, loadUnreadCount, notificationsOpen]);
 

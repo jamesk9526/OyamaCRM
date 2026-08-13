@@ -81,6 +81,9 @@ describe("OyamaEmail workspace source contract", () => {
     expect(contactsManager).toContain("audienceListId=");
     expect(contactsManager).toContain("Editing saved base list");
     expect(contactsManager).toContain("Save changes to ${selectedList.name}");
+    expect(contactsManager).toContain("removeConstituentFromList(row)");
+    expect(contactsManager).toContain("Remove from list");
+    expect(contactsManager).toContain("Removed ${contactName(row)} from ${selectedList?.name");
     expect(audienceListManager).toContain("updates that list immediately");
     expect(audienceListManager).toContain("Edit in Segment Builder");
     expect(audienceListManager).toContain("removeMember(row.member)");

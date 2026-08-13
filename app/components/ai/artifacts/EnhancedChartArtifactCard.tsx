@@ -97,7 +97,7 @@ function BarChartRenderer({
   );
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={200}>
       <RechartBar data={data} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
         <XAxis
@@ -153,7 +153,7 @@ function LineChartRenderer({
   );
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={200}>
       <RechartLine data={data} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
         <XAxis
@@ -221,7 +221,7 @@ function PieChartRenderer({
   }
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
+    <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={200}>
       <RechartPie data={data} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
         <Pie
           data={data}

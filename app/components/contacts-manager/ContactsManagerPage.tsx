@@ -181,6 +181,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   }, [activeTag, allListConstituentIds, allListRecipientEmails, constituents, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
 
   const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
+  const selectedBaseListMembers = useMemo(() => selectedListId ? listRecipientsById[selectedListId] ?? [] : [], [listRecipientsById, selectedListId]);
   const selectedEmails = useMemo(
     () => selectedRows.map((row) => row.email?.trim().toLowerCase()).filter(Boolean) as string[],
     [selectedRows],
@@ -396,6 +397,46 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     }
   }
 
+  async function removeConstituentFromList(row: ConstituentRow) {
+    if (!selectedListId) {
+      toggleSelected(row.id);
+      return;
+    }
+
+    const normalizedEmail = row.email?.trim().toLowerCase() ?? "";
+    const member = selectedBaseListMembers.find((candidate) => candidate.constituentId === row.id)
+      ?? selectedBaseListMembers.find((candidate) => normalizedEmail && candidate.email?.trim().toLowerCase() === normalizedEmail);
+    if (!member) {
+      toggleSelected(row.id);
+      setMessage(`Removed ${contactName(row)} from the pending segment changes. Save the base list to keep this change.`);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/email-campaigns/lists/${selectedListId}/recipients/${member.id}`, { method: "DELETE" });
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
+      setListRecipientsById((current) => ({
+        ...current,
+        [selectedListId]: (current[selectedListId] ?? []).filter((candidate) => candidate.id !== member.id),
+      }));
+      setLists((current) => current.map((list) => list.id === selectedListId
+        ? { ...list, recipientsCount: Math.max(0, list.recipientsCount - 1) }
+        : list));
+      setMessage(`Removed ${contactName(row)} from ${selectedList?.name ?? "the saved base list"}.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Failed to remove constituent from the saved list.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function createTag() {
     setSaving(true);
     setError(null);
@@ -573,7 +614,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
           </div>
 
           <div className={fullscreen ? "min-h-0 flex-1 overflow-auto" : "max-h-[calc(100vh-18rem)] overflow-auto"}>
-            <table className="min-w-[980px] divide-y divide-gray-200 text-xs">
+            <table className="min-w-[1040px] divide-y divide-gray-200 text-xs">
               <thead className="sticky top-0 z-10 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm">
                 <tr>
                   <th className={`${selectionMode ? "w-10" : "w-0"} px-2 py-2`}>
@@ -588,7 +629,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                   <th className="px-2 py-2">Tags</th>
                   <SortableHeader label="Giving" sortKey="giving" activeKey={sortKey} direction={sortDirection} onSort={updateSort} align="right" />
                   <th className="px-2 py-2">Actions</th>
-                  <th className="w-14 px-2 py-2 text-right">Add</th>
+                  <th className="w-28 px-2 py-2 text-right">List action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -624,8 +665,14 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                       <button type="button" onClick={() => setTagEditor({ constituent: row, tags: row.tags?.map((entry) => entry.tag.name).join(", ") ?? "" })} className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50">Tags</button>
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <button type="button" onClick={() => toggleSelected(row.id)} className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-sm font-bold ${selectedIds.has(row.id) ? "border-green-300 bg-green-100 text-green-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`} title={selectedIds.has(row.id) ? "Remove from segment" : "Add to segment"}>
-                        {selectedIds.has(row.id) ? "←" : "→"}
+                      <button
+                        type="button"
+                        onClick={() => selectedIds.has(row.id) ? void removeConstituentFromList(row) : toggleSelected(row.id)}
+                        disabled={saving}
+                        className={`inline-flex min-h-7 items-center justify-center rounded-md border px-2 text-[11px] font-semibold disabled:opacity-50 ${selectedIds.has(row.id) ? "border-red-200 bg-white text-red-700 hover:bg-red-50" : "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"}`}
+                        title={selectedIds.has(row.id) ? "Remove this constituent from the list" : "Add this constituent to the list"}
+                      >
+                        {selectedIds.has(row.id) ? "Remove from list" : "Add to list"}
                       </button>
                     </td>
                   </tr>
@@ -702,7 +749,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
                     <p className="truncate text-xs font-semibold text-gray-900">{contactName(row)}</p>
                     <p className="truncate text-xs text-gray-500">{row.email || "No email"}</p>
                   </div>
-                  <button type="button" onClick={() => toggleSelected(row.id)} className="rounded-full border border-gray-300 px-2 py-0.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50">Remove</button>
+                  <button type="button" onClick={() => void removeConstituentFromList(row)} disabled={saving} className="rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Remove from list</button>
                 </div>
               ))}
             </div>
