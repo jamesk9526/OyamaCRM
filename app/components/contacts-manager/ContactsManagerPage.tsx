@@ -46,7 +46,7 @@ interface SavedAudienceDetail {
   id: string;
   name: string;
   description?: string | null;
-  recipients: Array<{ id: string; email: string; firstName?: string | null; lastName?: string | null }>;
+  recipients: Array<{ id: string; constituentId?: string | null; email?: string | null; firstName?: string | null; lastName?: string | null }>;
 }
 
 type ContactFilter = "ALL" | "DONORS" | "CLIENTS" | "NON_DONORS" | "ORGANIZATIONS" | "MISSING_EMAIL";
@@ -126,7 +126,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const [filter, setFilter] = useState<ContactFilter>("ALL");
   const [listMembershipFilter, setListMembershipFilter] = useState<ListMembershipFilter>("ALL");
   const [membershipListId, setMembershipListId] = useState("");
-  const [listRecipientsById, setListRecipientsById] = useState<Record<string, string[]>>({});
+  const [listRecipientsById, setListRecipientsById] = useState<Record<string, SavedAudienceDetail["recipients"]>>({});
   const [activeTag, setActiveTag] = useState("");
   const [pageSize, setPageSize] = useState<ContactsPageSize>(100);
   const [sortKey, setSortKey] = useState<ContactsSortKey>("name");
@@ -148,10 +148,16 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
 
   const selectedList = useMemo(() => lists.find((list) => list.id === selectedListId) ?? null, [lists, selectedListId]);
   const allListRecipientEmails = useMemo(() => {
-    return new Set(Object.values(listRecipientsById).flat());
+    return new Set(Object.values(listRecipientsById).flatMap((recipients) => recipients.flatMap((recipient) => recipient.email?.trim() ? [recipient.email.trim().toLowerCase()] : [])));
+  }, [listRecipientsById]);
+  const allListConstituentIds = useMemo(() => {
+    return new Set(Object.values(listRecipientsById).flatMap((recipients) => recipients.flatMap((recipient) => recipient.constituentId ? [recipient.constituentId] : [])));
   }, [listRecipientsById]);
   const selectedMembershipEmails = useMemo(() => {
-    return new Set(membershipListId ? listRecipientsById[membershipListId] ?? [] : []);
+    return new Set((membershipListId ? listRecipientsById[membershipListId] ?? [] : []).flatMap((recipient) => recipient.email?.trim() ? [recipient.email.trim().toLowerCase()] : []));
+  }, [listRecipientsById, membershipListId]);
+  const selectedMembershipConstituentIds = useMemo(() => {
+    return new Set((membershipListId ? listRecipientsById[membershipListId] ?? [] : []).flatMap((recipient) => recipient.constituentId ? [recipient.constituentId] : []));
   }, [listRecipientsById, membershipListId]);
 
   const filteredConstituents = useMemo(() => {
@@ -163,14 +169,16 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       if (filter === "NON_DONORS" && isDonor(row)) return false;
       if (filter === "ORGANIZATIONS" && !["ORGANIZATION", "FOUNDATION", "SPONSOR"].includes(row.type)) return false;
       if (filter === "MISSING_EMAIL" && row.email) return false;
-      if (listMembershipFilter === "IN_ANY_LIST" && (!rowEmail || !allListRecipientEmails.has(rowEmail))) return false;
-      if (listMembershipFilter === "NOT_IN_ANY_LIST" && rowEmail && allListRecipientEmails.has(rowEmail)) return false;
-      if (listMembershipFilter === "IN_SELECTED_LIST" && (!membershipListId || !rowEmail || !selectedMembershipEmails.has(rowEmail))) return false;
+      const inAnyList = allListConstituentIds.has(row.id) || (rowEmail && allListRecipientEmails.has(rowEmail));
+      const inSelectedList = selectedMembershipConstituentIds.has(row.id) || (rowEmail && selectedMembershipEmails.has(rowEmail));
+      if (listMembershipFilter === "IN_ANY_LIST" && !inAnyList) return false;
+      if (listMembershipFilter === "NOT_IN_ANY_LIST" && inAnyList) return false;
+      if (listMembershipFilter === "IN_SELECTED_LIST" && (!membershipListId || !inSelectedList)) return false;
       if (activeTag && !row.tags?.some((entry) => entry.tag.name === activeTag)) return false;
       if (!query) return true;
       return contactHaystack(row).toLowerCase().includes(query);
     });
-  }, [activeTag, allListRecipientEmails, constituents, filter, listMembershipFilter, membershipListId, search, selectedMembershipEmails]);
+  }, [activeTag, allListConstituentIds, allListRecipientEmails, constituents, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
 
   const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
   const selectedEmails = useMemo(
@@ -201,7 +209,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
         listRows.map(async (list) => {
           try {
             const detail = await apiFetch<SavedAudienceDetail>(`/api/email-campaigns/lists/${list.id}`);
-            return [list.id, detail.recipients.map((row) => row.email.trim().toLowerCase()).filter(Boolean)] as const;
+            return [list.id, detail.recipients] as const;
           } catch {
             return [list.id, []] as const;
           }
@@ -259,8 +267,8 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
         if (cancelled) return;
         setListName(detail.name);
         setDescription(detail.description ?? "");
-        const emails = detail.recipients.map((row) => row.email.trim().toLowerCase()).filter(Boolean);
-        const ids = new Set<string>();
+        const emails = detail.recipients.flatMap((row) => row.email?.trim() ? [row.email.trim().toLowerCase()] : []);
+        const ids = new Set(detail.recipients.flatMap((row) => row.constituentId ? [row.constituentId] : []));
         const matchedEmails = new Set<string>();
         for (const row of constituents) {
           const email = row.email?.trim().toLowerCase();
@@ -270,7 +278,11 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
           }
         }
         setSelectedIds(ids);
-        setExternalEmails(emails.filter((email) => !matchedEmails.has(email)).join("\n"));
+        setExternalEmails(detail.recipients
+          .filter((row) => !row.constituentId)
+          .flatMap((row) => row.email?.trim() ? [row.email.trim().toLowerCase()] : [])
+          .filter((email) => !matchedEmails.has(email))
+          .join("\n"));
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Failed to load audience list.");
       }
@@ -364,15 +376,16 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     setError(null);
     setMessage(null);
     try {
-      const recipientEmails = Array.from(new Set([...selectedEmails, ...splitEmails(externalEmails)]));
-      const payload = { name: listName, description, recipientEmails };
+      const recipientEmails = Array.from(new Set(splitEmails(externalEmails)));
+      const recipientConstituentIds = selectedRows.map((row) => row.id);
+      const payload = { name: listName, description, recipientConstituentIds, recipientEmails };
       const saved = selectedListId
         ? await apiFetch<SavedAudienceList>(`/api/email-campaigns/lists/${selectedListId}`, { method: "PUT", body: JSON.stringify(payload) })
         : await apiFetch<SavedAudienceList>("/api/email-campaigns/lists", { method: "POST", body: JSON.stringify(payload) });
 
       setSelectedListId(saved.id);
       await load();
-      setMessage(`Audience list saved with ${recipientEmails.length} recipient emails.`);
+      setMessage(`Audience list saved with ${recipientConstituentIds.length} CRM contact${recipientConstituentIds.length === 1 ? "" : "s"} and ${recipientEmails.length} external email${recipientEmails.length === 1 ? "" : "s"}.`);
       if (audienceCampaignId) {
         router.push(`/oyama-email/campaigns/${encodeURIComponent(audienceCampaignId)}?tab=audience&audienceListId=${encodeURIComponent(saved.id)}`);
       }

@@ -274,6 +274,7 @@ describe("Donor CRM visual refresh foundation", () => {
     const donationsRoute = read("server/src/routes/donations.ts");
     const reportsWorkbook = read("app/components/donor-reports/DonorReportsSpreadsheet.tsx");
     const reportLibrary = read("server/src/services/donor-report-library.ts");
+    const emailCampaignsRoute = read("server/src/routes/email-campaigns.ts");
 
     expect(donationsPage).toContain("Mark date range thanked");
     expect(donationsPage).toContain("/api/donations/acknowledgments/bulk");
@@ -288,7 +289,12 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(reportsWorkbook).toContain("No completed gift since");
     expect(reportsWorkbook).toContain("Save as audience list");
     expect(reportsWorkbook).toContain('apiFetch("/api/email-campaigns/lists"');
+    expect(reportsWorkbook).toContain("recipientConstituentIds: audienceDonorIds");
+    expect(reportsWorkbook).toContain("All {audienceDonorIds.length.toLocaleString()} donors will be saved.");
+    expect(reportsWorkbook).toContain("Save all donors");
     expect(reportsWorkbook).toContain("Open audience lists");
+    expect(emailCampaignsRoute).toContain("recipientConstituentIds");
+    expect(emailCampaignsRoute).toContain("resolveSavedListMemberCandidates");
     expect(reportLibrary).toContain('{ key: "address", label: "Street address" }');
     expect(reportLibrary).toContain('case "lapsed-donor-history"');
     expect(reportLibrary).toContain('options.lapseMode === "notSince"');

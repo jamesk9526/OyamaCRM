@@ -640,11 +640,12 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
         body: JSON.stringify({
           name: audienceName.trim(),
           description: audienceDescription.trim(),
+          recipientConstituentIds: audienceDonorIds,
           recipientEmails: audienceEmails,
         }),
       });
       setShowAudienceDialog(false);
-      setAudienceMessage(`Contacts Manager audience “${audienceName.trim()}” saved with ${audienceEmails.length.toLocaleString()} recipient email${audienceEmails.length === 1 ? "" : "s"}.`);
+      setAudienceMessage(`Contacts Manager audience “${audienceName.trim()}” saved with all ${audienceDonorIds.length.toLocaleString()} report donor${audienceDonorIds.length === 1 ? "" : "s"}; ${audienceEmails.length.toLocaleString()} currently have usable email.`);
     } catch (requestError) {
       setAudienceError(requestError instanceof Error ? requestError.message : "Unable to save this audience.");
     } finally {
@@ -664,7 +665,71 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
       {audienceMessage ? <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span>{audienceMessage}</span><div className="flex items-center gap-3"><Link href="/contacts-manager/lists" className="font-semibold hover:underline">Open audience lists →</Link><button type="button" onClick={() => setAudienceMessage(null)} className="font-semibold hover:underline">Dismiss</button></div></div> : null}
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
       {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
-      {showAudienceDialog ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingAudience) setShowAudienceDialog(false); }}><section role="dialog" aria-modal="true" aria-labelledby="save-lapsed-audience-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl"><div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5"><div><h2 id="save-lapsed-audience-title" className="text-lg font-semibold text-slate-950">Save to Contacts Manager</h2><p className="mt-1 text-sm text-slate-600">Create a reusable audience list from this Lapsed Donor History result.</p></div><button type="button" onClick={() => setShowAudienceDialog(false)} disabled={savingAudience} aria-label="Close save audience dialog" className="rounded p-1 text-xl leading-none text-slate-500 hover:bg-slate-100 disabled:opacity-50">×</button></div><div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5"><div className="grid grid-cols-2 gap-2"><div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Report donors</p><p className="font-semibold tabular-nums text-slate-900">{audienceDonorIds.length.toLocaleString()}</p></div><div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Recipient emails</p><p className="font-semibold tabular-nums text-slate-900">{audienceEmails.length.toLocaleString()}</p></div></div>{audienceDonorIds.length > audienceEmails.length ? <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{(audienceDonorIds.length - audienceEmails.length).toLocaleString()} donor{audienceDonorIds.length - audienceEmails.length === 1 ? " has" : "s have"} no email and cannot be stored in the current Contacts Manager audience-list format.</p> : null}<label htmlFor="lapsed-audience-name" className="mt-4 block text-sm font-semibold text-slate-800">Audience name</label><input id="lapsed-audience-name" autoFocus value={audienceName} onChange={(event) => setAudienceName(event.target.value)} maxLength={160} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><label htmlFor="lapsed-audience-description" className="mt-4 block text-sm font-semibold text-slate-800">Notes <span className="font-normal text-slate-500">(optional)</span></label><textarea id="lapsed-audience-description" value={audienceDescription} onChange={(event) => setAudienceDescription(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><p className="mt-3 text-xs leading-5 text-slate-500">The list is saved in Contacts Manager. Email suppression and opt-out rules are still enforced when the list is used.</p>{audienceError ? <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{audienceError}</p> : null}</div><div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-5"><button type="button" onClick={() => setShowAudienceDialog(false)} disabled={savingAudience} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Cancel</button><button type="button" onClick={() => void saveAudience()} disabled={savingAudience || !audienceName.trim() || audienceEmails.length === 0} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">{savingAudience ? "Saving audience..." : "Save audience"}</button></div></section></div> : null}
+      {showAudienceDialog ? <AudienceSaveDialog
+        audienceDonorIds={audienceDonorIds}
+        audienceEmails={audienceEmails}
+        audienceName={audienceName}
+        audienceDescription={audienceDescription}
+        saving={savingAudience}
+        error={audienceError}
+        onClose={() => setShowAudienceDialog(false)}
+        onNameChange={setAudienceName}
+        onDescriptionChange={setAudienceDescription}
+        onSave={() => void saveAudience()}
+      /> : null}
+    </div>
+  );
+}
+
+function AudienceSaveDialog({
+  audienceDonorIds,
+  audienceEmails,
+  audienceName,
+  audienceDescription,
+  saving,
+  error,
+  onClose,
+  onNameChange,
+  onDescriptionChange,
+  onSave,
+}: {
+  audienceDonorIds: string[];
+  audienceEmails: string[];
+  audienceName: string;
+  audienceDescription: string;
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onNameChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const withoutEmail = audienceDonorIds.length - audienceEmails.length;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="save-lapsed-audience-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div><h2 id="save-lapsed-audience-title" className="text-lg font-semibold text-slate-950">Save to Contacts Manager</h2><p className="mt-1 text-sm text-slate-600">Create a reusable audience list from this Lapsed Donor History result.</p></div>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Close save audience dialog" className="rounded p-1 text-xl leading-none text-slate-500 hover:bg-slate-100 disabled:opacity-50">×</button>
+        </div>
+        <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Report donors</p><p className="font-semibold tabular-nums text-slate-900">{audienceDonorIds.length.toLocaleString()}</p></div>
+            <div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Email-ready now</p><p className="font-semibold tabular-nums text-slate-900">{audienceEmails.length.toLocaleString()}</p></div>
+          </div>
+          {withoutEmail > 0 ? <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">All {audienceDonorIds.length.toLocaleString()} donors will be saved. {withoutEmail.toLocaleString()} currently {withoutEmail === 1 ? "has" : "have"} no email and will be retained for letters or future contact updates.</p> : null}
+          <label htmlFor="lapsed-audience-name" className="mt-4 block text-sm font-semibold text-slate-800">Audience name</label>
+          <input id="lapsed-audience-name" autoFocus value={audienceName} onChange={(event) => onNameChange(event.target.value)} maxLength={160} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <label htmlFor="lapsed-audience-description" className="mt-4 block text-sm font-semibold text-slate-800">Notes <span className="font-normal text-slate-500">(optional)</span></label>
+          <textarea id="lapsed-audience-description" value={audienceDescription} onChange={(event) => onDescriptionChange(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <p className="mt-3 text-xs leading-5 text-slate-500">Email sends still evaluate current email availability, suppression, opt-out, and do-not-contact rules. Letter workflows can use every saved donor.</p>
+          {error ? <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={onSave} disabled={saving || !audienceName.trim() || audienceDonorIds.length === 0} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving audience..." : "Save all donors"}</button>
+        </div>
+      </section>
     </div>
   );
 }

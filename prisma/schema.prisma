@@ -2276,18 +2276,23 @@ model EmailRecipientList {
 }
 
 model EmailRecipientListMember {
-  id        String   @id @default(cuid())
-  listId    String
-  email     String
-  firstName String?
-  lastName  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  listId        String
+  // Constituent-backed entries retain a reusable CRM audience even without an email address.
+  // Email-only entries remain supported for externally supplied contacts and legacy lists.
+  constituentId String?
+  email         String?
+  firstName     String?
+  lastName      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   list EmailRecipientList @relation(fields: [listId], references: [id], onDelete: Cascade)
 
   @@unique([listId, email])
+  @@unique([listId, constituentId])
   @@index([listId])
+  @@index([constituentId])
 }
 
 model EmailCampaignDeliveryEvent {

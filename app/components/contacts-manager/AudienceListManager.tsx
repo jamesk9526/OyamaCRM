@@ -21,9 +21,17 @@ interface SavedAudienceList {
   updatedAt: string;
 }
 
+interface SavedAudienceMember {
+  id: string;
+  constituentId?: string | null;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}
+
 interface AudienceListManagerProps {
   lists: SavedAudienceList[];
-  listRecipientsById: Record<string, string[]>;
+  listRecipientsById: Record<string, SavedAudienceMember[]>;
   constituents: ConstituentRow[];
   onReload: () => Promise<void>;
   onMessage?: (message: string) => void;
@@ -49,13 +57,17 @@ export default function AudienceListManager({
   const [saving, setSaving] = useState(false);
 
   const activeList = lists.find((list) => list.id === activeListId) ?? lists[0] ?? null;
-  const activeEmails = activeList ? listRecipientsById[activeList.id] ?? [] : [];
+  const activeMembers = activeList ? listRecipientsById[activeList.id] ?? [] : [];
   const contactsByEmail = useMemo(() => {
     return new Map(constituents.map((row) => [row.email?.trim().toLowerCase(), row]).filter(([email]) => Boolean(email)) as Array<[string, ConstituentRow]>);
   }, [constituents]);
-  const previewRows = activeEmails.slice(0, 75).map((email) => ({ email, contact: contactsByEmail.get(email) }));
+  const contactsById = useMemo(() => new Map(constituents.map((row) => [row.id, row])), [constituents]);
+  const previewRows = activeMembers.slice(0, 75).map((member) => ({
+    member,
+    contact: member.constituentId ? contactsById.get(member.constituentId) : contactsByEmail.get(member.email?.trim().toLowerCase() ?? ""),
+  }));
   const selectedLists = lists.filter((list) => checkedListIds.has(list.id));
-  const selectedRecipientCount = new Set(selectedLists.flatMap((list) => listRecipientsById[list.id] ?? [])).size;
+  const selectedRecipientCount = new Set(selectedLists.flatMap((list) => (listRecipientsById[list.id] ?? []).map((member) => member.constituentId ? `constituent:${member.constituentId}` : `email:${member.email?.trim().toLowerCase() ?? member.id}`))).size;
 
   async function runAction(action: () => Promise<string>) {
     setSaving(true);
@@ -111,7 +123,7 @@ export default function AudienceListManager({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">{activeList?.name ?? "No list selected"}</h3>
-              <p className="mt-1 text-xs text-gray-500">{activeEmails.length} recipients · {previewRows.filter((row) => row.contact).length} matched constituents</p>
+              <p className="mt-1 text-xs text-gray-500">{activeMembers.length} recipients · {previewRows.filter((row) => row.contact).length} matched constituents</p>
             </div>
             {activeList && onLoadList && (
               <button type="button" onClick={() => onLoadList(activeList.id)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Load in Builder</button>
@@ -126,8 +138,8 @@ export default function AudienceListManager({
                 {previewRows.length === 0 ? (
                   <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-500">No recipients in this list.</td></tr>
                 ) : previewRows.map((row) => (
-                  <tr key={row.email}>
-                    <td className="px-3 py-2 text-gray-700">{row.email}</td>
+                  <tr key={row.member.id}>
+                    <td className="px-3 py-2 text-gray-700">{row.member.email || row.contact?.email || <span className="text-gray-400">No email</span>}</td>
                     <td className="px-3 py-2 font-medium text-gray-900">{row.contact ? `${row.contact.firstName} ${row.contact.lastName}`.trim() || "Unnamed" : "Not matched"}</td>
                     <td className="px-3 py-2 text-gray-500">{row.contact?.employer || row.contact?.phone || ""}</td>
                   </tr>
@@ -149,7 +161,13 @@ export default function AudienceListManager({
           <ToolPanel title="Duplicate and Rename">
             <input value={duplicateName} onChange={(event) => setDuplicateName(event.target.value)} placeholder={activeList ? `${activeList.name} Copy` : "New list name"} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             <button type="button" disabled={!activeList || saving || !duplicateName.trim()} onClick={() => activeList && void runAction(async () => {
-              await apiFetch("/api/email-campaigns/lists", { method: "POST", body: JSON.stringify({ name: duplicateName, description: activeList.description ?? "", recipientEmails: activeEmails }) });
+              const members = listRecipientsById[activeList.id] ?? [];
+              await apiFetch("/api/email-campaigns/lists", { method: "POST", body: JSON.stringify({
+                name: duplicateName,
+                description: activeList.description ?? "",
+                recipientConstituentIds: members.flatMap((member) => member.constituentId ? [member.constituentId] : []),
+                recipientEmails: members.flatMap((member) => !member.constituentId && member.email ? [member.email] : []),
+              }) });
               return "Audience list duplicated.";
             })} className="mt-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Duplicate</button>
           </ToolPanel>
@@ -158,8 +176,13 @@ export default function AudienceListManager({
             <input value={mergeName} onChange={(event) => setMergeName(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
             <p className="mt-1 text-xs text-gray-500">{selectedLists.length} lists selected · {selectedRecipientCount} unique recipients</p>
             <button type="button" disabled={selectedLists.length < 2 || saving || !mergeName.trim()} onClick={() => void runAction(async () => {
-              const recipientEmails = Array.from(new Set(selectedLists.flatMap((list) => listRecipientsById[list.id] ?? [])));
-              await apiFetch("/api/email-campaigns/lists", { method: "POST", body: JSON.stringify({ name: mergeName, description: `Merged from ${selectedLists.map((list) => list.name).join(", ")}`, recipientEmails }) });
+              const members = selectedLists.flatMap((list) => listRecipientsById[list.id] ?? []);
+              await apiFetch("/api/email-campaigns/lists", { method: "POST", body: JSON.stringify({
+                name: mergeName,
+                description: `Merged from ${selectedLists.map((list) => list.name).join(", ")}`,
+                recipientConstituentIds: Array.from(new Set(members.flatMap((member) => member.constituentId ? [member.constituentId] : []))),
+                recipientEmails: Array.from(new Set(members.flatMap((member) => !member.constituentId && member.email ? [member.email] : []))),
+              }) });
               return "Merged audience list created.";
             })} className="mt-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Create Merged List</button>
           </ToolPanel>

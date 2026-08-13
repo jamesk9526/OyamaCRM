@@ -28,6 +28,7 @@ import {
   hashPublicEmailToken,
   parseEmailPurpose,
   requiresPreferenceCompliance,
+  type EmailRecipientCandidate,
 } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
@@ -1221,11 +1222,75 @@ function normalizeRecipientEmails(raw: string[] | undefined): string[] {
   return unique;
 }
 
-/** Loads multiple saved recipient lists and combines their recipients with deduplication. */
+/** Normalize CRM IDs without trusting membership claims from the browser. */
+function normalizeRecipientConstituentIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(new Set(raw.map((value) => String(value).trim()).filter(Boolean))).slice(0, 5_000);
+}
+
+/** Build list members from verified CRM contacts plus compatible email-only entries. */
+async function buildRecipientListMembers(params: {
+  organizationId: string;
+  recipientConstituentIds: string[];
+  recipientEmails: string[] | undefined;
+}): Promise<Array<{ constituentId?: string; email?: string; firstName?: string | null; lastName?: string | null }>> {
+  const constituents = params.recipientConstituentIds.length > 0
+    ? await prisma.constituent.findMany({
+      where: { organizationId: params.organizationId, id: { in: params.recipientConstituentIds } },
+      select: { id: true, email: true, firstName: true, lastName: true },
+    })
+    : [];
+  const constituentEmails = new Set(constituents.flatMap((constituent) => constituent.email ? [constituent.email.trim().toLowerCase()] : []));
+  const externalEmails = normalizeRecipientEmails(params.recipientEmails).filter((email) => !constituentEmails.has(email));
+
+  return [
+    // Keep CRM members keyed only by constituentId. This preserves every selected
+    // donor even when households share an email address; sends use current contact data.
+    ...constituents.map((constituent) => ({
+      constituentId: constituent.id,
+      firstName: constituent.firstName,
+      lastName: constituent.lastName,
+    })),
+    ...externalEmails.map((email) => ({ email })),
+  ];
+}
+
+/** Resolve saved list members to current CRM records, retaining members without email for review. */
+async function resolveSavedListMemberCandidates(
+  members: Array<{ constituentId: string | null; email: string | null }>,
+  organizationId: string,
+): Promise<EmailRecipientCandidate[]> {
+  const constituentIds = Array.from(new Set(members.flatMap((member) => member.constituentId ? [member.constituentId] : [])));
+  const constituents = constituentIds.length > 0
+    ? await prisma.constituent.findMany({
+      where: { organizationId, id: { in: constituentIds } },
+      select: { id: true, email: true, doNotEmail: true, doNotContact: true, emailOptOut: true },
+    })
+    : [];
+  const constituentById = new Map(constituents.map((constituent) => [constituent.id, constituent]));
+
+  return members.flatMap((member) => {
+    if (member.constituentId) {
+      const constituent = constituentById.get(member.constituentId);
+      return constituent
+        ? [{
+          email: constituent.email ?? "",
+          constituentId: constituent.id,
+          doNotEmail: constituent.doNotEmail,
+          doNotContact: constituent.doNotContact,
+          emailOptOut: constituent.emailOptOut,
+        }]
+        : [];
+    }
+    return member.email ? [{ email: member.email }] : [];
+  });
+}
+
+/** Loads multiple saved recipient lists and combines their constituent and email-backed members. */
 async function resolveMultiSavedListRecipients(
   listIds: string[] | undefined,
   organizationId: string,
-): Promise<{ listIds: string[]; recipients: string[]; names: string[] }> {
+): Promise<{ listIds: string[]; recipients: EmailRecipientCandidate[]; names: string[] }> {
   if (!listIds || listIds.length === 0) {
     throw new CampaignSendError("At least one recipientListId is required for multi-list sends.", 400);
   }
@@ -1237,7 +1302,7 @@ async function resolveMultiSavedListRecipients(
     },
     include: {
       recipients: {
-        select: { email: true },
+        select: { constituentId: true, email: true },
       },
     },
   });
@@ -1246,20 +1311,12 @@ async function resolveMultiSavedListRecipients(
     throw new CampaignSendError("No saved recipient lists found.", 404);
   }
 
-  // Combine all recipients and deduplicate
-  const recipientSet = new Set<string>();
-  for (const list of lists) {
-    for (const recipient of list.recipients) {
-      if (recipient.email) {
-        recipientSet.add(recipient.email.trim().toLowerCase());
-      }
-    }
-  }
+  const recipients = await resolveSavedListMemberCandidates(lists.flatMap((list) => list.recipients), organizationId);
 
   return {
     listIds: lists.map((l) => l.id),
     names: lists.map((l) => l.name),
-    recipients: Array.from(recipientSet),
+    recipients,
   };
 }
 
@@ -1301,11 +1358,11 @@ async function getMultiSegmentConstituents(
   return Array.from(uniqueConstituents.values());
 }
 
-/** Loads one saved recipient list and normalizes member emails for sending. */
+/** Loads one saved recipient list with current constituent communication preferences. */
 async function resolveSavedListRecipients(
   listId: string | undefined,
   organizationId: string,
-): Promise<{ listId: string; recipients: string[]; name: string }> {
+): Promise<{ listId: string; recipients: EmailRecipientCandidate[]; name: string }> {
   if (!listId) {
     throw new CampaignSendError("recipientListId is required for saved-list sends.", 400);
   }
@@ -1317,7 +1374,7 @@ async function resolveSavedListRecipients(
     },
     include: {
       recipients: {
-        select: { email: true },
+        select: { constituentId: true, email: true },
       },
     },
   });
@@ -1326,7 +1383,7 @@ async function resolveSavedListRecipients(
     throw new CampaignSendError("Saved recipient list not found.", 404);
   }
 
-  const recipients = normalizeRecipientEmails(list.recipients.map((row) => row.email));
+  const recipients = await resolveSavedListMemberCandidates(list.recipients, organizationId);
   return {
     listId: list.id,
     name: list.name,
@@ -1346,7 +1403,7 @@ async function resolveRecipientPlan(
     const evaluation = await evaluateRecipientEligibility({
       organizationId: campaign.organizationId,
       purpose: campaign.purpose,
-      candidates: multi.recipients.map((email) => ({ email })),
+      candidates: multi.recipients,
     });
 
     return {
@@ -1376,7 +1433,7 @@ async function resolveRecipientPlan(
     const evaluation = await evaluateRecipientEligibility({
       organizationId: campaign.organizationId,
       purpose: campaign.purpose,
-      candidates: saved.recipients.map((email) => ({ email })),
+      candidates: saved.recipients,
     });
 
     return {
@@ -3717,7 +3774,7 @@ router.get("/lists/:listId", async (req, res) => {
   res.json(list);
 });
 
-/** POST /api/email-campaigns/lists — Create a saved list with recipient emails. */
+/** POST /api/email-campaigns/lists — Create a saved CRM audience with optional email-only members. */
 router.post("/lists", async (req, res) => {
   const userId = req.user?.sub;
   if (!userId) {
@@ -3731,10 +3788,11 @@ router.post("/lists", async (req, res) => {
     return;
   }
 
-  const { name, description, recipientEmails } = req.body as {
+  const { name, description, recipientEmails, recipientConstituentIds } = req.body as {
     name?: string;
     description?: string;
     recipientEmails?: string[];
+    recipientConstituentIds?: string[];
   };
 
   const safeName = (name ?? "").trim();
@@ -3743,7 +3801,11 @@ router.post("/lists", async (req, res) => {
     return;
   }
 
-  const recipients = normalizeRecipientEmails(recipientEmails);
+  const recipients = await buildRecipientListMembers({
+    organizationId,
+    recipientConstituentIds: normalizeRecipientConstituentIds(recipientConstituentIds),
+    recipientEmails,
+  });
 
   const created = await prisma.emailRecipientList.create({
     data: {
@@ -3753,7 +3815,7 @@ router.post("/lists", async (req, res) => {
       createdById: userId,
       recipients: {
         createMany: {
-          data: recipients.map((email) => ({ email })),
+          data: recipients,
           skipDuplicates: true,
         },
       },
@@ -3789,7 +3851,7 @@ router.post("/lists", async (req, res) => {
   });
 });
 
-/** PUT /api/email-campaigns/lists/:listId — Rename/update a saved list and optionally replace recipients. */
+/** PUT /api/email-campaigns/lists/:listId — Rename/update a saved list and optionally replace members. */
 router.put("/lists/:listId", async (req, res) => {
   const userId = req.user?.sub;
   if (!userId) {
@@ -3814,10 +3876,11 @@ router.put("/lists/:listId", async (req, res) => {
     return;
   }
 
-  const { name, description, recipientEmails } = req.body as {
+  const { name, description, recipientEmails, recipientConstituentIds } = req.body as {
     name?: string;
     description?: string;
     recipientEmails?: string[];
+    recipientConstituentIds?: string[];
   };
 
   const safeName = typeof name === "string" ? name.trim() : undefined;
@@ -3826,12 +3889,16 @@ router.put("/lists/:listId", async (req, res) => {
     return;
   }
 
-  if (recipientEmails) {
-    const normalized = normalizeRecipientEmails(recipientEmails);
+  if (recipientEmails !== undefined || recipientConstituentIds !== undefined) {
+    const normalized = await buildRecipientListMembers({
+      organizationId,
+      recipientConstituentIds: normalizeRecipientConstituentIds(recipientConstituentIds),
+      recipientEmails,
+    });
     await prisma.emailRecipientListMember.deleteMany({ where: { listId: existing.id } });
     if (normalized.length > 0) {
       await prisma.emailRecipientListMember.createMany({
-        data: normalized.map((email) => ({ listId: existing.id, email })),
+        data: normalized.map((member) => ({ listId: existing.id, ...member })),
         skipDuplicates: true,
       });
     }

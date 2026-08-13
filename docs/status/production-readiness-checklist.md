@@ -1,15 +1,24 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-13 (Letters complete recipient selection)
+Last updated: 2026-08-13 (Contacts Manager complete donor audiences)
 
 This file is the release-gate source of truth for production readiness.
+
+## 2026-08-13 Contacts Manager Complete Donor Audiences Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Audience list membership does not discard contacts without email | Working after migration | `EmailRecipientListMember` now permits a verified `constituentId` with an optional email. The migration preserves all legacy email-only list entries. Lists resolve current CRM email, suppression, opt-out, and do-not-contact state only when evaluated for an email send. |
+| Lapsed Donor History saves every report donor | Working | The dialog submits all report donor IDs and reports the email-ready subset without excluding the remainder. Non-email donors remain available for Letters and become email-send candidates if their record later gains a valid address. |
+| Compatible list operations | Working | Contacts Manager load, duplicate, merge, membership filtering, and Letters recipient selection use constituent-backed members; existing externally supplied email-only entries still render and send as before. |
+| Focused automated verification | Working with existing suite caveat | Prisma client generation and server typecheck pass. The focused source assertion passes; the larger visual-refresh source suite retains one unrelated stale TopBar version-label expectation. |
 
 ## 2026-08-13 Letters Complete Recipient Selection Snapshot
 
 | Release gate | Status | Evidence |
 |---|---|---|
 | Advanced recipient audience is complete and reviewable | Working | The selector requests the full constituent dataset, renders every matching row inside its scroll-safe dialog, clearly separates available from selected counts, and provides searchable bulk select/clear controls. Saved lists, segments, filters, recipient preview, and final generation retain the same recipient-resolution path. |
-| Focused automated verification | Working | `tests/smoke/letter-builder-ui-source.test.ts` asserts the unbounded `limit=all` load and no 250-row render cap; focused lint/type verification was run for the modified workspace. |
+| Focused automated verification | Working with environment caveat | `tests/smoke/letter-builder-ui-source.test.ts` asserts the unbounded `limit=all` load and no 250-row render cap; edited-workspace ESLint has no errors, with existing warnings. Full web typecheck remains blocked by stale `.next` references to the removed `oyama-beta-features` route. |
 
 ## 2026-08-13 DonorDash Customization Snapshot
 

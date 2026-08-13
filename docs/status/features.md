@@ -1,6 +1,16 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-13 (Letters complete recipient selection)_
+_Last focused audit: 2026-08-13 (Contacts Manager complete donor audiences)_
+
+## 2026-08-13 Contacts Manager Complete Donor Audiences
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Saved audiences retain all CRM contacts | Working | `prisma/schema.prisma`, `prisma/migrations/20260813100000_add_constituent_backed_email_list_members/migration.sql`, `server/src/routes/email-campaigns.ts` | Saved audience members may now be constituent-backed even when they have no email; legacy email-only members remain compatible. The server verifies organization ownership and resolves the constituent’s current email and communication preferences at send time. |
+| Lapsed Donor History saves its full result | Working | `app/components/donor-reports/DonorReportsSpreadsheet.tsx`, `tests/smoke/crm-visual-refresh-source.test.ts` | The save dialog now states that every report donor is retained, differentiates the email-ready subset, and keeps people with no email available for letters or later contact enrichment. |
+| Contacts list management preserves non-email members | Working | `app/components/contacts-manager/ContactsManagerPage.tsx`, `AudienceListManager.tsx`, `OyamaLettersWorkspace.tsx` | Building, loading, duplicating, merging, list-membership filtering, and Letter recipient selection use constituent IDs when available, while externally supplied email-only entries continue to work. |
+
+Validation: Prisma client generation and server typecheck pass. Focused source assertions for the report-to-audience path pass; full visual-refresh source suite has one unrelated existing TopBar version-label expectation mismatch.
 
 ## 2026-08-13 Letters Complete Recipient Selection
 
@@ -8,7 +18,7 @@ _Last focused audit: 2026-08-13 (Letters complete recipient selection)_
 |---|---|---|---|
 | Advanced recipient source selector displays the full audience | Working | `app/components/letters/OyamaLettersWorkspace.tsx`, `tests/smoke/letter-builder-ui-source.test.ts` | The selector continues to request `limit=all` and now renders every matching constituent rather than truncating the table at 250. It shows available and selected counts, supports searchable select-all/clear actions, and retains the existing saved-list, segment, filter, preview, and generation paths. |
 
-Validation: focused letter-builder source suite and lint/type checks for the edited workspace.
+Validation: focused letter-builder source suite passes; edited-workspace ESLint has no errors (existing workspace warnings remain). Full web typecheck is still blocked by stale `.next` references to the removed `oyama-beta-features` route.
 
 ## 2026-08-13 DonorDash Customizable Operating View
 

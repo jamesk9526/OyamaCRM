@@ -131,7 +131,7 @@ interface RecipientListSummary {
 interface RecipientListDetail {
   id: string;
   name: string;
-  recipients: Array<{ email: string; firstName?: string | null; lastName?: string | null }>;
+  recipients: Array<{ constituentId?: string | null; email?: string | null; firstName?: string | null; lastName?: string | null }>;
 }
 
 interface TemporaryRecipientList {
@@ -3961,7 +3961,7 @@ function GenerateWorkspace() {
     for (const listId of selectedListIds) {
       const recipients = listMembersById[listId] ?? [];
       for (const recipient of recipients) {
-        const mapped = emailToConstituentId.get(recipient.email.trim().toLowerCase());
+        const mapped = recipient.constituentId ?? (recipient.email ? emailToConstituentId.get(recipient.email.trim().toLowerCase()) : undefined);
         if (mapped) ids.add(mapped);
       }
     }
@@ -4075,7 +4075,7 @@ function GenerateWorkspace() {
     const resolvedListIds = new Set<string>();
     for (const listId of selectedListIds) {
       for (const recipient of nextListMembersById[listId] ?? []) {
-        const mapped = emailToConstituentId.get(recipient.email.trim().toLowerCase());
+        const mapped = recipient.constituentId ?? (recipient.email ? emailToConstituentId.get(recipient.email.trim().toLowerCase()) : undefined);
         if (mapped) resolvedListIds.add(mapped);
       }
     }
@@ -4961,7 +4961,7 @@ function GenerateWorkspace() {
                   {recipientStepTab === "lists" ? recipientStepListRows.map((row) => {
                     const members = listMembersById[row.id] ?? [];
                     const matched = members
-                      .map((member) => emailToConstituentId.get(member.email.trim().toLowerCase()))
+                      .map((member) => member.constituentId ?? (member.email ? emailToConstituentId.get(member.email.trim().toLowerCase()) : undefined))
                       .filter((value): value is string => Boolean(value));
                     return (
                       <tr key={row.id}>
@@ -5692,7 +5692,7 @@ function GenerateWorkspace() {
                   </div>
                   {recipientLists.length === 0 ? <p className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">No saved lists found.</p> : recipientLists.map((list) => {
                     const members = listMembersById[list.id] ?? [];
-                    const matched = members.filter((member) => emailToConstituentId.has(member.email.trim().toLowerCase())).length;
+                    const matched = members.filter((member) => member.constituentId || (member.email && emailToConstituentId.has(member.email.trim().toLowerCase()))).length;
                     return (
                       <label key={list.id} className="flex items-start justify-between gap-3 rounded-md border border-slate-200 p-3">
                         <div className="flex items-start gap-3">
