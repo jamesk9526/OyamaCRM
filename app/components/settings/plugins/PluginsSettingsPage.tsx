@@ -14,8 +14,9 @@ import { apiFetch } from "@/app/lib/auth-client";
  * Shows a QuickBooks card with enable toggle, connection status, and connect/disconnect actions.
  */
 export default function PluginsSettingsPage({ embedded = false }: { embedded?: boolean }) {
-  const { qbConfigured, qbEnabled, loading, refresh, qbRuntimeSource, qbRedirectUri, qbEnvironment, qbClientIdPreview } = usePlugins();
+  const { qbConfigured, qbEnabled, qbConnected, qbConnectedAt, loading, refresh, qbRuntimeSource, qbRedirectUri, qbEnvironment, qbClientIdPreview } = usePlugins();
   const [actionLoading, setActionLoading] = useState(false);
+  const [historySyncing, setHistorySyncing] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [runtimeClientId, setRuntimeClientId] = useState("");
   const [runtimeClientSecret, setRuntimeClientSecret] = useState("");
@@ -106,6 +107,24 @@ export default function PluginsSettingsPage({ embedded = false }: { embedded?: b
       showToast("error", err instanceof Error ? err.message : "Failed to disconnect.");
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  /** Explicitly includes completed donations that predate the first QB connection. */
+  async function handleSyncPastHistory() {
+    const cutoffLabel = qbConnectedAt ? new Date(qbConnectedAt).toLocaleString() : "the original connection time";
+    if (!confirm(`Sync all completed donation history, including gifts entered before ${cutoffLabel}? This is a one-way push and cannot be undone from OyamaCRM.`)) return;
+    setHistorySyncing(true);
+    try {
+      const response = await apiFetch("/api/quickbooks/sync-queue/sync-history", {
+        method: "POST",
+        body: JSON.stringify({ confirmPastHistory: true }),
+      }) as { data: { queued: number; synced: number; failed: number } };
+      showToast("success", `${response.data.synced} historical donation${response.data.synced === 1 ? "" : "s"} synced${response.data.failed ? `; ${response.data.failed} failed` : ""}.`);
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Historical QuickBooks sync failed.");
+    } finally {
+      setHistorySyncing(false);
     }
   }
 
@@ -252,15 +271,37 @@ export default function PluginsSettingsPage({ embedded = false }: { embedded?: b
                 loading={actionLoading}
               />
 
+              {qbEnabled && (
+                <section className="rounded-lg border border-amber-200 bg-amber-50 p-4" aria-labelledby="qb-sync-scope-heading">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 id="qb-sync-scope-heading" className="text-sm font-semibold text-amber-950">Donation sync scope</h3>
+                      <p className="mt-1 text-xs leading-5 text-amber-900">
+                        Automatic and regular manual syncs include only donations entered on or after {qbConnectedAt ? new Date(qbConnectedAt).toLocaleString() : "the first successful QuickBooks connection"}. Older gifts remain excluded unless you explicitly sync all past history.
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-amber-800">The push is one-way and duplicate-protected. Records created in QuickBooks cannot be removed from OyamaCRM.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleSyncPastHistory()}
+                      disabled={!qbConnected || actionLoading || historySyncing}
+                      className="shrink-0 rounded-lg border border-amber-700 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {historySyncing ? "Syncing past history…" : "Sync all past history"}
+                    </button>
+                  </div>
+                </section>
+              )}
+
               {/* Feature description */}
               {qbEnabled && (
                 <div className="text-xs text-gray-500 space-y-1 pt-1">
                   <p className="font-medium text-gray-600">What this plugin does:</p>
                   <ul className="list-disc pl-4 space-y-0.5">
-                    <li>Adds an <strong>Add to QuickBooks Queue</strong> button when recording donations</li>
+                    <li>Automatically queues completed gifts entered after the first successful connection</li>
                     <li>Shows a <strong>QB Sync</strong> tab in the sidebar for managing the queue</li>
                     <li>Lets staff review, edit, and manually sync queued donations to QuickBooks</li>
-                    <li>Never syncs automatically — staff always review before pushing</li>
+                    <li>Runs a daily sync after the configured hour; older history requires the action above</li>
                   </ul>
                 </div>
               )}

@@ -760,7 +760,7 @@ function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?:
           {view !== "library" ? <ChevronRight /> : null}
           {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-slate-700">{templateLabel}</span> : null}
           {view === "builder" || view === "publish" ? <ChevronRight /> : null}
-          <span className="shrink-0 font-semibold text-slate-950">{viewLabel(view)}</span>
+          <span className="min-w-0 truncate font-semibold text-slate-950">{viewLabel(view)}</span>
         </div>
       </div>
       {showProcessStepper ? <ProcessStepper view={view} templateId={templateId} /> : null}

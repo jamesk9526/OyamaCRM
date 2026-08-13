@@ -2,11 +2,11 @@
  * QuickBooks integration routes for OyamaCRM (DonorCRM only).
  * Provides plugin management, OAuth connect/disconnect flow, and manual sync queue operations.
  *
- * ALL sync operations are manual and queue-based:
- *   - Donations are added to the queue (either manually or from the Donation form)
+ * Sync operations are queue-based:
+ *   - Completed donations entered after the first successful connection are queued automatically
  *   - Staff review and edit queue items before syncing
- *   - Syncing is triggered manually per-item or for all pending items
- *   - Only donations created after the plugin was enabled should appear in the queue
+ *   - Syncing runs daily or can be triggered manually per-item or for all pending items
+ *   - Earlier donations require the explicit admin-only historical sync action
  *
  * Routes:
  *   GET  /api/quickbooks/status           — connection status + plugin state
@@ -76,10 +76,28 @@ function configRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+const PRE_CONNECTION_EXCLUSION = "Excluded from normal sync because the donation predates the QuickBooks connection.";
+
+function connectionCutoff(plugin: { config: unknown; updatedAt: Date }): Date | null {
+  const config = configRecord(plugin.config);
+  const raw = config.qbConnectedAt;
+  if (typeof raw === "string" && !Number.isNaN(new Date(raw).getTime())) return new Date(raw);
+  // Legacy connected installations did not persist qbConnectedAt. updatedAt is
+  // intentionally conservative: it cannot pull older history without consent.
+  if (config.access_token) return plugin.updatedAt;
+  return null;
+}
+
 /** Adds one completed CRM donation to the one-way QB queue exactly once. */
-export async function ensureDonationQueuedForQuickBooks(organizationId: string, donationId: string) {
+export async function ensureDonationQueuedForQuickBooks(
+  organizationId: string,
+  donationId: string,
+  options: { includePastHistory?: boolean } = {},
+) {
   const plugin = await getQBPlugin(organizationId);
   if (!plugin?.enabled) return { item: null, created: false, reason: "disabled" as const };
+  const cutoff = connectionCutoff(plugin);
+  if (!cutoff && !options.includePastHistory) return { item: null, created: false, reason: "not-connected" as const };
 
   const donation = await prisma.donation.findFirst({
     where: { id: donationId, status: "COMPLETED", constituent: { organizationId } },
@@ -90,8 +108,18 @@ export async function ensureDonationQueuedForQuickBooks(organizationId: string, 
     },
   });
   if (!donation) return { item: null, created: false, reason: "not-eligible" as const };
+  if (!options.includePastHistory && cutoff && donation.createdAt < cutoff) {
+    return { item: null, created: false, reason: "before-connection" as const };
+  }
 
   const existing = await prisma.qBSyncQueueItem.findFirst({ where: { organizationId, donationId } });
+  if (options.includePastHistory && existing?.status === "SKIPPED" && existing.errorMessage === PRE_CONNECTION_EXCLUSION) {
+    const item = await prisma.qBSyncQueueItem.update({
+      where: { id: existing.id },
+      data: { status: "PENDING", errorMessage: null },
+    });
+    return { item, created: false, reason: "restored-history" as const };
+  }
   if (existing) return { item: existing, created: false, reason: "exists" as const };
 
   const memo = [donation.campaign?.name, donation.designation?.name].filter(Boolean).join(" — ") || "Donation";
@@ -115,25 +143,53 @@ export async function ensureDonationQueuedForQuickBooks(organizationId: string, 
   }
 }
 
-/** Backfills completed gifts created since QB sync was enabled, including imports. */
-export async function queueEligibleQuickBooksDonations(organizationId: string): Promise<number> {
+/** Queues completed gifts after the connection cutoff, unless history is explicitly requested. */
+export async function queueEligibleQuickBooksDonations(
+  organizationId: string,
+  options: { includePastHistory?: boolean } = {},
+): Promise<number> {
   const plugin = await getQBPlugin(organizationId);
   if (!plugin?.enabled) return 0;
-  const config = configRecord(plugin.config);
-  const enabledAtRaw = String(config.qbSyncEnabledAt ?? plugin.createdAt.toISOString());
-  const enabledAt = Number.isNaN(new Date(enabledAtRaw).getTime()) ? plugin.createdAt : new Date(enabledAtRaw);
+  const cutoff = connectionCutoff(plugin);
+  if (!cutoff && !options.includePastHistory) return 0;
   const donations = await prisma.donation.findMany({
-    where: { status: "COMPLETED", createdAt: { gte: enabledAt }, constituent: { organizationId }, qbSyncQueueItems: { none: {} } },
+    where: {
+      status: "COMPLETED",
+      ...(!options.includePastHistory && cutoff ? { createdAt: { gte: cutoff } } : {}),
+      constituent: { organizationId },
+      ...(options.includePastHistory ? {} : { qbSyncQueueItems: { none: {} } }),
+    },
     select: { id: true },
     orderBy: { createdAt: "asc" },
-    take: 5000,
   });
   let created = 0;
   for (const donation of donations) {
-    const result = await ensureDonationQueuedForQuickBooks(organizationId, donation.id);
-    if (result.created) created += 1;
+    const result = await ensureDonationQueuedForQuickBooks(organizationId, donation.id, options);
+    if (result.created || result.reason === "restored-history") created += 1;
   }
   return created;
+}
+
+/** Excludes legacy pre-connection queue rows without deleting their audit trail. */
+async function excludePreConnectionQueueItems(organizationId: string): Promise<number> {
+  const plugin = await getQBPlugin(organizationId);
+  if (!plugin) return 0;
+  const cutoff = connectionCutoff(plugin);
+  if (!cutoff) return 0;
+  const rows = await prisma.qBSyncQueueItem.findMany({
+    where: {
+      organizationId,
+      status: { in: ["PENDING", "FAILED"] },
+      donation: { is: { createdAt: { lt: cutoff } } },
+    },
+    select: { id: true },
+  });
+  if (rows.length === 0) return 0;
+  const result = await prisma.qBSyncQueueItem.updateMany({
+    where: { id: { in: rows.map((row) => row.id) } },
+    data: { status: "SKIPPED", errorMessage: PRE_CONNECTION_EXCLUSION },
+  });
+  return result.count;
 }
 
 // ─── Status ──────────────────────────────────────────────────────────────────
@@ -165,6 +221,7 @@ router.get("/status", async (req, res) => {
         dailySyncEnabled: config?.qbDailySyncEnabled !== false,
         dailySyncHour: Number(config?.qbDailySyncHour ?? 23),
         lastDailySyncDate: typeof config?.qbLastDailySyncDate === "string" ? config.qbLastDailySyncDate : null,
+        connectedAt: typeof config?.qbConnectedAt === "string" ? config.qbConnectedAt : null,
       },
     });
   } catch (err) {
@@ -337,13 +394,14 @@ router.get("/callback", async (req, res) => {
 
     await handleOAuthCallback(callbackUrl, state);
     const organizationId = state.split(".", 1)[0];
+    const excludedPreConnection = await excludePreConnectionQueueItems(organizationId);
 
     await logAudit({
       action: "QB_CONNECTED",
       entity: "PluginSetting",
       entityId: organizationId,
       organizationId,
-      metadata: { pluginKey: "quickbooks" },
+      metadata: { pluginKey: "quickbooks", excludedPreConnection },
     });
 
     const frontendOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(":4000", ":3650") ?? "http://localhost:3650";
@@ -460,6 +518,18 @@ router.post("/sync-queue", async (req, res) => {
 
     if (!donation) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found." } });
+    }
+    const cutoff = connectionCutoff(plugin);
+    if (!cutoff) {
+      return res.status(403).json({ error: { code: "QB_NOT_CONNECTED", message: "Connect QuickBooks before adding donations to its queue." } });
+    }
+    if (donation.createdAt < cutoff) {
+      return res.status(409).json({
+        error: {
+          code: "QB_HISTORY_CONFIRMATION_REQUIRED",
+          message: "This donation predates the QuickBooks connection. An admin must use Sync all past history in Settings → Integrations.",
+        },
+      });
     }
 
     // A donation remains linked to one immutable queue identity even after a
@@ -596,7 +666,8 @@ router.delete("/sync-queue/:id", async (req, res) => {
  */
 export async function syncOneQuickBooksItem(
   itemId: string,
-  organizationId: string
+  organizationId: string,
+  options: { includePastHistory?: boolean } = {},
 ): Promise<{ success: boolean; qbEntityId?: string; error?: string }> {
   const item = await prisma.qBSyncQueueItem.findFirst({
     where: { id: itemId, organizationId },
@@ -610,6 +681,18 @@ export async function syncOneQuickBooksItem(
   if (!item) return { success: false, error: "Queue item not found." };
   if (item.status === "SYNCED") return { success: true, qbEntityId: item.qbEntityId ?? undefined };
   if (item.status === "SKIPPED") return { success: false, error: "Item is skipped." };
+  const plugin = await getQBPlugin(organizationId);
+  const cutoff = plugin ? connectionCutoff(plugin) : null;
+  if (!options.includePastHistory && !cutoff) {
+    return { success: false, error: "QuickBooks is not connected." };
+  }
+  if (!options.includePastHistory && (!item.donation || item.donation.createdAt < cutoff!)) {
+    await prisma.qBSyncQueueItem.update({
+      where: { id: item.id },
+      data: { status: "SKIPPED", errorMessage: PRE_CONNECTION_EXCLUSION },
+    });
+    return { success: false, error: PRE_CONNECTION_EXCLUSION };
+  }
 
   // Increment attempt count before trying
   await prisma.qBSyncQueueItem.update({
@@ -649,6 +732,30 @@ export async function syncOneQuickBooksItem(
   }
 }
 
+async function syncPendingQuickBooksItems(
+  organizationId: string,
+  options: { includePastHistory?: boolean } = {},
+) {
+  const pendingItems = await prisma.qBSyncQueueItem.findMany({
+    where: { organizationId, status: "PENDING" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  let synced = 0;
+  let failed = 0;
+  const errors: { id: string; error: string }[] = [];
+  for (const item of pendingItems) {
+    const result = await syncOneQuickBooksItem(item.id, organizationId, options);
+    if (result.success) synced += 1;
+    else {
+      failed += 1;
+      errors.push({ id: item.id, error: result.error ?? "Unknown error" });
+    }
+    if (pendingItems.length > 1) await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return { synced, failed, errors, total: pendingItems.length };
+}
+
 /**
  * POST /api/quickbooks/sync-queue/sync-all
  * Syncs all PENDING items sequentially. Returns { synced, failed, errors, total }.
@@ -668,32 +775,9 @@ router.post("/sync-queue/sync-all", async (req, res) => {
     }
 
     const queued = await queueEligibleQuickBooksDonations(organizationId);
-    const pendingItems = await prisma.qBSyncQueueItem.findMany({
-      where: { organizationId, status: "PENDING" },
-      orderBy: { createdAt: "asc" },
-    });
-
-    if (pendingItems.length === 0) {
+    const result = await syncPendingQuickBooksItems(organizationId);
+    if (result.total === 0) {
       return res.json({ data: { synced: 0, failed: 0, queued, total: 0, message: "No pending items to sync." } });
-    }
-
-    let synced = 0;
-    let failed = 0;
-    const errors: { id: string; error: string }[] = [];
-
-    // Sequential to respect QB rate limits
-    for (const item of pendingItems) {
-      const result = await syncOneQuickBooksItem(item.id, organizationId);
-      if (result.success) {
-        synced++;
-      } else {
-        failed++;
-        errors.push({ id: item.id, error: result.error ?? "Unknown error" });
-      }
-      // 400ms gap = ~150 req/min max
-      if (pendingItems.length > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 400));
-      }
     }
 
     await logAudit({
@@ -702,13 +786,45 @@ router.post("/sync-queue/sync-all", async (req, res) => {
       entityId: organizationId,
       userId: req.user?.sub,
       organizationId,
-      metadata: { synced, failed, total: pendingItems.length },
+      metadata: { synced: result.synced, failed: result.failed, total: result.total, includePastHistory: false },
     });
 
-    return res.json({ data: { synced, failed, queued, errors, total: pendingItems.length } });
+    return res.json({ data: { ...result, queued } });
   } catch (err) {
     console.error("[QB] sync-all error:", err);
     return res.status(500).json({ error: { code: "QB_SYNC_ERROR", message: "Sync-all failed." } });
+  }
+});
+
+/** POST /api/quickbooks/sync-queue/sync-history — Explicit admin-only historical import and sync. */
+router.post("/sync-queue/sync-history", requireRole("admin"), async (req, res) => {
+  try {
+    const organizationId = await resolveOrg(req);
+    if (req.body?.confirmPastHistory !== true) {
+      return res.status(400).json({
+        error: { code: "CONFIRMATION_REQUIRED", message: "Confirm that all completed donation history should be pushed to QuickBooks." },
+      });
+    }
+    const plugin = await getQBPlugin(organizationId);
+    const config = configRecord(plugin?.config);
+    if (!plugin?.enabled || !config.access_token) {
+      return res.status(403).json({ error: { code: "QB_NOT_CONNECTED", message: "Connect QuickBooks before syncing history." } });
+    }
+
+    const queued = await queueEligibleQuickBooksDonations(organizationId, { includePastHistory: true });
+    const result = await syncPendingQuickBooksItems(organizationId, { includePastHistory: true });
+    await logAudit({
+      action: "QB_SYNC_ALL_HISTORY",
+      entity: "QBSyncQueue",
+      entityId: organizationId,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { queued, synced: result.synced, failed: result.failed, total: result.total, confirmed: true },
+    });
+    return res.json({ data: { ...result, queued } });
+  } catch (err) {
+    console.error("[QB] sync-history error:", err);
+    return res.status(500).json({ error: { code: "QB_SYNC_HISTORY_ERROR", message: "Historical QuickBooks sync failed." } });
   }
 });
 

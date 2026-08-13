@@ -1,6 +1,17 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-13 (Contacts Manager complete donor audiences)_
+_Last focused audit: 2026-08-13 (audience/letter accuracy and QuickBooks one-way donation sink)_
+
+## 2026-08-13 Audience, Letters, and QuickBooks Reliability
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Audience tables expose postal data | Working | `app/components/contacts-manager/ContactsManagerPage.tsx`, `AudienceListManager.tsx` | The constituent grid and saved-list member manager display street/locality data beside email, and address fields participate in audience search. |
+| Saved-list letter selection is exact | Working | `app/components/letters/OyamaLettersWorkspace.tsx` | Selecting a saved list clears unrelated source-tab selections, reloads current membership immediately before applying, resolves unique CRM constituent IDs, and uses that exact set for preview and batch generation. |
+| Completed gifts automatically enter a one-way QB queue | Working after migration/configuration | `server/src/routes/donations.ts`, `server/src/routes/quickbooks.ts`, `prisma/migrations/20260813150000_harden_quickbooks_idempotency/migration.sql` | Browser state no longer controls queueing. The first successful OAuth connection is the default accounting cutoff: automatic, daily, bulk, per-item, and legacy manual queue paths exclude earlier donations. An admin-only, confirmed **Sync all past history** action in Settings → Integrations is the sole override. A database unique key prevents multiple queue identities per donation. |
+| QuickBooks production API writes are mapped and idempotent | Working after Intuit production connection and item setup | `server/src/services/quickbooksService.ts`, `server/src/services/quickbooks-sync-worker.ts`, `/api/health` | OAuth state is single-use and expiry-checked. Customer and active item references are resolved before a SalesReceipt write. Stable request IDs and document numbers make uncertain retries duplicate-safe. Daily sync runs after 23:00 in the organization timezone and worker health is exposed. QuickBooks requires an active `Donations` or `Services` item, or a queue item name matching an active QB item. |
+
+Validation: Prisma generation/validation, web and server typechecks, and focused Contacts/Letters/Donations tests pass (53/53). Targeted ESLint has zero errors; existing warnings remain in the large Letters workspace and server entry point. A live production Intuit tenant was not available, so OAuth consent and the first real SalesReceipt still require an administrator's connected-company smoke test.
 
 ## 2026-08-13 Contacts Manager Complete Donor Audiences
 

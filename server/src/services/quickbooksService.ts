@@ -40,7 +40,7 @@ export interface QBDonationPayload {
 type QBApiClient = Awaited<ReturnType<typeof getAuthorizedClient>>;
 
 function qboString(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
 function responseData<T>(response: unknown): T {
@@ -342,6 +342,9 @@ export async function handleOAuthCallback(
 
   const mergedConfig = mergeConfig(existing?.config, {
     ...(payload as unknown as Record<string, unknown>),
+    // This is the accounting cutoff, not the plugin-enable time. Preserve the
+    // first successful connection across token refreshes and reconnects.
+    qbConnectedAt: asRecord(existing?.config).qbConnectedAt ?? new Date().toISOString(),
     qbOAuthStateHash: null,
     qbOAuthStateExpiresAt: null,
   });

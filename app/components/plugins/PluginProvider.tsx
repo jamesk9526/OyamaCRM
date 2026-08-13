@@ -32,6 +32,8 @@ export interface PluginState {
   qbDailySyncEnabled: boolean;
   qbDailySyncHour: number;
   qbLastDailySyncDate: string | null;
+  /** First successful OAuth connection; normal sync excludes older donations. */
+  qbConnectedAt: string | null;
   /** True while the initial status fetch is in progress */
   loading: boolean;
   /** Refetch plugin status (e.g. after connecting or disconnecting) */
@@ -51,6 +53,7 @@ const defaultState: PluginState = {
   qbDailySyncEnabled: true,
   qbDailySyncHour: 23,
   qbLastDailySyncDate: null,
+  qbConnectedAt: null,
   loading: true,
   refresh: () => {},
 };
@@ -103,6 +106,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
           dailySyncEnabled?: boolean;
           dailySyncHour?: number;
           lastDailySyncDate?: string | null;
+          connectedAt?: string | null;
         }>("/api/quickbooks/status");
         if (!data) {
           throw new Error("QuickBooks status returned no data.");
@@ -121,6 +125,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
             qbDailySyncEnabled: data.dailySyncEnabled !== false,
             qbDailySyncHour: data.dailySyncHour ?? 23,
             qbLastDailySyncDate: data.lastDailySyncDate ?? null,
+            qbConnectedAt: data.connectedAt ?? null,
             loading: false,
           });
         }

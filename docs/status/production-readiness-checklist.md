@@ -1,6 +1,19 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-13 (Contacts Manager complete donor audiences)
+Last updated: 2026-08-13 (audience/letter accuracy and QuickBooks one-way donation sink)
+
+## 2026-08-13 Audience, Letters, and QuickBooks Reliability Snapshot
+
+| Check | Status | Evidence / Notes |
+|---|---|---|
+| Audience creator shows email and street address | Working | Both constituent and saved-list member grids expose address data; address text is searchable and wraps intentionally. |
+| Saved-list counts match letter generation | Working | List application refreshes current membership, clears unrelated recipient-source selections, deduplicates constituent IDs, and passes the same included set to preview and final batch generation. |
+| All newly completed gifts are queueable without browser opt-in | Working | Donation create/update queues on the server only after a successful QuickBooks connection. Normal manual and daily passes use that exact connection timestamp as their cutoff. Pre-connection history stays excluded unless an admin confirms **Sync all past history** in Settings → Integrations. |
+| QuickBooks is a one-way, duplicate-safe sink | Working after migration | The schema permits one queue identity per organization/donation. QuickBooks writes use a stable request ID and stable SalesReceipt document number, with a pre-write lookup before retries. No QuickBooks-to-CRM mutation path exists. |
+| End-of-day and manual sync | Working | Manual per-row and pending-queue sync remain available. The monitored worker runs enabled/connected organizations after 23:00 local organization time and reports state through `/health`. |
+| Production activation | Admin smoke test required | Configure production OAuth credentials/redirect URI, connect the intended Intuit company, ensure an active `Donations` or `Services` item (or matching queue item name), deploy the idempotency migration, and send one reviewed low-value gift before enabling unattended daily processing. |
+
+Validation: Prisma generate/validate and full web/server typecheck pass; focused regression passes 53/53; targeted ESLint reports zero errors and existing warnings only.
 
 This file is the release-gate source of truth for production readiness.
 
