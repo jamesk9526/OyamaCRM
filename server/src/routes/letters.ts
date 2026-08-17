@@ -5354,6 +5354,7 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
   const constituentIds = [...new Set(requestedIds)];
   const startPosition = Number.parseInt(String(req.body?.startPosition ?? "1"), 10);
   const showGuides = req.body?.showGuides === true;
+  const ignoreSuppressions = req.body?.ignoreSuppressions === true;
   if (constituentIds.length === 0) {
     res.status(400).json({ error: { code: "RECIPIENTS_REQUIRED", message: "Select at least one recipient for the label merge." } });
     return;
@@ -5386,10 +5387,14 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
     },
   });
   const byId = new Map(constituents.map((constituent) => [constituent.id, constituent]));
+  let suppressionsOverridden = 0;
   const labels: Avery5160Label[] = constituentIds.flatMap((id) => {
     const constituent = byId.get(id);
-    if (!constituent || constituent.doNotMail || constituent.doNotContact) return [];
+    if (!constituent) return [];
+    const isSuppressed = constituent.doNotMail || constituent.doNotContact;
+    if (isSuppressed && !ignoreSuppressions) return [];
     if (!constituent.addressLine1?.trim()) return [];
+    if (isSuppressed) suppressionsOverridden += 1;
     const name = constituent.displayName?.trim()
       || constituent.organizationName?.trim()
       || [constituent.firstName, constituent.lastName].filter(Boolean).join(" ").trim()
@@ -5416,13 +5421,14 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Labels-Rendered", String(labels.length));
   res.setHeader("X-Recipients-Skipped", String(constituentIds.length - labels.length));
+  res.setHeader("X-Suppressions-Overridden", String(suppressionsOverridden));
   await logAudit({
     action: "AVERY_5160_LABELS_EXPORTED",
     entity: "Constituent",
     entityId: organizationId,
     organizationId,
     userId,
-    metadata: { labelsRendered: labels.length, recipientsSkipped: constituentIds.length - labels.length, startPosition, showGuides },
+    metadata: { labelsRendered: labels.length, recipientsSkipped: constituentIds.length - labels.length, suppressionsOverridden, ignoreSuppressions, startPosition, showGuides },
   }).catch(() => undefined);
   res.status(200).send(pdf);
 });

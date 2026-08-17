@@ -261,4 +261,16 @@ describe("letter builder UI redesign source contract", () => {
     expect(lettersRoute).toContain("reused: true");
     expect(lettersRoute).toContain('source: "letters_generated"');
   });
+
+  it("supports an explicit and audited label-only suppression override", () => {
+    const labelsWorkspace = read("app/components/letters/MailMergeLabelsWorkspace.tsx");
+    const lettersRoute = read("server/src/routes/letters.ts");
+
+    expect(labelsWorkspace).toContain("Ignore suppressions for labels");
+    expect(labelsWorkspace).toContain("ignoreSuppressions");
+    expect(labelsWorkspace).toContain("This does not change their CRM preferences");
+    expect(lettersRoute).toContain("X-Suppressions-Overridden");
+    expect(lettersRoute).toContain("suppressionsOverridden");
+    expect(lettersRoute).toContain("ignoreSuppressions");
+  });
 });
