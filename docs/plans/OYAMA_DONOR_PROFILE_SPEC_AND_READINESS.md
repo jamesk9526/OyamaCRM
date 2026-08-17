@@ -54,6 +54,7 @@ Core services:
 | Area | State | Evidence / limitation |
 | --- | --- | --- |
 | Canonical product workspace | In progress | `/donor-profile` is the new canonical route; `/donor-research` remains a compatibility redirect. |
+| One-click constituent research | Foundation working | `POST /api/donor-profile/research` derives all queries from the selected constituent, searches every currently enabled/supported connector, reports completed/skipped/failed sources, loads saved evidence, and returns one stable `oyama-profile:{constituentId}` record. Users do not enter a nonprofit name or source query. Durable run snapshots and broader person/property/business connectors remain staged. |
 | First-party provider SDK | Foundation complete | Typed provider, source, capability, and compliance contracts exist in `server/src/services/oyama-donor-profile.ts`. |
 | Identity resolver | Foundation complete | Deterministic weighted scoring, confidence bands, explanations, and the 70-point merge floor are unit tested. It is not yet persisted as a profile-match record. |
 | Evidence review | Working after existing migration | Existing `DonorResearchFinding` storage provides provenance and human verify/dismiss states. It is an interim table, not the final evidence schema. |
@@ -82,6 +83,7 @@ Exit criterion: users encounter OYAMADonorPROFILE—not a vendor-led Donor Resea
 
 ### Stage 1 — Evidence-first Missouri MVP
 
+- [x] One-click research orchestration and returned constituent profile record.
 - [x] Provider SDK foundation.
 - [x] Explainable identity-score foundation.
 - [ ] Final `donor_profiles`, sources, evidence, matches, scores, snapshots, jobs, reviews, and audit schema.

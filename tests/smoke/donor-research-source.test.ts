@@ -9,15 +9,18 @@ describe("OYAMADonorPROFILE product wiring", () => {
   it("mounts the first-party permissioned API and canonical route", () => {
     const server = read("server/src/index.ts");
     const route = read("server/src/routes/donor-profile.ts");
+    const researchRoute = read("server/src/routes/donor-profile-research.ts");
     const page = read("app/donor-profile/page.tsx");
 
-    expect(server).toContain('app.use("/api/donor-profile", donorProfileRoutes)');
+    expect(server).toContain('app.use("/api/donor-profile", donorProfileResearchRoutes, donorProfileRoutes)');
     expect(route).toContain('requirePermission("view:constituents")');
     expect(route).toContain('requirePermission("edit:constituents")');
     expect(route).toContain('status: "UNVERIFIED"');
     expect(route).toContain('router.post("/identity/resolve"');
     expect(route).not.toContain("wealthengine");
-    expect(page).toContain("OyamaDonorProfileWorkspace");
+    expect(researchRoute).toContain('router.post("/research"');
+    expect(researchRoute).toContain("researchAutomaticDonorProfile");
+    expect(page).toContain("AutomaticOyamaDonorProfileWorkspace");
     expect(read("app/donor-research/page.tsx")).toContain('redirect(`/donor-profile');
   });
 
@@ -30,12 +33,14 @@ describe("OYAMADonorPROFILE product wiring", () => {
 
   it("keeps public evidence transient, reviewed, and vendor independent", () => {
     const route = read("server/src/routes/donor-profile.ts");
-    const workspace = read("app/components/donor-profile/OyamaDonorProfileWorkspace.tsx");
+    const workspace = read("app/components/donor-profile/AutomaticOyamaDonorProfileWorkspace.tsx");
 
     expect(route).toContain('transientLookup: true');
     expect(route).toContain("OYAMA_DONOR_PROFILE_POLICY");
-    expect(workspace).toContain("Capacity is not net worth");
-    expect(workspace).toContain("Human review required");
+    expect(workspace).toContain("Research this constituent");
+    expect(workspace).not.toContain("researchAutomaticDonorProfile");
+    expect(workspace).toContain("No source form");
+    expect(workspace).not.toContain("Foundation or nonprofit name");
     expect(workspace).toContain("Save as unverified");
     expect(workspace).not.toContain("WealthEngine");
   });

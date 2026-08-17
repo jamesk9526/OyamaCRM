@@ -50,10 +50,42 @@ function formattedAddress(row: LabelConstituent): string[] {
     .filter((value): value is string => Boolean(value));
 }
 
-function eligibility(row: LabelConstituent): { ready: boolean; reason: string } {
-  if (row.doNotContact || row.doNotMail) return { ready: false, reason: "Mail suppressed" };
-  if (!row.addressLine1?.trim()) return { ready: false, reason: "No street address" };
-  return { ready: true, reason: row.city?.trim() && row.state?.trim() && row.zip?.trim() ? "Mail ready" : "Partial address" };
+type EligibilityKind = "ready" | "partial" | "do-not-contact" | "do-not-mail" | "all-contact-and-mail" | "missing-street";
+
+interface LabelEligibility {
+  ready: boolean;
+  reason: string;
+  kind: EligibilityKind;
+}
+
+function eligibility(row: LabelConstituent): LabelEligibility {
+  if (row.doNotContact && row.doNotMail) {
+    return { ready: false, reason: "Do not contact + do not mail", kind: "all-contact-and-mail" };
+  }
+  if (row.doNotContact) return { ready: false, reason: "Do not contact", kind: "do-not-contact" };
+  if (row.doNotMail) return { ready: false, reason: "Do not mail", kind: "do-not-mail" };
+  if (!row.addressLine1?.trim()) return { ready: false, reason: "No street address", kind: "missing-street" };
+  return row.city?.trim() && row.state?.trim() && row.zip?.trim()
+    ? { ready: true, reason: "Mail ready", kind: "ready" }
+    : { ready: true, reason: "Partial address", kind: "partial" };
+}
+
+function unavailableReasonSummary(rows: LabelConstituent[]): string {
+  const counts = new Map<EligibilityKind, number>();
+  for (const row of rows) {
+    const status = eligibility(row);
+    if (!status.ready) counts.set(status.kind, (counts.get(status.kind) ?? 0) + 1);
+  }
+  const parts = [
+    ["all-contact-and-mail", "both Do Not Contact and Do Not Mail"],
+    ["do-not-contact", "Do Not Contact"],
+    ["do-not-mail", "Do Not Mail"],
+    ["missing-street", "no street address"],
+  ] as const;
+  return parts
+    .map(([kind, label]) => counts.get(kind) ? `${counts.get(kind)} ${label}` : null)
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
 }
 
 function responseFileName(response: Response): string {
@@ -96,6 +128,7 @@ export default function MailMergeLabelsWorkspace() {
   const visibleRows = useMemo(() => constituents.filter((row) => !normalizedSearch || [displayName(row), row.email, ...formattedAddress(row)].some((value) => value?.toLowerCase().includes(normalizedSearch))), [constituents, normalizedSearch]);
   const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
   const printableSelectedRows = useMemo(() => selectedRows.filter((row) => eligibility(row).ready), [selectedRows]);
+  const unavailableSummary = useMemo(() => unavailableReasonSummary(selectedRows), [selectedRows]);
   const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.has(row.id));
   const previewSlots = Array.from({ length: 30 }, (_, slot) => slot < startPosition - 1 ? null : printableSelectedRows[slot - (startPosition - 1)] ?? null);
   const pageCount = printableSelectedRows.length ? Math.ceil((startPosition - 1 + printableSelectedRows.length) / 30) : 0;
@@ -134,7 +167,8 @@ export default function MailMergeLabelsWorkspace() {
       setSelectedIds(new Set(matches.map((row) => row.id)));
       const skipped = matches.length - ready.length;
       const unmatched = resolved.unmatchedMemberCount;
-      setNotice(`${list.name} loaded: ${matches.length} audience member${matches.length === 1 ? "" : "s"} selected, ${ready.length} label-ready${skipped ? `, ${skipped} suppressed or missing a street address` : ""}${unmatched ? `, ${unmatched} list member${unmatched === 1 ? "" : "s"} not matched to a constituent` : ""}.`);
+      const skippedReasons = unavailableReasonSummary(matches);
+      setNotice(`${list.name} loaded: ${matches.length} audience member${matches.length === 1 ? "" : "s"} selected, ${ready.length} label-ready${skipped ? `, ${skipped} unavailable (${skippedReasons})` : ""}${unmatched ? `, ${unmatched} list member${unmatched === 1 ? "" : "s"} not matched to a constituent` : ""}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load this audience list.");
     } finally {
@@ -200,9 +234,9 @@ export default function MailMergeLabelsWorkspace() {
             </div>
 
             <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-slate-950">Recipient review</h2><p className="text-xs text-slate-600">{selectedRows.length} selected · {printableSelectedRows.length} label-ready · {selectedRows.length - printableSelectedRows.length} selected but unavailable</p></div><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or address" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-sm" /></div>
+              <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h2 className="font-semibold text-slate-950">Recipient review</h2><p className="text-xs text-slate-600">{selectedRows.length} selected · {printableSelectedRows.length} label-ready · {selectedRows.length - printableSelectedRows.length} selected but unavailable</p>{unavailableSummary ? <p className="mt-1 max-w-3xl text-xs font-medium leading-5 text-amber-800"><span className="font-semibold">Unavailable reasons:</span> {unavailableSummary}</p> : null}</div><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or address" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-sm" /></div>
               <div className="max-h-[620px] overflow-auto">
-                <table className="min-w-[760px] w-full border-collapse text-sm"><thead className="sticky top-0 z-10 bg-[#5d5d5d] text-left text-xs text-white"><tr><th className="w-12 px-3 py-2"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label="Select all visible recipients" /></th><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Mailing address</th><th className="px-3 py-2">Readiness</th></tr></thead><tbody>{visibleRows.map((row) => { const status = eligibility(row); return <tr key={row.id} className="border-t border-slate-200 hover:bg-slate-50"><td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleRecipient(row.id)} aria-label={`Include ${displayName(row)}`} /></td><td className="px-3 py-2"><p className="font-medium text-slate-900">{displayName(row)}</p><p className="text-xs text-slate-500">{row.email || "No email"}</p></td><td className="px-3 py-2 text-slate-700">{formattedAddress(row).length ? formattedAddress(row).join(" · ") : "No address"}</td><td className={`px-3 py-2 text-xs font-semibold ${status.reason === "Mail ready" ? "text-emerald-700" : status.reason === "Mail suppressed" ? "text-red-700" : "text-amber-700"}`}>{status.reason}</td></tr>; })}{!visibleRows.length ? <tr><td colSpan={4} className="px-4 py-12 text-center text-sm text-slate-500">No matching constituents.</td></tr> : null}</tbody></table>
+                <table className="min-w-[760px] w-full border-collapse text-sm"><thead className="sticky top-0 z-10 bg-[#5d5d5d] text-left text-xs text-white"><tr><th className="w-12 px-3 py-2"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label="Select all visible recipients" /></th><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Mailing address</th><th className="px-3 py-2">Readiness / reason</th></tr></thead><tbody>{visibleRows.map((row) => { const status = eligibility(row); const isPreferenceSuppression = status.kind === "do-not-contact" || status.kind === "do-not-mail" || status.kind === "all-contact-and-mail"; return <tr key={row.id} className="border-t border-slate-200 hover:bg-slate-50"><td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleRecipient(row.id)} aria-label={`Include ${displayName(row)}`} /></td><td className="px-3 py-2"><p className="font-medium text-slate-900">{displayName(row)}</p><p className="text-xs text-slate-500">{row.email || "No email"}</p></td><td className="px-3 py-2 text-slate-700">{formattedAddress(row).length ? formattedAddress(row).join(" · ") : "No address"}</td><td className={`px-3 py-2 text-xs font-semibold ${status.kind === "ready" ? "text-emerald-700" : isPreferenceSuppression ? "text-red-700" : "text-amber-700"}`}>{status.reason}</td></tr>; })}{!visibleRows.length ? <tr><td colSpan={4} className="px-4 py-12 text-center text-sm text-slate-500">No matching constituents.</td></tr> : null}</tbody></table>
               </div>
             </div>
           </div>

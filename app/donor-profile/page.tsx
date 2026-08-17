@@ -1,4 +1,4 @@
-import OyamaDonorProfileWorkspace from "@/app/components/donor-profile/OyamaDonorProfileWorkspace";
+import AutomaticOyamaDonorProfileWorkspace from "@/app/components/donor-profile/AutomaticOyamaDonorProfileWorkspace";
 
 export const metadata = { title: "OYAMADonorPROFILE - Oyama Donor CRM" };
 
@@ -9,6 +9,6 @@ export default async function OyamaDonorProfilePage({
   searchParams: Promise<{ constituentId?: string }>;
 }) {
   const params = await searchParams;
-  return <OyamaDonorProfileWorkspace initialConstituentId={params.constituentId} />;
+  return <AutomaticOyamaDonorProfileWorkspace initialConstituentId={params.constituentId} />;
 }
 
