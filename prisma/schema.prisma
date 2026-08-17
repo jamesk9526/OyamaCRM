@@ -2779,4 +2779,5 @@ model QBSyncQueueItem {
 
   @@index([organizationId, status])
   @@index([donationId])
+  @@unique([organizationId, donationId])
 }
