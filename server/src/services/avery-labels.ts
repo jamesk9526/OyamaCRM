@@ -17,9 +17,9 @@ export interface Avery5160Label {
   name: string;
   addressLine1: string;
   addressLine2?: string | null;
-  city: string;
-  state: string;
-  zip: string;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   country?: string | null;
 }
 
@@ -37,8 +37,8 @@ export function avery5160SlotPosition(slotIndex: number): { page: number; row: n
 }
 
 export function avery5160AddressLines(label: Avery5160Label): string[] {
-  const locality = [label.city.trim(), label.state.trim()].filter(Boolean).join(", ");
-  const cityStateZip = [locality, label.zip.trim()].filter(Boolean).join(" ");
+  const locality = [label.city?.trim(), label.state?.trim()].filter(Boolean).join(", ");
+  const cityStateZip = [locality, label.zip?.trim()].filter(Boolean).join(" ");
   const country = label.country?.trim();
   return [label.name, label.addressLine1, label.addressLine2, cityStateZip, country && country.toUpperCase() !== "US" && country.toUpperCase() !== "USA" ? country : null]
     .map((line) => line?.trim())

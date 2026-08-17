@@ -5,39 +5,38 @@ import { describe, expect, it } from "vitest";
 const root = process.cwd();
 const read = (file: string) => fs.readFileSync(path.join(root, file), "utf8");
 
-describe("donor research product wiring", () => {
-  it("mounts the permissioned API and the Donor CRM route", () => {
+describe("OYAMADonorPROFILE product wiring", () => {
+  it("mounts the first-party permissioned API and canonical route", () => {
     const server = read("server/src/index.ts");
-    const route = read("server/src/routes/donor-research.ts");
-    const page = read("app/donor-research/page.tsx");
+    const route = read("server/src/routes/donor-profile.ts");
+    const page = read("app/donor-profile/page.tsx");
 
-    expect(server).toContain('app.use("/api/donor-research", donorResearchRoutes)');
+    expect(server).toContain('app.use("/api/donor-profile", donorProfileRoutes)');
     expect(route).toContain('requirePermission("view:constituents")');
     expect(route).toContain('requirePermission("edit:constituents")');
     expect(route).toContain('status: "UNVERIFIED"');
-    expect(page).toContain("DonorResearchWorkspace");
+    expect(route).toContain('router.post("/identity/resolve"');
+    expect(route).not.toContain("wealthengine");
+    expect(page).toContain("OyamaDonorProfileWorkspace");
+    expect(read("app/donor-research/page.tsx")).toContain('redirect(`/donor-profile');
   });
 
   it("links research from navigation, the directory, and constituent profiles", () => {
-    expect(read("app/components/layout/sidebar-configs.tsx")).toContain('href: "/donor-research"');
-    expect(read("app/components/constituents/ConstituentTable.tsx")).toContain("/donor-research?constituentId=");
-    expect(read("app/constituents/[id]/page.tsx")).toContain("Donor Research");
-    expect(read("app/components/layout/AppShell.tsx")).toContain('"donor-research",');
+    expect(read("app/components/layout/sidebar-configs.tsx")).toContain('href: "/donor-profile"');
+    expect(read("app/components/constituents/ConstituentTable.tsx")).toContain("/donor-profile?constituentId=");
+    expect(read("app/constituents/[id]/page.tsx")).toContain("OYAMADonorPROFILE");
+    expect(read("app/components/layout/AppShell.tsx")).toContain('"donor-profile",');
   });
 
-  it("keeps lookups transient and gates licensed individual screening", () => {
-    const route = read("server/src/routes/donor-research.ts");
-    const workspace = read("app/components/donor-research/DonorResearchWorkspace.tsx");
+  it("keeps public evidence transient, reviewed, and vendor independent", () => {
+    const route = read("server/src/routes/donor-profile.ts");
+    const workspace = read("app/components/donor-profile/OyamaDonorProfileWorkspace.tsx");
 
     expect(route).toContain('transientLookup: true');
-    expect(route).toContain('"Automated net-worth claims"');
-    expect(route).toContain('router.post("/lookup-person"');
-    expect(route).toContain("permissionConfirmed");
-    expect(route).toContain("signLicensedEvidence");
-    expect(route).toContain("evidence.result.synthetic");
-    expect(workspace).toContain("Screen individual");
-    expect(workspace).toContain("Facts and labeled estimates");
-    expect(workspace).toContain("Synthetic sandbox sample");
-    expect(workspace).toContain("Save for review");
+    expect(route).toContain("OYAMA_DONOR_PROFILE_POLICY");
+    expect(workspace).toContain("Capacity is not net worth");
+    expect(workspace).toContain("Human review required");
+    expect(workspace).toContain("Save as unverified");
+    expect(workspace).not.toContain("WealthEngine");
   });
 });

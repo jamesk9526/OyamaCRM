@@ -871,7 +871,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const donorResearchMobileButtonBase = chromeButtonBase.replace("rounded-xl", "rounded-full");
   const donorResearchDesktopButtonBase = darkIconButtonBase.replace("rounded-lg", "rounded-full");
-  const donorResearchActiveClass = pathname === "/donor-research"
+  const donorResearchActiveClass = pathname === "/donor-profile" || pathname === "/donor-research"
     ? (isDonorEnterpriseChrome ? "bg-emerald-400/20 text-emerald-100 ring-1 ring-emerald-300/50" : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200")
     : "";
   const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
@@ -1413,10 +1413,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
             <WorkspaceStatusControl dark={isDonorEnterpriseChrome} />
             <Link
-              href="/donor-research"
-              title="Open Donor Research"
-              aria-label="Open Donor Research"
-              aria-current={pathname === "/donor-research" ? "page" : undefined}
+              href="/donor-profile"
+              title="Open OYAMADonorPROFILE"
+              aria-label="Open OYAMADonorPROFILE"
+              aria-current={pathname === "/donor-profile" || pathname === "/donor-research" ? "page" : undefined}
               className={`${donorResearchMobileButtonBase} ${donorResearchActiveClass}`}
             >
               <DonorResearchIcon className="h-[18px] w-[18px]" />
@@ -1605,10 +1605,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               <div className={`mx-1 h-5 w-px shrink-0 ${isDonorEnterpriseChrome ? "bg-white/15" : "bg-slate-200"}`} />
 
               <Link
-                href="/donor-research"
-                title="Open Donor Research"
-                aria-label="Open Donor Research"
-                aria-current={pathname === "/donor-research" ? "page" : undefined}
+                href="/donor-profile"
+                title="Open OYAMADonorPROFILE"
+                aria-label="Open OYAMADonorPROFILE"
+                aria-current={pathname === "/donor-profile" || pathname === "/donor-research" ? "page" : undefined}
                 className={`${donorResearchDesktopButtonBase} ${donorResearchActiveClass}`}
               >
                 <DonorResearchIcon />

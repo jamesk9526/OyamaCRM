@@ -1,6 +1,14 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-13 (audience/letter accuracy and QuickBooks one-way donation sink)
+Last updated: 2026-08-17 (OYAMADonorPROFILE foundation)
+
+## 2026-08-17 OYAMADonorPROFILE Gate
+
+| Check | Status | Evidence / Notes |
+|---|---|---|
+| First-party workspace and API | Working foundation | `/donor-profile` and `/api/donor-profile` use OYAMA-managed public connectors and human-reviewed evidence; `/donor-research` remains a compatibility redirect. |
+| Vendor-independent identity core | Working foundation | Deterministic component scoring is explained and tested; persistence and match-review UI remain staged. |
+| General production launch | Not ready | Suppression/removal, dedicated permissions, source registry/health, centralized request limits, Missouri property/business, Census, final schema, scores, jobs, and authenticated responsive regression must pass the checklist in `docs/plans/OYAMA_DONOR_PROFILE_SPEC_AND_READINESS.md`. |
 
 ## 2026-08-13 Audience, Letters, and QuickBooks Reliability Snapshot
 

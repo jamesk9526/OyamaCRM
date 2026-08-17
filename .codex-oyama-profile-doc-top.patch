@@ -1,0 +1,36 @@
+diff --git a/docs/status/features.md b/docs/status/features.md
+--- a/docs/status/features.md
++++ b/docs/status/features.md
+@@ -1,5 +1,14 @@
+ # OyamaCRM Feature Status Audit
+ 
+-_Last focused audit: 2026-08-13 (audience/letter accuracy and QuickBooks one-way donation sink)_
++_Last focused audit: 2026-08-17 (OYAMADonorPROFILE foundation)_
++
++## 2026-08-17 OYAMADonorPROFILE Foundation
++
++| Capability | Status | Evidence | Notes |
++|---|---|---|---|
++| First-party OYAMADonorPROFILE workspace | In progress | `app/donor-profile/page.tsx`, `app/components/donor-profile/OyamaDonorProfileWorkspace.tsx`, `server/src/routes/donor-profile.ts` | Canonical evidence-first replacement for the former Donor Research UI. The old page redirects for compatibility. |
++| Provider and identity-resolution core | Foundation working | `server/src/services/oyama-donor-profile.ts`, `tests/unit/oyama-donor-profile.test.ts` | Typed provider capabilities, source compliance gate, policy prohibitions, explainable scoring, and the 70-point merge floor are implemented. |
++| Full prospect-intelligence product | Not ready | `docs/plans/OYAMA_DONOR_PROFILE_SPEC_AND_READINESS.md` | WealthEngine is absent from the active product. Property, business, Census, durable profiles/matches, suppression, dedicated permissions, scoring, jobs, and bulk research remain staged. |
+ 
+ ## 2026-08-13 Audience, Letters, and QuickBooks Reliability
+diff --git a/docs/status/production-readiness-checklist.md b/docs/status/production-readiness-checklist.md
+--- a/docs/status/production-readiness-checklist.md
++++ b/docs/status/production-readiness-checklist.md
+@@ -1,5 +1,13 @@
+ # Production Readiness Checklist
+ 
+-Last updated: 2026-08-13 (audience/letter accuracy and QuickBooks one-way donation sink)
++Last updated: 2026-08-17 (OYAMADonorPROFILE foundation)
++
++## 2026-08-17 OYAMADonorPROFILE Gate
++
++| Check | Status | Evidence / Notes |
++|---|---|---|
++| First-party workspace and API | Working foundation | `/donor-profile` and `/api/donor-profile` use OYAMA-managed public connectors and human-reviewed evidence; `/donor-research` remains a compatibility redirect. |
++| Vendor-independent identity core | Working foundation | Deterministic component scoring is explained and tested; persistence and match-review UI remain staged. |
++| General production launch | Not ready | Suppression/removal, dedicated permissions, source registry/health, centralized request limits, Missouri property/business, Census, final schema, scores, jobs, and authenticated responsive regression must pass the checklist in `docs/plans/OYAMA_DONOR_PROFILE_SPEC_AND_READINESS.md`. |
+ 
+ ## 2026-08-13 Audience, Letters, and QuickBooks Reliability Snapshot

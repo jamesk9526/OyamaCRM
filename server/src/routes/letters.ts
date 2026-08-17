@@ -5389,7 +5389,7 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
   const labels: Avery5160Label[] = constituentIds.flatMap((id) => {
     const constituent = byId.get(id);
     if (!constituent || constituent.doNotMail || constituent.doNotContact) return [];
-    if (!constituent.addressLine1?.trim() || !constituent.city?.trim() || !constituent.state?.trim() || !constituent.zip?.trim()) return [];
+    if (!constituent.addressLine1?.trim()) return [];
     const name = constituent.displayName?.trim()
       || constituent.organizationName?.trim()
       || [constituent.firstName, constituent.lastName].filter(Boolean).join(" ").trim()
@@ -5398,14 +5398,14 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
       name,
       addressLine1: constituent.addressLine1.trim(),
       addressLine2: constituent.addressLine2?.trim() || null,
-      city: constituent.city.trim(),
-      state: constituent.state.trim(),
-      zip: constituent.zip.trim(),
+      city: constituent.city?.trim() || null,
+      state: constituent.state?.trim() || null,
+      zip: constituent.zip?.trim() || null,
       country: constituent.country,
     }];
   });
   if (labels.length === 0) {
-    res.status(422).json({ error: { code: "NO_MAIL_READY_RECIPIENTS", message: "None of the selected recipients has a complete, mail-eligible address." } });
+    res.status(422).json({ error: { code: "NO_MAIL_READY_RECIPIENTS", message: "None of the selected recipients has a mail-eligible street address." } });
     return;
   }
 

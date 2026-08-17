@@ -1,0 +1,16 @@
+diff --git a/docs/status/features.md b/docs/status/features.md
+--- a/docs/status/features.md
++++ b/docs/status/features.md
+@@ -120,1 +120,1 @@
+-| Review-first Donor Research workspace | Working | `app/donor-research/page.tsx`, `app/components/donor-research/DonorResearchWorkspace.tsx`, `server/src/routes/donor-research.ts`, `server/src/services/public-donor-research.ts` | Staff can select a constituent; run transient ProPublica, configured SEC, or licensed WealthEngine individual lookups; document identity-match confidence/rationale; save an unverified finding; and explicitly verify or dismiss it. Individual screening requires an authorization confirmation and constituent edit permission. This is external evidence research, not the internal cohort analysis in Steward Signals. |
++| OYAMADonorPROFILE foundation | In progress | `app/donor-profile/page.tsx`, `app/components/donor-profile/OyamaDonorProfileWorkspace.tsx`, `server/src/routes/donor-profile.ts`, `server/src/services/oyama-donor-profile.ts` | First-party, evidence-first replacement for Donor Research. The canonical workspace exposes OYAMA-managed ProPublica/IRS-linked and SEC connectors, explainable identity-resolution foundations, source provenance, and human verify/dismiss states. WealthEngine is retired from the active product; property, business, Census, profile persistence, capacity scoring, suppression, and bulk research remain staged in `docs/plans/OYAMA_DONOR_PROFILE_SPEC_AND_READINESS.md`. |
+diff --git a/docs/status/production-readiness-checklist.md b/docs/status/production-readiness-checklist.md
+--- a/docs/status/production-readiness-checklist.md
++++ b/docs/status/production-readiness-checklist.md
+@@ -106,1 +106,1 @@
+-| Donor public research is distinct from internal Steward analytics | Working | `/donor-research` uses explicit public-source adapters and review states; Steward Signals retains internal giving/cohort analysis. |
++| OYAMADonorPROFILE is distinct from internal Steward analytics | Working foundation | `/donor-profile` is the canonical first-party public-evidence workspace; Steward Signals retains internal giving/cohort analysis. `/donor-research` redirects for compatibility. |
+@@ -109,1 +109,2 @@
+-| Individual identity transmission is permissioned and tamper-evident | Working | `POST /api/donor-research/lookup-person` requires `edit:constituents`, a per-action authorization confirmation, and a CRM-scoped individual. The server—not the browser—selects identity fields, logs the screening without PII, and signs each result against its constituent before save. |
++| Vendor-independent identity resolution | Working foundation | `server/src/services/oyama-donor-profile.ts` provides deterministic, explained confidence scoring and a 70-point merge floor. `POST /api/donor-profile/identity/resolve` is organization-scoped and audited. Persistence and match-review UI remain staged. |
++| Full OYAMADonorPROFILE production gate | Not ready | Suppression/removal, dedicated permissions, source registry/health, centralized rate limiting, Missouri property/business providers, Census context, final profile schema, scoring, bulk jobs, and authenticated regression remain unchecked in `docs/plans/OYAMA_DONOR_PROFILE_SPEC_AND_READINESS.md`. |

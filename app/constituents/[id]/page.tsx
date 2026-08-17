@@ -516,9 +516,9 @@ export default function ConstituentDetailPage() {
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                   Edit Profile
                 </Link>
-                <Link href={`/donor-research?constituentId=${encodeURIComponent(id)}`} className={QA_BTN}>
+                <Link href={`/donor-profile?constituentId=${encodeURIComponent(id)}`} className={QA_BTN}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4a7 7 0 1 0 4.9 12l4.1 4m-9-13a4 4 0 0 1 4 4"/></svg>
-                  Donor Research
+                  OYAMADonorPROFILE
                 </Link>
               </div>
             </div>

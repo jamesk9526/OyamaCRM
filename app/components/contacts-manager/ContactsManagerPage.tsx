@@ -11,6 +11,7 @@ import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRib
 import AudienceListManager from "@/app/components/contacts-manager/AudienceListManager";
 import DuplicateConstituentMergeTool from "@/app/components/contacts-manager/DuplicateConstituentMergeTool";
 import { apiFetch } from "@/app/lib/auth-client";
+import { getContactsPagination } from "@/app/components/contacts-manager/contacts-pagination";
 
 interface ConstituentRow {
   id: string;
@@ -136,6 +137,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const [listRecipientsById, setListRecipientsById] = useState<Record<string, SavedAudienceDetail["recipients"]>>({});
   const [activeTag, setActiveTag] = useState("");
   const [pageSize, setPageSize] = useState<ContactsPageSize>(100);
+  const [currentPage, setCurrentPage] = useState(1);
   const [sortKey, setSortKey] = useState<ContactsSortKey>("name");
   const [sortDirection, setSortDirection] = useState<ContactsSortDirection>("asc");
   const [listName, setListName] = useState("");
@@ -201,9 +203,19 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const sortedConstituents = useMemo(() => {
     return [...filteredConstituents].sort((left, right) => compareConstituents(left, right, sortKey, sortDirection));
   }, [filteredConstituents, sortDirection, sortKey]);
+  const pagination = getContactsPagination(sortedConstituents.length, pageSize, currentPage);
   const visibleConstituents = useMemo(() => {
-    return pageSize === "ALL" ? sortedConstituents : sortedConstituents.slice(0, pageSize);
-  }, [pageSize, sortedConstituents]);
+    return sortedConstituents.slice(pagination.startIndex, pagination.endIndex);
+  }, [pagination.endIndex, pagination.startIndex, sortedConstituents]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTag, churchTagFilter, filter, listMembershipFilter, membershipListId, pageSize, search, sortDirection, sortKey]);
+
+  useEffect(() => {
+    if (currentPage !== pagination.currentPage) setCurrentPage(pagination.currentPage);
+  }, [currentPage, pagination.currentPage]);
+
   const allVisibleSelected = visibleConstituents.length > 0 && visibleConstituents.every((row) => selectedIds.has(row.id));
   const someVisibleSelected = visibleConstituents.some((row) => selectedIds.has(row.id));
   const missingSelectedEmails = selectedRows.length - selectedEmails.length;
@@ -726,8 +738,30 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
             </label>
           </div>
 
-          <div className="border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-            View: <span className="font-semibold text-gray-900">{filteredConstituents.length}</span> constituents, <span className="font-semibold text-gray-900">{viewEmailCount}</span> with email. Showing <span className="font-semibold text-gray-900">{visibleConstituents.length}</span> sorted by <span className="font-semibold text-gray-900">{sortLabel(sortKey)}</span>.
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            <p>
+              View: <span className="font-semibold text-gray-900">{filteredConstituents.length}</span> constituents, <span className="font-semibold text-gray-900">{viewEmailCount}</span> with email. Showing <span className="font-semibold text-gray-900">{pagination.firstVisibleItem}–{pagination.lastVisibleItem}</span> sorted by <span className="font-semibold text-gray-900">{sortLabel(sortKey)}</span>.
+            </p>
+            {pageSize !== "ALL" && pagination.pageCount > 1 && (
+              <nav className="flex flex-wrap items-center gap-1" aria-label="Constituent pages">
+                <button type="button" onClick={() => setCurrentPage(1)} disabled={pagination.currentPage === 1} className="min-h-8 rounded border border-gray-300 bg-white px-2 font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">First</button>
+                <button type="button" onClick={() => setCurrentPage(pagination.currentPage - 1)} disabled={pagination.currentPage === 1} className="min-h-8 rounded border border-gray-300 bg-white px-2 font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <label className="flex min-h-8 items-center gap-1 rounded border border-gray-300 bg-white px-2 text-gray-600">
+                  Page
+                  <select
+                    value={pagination.currentPage}
+                    onChange={(event) => setCurrentPage(Number(event.target.value))}
+                    className="border-0 bg-transparent p-0 font-semibold text-gray-900 outline-none"
+                    aria-label="Current constituent page"
+                  >
+                    {Array.from({ length: pagination.pageCount }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+                  </select>
+                  of {pagination.pageCount}
+                </label>
+                <button type="button" onClick={() => setCurrentPage(pagination.currentPage + 1)} disabled={pagination.currentPage === pagination.pageCount} className="min-h-8 rounded border border-gray-300 bg-white px-2 font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                <button type="button" onClick={() => setCurrentPage(pagination.pageCount)} disabled={pagination.currentPage === pagination.pageCount} className="min-h-8 rounded border border-gray-300 bg-white px-2 font-semibold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40">Last</button>
+              </nav>
+            )}
           </div>
 
           <div className={fullscreen ? "min-h-0 flex-1 overflow-auto" : "max-h-[calc(100vh-18rem)] overflow-auto"}>

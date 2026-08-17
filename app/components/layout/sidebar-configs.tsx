@@ -146,8 +146,8 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         },
         {
           id: "donor-research",
-          label: "Donor Research",
-          href: "/donor-research",
+          label: "OYAMADonorPROFILE",
+          href: "/donor-profile",
           icon: DONOR_ICONS.research,
           kind: "insight" as const,
           badge: "New" as SidebarItemBadge,

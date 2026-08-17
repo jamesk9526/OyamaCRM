@@ -99,8 +99,8 @@ function ConstituentRowMoreMenu({
           <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
             Edit
           </Link>
-          <Link href={`/donor-research?constituentId=${encodeURIComponent(constituent.id)}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
-            Research Public Sources
+          <Link href={`/donor-profile?constituentId=${encodeURIComponent(constituent.id)}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
+            Open OYAMADonorPROFILE
           </Link>
           <button
             type="button"
@@ -295,8 +295,8 @@ export default function ConstituentTable({
                 <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
                   Edit
                 </Link>
-                <Link href={`/donor-research?constituentId=${encodeURIComponent(c.id)}`} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
-                  Research
+                <Link href={`/donor-profile?constituentId=${encodeURIComponent(c.id)}`} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
+                  OYAMADonorPROFILE
                 </Link>
               </div>
               <ConstituentRowMoreMenu constituent={c} onCloseAccount={onCloseAccount} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />

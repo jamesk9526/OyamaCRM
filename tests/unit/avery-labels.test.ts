@@ -14,6 +14,8 @@ describe("Avery 5160 label rendering", () => {
       .toEqual(["Joyce Batson", "123 Main St", "Austin, TX 78701"]);
     expect(avery5160AddressLines({ name: "North Star", addressLine1: "10 King St", addressLine2: "Suite 2", city: "Toronto", state: "ON", zip: "M5V 1A1", country: "Canada" }))
       .toEqual(["North Star", "10 King St", "Suite 2", "Toronto, ON M5V 1A1", "Canada"]);
+    expect(avery5160AddressLines({ name: "Partial Address", addressLine1: "25 Rural Route", city: "", state: null, zip: undefined }))
+      .toEqual(["Partial Address", "25 Rural Route"]);
   });
 
   it("creates additional pages after the thirtieth occupied position", async () => {

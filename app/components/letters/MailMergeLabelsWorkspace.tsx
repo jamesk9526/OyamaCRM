@@ -52,8 +52,8 @@ function formattedAddress(row: LabelConstituent): string[] {
 
 function eligibility(row: LabelConstituent): { ready: boolean; reason: string } {
   if (row.doNotContact || row.doNotMail) return { ready: false, reason: "Mail suppressed" };
-  if (!row.addressLine1?.trim() || !row.city?.trim() || !row.state?.trim() || !row.zip?.trim()) return { ready: false, reason: "Incomplete address" };
-  return { ready: true, reason: "Mail ready" };
+  if (!row.addressLine1?.trim()) return { ready: false, reason: "No street address" };
+  return { ready: true, reason: row.city?.trim() && row.state?.trim() && row.zip?.trim() ? "Mail ready" : "Partial address" };
 }
 
 function responseFileName(response: Response): string {
@@ -94,16 +94,15 @@ export default function MailMergeLabelsWorkspace() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const visibleRows = useMemo(() => constituents.filter((row) => !normalizedSearch || [displayName(row), row.email, ...formattedAddress(row)].some((value) => value?.toLowerCase().includes(normalizedSearch))), [constituents, normalizedSearch]);
-  const readyRows = useMemo(() => constituents.filter((row) => eligibility(row).ready), [constituents]);
-  const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id) && eligibility(row).ready), [constituents, selectedIds]);
-  const selectedReadyVisible = visibleRows.filter((row) => eligibility(row).ready);
-  const allVisibleSelected = selectedReadyVisible.length > 0 && selectedReadyVisible.every((row) => selectedIds.has(row.id));
-  const previewSlots = Array.from({ length: 30 }, (_, slot) => slot < startPosition - 1 ? null : selectedRows[slot - (startPosition - 1)] ?? null);
-  const pageCount = selectedRows.length ? Math.ceil((startPosition - 1 + selectedRows.length) / 30) : 0;
+  const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
+  const printableSelectedRows = useMemo(() => selectedRows.filter((row) => eligibility(row).ready), [selectedRows]);
+  const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.has(row.id));
+  const previewSlots = Array.from({ length: 30 }, (_, slot) => slot < startPosition - 1 ? null : printableSelectedRows[slot - (startPosition - 1)] ?? null);
+  const pageCount = printableSelectedRows.length ? Math.ceil((startPosition - 1 + printableSelectedRows.length) / 30) : 0;
 
   function toggleRecipient(id: string) {
     const row = constituents.find((item) => item.id === id);
-    if (!row || !eligibility(row).ready) return;
+    if (!row) return;
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -114,7 +113,7 @@ export default function MailMergeLabelsWorkspace() {
   function toggleVisible() {
     setSelectedIds((current) => {
       const next = new Set(current);
-      for (const row of selectedReadyVisible) {
+      for (const row of visibleRows) {
         if (allVisibleSelected) next.delete(row.id); else next.add(row.id);
       }
       return next;
@@ -132,10 +131,10 @@ export default function MailMergeLabelsWorkspace() {
       const resolvedIds = new Set(resolved.constituentIds);
       const matches = constituents.filter((row) => resolvedIds.has(row.id));
       const ready = matches.filter((row) => eligibility(row).ready);
-      setSelectedIds(new Set(ready.map((row) => row.id)));
+      setSelectedIds(new Set(matches.map((row) => row.id)));
       const skipped = matches.length - ready.length;
       const unmatched = resolved.unmatchedMemberCount;
-      setNotice(`${list.name} loaded: ${ready.length} mail-ready recipient${ready.length === 1 ? "" : "s"}${skipped ? `, ${skipped} suppressed or incomplete` : ""}${unmatched ? `, ${unmatched} list member${unmatched === 1 ? "" : "s"} not matched to a constituent` : ""}.`);
+      setNotice(`${list.name} loaded: ${matches.length} audience member${matches.length === 1 ? "" : "s"} selected, ${ready.length} label-ready${skipped ? `, ${skipped} suppressed or missing a street address` : ""}${unmatched ? `, ${unmatched} list member${unmatched === 1 ? "" : "s"} not matched to a constituent` : ""}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load this audience list.");
     } finally {
@@ -144,14 +143,14 @@ export default function MailMergeLabelsWorkspace() {
   }
 
   async function downloadLabels() {
-    if (!selectedRows.length) return;
+    if (!printableSelectedRows.length) return;
     setWorking(true);
     setError(null);
     setNotice(null);
     try {
       const response = await apiFetchResponse("/api/letters/labels/avery-5160.pdf", {
         method: "POST",
-        body: JSON.stringify({ constituentIds: selectedRows.map((row) => row.id), startPosition, showGuides }),
+        body: JSON.stringify({ constituentIds: printableSelectedRows.map((row) => row.id), startPosition, showGuides }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -167,7 +166,7 @@ export default function MailMergeLabelsWorkspace() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      setNotice(`Avery 5160 PDF created with ${selectedRows.length} label${selectedRows.length === 1 ? "" : "s"} across ${pageCount} sheet${pageCount === 1 ? "" : "s"}.`);
+      setNotice(`Avery 5160 PDF created with ${printableSelectedRows.length} label${printableSelectedRows.length === 1 ? "" : "s"} across ${pageCount} sheet${pageCount === 1 ? "" : "s"}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to create the Avery 5160 PDF.");
     } finally {
@@ -182,7 +181,7 @@ export default function MailMergeLabelsWorkspace() {
       <div className="mx-auto max-w-[1600px] space-y-4">
         <header className="flex flex-col justify-between gap-3 border-b border-slate-300 pb-4 lg:flex-row lg:items-end">
           <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0f6cbd]">Mail merge tool</p><h1 className="mt-1 text-2xl font-semibold text-slate-950">Avery 5160 mailing labels</h1><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Create production-sized 30-up address-label sheets from constituents or a saved Contacts Manager audience list.</p></div>
-          <div className="flex flex-wrap gap-2"><Link href="/contacts-manager/lists" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Manage audience lists</Link><button type="button" onClick={() => void downloadLabels()} disabled={working || selectedRows.length === 0} className="rounded-md bg-[#0f6cbd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-50">{working ? "Preparing..." : `Download label PDF (${selectedRows.length})`}</button></div>
+          <div className="flex flex-wrap gap-2"><Link href="/contacts-manager/lists" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Manage audience lists</Link><button type="button" onClick={() => void downloadLabels()} disabled={working || printableSelectedRows.length === 0} className="rounded-md bg-[#0f6cbd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:cursor-not-allowed disabled:opacity-50">{working ? "Preparing..." : `Download label PDF (${printableSelectedRows.length} of ${selectedRows.length} selected)`}</button></div>
         </header>
 
         {error ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
@@ -195,21 +194,21 @@ export default function MailMergeLabelsWorkspace() {
               <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-end">
                 <label className="min-w-0 flex-1 text-xs font-semibold text-slate-700">Contacts Manager audience list<select value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal"><option value="">Choose a saved list...</option>{lists.map((list) => <option key={list.id} value={list.id}>{list.name} ({list.recipientsCount})</option>)}</select></label>
                 <button type="button" onClick={() => void loadAudienceList()} disabled={!selectedListId || working} className="rounded-md border border-[#0f6cbd] bg-[#eff6fc] px-4 py-2 text-sm font-semibold text-[#0f548c] hover:bg-[#dceefa] disabled:opacity-50">Load audience list</button>
-                <button type="button" onClick={() => setSelectedIds(new Set(readyRows.map((row) => row.id)))} disabled={!readyRows.length} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Select all mail-ready</button>
+                <button type="button" onClick={() => setSelectedIds(new Set(constituents.map((row) => row.id)))} disabled={!constituents.length} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Select all contacts</button>
                 <button type="button" onClick={() => setSelectedIds(new Set())} disabled={!selectedIds.size} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Clear</button>
               </div>
             </div>
 
             <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-slate-950">Recipient review</h2><p className="text-xs text-slate-600">{selectedRows.length} selected · {readyRows.length} mail-ready · {constituents.length - readyRows.length} unavailable</p></div><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or address" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-sm" /></div>
+              <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-semibold text-slate-950">Recipient review</h2><p className="text-xs text-slate-600">{selectedRows.length} selected · {printableSelectedRows.length} label-ready · {selectedRows.length - printableSelectedRows.length} selected but unavailable</p></div><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or address" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm sm:max-w-sm" /></div>
               <div className="max-h-[620px] overflow-auto">
-                <table className="min-w-[760px] w-full border-collapse text-sm"><thead className="sticky top-0 z-10 bg-[#5d5d5d] text-left text-xs text-white"><tr><th className="w-12 px-3 py-2"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label="Select all visible mail-ready recipients" /></th><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Mailing address</th><th className="px-3 py-2">Readiness</th></tr></thead><tbody>{visibleRows.map((row) => { const status = eligibility(row); return <tr key={row.id} className="border-t border-slate-200 hover:bg-slate-50"><td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(row.id) && status.ready} onChange={() => toggleRecipient(row.id)} disabled={!status.ready} aria-label={`Include ${displayName(row)}`} /></td><td className="px-3 py-2"><p className="font-medium text-slate-900">{displayName(row)}</p><p className="text-xs text-slate-500">{row.email || "No email"}</p></td><td className="px-3 py-2 text-slate-700">{formattedAddress(row).length ? formattedAddress(row).join(" · ") : "No address"}</td><td className={`px-3 py-2 text-xs font-semibold ${status.ready ? "text-emerald-700" : status.reason === "Mail suppressed" ? "text-red-700" : "text-amber-700"}`}>{status.reason}</td></tr>; })}{!visibleRows.length ? <tr><td colSpan={4} className="px-4 py-12 text-center text-sm text-slate-500">No matching constituents.</td></tr> : null}</tbody></table>
+                <table className="min-w-[760px] w-full border-collapse text-sm"><thead className="sticky top-0 z-10 bg-[#5d5d5d] text-left text-xs text-white"><tr><th className="w-12 px-3 py-2"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} aria-label="Select all visible recipients" /></th><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Mailing address</th><th className="px-3 py-2">Readiness</th></tr></thead><tbody>{visibleRows.map((row) => { const status = eligibility(row); return <tr key={row.id} className="border-t border-slate-200 hover:bg-slate-50"><td className="px-3 py-2"><input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleRecipient(row.id)} aria-label={`Include ${displayName(row)}`} /></td><td className="px-3 py-2"><p className="font-medium text-slate-900">{displayName(row)}</p><p className="text-xs text-slate-500">{row.email || "No email"}</p></td><td className="px-3 py-2 text-slate-700">{formattedAddress(row).length ? formattedAddress(row).join(" · ") : "No address"}</td><td className={`px-3 py-2 text-xs font-semibold ${status.reason === "Mail ready" ? "text-emerald-700" : status.reason === "Mail suppressed" ? "text-red-700" : "text-amber-700"}`}>{status.reason}</td></tr>; })}{!visibleRows.length ? <tr><td colSpan={4} className="px-4 py-12 text-center text-sm text-slate-500">No matching constituents.</td></tr> : null}</tbody></table>
               </div>
             </div>
           </div>
 
           <aside className="space-y-3">
-            <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm"><h2 className="font-semibold text-slate-950">2. Sheet setup</h2><label className="mt-3 block text-xs font-semibold text-slate-700">First label position<select value={startPosition} onChange={(event) => setStartPosition(Number(event.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal">{Array.from({ length: 30 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? " — new sheet" : ` — skip ${index}`}</option>)}</select></label><label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={showGuides} onChange={(event) => setShowGuides(event.target.checked)} className="mt-0.5" /><span><span className="font-semibold">Print alignment guides</span><span className="block text-xs text-slate-500">Use plain paper for a test print. Turn guides off before printing on labels.</span></span></label><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Labels</p><p className="font-semibold tabular-nums">{selectedRows.length}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Sheets</p><p className="font-semibold tabular-nums">{pageCount}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Start</p><p className="font-semibold tabular-nums">{startPosition}</p></div></div></div>
+            <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm"><h2 className="font-semibold text-slate-950">2. Sheet setup</h2><label className="mt-3 block text-xs font-semibold text-slate-700">First label position<select value={startPosition} onChange={(event) => setStartPosition(Number(event.target.value))} className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal">{Array.from({ length: 30 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}{index === 0 ? " — new sheet" : ` — skip ${index}`}</option>)}</select></label><label className="mt-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={showGuides} onChange={(event) => setShowGuides(event.target.checked)} className="mt-0.5" /><span><span className="font-semibold">Print alignment guides</span><span className="block text-xs text-slate-500">Use plain paper for a test print. Turn guides off before printing on labels.</span></span></label><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Labels</p><p className="font-semibold tabular-nums">{printableSelectedRows.length}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Sheets</p><p className="font-semibold tabular-nums">{pageCount}</p></div><div className="rounded bg-slate-50 px-2 py-2"><p className="text-xs text-slate-500">Start</p><p className="font-semibold tabular-nums">{startPosition}</p></div></div></div>
 
             <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="font-semibold text-slate-950">First-sheet preview</h2><p className="text-xs text-slate-500">Avery 5160 · US Letter · 30 labels</p></div><span className="text-xs font-semibold text-slate-600">Not to print</span></div><div className="mx-auto mt-3 grid aspect-[8.5/11] w-full max-w-[410px] grid-cols-3 grid-rows-10 gap-x-[1.47%] bg-white px-[2.2%] py-[4.55%] shadow-[0_1px_8px_rgba(15,23,42,0.18)]">{previewSlots.map((row, index) => <div key={index} className={`min-h-0 overflow-hidden px-[5%] py-[3%] text-[5px] leading-[1.18] text-slate-700 ${showGuides ? "border border-slate-300" : ""}`}>{row ? <><p className="truncate font-bold">{displayName(row)}</p>{formattedAddress(row).map((line) => <p key={line} className="truncate">{line}</p>)}</> : null}</div>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">Print the downloaded PDF at <strong>Actual size / 100%</strong>. Disable Fit, Shrink, or Scale-to-page options.</p></div>
           </aside>

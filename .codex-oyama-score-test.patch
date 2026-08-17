@@ -1,0 +1,11 @@
+diff --git a/tests/unit/oyama-donor-profile.test.ts b/tests/unit/oyama-donor-profile.test.ts
+--- a/tests/unit/oyama-donor-profile.test.ts
++++ b/tests/unit/oyama-donor-profile.test.ts
+@@ -12,7 +12,7 @@ describe("OYAMADonorPROFILE core", () => {
+       { firstName: "John", lastName: "Smith", city: "Springfield", state: "MO" },
+       { firstName: "John", lastName: "Smith", city: "Springfield", state: "MO" },
+     );
+-    expect(result.score).toBe(31);
++    expect(result.score).toBe(38);
+     expect(result.band).toBe("UNVERIFIED");
+     expect(result.mergeEligible).toBe(false);

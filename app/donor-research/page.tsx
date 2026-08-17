@@ -1,13 +1,14 @@
-import DonorResearchWorkspace from "@/app/components/donor-research/DonorResearchWorkspace";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Donor Research - Oyama Donor CRM" };
+export const metadata = { title: "OYAMADonorPROFILE - Oyama Donor CRM" };
 
-/** Opens the review-first public donor-research workspace. */
-export default async function DonorResearchPage({
+/** Retains the former route while OYAMADonorPROFILE becomes canonical. */
+export default async function DonorResearchCompatibilityPage({
   searchParams,
 }: {
   searchParams: Promise<{ constituentId?: string }>;
 }) {
   const params = await searchParams;
-  return <DonorResearchWorkspace initialConstituentId={params.constituentId} />;
+  const constituent = params.constituentId ? `?constituentId=${encodeURIComponent(params.constituentId)}` : "";
+  redirect(`/donor-profile${constituent}`);
 }

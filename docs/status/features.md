@@ -1,6 +1,14 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-08-13 (audience/letter accuracy and QuickBooks one-way donation sink)_
+_Last focused audit: 2026-08-17 (OYAMADonorPROFILE foundation)_
+
+## 2026-08-17 OYAMADonorPROFILE Foundation
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| First-party OYAMADonorPROFILE workspace | In progress | `app/donor-profile/page.tsx`, `app/components/donor-profile/OyamaDonorProfileWorkspace.tsx`, `server/src/routes/donor-profile.ts` | Canonical evidence-first replacement for the former Donor Research UI. The old page redirects for compatibility. |
+| Provider and identity-resolution core | Foundation working | `server/src/services/oyama-donor-profile.ts`, `tests/unit/oyama-donor-profile.test.ts` | Typed provider capabilities, source compliance gate, policy prohibitions, explainable scoring, and the 70-point merge floor are implemented. |
+| Full prospect-intelligence product | Not ready | `docs/plans/OYAMA_DONOR_PROFILE_SPEC_AND_READINESS.md` | WealthEngine is absent from the active product. Property, business, Census, durable profiles/matches, suppression, dedicated permissions, scoring, jobs, and bulk research remain staged. |
 
 ## 2026-08-13 Audience, Letters, and QuickBooks Reliability
 
