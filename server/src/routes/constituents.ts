@@ -759,6 +759,50 @@ router.get("/", async (req, res) => {
   res.json(items);
 });
 
+/** GET /api/constituents/audience-donation-summary — Completed gift counts by constituent for one calendar year. */
+router.get("/audience-donation-summary", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.json({ calendarYear: null, from: null, through: null, donors: [] });
+    return;
+  }
+
+  const defaultYear = new Date().getUTCFullYear() - 1;
+  const calendarYear = Number.parseInt(String(req.query.calendarYear ?? defaultYear), 10);
+  if (!Number.isInteger(calendarYear) || calendarYear < 1900 || calendarYear > 2200) {
+    res.status(400).json({ error: { code: "INVALID_CALENDAR_YEAR", message: "Calendar year must be between 1900 and 2200." } });
+    return;
+  }
+
+  const from = new Date(Date.UTC(calendarYear, 0, 1));
+  const through = new Date(Date.UTC(calendarYear + 1, 0, 1));
+  const groups = await prisma.donation.groupBy({
+    by: ["constituentId"],
+    where: {
+      constituent: { organizationId },
+      status: "COMPLETED",
+      date: { gte: from, lt: through },
+    },
+    _count: { _all: true },
+    _sum: { amount: true },
+    _min: { date: true },
+    _max: { date: true },
+  });
+
+  res.json({
+    calendarYear,
+    from: from.toISOString(),
+    through: through.toISOString(),
+    donors: groups.map((group) => ({
+      constituentId: group.constituentId,
+      giftCount: group._count._all,
+      totalAmount: Number(group._sum.amount ?? 0),
+      firstGiftDate: group._min.date?.toISOString() ?? null,
+      lastGiftDate: group._max.date?.toISOString() ?? null,
+    })),
+  });
+});
+
 /** GET /api/constituents/tags/catalog — Lists tags used by constituents in the active organization. */
 router.get("/tags/catalog", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });

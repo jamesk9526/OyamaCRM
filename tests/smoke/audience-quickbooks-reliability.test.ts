@@ -23,6 +23,17 @@ describe("audience and QuickBooks reliability", () => {
     expect(workspace).toContain("const runtimeRecipientIds = includedRecipientIds");
   });
 
+  it("filters the full audience by completed gift count and calendar year", () => {
+    const contacts = read("app/components/contacts-manager/ContactsManagerPage.tsx");
+    const constituentsRoute = read("server/src/routes/constituents.ts");
+    expect(contacts).toContain("Gave once in {previousCalendarYear()}");
+    expect(contacts).toContain("matchesDonationCount");
+    expect(contacts).toContain("Donation filters apply to the complete view before pagination");
+    expect(constituentsRoute).toContain('router.get("/audience-donation-summary"');
+    expect(constituentsRoute).toContain('status: "COMPLETED"');
+    expect(constituentsRoute).toContain('_count: { _all: true }');
+  });
+
   it("uses server-owned queueing plus CRM and QuickBooks idempotency keys", () => {
     const donations = read("server/src/routes/donations.ts");
     const quickbooks = read("server/src/routes/quickbooks.ts");

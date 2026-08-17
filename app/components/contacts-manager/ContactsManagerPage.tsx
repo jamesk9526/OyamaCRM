@@ -12,6 +12,12 @@ import AudienceListManager from "@/app/components/contacts-manager/AudienceListM
 import DuplicateConstituentMergeTool from "@/app/components/contacts-manager/DuplicateConstituentMergeTool";
 import { apiFetch } from "@/app/lib/auth-client";
 import { getContactsPagination } from "@/app/components/contacts-manager/contacts-pagination";
+import {
+  matchesDonationCount,
+  previousCalendarYear,
+  type AudienceDonationSummaryRow,
+  type DonationCountOperator,
+} from "@/app/components/contacts-manager/audience-donation-filter";
 
 interface ConstituentRow {
   id: string;
@@ -53,6 +59,13 @@ interface SavedAudienceDetail {
   name: string;
   description?: string | null;
   recipients: Array<{ id: string; constituentId?: string | null; email?: string | null; firstName?: string | null; lastName?: string | null }>;
+}
+
+interface AudienceDonationSummary {
+  calendarYear: number;
+  from: string;
+  through: string;
+  donors: AudienceDonationSummaryRow[];
 }
 
 type ContactFilter = "ALL" | "DONORS" | "CLIENTS" | "NON_DONORS" | "ORGANIZATIONS" | "MISSING_EMAIL";
@@ -134,6 +147,13 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const [listMembershipFilter, setListMembershipFilter] = useState<ListMembershipFilter>("ALL");
   const [membershipListId, setMembershipListId] = useState("");
   const [churchTagFilter, setChurchTagFilter] = useState<ChurchTagFilter>("ANY");
+  const [donationYear, setDonationYear] = useState(() => previousCalendarYear());
+  const [donationCountOperator, setDonationCountOperator] = useState<DonationCountOperator>("ANY");
+  const [donationCount, setDonationCount] = useState(1);
+  const [donationSummaryRows, setDonationSummaryRows] = useState<AudienceDonationSummaryRow[]>([]);
+  const [donationSummaryLoading, setDonationSummaryLoading] = useState(false);
+  const [donationSummaryError, setDonationSummaryError] = useState<string | null>(null);
+  const [advancedDonationFiltersOpen, setAdvancedDonationFiltersOpen] = useState(false);
   const [listRecipientsById, setListRecipientsById] = useState<Record<string, SavedAudienceDetail["recipients"]>>({});
   const [activeTag, setActiveTag] = useState("");
   const [pageSize, setPageSize] = useState<ContactsPageSize>(100);
@@ -170,6 +190,10 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   const selectedMembershipConstituentIds = useMemo(() => {
     return new Set((membershipListId ? listRecipientsById[membershipListId] ?? [] : []).flatMap((recipient) => recipient.constituentId ? [recipient.constituentId] : []));
   }, [listRecipientsById, membershipListId]);
+  const donationSummaryByConstituentId = useMemo(
+    () => new Map(donationSummaryRows.map((row) => [row.constituentId, row])),
+    [donationSummaryRows],
+  );
 
   const filteredConstituents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -189,10 +213,11 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       if (churchTagFilter === "INCLUDE" && !hasChurchTag) return false;
       if (churchTagFilter === "EXCLUDE" && hasChurchTag) return false;
       if (activeTag && !row.tags?.some((entry) => entry.tag.name === activeTag)) return false;
+      if (donationCountOperator !== "ANY" && !matchesDonationCount(donationSummaryByConstituentId.get(row.id)?.giftCount ?? 0, donationCountOperator, donationCount)) return false;
       if (!query) return true;
       return contactHaystack(row).toLowerCase().includes(query);
     });
-  }, [activeTag, allListConstituentIds, allListRecipientEmails, churchTagFilter, constituents, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
+  }, [activeTag, allListConstituentIds, allListRecipientEmails, churchTagFilter, constituents, donationCount, donationCountOperator, donationSummaryByConstituentId, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
 
   const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
   const selectedEmails = useMemo(
@@ -210,7 +235,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTag, churchTagFilter, filter, listMembershipFilter, membershipListId, pageSize, search, sortDirection, sortKey]);
+  }, [activeTag, churchTagFilter, donationCount, donationCountOperator, donationYear, filter, listMembershipFilter, membershipListId, pageSize, search, sortDirection, sortKey]);
 
   useEffect(() => {
     if (currentPage !== pagination.currentPage) setCurrentPage(pagination.currentPage);
@@ -261,6 +286,26 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    setDonationSummaryLoading(true);
+    setDonationSummaryError(null);
+    setDonationSummaryRows([]);
+    void apiFetch<AudienceDonationSummary>(`/api/constituents/audience-donation-summary?calendarYear=${donationYear}`)
+      .then((summary) => {
+        if (active) setDonationSummaryRows(summary.donors);
+      })
+      .catch((requestError) => {
+        if (active) setDonationSummaryError(requestError instanceof Error ? requestError.message : "Unable to load donation filter data.");
+      })
+      .finally(() => {
+        if (active) setDonationSummaryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [donationYear]);
 
   useEffect(() => {
     try {
@@ -408,6 +453,27 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     setMessage(`${recipe.name} segment selected ${matches.length} constituents.`);
     setBuilderOpen(true);
     setHasUnsavedChanges(true);
+  }
+
+  function filterToOnceLastCalendarYear() {
+    const year = previousCalendarYear();
+    setSearch("");
+    setFilter("DONORS");
+    setListMembershipFilter("ALL");
+    setMembershipListId("");
+    setActiveTag("");
+    setChurchTagFilter("ANY");
+    setDonationYear(year);
+    setDonationCountOperator("EXACTLY");
+    setDonationCount(1);
+    setAdvancedDonationFiltersOpen(true);
+    setMessage(`Filtering to donors with exactly one completed gift in calendar year ${year}. Use filtered view to select the full result.`);
+  }
+
+  function clearDonationFilter() {
+    setDonationCountOperator("ANY");
+    setDonationCount(1);
+    setDonationYear(previousCalendarYear());
   }
 
   function listFromCurrentView() {
@@ -695,6 +761,9 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               {recipe.name}
             </button>
           ))}
+          <button type="button" onClick={filterToOnceLastCalendarYear} className="min-h-8 rounded-sm border border-violet-300 bg-violet-50 px-2.5 text-xs font-semibold text-violet-900 hover:border-violet-500 hover:bg-violet-100" title={`Show donors with exactly one completed gift from January 1 through December 31, ${previousCalendarYear()}`}>
+            Gave once in {previousCalendarYear()}
+          </button>
           <button type="button" onClick={listFromCurrentView} className="min-h-8 rounded-sm border border-gray-300 bg-white px-2.5 text-xs font-medium text-gray-800 hover:border-blue-400 hover:bg-blue-50">Use filtered view</button>
         </div>
       </section>
@@ -737,6 +806,20 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               </select>
             </label>
           </div>
+
+          <details className="border-b border-gray-200 bg-violet-50/40" open={advancedDonationFiltersOpen} onToggle={(event) => setAdvancedDonationFiltersOpen(event.currentTarget.open)}>
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400">
+              <span>Advanced donation filters</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] ${donationCountOperator === "ANY" ? "bg-gray-200 text-gray-700" : "bg-violet-200 text-violet-900"}`}>{donationCountOperator === "ANY" ? "Off" : `${filteredConstituents.length} match`}</span>
+            </summary>
+            <div className="grid gap-3 border-t border-violet-100 px-3 py-3 sm:grid-cols-[180px_180px_120px_minmax(180px,1fr)] sm:items-end">
+              <label className="text-xs font-semibold text-gray-700">Calendar year<select value={donationYear} onChange={(event) => setDonationYear(Number(event.target.value))} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal">{Array.from({ length: 10 }, (_, index) => previousCalendarYear() + 1 - index).map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
+              <label className="text-xs font-semibold text-gray-700">Completed gift count<select value={donationCountOperator} onChange={(event) => setDonationCountOperator(event.target.value as DonationCountOperator)} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal"><option value="ANY">Any number</option><option value="EXACTLY">Exactly</option><option value="AT_LEAST">At least</option><option value="AT_MOST">At most</option></select></label>
+              <label className="text-xs font-semibold text-gray-700">Number of gifts<input type="number" min={0} max={999} value={donationCount} onChange={(event) => setDonationCount(Math.max(0, Math.min(999, Number(event.target.value) || 0)))} disabled={donationCountOperator === "ANY"} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal disabled:bg-gray-100" /></label>
+              <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={filterToOnceLastCalendarYear} className="min-h-9 rounded-md bg-violet-700 px-3 text-xs font-semibold text-white hover:bg-violet-800">Exactly once last year</button><button type="button" onClick={clearDonationFilter} disabled={donationCountOperator === "ANY"} className="min-h-9 rounded-md border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Clear donation filter</button></div>
+            </div>
+            <div className="px-3 pb-3 text-xs text-gray-600" aria-live="polite">{donationSummaryLoading ? `Loading completed gifts for ${donationYear}…` : donationSummaryError ? <span className="font-semibold text-red-700">{donationSummaryError}</span> : `${donationSummaryRows.length} constituent${donationSummaryRows.length === 1 ? "" : "s"} had completed gifts in ${donationYear}. Donation filters apply to the complete view before pagination.`}</div>
+          </details>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
             <p>
