@@ -53,6 +53,8 @@ export interface DonorLibraryReport {
   summary: Array<{ label: string; value: DonorReportCell; type?: "currency" | "number" | "text" }>;
   columns: DonorLibraryReportColumn[];
   rows: Array<Record<string, DonorReportCell>>;
+  /** Unique CRM constituents represented by aggregate reports whose visible rows are not donor-level. */
+  audienceConstituentIds?: string[];
   comparisonMatrix?: {
     columns: { currentYear: number; priorYear: number; twoYearsPrior: number };
     labels?: { current: string; prior: string; twoYearsPrior: string };
@@ -241,6 +243,7 @@ function emptyReport(report: DonorLibraryReportKey, title: string, description: 
     summary: [],
     columns: [],
     rows: [],
+    audienceConstituentIds: [],
     notices: [],
     generatedAt: new Date().toISOString(),
   };
@@ -661,6 +664,7 @@ async function comprehensiveDonorReport(organizationId: string, options: DonorLi
     ],
     columns: [],
     rows: [],
+    audienceConstituentIds: Array.from(new Set(donations.map((donation) => donation.constituent.id))),
     comparisonMatrix: { columns: { currentYear, priorYear, twoYearsPrior }, sections },
     notices: [`New donors made their first completed gift in the displayed ${options.dateBasis} year. Repeat donors gave in that year and had an earlier first gift.`],
   };
@@ -1047,6 +1051,7 @@ async function paymentMethodSummaryReport(organizationId: string, options: Donor
     summary: [{ label: "Gift total", value: dollars(totalCents), type: "currency" }, { label: "Gifts", value: donations.length, type: "number" }, { label: "Payment methods", value: rows.length, type: "number" }],
     columns: [{ key: "paymentMethod", label: "Payment method" }, { key: "giftCount", label: "Gifts", type: "number" }, { key: "donorCount", label: "Donors", type: "number" }, { key: "totalAmount", label: "Total giving", type: "currency" }, { key: "shareOfGiving", label: "Share of giving (%)", type: "number" }],
     rows,
+    audienceConstituentIds: Array.from(new Set(donations.map((donation) => donation.constituentId))),
     notices: [],
   };
 }
@@ -1072,6 +1077,7 @@ async function designationPerformanceReport(organizationId: string, options: Don
     summary: [{ label: "Gift total", value: dollars(totalCents), type: "currency" }, { label: "Gifts", value: donations.length, type: "number" }, { label: "Designations", value: rows.length, type: "number" }],
     columns: [{ key: "designation", label: "Designation" }, { key: "giftCount", label: "Gifts", type: "number" }, { key: "donorCount", label: "Donors", type: "number" }, { key: "totalAmount", label: "Total giving", type: "currency" }, { key: "shareOfGiving", label: "Share of giving (%)", type: "number" }],
     rows,
+    audienceConstituentIds: Array.from(new Set(donations.map((donation) => donation.constituentId))),
     notices: [],
   };
 }
@@ -1110,6 +1116,7 @@ async function crmPerformanceScorecardReport(organizationId: string, options: Do
     ],
     columns: [],
     rows: [],
+    audienceConstituentIds: Array.from(new Set(current.map((donation) => donation.constituentId))),
     comparisonMatrix: {
       columns: { currentYear: options.selectedYear, priorYear: options.selectedYear - 1, twoYearsPrior: options.selectedYear - 2 },
       labels: { current: "Selected period", prior: "Prior equal period", twoYearsPrior: "" },
@@ -1157,6 +1164,7 @@ async function campaignPerformanceReport(organizationId: string, options: DonorL
     summary: [{ label: "Campaign giving", value: dollars(donations.reduce((sum, donation) => sum + cents(donation.amount), 0)), type: "currency" }, { label: "Campaigns", value: rows.length, type: "number" }, { label: "Gifts", value: donations.length, type: "number" }],
     columns: [{ key: "campaign", label: "Campaign" }, { key: "giftCount", label: "Gifts", type: "number" }, { key: "donorCount", label: "Donors", type: "number" }, { key: "totalAmount", label: "Total giving", type: "currency" }],
     rows,
+    audienceConstituentIds: Array.from(new Set(donations.map((donation) => donation.constituentId))),
     notices: [],
   };
 }

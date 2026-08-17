@@ -786,7 +786,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               <option value="NOT_IN_ANY_LIST">Not in lists</option>
               <option value="IN_SELECTED_LIST">Only selected list</option>
             </select>
-            <select value={membershipListId} onChange={(event) => selectAudienceList(event.target.value, true)} className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs" aria-label="Base list to view and edit">
+            <select value={membershipListId} onChange={(event) => selectAudienceList(event.target.value, true)} className="min-w-0 max-w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-xs sm:max-w-64" aria-label="Base list to view and edit">
               <option value="">Choose base list</option>
               {lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
             </select>
@@ -812,7 +812,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               <span>Advanced donation filters</span>
               <span className={`rounded-full px-2 py-0.5 text-[11px] ${donationCountOperator === "ANY" ? "bg-gray-200 text-gray-700" : "bg-violet-200 text-violet-900"}`}>{donationCountOperator === "ANY" ? "Off" : `${filteredConstituents.length} match`}</span>
             </summary>
-            <div className="grid gap-3 border-t border-violet-100 px-3 py-3 sm:grid-cols-[180px_180px_120px_minmax(180px,1fr)] sm:items-end">
+            <div className="grid gap-3 border-t border-violet-100 px-3 py-3 md:grid-cols-2 md:items-end 2xl:grid-cols-[180px_180px_120px_minmax(220px,1fr)]">
               <label className="text-xs font-semibold text-gray-700">Calendar year<select value={donationYear} onChange={(event) => setDonationYear(Number(event.target.value))} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal">{Array.from({ length: 10 }, (_, index) => previousCalendarYear() + 1 - index).map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
               <label className="text-xs font-semibold text-gray-700">Completed gift count<select value={donationCountOperator} onChange={(event) => setDonationCountOperator(event.target.value as DonationCountOperator)} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal"><option value="ANY">Any number</option><option value="EXACTLY">Exactly</option><option value="AT_LEAST">At least</option><option value="AT_MOST">At most</option></select></label>
               <label className="text-xs font-semibold text-gray-700">Number of gifts<input type="number" min={0} max={999} value={donationCount} onChange={(event) => setDonationCount(Math.max(0, Math.min(999, Number(event.target.value) || 0)))} disabled={donationCountOperator === "ANY"} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal disabled:bg-gray-100" /></label>
