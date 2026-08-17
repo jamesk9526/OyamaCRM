@@ -16,7 +16,7 @@ interface ConstituentRow {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
-  tags?: Array<{ tag: { name: string; color?: string | null } }>;
+  tags?: Array<{ tag?: { name?: string | null; color?: string | null } | null }>;
 }
 
 interface SavedAudienceList {
@@ -77,7 +77,7 @@ export default function AudienceListManager({
   }));
   const visibleMemberRows = memberRows.filter((row) => {
     const query = memberSearch.trim().toLowerCase();
-    const hasChurchTag = row.contact?.tags?.some((entry) => entry.tag.name.trim().toLowerCase().includes("church")) ?? false;
+    const hasChurchTag = row.contact?.tags?.some((entry) => entry.tag?.name?.trim().toLowerCase().includes("church")) ?? false;
     if (churchTagFilter === "INCLUDE" && !hasChurchTag) return false;
     if (churchTagFilter === "EXCLUDE" && hasChurchTag) return false;
     if (!query) return true;

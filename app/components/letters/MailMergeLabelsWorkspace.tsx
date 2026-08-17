@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
+import { resolveAudienceListConstituents } from "@/app/components/letters/mail-merge-audience";
 
 interface LabelConstituent {
   id: string;
@@ -33,7 +34,7 @@ interface AudienceListSummary {
 interface AudienceListDetail {
   id: string;
   name: string;
-  recipients: Array<{ email: string }>;
+  recipients: Array<{ constituentId?: string | null; email?: string | null }>;
 }
 
 function displayName(row: LabelConstituent): string {
@@ -127,13 +128,14 @@ export default function MailMergeLabelsWorkspace() {
     setNotice(null);
     try {
       const list = await apiFetch<AudienceListDetail>(`/api/email-campaigns/lists/${encodeURIComponent(selectedListId)}`);
-      const emails = new Set(list.recipients.map((recipient) => recipient.email.trim().toLowerCase()).filter(Boolean));
-      const matches = constituents.filter((row) => row.email && emails.has(row.email.trim().toLowerCase()));
+      const resolved = resolveAudienceListConstituents(constituents, list.recipients);
+      const resolvedIds = new Set(resolved.constituentIds);
+      const matches = constituents.filter((row) => resolvedIds.has(row.id));
       const ready = matches.filter((row) => eligibility(row).ready);
       setSelectedIds(new Set(ready.map((row) => row.id)));
       const skipped = matches.length - ready.length;
-      const unmatched = Math.max(0, emails.size - matches.length);
-      setNotice(`${list.name} loaded: ${ready.length} mail-ready recipient${ready.length === 1 ? "" : "s"}${skipped ? `, ${skipped} suppressed or incomplete` : ""}${unmatched ? `, ${unmatched} email${unmatched === 1 ? "" : "s"} not matched to a constituent` : ""}.`);
+      const unmatched = resolved.unmatchedMemberCount;
+      setNotice(`${list.name} loaded: ${ready.length} mail-ready recipient${ready.length === 1 ? "" : "s"}${skipped ? `, ${skipped} suppressed or incomplete` : ""}${unmatched ? `, ${unmatched} list member${unmatched === 1 ? "" : "s"} not matched to a constituent` : ""}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load this audience list.");
     } finally {

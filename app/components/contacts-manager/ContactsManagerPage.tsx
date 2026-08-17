@@ -180,7 +180,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       if (filter === "MISSING_EMAIL" && row.email) return false;
       const inAnyList = allListConstituentIds.has(row.id) || (rowEmail && allListRecipientEmails.has(rowEmail));
       const inSelectedList = selectedMembershipConstituentIds.has(row.id) || (rowEmail && selectedMembershipEmails.has(rowEmail));
-      const hasChurchTag = row.tags?.some((entry) => entry.tag.name.trim().toLowerCase().includes("church")) ?? false;
+      const hasChurchTag = row.tags?.some((entry) => entry.tag?.name?.trim().toLowerCase().includes("church")) ?? false;
       if (listMembershipFilter === "IN_ANY_LIST" && !inAnyList) return false;
       if (listMembershipFilter === "NOT_IN_ANY_LIST" && inAnyList) return false;
       if (listMembershipFilter === "IN_SELECTED_LIST" && (!membershipListId || !inSelectedList)) return false;
