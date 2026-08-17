@@ -147,6 +147,7 @@ describe("GET /api/reports/donors-by-designation", () => {
 describe("GET /api/reports/library/:reportKey", () => {
   const reportKeys = [
     "batch-receipts",
+    "unacknowledged-gifts",
     "donations",
     "donations-by-designation",
     "lifetime-giving",
@@ -161,6 +162,11 @@ describe("GET /api/reports/library/:reportKey", () => {
     "lapsed-donor-history",
     "never-given",
     "top-donors",
+    "payment-method-summary",
+    "designation-performance",
+    "crm-performance-scorecard",
+    "recurring-giving",
+    "campaign-performance",
   ];
 
   it("serves every visible donor report card from one live report contract", async () => {
@@ -174,6 +180,7 @@ describe("GET /api/reports/library/:reportKey", () => {
         summary: expect.any(Array),
         columns: expect.any(Array),
         rows: expect.any(Array),
+        audienceConstituentIds: expect.any(Array),
         notices: expect.any(Array),
       }));
     }
@@ -191,6 +198,16 @@ describe("GET /api/reports/library/:reportKey", () => {
       "New donors",
       "Repeat donors",
     ]);
+    expect(res.body.audienceConstituentIds).toEqual(expect.any(Array));
+  });
+
+  it("returns constituent audience membership for aggregate report types", async () => {
+    for (const reportKey of ["payment-method-summary", "designation-performance", "crm-performance-scorecard", "campaign-performance"]) {
+      const res = await authGet(`/api/reports/library/${reportKey}?from=2025-01-01&through=2026-12-31`);
+      expect(res.status, reportKey).toBe(200);
+      expect(res.body.audienceConstituentIds, reportKey).toEqual(expect.any(Array));
+      expect(new Set(res.body.audienceConstituentIds).size, reportKey).toBe(res.body.audienceConstituentIds.length);
+    }
   });
 
   it("exports both a grid report and comparison matrix as CSV", async () => {

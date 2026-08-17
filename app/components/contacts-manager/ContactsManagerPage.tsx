@@ -15,6 +15,7 @@ import { getContactsPagination } from "@/app/components/contacts-manager/contact
 import {
   matchesDonationCount,
   previousCalendarYear,
+  resolveAudienceRowsForSave,
   type AudienceDonationSummaryRow,
   type DonationCountOperator,
 } from "@/app/components/contacts-manager/audience-donation-filter";
@@ -224,6 +225,16 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     () => selectedRows.map((row) => row.email?.trim().toLowerCase()).filter(Boolean) as string[],
     [selectedRows],
   );
+  const advancedDonationFilterActive = donationCountOperator !== "ANY";
+  const audienceRowsForSave = useMemo(
+    () => resolveAudienceRowsForSave(selectedRows, filteredConstituents, advancedDonationFilterActive),
+    [advancedDonationFilterActive, filteredConstituents, selectedRows],
+  );
+  const audienceEmailsForSave = useMemo(
+    () => audienceRowsForSave.map((row) => row.email?.trim().toLowerCase()).filter(Boolean) as string[],
+    [audienceRowsForSave],
+  );
+  const audienceSaveBlocked = advancedDonationFilterActive && (donationSummaryLoading || Boolean(donationSummaryError));
   const viewEmailCount = useMemo(() => filteredConstituents.filter((row) => row.email?.trim()).length, [filteredConstituents]);
   const sortedConstituents = useMemo(() => {
     return [...filteredConstituents].sort((left, right) => compareConstituents(left, right, sortKey, sortDirection));
@@ -243,7 +254,6 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
 
   const allVisibleSelected = visibleConstituents.length > 0 && visibleConstituents.every((row) => selectedIds.has(row.id));
   const someVisibleSelected = visibleConstituents.some((row) => selectedIds.has(row.id));
-  const missingSelectedEmails = selectedRows.length - selectedEmails.length;
   const filteredBaseListMembers = useMemo(() => {
     if (!selectedListId) return [];
     const visibleIds = new Set(filteredConstituents.map((row) => row.id));
@@ -467,13 +477,15 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
     setDonationCountOperator("EXACTLY");
     setDonationCount(1);
     setAdvancedDonationFiltersOpen(true);
-    setMessage(`Filtering to donors with exactly one completed gift in calendar year ${year}. Use filtered view to select the full result.`);
+    setHasUnsavedChanges(true);
+    setMessage(`Filtering to donors with exactly one completed gift in calendar year ${year}. Saving will use the complete filtered result.`);
   }
 
   function clearDonationFilter() {
     setDonationCountOperator("ANY");
     setDonationCount(1);
     setDonationYear(previousCalendarYear());
+    setHasUnsavedChanges(true);
   }
 
   function listFromCurrentView() {
@@ -496,12 +508,16 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   }
 
   async function saveList() {
+    if (audienceSaveBlocked) {
+      setError(donationSummaryError || "Wait for the donation filter to finish loading before saving this audience.");
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
       const recipientEmails = Array.from(new Set(splitEmails(externalEmails)));
-      const recipientConstituentIds = selectedRows.map((row) => row.id);
+      const recipientConstituentIds = audienceRowsForSave.map((row) => row.id);
       const payload = { name: listName, description, recipientConstituentIds, recipientEmails };
       const saved = selectedListId
         ? await apiFetch<SavedAudienceList>(`/api/email-campaigns/lists/${selectedListId}`, { method: "PUT", body: JSON.stringify(payload) })
@@ -511,7 +527,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
       setMembershipListId(saved.id);
       await load();
       setHasUnsavedChanges(false);
-      setMessage(`${selectedListId ? "Saved base audience list updated" : "Audience list saved"} with ${recipientConstituentIds.length} CRM contact${recipientConstituentIds.length === 1 ? "" : "s"} and ${recipientEmails.length} external email${recipientEmails.length === 1 ? "" : "s"}.`);
+      setMessage(`${selectedListId ? "Saved base audience list updated" : "Audience list saved"} with ${recipientConstituentIds.length} CRM contact${recipientConstituentIds.length === 1 ? "" : "s"} from ${advancedDonationFilterActive ? "the complete donation-filtered view" : "the manual selection"} and ${recipientEmails.length} external email${recipientEmails.length === 1 ? "" : "s"}.`);
       if (audienceCampaignId) {
         router.push(`/oyama-email/campaigns/${encodeURIComponent(audienceCampaignId)}?tab=audience&audienceListId=${encodeURIComponent(saved.id)}`);
       }
@@ -729,9 +745,9 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
             {!fullscreen && <p className="mt-1 text-sm text-gray-600">Edit one reusable base list. Every future email, letter, label, and export reads its latest saved membership.</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-            <span>{selectedIds.size} members</span>
+            <span>{audienceRowsForSave.length} {advancedDonationFilterActive ? "filtered to save" : "members"}</span>
             <span aria-hidden="true">•</span>
-            <span>{selectedEmails.length} with email</span>
+            <span>{audienceEmailsForSave.length} with email</span>
           </div>
         </div>
 
@@ -743,7 +759,7 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               {lists.map((list) => <option key={list.id} value={list.id}>{list.name} ({list.recipientsCount})</option>)}
             </select>
           </label>
-          <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim() || (!hasUnsavedChanges && Boolean(selectedList))} className="min-h-9 rounded-sm bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:bg-gray-300">
+          <button type="button" onClick={() => void saveList()} disabled={saving || audienceSaveBlocked || !listName.trim() || (!hasUnsavedChanges && Boolean(selectedList))} className="min-h-9 rounded-sm bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:cursor-not-allowed disabled:bg-gray-300">
             {saving ? "Saving..." : selectedList ? "Save changes" : "Create list"}
           </button>
           <button type="button" onClick={startNewList} className="min-h-9 rounded-sm border border-gray-400 bg-white px-3 text-xs font-semibold text-gray-800 hover:bg-gray-100">New list</button>
@@ -813,12 +829,21 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
               <span className={`rounded-full px-2 py-0.5 text-[11px] ${donationCountOperator === "ANY" ? "bg-gray-200 text-gray-700" : "bg-violet-200 text-violet-900"}`}>{donationCountOperator === "ANY" ? "Off" : `${filteredConstituents.length} match`}</span>
             </summary>
             <div className="grid gap-3 border-t border-violet-100 px-3 py-3 md:grid-cols-2 md:items-end 2xl:grid-cols-[180px_180px_120px_minmax(220px,1fr)]">
-              <label className="text-xs font-semibold text-gray-700">Calendar year<select value={donationYear} onChange={(event) => setDonationYear(Number(event.target.value))} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal">{Array.from({ length: 10 }, (_, index) => previousCalendarYear() + 1 - index).map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
-              <label className="text-xs font-semibold text-gray-700">Completed gift count<select value={donationCountOperator} onChange={(event) => setDonationCountOperator(event.target.value as DonationCountOperator)} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal"><option value="ANY">Any number</option><option value="EXACTLY">Exactly</option><option value="AT_LEAST">At least</option><option value="AT_MOST">At most</option></select></label>
-              <label className="text-xs font-semibold text-gray-700">Number of gifts<input type="number" min={0} max={999} value={donationCount} onChange={(event) => setDonationCount(Math.max(0, Math.min(999, Number(event.target.value) || 0)))} disabled={donationCountOperator === "ANY"} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal disabled:bg-gray-100" /></label>
+              <label className="text-xs font-semibold text-gray-700">Calendar year<select value={donationYear} onChange={(event) => { setDonationYear(Number(event.target.value)); setHasUnsavedChanges(true); }} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal">{Array.from({ length: 10 }, (_, index) => previousCalendarYear() + 1 - index).map((year) => <option key={year} value={year}>{year}</option>)}</select></label>
+              <label className="text-xs font-semibold text-gray-700">Completed gift count<select value={donationCountOperator} onChange={(event) => { setDonationCountOperator(event.target.value as DonationCountOperator); setHasUnsavedChanges(true); }} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal"><option value="ANY">Any number</option><option value="EXACTLY">Exactly</option><option value="AT_LEAST">At least</option><option value="AT_MOST">At most</option></select></label>
+              <label className="text-xs font-semibold text-gray-700">Number of gifts<input type="number" min={0} max={999} value={donationCount} onChange={(event) => { setDonationCount(Math.max(0, Math.min(999, Number(event.target.value) || 0))); setHasUnsavedChanges(true); }} disabled={donationCountOperator === "ANY"} className="mt-1 block min-h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm font-normal disabled:bg-gray-100" /></label>
               <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={filterToOnceLastCalendarYear} className="min-h-9 rounded-md bg-violet-700 px-3 text-xs font-semibold text-white hover:bg-violet-800">Exactly once last year</button><button type="button" onClick={clearDonationFilter} disabled={donationCountOperator === "ANY"} className="min-h-9 rounded-md border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Clear donation filter</button></div>
             </div>
             <div className="px-3 pb-3 text-xs text-gray-600" aria-live="polite">{donationSummaryLoading ? `Loading completed gifts for ${donationYear}…` : donationSummaryError ? <span className="font-semibold text-red-700">{donationSummaryError}</span> : `${donationSummaryRows.length} constituent${donationSummaryRows.length === 1 ? "" : "s"} had completed gifts in ${donationYear}. Donation filters apply to the complete view before pagination.`}</div>
+            {advancedDonationFilterActive && (
+              <div className="mx-3 mb-3 rounded-md border border-violet-300 bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-950" role="status">
+                {donationSummaryLoading
+                  ? "Calculating the audience that will be saved…"
+                  : donationSummaryError
+                    ? "This audience cannot be saved until the donation data loads successfully."
+                    : `Saving this audience will use all ${audienceRowsForSave.length} constituents in the complete filtered view, not the manual checkbox selection.`}
+              </div>
+            )}
           </details>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -968,11 +993,11 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
             <label className="block text-xs font-semibold text-gray-700">Description<input value={description} onChange={(event) => { setDescription(event.target.value); setHasUnsavedChanges(true); }} placeholder="Purpose, criteria, or notes" className="mt-1 w-full rounded-sm border border-gray-400 px-2.5 py-1.5 text-sm font-normal" /></label>
             <label className="block text-xs font-semibold text-gray-700">External emails<textarea value={externalEmails} onChange={(event) => { setExternalEmails(event.target.value); setHasUnsavedChanges(true); }} rows={2} placeholder="One email per line" className="mt-1 w-full resize-y rounded-sm border border-gray-400 px-2.5 py-1.5 text-sm font-normal" /></label>
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{selectedRows.length}</span><span className="text-gray-500">selected</span></div>
-              <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{selectedEmails.length}</span><span className="text-gray-500">emails</span></div>
-              <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{missingSelectedEmails}</span><span className="text-gray-500">no email</span></div>
+              <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{audienceRowsForSave.length}</span><span className="text-gray-500">{advancedDonationFilterActive ? "filtered to save" : "selected"}</span></div>
+              <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{audienceEmailsForSave.length}</span><span className="text-gray-500">emails</span></div>
+              <div className="rounded-lg bg-gray-50 p-1.5"><span className="block font-semibold text-gray-900">{audienceRowsForSave.length - audienceEmailsForSave.length}</span><span className="text-gray-500">no email</span></div>
             </div>
-            <button type="button" onClick={() => void saveList()} disabled={saving || !listName.trim() || (!hasUnsavedChanges && Boolean(selectedList))} className="min-h-9 w-full rounded-sm bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300">{saving ? "Saving..." : selectedList ? `Save changes to ${selectedList.name}` : "Create audience list"}</button>
+            <button type="button" onClick={() => void saveList()} disabled={saving || audienceSaveBlocked || !listName.trim() || (!hasUnsavedChanges && Boolean(selectedList))} className="min-h-9 w-full rounded-sm bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300">{saving ? "Saving..." : selectedList ? `Save changes to ${selectedList.name}` : "Create audience list"}</button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col border-t border-gray-200 p-3">

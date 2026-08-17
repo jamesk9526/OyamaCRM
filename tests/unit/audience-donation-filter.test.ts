@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesDonationCount, previousCalendarYear } from "../../app/components/contacts-manager/audience-donation-filter";
+import { matchesDonationCount, previousCalendarYear, resolveAudienceRowsForSave } from "../../app/components/contacts-manager/audience-donation-filter";
 
 describe("audience donation filtering", () => {
   it("matches donors who gave exactly once", () => {
@@ -15,5 +15,17 @@ describe("audience donation filtering", () => {
 
   it("derives the previous calendar year", () => {
     expect(previousCalendarYear(new Date("2026-08-17T12:00:00Z"))).toBe(2025);
+  });
+
+  it("saves the complete filtered view while an advanced donation filter is active", () => {
+    const manuallySelected = [{ id: "selected" }];
+    const filtered = [{ id: "donor-1" }, { id: "donor-2" }];
+    expect(resolveAudienceRowsForSave(manuallySelected, filtered, true)).toEqual(filtered);
+  });
+
+  it("preserves manual selection when advanced donation filters are off", () => {
+    const manuallySelected = [{ id: "selected" }];
+    const filtered = [{ id: "visible-but-not-selected" }];
+    expect(resolveAudienceRowsForSave(manuallySelected, filtered, false)).toEqual(manuallySelected);
   });
 });

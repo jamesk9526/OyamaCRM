@@ -70,6 +70,7 @@ interface ReportData {
   summary: Array<{ label: string; value: string | number | null; type?: "currency" | "number" | "text" }>;
   columns: ReportColumn[];
   rows: Array<Record<string, string | number | null>>;
+  audienceConstituentIds?: string[];
   comparisonMatrix?: {
     columns: { currentYear: number; priorYear: number; twoYearsPrior: number };
     labels?: { current: string; prior: string; twoYearsPrior: string };
@@ -122,6 +123,10 @@ const PAYMENT_METHODS = [
   ["CASH", "Cash"],
   ["ONLINE", "Online"],
 ] as const;
+
+function reportCapabilities(report: ReportDefinition): string {
+  return report.capabilities.includes("Audience list") ? report.capabilities : `${report.capabilities}, Audience list`;
+}
 
 function localDateInput(value: Date): string {
   const year = value.getFullYear();
@@ -335,7 +340,10 @@ export default function DonorReportsSpreadsheet() {
   };
 
   const handleGenerateLetters = (currentReport: ReportData) => {
-    const constituentIds = Array.from(new Set(currentReport.rows.map((row) => typeof row.donorId === "string" ? row.donorId : "").filter(Boolean)));
+    const constituentIds = Array.from(new Set([
+      ...(currentReport.audienceConstituentIds ?? []),
+      ...currentReport.rows.map((row) => typeof row.donorId === "string" ? row.donorId : ""),
+    ].map((value) => value.trim()).filter(Boolean)));
     if (constituentIds.length === 0) {
       setError("This report does not contain donor rows that can be sent to letter generation.");
       return;
@@ -412,7 +420,7 @@ export default function DonorReportsSpreadsheet() {
 function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: ReportDefinition) => void; onOpenDonationAudience: () => void }) {
   const [reportSearch, setReportSearch] = useState("");
   const normalizedSearch = reportSearch.trim().toLowerCase();
-  const filteredReports = REPORTS.filter((report) => !normalizedSearch || [report.title, report.description, report.source, report.capabilities].some((value) => value.toLowerCase().includes(normalizedSearch)));
+  const filteredReports = REPORTS.filter((report) => !normalizedSearch || [report.title, report.description, report.source, reportCapabilities(report)].some((value) => value.toLowerCase().includes(normalizedSearch)));
   return (
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#edf5fc_58%,#fff_100%)] px-5 py-5">
@@ -434,7 +442,7 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
                   <DocumentIcon />
                   <div>
                     <h2 className="text-base font-medium leading-5 text-slate-800">{report.title}</h2>
-                    <p className="mt-1 text-xs text-slate-500">{report.capabilities}</p>
+                    <p className="mt-1 text-xs text-slate-500">{reportCapabilities(report)}</p>
                   </div>
                 </div>
                 <p className="mt-3 text-sm leading-5 text-slate-600">{report.description}</p>
@@ -600,7 +608,6 @@ function ReportLoading() {
 }
 
 function ReportOutput({ report, displayMode, onGenerateLetters }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void }) {
-  const donorRowCount = report.rows.filter((row) => typeof row.donorId === "string").length;
   const [showAudienceDialog, setShowAudienceDialog] = useState(false);
   const [audienceName, setAudienceName] = useState("");
   const [audienceDescription, setAudienceDescription] = useState("");
@@ -608,7 +615,11 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
   const [audienceMessage, setAudienceMessage] = useState<string | null>(null);
   const [audienceError, setAudienceError] = useState<string | null>(null);
   const donorRows = report.rows.filter((row) => typeof row.donorId === "string");
-  const audienceDonorIds = Array.from(new Set(donorRows.map((row) => String(row.donorId))));
+  const audienceDonorIds = Array.from(new Set([
+    ...(report.audienceConstituentIds ?? []),
+    ...donorRows.map((row) => String(row.donorId)),
+  ].map((value) => value.trim()).filter(Boolean)));
+  const donorRowCount = audienceDonorIds.length;
   const audienceEmails = Array.from(new Set(donorRows
     .filter((row) => typeof row.email === "string")
     .map((row) => String(row.email).trim().toLowerCase())
@@ -645,7 +656,7 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
         }),
       });
       setShowAudienceDialog(false);
-      setAudienceMessage(`Contacts Manager audience “${audienceName.trim()}” saved with all ${audienceDonorIds.length.toLocaleString()} report donor${audienceDonorIds.length === 1 ? "" : "s"}; ${audienceEmails.length.toLocaleString()} currently have usable email.`);
+      setAudienceMessage(`Contacts Manager audience “${audienceName.trim()}” saved with all ${audienceDonorIds.length.toLocaleString()} report constituent${audienceDonorIds.length === 1 ? "" : "s"}. Current email and mailing details will be resolved from their CRM records.`);
     } catch (requestError) {
       setAudienceError(requestError instanceof Error ? requestError.message : "Unable to save this audience.");
     } finally {
@@ -661,7 +672,7 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
         </div>
         <p className="text-xs text-slate-500">Generated {formatDateTime(report.generatedAt)}{report.period ? ` · ${report.period.label}` : ""}</p>
       </div>
-      {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Open letter generation with {donorRowCount.toLocaleString()} donors, or save its email-bearing donors for later.</p></div><div className="flex flex-wrap gap-2">{report.report === "lapsed-donor-history" ? <button type="button" onClick={openAudienceDialog} className="rounded-md border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Save as audience list</button> : null}<button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div></div> : null}
+      {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Create a reusable audience or open letter generation with all {donorRowCount.toLocaleString()} unique CRM constituent{donorRowCount === 1 ? "" : "s"} represented by this report.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={openAudienceDialog} className="rounded-md border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Save as audience list</button><button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div></div> : null}
       {audienceMessage ? <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span>{audienceMessage}</span><div className="flex items-center gap-3"><Link href="/contacts-manager/lists" className="font-semibold hover:underline">Open audience lists →</Link><button type="button" onClick={() => setAudienceMessage(null)} className="font-semibold hover:underline">Dismiss</button></div></div> : null}
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
       {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
@@ -704,30 +715,29 @@ function AudienceSaveDialog({
   onDescriptionChange: (value: string) => void;
   onSave: () => void;
 }) {
-  const withoutEmail = audienceDonorIds.length - audienceEmails.length;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="save-lapsed-audience-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-labelledby="save-report-audience-title" className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5">
-          <div><h2 id="save-lapsed-audience-title" className="text-lg font-semibold text-slate-950">Save to Contacts Manager</h2><p className="mt-1 text-sm text-slate-600">Create a reusable audience list from this Lapsed Donor History result.</p></div>
+          <div><h2 id="save-report-audience-title" className="text-lg font-semibold text-slate-950">Save to Contacts Manager</h2><p className="mt-1 text-sm text-slate-600">Create a reusable audience list from every unique CRM constituent represented by this report.</p></div>
           <button type="button" onClick={onClose} disabled={saving} aria-label="Close save audience dialog" className="rounded p-1 text-xl leading-none text-slate-500 hover:bg-slate-100 disabled:opacity-50">×</button>
         </div>
         <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Report donors</p><p className="font-semibold tabular-nums text-slate-900">{audienceDonorIds.length.toLocaleString()}</p></div>
-            <div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Email-ready now</p><p className="font-semibold tabular-nums text-slate-900">{audienceEmails.length.toLocaleString()}</p></div>
+            <div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Unique CRM constituents</p><p className="font-semibold tabular-nums text-slate-900">{audienceDonorIds.length.toLocaleString()}</p></div>
+            <div className="rounded bg-slate-50 px-3 py-2"><p className="text-xs text-slate-500">Emails shown in report</p><p className="font-semibold tabular-nums text-slate-900">{audienceEmails.length.toLocaleString()}</p></div>
           </div>
-          {withoutEmail > 0 ? <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">All {audienceDonorIds.length.toLocaleString()} donors will be saved. {withoutEmail.toLocaleString()} currently {withoutEmail === 1 ? "has" : "have"} no email and will be retained for letters or future contact updates.</p> : null}
-          <label htmlFor="lapsed-audience-name" className="mt-4 block text-sm font-semibold text-slate-800">Audience name</label>
-          <input id="lapsed-audience-name" autoFocus value={audienceName} onChange={(event) => onNameChange(event.target.value)} maxLength={160} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          <label htmlFor="lapsed-audience-description" className="mt-4 block text-sm font-semibold text-slate-800">Notes <span className="font-normal text-slate-500">(optional)</span></label>
-          <textarea id="lapsed-audience-description" value={audienceDescription} onChange={(event) => onDescriptionChange(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">All {audienceDonorIds.length.toLocaleString()} constituents will be saved by CRM ID, including aggregate reports. Contacts Manager will use each constituent’s latest email, mailing address, and communication preferences.</p>
+          <label htmlFor="report-audience-name" className="mt-4 block text-sm font-semibold text-slate-800">Audience name</label>
+          <input id="report-audience-name" autoFocus value={audienceName} onChange={(event) => onNameChange(event.target.value)} maxLength={160} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <label htmlFor="report-audience-description" className="mt-4 block text-sm font-semibold text-slate-800">Notes <span className="font-normal text-slate-500">(optional)</span></label>
+          <textarea id="report-audience-description" value={audienceDescription} onChange={(event) => onDescriptionChange(event.target.value)} rows={4} className="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
           <p className="mt-3 text-xs leading-5 text-slate-500">Email sends still evaluate current email availability, suppression, opt-out, and do-not-contact rules. Letter workflows can use every saved donor.</p>
           {error ? <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
         </div>
         <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
           <button type="button" onClick={onClose} disabled={saving} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={onSave} disabled={saving || !audienceName.trim() || audienceDonorIds.length === 0} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving audience..." : "Save all donors"}</button>
+          <button type="button" onClick={onSave} disabled={saving || !audienceName.trim() || audienceDonorIds.length === 0} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving audience..." : "Save audience"}</button>
         </div>
       </section>
     </div>

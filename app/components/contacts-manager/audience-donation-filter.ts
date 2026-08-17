@@ -20,3 +20,11 @@ export function matchesDonationCount(giftCount: number, operator: DonationCountO
 export function previousCalendarYear(now = new Date()): number {
   return now.getFullYear() - 1;
 }
+
+export function resolveAudienceRowsForSave<T>(
+  manuallySelectedRows: T[],
+  filteredRows: T[],
+  advancedDonationFilterActive: boolean,
+): T[] {
+  return advancedDonationFilterActive ? filteredRows : manuallySelectedRows;
+}

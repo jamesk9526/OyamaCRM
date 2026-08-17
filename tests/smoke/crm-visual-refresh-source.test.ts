@@ -290,8 +290,10 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(reportsWorkbook).toContain("Save as audience list");
     expect(reportsWorkbook).toContain('apiFetch("/api/email-campaigns/lists"');
     expect(reportsWorkbook).toContain("recipientConstituentIds: audienceDonorIds");
-    expect(reportsWorkbook).toContain("All {audienceDonorIds.length.toLocaleString()} donors will be saved.");
-    expect(reportsWorkbook).toContain("Save all donors");
+    expect(reportsWorkbook).toContain("All {audienceDonorIds.length.toLocaleString()} constituents will be saved by CRM ID");
+    expect(reportsWorkbook).toContain("Save audience");
+    expect(reportsWorkbook).toContain("report.audienceConstituentIds");
+    expect(reportLibrary).toContain("audienceConstituentIds");
     expect(reportsWorkbook).toContain("Open audience lists");
     expect(emailCampaignsRoute).toContain("recipientConstituentIds");
     expect(emailCampaignsRoute).toContain("resolveSavedListMemberCandidates");
