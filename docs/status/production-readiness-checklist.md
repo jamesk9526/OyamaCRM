@@ -920,6 +920,8 @@ Notes:
 - [x] Require `view:events` or `edit:events` on authenticated Trivia routes while retaining rate-limited public registration and role-scoped temporary remotes.
 - [x] Preserve canonical Event identity when initializing Trivia live and score state.
 - [x] Add unit/source regression coverage for parsing, navigation, permissions, and persistence bounds.
+- [x] Apply one light Event Studio theme boundary to all Trivia administration routes, including builder, registration, check-in, host, scoring, judging, scoreboard, recovery, printables, and access management.
+- [x] Keep projector and temporary phone-remote surfaces outside the administration theme boundary.
 - [ ] Run the relational migration and legacy-count verification against a staging database snapshot.
 - [ ] Complete two-browser concurrency rehearsal for builder, host, scorekeeper, check-in, projector, recovery, and reconnect behavior.
 - [ ] Complete physical-device and accessibility QA for the right drawer, 200% zoom, keyboard use, projector output, and poor-network recovery.

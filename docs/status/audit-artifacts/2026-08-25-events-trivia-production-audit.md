@@ -11,6 +11,7 @@ The system has a coherent event-scoped route model and the primary trivia-night 
 | Surface | Result | Evidence / action |
 |---|---|---|
 | Event navigation | Fixed | One collapsible desktop right rail and mobile right drawer in `EventsStudioShell`; current event, status, date, location, active page, and event switcher remain visible. |
+| Theme coherence | Fixed | Unified Event Trivia routes now share a scoped light/indigo admin theme. Legacy dark panels, dark inputs, neon actions, and low-contrast status labels are normalized across all staff workspaces; projector and phone remote remain intentionally dark. |
 | Event/Trivia boundary | Working | Event owns registration, guests, tables, payments, and check-in; Trivia remains a conditional event mode and owns game content/live presentation. |
 | Question authoring | Fixed | Existing visual single-question editor retained; prominent paste panel adds up to 200 pipe/tab-delimited questions atomically into a selected round. |
 | Authoring validation | Hardened | Required question/answer checks, bounded points/timers, text truncation, alternate/choice limits, 500-question round ceiling, 100-round and 1,000-team server ceilings. |

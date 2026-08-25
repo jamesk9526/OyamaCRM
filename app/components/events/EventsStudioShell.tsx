@@ -67,6 +67,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
   const isProjector = /\/trivia\/projector(?:\/|$)/.test(pathname);
+  const isTriviaWorkspace = /\/events\/[^/]+\/trivia(?:\/|$)/.test(pathname);
 
   useEffect(() => { if (!loading && !user) router.replace("/login"); }, [loading, user, router]);
   useEffect(() => { if (!loading && user && redirectTarget) router.replace(redirectTarget); }, [loading, user, redirectTarget, router]);
@@ -148,7 +149,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
       </header>
 
       <div className="mx-auto flex max-w-[1800px] items-start">
-        <main className="min-h-[calc(100dvh-4rem)] min-w-0 flex-1"><ErrorBoundary>{redirectTarget ? <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">Opening the selected event…</div> : children}</ErrorBoundary></main>
+        <main className={`min-h-[calc(100dvh-4rem)] min-w-0 flex-1 ${isTriviaWorkspace ? "event-trivia-admin-content" : ""}`}><ErrorBoundary>{redirectTarget ? <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">Opening the selected event…</div> : children}</ErrorBoundary></main>
         {eventId ? <aside className={`event-studio-right-rail sticky top-16 hidden h-[calc(100dvh-4rem)] shrink-0 flex-col border-l border-slate-200 bg-white/95 lg:flex ${railCollapsed ? "w-[68px]" : "w-[260px]"}`}>{renderRail(railCollapsed)}</aside> : null}
       </div>
 

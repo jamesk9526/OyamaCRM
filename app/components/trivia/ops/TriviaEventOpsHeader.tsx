@@ -26,7 +26,7 @@ export default function TriviaEventOpsHeader({ event, live, scoreHistory }: Triv
   const lastAction = scoreHistory[scoreHistory.length - 1] ?? null;
 
   return (
-    <header className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+    <header className="trivia-ops-header rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-300">Night-of Operations Center</p>

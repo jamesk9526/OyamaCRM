@@ -227,11 +227,14 @@ describe("Trivia event-night controls", () => {
   it("uses one themed Event Studio command center for every trivia-night role", () => {
     const commandCenter = read("app/events/[eventId]/trivia/page.tsx");
     const shell = read("app/components/events/EventsStudioShell.tsx");
+    const styles = read("app/globals.css");
+    const opsHeader = read("app/components/trivia/ops/TriviaEventOpsHeader.tsx");
     const selector = read("app/apps/trivia/lib/trivia-selectors.ts");
     const unifiedRoutes = ["check-in", "scores", "judge", "scoreboard", "recovery", "printables"];
 
     expect(shell).toContain("event-studio-shell");
     expect(shell).toContain("event-studio-right-rail");
+    expect(shell).toContain("event-trivia-admin-content");
     expect(shell).toContain("RIGHT_RAIL_KEY");
     expect(shell).toContain('aria-label="Event workspace navigation"');
     expect(shell).toContain("Collapse event navigation");
@@ -239,6 +242,10 @@ describe("Trivia event-night controls", () => {
     expect(commandCenter).toContain("Event-night stations");
     expect(commandCenter).toContain("Do not begin the live game yet");
     expect(commandCenter).toContain("Print host packet");
+    expect(styles).toContain(":is(.trivia-admin-content, .event-trivia-admin-content)");
+    expect(styles).toContain(".event-trivia-admin-content .trivia-builder-page");
+    expect(styles).toContain("Legacy cyan/fuchsia/violet actions become the single Event Studio indigo action");
+    expect(opsHeader).toContain("trivia-ops-header");
     expect(selector).toContain("findTriviaEventForRoute");
     unifiedRoutes.forEach((route) => expect(read(`app/events/[eventId]/trivia/${route}/page.tsx`)).toContain("@/app/apps/trivia"));
   });
