@@ -145,6 +145,8 @@ describe("Trivia event-night controls", () => {
 
   it("keeps builder and projector useable for event staff", () => {
     const builder = read("app/components/trivia/RoundQuestionBuilderPanel.tsx");
+    const gameMap = read("app/components/trivia/TriviaGameMap.tsx");
+    const unifiedBuilder = read("app/events/[eventId]/trivia/builder/page.tsx");
     const hostControls = read("app/components/trivia/HostControlPanel.tsx");
     const projector = read("app/components/trivia/ProjectorDisplayView.tsx");
     const route = read("server/src/routes/trivia.ts");
@@ -155,6 +157,14 @@ describe("Trivia event-night controls", () => {
     expect(builder).toContain("QUESTION_TYPE_HELP");
     expect(builder).toContain("Save Question to");
     expect(builder).toContain("No timer for this question");
+    expect(gameMap).toContain("Primary workspace");
+    expect(gameMap).toContain("+ Add question");
+    expect(gameMap).toContain("Save &amp; next");
+    expect(gameMap).toContain('event.key === "Enter"');
+    expect(gameMap).toContain("Accepted answers");
+    expect(gameMap).toContain("/events/${event.id}/trivia/host");
+    expect(gameMap).toContain("/events/${event.id}/trivia/projector");
+    expect(unifiedBuilder).toContain("apps/trivia/events/[eventId]/builder/page");
     expect(hostControls).toContain("Untimed question");
     expect(projector).toContain("timerEnabled");
     expect(route).toContain("configuredSeconds >= 0");
