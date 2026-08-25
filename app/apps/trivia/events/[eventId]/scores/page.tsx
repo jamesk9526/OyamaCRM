@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import TriviaEventHeader from "@/app/components/trivia/TriviaEventHeader";
 import ScorekeepingPanel from "@/app/components/trivia/ScorekeepingPanel";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
-import { getActiveQuestion } from "@/app/apps/trivia/lib/trivia-selectors";
+import { findTriviaEventForRoute, getActiveQuestion } from "@/app/apps/trivia/lib/trivia-selectors";
 
 /**
  * TriviaScoresPage provides a focused score adjustment workspace.
@@ -15,7 +15,7 @@ export default function TriviaScoresPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { state, applyScoreAction, undoLastScoreAction } = useTriviaModuleState();
 
-  const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [state.events, eventId]);
+  const event = useMemo(() => findTriviaEventForRoute(state.events, eventId), [state.events, eventId]);
   const live = event ? state.liveByEventId[event.id] : null;
   const activeQuestion = event && live ? getActiveQuestion(event, live) : null;
 
