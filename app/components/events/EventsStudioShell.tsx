@@ -74,10 +74,10 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   ] as const : [];
 
   return (
-    <div className="min-h-dvh bg-[#f7f6f3] text-slate-900">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className="event-studio-shell min-h-dvh bg-[#f6f7fb] text-slate-900">
+      <header className="event-studio-header sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-3 px-4 sm:px-6">
-          <Link href="/events" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="Events home"><span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-white"><CalendarDays className="h-4 w-4" /></span><span className="hidden sm:inline">Events</span></Link>
+          <Link href="/events" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="Events home"><span className="event-studio-product-mark grid h-9 w-9 place-items-center rounded-xl text-white"><CalendarDays className="h-[18px] w-[18px]" /></span><span className="hidden sm:inline">Event Studio</span></Link>
           <span className="h-5 w-px bg-slate-200" />
           <select value={eventId ?? ""} onChange={(input) => router.push(input.target.value ? `/events/${input.target.value}/overview` : "/events")} aria-label="Switch event" className="h-9 min-w-0 max-w-[55vw] rounded-lg border border-slate-300 bg-white px-2 text-sm font-medium outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 sm:min-w-64">
             <option value="">All events</option>
@@ -94,7 +94,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
             <div className="min-w-0"><Link href="/events" className="text-xs font-semibold text-blue-700 hover:underline">← Events</Link><h1 className="mt-1 truncate text-xl font-semibold tracking-tight sm:text-2xl">{event?.name ?? "Event"}</h1><p className="mt-1 truncate text-sm text-slate-500">{eventDate(event?.startDate)}{event?.location ? ` · ${event.location}` : ""}</p></div>
             <div className="relative shrink-0" ref={menuRef}><button type="button" onClick={() => setMenuOpen((value) => !value)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 hover:bg-slate-50" aria-label="Event actions" aria-expanded={menuOpen}><MoreHorizontal className="h-5 w-5" /></button>{menuOpen ? <div className="absolute right-0 top-11 z-50 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"><Link href={`/events/${eventId}/event-page`} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">Preview event</Link><Link href={`/events/${eventId}/settings`} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">Event settings</Link></div> : null}</div>
           </div>
-          <nav className="-mx-1 flex gap-1 overflow-x-auto px-1" aria-label="Event workspace">{tabs.map(([label, segment]) => { const href = `/events/${eventId}/${segment}`; const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={segment} href={href} className={`shrink-0 border-b-2 px-3 py-3 text-sm font-semibold ${active ? "border-blue-600 text-blue-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-950"}`}>{label}</Link>; })}</nav>
+          <nav className="event-studio-tabs -mx-1 flex gap-1 overflow-x-auto px-1" aria-label="Event workspace">{tabs.map(([label, segment]) => { const href = `/events/${eventId}/${segment}`; const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={segment} href={href} className={`shrink-0 border-b-2 px-3 py-3 text-sm font-semibold ${active ? "is-active border-indigo-600 text-indigo-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-950"}`}>{label}</Link>; })}</nav>
         </div> : null}
       </header>
       <main className="min-h-[calc(100dvh-3.5rem)]"><ErrorBoundary>{redirectTarget ? <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">Opening the selected event…</div> : children}</ErrorBoundary></main>
