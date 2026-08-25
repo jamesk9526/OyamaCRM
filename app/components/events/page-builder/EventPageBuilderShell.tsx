@@ -132,6 +132,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [pageStatus, setPageStatus] = useState<EventPageStatus>("Draft");
   const [lastPublishedAt, setLastPublishedAt] = useState<string | null>(null);
   const [paymentPolicy, setPaymentPolicy] = useState<EventPagePaymentPolicy>("OfflineFollowUp");
+  const [currency, setCurrency] = useState("USD");
   const [deploymentHistory, setDeploymentHistory] = useState<EventPageDeploymentHistoryEntry[]>([]);
   const [baseOrigin, setBaseOrigin] = useState<string>(resolveRuntimeOrigin());
   const [pageSlug, setPageSlug] = useState<string>("event-page");
@@ -142,6 +143,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"event" | "registration">("event");
   const [branding, setBranding] = useState<EventPageBranding | null>(null);
   const [compactPanel, setCompactPanel] = useState<"sections" | "preview" | "settings">("preview");
   const hasLoadedSectionsRef = useRef(false);
@@ -209,6 +211,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         setPageStatus(pageConfig?.status ?? "Draft");
         setLastPublishedAt(pageConfig?.lastPublishedAt ?? null);
         setPaymentPolicy(pageConfig?.paymentPolicy ?? "OfflineFollowUp");
+        setCurrency(pageConfig?.currency ?? "USD");
         setDeploymentHistory(pageConfig?.deploymentHistory ?? []);
         hasLoadedSectionsRef.current = true;
       } catch (requestError) {
@@ -256,10 +259,11 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
       report,
       publicUrl: draftPreviewUrl,
       paymentPolicy,
+      currency,
       pageSlug,
       branding: branding ?? undefined,
     };
-  }, [branding, draftPreviewUrl, event, pageSlug, paymentPolicy, report, sponsors, ticketTypes]);
+  }, [branding, currency, draftPreviewUrl, event, pageSlug, paymentPolicy, report, sponsors, ticketTypes]);
 
   useEffect(() => {
     if (!hasLoadedSectionsRef.current || loading || !event) return;
@@ -285,6 +289,12 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   }, [event, eventId, loading, sections]);
 
   function handlePreview() {
+    setPreviewMode("event");
+    setPreviewOpen(true);
+  }
+
+  function handlePreviewRegistration() {
+    setPreviewMode("registration");
     setPreviewOpen(true);
   }
 
@@ -433,6 +443,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         onPageSlugDraftChange={setPageSlugDraft}
         onSavePageSlug={handleSavePageSlug}
         onPreview={handlePreview}
+        onPreviewRegistration={handlePreviewRegistration}
         onPublishToggle={handlePublishToggle}
       />
 
@@ -480,6 +491,7 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         open={previewOpen}
         sections={sections}
         data={builderData}
+        mode={previewMode}
         onClose={() => setPreviewOpen(false)}
       />
     </div>

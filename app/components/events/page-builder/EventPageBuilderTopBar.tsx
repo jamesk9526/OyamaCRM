@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, CircleAlert, Eye, Globe2, Save, Settings2 } from "lucide-react";
+import { Check, CircleAlert, CreditCard, Eye, Globe2, Save, Settings2 } from "lucide-react";
 import type { EventPageBranding, EventPageDeploymentHistoryEntry, EventPagePaymentPolicy, EventPageStatus } from "@/app/components/events/page-builder/types";
 
 interface PublishReadinessItem { label: string; passed: boolean; }
@@ -9,7 +9,7 @@ interface EventPageBuilderTopBarProps {
   deploymentHistory: EventPageDeploymentHistoryEntry[]; autoSaveState: "idle" | "saving" | "saved" | "error";
   publishReadiness: PublishReadinessItem[]; branding?: EventPageBranding;
   onPaymentPolicyChange: (value: EventPagePaymentPolicy) => void; onPageSlugDraftChange: (value: string) => void;
-  onSavePageSlug: () => void; onPreview: () => void; onPublishToggle: () => void;
+  onSavePageSlug: () => void; onPreview: () => void; onPreviewRegistration: () => void; onPublishToggle: () => void;
 }
 
 function formatTimestamp(value: string | null): string {
@@ -28,7 +28,8 @@ export default function EventPageBuilderTopBar(props: EventPageBuilderTopBarProp
     <div className="flex min-h-14 flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
       <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><h1 className="truncate text-sm font-semibold text-[#242424]">Event page · {props.eventName}</h1><span className={`shrink-0 px-2 py-0.5 text-[11px] font-semibold ${props.status === "Published" ? "bg-[#dff6dd] text-[#0b6a0b]" : "bg-[#f3f2f1] text-[#616161]"}`}>{props.status}</span></div><p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#616161]"><Save className="h-3 w-3" />{saveLabel} · {formatTimestamp(props.lastPublishedAt)}</p></div>
       <div className="hidden items-center gap-2 border border-[#e1dfdd] bg-[#fafafa] px-2 py-1.5 md:flex">{props.branding?.logoSquareUrl || props.branding?.logoUrl ? <img src={props.branding.logoSquareUrl || props.branding.logoUrl} alt="Organization logo" className="h-6 w-6 object-contain" /> : <span className="h-4 w-4 rounded-full" style={{ background: props.branding?.primaryColor || "#0f6cbd" }} />}<span className="max-w-32 truncate text-xs font-semibold">{props.branding?.organizationName || "Global branding"}</span><Link href="/settings/branding" className="text-[11px] font-semibold text-[#0f6cbd] hover:underline">Edit brand</Link></div>
-      <button type="button" onClick={props.onPreview} className="event-studio-secondary-button"><Eye className="h-4 w-4" />Preview</button>
+      <button type="button" onClick={props.onPreview} className="event-studio-secondary-button"><Eye className="h-4 w-4" />Preview event page</button>
+      <button type="button" onClick={props.onPreviewRegistration} className="event-studio-secondary-button"><CreditCard className="h-4 w-4" />Preview registration</button>
       <button type="button" onClick={props.onPublishToggle} disabled={props.status !== "Published" && !publishReady} title={props.status !== "Published" && !publishReady ? "Complete the readiness checks before publishing." : undefined} className="event-studio-primary-button disabled:cursor-not-allowed disabled:bg-[#c8c6c4]"><Globe2 className="h-4 w-4" />{props.status === "Published" ? "Unpublish" : "Publish"}</button>
     </div>
 

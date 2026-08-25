@@ -54,9 +54,9 @@ describe("legacy events route redirects", () => {
     expect(resolveLegacyGlobalEventsTool("/events/workspace")).toBeNull();
   });
 
-  it("redirects legacy global routes to event-first selector with tool parameter", () => {
+  it("redirects context-free legacy tools to the single Events home", () => {
     const redirect = resolveLegacyGlobalEventsRedirect("/events/guests", new URLSearchParams());
-    expect(redirect).toBe("/events/workspace?tool=guests");
+    expect(redirect).toBe("/events");
   });
 
   it("preserves provided event context in redirect query", () => {
@@ -65,6 +65,6 @@ describe("legacy events route redirects", () => {
       new URLSearchParams("eventId=evt_123"),
     );
 
-    expect(redirect).toBe("/events/workspace?tool=tickets&eventId=evt_123");
+    expect(redirect).toBe("/events/evt_123/registration");
   });
 });

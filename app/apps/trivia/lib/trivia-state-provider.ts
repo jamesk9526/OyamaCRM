@@ -43,9 +43,9 @@ interface IntegratedTriviaEventEnvelope {
 
 /** Reads persisted sync mode preference for trivia state operations. */
 export function readTriviaSyncMode(): TriviaSyncMode {
-  if (typeof window === "undefined") return "local";
+  if (typeof window === "undefined") return "server";
   const raw = window.localStorage.getItem(TRIVIA_SYNC_MODE_KEY);
-  return raw === "server" ? "server" : "local";
+  return raw === "local" ? "local" : "server";
 }
 
 /** Persists sync mode preference so operations pages can survive reloads. */

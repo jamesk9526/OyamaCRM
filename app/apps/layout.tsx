@@ -9,7 +9,7 @@ import AppProductShell from "@/app/components/layout/AppProductShell";
 const APP_NAV_ITEMS = [
   { label: "App Home", href: "/apps" },
   { label: "Password Vault", href: "/apps/password-vault" },
-  { label: "Trivia Software", href: "/apps/trivia" },
+  { label: "Events", href: "/events" },
 ];
 
 /**

@@ -24,6 +24,7 @@ interface PublicEventPagePayload {
   pageUrl: string;
   status: "Draft" | "Published";
   paymentPolicy?: "StripeCheckout" | "OfflineFollowUp" | "NoPaymentRequired";
+  currency?: string;
   sections: EventPageSectionState[] | null;
   branding?: EventPageBranding;
 }
@@ -124,8 +125,8 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
   const sections = mergePublicSections(payload.sections);
 
   return (
-    <main className="min-h-screen bg-[#f7f8fc] text-slate-900">
-      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#f6f7f9] pb-16 text-slate-900 md:pb-0">
+      <section className="mx-auto max-w-7xl px-0 py-0 sm:px-4 sm:py-5 lg:px-6">
         <EventPageDocument
           sections={sections}
           data={{
@@ -135,6 +136,7 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
             report,
             publicUrl: payload.pageUrl,
             paymentPolicy: payload.paymentPolicy ?? "OfflineFollowUp",
+            currency: payload.currency ?? "USD",
             pageSlug: payload.pageSlug,
             isPublicRegistration: true,
             branding: payload.branding,

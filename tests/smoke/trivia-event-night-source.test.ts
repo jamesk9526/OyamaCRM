@@ -100,20 +100,18 @@ describe("Trivia event-night controls", () => {
     expect(schema).toContain("FUNDRAISER");
   });
 
-  it("creates Trivia, EventSTUDIO, and a published RSVP site as one setup", () => {
+  it("creates Trivia as an Event mode from the unified minimal setup", () => {
     const triviaRoute = read("server/src/routes/trivia.ts");
-    const createPage = read("app/apps/trivia/events/new/page.tsx");
-    const provider = read("app/apps/trivia/lib/trivia-state-provider.ts");
+    const createModal = read("app/components/events/NewEventModal.tsx");
+    const eventRoute = read("server/src/routes/events.ts");
 
     expect(triviaRoute).toContain("createTriviaEventStudioWorkspace");
-    expect(triviaRoute).toContain('type: "TRIVIA"');
-    expect(triviaRoute).toContain('status: "REGISTRATION_OPEN"');
-    expect(triviaRoute).toContain('status: "Published"');
-    expect(triviaRoute).toContain('id: "registration-form"');
-    expect(triviaRoute).toContain('name: "Team table"');
-    expect(triviaRoute).toContain("eventsPublicPagePath");
-    expect(provider).toContain("createIntegratedTriviaEvent");
-    expect(createPage).toContain("Create Event, Trivia & RSVP Site");
+    expect(eventRoute).toContain('mode === "TRIVIA"');
+    expect(eventRoute).toContain("triviaConfiguration");
+    expect(createModal).toContain("What are you creating?");
+    expect(createModal).toContain("Standard event");
+    expect(createModal).toContain("Trivia night");
+    expect(createModal).not.toContain("revenueGoal");
   });
 
   it("provides a persisted interactive venue plan and simplified event journey", () => {
@@ -126,9 +124,23 @@ describe("Trivia event-night controls", () => {
     expect(tableWorkspace).toContain("saveFloorPositions");
     expect(tableWorkspace).toContain("Auto-arrange");
     expect(eventRoute).toContain("INVALID_TABLE_POSITION");
-    expect(eventShell).toContain("EVENT_JOURNEY_STAGES");
-    expect(eventShell).toContain("Plan, invite, run, follow up");
+    expect(eventShell).toContain('["Payments", "payments"]');
+    expect(eventShell).toContain('event?.type === "TRIVIA"');
+    expect(eventShell).toContain('["Event Day", "day"]');
     expect(eventShell).toContain('aria-label="Switch event"');
+  });
+
+  it("persists Trivia under Event-scoped relational records and imports the retired store once", () => {
+    const route = read("server/src/routes/trivia.ts");
+    const schema = read("prisma/schema.prisma");
+    const migration = read("prisma/migrations/20260824150000_unify_event_trivia_mode/migration.sql");
+    expect(route).toContain("loadRelationalStore");
+    expect(route).toContain("importLegacyStoreIfNeeded");
+    expect(route).toContain("prisma.triviaRound.create");
+    expect(schema).toContain("model TriviaConfiguration");
+    expect(schema).toContain("model TriviaQuestion");
+    expect(schema).toContain("eventTable    EventTable?");
+    expect(migration).toContain("TriviaConfiguration_eventId_fkey");
   });
 
   it("keeps builder and projector useable for event staff", () => {

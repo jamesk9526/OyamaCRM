@@ -205,6 +205,8 @@ export interface TriviaScoreAction {
 /** Trivia event root model. */
 export interface TriviaEvent {
   id: string;
+  /** Pre-unification identifier accepted only for legacy route migration. */
+  legacyTriviaId?: string;
   name: string;
   venue: string;
   hostName: string;

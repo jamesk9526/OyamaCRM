@@ -1,7 +1,6 @@
-/** EventSTUDIO root keeps old entry links compatible while using one event library. */
-
-import { redirect } from "next/navigation";
+/** The single Events home. */
+import EventsRegistryPage from "@/app/components/events/EventsRegistryPage";
 
 export default function EventsPage() {
-  redirect("/events/events");
+  return <EventsRegistryPage />;
 }

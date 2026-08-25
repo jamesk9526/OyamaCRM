@@ -58,10 +58,11 @@ function formatDateTimeRange(startDate: string, endDate?: string | null): string
   return `${datePart} • ${startTime} - ${end.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 }
 
-function formatMoney(value: number | string | null | undefined): string {
+function formatMoney(value: number | string | null | undefined, currency = "USD"): string {
   const parsed = Number(value ?? 0);
   if (!Number.isFinite(parsed)) return "$0";
-  return `$${parsed.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const normalizedCurrency = /^[A-Z]{3}$/.test(currency.toUpperCase()) ? currency.toUpperCase() : "USD";
+  return parsed.toLocaleString(undefined, { style: "currency", currency: normalizedCurrency, maximumFractionDigits: 0 });
 }
 
 function sponsorName(sponsor: EventBuilderSponsor): string {
@@ -109,93 +110,48 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
   const title = content.title?.trim() || data.event.name;
   // Subtitle intentionally falls to empty — staff set their own per-event tagline.
   const subtitle = content.subtitle?.trim() || "";
-  const overlay = Math.max(0, Math.min(90, design.overlayOpacity ?? 62)) / 100;
   const backgroundImage = design.backgroundImageUrl?.trim() || "";
   const brandPrimary = data.branding?.primaryColor || "#0f6cbd";
   const brandAccent = data.branding?.accentColor || "#5c2d91";
-  const backgroundColor = design.backgroundColor || brandPrimary;
   const primaryHref = publicHref(content.primaryButtonLink, "#registration");
   const secondaryHref = publicHref(content.secondaryButtonLink, "#event-details");
-  const backgroundStyle = design.backgroundType === "color"
-    ? { background: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.08})), ${backgroundColor}` }
-    : design.backgroundType === "video"
-      ? { background: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.08})), ${backgroundColor}` }
-      : backgroundImage
-        ? {
-            backgroundImage: `linear-gradient(rgba(5,7,30,${overlay}),rgba(5,7,30,${overlay + 0.12})), url("${backgroundImage}")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }
-        : {
-            // No image uploaded yet — show the base color gradient so the hero still looks composed.
-            background: `linear-gradient(135deg, ${backgroundColor} 0%, ${brandAccent} 72%, #111827 100%)`,
-          };
+  const lowestPrice = data.ticketTypes.length ? Math.min(...data.ticketTypes.map((ticket) => Number(ticket.price ?? 0))) : 0;
 
   return (
-    <section
-      className="relative min-h-[410px] overflow-hidden bg-slate-950 text-white"
-      style={backgroundStyle}
-    >
-      {design.backgroundType === "video" && design.backgroundImageUrl ? (
-        <video
-          className="absolute inset-0 h-full w-full object-cover opacity-55"
-          src={design.backgroundImageUrl}
-          autoPlay
-          muted
-          loop
-          playsInline
-        />
-      ) : null}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(168,85,247,0.32),transparent_24%),radial-gradient(circle_at_78%_26%,rgba(236,72,153,0.26),transparent_22%)]" />
-      <div className="relative mx-auto flex min-h-[410px] max-w-5xl flex-col px-8 py-7">
-        <nav className="flex items-center justify-between gap-4 text-xs">
+    <section className="bg-white text-slate-950">
+      <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
+        <nav className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4 text-xs" aria-label="Event page">
           <div className="flex items-center gap-3">
-            {data.branding?.logoUrl || data.branding?.logoSquareUrl ? <img src={data.branding.logoUrl || data.branding.logoSquareUrl} alt={`${organizationName(data)} logo`} className="h-10 max-w-36 object-contain object-left" /> : <div className="grid h-9 w-9 place-items-center rounded-full border border-white/35 bg-white/10 font-bold text-white">{organizationName(data).split(" ").map((w: string) => w[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}</div>}
-            <div className="max-w-[150px] truncate font-semibold uppercase leading-4 tracking-[0.16em]">{organizationName(data)}</div>
+            {data.branding?.logoUrl || data.branding?.logoSquareUrl ? <img src={data.branding.logoUrl || data.branding.logoSquareUrl} alt={`${organizationName(data)} logo`} className="h-9 max-w-36 object-contain object-left" /> : <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 font-bold text-slate-700">{organizationName(data).split(" ").map((word: string) => word[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}</div>}
+            <div className="max-w-[170px] truncate font-semibold text-slate-700">{organizationName(data)}</div>
           </div>
-          <div className="hidden items-center gap-7 text-white/82 md:flex">
-            <span>About</span>
-            <span>Event Details</span>
-            <span>Tickets & Tables</span>
-            <span>Sponsors</span>
-            <span>Contact</span>
-          </div>
-          <a href={primaryHref} className="event-brand-primary-bg rounded-md px-5 py-2 font-semibold text-white shadow-lg shadow-black/20">
-            {content.primaryButtonText || "Get Tickets"}
-          </a>
+          <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-10 items-center rounded-md px-5 font-semibold text-white">{content.primaryButtonText || "Register"}</a>
         </nav>
-
-        <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-          {(content.kicker?.trim()) ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-white/80">
-              {content.kicker.trim()}
-            </p>
-          ) : null}
-          <h1 className="mt-4 text-5xl font-light italic leading-tight tracking-normal text-white md:text-7xl">{title}</h1>
-          {subtitle ? <p className="mt-2 text-4xl font-semibold uppercase tracking-[0.12em] text-violet-400 md:text-5xl">{subtitle}</p> : null}
-
-          <div className="mt-7 grid gap-4 text-left text-sm text-white/92 md:grid-cols-3">
-            <p><span className="font-semibold text-violet-300">Date</span><br />{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
-            <p><span className="font-semibold text-violet-300">Location</span><br />{data.event.location ?? "Location to be announced"}<br />{locationLine(data)}</p>
-            {content.attire?.trim() ? <p><span className="font-semibold text-violet-300">Attire</span><br />{content.attire}</p> : null}
+        <div className="grid gap-8 py-9 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.78fr)] md:items-center md:py-12">
+          <div>
+            {content.kicker?.trim() ? <p className="text-xs font-semibold uppercase tracking-[0.18em] event-brand-primary-text">{content.kicker.trim()}</p> : null}
+            <h1 className="mt-3 max-w-2xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-5xl">{title}</h1>
+            {subtitle ? <p className="mt-3 text-lg leading-7 text-slate-600">{subtitle}</p> : data.event.description ? <p className="mt-4 line-clamp-3 max-w-2xl text-base leading-7 text-slate-600">{data.event.description}</p> : null}
+            <div className="mt-6 space-y-2 text-sm text-slate-700">
+              <p className="font-medium">{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
+              <p>{data.event.location ?? "Location to be announced"}{locationLine(data) !== "Address not configured" ? ` · ${locationLine(data)}` : ""}</p>
+            </div>
+            {lowestPrice >= 0 ? <p className="mt-5 text-sm text-slate-500">{lowestPrice > 0 ? `Registration from ${formatMoney(lowestPrice, data.currency)}` : "Free registration available"}</p> : null}
+            <div className="mt-6 flex flex-wrap items-center gap-5">
+              <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-12 items-center rounded-md px-7 text-sm font-semibold text-white">{content.primaryButtonText || "Register"}</a>
+              <a href={secondaryHref} className="text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">{content.secondaryButtonText || "View event details"}</a>
+            </div>
           </div>
-
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <a href={primaryHref} className="event-brand-primary-bg rounded-md px-7 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20">
-              {content.primaryButtonText || "Get Tickets"}
-            </a>
-            <a href={secondaryHref} className="rounded-md border border-white/35 bg-white/8 px-7 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/12">
-              {content.secondaryButtonText || "View Event Details"}
-            </a>
+          <div className="aspect-[4/3] overflow-hidden rounded-lg bg-slate-100">
+            {design.backgroundType === "video" && design.backgroundImageUrl ? <video className="h-full w-full object-cover" src={design.backgroundImageUrl} autoPlay muted loop playsInline /> : backgroundImage ? <img src={backgroundImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center px-8 text-center text-white" style={{ background: `linear-gradient(145deg, ${brandPrimary}, ${brandAccent})` }}><span className="text-5xl font-semibold opacity-90">{title.slice(0, 1).toUpperCase()}</span></div>}
           </div>
-          {design.showScrollIndicator !== false ? <div className="mt-5 text-3xl font-light text-white/72">↓</div> : null}
         </div>
       </div>
     </section>
   );
 }
 
-function renderSection(section: EventPageSectionState, data: EventPageBuilderWorkspaceData) {
+function renderSection(section: EventPageSectionState, data: EventPageBuilderWorkspaceData, allSections: EventPageSectionState[]) {
   const report = data.report;
   const tableTicketTypes = data.ticketTypes.filter((ticketType) => ticketType.isTable);
   const goal = Number(report?.revenue.goal ?? data.event.revenueGoal ?? 0);
@@ -254,15 +210,18 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "registration-form") {
+    const eventImageUrl = allSections.find((candidate) => candidate.id === "hero")?.design?.backgroundImageUrl;
     return (
-      <section id="registration" className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
-        <h2 className="text-2xl font-semibold text-slate-950">{content.heading || "Tickets & Tables"}</h2>
-        <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <div className="mt-5">
+      <section id="registration" className="bg-slate-50 px-4 py-8 sm:px-6 sm:py-12">
+        <div className="mx-auto max-w-[900px]">
           <PublicEventRegistrationForm
             pageSlug={data.pageSlug}
             ticketTypes={data.ticketTypes}
             paymentPolicy={data.paymentPolicy}
+            currency={data.currency}
+            event={data.event}
+            branding={data.branding}
+            eventImageUrl={eventImageUrl}
             previewOnly={!data.isPublicRegistration}
           />
         </div>
@@ -660,10 +619,11 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
             ].join(" ")}
             aria-label={onSelectSection ? `Edit ${definition.label}` : undefined}
           >
-            {renderSection(section, data)}
+            {renderSection(section, data, visibleSections)}
           </div>
         );
       })}
+      {data.isPublicRegistration && data.ticketTypes.length > 0 ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/96 px-4 py-3 shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"><div className="mx-auto flex max-w-md items-center justify-between gap-4"><div className="min-w-0"><p className="text-xs text-slate-500">From</p><p className="font-semibold text-slate-950">{formatMoney(Math.min(...data.ticketTypes.map((ticket) => Number(ticket.price ?? 0))), data.currency)}</p></div><a href="#registration" className="event-brand-primary-bg inline-flex min-h-11 items-center rounded-md px-6 text-sm font-semibold text-white">Register</a></div></div> : null}
     </div>
   );
 }

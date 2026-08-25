@@ -79,6 +79,16 @@ This file is the release-gate source of truth for production readiness.
 | Trivia permits untimed questions without phantom countdown controls | Working | Builder persists zero seconds, server start/reset preserves zero, host hides timer-only actions, and projector omits timer stages/components for untimed questions. Shared state pulls every two seconds and after focus/visibility recovery. |
 | Focused automated verification | Working | `pnpm typecheck`; Events, Stripe webhook, Donations, and Trivia event-night suites — 83/83 passed. |
 
+## 2026-08-24 Public Event Checkout Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Public registration is a focused customer checkout | Working | Shared published/preview components provide a restrained 900px checkout, desktop order summary, mobile disclosure, visible total, large labeled controls, one dominant action, and optional deferred table guest entry. |
+| Stripe interruption preserves and restores registration context | Working | The durable order is still created before checkout; same-browser return/cancel restores the saved order and reservation PIN, rechecks authoritative payment status, and reuses the saved Checkout URL for payment completion when available. |
+| Every customer-facing outcome is explicit | Working | Paid, pending, cancelled, Checkout-creation failure, confirmation-email failure, and unavailable-event states have distinct copy and actions without presenting a pending order as paid. |
+| Builder previews match public delivery | Working | Separate event-page and registration preview actions render the shared public components at desktop, tablet, and mobile widths. |
+| Automated verification | Working with environment exception | Web typecheck and targeted ESLint pass; focused Stripe/source tests pass 16/16. Database-backed Events tests require MySQL at `localhost:3306`, which was unavailable during this pass. |
+
 ## 2026-08-11 Event Payment and Check-In Snapshot
 
 | Release gate | Status | Evidence |
@@ -886,3 +896,15 @@ Notes:
 | Version bumped to 1.1.0 | Working | `package.json` |
 | HelpWorkspace quick search expanded | Working | `app/components/help/HelpWorkspace.tsx` — 10 quick searches |
 | Help Agent example prompts expanded | Working | `app/components/help/HelpWorkspace.tsx` — 5 starter prompts |
+
+## Unified Events release checks (2026-08-24)
+
+- [x] One Events home and one event workspace navigation system.
+- [x] Minimal Standard Event / Trivia Night creation flow.
+- [x] Event-owned Trivia mode routes with legacy administration redirects.
+- [x] Projector and temporary event-night remote surfaces remain chrome-free.
+- [x] Relational, event-scoped Trivia schema and one-time JSON import path.
+- [x] Server-owned Stripe Checkout, signed webhook validation, exact totals, orders, guests, tables, and check-in paths preserved during the UI cutover.
+- [x] Focused source regression tests cover unified navigation and relational Trivia ownership.
+- [ ] Run the new Prisma migration against staging and verify imported legacy round/question/team/score counts before production rollout.
+- [ ] Complete live browser QA with seeded data at desktop, tablet, 390px mobile, 200% zoom, and keyboard-only registration before production rollout.

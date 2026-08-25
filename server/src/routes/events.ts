@@ -1146,7 +1146,10 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     : null;
 
   const origin = resolveEventPageOrigin(req);
-  const branding = await loadOrganizationBrandingContext(match.organizationId);
+  const [branding, paymentGateway] = await Promise.all([
+    loadOrganizationBrandingContext(match.organizationId),
+    readPaymentGatewayPublicSettings(match.organizationId),
+  ]);
 
   res.json({
     event: {
@@ -1180,6 +1183,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     pageUrl: buildEventPageUrl(origin, pageSlug),
     status: match.status,
     paymentPolicy: match.paymentPolicy,
+    currency: paymentGateway.currency,
     sections: match.sections ?? null,
     branding: {
       organizationName: branding.organizationName,
@@ -2371,6 +2375,7 @@ router.get("/:eventId/page-builder-config", async (req, res) => {
   const entry = config.events[event.id];
   const baseOrigin = resolveEventPageOrigin(req);
   const pageSlug = entry?.pageSlug ?? defaultEventPageSlug(event.name);
+  const paymentGateway = await readPaymentGatewayPublicSettings(organizationId);
 
   res.json({
     eventId: event.id,
@@ -2380,6 +2385,7 @@ router.get("/:eventId/page-builder-config", async (req, res) => {
     status: entry?.status ?? "Draft",
     lastPublishedAt: entry?.lastPublishedAt ?? null,
     paymentPolicy: entry?.paymentPolicy ?? "OfflineFollowUp",
+    currency: paymentGateway.currency,
     deploymentHistory: entry?.deploymentHistory ?? [],
     sections: entry?.sections ?? null,
   });
@@ -2696,7 +2702,13 @@ router.get("/", async (req, res) => {
     },
     orderBy: { startDate: "desc" },
   });
-  res.json(events);
+  const collectedByEvent = await prisma.eventOrder.groupBy({
+    by: ["eventId"],
+    where: { event: { organizationId }, status: "CONFIRMED" },
+    _sum: { totalAmount: true },
+  });
+  const revenue = new Map(collectedByEvent.map((entry) => [entry.eventId, Number(entry._sum.totalAmount ?? 0)]));
+  res.json(events.map((event) => ({ ...event, collectedRevenue: revenue.get(event.id) ?? 0 })));
 });
 
 /** GET /api/events/:id — Get event detail with full relations. */
@@ -2754,6 +2766,7 @@ router.post("/", async (req, res) => {
     ownerId,
     internalNotes,
     active,
+    mode,
   } = req.body;
 
   const organizationId = await resolveOrganizationId({ req });
@@ -2762,12 +2775,13 @@ router.post("/", async (req, res) => {
     return;
   }
 
+  const triviaMode = mode === "TRIVIA" || type === "TRIVIA";
   const event = await prisma.event.create({
     data: {
       organizationId,
       name,
       description: description ?? undefined,
-      type: type ?? "OTHER",
+      type: triviaMode ? "TRIVIA" : type ?? "OTHER",
       status: status ?? "DRAFT",
       visibility: visibility ?? "PUBLIC",
       location: location ?? undefined,
@@ -2785,6 +2799,19 @@ router.post("/", async (req, res) => {
       ownerId: ownerId ?? undefined,
       internalNotes: internalNotes ?? undefined,
       active: active ?? true,
+      ...(triviaMode ? {
+        triviaConfiguration: {
+          create: {
+            status: "draft",
+            payload: {
+              scoringRules: { defaultQuestionPoints: 10, allowPartialCredit: true, allowNegativeScores: false, finalWagerEnabled: true, tieBreakerMode: "single_question" },
+              displaySettings: { highContrast: false, showTeamColors: true, largeText: false, showTimer: true, showRoundTitle: true, showQuestionNumber: true, showSponsorRotation: false, sponsorRotationSeconds: 12, blankScreenMessage: "" },
+              eventsSyncMode: "automatic",
+            },
+            liveState: { activeRoundId: "", activeQuestionIndex: 0, stage: "welcome", timerDefaultSec: 30, timerRemainingSec: 30, timerRunning: false, leaderboardVisible: false, answerRevealed: false, displayOpenedAt: null, winnerTeamId: null, lastHostAction: "Event created", updatedAt: new Date().toISOString() },
+          },
+        },
+      } : {}),
     },
     include: {
       _count: {

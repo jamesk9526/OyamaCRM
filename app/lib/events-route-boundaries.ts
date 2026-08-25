@@ -55,7 +55,7 @@ function readQueryValue(searchParams: URLSearchParams, key: string): string | nu
   return normalized.length > 0 ? normalized : null;
 }
 
-/** Computes redirect target for retired global Event tool routes with optional event context preservation. */
+/** Computes a redirect into the unified Events home or a concrete event tab. */
 export function resolveLegacyGlobalEventsRedirect(
   pathname: string,
   searchParams: URLSearchParams,
@@ -68,10 +68,13 @@ export function resolveLegacyGlobalEventsRedirect(
     ?? readQueryValue(searchParams, "event")
     ?? readQueryValue(searchParams, "id");
 
-  const query = new URLSearchParams({ tool });
-  if (eventId) {
-    query.set("eventId", eventId);
-  }
-
-  return `/events/workspace?${query.toString()}`;
+  if (!eventId) return "/events";
+  const segment: Partial<Record<EventWorkspaceTool, string>> = {
+    orders: "payments",
+    tickets: "registration",
+    registration: "registration",
+    emails: "communications",
+    "check-in": "day",
+  };
+  return `/events/${eventId}/${segment[tool] ?? tool}`;
 }

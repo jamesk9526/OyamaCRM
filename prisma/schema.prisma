@@ -553,12 +553,12 @@ model User {
   grantActivities  GrantActivity[]
   ownedEvents      Event[]
 
-  emailRecipientListsCreated    EmailRecipientList[]     @relation("EmailRecipientListCreator")
-  webmasterSitesCreated         WebmasterSite[]          @relation("WebmasterSiteCreator")
-  webmasterPagesCreated         WebmasterPage[]          @relation("WebmasterPageCreator")
-  webmasterPagesUpdated         WebmasterPage[]          @relation("WebmasterPageUpdater")
-  submittedFeedbackTickets      WatchdogFeedbackTicket[] @relation("FeedbackSubmittedBy")
-  assignedFeedbackTickets       WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
+  emailRecipientListsCreated EmailRecipientList[]     @relation("EmailRecipientListCreator")
+  webmasterSitesCreated      WebmasterSite[]          @relation("WebmasterSiteCreator")
+  webmasterPagesCreated      WebmasterPage[]          @relation("WebmasterPageCreator")
+  webmasterPagesUpdated      WebmasterPage[]          @relation("WebmasterPageUpdater")
+  submittedFeedbackTickets   WatchdogFeedbackTicket[] @relation("FeedbackSubmittedBy")
+  assignedFeedbackTickets    WatchdogFeedbackTicket[] @relation("FeedbackAssignedDeveloper")
 
   // ─── Steward Paths ownership/review relations ───────────────────────────
   stewardPathsCreated            StewardPath[]              @relation("StewardPathCreatedBy")
@@ -569,12 +569,12 @@ model User {
   stewardPathEmailDraftsReviewed StewardPathEmailDraft[]    @relation("StewardPathEmailDraftReviewer")
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
-  letterTemplatesCreated LetterTemplate[]    @relation("LetterTemplateCreatedBy")
-  letterTemplatesUpdated LetterTemplate[]    @relation("LetterTemplateUpdatedBy")
-  generatedLetters       GeneratedLetter[]   @relation("GeneratedLetterCreatedBy")
-  aiMemoryPreference     AiMemoryPreference?
-  aiUserMemories         AiUserMemory[]
-  aiContextFiles         AiContextFile[]
+  letterTemplatesCreated        LetterTemplate[]       @relation("LetterTemplateCreatedBy")
+  letterTemplatesUpdated        LetterTemplate[]       @relation("LetterTemplateUpdatedBy")
+  generatedLetters              GeneratedLetter[]      @relation("GeneratedLetterCreatedBy")
+  aiMemoryPreference            AiMemoryPreference?
+  aiUserMemories                AiUserMemory[]
+  aiContextFiles                AiContextFile[]
   donorResearchFindingsCreated  DonorResearchFinding[] @relation("DonorResearchFindingCreatedBy")
   donorResearchFindingsReviewed DonorResearchFinding[] @relation("DonorResearchFindingReviewedBy")
 }
@@ -922,6 +922,141 @@ model Donation {
   generatedLetters GeneratedLetter[]
 }
 
+/// Event-scoped Trivia mode configuration. Event owns identity, schedule, venue,
+/// registration, guests, payments, tables, seats, and check-in.
+model TriviaConfiguration {
+  id             String   @id @default(cuid())
+  eventId        String   @unique
+  legacyTriviaId String?  @unique
+  status         String   @default("draft")
+  hostName       String?
+  payload        Json?
+  liveState      Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  event        Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rounds       TriviaRound[]
+  teams        TriviaTeam[]
+  scoreActions TriviaScoreAction[]
+  snapshots    TriviaSnapshot[]
+  auditEvents  TriviaAuditEvent[]
+  accessPasses TriviaAccessPass[]
+}
+
+model TriviaRound {
+  id              String  @id
+  configurationId String
+  title           String
+  description     String? @db.Text
+  roundType       String
+  sortOrder       Int
+  payload         Json?
+
+  configuration TriviaConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  questions     TriviaQuestion[]
+
+  @@index([configurationId, sortOrder])
+}
+
+model TriviaQuestion {
+  id           String @id
+  roundId      String
+  prompt       String @db.Text
+  answer       String @db.Text
+  points       Int
+  timerSeconds Int
+  sortOrder    Int
+  payload      Json?
+
+  round TriviaRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId, sortOrder])
+}
+
+model TriviaTeam {
+  id              String  @id
+  configurationId String
+  eventTableId    String? @unique
+  gameName        String?
+  score           Int     @default(0)
+  bonusPoints     Int     @default(0)
+  sortOrder       Int     @default(0)
+  payload         Json?
+
+  configuration TriviaConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  eventTable    EventTable?         @relation(fields: [eventTableId], references: [id], onDelete: SetNull)
+
+  @@index([configurationId, sortOrder])
+}
+
+model TriviaScoreAction {
+  id              String   @id
+  configurationId String
+  teamId          String?
+  delta           Int
+  createdAt       DateTime
+  payload         Json
+
+  configuration TriviaConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId, createdAt])
+}
+
+model TriviaSnapshot {
+  id              String   @id
+  configurationId String
+  label           String
+  createdAt       DateTime
+  payload         Json
+
+  configuration TriviaConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId, createdAt])
+}
+
+model TriviaAuditEvent {
+  id              String   @id
+  configurationId String
+  type            String
+  message         String   @db.Text
+  createdAt       DateTime
+  metadata        Json?
+
+  configuration TriviaConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId, createdAt])
+}
+
+model TriviaAccessPass {
+  id              String    @id
+  configurationId String
+  label           String
+  role            String
+  codeHash        String
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  createdAt       DateTime
+
+  configuration TriviaConfiguration   @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  sessions      TriviaAccessSession[]
+
+  @@index([configurationId, expiresAt])
+  @@index([codeHash])
+}
+
+model TriviaAccessSession {
+  id        String   @id @default(cuid())
+  passId    String
+  tokenHash String
+  expiresAt DateTime
+
+  pass TriviaAccessPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([passId, expiresAt])
+}
+
 /// Durable idempotency and diagnostics record for provider webhook delivery.
 /// The payload itself is not stored so public donor/payment data is not duplicated here.
 model PaymentWebhookEvent {
@@ -941,10 +1076,10 @@ model PaymentWebhookEvent {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([provider, externalEventId])
-  @@index([organizationId, createdAt])
   // A CRM donation is a one-way sink record: it can have only one QB queue
   // identity for an organization, regardless of retries or worker concurrency.
   @@unique([organizationId, donationId])
+  @@index([organizationId, createdAt])
 }
 
 model Pledge {
@@ -1209,7 +1344,8 @@ model Event {
   attendances       EventAttendance[]
 
   // ─── Donor CRM Letters & Printables relations ──────────────────────────
-  generatedLetters GeneratedLetter[]
+  generatedLetters    GeneratedLetter[]
+  triviaConfiguration TriviaConfiguration?
 }
 
 model TicketType {
@@ -1361,6 +1497,7 @@ model EventTable {
   checkInRecords    EventCheckInRecord[]
   checkInExceptions EventCheckInException[]
   emailLogs         EventEmailLog[]
+  triviaTeam        TriviaTeam?
 
   @@unique([eventId, publicCode])
   @@unique([eventId, tableNumber])
@@ -2037,26 +2174,26 @@ model StewardPathTimelineEvent {
 }
 
 model StewardPathEmailDraft {
-  id              String                      @id @default(cuid())
-  enrollmentId    String
-  stepId          String
-  constituentId   String?
-  reviewerUserId  String?
-  sourceCampaignId String?
+  id                 String                      @id @default(cuid())
+  enrollmentId       String
+  stepId             String
+  constituentId      String?
+  reviewerUserId     String?
+  sourceCampaignId   String?
   deliveryCampaignId String?
-  status          StewardPathEmailDraftStatus @default(DRAFT_CREATED)
-  subject         String
-  body            String                      @db.Text
-  fromMode        String                      @default("organization")
-  replyToMode     String?
-  requireApproval Boolean                     @default(true)
-  allowUserEdits  Boolean                     @default(true)
-  sentAt          DateTime?
-  skippedAt       DateTime?
-  failedAt        DateTime?
-  failureReason   String?                     @db.Text
-  createdAt       DateTime                    @default(now())
-  updatedAt       DateTime                    @updatedAt
+  status             StewardPathEmailDraftStatus @default(DRAFT_CREATED)
+  subject            String
+  body               String                      @db.Text
+  fromMode           String                      @default("organization")
+  replyToMode        String?
+  requireApproval    Boolean                     @default(true)
+  allowUserEdits     Boolean                     @default(true)
+  sentAt             DateTime?
+  skippedAt          DateTime?
+  failedAt           DateTime?
+  failureReason      String?                     @db.Text
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
 
   enrollment  StewardPathEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   step        StewardPathStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
@@ -2777,7 +2914,7 @@ model QBSyncQueueItem {
   organization Organization @relation(fields: [organizationId], references: [id])
   donation     Donation?    @relation(fields: [donationId], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, donationId])
   @@index([organizationId, status])
   @@index([donationId])
-  @@unique([organizationId, donationId])
 }

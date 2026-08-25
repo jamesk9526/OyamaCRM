@@ -475,16 +475,15 @@ function buildEventWorkspaceGroups(activeEvent: EventsSidebarContext): CrmSideba
   ];
 }
 
-/** Returns EventSTUDIO sidebar groups with one selection hub and event-scoped command center tools. */
+/** Returns the legacy CRM sidebar projection; the unified Events shell owns event tabs. */
 export function buildEventsSidebarGroups(activeEvent: EventsSidebarContext | null): CrmSidebarGroup[] {
   const baseGroups: CrmSidebarGroup[] = [
     {
       id: "events",
-      label: "EventSTUDIO",
+      label: "Events",
       defaultOpen: true,
       items: [
-        { id: "dashboard", label: "Studio Home", href: "/events", icon: <OyamaGradientIcon name="growth-analytics" />, exact: true, kind: "workspace", description: "EventSTUDIO dashboard and fundraising portfolio summary." },
-        { id: "events", label: "All Events", href: "/events/events", icon: <OyamaGradientIcon name="task-checklist" />, kind: "core_record", description: "Create, select, duplicate, archive, and review event records." },
+        { id: "events", label: "All Events", href: "/events", icon: <OyamaGradientIcon name="task-checklist" />, exact: true, kind: "core_record", description: "Find, create, and open events." },
       ],
     },
   ];

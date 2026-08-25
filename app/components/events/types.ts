@@ -12,9 +12,12 @@ export interface EventItem {
   registrationGoal?: number | null;
   revenueGoal?: number | null;
   active: boolean;
+  collectedRevenue?: number;
   _count?: {
     attendances: number;
     volunteerHours: number;
+    guests?: number;
+    orders?: number;
   };
 }
 

@@ -1,164 +1,50 @@
 "use client";
-/** NewEventModal provides the first-step event creation flow for the Events registry. */
 
 import { useState } from "react";
+import { CalendarDays, Gamepad2, MapPin, X } from "lucide-react";
 import { apiFetch } from "@/app/lib/auth-client";
-import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import type { EventItem } from "@/app/components/events/types";
+import { createDefaultDisplaySettings, createDefaultScoringRules } from "@/app/apps/trivia/lib/trivia-demo-data";
+import { createDefaultTriviaRegistrationSettings } from "@/app/apps/trivia/lib/trivia-store";
 
-/**
- * NewEventModal creates a foundational event record using the current backend schema.
- * Richer setup fields like banner image, dress code, and childcare can layer in later.
- */
-export default function NewEventModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-}) {
+/** Minimal first step: create the Event, then configure the details in its workspace. */
+export default function NewEventModal({ onClose, onCreated }: { onClose: () => void; onCreated: (event: EventItem) => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    type: "GALA",
-    location: "",
-    startDate: "",
-    endDate: "",
-    registrationGoal: "",
-    revenueGoal: "",
-    description: "",
-    active: true,
-  });
+  const [form, setForm] = useState({ mode: "STANDARD", name: "", date: "", time: "18:00", location: "" });
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      await apiFetch("/api/events", {
-        method: "POST",
-        body: JSON.stringify({
-          ...form,
-          registrationGoal: form.registrationGoal ? Number(form.registrationGoal) : null,
-          revenueGoal: form.revenueGoal ? Number(form.revenueGoal) : null,
-        }),
-      });
-      onCreated();
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "The event could not be created.");
-    } finally {
-      setSaving(false);
-    }
+      const created = await apiFetch<EventItem>("/api/events", { method: "POST", body: JSON.stringify({ name: form.name.trim(), type: form.mode === "TRIVIA" ? "TRIVIA" : "OTHER", mode: form.mode, location: form.location.trim() || null, startDate: `${form.date}T${form.time}`, active: true }) });
+      if (form.mode === "TRIVIA") {
+        const now = new Date().toISOString();
+        await apiFetch("/api/apps/trivia/events", { method: "POST", body: JSON.stringify({ id: created.id, linkedEventsEventId: created.id, linkedEventsEventName: created.name, name: created.name, venue: created.location ?? "", hostName: "", startAt: created.startDate, status: "draft", rounds: [], teams: [], scoringRules: createDefaultScoringRules(), displaySettings: createDefaultDisplaySettings(), registrationSettings: createDefaultTriviaRegistrationSettings(created.name, created.id), eventsSyncMode: "automatic", createdAt: now, updatedAt: now }) });
+      }
+      onCreated(created);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The event could not be created.");
+    } finally { setSaving(false); }
   }
 
   return (
-    <WorkspaceSetupModal
-      title="Create Event"
-      subtitle="Start the event record, then continue setup for tickets, guests, tables, and sponsors."
-      checklist={["Event basics", "Dates and goals", "Create and continue setup"]}
-      onClose={onClose}
-      maxWidthClassName="max-w-6xl"
-      closeOnBackdropClick
-    >
-      <form onSubmit={submit} className="space-y-4 px-5 py-5 sm:px-6">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Event name</label>
-            <input
-              required
-              placeholder="Love at First Beat Gala"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Event type</label>
-            <select
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-            >
-              {["GALA", "TRIVIA", "FUNDRAISER", "AUCTION", "RUN_WALK", "CONFERENCE", "WORKSHOP", "CULTIVATION", "STEWARDSHIP", "VOLUNTEER", "ONLINE", "OTHER"].map((t) => <option key={t} value={t}>{t.replaceAll("_", " ")}</option>)}
-            </select>
-            {["GALA", "TRIVIA", "FUNDRAISER", "AUCTION"].includes(form.type) ? <p className="mt-1 text-xs text-violet-700">Table-based setup is supported: configure table tickets, hosts, seats, public RSVP, and event-night check-in after creation.</p> : null}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Location</label>
-            <input
-              placeholder="Aurora Event Center"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.location}
-              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Start date</label>
-            <input
-              required
-              type="datetime-local"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.startDate}
-              onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">End date</label>
-            <input
-              type="datetime-local"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.endDate}
-              onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Guest capacity goal</label>
-            <input
-              placeholder="250"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.registrationGoal}
-              onChange={(e) => setForm((f) => ({ ...f, registrationGoal: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Revenue goal</label>
-            <input
-              placeholder="50000"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.revenueGoal}
-              onChange={(e) => setForm((f) => ({ ...f, revenueGoal: e.target.value }))}
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-gray-600">Description</label>
-            <textarea
-              placeholder="Summarize the fundraiser, audience, and purpose."
-              className="min-h-[100px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            />
-          </div>
+    <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-slate-950/35 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="new-event-title">
+      <button type="button" className="fixed inset-0 cursor-default" onClick={onClose} aria-label="Close new event" />
+      <form onSubmit={submit} className="relative my-auto w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-7"><div><h2 id="new-event-title" className="text-xl font-semibold tracking-tight">Create an event</h2><p className="mt-1 text-sm text-slate-500">Start with the basics. Registration, pricing, tables, and other setup come next.</p></div><button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg hover:bg-slate-100" aria-label="Close"><X className="h-5 w-5" /></button></header>
+        <div className="space-y-5 px-5 py-5 sm:px-7">
+          <fieldset><legend className="mb-2 text-sm font-semibold">What are you creating?</legend><div className="grid gap-2 sm:grid-cols-2">
+            {([{ value: "STANDARD", label: "Standard event", detail: "Registration, guests, tables, and event-day tools", icon: CalendarDays }, { value: "TRIVIA", label: "Trivia night", detail: "The same event tools, plus game builder and live trivia", icon: Gamepad2 }] as const).map((option) => { const Icon = option.icon; const checked = form.mode === option.value; return <label key={option.value} className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition ${checked ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600" : "border-slate-200 hover:border-slate-400"}`}><input type="radio" name="mode" value={option.value} checked={checked} onChange={() => setForm((value) => ({ ...value, mode: option.value }))} className="sr-only" /><Icon className={`mt-0.5 h-5 w-5 shrink-0 ${checked ? "text-blue-700" : "text-slate-500"}`} /><span><strong className="block text-sm">{option.label}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{option.detail}</span></span></label>; })}
+          </div></fieldset>
+          <label className="block"><span className="mb-1.5 block text-sm font-semibold">Event name</span><input autoFocus required maxLength={160} value={form.name} onChange={(input) => setForm((value) => ({ ...value, name: input.target.value }))} placeholder={form.mode === "TRIVIA" ? "Trivia Night Fundraiser" : "Annual Banquet"} className="h-11 w-full rounded-lg border border-slate-300 px-3 text-base outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" /></label>
+          <div className="grid gap-3 sm:grid-cols-2"><label><span className="mb-1.5 block text-sm font-semibold">Date</span><input required type="date" value={form.date} onChange={(input) => setForm((value) => ({ ...value, date: input.target.value }))} className="h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" /></label><label><span className="mb-1.5 block text-sm font-semibold">Start time</span><input required type="time" value={form.time} onChange={(input) => setForm((value) => ({ ...value, time: input.target.value }))} className="h-11 w-full rounded-lg border border-slate-300 px-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" /></label></div>
+          <label className="block"><span className="mb-1.5 block text-sm font-semibold">Location <span className="font-normal text-slate-400">(optional)</span></span><span className="relative block"><MapPin className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" /><input maxLength={255} value={form.location} onChange={(input) => setForm((value) => ({ ...value, location: input.target.value }))} placeholder="Community Center" className="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" /></span></label>
+          {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{error}</p> : null}
         </div>
-
-        {error ? <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{error}</div> : null}
-
-        <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-          <p className="text-xs text-gray-500">Next step after creation: tickets, orders, guests, tables, sponsors, and check-in.</p>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button>
-            <button disabled={saving} className="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-60">
-              {saving ? "Creating..." : "Create Event"}
-            </button>
-          </div>
-        </div>
+        <footer className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-7"><button type="button" onClick={onClose} className="min-h-10 rounded-lg px-4 text-sm font-semibold text-slate-700 hover:bg-slate-200">Cancel</button><button disabled={saving || !form.name.trim() || !form.date || !form.time} className="min-h-10 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Creating…" : "Create event"}</button></footer>
       </form>
-    </WorkspaceSetupModal>
+    </div>
   );
 }

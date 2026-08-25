@@ -79,6 +79,17 @@ Validation: focused renderer, conversion, compliance, media, and builder source 
 
 Validation: web/server typechecks pass; focused letter and report source suites pass. Database-backed report smoke coverage could not run because the local MySQL service at `localhost:3306` was unavailable.
 
+## 2026-08-24 EventSTUDIO Public Checkout Redesign
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Focused public event landing page | Working | `app/components/events/page-builder/EventPageBuilderPreview.tsx`, `app/components/events/public/PublicEventPage.tsx` | The public page now uses a restrained event hierarchy, compact navigation, a clear registration action, and a mobile sticky price/registration bar without exposing EventSTUDIO admin terminology. |
+| Stripe-style registration checkout | Working | `app/components/events/public/PublicEventRegistrationForm.tsx` | Desktop uses a quiet event/order summary beside the form; mobile uses a disclosure summary. Ticket changes update the total immediately, table guest names are optional before payment, secondary needs are progressively disclosed, and Stripe handoff clearly explains the redirect. |
+| Payment outcome and confirmation UX | Working | `PublicEventRegistrationForm.tsx`, public reservation access API | The browser retains the durable registration across Stripe handoff, verifies returned payment state through the PIN-protected reservation API, and presents paid, pending, cancelled, checkout-failed, and retry guidance with order, PIN, attendees, calendar, directions, reservation-manager, and print actions. |
+| Exact responsive previews | Working | `EventPageBuilderTopBar.tsx`, `EventPageBuilderPreviewDialog.tsx` | EventSTUDIO exposes separate event-page and registration previews with desktop, tablet, and mobile widths using the same public components as the published route. |
+
+Validation: targeted TypeScript and ESLint checks pass; Stripe webhook and Trivia/Event source regressions pass 16/16. The database-backed Events suite could not run because local MySQL at `localhost:3306` was unavailable.
+
 ## 2026-08-11 Event Communications and Trivia Live Completion Pass
 
 | Capability | Status | Evidence | Notes |
@@ -1163,3 +1174,13 @@ Source-of-truth organization map:
 - OyamaEmail campaign detail now presents one primary next-step action with grouped review/send/queue utilities instead of a flat command-center button wall.
 - Builder compliance review now accepts address merge tokens as valid physical-address coverage, reducing false blockers in the email send path.
 - OyamaEmail template preview/send-test, campaign preview, and merge-field picker now share a broader audited merge catalog, including compatibility aliases, missing-data preview warnings, and live preview parity for donor/gift/event/steward dotted tokens.
+
+## Unified Events + Trivia Mode (2026-08-24)
+
+- `/events` is now the single event library and creation entry point. The initial form asks only for Standard Event vs Trivia Night, name, date, start time, and location.
+- Every event uses one calm shell with Overview, Registration, Guests, Tables, Payments, Communications, and Event Day. Trivia events conditionally add one Trivia tab.
+- Event overview and payments were reduced to task-focused summaries; the prior command-center card/ribbon treatment is no longer the primary workflow.
+- Trivia builder, host, and projector tools now live at `/events/[eventId]/trivia/*`. Retired `/apps/trivia/*` administration links resolve to the owning Event; temporary remote access remains available without CRM chrome.
+- Event remains authoritative for name, schedule, venue, registration, tickets, orders, guests, tables, seats, and check-in. Trivia owns rounds, questions, table-backed teams, scoring, snapshots, audit, access passes, and live display state.
+- Trivia persistence is relational and event-scoped through `TriviaConfiguration`, `TriviaRound`, `TriviaQuestion`, `TriviaTeam`, `TriviaScoreAction`, `TriviaSnapshot`, `TriviaAuditEvent`, `TriviaAccessPass`, and `TriviaAccessSession`.
+- Migration `20260824150000_unify_event_trivia_mode` creates the normalized schema. On first post-migration access, the server imports any retired `server/.data/trivia-store.json` events once, preserves legacy IDs for route resolution, and stops writing operational state to that file.

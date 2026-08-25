@@ -20,6 +20,7 @@ export interface EventPageBuilderConfig {
   status: EventPageStatus;
   lastPublishedAt: string | null;
   paymentPolicy: EventPagePaymentPolicy;
+  currency?: string;
   deploymentHistory: EventPageDeploymentHistoryEntry[];
   sections?: EventPageSectionState[];
 }
@@ -185,6 +186,8 @@ export interface EventPageBuilderWorkspaceData {
   report: EventBuilderReport | null;
   publicUrl: string;
   paymentPolicy?: EventPagePaymentPolicy;
+  /** Organization payment currency used for customer-visible totals. */
+  currency?: string;
   /** Published page slug used by the public registration endpoint. */
   pageSlug?: string;
   /** True only on the external public page, not inside the builder preview. */
