@@ -902,6 +902,8 @@ Notes:
 - [x] One Events home and one event workspace navigation system.
 - [x] Minimal Standard Event / Trivia Night creation flow.
 - [x] Event-owned Trivia mode routes with legacy administration redirects.
+- [x] Event-owned Trivia command center with readiness, role launchers, live snapshot, print, and recovery routes.
+- [x] EventSTUDIO, canonical Trivia, and legacy ids resolve to the same event-night workspace.
 - [x] Projector and temporary event-night remote surfaces remain chrome-free.
 - [x] Relational, event-scoped Trivia schema and one-time JSON import path.
 - [x] Server-owned Stripe Checkout, signed webhook validation, exact totals, orders, guests, tables, and check-in paths preserved during the UI cutover.
