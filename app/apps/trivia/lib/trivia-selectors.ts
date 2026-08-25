@@ -2,6 +2,11 @@
 
 import type { TriviaEvent, TriviaLiveState, TriviaQuestion, TriviaRound, TriviaScoreAction, TriviaTeam } from "@/app/apps/trivia/lib/trivia-types";
 
+/** Resolve a workspace from its EventSTUDIO, canonical Trivia, or legacy id. */
+export function findTriviaEventForRoute(events: TriviaEvent[], routeId: string): TriviaEvent | null {
+  return events.find((event) => event.id === routeId || event.linkedEventsEventId === routeId || event.legacyTriviaId === routeId) ?? null;
+}
+
 export interface TriviaCheckInSummary {
   expected: number;
   checkedIn: number;
