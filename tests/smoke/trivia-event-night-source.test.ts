@@ -223,4 +223,19 @@ describe("Trivia event-night controls", () => {
     expect(shell).toContain('label: "Registration & page"');
     expect(projector).toContain('live.stage === "check_in_open"');
   });
+
+  it("uses one themed Event Studio command center for every trivia-night role", () => {
+    const commandCenter = read("app/events/[eventId]/trivia/page.tsx");
+    const shell = read("app/components/events/EventsStudioShell.tsx");
+    const selector = read("app/apps/trivia/lib/trivia-selectors.ts");
+    const unifiedRoutes = ["check-in", "scores", "judge", "scoreboard", "recovery", "printables"];
+
+    expect(shell).toContain("event-studio-shell");
+    expect(commandCenter).toContain("Trivia night command center");
+    expect(commandCenter).toContain("Event-night stations");
+    expect(commandCenter).toContain("Do not begin the live game yet");
+    expect(commandCenter).toContain("Print host packet");
+    expect(selector).toContain("findTriviaEventForRoute");
+    unifiedRoutes.forEach((route) => expect(read(`app/events/[eventId]/trivia/${route}/page.tsx`)).toContain("@/app/apps/trivia"));
+  });
 });
