@@ -7,6 +7,7 @@ import TeamManagerPanel from "@/app/components/trivia/TeamManagerPanel";
 import TriviaGameMap from "@/app/components/trivia/TriviaGameMap";
 import TriviaGameTemplateLibrary from "@/app/components/trivia/TriviaGameTemplateLibrary";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
+import { findTriviaEventForRoute } from "@/app/apps/trivia/lib/trivia-selectors";
 
 /** Keeps the authoring experience visual while moving secondary setup out of the game canvas. */
 export default function TriviaEventBuilderPage() {
@@ -17,7 +18,7 @@ export default function TriviaEventBuilderPage() {
   } = useTriviaModuleState();
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState("");
-  const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [eventId, state.events]);
+  const event = useMemo(() => findTriviaEventForRoute(state.events, eventId), [eventId, state.events]);
 
   if (!event) return <section className="border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">Event not found. Return to the event list to choose or create a trivia event.</section>;
 
