@@ -10,7 +10,7 @@ import ScorekeepingPanel from "@/app/components/trivia/ScorekeepingPanel";
 import TemporaryEventAccessPanel from "@/app/components/trivia/TemporaryEventAccessPanel";
 import TriviaEventsLinkPanel from "@/app/components/trivia/TriviaEventsLinkPanel";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
-import { getActiveQuestion } from "@/app/apps/trivia/lib/trivia-selectors";
+import { findTriviaEventForRoute, getActiveQuestion } from "@/app/apps/trivia/lib/trivia-selectors";
 
 /**
  * TriviaHostPage is the private control center for live host actions.
@@ -37,7 +37,7 @@ export default function TriviaHostPage() {
     createEventSnapshot,
   } = useTriviaModuleState();
 
-  const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [state.events, eventId]);
+  const event = useMemo(() => findTriviaEventForRoute(state.events, eventId), [state.events, eventId]);
   const live = event ? state.liveByEventId[event.id] : null;
 
   if (!event || !live) {
