@@ -9,6 +9,7 @@ import express, { type Request } from "express";
 import rateLimit from "express-rate-limit";
 import type { Prisma } from "@prisma/client";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { requirePermission } from "../middleware/requirePermission.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { evaluateRecipientEligibility, hashPublicEmailToken, isValidEmailAddress } from "../services/email-compliance.js";
 import { prisma } from "../lib/prisma.js";
@@ -33,6 +34,11 @@ const publicRegistrationLimiter = rateLimit({
 });
 router.use("/public", publicRouter);
 router.use(requireAuth);
+router.use((req, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD") return requirePermission("view:events")(req, res, next);
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return requirePermission("edit:events")(req, res, next);
+  return next();
+});
 
 type JsonObject = Record<string, unknown>;
 
@@ -268,6 +274,54 @@ function normalizeRosterTableNumbers(teams: JsonObject[]): JsonObject[] {
     normalized.push({ ...team, tableNumber });
   }
   return normalized;
+}
+
+const MAX_TRIVIA_ROUNDS = 100;
+const MAX_TRIVIA_QUESTIONS_PER_ROUND = 500;
+const MAX_TRIVIA_TEAMS = 1_000;
+
+function boundedText(value: unknown, maximum: number): string {
+  return String(value ?? "").trim().slice(0, maximum);
+}
+
+/** Bounds authored content before it reaches relational writes while preserving in-progress drafts. */
+function normalizeTriviaEventContent(event: JsonObject): JsonObject {
+  const roundIds = new Set<string>();
+  const rounds = (Array.isArray(event.rounds) ? event.rounds.filter(isObject) : []).slice(0, MAX_TRIVIA_ROUNDS).map((round, roundIndex) => {
+    let roundId = boundedText(round.id, 120) || `round-${randomUUID()}`;
+    if (roundIds.has(roundId)) roundId = `round-${randomUUID()}`;
+    roundIds.add(roundId);
+    const questionIds = new Set<string>();
+    const questions = (Array.isArray(round.questions) ? round.questions.filter(isObject) : []).slice(0, MAX_TRIVIA_QUESTIONS_PER_ROUND).map((question) => {
+      let questionId = boundedText(question.id, 120) || `question-${randomUUID()}`;
+      if (questionIds.has(questionId)) questionId = `question-${randomUUID()}`;
+      questionIds.add(questionId);
+      return {
+        ...question,
+        id: questionId,
+        prompt: boundedText(question.prompt, 2_000),
+        scoringAnswer: boundedText(question.scoringAnswer ?? question.audienceAnswer, 1_000),
+        audienceAnswer: boundedText(question.audienceAnswer ?? question.scoringAnswer, 1_000),
+        acceptedAnswers: (Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers : []).map((answer) => boundedText(answer, 250)).filter(Boolean).slice(0, 25),
+        options: (Array.isArray(question.options) ? question.options : []).map((option) => boundedText(option, 500)).filter(Boolean).slice(0, 10),
+        explanation: boundedText(question.explanation, 4_000),
+        revealText: boundedText(question.revealText, 2_000),
+        hostNotes: boundedText(question.hostNotes, 4_000),
+        mediaUrl: boundedText(question.mediaUrl, 2_000),
+        points: boundedWholeNumber(question.points, 1, 1, 10_000),
+        timeLimitSec: boundedWholeNumber(question.timeLimitSec, 30, 0, 3_600),
+      };
+    });
+    return {
+      ...round,
+      id: roundId,
+      title: boundedText(round.title, 240) || `Round ${roundIndex + 1}`,
+      description: boundedText(round.description, 4_000),
+      questions,
+    };
+  });
+  const teams = normalizeRosterTableNumbers((Array.isArray(event.teams) ? event.teams.filter(isObject) : []).slice(0, MAX_TRIVIA_TEAMS));
+  return { ...event, rounds, teams };
 }
 
 const EVENTS_SYNC_COLORS = ["#34d399", "#38bdf8", "#f59e0b", "#f472b6", "#a78bfa", "#fb7185"];
@@ -1335,7 +1389,7 @@ router.put("/state", async (req, res) => {
   const currentEvents = getStateEvents(orgStore);
   incomingState.events = incomingEvents.map((incomingEvent: JsonObject) => {
     const currentEvent = currentEvents.find((candidate) => candidate.id === incomingEvent.id);
-    if (!currentEvent) return { ...incomingEvent, teams: normalizeRosterTableNumbers(Array.isArray(incomingEvent.teams) ? incomingEvent.teams.filter(isObject) : []) };
+    if (!currentEvent) return normalizeTriviaEventContent(incomingEvent);
     const currentUpdatedAt = new Date(String(currentEvent.updatedAt ?? 0)).getTime();
     const incomingUpdatedAt = new Date(String(incomingEvent.updatedAt ?? 0)).getTime();
     const reconciled = currentUpdatedAt > incomingUpdatedAt ? { ...incomingEvent, teams: clone(Array.isArray(currentEvent.teams) ? currentEvent.teams : []), updatedAt: currentEvent.updatedAt } : incomingEvent;
@@ -1347,7 +1401,7 @@ router.put("/state", async (req, res) => {
       eventsSyncError: currentEvent.eventsSyncError,
       eventsPublicPagePath: currentEvent.eventsPublicPagePath,
     } : {};
-    return { ...reconciled, ...linkedFields, teams: normalizeRosterTableNumbers(Array.isArray(reconciled.teams) ? reconciled.teams.filter(isObject) : []) };
+    return normalizeTriviaEventContent({ ...reconciled, ...linkedFields });
   });
   const linkedRosterChanges = (incomingState.events as JsonObject[]).filter((event) => {
     const current = currentEvents.find((candidate) => candidate.id === event.id);
@@ -1402,7 +1456,7 @@ router.post("/events", async (req, res) => {
   }
   const eventId = String(incoming.linkedEventsEventId ?? eventStudio?.eventStudio.id ?? requestedEventId);
 
-  const nextEvent: JsonObject = {
+  const nextEvent: JsonObject = normalizeTriviaEventContent({
     ...incoming,
     eventStudioSetup: undefined,
     id: eventId,
@@ -1419,7 +1473,7 @@ router.post("/events", async (req, res) => {
       eventsSyncError: null,
       eventsPublicPagePath: eventStudio.publicPagePath,
     } : {}),
-  };
+  });
 
   const idx = events.findIndex((event) => event.id === eventId);
   if (idx >= 0) events[idx] = nextEvent;
@@ -1741,13 +1795,13 @@ router.patch("/events/:eventId", async (req, res) => {
 
   const current = events[idx];
   const patch = isObject(req.body) ? req.body : {};
-  const nextEvent: JsonObject = {
+  const nextEvent: JsonObject = normalizeTriviaEventContent({
     ...current,
     ...patch,
     id: eventId,
     teams: normalizeRosterTableNumbers(Array.isArray(patch.teams) ? patch.teams.filter(isObject) : Array.isArray(current.teams) ? current.teams.filter(isObject) : []),
     updatedAt: nowIso(),
-  };
+  });
   events[idx] = nextEvent;
   setStateEvents(orgStore, events);
   orgStore.updatedAt = nowIso();

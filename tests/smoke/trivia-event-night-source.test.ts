@@ -124,9 +124,9 @@ describe("Trivia event-night controls", () => {
     expect(tableWorkspace).toContain("saveFloorPositions");
     expect(tableWorkspace).toContain("Auto-arrange");
     expect(eventRoute).toContain("INVALID_TABLE_POSITION");
-    expect(eventShell).toContain('["Payments", "payments"]');
+    expect(eventShell).toContain('label: "Payments", segment: "payments"');
     expect(eventShell).toContain('event?.type === "TRIVIA"');
-    expect(eventShell).toContain('["Event Day", "day"]');
+    expect(eventShell).toContain('label: "Event day", segment: "day"');
     expect(eventShell).toContain('aria-label="Switch event"');
   });
 
@@ -231,11 +231,33 @@ describe("Trivia event-night controls", () => {
     const unifiedRoutes = ["check-in", "scores", "judge", "scoreboard", "recovery", "printables"];
 
     expect(shell).toContain("event-studio-shell");
+    expect(shell).toContain("event-studio-right-rail");
+    expect(shell).toContain("RIGHT_RAIL_KEY");
+    expect(shell).toContain('aria-label="Event workspace navigation"');
+    expect(shell).toContain("Collapse event navigation");
     expect(commandCenter).toContain("Trivia night command center");
     expect(commandCenter).toContain("Event-night stations");
     expect(commandCenter).toContain("Do not begin the live game yet");
     expect(commandCenter).toContain("Print host packet");
     expect(selector).toContain("findTriviaEventForRoute");
     unifiedRoutes.forEach((route) => expect(read(`app/events/[eventId]/trivia/${route}/page.tsx`)).toContain("@/app/apps/trivia"));
+  });
+
+  it("offers atomic bulk question entry with server-side authorization and content limits", () => {
+    const builderPage = read("app/apps/trivia/events/[eventId]/builder/page.tsx");
+    const questionEntry = read("app/components/trivia/TriviaQuestionBulkAddPanel.tsx");
+    const state = read("app/apps/trivia/hooks/useTriviaModuleState.ts");
+    const route = read("server/src/routes/trivia.ts");
+
+    expect(builderPage).toContain("TriviaQuestionBulkAddPanel");
+    expect(questionEntry).toContain("Add prepared questions to the game");
+    expect(questionEntry).toContain("One question per line");
+    expect(state).toContain("function addQuestions");
+    expect(state).toContain("stateRef.current");
+    expect(state).toContain("500-question safety limit");
+    expect(route).toContain('requirePermission("view:events")');
+    expect(route).toContain('requirePermission("edit:events")');
+    expect(route).toContain("MAX_TRIVIA_QUESTIONS_PER_ROUND");
+    expect(route).toContain("normalizeTriviaEventContent");
   });
 });

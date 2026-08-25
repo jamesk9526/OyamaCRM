@@ -910,3 +910,17 @@ Notes:
 - [x] Focused source regression tests cover unified navigation and relational Trivia ownership.
 - [ ] Run the new Prisma migration against staging and verify imported legacy round/question/team/score counts before production rollout.
 - [ ] Complete live browser QA with seeded data at desktop, tablet, 390px mobile, 200% zoom, and keyboard-only registration before production rollout.
+
+## Events + Trivia night hardening checks (2026-08-25)
+
+- [x] Replace the event workspace tab strip with one collapsible right-side navigation system and mobile drawer.
+- [x] Keep every navigation destination event-scoped and show Trivia only for Trivia events.
+- [x] Provide visible single-question editing plus validated, atomic multi-question paste entry.
+- [x] Bound question batches, per-round question counts, round counts, team counts, text fields, points, and timers in both client actions and server persistence.
+- [x] Require `view:events` or `edit:events` on authenticated Trivia routes while retaining rate-limited public registration and role-scoped temporary remotes.
+- [x] Preserve canonical Event identity when initializing Trivia live and score state.
+- [x] Add unit/source regression coverage for parsing, navigation, permissions, and persistence bounds.
+- [ ] Run the relational migration and legacy-count verification against a staging database snapshot.
+- [ ] Complete two-browser concurrency rehearsal for builder, host, scorekeeper, check-in, projector, recovery, and reconnect behavior.
+- [ ] Complete physical-device and accessibility QA for the right drawer, 200% zoom, keyboard use, projector output, and poor-network recovery.
+- [ ] Replace whole-module state synchronization with event-versioned or operation-specific writes before supporting multiple simultaneous authoring sessions.

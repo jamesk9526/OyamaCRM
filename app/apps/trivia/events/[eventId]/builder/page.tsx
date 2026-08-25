@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import TeamManagerPanel from "@/app/components/trivia/TeamManagerPanel";
 import TriviaGameMap from "@/app/components/trivia/TriviaGameMap";
 import TriviaGameTemplateLibrary from "@/app/components/trivia/TriviaGameTemplateLibrary";
+import TriviaQuestionBulkAddPanel from "@/app/components/trivia/TriviaQuestionBulkAddPanel";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 import { findTriviaEventForRoute } from "@/app/apps/trivia/lib/trivia-selectors";
 
@@ -13,7 +14,7 @@ import { findTriviaEventForRoute } from "@/app/apps/trivia/lib/trivia-selectors"
 export default function TriviaEventBuilderPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const {
-    state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, updateQuestion, duplicateQuestion, removeQuestion, updateRound, removeRound, updateWelcomeScreen,
+    state, addTeam, updateTeam, reorderTeam, removeTeam, addRound, addQuestion, addQuestions, updateQuestion, duplicateQuestion, removeQuestion, updateRound, removeRound, updateWelcomeScreen,
     reorderRound, moveQuestion, applyGameTemplate, importEventsFromJson,
   } = useTriviaModuleState();
   const [importText, setImportText] = useState("");
@@ -30,6 +31,12 @@ export default function TriviaEventBuilderPage() {
 
   return (
     <section className="trivia-builder-page space-y-5">
+      <TriviaQuestionBulkAddPanel
+        rounds={event.rounds}
+        defaultPoints={event.gameTemplate?.defaultQuestionPoints ?? event.scoringRules.defaultQuestionPoints}
+        defaultTimeLimitSec={event.gameTemplate?.defaultTimeLimitSec ?? 30}
+        onAddQuestions={(roundId, questions) => addQuestions(event.id, roundId, questions)}
+      />
       <TriviaGameMap
         event={event}
         onAddRound={(title, description, roundType) => addRound(event.id, { title, description, roundType })}

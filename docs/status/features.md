@@ -1186,3 +1186,12 @@ Source-of-truth organization map:
 - Event remains authoritative for name, schedule, venue, registration, tickets, orders, guests, tables, seats, and check-in. Trivia owns rounds, questions, table-backed teams, scoring, snapshots, audit, access passes, and live display state.
 - Trivia persistence is relational and event-scoped through `TriviaConfiguration`, `TriviaRound`, `TriviaQuestion`, `TriviaTeam`, `TriviaScoreAction`, `TriviaSnapshot`, `TriviaAuditEvent`, `TriviaAccessPass`, and `TriviaAccessSession`.
 - Migration `20260824150000_unify_event_trivia_mode` creates the normalized schema. On first post-migration access, the server imports any retired `server/.data/trivia-store.json` events once, preserves legacy IDs for route resolution, and stops writing operational state to that file.
+
+### Trivia-night hardening follow-up (2026-08-25)
+
+- Event workspace navigation is now one event-scoped, collapsible right-hand rail on desktop and a right-side drawer on mobile. Collapse preference persists per browser, and the projector continues to bypass CRM chrome.
+- The Trivia builder now exposes a prominent question-entry panel before the visual game map. Staff can paste up to 200 pipe- or tab-delimited questions into a chosen round, review validation errors, and add the batch atomically.
+- Single-question and bulk-question creation now share the same state-safe action. Question text, answers, choices, alternates, notes, point values, timers, batch size, round size, and server persistence are bounded.
+- Authenticated Trivia APIs now enforce `view:events` for reads and `edit:events` for mutations. Public registration and temporary role-scoped remote endpoints remain behind their existing rate limits, expiring access passes, and restricted action model.
+- New-event state now keys live and score history by the canonical integrated Event id, preventing orphaned state when the temporary client id differs from the Event record id.
+- Audit detail and remaining release gates are recorded in `docs/status/audit-artifacts/2026-08-25-events-trivia-production-audit.md`.

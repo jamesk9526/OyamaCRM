@@ -71,7 +71,7 @@ interface AddRoundInput {
   roundType: TriviaRoundType;
 }
 
-interface AddQuestionInput {
+export interface AddQuestionInput {
   prompt: string;
   options: string[];
   questionType: TriviaQuestionType;
@@ -84,6 +84,12 @@ interface AddQuestionInput {
   points: number;
   timeLimitSec: number;
   hostNotes: string;
+}
+
+export interface AddQuestionsResult {
+  added: number;
+  rejected: number;
+  error?: string;
 }
 
 /** Edits made from the visual builder inspector. Identity is intentionally immutable. */
@@ -315,11 +321,11 @@ export function useTriviaModuleState() {
       events: [integratedEvent, ...state.events.filter((event) => event.id !== integratedEvent.id)],
       liveByEventId: {
         ...state.liveByEventId,
-        [eventId]: createDefaultLiveState(integratedEvent),
+        [integratedEvent.id]: createDefaultLiveState(integratedEvent),
       },
       scoreHistoryByEventId: {
         ...state.scoreHistoryByEventId,
-        [eventId]: [],
+        [integratedEvent.id]: [],
       },
     };
 
@@ -622,42 +628,49 @@ export function useTriviaModuleState() {
     return round;
   }
 
-  function addQuestion(eventId: string, roundId: string, input: AddQuestionInput) {
-    const event = state.events.find((item) => item.id === eventId);
-    if (!event) return;
+  function addQuestions(eventId: string, roundId: string, inputs: AddQuestionInput[]): AddQuestionsResult {
+    const currentState = stateRef.current;
+    const event = currentState.events.find((item) => item.id === eventId);
+    if (!event) return { added: 0, rejected: inputs.length, error: "Trivia event not found." };
+    const targetRound = event.rounds.find((round) => round.id === roundId);
+    if (!targetRound) return { added: 0, rejected: inputs.length, error: "Choose a valid round before adding questions." };
 
-    const rounds = event.rounds.map((round) => {
-      if (round.id !== roundId) return round;
+    const availableSlots = Math.max(0, 500 - targetRound.questions.length);
+    if (availableSlots === 0) return { added: 0, rejected: inputs.length, error: "This round already has the 500-question safety limit." };
 
-      const question: TriviaQuestion = {
+    const limitedInputs = inputs.slice(0, Math.min(200, availableSlots));
+    const questions: TriviaQuestion[] = limitedInputs.flatMap((input) => {
+      const prompt = String(input.prompt ?? "").trim();
+      const scoringAnswer = String(input.scoringAnswer ?? "").trim();
+      if (!prompt || !scoringAnswer) return [];
+      const points = Math.min(10_000, Math.max(1, Math.round(Number(input.points) || 1)));
+      const timeLimitSec = Math.min(3_600, Math.max(0, Math.round(Number(input.timeLimitSec) || 0)));
+      return [{
         id: createTriviaId("question"),
-        prompt: input.prompt,
-        options: input.options,
+        prompt: prompt.slice(0, 2_000),
+        options: Array.isArray(input.options) ? input.options.map((value) => String(value).trim().slice(0, 500)).filter(Boolean).slice(0, 10) : [],
         questionType: input.questionType,
-        scoringAnswer: input.scoringAnswer,
-        audienceAnswer: input.audienceAnswer,
-        acceptedAnswers: input.acceptedAnswers,
-        explanation: input.explanation,
-        revealText: input.revealText,
-        mediaUrl: input.mediaUrl,
-        points: input.points,
-        timeLimitSec: input.timeLimitSec,
-        hostNotes: input.hostNotes,
-      };
-
-      return {
-        ...round,
-        questions: [...round.questions, question],
-      };
+        scoringAnswer: scoringAnswer.slice(0, 1_000),
+        audienceAnswer: String(input.audienceAnswer || scoringAnswer).trim().slice(0, 1_000),
+        acceptedAnswers: Array.isArray(input.acceptedAnswers) ? input.acceptedAnswers.map((value) => String(value).trim().slice(0, 250)).filter(Boolean).slice(0, 25) : [],
+        explanation: String(input.explanation ?? "").trim().slice(0, 4_000),
+        revealText: String(input.revealText ?? "").trim().slice(0, 2_000),
+        mediaUrl: String(input.mediaUrl ?? "").trim().slice(0, 2_000),
+        points,
+        timeLimitSec,
+        hostNotes: String(input.hostNotes ?? "").trim().slice(0, 4_000),
+      }];
     });
+    if (questions.length === 0) return { added: 0, rejected: inputs.length, error: "Every question needs both question text and a correct answer." };
 
-    const nextEvent: TriviaEvent = {
-      ...event,
-      rounds,
-      updatedAt: new Date().toISOString(),
-    };
+    const rounds = event.rounds.map((round) => round.id === roundId ? { ...round, questions: [...round.questions, ...questions] } : round);
+    const nextEvent: TriviaEvent = { ...event, rounds, updatedAt: new Date().toISOString() };
+    commit(replaceEvent(currentState, nextEvent));
+    return { added: questions.length, rejected: inputs.length - questions.length };
+  }
 
-    replaceStateWithEvent(nextEvent);
+  function addQuestion(eventId: string, roundId: string, input: AddQuestionInput): AddQuestionsResult {
+    return addQuestions(eventId, roundId, [input]);
   }
 
   function updateRound(eventId: string, roundId: string, input: Partial<Pick<TriviaRound, "title" | "description" | "roundType">>) {
@@ -1282,6 +1295,7 @@ export function useTriviaModuleState() {
     removeTeam,
     addRound,
     addQuestion,
+    addQuestions,
     updateQuestion,
     duplicateQuestion,
     removeQuestion,
