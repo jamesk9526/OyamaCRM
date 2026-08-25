@@ -8,7 +8,6 @@ import Link from "next/link";
 import {
   Activity,
   ArrowUpRight,
-  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -18,7 +17,6 @@ import {
   MailPlus,
   Megaphone,
   RefreshCcw,
-  Settings2,
   Target,
   TrendingUp,
   UserPlus,
@@ -151,7 +149,6 @@ export default function NaturalisticDonorDashboard({
     return <FileText className="h-4 w-4" aria-hidden="true" />;
   };
 
-  const weekLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date());
   const reportingPeriodLabel = reportingYearMode.toLowerCase() === "fiscal" ? "Fiscal-year view" : "Calendar-year view";
 
   return (
@@ -198,23 +195,6 @@ export default function NaturalisticDonorDashboard({
           primaryAction={headerActions}
           className="mb-4"
         />
-
-        <div className="crm-card-surface mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><CalendarDays className="h-4 w-4" aria-hidden="true" /></span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Operating view</p>
-              <p className="truncate text-sm font-semibold text-slate-900">{reportingPeriodLabel} <span className="font-normal text-slate-500">· {weekLabel} · data through {dataThroughLabel}</span></p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <DashboardStatusPill>Live snapshot only</DashboardStatusPill>
-            <Link href="/settings/dashboard-appearance" className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
-              <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Configure view
-            </Link>
-          </div>
-        </div>
 
         <section className="mb-5 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(330px,0.95fr)]">
           <CRMCard padding="lg" className="flex min-w-0 flex-col justify-between bg-gradient-to-br from-white via-white to-slate-50">

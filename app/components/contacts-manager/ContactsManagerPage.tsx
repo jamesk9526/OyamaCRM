@@ -221,10 +221,6 @@ export default function ContactsManagerPage({ fullscreen = false }: ContactsMana
   }, [activeTag, allListConstituentIds, allListRecipientEmails, churchTagFilter, constituents, donationCount, donationCountOperator, donationSummaryByConstituentId, filter, listMembershipFilter, membershipListId, search, selectedMembershipConstituentIds, selectedMembershipEmails]);
 
   const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
-  const selectedEmails = useMemo(
-    () => selectedRows.map((row) => row.email?.trim().toLowerCase()).filter(Boolean) as string[],
-    [selectedRows],
-  );
   const advancedDonationFilterActive = donationCountOperator !== "ANY";
   const audienceRowsForSave = useMemo(
     () => resolveAudienceRowsForSave(selectedRows, filteredConstituents, advancedDonationFilterActive),
