@@ -8,13 +8,14 @@ import TriviaCheckInWorkspace from "@/app/components/trivia/ops/TriviaCheckInWor
 import TriviaJudgeWorkspace from "@/app/components/trivia/ops/TriviaJudgeWorkspace";
 import TriviaScoreboardWorkspace from "@/app/components/trivia/ops/TriviaScoreboardWorkspace";
 import TriviaRecoveryWorkspace from "@/app/components/trivia/ops/TriviaRecoveryWorkspace";
+import { findTriviaEventForRoute } from "@/app/apps/trivia/lib/trivia-selectors";
 
 type View = "overview" | "printables" | "check-in" | "judge" | "scoreboard" | "recovery";
 
 /** Shared route bridge so every sidebar operations link resolves to its functional workspace. */
 export default function TriviaEventWorkspaceLoader({ eventId, view }: { eventId: string; view: View }) {
   const api = useTriviaModuleState();
-  const event = useMemo(() => api.state.events.find((item) => item.id === eventId) ?? null, [api.state.events, eventId]);
+  const event = useMemo(() => findTriviaEventForRoute(api.state.events, eventId), [api.state.events, eventId]);
   const live = event ? api.state.liveByEventId[event.id] : null;
   const scoreHistory = event ? api.state.scoreHistoryByEventId[event.id] ?? [] : [];
   useEffect(() => { if (event && view === "recovery") { void api.loadEventSnapshots(event.id); void api.loadEventAudit(event.id); } }, [api, event, view]);
