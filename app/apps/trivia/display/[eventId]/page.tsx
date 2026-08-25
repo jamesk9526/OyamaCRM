@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 import ProjectorDisplayView from "@/app/components/trivia/ProjectorDisplayView";
+import { findTriviaEventForRoute } from "@/app/apps/trivia/lib/trivia-selectors";
 
 /**
  * TriviaProjectorDisplayPage renders only audience-safe state from host controls.
@@ -19,7 +20,7 @@ export default function TriviaProjectorDisplayPage() {
     if (syncMode !== "server") setSyncMode("server");
   }, [setSyncMode, syncMode]);
 
-  const event = useMemo(() => state.events.find((item) => item.id === eventId) ?? null, [state.events, eventId]);
+  const event = useMemo(() => findTriviaEventForRoute(state.events, eventId), [state.events, eventId]);
   const live = event ? state.liveByEventId[event.id] : null;
 
   if (!event || !live) {
