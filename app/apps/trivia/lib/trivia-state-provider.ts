@@ -55,8 +55,8 @@ export function writeTriviaSyncMode(mode: TriviaSyncMode): void {
 }
 
 /** Loads module state from server-backed trivia persistence. */
-export async function loadServerTriviaState(): Promise<ServerStateEnvelope> {
-  return apiFetch<ServerStateEnvelope>("/api/apps/trivia/state");
+export async function loadServerTriviaState(signal?: AbortSignal): Promise<ServerStateEnvelope> {
+  return apiFetch<ServerStateEnvelope>("/api/apps/trivia/state", { signal });
 }
 
 /** Saves full module state to server-backed trivia persistence. */

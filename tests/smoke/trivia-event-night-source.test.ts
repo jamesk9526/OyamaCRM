@@ -267,4 +267,19 @@ describe("Trivia event-night controls", () => {
     expect(route).toContain("MAX_TRIVIA_QUESTIONS_PER_ROUND");
     expect(route).toContain("normalizeTriviaEventContent");
   });
+
+  it("keeps background server synchronization quiet and non-destructive during live operation", () => {
+    const state = read("app/apps/trivia/hooks/useTriviaModuleState.ts");
+    const store = read("app/apps/trivia/lib/trivia-store.ts");
+    const route = read("server/src/routes/trivia.ts");
+    const commandCenter = read("app/events/[eventId]/trivia/page.tsx");
+
+    expect(state).toContain("TRIVIA_SERVER_POLL_INTERVAL_MS = 5_000");
+    expect(state).toContain("pendingServerWritesRef.current > 0");
+    expect(state).toContain("announceReconnect: false");
+    expect(state).toContain("payload.updatedAt !== lastServerUpdatedAtRef.current");
+    expect(store).toContain("detail?.sourceId === sourceId");
+    expect(route).toContain("beforeSync !== eventsLinkSyncFingerprint(triviaEvent)");
+    expect(commandCenter).toContain("prefetch={false}");
+  });
 });

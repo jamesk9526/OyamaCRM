@@ -144,6 +144,7 @@ export interface TriviaTeamUpdateResult {
 
 const TEAM_COLORS = ["#34d399", "#38bdf8", "#f59e0b", "#f472b6", "#a78bfa", "#fb7185"];
 const TEAM_ICONS = ["star", "bolt", "brain", "crown", "rocket", "shield"];
+const TRIVIA_SERVER_POLL_INTERVAL_MS = 5_000;
 
 function normalizeTeamOrder(teams: TriviaTeam[]): TriviaTeam[] {
   return [...teams]
@@ -165,6 +166,9 @@ export function useTriviaModuleState() {
   const [auditByEventId, setAuditByEventId] = useState<Record<string, TriviaEventAuditEvent[]>>({});
   const stateRef = useRef(state);
   const serverSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingServerWritesRef = useRef(0);
+  const lastServerUpdatedAtRef = useRef<string | null>(null);
+  const syncSourceIdRef = useRef(createTriviaId("trivia-client"));
 
   useEffect(() => {
     stateRef.current = state;
@@ -172,16 +176,19 @@ export function useTriviaModuleState() {
 
   useEffect(() => {
     const unsubscribe = subscribeTriviaState(() => {
+      if (pendingServerWritesRef.current > 0) return;
       const next = readTriviaState();
       stateRef.current = next;
       setState(next);
-    });
+    }, syncSourceIdRef.current);
 
     return unsubscribe;
   }, []);
 
   useEffect(() => {
     let active = true;
+    let pullInFlight = false;
+    const abortController = new AbortController();
     if (syncMode !== "server") {
       setConnectionStatus("connected");
       setSyncError(null);
@@ -190,19 +197,24 @@ export function useTriviaModuleState() {
       };
     }
 
-    const pullServerState = async (replaceLocal: boolean) => {
-      setConnectionStatus("reconnecting");
+    const pullServerState = async (options: { replaceLocal: boolean; announceReconnect: boolean }) => {
+      if (pullInFlight || pendingServerWritesRef.current > 0) return;
+      pullInFlight = true;
+      if (options.announceReconnect) setConnectionStatus("reconnecting");
       try {
-        const payload = await loadServerTriviaState();
+        const payload = await loadServerTriviaState(abortController.signal);
         if (!active) return;
-        const normalized = ensureLiveStateCoverage(payload.state);
-
-        if (replaceLocal || JSON.stringify(normalized) !== JSON.stringify(stateRef.current)) {
-          stateRef.current = normalized;
-          setState(normalized);
-          writeTriviaState(normalized);
+        const serverChanged = payload.updatedAt !== lastServerUpdatedAtRef.current;
+        if (options.replaceLocal || serverChanged) {
+          const normalized = ensureLiveStateCoverage(payload.state);
+          if (pendingServerWritesRef.current === 0 && JSON.stringify(normalized) !== JSON.stringify(stateRef.current)) {
+            stateRef.current = normalized;
+            setState(normalized);
+            writeTriviaState(normalized, syncSourceIdRef.current);
+          }
         }
 
+        lastServerUpdatedAtRef.current = payload.updatedAt;
         setLastSyncedAt(payload.updatedAt ?? new Date().toISOString());
         setConnectionStatus("connected");
         setSyncError(null);
@@ -210,22 +222,25 @@ export function useTriviaModuleState() {
         if (!active) return;
         setConnectionStatus("offline");
         setSyncError(error instanceof Error ? error.message : "Unable to sync trivia state from server.");
+      } finally {
+        pullInFlight = false;
       }
     };
 
-    void pullServerState(true);
+    void pullServerState({ replaceLocal: true, announceReconnect: true });
 
     const intervalId = window.setInterval(() => {
-      void pullServerState(false);
-    }, 2000);
+      if (document.visibilityState === "visible") void pullServerState({ replaceLocal: false, announceReconnect: false });
+    }, TRIVIA_SERVER_POLL_INTERVAL_MS);
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void pullServerState(false);
+      if (document.visibilityState === "visible") void pullServerState({ replaceLocal: false, announceReconnect: false });
     };
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       active = false;
+      abortController.abort();
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
@@ -233,16 +248,20 @@ export function useTriviaModuleState() {
   }, [syncMode]);
 
   function enqueueServerSync(nextState: TriviaModuleState) {
+    pendingServerWritesRef.current += 1;
     serverSyncQueueRef.current = serverSyncQueueRef.current.then(async () => {
-      setConnectionStatus("reconnecting");
+      setConnectionStatus((current) => current === "offline" ? "reconnecting" : current);
       try {
         const payload = await saveServerTriviaState(nextState);
+        lastServerUpdatedAtRef.current = payload.updatedAt;
         setConnectionStatus("connected");
         setLastSyncedAt(payload.updatedAt ?? new Date().toISOString());
         setSyncError(null);
       } catch (error) {
         setConnectionStatus("offline");
         setSyncError(error instanceof Error ? error.message : "Unable to push trivia state to server.");
+      } finally {
+        pendingServerWritesRef.current = Math.max(0, pendingServerWritesRef.current - 1);
       }
     });
   }
@@ -251,7 +270,7 @@ export function useTriviaModuleState() {
     const normalized = ensureLiveStateCoverage(next);
     stateRef.current = normalized;
     setState(normalized);
-    writeTriviaState(normalized);
+    writeTriviaState(normalized, syncSourceIdRef.current);
 
     if (syncMode === "server" && !options?.skipServerSync) {
       enqueueServerSync(normalized);
@@ -273,9 +292,11 @@ export function useTriviaModuleState() {
     if (syncMode !== "server") return;
     setConnectionStatus("reconnecting");
     try {
+      await serverSyncQueueRef.current;
       const payload = await loadServerTriviaState();
       const normalized = ensureLiveStateCoverage(payload.state);
       commit(normalized, { skipServerSync: true });
+      lastServerUpdatedAtRef.current = payload.updatedAt;
       setLastSyncedAt(payload.updatedAt ?? new Date().toISOString());
       setConnectionStatus("connected");
       setSyncError(null);

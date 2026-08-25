@@ -352,6 +352,19 @@ function rosterSyncFingerprint(event: JsonObject | undefined): string {
   })));
 }
 
+function eventsLinkSyncFingerprint(event: JsonObject): string {
+  return JSON.stringify({
+    teams: rosterSyncFingerprint(event),
+    linkedEventsEventName: event.linkedEventsEventName ?? null,
+    venue: event.venue ?? null,
+    eventsSyncError: event.eventsSyncError ?? null,
+  });
+}
+
+// Coordinated in-process throttle: several event-night screens poll the shared state,
+// but only one of them should trigger an Events roster query in each interval.
+const eventsLinkLastCheckedAt = new Map<string, number>();
+
 async function generateEventsGuestCheckinCode(): Promise<string> {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const code = randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
@@ -368,8 +381,12 @@ async function syncTriviaEventFromOyamaEvents(
 ): Promise<boolean> {
   const linkedEventId = String(triviaEvent.linkedEventsEventId ?? "").trim();
   if (!linkedEventId) return false;
-  const lastSyncAt = new Date(String(triviaEvent.eventsLastSyncedAt ?? 0)).getTime();
-  if (!options?.force && Number.isFinite(lastSyncAt) && Date.now() - lastSyncAt < 4_000) return false;
+  const syncThrottleKey = `${organizationId}:${linkedEventId}`;
+  const lastCheckedAt = eventsLinkLastCheckedAt.get(syncThrottleKey) ?? 0;
+  if (!options?.force && Date.now() - lastCheckedAt < 4_000) return false;
+  eventsLinkLastCheckedAt.set(syncThrottleKey, Date.now());
+  const beforeSync = eventsLinkSyncFingerprint(triviaEvent);
+  const hadSuccessfulSync = Boolean(String(triviaEvent.eventsLastSyncedAt ?? "").trim());
 
   const linkedEvent = await prisma.event.findFirst({
     where: { id: linkedEventId, organizationId },
@@ -402,15 +419,16 @@ async function syncTriviaEventFromOyamaEvents(
   });
   if (!linkedEvent) {
     triviaEvent.eventsSyncError = "The linked Oyama Events record is unavailable.";
-    return true;
+    return beforeSync !== eventsLinkSyncFingerprint(triviaEvent);
   }
 
   const currentTeams = Array.isArray(triviaEvent.teams) ? triviaEvent.teams.filter(isObject) : [];
   if (linkedEvent.tables.length === 0) {
     triviaEvent.linkedEventsEventName = linkedEvent.name;
-    triviaEvent.eventsLastSyncedAt = nowIso();
     triviaEvent.eventsSyncError = null;
-    return true;
+    const changed = beforeSync !== eventsLinkSyncFingerprint(triviaEvent) || !hadSuccessfulSync;
+    if (changed) triviaEvent.eventsLastSyncedAt = nowIso();
+    return changed;
   }
 
   const nextTeams = linkedEvent.tables.map((table, index) => {
@@ -473,10 +491,11 @@ async function syncTriviaEventFromOyamaEvents(
 
   triviaEvent.teams = normalizeRosterTableNumbers(nextTeams);
   triviaEvent.linkedEventsEventName = linkedEvent.name;
-  triviaEvent.eventsLastSyncedAt = nowIso();
   triviaEvent.eventsSyncError = null;
   if (!String(triviaEvent.venue ?? "").trim() && linkedEvent.location) triviaEvent.venue = linkedEvent.location;
-  return true;
+  const changed = beforeSync !== eventsLinkSyncFingerprint(triviaEvent) || !hadSuccessfulSync;
+  if (changed) triviaEvent.eventsLastSyncedAt = nowIso();
+  return changed;
 }
 
 async function syncTriviaEventToOyamaEvents(organizationId: string, triviaEvent: JsonObject): Promise<void> {

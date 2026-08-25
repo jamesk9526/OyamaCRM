@@ -249,31 +249,44 @@ export function readTriviaState(): TriviaModuleState {
   }
 }
 
-/** Writes trivia module state and emits sync events for other tabs and pop-out windows. */
-export function writeTriviaState(next: TriviaModuleState): void {
+interface TriviaStateSignal {
+  sourceId?: string;
+  at: number;
+}
+
+/** Writes trivia module state and emits sync events for other hook instances, tabs, and pop-out windows. */
+export function writeTriviaState(next: TriviaModuleState, sourceId?: string): void {
   if (typeof window === "undefined") return;
 
   window.localStorage.setItem(TRIVIA_STORAGE_KEY, JSON.stringify(next));
-  window.dispatchEvent(new CustomEvent(TRIVIA_EVENT_NAME, { detail: { at: Date.now() } }));
+  const signal: TriviaStateSignal = { sourceId, at: Date.now() };
+  window.dispatchEvent(new CustomEvent<TriviaStateSignal>(TRIVIA_EVENT_NAME, { detail: signal }));
 
   if (typeof window.BroadcastChannel !== "undefined") {
     const channel = new window.BroadcastChannel(TRIVIA_BROADCAST_CHANNEL);
-    channel.postMessage({ type: "state-updated", at: Date.now() });
+    channel.postMessage({ type: "state-updated", ...signal });
     channel.close();
   }
 }
 
 /** Subscribes to module state updates from current tab and other windows. */
-export function subscribeTriviaState(onStateChange: () => void): () => void {
+export function subscribeTriviaState(onStateChange: () => void, sourceId?: string): () => void {
   if (typeof window === "undefined") return () => undefined;
 
-  const onWindowEvent = () => onStateChange();
+  const onWindowEvent = (event: Event) => {
+    const detail = (event as CustomEvent<TriviaStateSignal>).detail;
+    if (sourceId && detail?.sourceId === sourceId) return;
+    onStateChange();
+  };
   window.addEventListener(TRIVIA_EVENT_NAME, onWindowEvent);
 
   let channel: BroadcastChannel | null = null;
   if (typeof window.BroadcastChannel !== "undefined") {
     channel = new window.BroadcastChannel(TRIVIA_BROADCAST_CHANNEL);
-    channel.onmessage = () => onStateChange();
+    channel.onmessage = (event: MessageEvent<TriviaStateSignal>) => {
+      if (sourceId && event.data?.sourceId === sourceId) return;
+      onStateChange();
+    };
   }
 
   const onStorage = (event: StorageEvent) => {
