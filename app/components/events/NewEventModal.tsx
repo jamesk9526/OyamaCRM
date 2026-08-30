@@ -4,8 +4,6 @@ import { useState } from "react";
 import { CalendarDays, Gamepad2, MapPin, X } from "lucide-react";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { EventItem } from "@/app/components/events/types";
-import { createDefaultDisplaySettings, createDefaultScoringRules } from "@/app/apps/trivia/lib/trivia-demo-data";
-import { createDefaultTriviaRegistrationSettings } from "@/app/apps/trivia/lib/trivia-store";
 
 /** Minimal first step: create the Event, then configure the details in its workspace. */
 export default function NewEventModal({ onClose, onCreated }: { onClose: () => void; onCreated: (event: EventItem) => void }) {
@@ -19,10 +17,9 @@ export default function NewEventModal({ onClose, onCreated }: { onClose: () => v
     setError(null);
     try {
       const created = await apiFetch<EventItem>("/api/events", { method: "POST", body: JSON.stringify({ name: form.name.trim(), type: form.mode === "TRIVIA" ? "TRIVIA" : "OTHER", mode: form.mode, location: form.location.trim() || null, startDate: `${form.date}T${form.time}`, active: true }) });
-      if (form.mode === "TRIVIA") {
-        const now = new Date().toISOString();
-        await apiFetch("/api/apps/trivia/events", { method: "POST", body: JSON.stringify({ id: created.id, linkedEventsEventId: created.id, linkedEventsEventName: created.name, name: created.name, venue: created.location ?? "", hostName: "", startAt: created.startDate, status: "draft", rounds: [], teams: [], scoringRules: createDefaultScoringRules(), displaySettings: createDefaultDisplaySettings(), registrationSettings: createDefaultTriviaRegistrationSettings(created.name, created.id), eventsSyncMode: "automatic", createdAt: now, updatedAt: now }) });
-      }
+      // Trivia configuration is created in the same server transaction as the Event.
+      // Keeping this a single request prevents a failed second call from leaving a
+      // hidden duplicate Event that staff cannot safely retry.
       onCreated(created);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The event could not be created.");

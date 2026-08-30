@@ -1,315 +1,185 @@
-/** Event settings workspace with admin integration import controls. */
+/** Canonical, persisted event settings workspace. */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { Check, RefreshCw, Save, TriangleAlert } from "lucide-react";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
-import FeatureStatusWarning from "@/app/components/ui/FeatureStatusWarning";
 import { apiFetch } from "@/app/lib/auth-client";
-import { useAuth } from "@/app/components/auth/AuthProvider";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import EventScopedRibbonButton from "@/app/components/workspace-ribbon/EventScopedRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
-interface EventItem {
+interface EventSettingsRecord {
   id: string;
   name: string;
+  description?: string | null;
+  type: string;
+  status: string;
+  visibility: string;
+  location?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  virtualUrl?: string | null;
   startDate: string;
-  active?: boolean;
-  status?: string;
-  type?: string;
+  endDate?: string | null;
+  registrationDeadline?: string | null;
+  capacity?: number | null;
+  registrationGoal?: number | null;
+  revenueGoal?: number | string | null;
+  internalNotes?: string | null;
+  active: boolean;
 }
 
-interface PaymentGatewayPreview {
-  currency: string;
-  stripe: { enabled: boolean; mode: string; publishableKey: string; hasSecretKey: boolean; hasWebhookSecret: boolean };
-  paypal: { enabled: boolean; mode: string; clientId: string; hasClientSecret: boolean; webhookId: string };
+type EventSettingsForm = Omit<EventSettingsRecord, "id" | "type" | "active" | "capacity" | "registrationGoal" | "revenueGoal"> & {
+  capacity: string;
+  registrationGoal: string;
+  revenueGoal: string;
+};
+
+const inputClass = "mt-1.5 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-amber-600 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-100 disabled:text-slate-500";
+const labelClass = "block text-xs font-semibold uppercase tracking-[0.08em] text-slate-600";
+
+function toLocalDateTime(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-interface IntegrationSourcePreview {
-  paymentGateway: PaymentGatewayPreview;
-  emailProvider: {
-    provider: "standard_smtp" | "microsoft_365_smtp" | "microsoft_graph";
-    graphConnected: boolean;
-    microsoftMailbox: string;
-    microsoftTenantConfigured: boolean;
-    microsoftClientConfigured: boolean;
-    smtpHostOverride: string;
-    smtpPortOverride: number;
-    smtpSecureOverride: boolean;
+function toForm(event: EventSettingsRecord): EventSettingsForm {
+  return {
+    name: event.name,
+    description: event.description ?? "",
+    status: event.status,
+    visibility: event.visibility,
+    location: event.location ?? "",
+    address: event.address ?? "",
+    city: event.city ?? "",
+    state: event.state ?? "",
+    zip: event.zip ?? "",
+    virtualUrl: event.virtualUrl ?? "",
+    startDate: toLocalDateTime(event.startDate),
+    endDate: toLocalDateTime(event.endDate),
+    registrationDeadline: toLocalDateTime(event.registrationDeadline),
+    capacity: event.capacity == null ? "" : String(event.capacity),
+    registrationGoal: event.registrationGoal == null ? "" : String(event.registrationGoal),
+    revenueGoal: event.revenueGoal == null ? "" : String(event.revenueGoal),
+    internalNotes: event.internalNotes ?? "",
   };
-  smtp: {
-    host: string;
-    hostConfigured: boolean;
-    port: number;
-    secure: boolean;
-    userConfigured: boolean;
-    fromName: string;
-    fromEmail: string;
-  };
 }
 
-interface IntegrationSnapshot extends IntegrationSourcePreview {
-  source: "donor_crm";
-  importedAt: string;
-  importedByUserId: string | null;
-}
-
-interface ManagerIntegrationsResponse {
-  sourcePreview: IntegrationSourcePreview;
-  importedSnapshot: IntegrationSnapshot | null;
-  lastImportedAt: string | null;
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return "Not set";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "Not set";
-  return parsed.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function boolLabel(value: boolean, positive: string, negative: string): string {
-  return value ? positive : negative;
-}
-
-/** EventSettingsPage provides event-level defaults plus admin integration import controls. */
+/** Edits the Event record directly; provider configuration lives in global settings. */
 export default function EventSettingsPage() {
-  const { user } = useAuth();
-  const params = useParams<{ eventId?: string }>();
-  const searchParams = useSearchParams();
-  const workspaceEventId = params.eventId ?? searchParams.get("eventId") ?? "";
-  const eventScoped = workspaceEventId.length > 0;
-  const router = useRouter();
+  const { eventId = "" } = useParams<{ eventId?: string }>();
+  const [record, setRecord] = useState<EventSettingsRecord | null>(null);
+  const [form, setForm] = useState<EventSettingsForm | null>(null);
+  const [loading, setLoading] = useState(Boolean(eventId));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  // Legacy global route redirects to the event selector when no event is selected.
-  useEffect(() => {
-    if (!eventScoped) {
-      router.replace("/events/events");
-    }
-  }, [eventScoped, router]);
-
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState(workspaceEventId);
-  const [integrations, setIntegrations] = useState<ManagerIntegrationsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
-  const [integrationError, setIntegrationError] = useState<string | null>(null);
-
-  const canManageIntegrations = user?.role === "admin";
-
-  useEffect(() => {
-    if (workspaceEventId) setSelectedEventId(workspaceEventId);
-  }, [workspaceEventId]);
-
-  async function loadWorkspace() {
+  async function load() {
+    if (!eventId) return;
     setLoading(true);
-    setIntegrationError(null);
+    setError("");
     try {
-      const eventList = await apiFetch<EventItem[]>("/api/events");
-      const activeEvents = (Array.isArray(eventList) ? eventList : []).filter((event) => event.active !== false);
-      setEvents(activeEvents);
-      if (!workspaceEventId && !selectedEventId && activeEvents.length > 0) {
-        setSelectedEventId(activeEvents[0].id);
-      }
-
-      if (canManageIntegrations) {
-        const integrationData = await apiFetch<ManagerIntegrationsResponse>("/api/events/manager-integrations");
-        setIntegrations(integrationData);
-      } else {
-        setIntegrations(null);
-      }
-    } catch (error) {
-      console.error("Failed to load Events settings workspace:", error);
-      setIntegrationError("Could not load integration settings. Please refresh and try again.");
+      const next = await apiFetch<EventSettingsRecord>(`/api/events/${eventId}`);
+      setRecord(next);
+      setForm(toForm(next));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Event settings could not be loaded.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    void loadWorkspace();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManageIntegrations]);
+  useEffect(() => { void load(); }, [eventId]);
+  const dirty = useMemo(() => Boolean(record && form && JSON.stringify(form) !== JSON.stringify(toForm(record))), [form, record]);
 
-  async function importFromDonorCrm() {
-    if (!canManageIntegrations) return;
-    setImporting(true);
-    setIntegrationError(null);
+  function patch<K extends keyof EventSettingsForm>(field: K, value: EventSettingsForm[K]) {
+    setForm((current) => current ? { ...current, [field]: value } : current);
+    setMessage("");
+  }
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    if (!form || !eventId) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
     try {
-      const imported = await apiFetch<{ importedSnapshot: IntegrationSnapshot }>("/api/events/manager-integrations/import", {
-        method: "POST",
+      const updated = await apiFetch<EventSettingsRecord>(`/api/events/${eventId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...form,
+          name: form.name.trim(),
+          description: form.description?.trim() || null,
+          location: form.location?.trim() || null,
+          address: form.address?.trim() || null,
+          city: form.city?.trim() || null,
+          state: form.state?.trim() || null,
+          zip: form.zip?.trim() || null,
+          virtualUrl: form.virtualUrl?.trim() || null,
+          internalNotes: form.internalNotes?.trim() || null,
+          endDate: form.endDate || null,
+          registrationDeadline: form.registrationDeadline || null,
+          capacity: form.capacity === "" ? null : Number(form.capacity),
+          registrationGoal: form.registrationGoal === "" ? null : Number(form.registrationGoal),
+          revenueGoal: form.revenueGoal === "" ? null : Number(form.revenueGoal),
+        }),
       });
-
-      setIntegrations((previous) => {
-        if (!previous) {
-          return {
-            sourcePreview: imported.importedSnapshot,
-            importedSnapshot: imported.importedSnapshot,
-            lastImportedAt: imported.importedSnapshot.importedAt,
-          };
-        }
-        return {
-          ...previous,
-          sourcePreview: imported.importedSnapshot,
-          importedSnapshot: imported.importedSnapshot,
-          lastImportedAt: imported.importedSnapshot.importedAt,
-        };
-      });
-    } catch (error) {
-      console.error("Failed to import Donor CRM integrations:", error);
-      setIntegrationError("Import failed. Confirm you have admin access and retry.");
+      setRecord(updated);
+      setForm(toForm(updated));
+      setMessage("Event settings saved.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Event settings could not be saved.");
     } finally {
-      setImporting(false);
+      setSaving(false);
     }
   }
 
-  const selectedEvent = useMemo(
-    () => events.find((event) => event.id === selectedEventId) ?? null,
-    [events, selectedEventId],
-  );
-
-  const integrationsReady = Boolean(integrations?.sourcePreview.paymentGateway.stripe.enabled || integrations?.sourcePreview.paymentGateway.paypal.enabled)
-    && Boolean(integrations?.sourcePreview.smtp.fromEmail || integrations?.sourcePreview.emailProvider.graphConnected);
-
-  if (!eventScoped) {
-    return <RequireEventSelectionNotice tool="event settings" />;
-  }
+  if (!eventId) return <RequireEventSelectionNotice tool="event settings" />;
+  if (loading) return <div className="mx-auto max-w-6xl space-y-4 p-5 sm:p-8"><div className="h-28 animate-pulse rounded-md bg-slate-200" /><div className="h-96 animate-pulse rounded-md bg-slate-200" /></div>;
+  if (!form || !record) return <div className="mx-auto max-w-3xl p-5 sm:p-8"><section className="event-industrial-panel p-6"><TriangleAlert className="h-6 w-6 text-amber-700" /><h1 className="mt-3 text-xl font-semibold">Settings unavailable</h1><p className="mt-2 text-sm text-slate-600">{error || "This event could not be loaded."}</p><button type="button" onClick={() => void load()} className="event-industrial-secondary mt-5"><RefreshCw className="h-4 w-4" />Try again</button></section></div>;
 
   return (
-    <div className="space-y-6 p-6">
-      <FeatureStatusWarning
-        status="Partially Implemented"
-        title="Event settings is partially wired"
-        description="Donor-CRM integration import (admin only) snapshots payment and email provider settings for event operations, but per-event branding, public-page defaults, and full settings persistence are not yet implemented. Removal: per-event settings model exists, save/load round-trip is wired, and a smoke test covers update + reload."
-      />
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Events CRM", href: "/events/events" },
-          { label: "Settings" },
-        ]}
-        statusLabel={canManageIntegrations ? "Partially Working" : "Working"}
-        metadata="Event defaults, manager integrations, and admin controls"
-        accentTone="purple"
-      />
+    <form onSubmit={save} className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
+      <header className="event-industrial-page-header">
+        <div className="min-w-0"><p className="event-industrial-kicker">Configuration / {record.type === "TRIVIA" ? "Trivia Night" : "Event"}</p><h1>Event settings</h1><p>Canonical details used by registration, public pages, staff tools, and event-night stations.</p></div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2"><span className={`event-industrial-state ${dirty ? "is-warning" : "is-ready"}`}>{dirty ? "Unsaved changes" : "Saved"}</span><button type="submit" disabled={saving || !dirty || !form.name.trim() || !form.startDate} className="event-industrial-primary"><Save className="h-4 w-4" />{saving ? "Saving…" : "Save settings"}</button></div>
+      </header>
 
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Navigation">
-          <EventScopedRibbonButton label="Overview" eventId={selectedEventId} eventPath="overview" accentTone="purple" />
-          <EventScopedRibbonButton label="Emails" eventId={selectedEventId} eventPath="emails" accentTone="purple" />
-          <EventScopedRibbonButton label="Donations" eventId={selectedEventId} eventPath="donations" accentTone="purple" />
-        </WorkspaceRibbonGroup>
-        <WorkspaceRibbonGroup label="Admin">
-          <WorkspaceRibbonButton label="Refresh" onClick={() => void loadWorkspace()} accentTone="purple" />
-          <WorkspaceRibbonButton label={importing ? "Importing..." : "Import Donor Settings"} onClick={() => void importFromDonorCrm()} disabled={!canManageIntegrations || importing} variant="primary" accentTone="purple" />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+      {error ? <div className="flex gap-3 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert"><TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" /><span>{error}</span></div> : null}
+      {message ? <div className="flex gap-3 border-l-4 border-emerald-600 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status"><Check className="mt-0.5 h-5 w-5 shrink-0" /><span>{message}</span></div> : null}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Event context</p>
-            <h1 className="mt-1 text-xl font-semibold text-slate-900">Events Manager Settings</h1>
-            <p className="mt-1 text-sm text-slate-600">Manage event defaults and import payment/email configuration from Donor CRM for event operations.</p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
+        <section className="event-industrial-panel p-5 sm:p-6">
+          <div className="event-industrial-section-heading"><div><p>01 / Identity</p><h2>Public event details</h2></div><span>{record.type.replaceAll("_", " ")}</span></div>
+          <div className="mt-5 grid gap-5">
+            <label className={labelClass}>Event name<input required maxLength={160} value={form.name} onChange={(event) => patch("name", event.target.value)} className={inputClass} /></label>
+            <label className={labelClass}>Description<textarea rows={4} maxLength={10_000} value={form.description ?? ""} onChange={(event) => patch("description", event.target.value)} className={`${inputClass} resize-y py-3`} /></label>
+            <div className="grid gap-4 sm:grid-cols-2"><label className={labelClass}>Lifecycle<select value={form.status} onChange={(event) => patch("status", event.target.value)} className={inputClass}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="REGISTRATION_OPEN">Registration open</option><option value="REGISTRATION_CLOSED">Registration closed</option><option value="IN_PROGRESS">In progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></label><label className={labelClass}>Visibility<select value={form.visibility} onChange={(event) => patch("visibility", event.target.value)} className={inputClass}><option value="PUBLIC">Public</option><option value="PRIVATE">Private</option><option value="INVITE_ONLY">Invite only</option></select></label></div>
           </div>
-          {!eventScoped ? (
-            <label className="w-full max-w-sm space-y-1">
-              <span className="text-xs font-semibold text-slate-600">Selected event</span>
-              <select
-                value={selectedEventId}
-                onChange={(event) => setSelectedEventId(event.target.value)}
-                disabled={loading}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
-              >
-                <option value="">{loading ? "Loading events..." : "Select an event"}</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name} - {formatDate(event.startDate)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <p className="text-xs text-violet-700">Event lock active. Switch from All Events.</p>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Event</p>
-          <p className="mt-2 text-sm font-semibold text-slate-900">{selectedEvent?.name ?? "No event selected"}</p>
-          <p className="text-xs text-slate-500">{selectedEvent ? formatDate(selectedEvent.startDate) : "Choose an event to access event-scoped settings routes."}</p>
-          <p className="mt-2 text-xs text-slate-500">Status: {selectedEvent?.status?.toLowerCase() ?? "n/a"}</p>
-          {selectedEventId ? (
-            <Link href={`/events/${selectedEventId}/settings`} className="mt-3 inline-flex text-xs font-semibold text-violet-700 hover:text-violet-900">
-              Open event settings route
-            </Link>
-          ) : null}
-        </article>
-
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Manager Integrations</p>
-          <p className="mt-2 text-sm font-semibold text-slate-900">{boolLabel(integrationsReady, "Ready", "Needs setup")}</p>
-          <p className="text-xs text-slate-500">Last import: {formatDate(integrations?.lastImportedAt ?? null)}</p>
-          <p className="mt-2 text-xs text-slate-500">This snapshot is admin-only and excludes secret values.</p>
-          {!canManageIntegrations ? (
-            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-              Admin access is required to import Donor CRM payment/email settings.
-            </p>
-          ) : null}
-        </article>
-
-        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source Links</p>
-          <div className="mt-2 space-y-2 text-xs">
-            <Link href="/integrations/stripe" className="block font-semibold text-violet-700 hover:text-violet-900">Open Stripe Giving integration</Link>
-            <Link href="/settings/email" className="block font-semibold text-violet-700 hover:text-violet-900">Open Donor email settings</Link>
-            <Link href="/events/reports" className="block font-semibold text-violet-700 hover:text-violet-900">Open Events reports</Link>
-          </div>
-        </article>
-      </section>
-
-      {integrationError ? (
-        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {integrationError}
         </section>
-      ) : null}
 
-      {canManageIntegrations && integrations ? (
-        <section className="grid gap-4 xl:grid-cols-2">
-          <article className="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-violet-900">Payment gateway preview</h2>
-            <p className="mt-1 text-xs text-violet-800">Currency: {integrations.sourcePreview.paymentGateway.currency}</p>
-            <ul className="mt-3 space-y-1 text-xs text-slate-700">
-              <li>Stripe: {boolLabel(integrations.sourcePreview.paymentGateway.stripe.enabled, "Enabled", "Disabled")} ({integrations.sourcePreview.paymentGateway.stripe.mode})</li>
-              <li>Stripe secret configured: {boolLabel(integrations.sourcePreview.paymentGateway.stripe.hasSecretKey, "Yes", "No")}</li>
-              <li>PayPal: {boolLabel(integrations.sourcePreview.paymentGateway.paypal.enabled, "Enabled", "Disabled")} ({integrations.sourcePreview.paymentGateway.paypal.mode})</li>
-              <li>PayPal secret configured: {boolLabel(integrations.sourcePreview.paymentGateway.paypal.hasClientSecret, "Yes", "No")}</li>
-            </ul>
-          </article>
-
-          <article className="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-violet-900">Email + SMTP preview</h2>
-            <ul className="mt-2 space-y-1 text-xs text-slate-700">
-              <li>Provider: {integrations.sourcePreview.emailProvider.provider}</li>
-              <li>Graph connected: {boolLabel(integrations.sourcePreview.emailProvider.graphConnected, "Yes", "No")}</li>
-              <li>SMTP host configured: {boolLabel(integrations.sourcePreview.smtp.hostConfigured, "Yes", "No")}</li>
-              <li>SMTP user configured: {boolLabel(integrations.sourcePreview.smtp.userConfigured, "Yes", "No")}</li>
-              <li>From email: {integrations.sourcePreview.smtp.fromEmail || "Not set"}</li>
-            </ul>
-          </article>
+        <section className="event-industrial-panel p-5 sm:p-6">
+          <div className="event-industrial-section-heading"><div><p>02 / Schedule</p><h2>Operating window</h2></div></div>
+          <div className="mt-5 grid gap-4"><label className={labelClass}>Starts<input required type="datetime-local" value={form.startDate} onChange={(event) => patch("startDate", event.target.value)} className={inputClass} /></label><label className={labelClass}>Ends<input type="datetime-local" min={form.startDate} value={form.endDate ?? ""} onChange={(event) => patch("endDate", event.target.value)} className={inputClass} /></label><label className={labelClass}>Registration deadline<input type="datetime-local" max={form.startDate} value={form.registrationDeadline ?? ""} onChange={(event) => patch("registrationDeadline", event.target.value)} className={inputClass} /></label></div>
         </section>
-      ) : null}
-    </div>
+
+        <section className="event-industrial-panel p-5 sm:p-6">
+          <div className="event-industrial-section-heading"><div><p>03 / Venue</p><h2>Location and access</h2></div></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className={`${labelClass} sm:col-span-2`}>Venue name<input maxLength={255} value={form.location ?? ""} onChange={(event) => patch("location", event.target.value)} className={inputClass} /></label><label className={`${labelClass} sm:col-span-2`}>Street address<input maxLength={255} value={form.address ?? ""} onChange={(event) => patch("address", event.target.value)} className={inputClass} /></label><label className={labelClass}>City<input maxLength={120} value={form.city ?? ""} onChange={(event) => patch("city", event.target.value)} className={inputClass} /></label><div className="grid grid-cols-[1fr_110px] gap-3"><label className={labelClass}>State<input maxLength={80} value={form.state ?? ""} onChange={(event) => patch("state", event.target.value)} className={inputClass} /></label><label className={labelClass}>ZIP<input maxLength={24} value={form.zip ?? ""} onChange={(event) => patch("zip", event.target.value)} className={inputClass} /></label></div><label className={`${labelClass} sm:col-span-2`}>Virtual event URL<input type="url" value={form.virtualUrl ?? ""} onChange={(event) => patch("virtualUrl", event.target.value)} placeholder="https://" className={inputClass} /></label></div>
+        </section>
+
+        <section className="event-industrial-panel p-5 sm:p-6">
+          <div className="event-industrial-section-heading"><div><p>04 / Targets</p><h2>Capacity and goals</h2></div></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3 xl:grid-cols-1"><label className={labelClass}>Maximum guests<input type="number" min="0" max="1000000" inputMode="numeric" value={form.capacity} onChange={(event) => patch("capacity", event.target.value)} className={inputClass} /></label><label className={labelClass}>Registration goal<input type="number" min="0" max="1000000" inputMode="numeric" value={form.registrationGoal} onChange={(event) => patch("registrationGoal", event.target.value)} className={inputClass} /></label><label className={labelClass}>Revenue goal<input type="number" min="0" max="100000000" step="0.01" inputMode="decimal" value={form.revenueGoal} onChange={(event) => patch("revenueGoal", event.target.value)} className={inputClass} /></label></div>
+        </section>
+      </div>
+
+      <section className="event-industrial-panel p-5 sm:p-6"><div className="event-industrial-section-heading"><div><p>05 / Internal</p><h2>Staff notes</h2></div><span>Not public</span></div><label className={`${labelClass} mt-5`}>Operational notes<textarea rows={5} maxLength={20_000} value={form.internalNotes ?? ""} onChange={(event) => patch("internalNotes", event.target.value)} className={`${inputClass} resize-y py-3`} /></label></section>
+    </form>
   );
 }
-

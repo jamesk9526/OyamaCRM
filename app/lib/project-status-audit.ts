@@ -190,11 +190,11 @@ export const PROJECT_STATUS_ITEMS: ProjectStatusItem[] = [
   },
   {
     area: "Events CRM",
-    feature: "Sponsors, tickets, communications, tasks, volunteers, files, settings pages",
-    status: "UI Only",
-    dataSource: "Static Demo UI",
-    notes: "These routes are EventsWorkspacePage shells with static metrics/action text and no backing API reads.",
-    nextStep: "Wire each page to dedicated endpoints starting with ticket types and sponsor management.",
+    feature: "Registration, sponsors, communications, settings, and retired scaffolds",
+    status: "Working",
+    dataSource: "Real API Data",
+    notes: "Registration, sponsors, communications, and settings use persisted APIs. Unbacked tasks/files/volunteer scaffolds redirect to canonical production workspaces.",
+    nextStep: "Add event-scoped task or file tools only when persistence and permission coverage are ready.",
   },
   {
     area: "Events CRM",

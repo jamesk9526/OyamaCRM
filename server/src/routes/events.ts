@@ -54,6 +54,9 @@ const MAX_EVENT_FLOOR_COORDINATE = 5000;
 const EVENT_TABLE_SHAPES = new Set(["round", "rectangle", "rectangular", "square"]);
 const EVENT_TABLE_STATUSES = new Set(["DRAFT", "OPEN", "SUBMITTED", "LOCKED", "EVENT_DAY", "ARCHIVED"]);
 const EVENT_TABLE_SEAT_STATUSES = new Set(["EMPTY", "RESERVED", "INVITED", "CONFIRMED", "CHECKED_IN", "CANCELLED"]);
+const EVENT_TYPES = new Set(["GALA", "TRIVIA", "FUNDRAISER", "AUCTION", "RUN_WALK", "CONFERENCE", "WORKSHOP", "CULTIVATION", "STEWARDSHIP", "VOLUNTEER", "ONLINE", "OTHER"]);
+const EVENT_STATUSES = new Set(["DRAFT", "PUBLISHED", "REGISTRATION_OPEN", "REGISTRATION_CLOSED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
+const EVENT_VISIBILITIES = new Set(["PUBLIC", "PRIVATE", "INVITE_ONLY"]);
 const publicEventRegistrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 20,
@@ -131,6 +134,53 @@ const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "check-in",
 ]);
 const EMAIL_PROVIDER_PLUGIN_KEY = "email-provider";
+
+/** Keeps malformed event records out of Prisma and returns actionable 400 responses. */
+function validateEventMutation(body: Record<string, unknown>, partial: boolean): string | null {
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if ((!partial || body.name !== undefined) && (!name || name.length > 160)) return "Event name is required and must be 160 characters or fewer.";
+
+  const startDate = body.startDate === undefined ? null : new Date(String(body.startDate));
+  if ((!partial || body.startDate !== undefined) && (!startDate || Number.isNaN(startDate.getTime()))) return "Choose a valid event start date and time.";
+
+  for (const [field, values] of [["type", EVENT_TYPES], ["status", EVENT_STATUSES], ["visibility", EVENT_VISIBILITIES]] as const) {
+    if (body[field] !== undefined && !values.has(String(body[field]))) return `${field[0].toUpperCase()}${field.slice(1)} is not supported.`;
+  }
+  for (const field of ["capacity", "registrationGoal"] as const) {
+    if (body[field] === undefined || body[field] === null || body[field] === "") continue;
+    const value = Number(body[field]);
+    if (!Number.isInteger(value) || value < 0 || value > 1_000_000) return `${field === "registrationGoal" ? "Registration goal" : "Capacity"} must be a whole number from 0 to 1,000,000.`;
+  }
+  if (body.revenueGoal !== undefined && body.revenueGoal !== null && body.revenueGoal !== "") {
+    const value = Number(body.revenueGoal);
+    if (!Number.isFinite(value) || value < 0 || value > 100_000_000) return "Revenue goal must be a number from 0 to 100,000,000.";
+  }
+  for (const field of ["endDate", "registrationDeadline"] as const) {
+    if (body[field] === undefined || body[field] === null || body[field] === "") continue;
+    if (Number.isNaN(new Date(String(body[field])).getTime())) return `${field === "endDate" ? "End date" : "Registration deadline"} is invalid.`;
+  }
+  if (startDate && !Number.isNaN(startDate.getTime()) && body.endDate) {
+    const endDate = new Date(String(body.endDate));
+    if (!Number.isNaN(endDate.getTime()) && endDate.getTime() < startDate.getTime()) return "Event end time cannot be before its start time.";
+  }
+  if (startDate && !Number.isNaN(startDate.getTime()) && body.registrationDeadline) {
+    const deadline = new Date(String(body.registrationDeadline));
+    if (!Number.isNaN(deadline.getTime()) && deadline.getTime() > startDate.getTime()) return "Registration deadline cannot be after the event starts.";
+  }
+  if (body.virtualUrl !== undefined && body.virtualUrl !== null && String(body.virtualUrl).trim()) {
+    try {
+      const url = new URL(String(body.virtualUrl));
+      if (!new Set(["https:", "http:"]).has(url.protocol)) return "Virtual event URL must use HTTPS or HTTP.";
+    } catch {
+      return "Virtual event URL is invalid.";
+    }
+  }
+  const limits: Record<string, number> = { description: 10_000, location: 255, address: 255, city: 120, state: 80, zip: 24, virtualUrl: 2_000, internalNotes: 20_000 };
+  for (const [field, maximum] of Object.entries(limits)) {
+    if (body[field] !== undefined && body[field] !== null && String(body[field]).length > maximum) return `${field} is too long.`;
+  }
+  return null;
+}
 
 type EmailProviderType = "standard_smtp" | "microsoft_365_smtp" | "microsoft_graph";
 
@@ -2769,6 +2819,12 @@ router.post("/", async (req, res) => {
     mode,
   } = req.body;
 
+  const validationError = validateEventMutation(req.body as Record<string, unknown>, false);
+  if (validationError) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });
+    return;
+  }
+
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization is configured for this installation." } });
@@ -2779,25 +2835,25 @@ router.post("/", async (req, res) => {
   const event = await prisma.event.create({
     data: {
       organizationId,
-      name,
-      description: description ?? undefined,
+      name: String(name).trim(),
+      description: typeof description === "string" ? description.trim() || undefined : undefined,
       type: triviaMode ? "TRIVIA" : type ?? "OTHER",
       status: status ?? "DRAFT",
       visibility: visibility ?? "PUBLIC",
-      location: location ?? undefined,
-      address: address ?? undefined,
-      city: city ?? undefined,
-      state: state ?? undefined,
-      zip: zip ?? undefined,
-      virtualUrl: virtualUrl ?? undefined,
+      location: typeof location === "string" ? location.trim() || undefined : undefined,
+      address: typeof address === "string" ? address.trim() || undefined : undefined,
+      city: typeof city === "string" ? city.trim() || undefined : undefined,
+      state: typeof state === "string" ? state.trim() || undefined : undefined,
+      zip: typeof zip === "string" ? zip.trim() || undefined : undefined,
+      virtualUrl: typeof virtualUrl === "string" ? virtualUrl.trim() || undefined : undefined,
       startDate: new Date(startDate),
       endDate: endDate ? new Date(endDate) : undefined,
       registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : undefined,
-      capacity: capacity ?? undefined,
-      registrationGoal: registrationGoal ?? undefined,
-      revenueGoal: revenueGoal ?? undefined,
+      capacity: capacity === null || capacity === "" || capacity === undefined ? undefined : Number(capacity),
+      registrationGoal: registrationGoal === null || registrationGoal === "" || registrationGoal === undefined ? undefined : Number(registrationGoal),
+      revenueGoal: revenueGoal === null || revenueGoal === "" || revenueGoal === undefined ? undefined : Number(revenueGoal),
       ownerId: ownerId ?? undefined,
-      internalNotes: internalNotes ?? undefined,
+      internalNotes: typeof internalNotes === "string" ? internalNotes.trim() || undefined : undefined,
       active: active ?? true,
       ...(triviaMode ? {
         triviaConfiguration: {
@@ -2839,7 +2895,7 @@ router.patch("/:id", async (req, res) => {
 
   const existing = await prisma.event.findFirst({
     where: { id: req.params.id, organizationId },
-    select: { id: true },
+    select: { id: true, startDate: true, endDate: true, registrationDeadline: true },
   });
 
   if (!existing) {
@@ -2870,28 +2926,45 @@ router.patch("/:id", async (req, res) => {
     active,
   } = req.body;
 
+  const validationError = validateEventMutation(req.body as Record<string, unknown>, true);
+  if (validationError) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });
+    return;
+  }
+  const nextStart = startDate !== undefined ? new Date(startDate) : existing.startDate;
+  const nextEnd = endDate !== undefined ? (endDate ? new Date(endDate) : null) : existing.endDate;
+  const nextDeadline = registrationDeadline !== undefined ? (registrationDeadline ? new Date(registrationDeadline) : null) : existing.registrationDeadline;
+  if (nextEnd && nextEnd.getTime() < nextStart.getTime()) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Event end time cannot be before its start time." } });
+    return;
+  }
+  if (nextDeadline && nextDeadline.getTime() > nextStart.getTime()) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Registration deadline cannot be after the event starts." } });
+    return;
+  }
+
   const event = await prisma.event.update({
     where: { id: req.params.id },
     data: {
-      ...(name !== undefined && { name }),
-      ...(description !== undefined && { description }),
+      ...(name !== undefined && { name: String(name).trim() }),
+      ...(description !== undefined && { description: typeof description === "string" ? description.trim() || null : null }),
       ...(type !== undefined && { type }),
       ...(status !== undefined && { status }),
       ...(visibility !== undefined && { visibility }),
-      ...(location !== undefined && { location }),
-      ...(address !== undefined && { address }),
-      ...(city !== undefined && { city }),
-      ...(state !== undefined && { state }),
-      ...(zip !== undefined && { zip }),
-      ...(virtualUrl !== undefined && { virtualUrl }),
+      ...(location !== undefined && { location: typeof location === "string" ? location.trim() || null : null }),
+      ...(address !== undefined && { address: typeof address === "string" ? address.trim() || null : null }),
+      ...(city !== undefined && { city: typeof city === "string" ? city.trim() || null : null }),
+      ...(state !== undefined && { state: typeof state === "string" ? state.trim() || null : null }),
+      ...(zip !== undefined && { zip: typeof zip === "string" ? zip.trim() || null : null }),
+      ...(virtualUrl !== undefined && { virtualUrl: typeof virtualUrl === "string" ? virtualUrl.trim() || null : null }),
       ...(startDate !== undefined && { startDate: new Date(startDate) }),
       ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
       ...(registrationDeadline !== undefined && { registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null }),
-      ...(capacity !== undefined && { capacity }),
-      ...(registrationGoal !== undefined && { registrationGoal }),
-      ...(revenueGoal !== undefined && { revenueGoal }),
+      ...(capacity !== undefined && { capacity: capacity === null || capacity === "" ? null : Number(capacity) }),
+      ...(registrationGoal !== undefined && { registrationGoal: registrationGoal === null || registrationGoal === "" ? null : Number(registrationGoal) }),
+      ...(revenueGoal !== undefined && { revenueGoal: revenueGoal === null || revenueGoal === "" ? null : Number(revenueGoal) }),
       ...(ownerId !== undefined && { ownerId }),
-      ...(internalNotes !== undefined && { internalNotes }),
+      ...(internalNotes !== undefined && { internalNotes: typeof internalNotes === "string" ? internalNotes.trim() || null : null }),
       ...(active !== undefined && { active }),
     },
     include: {

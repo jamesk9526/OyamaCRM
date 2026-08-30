@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   CircleDollarSign,
   ClipboardCheck,
-  ExternalLink,
   Gamepad2,
   Globe2,
   LayoutDashboard,
@@ -124,7 +123,6 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
         {navGroups.map((group) => <section key={group.label} className="mb-4 last:mb-0">{!collapsed ? <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{group.label}</p> : null}<div className="space-y-1">{group.items.map((item) => { const Icon = item.icon; const href = `/events/${eventId}/${item.segment}`; const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={item.segment} href={href} title={collapsed ? item.label : undefined} aria-current={active ? "page" : undefined} onClick={() => setMobileRailOpen(false)} className={`event-studio-right-nav-item ${active ? "is-active" : ""} ${collapsed ? "is-collapsed" : ""}`}><Icon className="h-[18px] w-[18px] shrink-0" />{!collapsed ? <span className="min-w-0 truncate">{item.label}</span> : null}</Link>; })}</div></section>)}
       </nav>
       <div className="border-t border-slate-200 p-2">
-        {!collapsed && eventId ? <Link href={`/events/${eventId}/event-page`} className="event-studio-right-nav-item"><ExternalLink className="h-[18px] w-[18px]" /><span>Preview public page</span></Link> : null}
         <button type="button" onClick={toggleRail} className="event-studio-right-nav-item hidden w-full lg:flex" aria-label={collapsed ? "Expand event navigation" : "Collapse event navigation"}>{collapsed ? <PanelRightOpen className="h-[18px] w-[18px]" /> : <PanelRightClose className="h-[18px] w-[18px]" />}{!collapsed ? <span>Collapse navigation</span> : null}</button>
       </div>
     </>;
@@ -134,14 +132,13 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
     <div className="event-studio-shell min-h-dvh bg-[#f6f7fb] text-slate-900">
       <header className="event-studio-header sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-3 px-3 sm:px-5">
-          <Link href="/events" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="Events home"><span className="event-studio-product-mark grid h-9 w-9 place-items-center rounded-xl text-white"><CalendarDays className="h-[18px] w-[18px]" /></span><span className="hidden sm:inline">Event Studio</span></Link>
+          <Link href="/events" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="Events home"><span className="event-studio-product-mark grid h-9 w-9 place-items-center text-white"><CalendarDays className="h-[18px] w-[18px]" /></span><span className="hidden sm:block"><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-amber-400">Oyama</span><span className="block text-sm leading-4 text-white">Event Operations</span></span></Link>
           <span className="h-5 w-px bg-slate-200" />
           <select value={eventId ?? ""} onChange={(input) => router.push(input.target.value ? `/events/${input.target.value}/overview` : "/events")} aria-label="Switch event" className="h-10 min-w-0 max-w-[48vw] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 sm:min-w-64">
             <option value="">All events</option>{events.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}{eventId && !events.some((item) => item.id === eventId) ? <option value={eventId}>{event?.name ?? "Current event"}</option> : null}
           </select>
           {eventId ? <div className="hidden min-w-0 lg:block"><p className="truncate text-sm font-bold">{currentItem?.label ?? "Event workspace"}</p><p className="truncate text-[11px] text-slate-500">{event?.name ?? "Event"}</p></div> : null}
           <div className="ml-auto flex items-center gap-2">
-            {eventId ? <Link href={`/events/${eventId}/event-page`} className="hidden min-h-9 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold hover:bg-slate-50 md:inline-flex">Preview <ExternalLink className="h-3.5 w-3.5" /></Link> : null}
             <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white" title={user.email}>{initials(`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email)}</div>
             {eventId ? <button type="button" onClick={() => setMobileRailOpen(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 bg-white lg:hidden" aria-label="Open event navigation"><Menu className="h-5 w-5" /></button> : null}
           </div>
@@ -150,10 +147,10 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
 
       <div className="mx-auto flex max-w-[1800px] items-start">
         <main className={`min-h-[calc(100dvh-4rem)] min-w-0 flex-1 ${isTriviaWorkspace ? "event-trivia-admin-content" : ""}`}><ErrorBoundary>{redirectTarget ? <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">Opening the selected event…</div> : children}</ErrorBoundary></main>
-        {eventId ? <aside className={`event-studio-right-rail sticky top-16 hidden h-[calc(100dvh-4rem)] shrink-0 flex-col border-l border-slate-200 bg-white/95 lg:flex ${railCollapsed ? "w-[68px]" : "w-[260px]"}`}>{renderRail(railCollapsed)}</aside> : null}
+        {eventId ? <aside className={`event-studio-right-rail sticky top-16 hidden h-[calc(100dvh-4rem)] shrink-0 flex-col border-l lg:flex ${railCollapsed ? "w-[68px]" : "w-[260px]"}`}>{renderRail(railCollapsed)}</aside> : null}
       </div>
 
-      {eventId && mobileRailOpen ? <><button type="button" className="fixed inset-0 z-50 bg-slate-950/35 lg:hidden" onClick={() => setMobileRailOpen(false)} aria-label="Close event navigation" /><aside className="fixed inset-y-0 right-0 z-[60] flex w-[min(88vw,320px)] flex-col border-l border-slate-200 bg-white shadow-2xl lg:hidden"><div className="flex h-14 items-center justify-between border-b border-slate-200 px-4"><div className="flex items-center gap-2"><ChevronLeft className="h-4 w-4 text-indigo-600" /><span className="text-sm font-bold">Event navigation</span></div><button type="button" onClick={() => setMobileRailOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-slate-100" aria-label="Close navigation"><X className="h-5 w-5" /></button></div>{renderRail(false)}</aside></> : null}
+      {eventId && mobileRailOpen ? <><button type="button" className="fixed inset-0 z-50 bg-slate-950/55 lg:hidden" onClick={() => setMobileRailOpen(false)} aria-label="Close event navigation" /><aside className="event-studio-mobile-rail fixed inset-y-0 right-0 z-[60] flex w-[min(88vw,320px)] flex-col border-l shadow-2xl lg:hidden"><div className="flex h-14 items-center justify-between border-b px-4"><div className="flex items-center gap-2"><ChevronLeft className="h-4 w-4 text-amber-400" /><span className="text-sm font-bold">Event navigation</span></div><button type="button" onClick={() => setMobileRailOpen(false)} className="grid h-9 w-9 place-items-center hover:bg-white/10" aria-label="Close navigation"><X className="h-5 w-5" /></button></div>{renderRail(false)}</aside></> : null}
     </div>
   );
 }

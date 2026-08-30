@@ -75,6 +75,13 @@ export function resolveLegacyGlobalEventsRedirect(
     registration: "registration",
     emails: "communications",
     "check-in": "day",
+    hosts: "tables",
+    fundraising: "payments",
+    donations: "payments",
+    "follow-up": "reports",
+    tasks: "overview",
+    volunteers: "day",
+    files: "overview",
   };
   return `/events/${eventId}/${segment[tool] ?? tool}`;
 }

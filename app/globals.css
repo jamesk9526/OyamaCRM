@@ -419,6 +419,104 @@ body {
 .event-trivia-station.is-primary .event-trivia-station-icon { background: linear-gradient(145deg, #4f46e5, #7c3aed); color: #fff; box-shadow: 0 7px 16px rgba(79, 70, 229, .2); }
 .event-trivia-command-center :is(a, button):focus-visible { outline: 3px solid rgba(79, 70, 229, .35); outline-offset: 2px; }
 
+/* Event Operations industrial system: graphite structure, steel surfaces, one amber action color. */
+.event-studio-shell {
+  --event-accent: #b45309;
+  --event-accent-strong: #92400e;
+  --event-accent-soft: #fff7ed;
+  background: linear-gradient(135deg, rgba(148, 163, 184, .08) 1px, transparent 1px) 0 0 / 24px 24px, #f1f3f4;
+}
+.event-studio-header {
+  border-color: #343a40 !important;
+  background: #171b1f !important;
+  color: #f8fafc;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+}
+.event-studio-header > div > span { background: #475569; }
+.event-studio-header select {
+  border-color: #56606a !important;
+  border-radius: 3px !important;
+  background: #242a2f !important;
+  color: #f8fafc;
+}
+.event-studio-header select:focus { border-color: #f59e0b !important; box-shadow: 0 0 0 2px rgba(245, 158, 11, .25) !important; }
+.event-studio-header button { border-color: #56606a; border-radius: 3px; background: #242a2f; }
+.event-studio-product-mark {
+  border: 1px solid #d97706;
+  border-radius: 3px;
+  background: #9a4c0b;
+  box-shadow: none;
+}
+.event-studio-right-rail,
+.event-studio-mobile-rail {
+  border-color: #343a40 !important;
+  background: #20252a !important;
+  color: #e2e8f0;
+  box-shadow: -10px 0 30px rgba(15, 23, 42, .12);
+}
+.event-studio-right-rail > div,
+.event-studio-mobile-rail > div { border-color: #3b434b !important; }
+.event-studio-right-rail nav p,
+.event-studio-mobile-rail nav p { color: #89939e !important; }
+.event-studio-right-rail h2,
+.event-studio-mobile-rail h2 { color: #fff !important; }
+.event-studio-right-rail .event-studio-right-nav-item,
+.event-studio-mobile-rail .event-studio-right-nav-item {
+  border-radius: 3px;
+  color: #c7d0d9;
+}
+.event-studio-right-rail .event-studio-right-nav-item:hover,
+.event-studio-mobile-rail .event-studio-right-nav-item:hover { border-color: #4b5560; background: #2b3238; color: #fff; }
+.event-studio-right-rail .event-studio-right-nav-item.is-active,
+.event-studio-mobile-rail .event-studio-right-nav-item.is-active {
+  border-color: #7c4a20;
+  background: #3b2a1d;
+  color: #fbbf24;
+  box-shadow: inset -3px 0 #f59e0b;
+}
+
+.event-industrial-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border-bottom: 2px solid #2f3740;
+  padding-bottom: 1.25rem;
+}
+.event-industrial-page-header h1 { margin-top: .25rem; color: #111827; font-size: clamp(1.65rem, 3vw, 2.25rem); font-weight: 720; letter-spacing: -.025em; }
+.event-industrial-page-header > div > p:last-child { margin-top: .4rem; max-width: 48rem; color: #64748b; font-size: .875rem; line-height: 1.5; }
+.event-industrial-kicker { color: #a34c08 !important; font-size: .68rem !important; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.event-industrial-panel { border: 1px solid #cbd0d5; border-radius: 4px; background: rgba(255, 255, 255, .94); box-shadow: 0 1px 0 #fff, 0 8px 22px rgba(30, 41, 59, .055); }
+.event-industrial-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #d9dde1; padding-bottom: .9rem; }
+.event-industrial-section-heading p { color: #a34c08; font-size: .65rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.event-industrial-section-heading h2 { margin-top: .18rem; color: #1f2937; font-size: 1rem; font-weight: 700; }
+.event-industrial-section-heading > span { border: 1px solid #cbd0d5; background: #f1f3f5; padding: .25rem .45rem; color: #5b6570; font-size: .62rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.event-industrial-primary,
+.event-industrial-secondary { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: .5rem; border-radius: 3px; padding: .55rem .9rem; font-size: .8rem; font-weight: 750; transition: background-color 120ms ease, border-color 120ms ease; }
+.event-industrial-primary { border: 1px solid #92400e; background: #a34c08; color: #fff; }
+.event-industrial-primary:hover:not(:disabled) { background: #7c3a08; }
+.event-industrial-primary:disabled { cursor: not-allowed; border-color: #cbd0d5; background: #d9dde1; color: #7b8490; }
+.event-industrial-secondary { border: 1px solid #aeb5bc; background: #fff; color: #303942; }
+.event-industrial-secondary:hover { border-color: #7b8490; background: #f5f6f7; }
+.event-industrial-state { border: 1px solid; padding: .35rem .55rem; font-size: .65rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.event-industrial-state.is-ready { border-color: #86b89a; background: #ecf7f0; color: #166534; }
+.event-industrial-state.is-warning { border-color: #e5b66b; background: #fff7e6; color: #92400e; }
+
+.event-trivia-hero { border-radius: 4px !important; border-color: #cbd0d5 !important; background: linear-gradient(120deg, #fff 0%, #f5f1eb 100%); box-shadow: 0 10px 28px rgba(30, 41, 59, .07); }
+.event-trivia-panel { border-radius: 4px !important; border-color: #cbd0d5 !important; box-shadow: 0 5px 18px rgba(30, 41, 59, .05); }
+.event-trivia-primary-action { border-color: #92400e; border-radius: 3px; background: #a34c08; box-shadow: none; }
+.event-trivia-primary-action:hover { background: #7c3a08; box-shadow: none; transform: none; }
+.event-trivia-secondary-action { border-radius: 3px; }
+.event-trivia-station-icon { border-radius: 3px !important; background: #eceff1; color: #4b5563; }
+.event-trivia-station.is-primary { background: #fff8ed; }
+.event-trivia-station.is-primary .event-trivia-station-icon { background: #a34c08; box-shadow: none; }
+.event-trivia-station:hover { background: #fafafa; box-shadow: inset 4px 0 #c15d0a; }
+
+@media (max-width: 640px) {
+  .event-industrial-page-header { align-items: stretch; flex-direction: column; }
+  .event-industrial-page-header > div:last-child { justify-content: space-between; }
+}
+
 .event-studio-nav-item,
 .trivia-nav-item {
   display: flex;
