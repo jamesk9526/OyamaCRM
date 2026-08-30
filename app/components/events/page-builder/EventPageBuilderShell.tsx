@@ -462,7 +462,19 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
           }}
           onToggleSection={(sectionId) => {
             const target = sections.find((section) => section.id === sectionId);
-            setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, enabled: !section.enabled } : section)));
+            setSections((current) => {
+              const targetIndex = current.findIndex((section) => section.id === sectionId);
+              if (targetIndex < 0) return current;
+              if (current[targetIndex].enabled) {
+                return current.map((section) => (section.id === sectionId ? { ...section, enabled: false } : section));
+              }
+              const next = [...current];
+              const [enabledSection] = next.splice(targetIndex, 1);
+              let insertionIndex = 0;
+              next.forEach((section, index) => { if (section.enabled) insertionIndex = index + 1; });
+              next.splice(insertionIndex, 0, { ...enabledSection, enabled: true });
+              return next;
+            });
             if (target?.enabled && selectedSectionId === sectionId) {
               const nextVisible = sections.find((section) => section.id !== sectionId && section.enabled);
               if (nextVisible) setSelectedSectionId(nextVisible.id);
