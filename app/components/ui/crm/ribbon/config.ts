@@ -323,9 +323,9 @@ const DONOR_PROFILE_CONFIG: CrmRibbonPageConfig = {
           id: "profile-comms-actions",
           label: "Communication",
           commands: [
-            { id: "profile-send-email", label: "Send Email", href: "/communications" },
-            { id: "profile-generate-letter", label: "Generate Letter", href: "/oyama-letters" },
-            { id: "profile-log-call", label: "Log Call", href: "/meetings" },
+            { id: "profile-send-email", label: "Send Email", href: "/communications", enabled: (ctx) => ctx.flags?.canEmail === true, disabledReason: "Email is missing or blocked by this constituent's communication preferences." },
+            { id: "profile-generate-letter", label: "Generate Letter", href: "/oyama-letters", enabled: (ctx) => ctx.flags?.canMail === true, disabledReason: "Mail is missing a complete address or blocked by this constituent's communication preferences." },
+            { id: "profile-log-call", label: "Log Call", href: "/meetings", enabled: (ctx) => ctx.flags?.canCall === true, disabledReason: "Phone outreach is missing a number or blocked by this constituent's communication preferences." },
             { id: "profile-send-text", label: "Send Text", disabledReason: "SMS delivery is not enabled for this workspace." },
             { id: "profile-view-timeline", label: "View Timeline", disabledReason: "Timeline view is not connected on this profile page yet." },
           ],

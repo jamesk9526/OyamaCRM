@@ -273,6 +273,10 @@ export default function ConstituentDetailPage() {
 
   // Giving analytics
   const openTasks = c.tasks.filter((t) => t.status !== "COMPLETED");
+  const distinctOpenTasks = openTasks.filter((task, index, rows) => {
+    const key = `${task.title.trim().toLowerCase()}|${task.type}|${task.priority}|${task.dueDate?.slice(0, 10) ?? "none"}`;
+    return rows.findIndex((candidate) => `${candidate.title.trim().toLowerCase()}|${candidate.type}|${candidate.priority}|${candidate.dueDate?.slice(0, 10) ?? "none"}` === key) === index;
+  });
   const overdueTasks = openTasks.filter((t) => t.dueDate && new Date(t.dueDate).getTime() < Date.now());
   const daysSinceLastGift = c.lastGiftDate
     ? Math.floor((Date.now() - new Date(c.lastGiftDate).getTime()) / 86400000)
@@ -298,6 +302,9 @@ export default function ConstituentDetailPage() {
     ...(c.doNotCall ? ["Do Not Call"] : []),
     ...(c.doNotMail ? ["Do Not Mail"] : []),
   ];
+  const canEmail = Boolean(c.email) && !c.doNotContact && !c.doNotEmail && !c.emailOptOut;
+  const canCall = Boolean(primaryPhone) && !c.doNotContact && !c.doNotCall;
+  const canMail = Boolean(c.addressLine1 && c.city && c.state && c.zip) && !c.doNotContact && !c.doNotMail;
 
   // Giving cadence
   const giftIntervals = c.donations
@@ -330,7 +337,7 @@ export default function ConstituentDetailPage() {
   const dataQualityWarnings = [
     !c.email ? "Missing primary email" : null,
     !primaryPhone ? "Missing phone number" : null,
-    !locationSummary ? "Missing mailing address" : null,
+    !(c.addressLine1 && c.city && c.state && c.zip) ? "Incomplete mailing address" : null,
     !c.tags.length ? "No tags assigned" : null,
     !c.household && !isHousehold ? "No household relationship linked" : null,
     c.giftCount > 0 && !openTasks.length ? "No open stewardship task after giving activity" : null,
@@ -369,6 +376,9 @@ export default function ConstituentDetailPage() {
             flags: {
               hasOpenTasks: openTasks.length > 0,
               hasReceiptableGift: c.donations.some((gift) => gift.status === "COMPLETED"),
+              canEmail,
+              canCall,
+              canMail,
             },
           }}
           commandHandlers={{
@@ -496,18 +506,18 @@ export default function ConstituentDetailPage() {
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
                   Record Gift
                 </button>
-                <Link href={`/communications?new=1&source=constituent&constituentId=${id}`} className={QA_BTN}>
+                <GuardedActionLink href={`/communications?new=1&source=constituent&constituentId=${id}`} allowed={canEmail} blockedReason={!c.email ? "Add an email address before drafting email." : "Email is blocked by this constituent's communication preferences."}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                   Draft Email
-                </Link>
-                <Link href={`/oyama-letters/generate?constituentId=${id}`} className={QA_BTN}>
+                </GuardedActionLink>
+                <GuardedActionLink href={`/oyama-letters/generate?constituentId=${id}`} allowed={canMail} blockedReason={!c.addressLine1 ? "Add a complete mailing address before creating mail." : "Mail is blocked by this constituent's communication preferences."}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                   Create Letter
-                </Link>
-                <Link href={`/oyama-letters/generate?constituentId=${id}&quickPrint=1`} className={QA_BTN}>
+                </GuardedActionLink>
+                <GuardedActionLink href={`/oyama-letters/generate?constituentId=${id}&quickPrint=1`} allowed={canMail} blockedReason={!c.addressLine1 ? "Add a complete mailing address before printing mail." : "Mail is blocked by this constituent's communication preferences."}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                   Print Letter
-                </Link>
+                </GuardedActionLink>
                 <Link href={`/tasks?focus=my&constituentId=${id}`} className={QA_BTN}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                   Create Task
@@ -525,10 +535,10 @@ export default function ConstituentDetailPage() {
 
             {/* Steward AI chips */}
             <div className="mt-4 border-t border-gray-100 pt-3 flex flex-wrap gap-1.5">
-              <StewardContextButton label="Summarize donor" prompt={`Summarize ${fullName}'s full donor relationship. Include giving history, engagement signals, communication constraints, and what staff should do next.`} moduleKey="donor" mode="ask" variant="chip" />
-              <StewardContextButton label="Why at risk?" prompt={`Why is ${fullName} currently at risk? Use giving cadence, last gift timing, open tasks, and communication preferences.`} moduleKey="donor" mode="analyze" variant="chip" />
-              <StewardContextButton label="Draft thank-you" prompt={`Draft a personal thank-you email for ${fullName} referencing their giving history. Keep it warm and concise.`} moduleKey="donor" mode="draft" variant="chip" />
-              <StewardContextButton label="Call script" prompt={`Create a short call script for staff to reconnect with ${fullName}. Include opening, appreciation, discovery question, and next-step ask.`} moduleKey="donor" mode="action" variant="chip" />
+              <StewardContextButton label="Relationship briefing" prompt={`Create an evidence-grounded relationship briefing for the donor on this profile. Prioritize verified CRM facts, giving designations and notes, recent interactions, distinct open tasks, household or group context, communication constraints, and a compliant next step. Call out missing or conflicting evidence.`} moduleKey="donor" mode="ask" variant="chip" />
+              <StewardContextButton label="Explain risk" prompt={`Explain the current lapse risk for the donor on this profile. Compare gift timing with established cadence, distinguish facts from model scores, account for recent interactions and distinct open tasks, and state what evidence is missing.`} moduleKey="donor" mode="analyze" variant="chip" />
+              <StewardContextButton label="Draft thank-you" prompt={`Draft a review-ready personal thank-you email for the donor on this profile using only verified profile facts and completed gifts. Respect all communication preferences, avoid unsupported impact claims, and do not imply it was sent.`} moduleKey="donor" mode="draft" variant="chip" disabled={!canEmail} title={canEmail ? "Draft a grounded thank-you" : "Email is unavailable or restricted for this donor"} />
+              <StewardContextButton label="Call briefing" prompt={`Create a concise call briefing for the donor on this profile using recent verified relationship context. Include appreciation, a discovery question, and a low-pressure next step. Respect communication restrictions and do not invent personal details.`} moduleKey="donor" mode="action" variant="chip" disabled={!canCall} title={canCall ? "Prepare a grounded call briefing" : "Phone outreach is unavailable or restricted for this donor"} />
             </div>
           </div>
         </div>
@@ -537,7 +547,7 @@ export default function ConstituentDetailPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           <KpiCard label="Lifetime Giving" value={formatCurrency(c.totalLifetimeGiving)} onClick={() => setTab("giving")} />
           <KpiCard label="Last Gift" value={c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "—"} sub={c.lastGiftDate ? formatDate(c.lastGiftDate) : undefined} onClick={() => setTab("giving")} />
-          <KpiCard label="Open Tasks" value={String(openTasks.length)} sub={overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : undefined} subColor={overdueTasks.length > 0 ? "text-red-600" : undefined} onClick={() => setTab("tasks")} />
+          <KpiCard label="Open Work" value={String(distinctOpenTasks.length)} sub={openTasks.length > distinctOpenTasks.length ? `${openTasks.length} task records · duplicates grouped` : overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : undefined} subColor={overdueTasks.length > 0 ? "text-red-600" : undefined} onClick={() => setTab("tasks")} />
           <KpiCard label="Lapse Risk" value={lapseRisk} valueColor={lapseRiskColor} onClick={() => setTab("overview")} />
           <KpiCard label="Opportunity" value={`${opportunityScore}/100`} valueColor={engagementColor(opportunityScore)} onClick={() => setTab("overview")} />
         </div>
@@ -580,7 +590,7 @@ export default function ConstituentDetailPage() {
                   fullName={fullName}
                   cadenceDays={cadenceDays}
                   daysSinceLastGift={daysSinceLastGift}
-                  openTasks={openTasks}
+                  openTasks={distinctOpenTasks}
                   onSwitchTab={setTab}
                 />
               )}
@@ -602,6 +612,9 @@ export default function ConstituentDetailPage() {
                   doNotContact={c.doNotContact}
                   emailOptOut={c.emailOptOut}
                   constituentId={id}
+                  canEmail={canEmail}
+                  canCall={canCall}
+                  canMail={canMail}
                 />
               )}
               {tab === "tasks" && <TasksTab tasks={c.tasks ?? []} constituentId={id} />}
@@ -617,6 +630,22 @@ export default function ConstituentDetailPage() {
           {/* Right sidebar */}
           <aside className="space-y-4">
             <DonorStewardSignalsWidget constituentId={id} />
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="profile-safeguards-title">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 id="profile-safeguards-title" className="text-xs font-bold uppercase tracking-wide text-slate-500">Outreach safeguards</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Profile preferences are enforced before staff or AI can prepare outreach.</p>
+                </div>
+                <Link href={`/constituents/${id}/edit`} className="shrink-0 text-xs font-semibold text-indigo-700 hover:underline">Review</Link>
+              </div>
+              <dl className="mt-3 grid grid-cols-3 gap-2">
+                <ChannelStatus label="Email" allowed={canEmail} reason={!c.email ? "Missing" : "Restricted"} />
+                <ChannelStatus label="Phone" allowed={canCall} reason={!primaryPhone ? "Missing" : "Restricted"} />
+                <ChannelStatus label="Mail" allowed={canMail} reason={!(c.addressLine1 && c.city && c.state && c.zip) ? "Incomplete" : "Restricted"} />
+              </dl>
+              {c.doNotContact ? <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-semibold leading-5 text-red-800">Do Not Contact is active. All outreach preparation is blocked until an authorized staff member updates the profile.</p> : null}
+            </div>
             <ConstituentStewardPathsPanel constituentId={id} />
 
             {(c.groupMemberships.length > 0 || c.primaryForGroups.length > 0) ? (
@@ -662,7 +691,7 @@ export default function ConstituentDetailPage() {
               <p className="text-sm font-semibold text-gray-900">{nextBestActionTitle}</p>
               <p className="mt-1 text-xs text-gray-500 leading-relaxed">{nextBestActionWhy}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <StewardContextButton label="Draft Follow-up" prompt={`For ${fullName}: ${nextBestActionTitle}. Reason: ${nextBestActionWhy}. Draft the exact next outreach or task.`} moduleKey="donor" mode="draft" variant="mini" />
+                <StewardContextButton label="Plan Follow-up" prompt={`For the donor on this profile, assess this suggested next step: ${nextBestActionTitle}. Reason shown by the profile: ${nextBestActionWhy}. Prepare a review-ready, channel-compliant follow-up plan using verified evidence only. Do not send or claim completion.`} moduleKey="donor" mode="draft" variant="mini" disabled={c.doNotContact} title={c.doNotContact ? "Outreach planning is blocked by Do Not Contact" : "Prepare a compliant follow-up plan"} />
                 <Link href={`/tasks?focus=my&constituentId=${id}`} className="inline-flex items-center rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   Create Task
                 </Link>
@@ -699,7 +728,7 @@ export default function ConstituentDetailPage() {
 
         {/* Below-fold panels */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <ConstituentLettersPanel constituentId={id} />
+          <ConstituentLettersPanel constituentId={id} canGenerate={canMail} disabledReason="Mail is missing a complete address or blocked by this constituent's communication preferences." />
           <EmailPreferencePanel constituentId={id} email={c.email} />
         </div>
 
@@ -762,6 +791,26 @@ export default function ConstituentDetailPage() {
 
 const QA_BTN = "inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 transition-colors shadow-sm";
 const ACTION_BTN = "inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 transition-colors shadow-sm";
+
+function GuardedActionLink({ href, allowed, blockedReason, children, className = QA_BTN }: { href: string; allowed: boolean; blockedReason: string; children: React.ReactNode; className?: string }) {
+  if (!allowed) {
+    return (
+      <button type="button" disabled title={blockedReason} aria-label={blockedReason} className={`${className} cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none`}>
+        {children}
+      </button>
+    );
+  }
+  return <Link href={href} className={className}>{children}</Link>;
+}
+
+function ChannelStatus({ label, allowed, reason }: { label: string; allowed: boolean; reason: string }) {
+  return (
+    <div className={`min-w-0 rounded-lg border px-2 py-2 text-center ${allowed ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+      <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className={`mt-0.5 truncate text-xs font-semibold ${allowed ? "text-emerald-700" : "text-slate-600"}`}>{allowed ? "Allowed" : reason}</dd>
+    </div>
+  );
+}
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
@@ -1006,13 +1055,21 @@ function GivingTab({
 function TasksTab({ tasks, constituentId }: { tasks: ConstituentDetail["tasks"]; constituentId: string }) {
   const open = tasks.filter((t) => t.status !== "COMPLETED");
   const done = tasks.filter((t) => t.status === "COMPLETED");
+  const groupedOpen = open.reduce<Array<{ task: ConstituentDetail["tasks"][number]; count: number }>>((groups, task) => {
+    const key = `${task.title.trim().toLowerCase()}|${task.type}|${task.priority}|${task.dueDate?.slice(0, 10) ?? "none"}`;
+    const existing = groups.find((group) => `${group.task.title.trim().toLowerCase()}|${group.task.type}|${group.task.priority}|${group.task.dueDate?.slice(0, 10) ?? "none"}` === key);
+    if (existing) existing.count += 1;
+    else groups.push({ task, count: 1 });
+    return groups;
+  }, []);
+  const duplicateCount = open.length - groupedOpen.length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900">
           Tasks
-          {open.length > 0 && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">{open.length} open</span>}
+          {open.length > 0 && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">{groupedOpen.length} distinct · {open.length} records</span>}
         </h3>
         <Link href={`/tasks?focus=my&constituentId=${constituentId}`} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
@@ -1028,7 +1085,8 @@ function TasksTab({ tasks, constituentId }: { tasks: ConstituentDetail["tasks"];
         />
       ) : (
         <div className="space-y-2">
-          {open.map((t) => {
+          {duplicateCount > 0 ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">{duplicateCount} duplicate open task record{duplicateCount === 1 ? " is" : "s are"} grouped below. Review the task queue before creating more automated follow-ups.</p> : null}
+          {groupedOpen.map(({ task: t, count }) => {
             const overdue = t.dueDate && new Date(t.dueDate).getTime() < Date.now();
             return (
               <div key={t.id} className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 ${overdue ? "border-red-200 bg-red-50/30" : "border-gray-200 bg-white"}`}>
@@ -1039,6 +1097,7 @@ function TasksTab({ tasks, constituentId }: { tasks: ConstituentDetail["tasks"];
                   </p>
                 </div>
                 <PriorityBadge priority={t.priority} />
+                {count > 1 ? <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700" title={`${count} matching task records`}>×{count}</span> : null}
               </div>
             );
           })}
@@ -1100,12 +1159,18 @@ function CommunicationsTab({
   doNotContact,
   emailOptOut,
   constituentId,
+  canEmail,
+  canCall,
+  canMail,
 }: {
   activities: ConstituentDetail["activities"];
   doNotEmail: boolean;
   doNotContact: boolean;
   emailOptOut: boolean;
   constituentId: string;
+  canEmail: boolean;
+  canCall: boolean;
+  canMail: boolean;
 }) {
   const commsActivity = activities.filter((a) =>
     ["EMAIL", "NOTE", "CALL", "TASK", "PROFILE_UPDATE"].includes(a.type)
@@ -1126,9 +1191,9 @@ function CommunicationsTab({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Link href={`/communications?new=1&source=constituent&constituentId=${constituentId}`} className={ACTION_BTN}>Draft Email</Link>
-        <Link href={`/oyama-letters/generate?constituentId=${constituentId}`} className={ACTION_BTN}>Create Letter</Link>
-        <Link href={`/meetings?constituentId=${constituentId}`} className={ACTION_BTN}>Log Call</Link>
+        <GuardedActionLink href={`/communications?new=1&source=constituent&constituentId=${constituentId}`} allowed={canEmail} blockedReason="Email is missing or blocked by this constituent's communication preferences." className={ACTION_BTN}>Draft Email</GuardedActionLink>
+        <GuardedActionLink href={`/oyama-letters/generate?constituentId=${constituentId}`} allowed={canMail} blockedReason="Mail is missing a complete address or blocked by this constituent's communication preferences." className={ACTION_BTN}>Create Letter</GuardedActionLink>
+        <GuardedActionLink href={`/meetings?constituentId=${constituentId}`} allowed={canCall} blockedReason="Phone outreach is missing a number or blocked by this constituent's communication preferences." className={ACTION_BTN}>Log Call</GuardedActionLink>
       </div>
 
       {commsActivity.length === 0 ? (

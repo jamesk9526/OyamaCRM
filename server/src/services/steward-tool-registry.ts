@@ -3160,6 +3160,12 @@ export async function buildDonorToolContextForChat(params: {
   const intent = detectDonorRetrievalIntent(lower);
   const mentionLockedIds = Array.from(new Set((params.mentionedConstituentIds ?? []).filter(Boolean))).slice(0, 3);
   const scopedEntity = parseScopedCrmEntity(params.scopePath);
+  const scopedIdentifiers = parseScopeIdentifiers(params.scopePath);
+  const profileLockedIds = mentionLockedIds.length > 0
+    ? mentionLockedIds
+    : scopedIdentifiers.constituentId
+      ? [scopedIdentifiers.constituentId]
+      : [];
 
   if (scopedEntity) {
     try {
@@ -3188,7 +3194,6 @@ export async function buildDonorToolContextForChat(params: {
     // Non-fatal: fiscal year context is enhancement only
   }
 
-  const scopedIdentifiers = parseScopeIdentifiers(params.scopePath);
   if (scopedIdentifiers.stewardPathId) {
     try {
       const pathResult = await executeStewardTool(context, "stewardPaths.getPath", {
@@ -3221,12 +3226,13 @@ export async function buildDonorToolContextForChat(params: {
     }
   }
 
-  // Tagged donor lock: when the composer includes @mentioned donors, restrict retrieval
-  // to those donor profiles only and avoid global org-level context blending.
-  if (mentionLockedIds.length > 0) {
-    lines.push(`Tagged donor focus mode: enabled for ${mentionLockedIds.length} donor(s). Retrieval is restricted to tagged donor profiles.`);
+  // Profile focus lock: an explicit profile route or @mention must not be diluted
+  // with unrelated organization-wide donor context.
+  if (profileLockedIds.length > 0) {
+    const focusSource = mentionLockedIds.length > 0 ? "tagged donor" : "current donor profile";
+    lines.push(`Donor focus mode: enabled from ${focusSource}. Retrieval is restricted to ${profileLockedIds.length} explicitly selected donor profile(s).`);
 
-    for (const cid of mentionLockedIds) {
+    for (const cid of profileLockedIds) {
       try {
         const profileResult = await executeStewardTool(context, "donor.getFullProfile", {
           constituentId: cid,
@@ -3236,7 +3242,7 @@ export async function buildDonorToolContextForChat(params: {
         if (!profile) continue;
 
         lines.push(
-          `Tagged donor profile: ${profile.name} [${profile.donorStatus}]`,
+          `Focused donor profile: ${profile.name} [${profile.donorStatus}]`,
           `  Lifetime giving: $${profile.totalLifetimeGiving.toLocaleString()} across ${profile.giftCount} gifts`,
           `  Last gift: ${profile.lastGiftDate ?? "none"} ($${profile.lastGiftAmount.toLocaleString()})`,
           `  First gift: ${profile.firstGiftDate ?? "none"}`,
@@ -3252,15 +3258,39 @@ export async function buildDonorToolContextForChat(params: {
         if (profile.recentDonations.length > 0) {
           lines.push("  Recent gift history:");
           for (const d of profile.recentDonations.slice(0, 8)) {
-            lines.push(`    - $${d.amount.toLocaleString()} on ${d.date}${d.campaign ? ` via ${d.campaign}` : ""}${d.acknowledged ? " [acknowledged]" : " [needs acknowledgment]"}`);
+            lines.push(`    - $${d.amount.toLocaleString()} on ${d.date}${d.campaign ? ` via ${d.campaign}` : ""}${d.designation ? ` designated to ${d.designation}` : ""}${d.acknowledged ? " [acknowledged]" : " [needs acknowledgment]"}${d.notes ? `; gift note: ${d.notes}` : ""}`);
           }
         }
 
         if (profile.openTasks.length > 0) {
-          lines.push("  Open stewardship tasks:");
+          lines.push("  Distinct open stewardship tasks (duplicate titles/dates collapsed):");
           for (const task of profile.openTasks) {
             lines.push(`    - ${task.title} [${task.priority}]${task.dueDate ? ` due ${task.dueDate}` : ""}`);
           }
+        }
+
+        if (profile.relationshipNotes) {
+          lines.push(`  Internal relationship notes: ${profile.relationshipNotes}`);
+        }
+        if (profile.householdName) {
+          lines.push(`  Household: ${profile.householdName}`);
+        }
+        if (profile.groupConnections.length > 0) {
+          lines.push(`  Relationship groups: ${profile.groupConnections.map((group) => `${group.name} [${group.type}]${group.relationship ? ` as ${group.relationship}` : ""}${group.primary ? " (primary)" : ""}`).join("; ")}`);
+        }
+        if (profile.recentActivities.length > 0) {
+          lines.push("  Recent relationship activity:");
+          for (const activity of profile.recentActivities) {
+            lines.push(`    - ${activity.date}: ${activity.type} — ${activity.description}`);
+          }
+        }
+        if (profile.verifiedResearch.length > 0) {
+          lines.push("  Staff-verified public research (unverified findings are excluded):");
+          for (const finding of profile.verifiedResearch) {
+            lines.push(`    - ${finding.title}${finding.sourcePublishedAt ? ` (${finding.sourcePublishedAt})` : ""}: ${finding.summary} [source: ${finding.sourceUrl}]`);
+          }
+        } else {
+          lines.push("  Staff-verified public research: none. Do not use unverified enrichment as fact.");
         }
 
         const describedTags = profile.tagContexts.filter((tag) => tag.description);
@@ -3269,7 +3299,7 @@ export async function buildDonorToolContextForChat(params: {
         }
 
         lines.push(`Structured profile packet: ${JSON.stringify({
-          kind: "tagged_donor_profile",
+          kind: "focused_donor_profile",
           constituentId: profile.id,
           name: profile.name,
           donorStatus: profile.donorStatus,
@@ -3281,9 +3311,9 @@ export async function buildDonorToolContextForChat(params: {
           signals: profile.signals,
         })}`);
 
-        recordsUsed.push(`${profile.name} — tagged donor profile, $${profile.totalLifetimeGiving.toLocaleString()} lifetime`);
+        recordsUsed.push(`${profile.name} — focused donor profile, $${profile.totalLifetimeGiving.toLocaleString()} lifetime`);
       } catch {
-        // Non-fatal: if one tagged donor fails, preserve others.
+        // Non-fatal: if one focused donor fails, preserve others.
       }
     }
 

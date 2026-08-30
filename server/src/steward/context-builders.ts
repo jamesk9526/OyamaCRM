@@ -233,9 +233,9 @@ export async function buildRetrievalContext(params: {
   mentionedConstituentIds?: string[];
 }): Promise<StewardContextResult> {
   const tokens = tokenizeQuery(params.userQuery);
-  const taggedDonorFocus =
+  const explicitDonorFocus =
     (params.moduleKey === "donor" || params.moduleKey === "oshareview") &&
-    (params.mentionedConstituentIds?.length ?? 0) > 0;
+    ((params.mentionedConstituentIds?.length ?? 0) > 0 || Boolean(parseScopeIdentifiers(params.scopePath).constituentId));
 
   let base: StewardContextResult;
 
@@ -299,7 +299,7 @@ export async function buildRetrievalContext(params: {
     });
   }
 
-  if (!taggedDonorFocus) {
+  if (!explicitDonorFocus) {
     const workspaceScope = scopeFromModuleKey(params.moduleKey);
     const [memoryContext, fileContext] = await Promise.all([
       buildUserMemoryContext({
@@ -333,9 +333,9 @@ export async function buildRetrievalContext(params: {
       ...base,
       contextText: [
         base.contextText,
-        "Tagged donor focus policy: memory and file layers are skipped so answers stay grounded only in tagged donor profile data.",
+        "Focused donor policy: memory, file, and organization-wide donor layers are skipped so answers stay grounded only in the explicitly selected donor profile.",
       ].join("\n"),
-      toolsUsed: [...base.toolsUsed, "context.taggedDonorFocus"],
+      toolsUsed: [...base.toolsUsed, "context.focusedDonorProfile"],
     };
   }
 

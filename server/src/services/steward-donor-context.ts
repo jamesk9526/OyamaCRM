@@ -832,11 +832,26 @@ export interface DonorFullProfileResult {
   lastGiftAmount: number;
   tags: string[];
   tagContexts: Array<{ name: string; description: string | null }>;
+  relationshipNotes: string | null;
+  householdName: string | null;
+  groupConnections: Array<{ name: string; type: string; relationship: string | null; primary: boolean }>;
+  recentActivities: Array<{
+    type: string;
+    description: string;
+    date: string;
+  }>;
+  verifiedResearch: Array<{
+    title: string;
+    summary: string;
+    sourceUrl: string;
+    sourcePublishedAt: string | null;
+  }>;
   recentDonations: Array<{
     id: string;
     amount: number;
     date: string;
     campaign: string | null;
+    designation: string | null;
     notes: string | null;
     paymentMethod: string | null;
     acknowledged: boolean;
@@ -856,7 +871,7 @@ export async function getDonorFullProfile(
   organizationId: string,
   constituentId: string
 ): Promise<DonorFullProfileResult | null> {
-  const [constituent, recentDonations, openTasks] = await Promise.all([
+  const [constituent, recentDonations, openTasks, recentActivities, verifiedResearch] = await Promise.all([
     prisma.constituent.findFirst({
       where: { id: constituentId, organizationId },
       select: {
@@ -865,7 +880,9 @@ export async function getDonorFullProfile(
         lastName: true,
         email: true,
         phone: true,
+        mobile: true,
         donorStatus: true,
+        notes: true,
         giftCount: true,
         totalLifetimeGiving: true,
         lastGiftAmount: true,
@@ -878,6 +895,15 @@ export async function getDonorFullProfile(
         doNotMail: true,
         doNotContact: true,
         tags: { select: { tag: { select: { name: true, description: true } } } },
+        household: { select: { name: true } },
+        groupMemberships: {
+          select: {
+            relationshipLabel: true,
+            isPrimary: true,
+            group: { select: { name: true, groupType: true } },
+          },
+          take: 12,
+        },
       },
     }),
     prisma.donation.findMany({
@@ -892,6 +918,7 @@ export async function getDonorFullProfile(
         paymentMethod: true,
         acknowledgmentSentAt: true,
         campaign: { select: { name: true } },
+        designation: { select: { name: true } },
       },
     }),
     prisma.task.findMany({
@@ -900,6 +927,18 @@ export async function getDonorFullProfile(
       take: 6,
       select: { title: true, dueDate: true, priority: true, status: true, assigneeId: true },
     }),
+    prisma.activity.findMany({
+      where: { constituentId },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: { type: true, description: true, createdAt: true },
+    }),
+    prisma.donorResearchFinding.findMany({
+      where: { constituentId, organizationId, status: "VERIFIED" },
+      orderBy: [{ sourcePublishedAt: "desc" }, { reviewedAt: "desc" }],
+      take: 5,
+      select: { title: true, summary: true, sourceUrl: true, sourcePublishedAt: true },
+    }),
   ]);
 
   if (!constituent) return null;
@@ -907,12 +946,16 @@ export async function getDonorFullProfile(
   const input = toStewardInput(constituent);
   const preferences = toCommunicationPreferences(constituent);
   const { signals } = computeDecisionSignals(input, preferences);
+  const uniqueTasks = openTasks.filter((task, index, rows) => {
+    const key = `${task.title.trim().toLowerCase()}|${task.priority}|${task.dueDate?.toISOString().slice(0, 10) ?? "none"}|${task.status}`;
+    return rows.findIndex((candidate) => `${candidate.title.trim().toLowerCase()}|${candidate.priority}|${candidate.dueDate?.toISOString().slice(0, 10) ?? "none"}|${candidate.status}` === key) === index;
+  });
 
   return {
     id: constituent.id,
     name: donorName(constituent.firstName, constituent.lastName),
     email: constituent.email,
-    phone: constituent.phone ?? null,
+    phone: constituent.phone ?? constituent.mobile ?? null,
     donorStatus: constituent.donorStatus,
     totalLifetimeGiving: asNumber(constituent.totalLifetimeGiving),
     giftCount: constituent.giftCount,
@@ -921,16 +964,36 @@ export async function getDonorFullProfile(
     lastGiftAmount: asNumber(constituent.lastGiftAmount),
     tags: constituent.tags.map((ct) => ct.tag.name),
     tagContexts: constituent.tags.map((ct) => ({ name: ct.tag.name, description: ct.tag.description })),
+    relationshipNotes: constituent.notes?.trim().slice(0, 1_500) || null,
+    householdName: constituent.household?.name ?? null,
+    groupConnections: constituent.groupMemberships.map((membership) => ({
+      name: membership.group.name,
+      type: membership.group.groupType,
+      relationship: membership.relationshipLabel,
+      primary: membership.isPrimary,
+    })),
+    recentActivities: recentActivities.map((activity) => ({
+      type: activity.type,
+      description: activity.description.slice(0, 300),
+      date: fmtDate(activity.createdAt),
+    })),
+    verifiedResearch: verifiedResearch.map((finding) => ({
+      title: finding.title,
+      summary: finding.summary.slice(0, 500),
+      sourceUrl: finding.sourceUrl,
+      sourcePublishedAt: finding.sourcePublishedAt ? fmtDate(finding.sourcePublishedAt) : null,
+    })),
     recentDonations: recentDonations.map((d) => ({
       id: d.id,
       amount: asNumber(d.amount),
       date: fmtDate(d.date),
       campaign: d.campaign?.name ?? null,
+      designation: d.designation?.name ?? null,
       notes: d.notes?.slice(0, 200) ?? null,
       paymentMethod: d.paymentMethod ?? null,
       acknowledged: Boolean(d.acknowledgmentSentAt),
     })),
-    openTasks: openTasks.map((t) => ({
+    openTasks: uniqueTasks.map((t) => ({
       title: t.title,
       dueDate: t.dueDate ? fmtDate(t.dueDate) : null,
       priority: t.priority,

@@ -21,10 +21,12 @@ interface ConstituentLetterItem {
 
 interface ConstituentLettersPanelProps {
   constituentId: string;
+  canGenerate?: boolean;
+  disabledReason?: string;
 }
 
 /** Fetches and renders one constituent's generated letter timeline summary. */
-export default function ConstituentLettersPanel({ constituentId }: ConstituentLettersPanelProps) {
+export default function ConstituentLettersPanel({ constituentId, canGenerate = true, disabledReason = "Letter generation is unavailable for this constituent." }: ConstituentLettersPanelProps) {
   const [letters, setLetters] = useState<ConstituentLetterItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,12 +56,11 @@ export default function ConstituentLettersPanel({ constituentId }: ConstituentLe
           <p className="text-xs text-gray-500 mt-0.5">Generated communication history for this constituent.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href={`/oyama-letters/generate?constituentId=${constituentId}`}
-            className="px-3 py-1.5 text-xs rounded-lg text-white bg-green-600 hover:bg-green-700"
-          >
-            Generate Letter
-          </Link>
+          {canGenerate ? (
+            <Link href={`/oyama-letters/generate?constituentId=${constituentId}`} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs text-white hover:bg-green-700">Generate Letter</Link>
+          ) : (
+            <button type="button" disabled title={disabledReason} className="cursor-not-allowed rounded-lg bg-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500">Generate Letter</button>
+          )}
           <button onClick={() => void load()} className="text-xs text-gray-500 hover:text-gray-700">Refresh</button>
         </div>
       </div>
