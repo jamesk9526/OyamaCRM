@@ -43,3 +43,9 @@ Existing section data, section types, shared preview/public rendering, global br
 ## Release note
 
 The production build and source-level checks are green. Before a public launch, rerun the Events smoke suite with the configured MySQL service available and exercise publish/registration against the intended environment.
+
+## Mobile hardening follow-up
+
+The published page received a phone-first pass for 320–430px layouts. Hero navigation, headings, calls to action, countdowns, event details, donation choices, live appeals, contacts, documents, sharing, footer content, and registration receipts now wrap or reflow intentionally. Registration ticket rows place prices below long labels on narrow screens, inputs retain 16px text to avoid browser zoom, primary controls meet a minimum 44px touch target, gallery images and video embeds defer loading, and the public document clips accidental horizontal overflow.
+
+The fixed mobile registration action now respects device safe-area insets and leaves the viewport when the registration form is visible, preventing it from covering ticket choices or the submit button. `tests/unit/event-public-mobile-contract.test.ts` locks these responsive contracts in place.

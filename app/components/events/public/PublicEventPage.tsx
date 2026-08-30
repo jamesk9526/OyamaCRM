@@ -126,7 +126,7 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
   const sections = mergePublicSections(payload.sections);
 
   return (
-    <main className="min-h-screen bg-white pb-16 text-slate-900 md:pb-0">
+    <main className="min-h-screen w-full overflow-x-clip bg-white pb-24 text-slate-900 md:pb-0">
         <EventPageDocument
           sections={sections}
           data={{

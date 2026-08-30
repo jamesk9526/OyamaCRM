@@ -671,6 +671,9 @@ body {
 /* Public EventSTUDIO pages inherit the organization brand kit while preserving
    accessible neutral surfaces for registration and long-form content. */
 .event-public-document { --event-brand-primary: #0f6cbd; --event-brand-accent: #5c2d91; }
+.event-public-document :where(h1, h2, h3, p, li, a, blockquote, figcaption, dt, dd) { overflow-wrap: anywhere; }
+.event-public-document :where(img, video, iframe) { max-width: 100%; }
+.event-public-document :where([id]) { scroll-margin-top: 1rem; }
 .event-brand-primary-bg { background-color: var(--event-brand-primary) !important; }
 .event-brand-primary-text { color: var(--event-brand-primary) !important; }
 .event-brand-soft { background: color-mix(in srgb, var(--event-brand-primary) 9%, white) !important; color: color-mix(in srgb, var(--event-brand-primary) 82%, #111827) !important; }

@@ -1,7 +1,7 @@
 "use client";
 
 // Event page builder preview canvas styled as a public fundraising event page.
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Monitor, MousePointer2, Smartphone, Tablet } from "lucide-react";
 import PublicEventRegistrationForm from "@/app/components/events/public/PublicEventRegistrationForm";
 import { getSectionDefinition } from "@/app/components/events/page-builder/section-config";
@@ -85,7 +85,7 @@ function daysUntil(startDate: string): number {
 }
 
 function sectionPadding(section: EventPageSectionState): string {
-  return section.design?.compact ? "px-5 py-7 sm:px-8 lg:px-12" : "px-5 py-10 sm:px-8 lg:px-12";
+  return section.design?.compact ? "px-4 py-6 sm:px-8 sm:py-7 lg:px-12" : "px-4 py-8 sm:px-8 sm:py-10 lg:px-12";
 }
 
 function organizationName(data: EventPageBuilderWorkspaceData): string {
@@ -120,30 +120,30 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
 
   return (
     <section className="bg-white text-slate-950">
-      <div className="mx-auto max-w-5xl px-5 py-5 sm:px-8">
-        <nav className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4 text-xs" aria-label="Event page">
-          <div className="flex items-center gap-3">
-            {data.branding?.logoUrl || data.branding?.logoSquareUrl ? <img src={data.branding.logoUrl || data.branding.logoSquareUrl} alt={`${organizationName(data)} logo`} className="h-9 max-w-36 object-contain object-left" /> : <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 font-bold text-slate-700">{organizationName(data).split(" ").map((word: string) => word[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}</div>}
-            <div className="max-w-[170px] truncate font-semibold text-slate-700">{organizationName(data)}</div>
+      <div className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-5">
+        <nav className="flex items-center justify-between gap-2 border-b border-slate-200 pb-4 text-xs" aria-label="Event page">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {data.branding?.logoUrl || data.branding?.logoSquareUrl ? <img src={data.branding.logoUrl || data.branding.logoSquareUrl} alt={`${organizationName(data)} logo`} className="h-8 max-w-28 shrink-0 object-contain object-left sm:h-9 sm:max-w-36" /> : <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 font-bold text-slate-700 sm:h-9 sm:w-9">{organizationName(data).split(" ").map((word: string) => word[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}</div>}
+            <div className="hidden min-w-0 max-w-[170px] truncate font-semibold text-slate-700 sm:block">{organizationName(data)}</div>
           </div>
-          <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-10 items-center rounded-md px-5 font-semibold text-white">{content.primaryButtonText || "Register"}</a>
+          <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-11 max-w-[52vw] shrink-0 items-center justify-center rounded-md px-3 font-semibold text-white sm:max-w-none sm:px-5"><span className="truncate">{content.primaryButtonText || "Register"}</span></a>
         </nav>
-        <div className="grid gap-8 py-9 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.78fr)] md:items-center md:py-12">
-          <div>
+        <div className="grid gap-7 py-8 sm:py-9 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.78fr)] md:items-center md:gap-8 md:py-12">
+          <div className="min-w-0">
             {content.kicker?.trim() ? <p className="text-xs font-semibold uppercase tracking-[0.18em] event-brand-primary-text">{content.kicker.trim()}</p> : null}
-            <h1 className="mt-3 max-w-2xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] text-slate-950 sm:text-5xl">{title}</h1>
-            {subtitle ? <p className="mt-3 text-lg leading-7 text-slate-600">{subtitle}</p> : data.event.description ? <p className="mt-4 line-clamp-3 max-w-2xl text-base leading-7 text-slate-600">{data.event.description}</p> : null}
+            <h1 className="mt-3 max-w-2xl break-words text-[clamp(2.25rem,11vw,3.75rem)] font-semibold leading-[1.06] tracking-[-0.045em] text-slate-950">{title}</h1>
+            {subtitle ? <p className="mt-3 break-words text-base leading-7 text-slate-600 sm:text-lg">{subtitle}</p> : data.event.description ? <p className="mt-4 max-w-2xl break-words text-base leading-7 text-slate-600">{data.event.description}</p> : null}
             <div className="mt-6 space-y-2 text-sm text-slate-700">
-              <p className="font-medium">{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
-              <p>{data.event.location ?? "Location to be announced"}{locationLine(data) !== "Address not configured" ? ` · ${locationLine(data)}` : ""}</p>
+              <p className="break-words font-medium">{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
+              <p className="break-words">{data.event.location ?? "Location to be announced"}{locationLine(data) !== "Address not configured" ? ` · ${locationLine(data)}` : ""}</p>
             </div>
             {lowestPrice >= 0 ? <p className="mt-5 text-sm text-slate-500">{lowestPrice > 0 ? `Registration from ${formatMoney(lowestPrice, data.currency)}` : "Free registration available"}</p> : null}
-            <div className="mt-6 flex flex-wrap items-center gap-5">
-              <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-12 items-center rounded-md px-7 text-sm font-semibold text-white">{content.primaryButtonText || "Register"}</a>
-              <a href={secondaryHref} className="text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">{content.secondaryButtonText || "View event details"}</a>
+            <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
+              <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-12 items-center justify-center rounded-md px-7 text-sm font-semibold text-white">{content.primaryButtonText || "Register"}</a>
+              <a href={secondaryHref} className="inline-flex min-h-11 items-center justify-center text-center text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">{content.secondaryButtonText || "View event details"}</a>
             </div>
           </div>
-          <div className="aspect-[4/3] overflow-hidden rounded-lg bg-slate-100">
+          <div className="aspect-[16/10] overflow-hidden rounded-lg bg-slate-100 md:aspect-[4/3]">
             {design.backgroundType === "video" && design.backgroundImageUrl ? <video className="h-full w-full object-cover" src={design.backgroundImageUrl} autoPlay muted loop playsInline /> : backgroundImage ? <img src={backgroundImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center px-8 text-center text-white" style={{ background: `linear-gradient(145deg, ${brandPrimary}, ${brandAccent})` }}><span className="text-5xl font-semibold opacity-90">{title.slice(0, 1).toUpperCase()}</span></div>}
           </div>
         </div>
@@ -168,10 +168,10 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     const brand = data.branding;
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 sm:flex-row">
+        <div className="mx-auto flex max-w-5xl flex-col items-start gap-5 sm:flex-row sm:items-center">
           {brand?.logoUrl || brand?.logoSquareUrl ? <img src={brand.logoUrl || brand.logoSquareUrl} alt={`${organizationName(data)} logo`} className="max-h-20 w-auto max-w-56 object-contain" /> : <div className="grid h-16 w-16 place-items-center rounded-sm bg-slate-100 text-xl font-semibold text-slate-600">{organizationName(data).slice(0, 2).toUpperCase()}</div>}
           <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Presented by</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || organizationName(data)}</h2>{content.body || brand?.tagline ? <p className="mt-2 text-sm text-slate-600">{content.body || brand?.tagline}</p> : null}</div>
-          {brand?.websiteUrl ? <a href={brand.websiteUrl} className="event-brand-outline inline-flex min-h-10 items-center px-4 text-sm font-semibold">Visit our website</a> : null}
+          {brand?.websiteUrl ? <a href={brand.websiteUrl} className="event-brand-outline inline-flex min-h-11 w-full items-center justify-center px-4 text-sm font-semibold sm:w-auto">Visit our website</a> : null}
         </div>
       </section>
     );
@@ -181,13 +181,13 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     const startsIn = daysUntil(data.event.startDate);
     return (
       <section className={`${sectionPadding(section)} bg-white ${textAlignClass(section)}`}>
-        <div className="mx-auto max-w-3xl rounded-xl border border-violet-100 bg-white px-5 py-5 text-center shadow-sm">
+        <div className="mx-auto max-w-3xl rounded-xl border border-violet-100 bg-white px-3 py-4 text-center shadow-sm sm:px-5 sm:py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{heading || "The Event Begins In"}</p>
-          <div className="mt-4 grid grid-cols-4 divide-x divide-slate-200 text-center">
+          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden bg-slate-200 text-center sm:grid-cols-4">
             {[[startsIn, "Days"], [14, "Hours"], [28, "Minutes"], [36, "Seconds"]].map(([value, label]) => (
-              <div key={label} className="px-4">
-                <p className="text-2xl font-semibold text-violet-600">{value}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+              <div key={label} className="min-w-0 bg-white px-1 py-3 sm:px-2">
+                <p className="text-xl font-semibold text-violet-600 sm:text-2xl">{value}</p>
+                <p className="truncate text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500 sm:text-[10px] sm:tracking-[0.12em]">{label}</p>
               </div>
             ))}
           </div>
@@ -200,7 +200,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     return (
       <section id="event-details" className={`border-t border-slate-200 bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
-        <div className="mt-7 grid gap-5 text-sm text-slate-700 md:grid-cols-4">
+        <div className="mt-6 grid gap-5 text-sm text-slate-700 sm:grid-cols-2 md:mt-7 md:grid-cols-4">
           <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Date</span>{new Date(data.event.startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
           <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Time</span>{formatDateTimeRange(data.event.startDate, data.event.endDate).split("•")[1] ?? "Time not set"}</p>
           <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Location</span>{data.event.location ?? "TBD"}<br />{locationLine(data)}</p>
@@ -213,7 +213,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   if (section.id === "registration-form") {
     const eventImageUrl = allSections.find((candidate) => candidate.id === "hero")?.design?.backgroundImageUrl;
     return (
-      <section id="registration" className="bg-slate-50 px-4 py-8 sm:px-6 sm:py-12">
+      <section id="registration" className="scroll-mt-4 bg-slate-50 px-0 py-6 sm:px-6 sm:py-12">
         <div className="mx-auto max-w-[900px]">
           <PublicEventRegistrationForm
             pageSlug={data.pageSlug}
@@ -244,7 +244,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             </article>
           ))}
         </div>
-        <a href={hostSignupHref} className="mt-5 inline-flex rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white">
+        <a href={hostSignupHref} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white sm:w-auto">
           {content.buttonText || "Open TableLink"}
         </a>
       </section>
@@ -286,7 +286,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             <div className="mt-2 h-2 rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min(100, progress)}%` }} />
             </div>
-            <a href={publicHref(content.buttonLink, "#donate")} className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md bg-violet-600 text-sm font-semibold text-white">Make a Donation</a>
+            <a href={publicHref(content.buttonLink, "#donate")} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-violet-600 text-sm font-semibold text-white">Make a Donation</a>
           </aside>
         </div>
       </section>
@@ -299,7 +299,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         <div className="mx-auto max-w-3xl rounded-2xl border border-violet-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-950">{content.heading || "Make A Donation"}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-          <div className="mt-5 grid gap-2 sm:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[50, 100, 250, 500].map((amount) => (
               <a key={amount} href={`${publicHref(content.buttonLink, "#registration")}?amount=${amount}`} className="inline-flex h-11 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700">${amount}</a>
             ))}
@@ -369,9 +369,9 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Live Appeal</p>
         <h2 className="mt-2 text-3xl font-semibold">{heading}</h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-50/80">{body}</p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[100, 250, 500, 1000].map((amount) => (
-            <a key={amount} href={content.buttonLink || "#donate"} className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-white/15">
+            <a key={amount} href={content.buttonLink || "#donate"} className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-3 py-3 text-center text-sm font-semibold text-white hover:bg-white/15">
               {formatMoney(amount)}
             </a>
           ))}
@@ -388,7 +388,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">Volunteer Team</p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">{heading}</h2>
           <p className="mt-3 text-sm leading-6 text-slate-700">{body}</p>
-          <a href={content.buttonLink || `mailto:events@example.org?subject=${encodeURIComponent(data.event.name)}`} className="mt-5 inline-flex rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white">
+          <a href={content.buttonLink || `mailto:events@example.org?subject=${encodeURIComponent(data.event.name)}`} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-violet-700 px-4 py-2 text-center text-sm font-semibold text-white sm:w-auto">
             {content.buttonText || "Volunteer for this event"}
           </a>
         </div>
@@ -403,7 +403,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         <p className="mt-2 text-sm leading-6 text-white/70">{body}</p>
         <div className="mt-5 aspect-video overflow-hidden rounded-2xl border border-white/15 bg-white/10">
           {content.mediaUrl ? (
-            <iframe className="h-full w-full" src={content.mediaUrl} title={heading} allowFullScreen />
+            <iframe className="h-full w-full" src={content.mediaUrl} title={heading} loading="lazy" allowFullScreen />
           ) : (
             <div className="grid h-full place-items-center text-sm text-white/60">Add a video embed URL in section settings.</div>
           )}
@@ -421,7 +421,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         {galleryImages.length > 0 ? (
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {galleryImages.slice(0, 6).map((src, index) => (
-              <div key={index} className="h-44 rounded-2xl bg-cover bg-center shadow-sm" style={{ backgroundImage: `url("${src}")` }} />
+              <img key={index} src={src} alt="" loading="lazy" className="h-44 w-full rounded-2xl object-cover shadow-sm" />
             ))}
           </div>
         ) : (
@@ -453,12 +453,12 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "testimonial") {
-    return <section className={`${sectionPadding(section)} event-brand-soft ${textAlignClass(section)}`}><figure className="mx-auto max-w-3xl"><span className="event-brand-primary-text text-5xl leading-none">“</span><blockquote className="mt-2 text-balance text-2xl font-medium leading-9 text-slate-900">{content.body || "Add a short supporter, guest, or beneficiary quote that helps visitors understand why this event matters."}</blockquote><figcaption className="mt-5 text-sm"><strong className="block text-slate-900">{content.quoteAuthor || "Supporter name"}</strong>{content.quoteRole ? <span className="text-slate-600">{content.quoteRole}</span> : null}</figcaption></figure></section>;
+    return <section className={`${sectionPadding(section)} event-brand-soft ${textAlignClass(section)}`}><figure className="mx-auto max-w-3xl"><span className="event-brand-primary-text text-5xl leading-none">“</span><blockquote className="mt-2 break-words text-xl font-medium leading-8 text-slate-900 sm:text-balance sm:text-2xl sm:leading-9">{content.body || "Add a short supporter, guest, or beneficiary quote that helps visitors understand why this event matters."}</blockquote><figcaption className="mt-5 text-sm"><strong className="block text-slate-900">{content.quoteAuthor || "Supporter name"}</strong>{content.quoteRole ? <span className="text-slate-600">{content.quoteRole}</span> : null}</figcaption></figure></section>;
   }
 
   if (section.id === "contact-organizer") {
     const brand = data.branding;
-    return <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}><div className="mx-auto max-w-5xl border border-slate-200 p-5 sm:p-6"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Questions?</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || "Contact the event organizer"}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{content.body || `The ${organizationName(data)} team is ready to help with registration, accessibility, sponsorships, and event details.`}</p><div className="mt-5 flex flex-wrap gap-2">{brand?.contactEmail ? <a href={`mailto:${brand.contactEmail}`} className="event-brand-primary-bg inline-flex min-h-10 items-center px-4 text-sm font-semibold text-white">Email {brand.contactEmail}</a> : null}{brand?.contactPhone ? <a href={`tel:${brand.contactPhone}`} className="event-brand-outline inline-flex min-h-10 items-center px-4 text-sm font-semibold">Call {brand.contactPhone}</a> : null}{!brand?.contactEmail && !brand?.contactPhone ? <span className="text-sm text-slate-500">Add organization contact details in Settings → Branding.</span> : null}</div></div></section>;
+    return <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}><div className="mx-auto max-w-5xl border border-slate-200 p-4 sm:p-6"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Questions?</p><h2 className="mt-1 break-words text-2xl font-semibold text-slate-950">{content.heading || "Contact the event organizer"}</h2><p className="mt-2 max-w-2xl break-words text-sm leading-6 text-slate-600">{content.body || `The ${organizationName(data)} team is ready to help with registration, accessibility, sponsorships, and event details.`}</p><div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">{brand?.contactEmail ? <a href={`mailto:${brand.contactEmail}`} className="event-brand-primary-bg inline-flex min-h-11 min-w-0 items-center justify-center break-all px-4 text-center text-sm font-semibold text-white">Email {brand.contactEmail}</a> : null}{brand?.contactPhone ? <a href={`tel:${brand.contactPhone}`} className="event-brand-outline inline-flex min-h-11 items-center justify-center px-4 text-sm font-semibold">Call {brand.contactPhone}</a> : null}{!brand?.contactEmail && !brand?.contactPhone ? <span className="text-sm text-slate-500">Add organization contact details in Settings → Branding.</span> : null}</div></div></section>;
   }
 
   if (section.id === "accessibility") {
@@ -468,12 +468,12 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   if (section.id === "cta-banner") {
     return (
       <section className={`${sectionPadding(section)} bg-violet-700 text-white ${textAlignClass(section)}`}>
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold">{heading}</h2>
-            <p className="mt-2 text-sm text-violet-100">{body}</p>
+        <div className="mx-auto flex max-w-5xl flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="break-words text-2xl font-semibold">{heading}</h2>
+            <p className="mt-2 break-words text-sm text-violet-100">{body}</p>
           </div>
-          <a href={content.buttonLink || "#registration"} className="rounded-lg bg-white px-5 py-3 text-sm font-semibold text-violet-700">
+          <a href={content.buttonLink || "#registration"} className="inline-flex min-h-12 items-center justify-center rounded-lg bg-white px-5 py-3 text-center text-sm font-semibold text-violet-700">
             {content.buttonText || "Take Action"}
           </a>
         </div>
@@ -486,7 +486,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
       <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <a href={content.documentUrl || content.buttonLink || data.publicUrl} className="mt-5 inline-flex rounded-lg border border-violet-200 bg-white px-4 py-2 text-sm font-semibold text-violet-700">
+        <a href={content.documentUrl || content.buttonLink || data.publicUrl} className="mt-5 inline-flex min-h-11 w-full items-center justify-center break-words rounded-lg border border-violet-200 bg-white px-4 py-2 text-center text-sm font-semibold text-violet-700 sm:w-auto">
           {content.documentLabel || content.buttonText || "Open Document"}
         </a>
       </section>
@@ -552,18 +552,18 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     return (
       <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button
             type="button"
             onClick={() => {
               void navigator.clipboard?.writeText(data.publicUrl);
             }}
-            className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700"
           >
             Copy Link
           </button>
           {shareActions.map((action) => (
-            <a key={action.label} href={action.href} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700">
+            <a key={action.label} href={action.href} className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700">
               {action.label}
             </a>
           ))}
@@ -573,16 +573,32 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   const brand = data.branding;
-  return <footer className="bg-slate-950 px-5 py-8 text-sm text-white sm:px-8 lg:px-12"><div className="mx-auto flex max-w-5xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div>{brand?.logoUrl ? <img src={brand.logoUrl} alt={`${organizationName(data)} logo`} className="mb-3 max-h-12 max-w-44 object-contain object-left brightness-0 invert" /> : null}<p className="font-semibold">{organizationName(data)}</p><p className="mt-1 text-white/70">{brand?.tagline || data.event.name}</p>{brand?.addressLine ? <p className="mt-2 text-xs text-white/60">{brand.addressLine}</p> : null}</div><div className="text-left text-xs text-white/65 sm:text-right">{brand?.contactEmail ? <a className="block hover:text-white" href={`mailto:${brand.contactEmail}`}>{brand.contactEmail}</a> : null}{brand?.contactPhone ? <a className="mt-1 block hover:text-white" href={`tel:${brand.contactPhone}`}>{brand.contactPhone}</a> : null}<p className="mt-2">© {new Date(data.event.startDate).getFullYear()} {brand?.legalOrganizationName || organizationName(data)}</p>{brand?.footerLegalText ? <p className="mt-1 max-w-md">{brand.footerLegalText}</p> : null}</div></div></footer>;
+  return <footer className="bg-slate-950 px-4 py-8 text-sm text-white sm:px-8 lg:px-12"><div className="mx-auto flex max-w-5xl flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"><div className="min-w-0">{brand?.logoUrl ? <img src={brand.logoUrl} alt={`${organizationName(data)} logo`} className="mb-3 max-h-12 max-w-44 object-contain object-left brightness-0 invert" /> : null}<p className="break-words font-semibold">{organizationName(data)}</p><p className="mt-1 break-words text-white/70">{brand?.tagline || data.event.name}</p>{brand?.addressLine ? <p className="mt-2 break-words text-xs leading-5 text-white/60">{brand.addressLine}</p> : null}</div><div className="min-w-0 text-left text-xs leading-5 text-white/65 sm:text-right">{brand?.contactEmail ? <a className="block break-all py-1 hover:text-white" href={`mailto:${brand.contactEmail}`}>{brand.contactEmail}</a> : null}{brand?.contactPhone ? <a className="mt-1 block py-1 hover:text-white" href={`tel:${brand.contactPhone}`}>{brand.contactPhone}</a> : null}<p className="mt-2 break-words">© {new Date(data.event.startDate).getFullYear()} {brand?.legalOrganizationName || organizationName(data)}</p>{brand?.footerLegalText ? <p className="mt-1 max-w-md break-words">{brand.footerLegalText}</p> : null}</div></div></footer>;
 }
 
 /** Shared public-page document renderer used by both builder preview and published pages. */
 export function EventPageDocument({ sections, selectedSectionId, data, onSelectSection }: EventPageDocumentProps) {
+  const [registrationInView, setRegistrationInView] = useState(false);
   const visibleSections = sections.filter((section) => section.enabled);
   const brandStyle = {
     "--event-brand-primary": data.branding?.primaryColor || "#0f6cbd",
     "--event-brand-accent": data.branding?.accentColor || "#5c2d91",
   } as CSSProperties;
+
+  useEffect(() => {
+    if (!data.isPublicRegistration) {
+      setRegistrationInView(false);
+      return;
+    }
+    const registration = document.getElementById("registration");
+    if (!registration || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setRegistrationInView(entry.isIntersecting),
+      { rootMargin: "-15% 0px -20% 0px", threshold: 0.01 },
+    );
+    observer.observe(registration);
+    return () => observer.disconnect();
+  }, [data.isPublicRegistration, sections]);
 
   return (
     <div className="event-public-document w-full overflow-hidden bg-white" style={brandStyle}>
@@ -624,7 +640,7 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
           </div>
         );
       })}
-      {data.isPublicRegistration && data.ticketTypes.length > 0 ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/96 px-4 py-3 shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"><div className="mx-auto flex max-w-md items-center justify-between gap-4"><div className="min-w-0"><p className="text-xs text-slate-500">From</p><p className="font-semibold text-slate-950">{formatMoney(Math.min(...data.ticketTypes.map((ticket) => Number(ticket.price ?? 0))), data.currency)}</p></div><a href="#registration" className="event-brand-primary-bg inline-flex min-h-11 items-center rounded-md px-6 text-sm font-semibold text-white">Register</a></div></div> : null}
+      {data.isPublicRegistration && data.ticketTypes.length > 0 ? <div aria-hidden={registrationInView} className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/96 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur transition duration-200 md:hidden ${registrationInView ? "pointer-events-none translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}><div className="mx-auto flex max-w-md items-center justify-between gap-4"><div className="min-w-0"><p className="text-xs text-slate-500">Registration from</p><p className="truncate font-semibold text-slate-950">{formatMoney(Math.min(...data.ticketTypes.map((ticket) => Number(ticket.price ?? 0))), data.currency)}</p></div><a href="#registration" tabIndex={registrationInView ? -1 : undefined} className="event-brand-primary-bg inline-flex min-h-12 shrink-0 items-center justify-center rounded-md px-6 text-sm font-semibold text-white">Register</a></div></div> : null}
     </div>
   );
 }
