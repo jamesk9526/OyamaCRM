@@ -1,5 +1,7 @@
 /** Ollama client utilities for Steward AI local/remote inference modes. */
 
+import { OYAMA_STEWARD_SYSTEM_PROMPT } from "../steward/system-prompt.js";
+
 export type StewardAiMode = "local" | "remote";
 export type StewardAiReasoningMode = "standard" | "thinking";
 
@@ -218,6 +220,9 @@ const DEFAULT_CONFIG: StewardAiConfig = {
   apiKey: null,
 };
 
+const LEGACY_DEFAULT_SYSTEM_PROMPT = DEFAULT_CONFIG.systemPrompt;
+DEFAULT_CONFIG.systemPrompt = OYAMA_STEWARD_SYSTEM_PROMPT;
+
 /** Converts unknown numeric values into bounded numbers with fallback. */
 function toBoundedNumber(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
@@ -271,7 +276,13 @@ export function parseStewardAiConfig(rawConfig: unknown): StewardAiConfig {
     temperature: toBoundedNumber(config.temperature, DEFAULT_CONFIG.temperature, 0, 2),
     maxTokens: Math.round(toBoundedNumber(config.maxTokens, DEFAULT_CONFIG.maxTokens, 64, 4096)),
     timeoutMs: Math.round(toBoundedNumber(config.timeoutMs, DEFAULT_CONFIG.timeoutMs, 3650, 300000)),
-    systemPrompt: String(config.systemPrompt ?? DEFAULT_CONFIG.systemPrompt).trim() || DEFAULT_CONFIG.systemPrompt,
+    systemPrompt: (() => {
+      const savedPrompt = String(config.systemPrompt ?? "").trim();
+      if (!savedPrompt || savedPrompt === LEGACY_DEFAULT_SYSTEM_PROMPT) {
+        return DEFAULT_CONFIG.systemPrompt;
+      }
+      return savedPrompt;
+    })(),
     apiKey: normalizeApiKey(config.apiKey),
   };
 }
