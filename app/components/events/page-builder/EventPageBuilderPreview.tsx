@@ -2,6 +2,7 @@
 
 // Event page builder preview canvas styled as a public fundraising event page.
 import { useState, type CSSProperties } from "react";
+import { Monitor, MousePointer2, Smartphone, Tablet } from "lucide-react";
 import PublicEventRegistrationForm from "@/app/components/events/public/PublicEventRegistrationForm";
 import { getSectionDefinition } from "@/app/components/events/page-builder/section-config";
 import type {
@@ -35,8 +36,8 @@ const PREVIEW_DEVICE_WIDTH: Record<PreviewDevice, string> = {
 
 function getDeviceButtonClasses(activeDevice: PreviewDevice, buttonDevice: PreviewDevice): string {
   return [
-    "grid h-9 w-12 place-items-center rounded-lg border text-xs font-semibold",
-    activeDevice === buttonDevice ? "border-violet-300 bg-white text-violet-700 shadow-sm" : "border-transparent text-slate-500 hover:bg-white",
+    "grid h-8 w-9 place-items-center border text-xs font-semibold transition",
+    activeDevice === buttonDevice ? "border-sky-500 bg-sky-50 text-sky-700" : "border-transparent text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-900",
   ].join(" ");
 }
 
@@ -584,7 +585,7 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
   } as CSSProperties;
 
   return (
-    <div className="event-public-document mx-auto max-w-6xl overflow-hidden border border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.10)]" style={brandStyle}>
+    <div className="event-public-document w-full overflow-hidden bg-white" style={brandStyle}>
       {visibleSections.map((section) => {
         const selected = section.id === selectedSectionId;
         const definition = getSectionDefinition(section.id);
@@ -611,7 +612,7 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
             style={sectionStyle}
             className={[
               "block w-full text-left transition",
-              selected ? "relative z-[1] ring-2 ring-inset ring-violet-500" : onSelectSection ? "hover:ring-1 hover:ring-inset hover:ring-violet-200" : "",
+              selected ? "relative z-[1] ring-2 ring-inset ring-sky-500" : onSelectSection ? "hover:ring-1 hover:ring-inset hover:ring-sky-300" : "",
               section.design?.backgroundTone ? `event-section-tone-${section.design.backgroundTone}` : "",
               section.design?.contentWidth ? `event-section-width-${section.design.contentWidth}` : "",
               section.design?.backgroundType === "color" && section.design.backgroundColor ? "event-section-custom-background" : "",
@@ -631,13 +632,15 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
 /** Center live preview canvas for event-scoped public page composition. */
 export default function EventPageBuilderPreview({ sections, selectedSectionId, data, onSelectSection }: EventPageBuilderPreviewProps) {
   const [device, setDevice] = useState<PreviewDevice>("Desktop");
+  const deviceIcon = { Desktop: Monitor, Tablet, Mobile: Smartphone };
 
   return (
-    <section className="h-full min-h-0 min-w-0 overflow-y-auto bg-[#f7f8fc]">
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-[#f7f8fc]/95 px-5 py-3 backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            {(["Desktop", "Tablet", "Mobile"] as const).map((label, index) => (
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-slate-300">
+      <div className="relative z-10 flex min-h-[58px] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-400 bg-slate-100 px-3 py-2">
+        <div className="flex items-center gap-1" role="group" aria-label="Preview viewport">
+            {(["Desktop", "Tablet", "Mobile"] as const).map((label) => {
+              const Icon = deviceIcon[label];
+              return (
               <button
                 key={label}
                 type="button"
@@ -645,38 +648,26 @@ export default function EventPageBuilderPreview({ sections, selectedSectionId, d
                 className={getDeviceButtonClasses(device, label)}
                 title={label}
                 aria-label={`${label} preview`}
+                aria-pressed={device === label}
               >
-                {index === 0 ? "▭" : index === 1 ? "▯" : "▯"}
+                <Icon className="h-3.5 w-3.5" />
               </button>
-            ))}
-          </div>
-          <div className="flex min-w-[260px] flex-1 items-center justify-center">
-            <div className="flex h-9 w-full max-w-xl items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-500 shadow-sm">
-              <span className="text-emerald-500">▣</span>
-              <span className="truncate">{data.publicUrl}</span>
-            </div>
-          </div>
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-            {device} preview
-          </span>
+            );})}
         </div>
+        <div className="flex min-w-0 flex-1 items-center justify-center px-2">
+          <div className="flex h-8 w-full max-w-xl min-w-0 items-center gap-2 border border-slate-300 bg-white px-3 font-mono text-[10px] text-slate-500"><span className="h-1.5 w-1.5 shrink-0 bg-emerald-500" aria-hidden /><span className="truncate">{data.publicUrl}</span></div>
+        </div>
+        <p className="hidden items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500 xl:flex"><MousePointer2 className="h-3.5 w-3.5" />Select a section to edit</p>
       </div>
 
-      <div className="p-5">
-        <div className={`mx-auto transition-all duration-200 ${PREVIEW_DEVICE_WIDTH[device]}`}>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.12)]">
-            <div className="flex h-8 items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-              <span className="ml-3 truncate text-[11px] font-semibold text-slate-500">{data.publicUrl}</span>
+      <div className="min-h-0 flex-1 overflow-auto bg-[linear-gradient(45deg,rgba(100,116,139,0.08)_25%,transparent_25%),linear-gradient(-45deg,rgba(100,116,139,0.08)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,rgba(100,116,139,0.08)_75%),linear-gradient(-45deg,transparent_75%,rgba(100,116,139,0.08)_75%)] bg-[length:24px_24px] bg-[position:0_0,0_12px,12px_-12px,-12px_0] p-3 sm:p-5">
+        <div className={`mx-auto transition-[max-width] duration-200 ${PREVIEW_DEVICE_WIDTH[device]}`}>
+          <div className="border border-slate-400 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+            <div className="flex h-7 items-center justify-between border-b border-slate-300 bg-slate-800 px-2.5 text-white">
+              <span className="font-mono text-[9px] font-bold uppercase tracking-[0.14em]">{device} · live canvas</span>
+              <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 bg-emerald-400" /><span className="font-mono text-[9px] text-slate-300">AUTO</span></span>
             </div>
-            <EventPageDocument
-              sections={sections}
-              selectedSectionId={selectedSectionId}
-              data={data}
-              onSelectSection={onSelectSection}
-            />
+            <EventPageDocument sections={sections} selectedSectionId={selectedSectionId} data={data} onSelectSection={onSelectSection} />
           </div>
         </div>
       </div>

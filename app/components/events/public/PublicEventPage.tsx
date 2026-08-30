@@ -126,8 +126,7 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
   const sections = mergePublicSections(payload.sections);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f9] pb-16 text-slate-900 md:pb-0">
-      <section className="mx-auto max-w-7xl px-0 py-0 sm:px-4 sm:py-5 lg:px-6">
+    <main className="min-h-screen bg-white pb-16 text-slate-900 md:pb-0">
         <EventPageDocument
           sections={sections}
           data={{
@@ -143,7 +142,6 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
             branding: payload.branding,
           }}
         />
-      </section>
     </main>
   );
 }

@@ -89,6 +89,16 @@ This file is the release-gate source of truth for production readiness.
 | Builder previews match public delivery | Working | Separate event-page and registration preview actions render the shared public components at desktop, tablet, and mobile widths. |
 | Automated verification | Working with environment exception | Web typecheck and targeted ESLint pass; focused Stripe/source tests pass 16/16. Database-backed Events tests require MySQL at `localhost:3306`, which was unavailable during this pass. |
 
+## 2026-08-30 Event Public Site Builder Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Builder controls have one canonical owner | Working | Structure owns order/visibility; Properties owns section values; the command deck owns site configuration, preview, registration test, and publish state. |
+| Existing page data and server workflows remain compatible | Working | The redesign preserves the existing section schema and page-builder API contracts; `pnpm typecheck:web` and the full `pnpm build` pass. |
+| Public event pages render as websites rather than CRM cards | Working | `PublicEventPage.tsx` now renders the shared `EventPageDocument` edge to edge while retaining mobile registration actions and organization branding. |
+| Database-backed publish and registration regression | Environment validation required | Restart/configure MySQL at `localhost:3306`, then rerun `tests/smoke/events-crud.test.ts`; the 2026-08-30 attempt failed at database connection before meaningful workflow assertions. |
+| Focused lint lane | Tooling repair required | ESLint cannot load the pnpm dependency `es-abstract/.../hasown/index.js`; repair the local dependency tree before claiming a green lint run. |
+
 ## 2026-08-11 Event Payment and Check-In Snapshot
 
 | Release gate | Status | Evidence |

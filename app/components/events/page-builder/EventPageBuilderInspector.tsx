@@ -3,12 +3,9 @@ import { useEffect, useState } from "react";
 import { getSectionDefinition, getSectionSourceFields } from "@/app/components/events/page-builder/section-config";
 import type { EventPageBranding, EventPageSectionId, EventPageSectionState } from "@/app/components/events/page-builder/types";
 
-const MAX_PREVIEW_FIELDS = 5;
-
 interface EventPageBuilderInspectorProps {
   section: EventPageSectionState;
   onUpdateSection: (sectionId: EventPageSectionId, updater: (current: EventPageSectionState) => EventPageSectionState) => void;
-  onDeleteSection: (sectionId: EventPageSectionId) => void;
   branding?: EventPageBranding;
 }
 
@@ -31,7 +28,7 @@ function TextField({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+        className="mt-1.5 h-9 w-full border border-slate-300 bg-white px-3 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
       />
     </label>
   );
@@ -56,14 +53,14 @@ function TextAreaField({
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
         rows={5}
-        className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-800 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+        className="mt-1.5 w-full resize-y border border-slate-300 bg-white px-3 py-2 text-xs leading-5 text-slate-900 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
       />
     </label>
   );
 }
 
 /** Inspector panel for section settings in the Events page builder. */
-export default function EventPageBuilderInspector({ section, onUpdateSection, onDeleteSection, branding }: EventPageBuilderInspectorProps) {
+export default function EventPageBuilderInspector({ section, onUpdateSection, branding }: EventPageBuilderInspectorProps) {
   const [activeTab, setActiveTab] = useState<"Content" | "Design" | "Advanced">("Content");
   const definition = getSectionDefinition(section.id);
   const sourceFields = getSectionSourceFields(section.id);
@@ -111,33 +108,25 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
   }
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-l border-[#d1d1d1] bg-white">
-      <div className="border-b border-slate-200 px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-slate-950">Section Settings</h2>
-            <p className="mt-1 text-sm text-slate-700">{definition.label.replace(" Section", "")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onDeleteSection(section.id)}
-            className="rounded-md px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50"
-          >
-            Hide block
-          </button>
+    <aside className="flex h-full min-h-0 flex-col border-l border-slate-300 bg-slate-50">
+      <div className="flex min-h-[58px] items-center justify-between border-b border-slate-300 bg-slate-200/70 px-4">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Properties</p>
+          <h2 className="truncate text-sm font-semibold text-slate-950">{definition.label.replace(" Section", "")}</h2>
         </div>
+        <span className={`h-2.5 w-2.5 ${section.enabled ? "bg-emerald-500" : "bg-slate-400"}`} title={section.enabled ? "Section is visible" : "Section is hidden"} aria-label={section.enabled ? "Section is visible" : "Section is hidden"} />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <div className="flex border-b border-slate-200 text-xs font-semibold">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex border-b border-slate-300 bg-white px-2 text-xs font-semibold">
           {["Content", "Design", "Advanced"].map((tabName) => (
             <button
               key={tabName}
               type="button"
               onClick={() => setActiveTab(tabName as "Content" | "Design" | "Advanced")}
               className={[
-                "h-9 flex-1 border-b-2",
-                activeTab === tabName ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500",
+                "h-10 flex-1 border-b-2",
+                activeTab === tabName ? "border-sky-600 text-sky-700" : "border-transparent text-slate-500 hover:text-slate-900",
               ].join(" ")}
             >
               {tabName}
@@ -145,54 +134,19 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
           ))}
         </div>
 
-        <section className="mt-5 space-y-4">
-          <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">Selected Block</p>
-                <h3 className="mt-1 text-sm font-semibold text-slate-950">{definition.label}</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-600">{definition.description}</p>
-              </div>
-              <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${section.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
-                {section.enabled ? "Visible" : "Hidden"}
-              </span>
-            </div>
-            {sourceFields.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {sourceFields.slice(0, MAX_PREVIEW_FIELDS).map((field) => (
-                  <span key={field} className="rounded-full border border-violet-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-violet-700">
-                    {field}
-                  </span>
-                ))}
-                {sourceFields.length > MAX_PREVIEW_FIELDS ? (
-                  <span className="rounded-full border border-violet-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-violet-700">
-                    +{sourceFields.length - MAX_PREVIEW_FIELDS} more
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
+        <section className="space-y-5 p-4">
+          <div className="border-l-2 border-sky-500 bg-white px-3 py-2.5">
+            <p className="text-xs leading-5 text-slate-600">{definition.description}</p>
           </div>
 
           {activeTab === "Advanced" ? null : (
           <div>
-            <h3 className="text-sm font-semibold text-slate-950">Visibility</h3>
-            <div className="mt-3 space-y-2">
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                <span className="text-xs font-semibold text-slate-700">Show Section</span>
-                <input
-                  type="checkbox"
-                  checked={section.enabled}
-                  onChange={(event) => {
-                    const nextChecked = event.target.checked;
-                    onUpdateSection(section.id, (current) => ({ ...current, enabled: nextChecked }));
-                  }}
-                  className="h-4 w-4 rounded border-slate-300 text-violet-600"
-                />
-              </label>
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+            <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Data binding</h3>
+            <div className="mt-2 space-y-2">
+              <label className="flex items-center justify-between border border-slate-300 bg-white px-3 py-2.5">
                 <span>
-                  <span className="block text-xs font-semibold text-slate-700">Lock To Event Data</span>
-                  <span className="block text-[11px] text-slate-500">Keep event source fields synchronized.</span>
+                  <span className="block text-xs font-semibold text-slate-800">Sync with event record</span>
+                  <span className="block text-[11px] text-slate-500">Keep connected source fields current.</span>
                 </span>
                 <input
                   type="checkbox"
@@ -201,7 +155,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                     const nextChecked = event.target.checked;
                     onUpdateSection(section.id, (current) => ({ ...current, lockToEventData: nextChecked }));
                   }}
-                  className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                  className="h-4 w-4 border-slate-300 text-sky-600"
                 />
               </label>
             </div>
@@ -224,22 +178,12 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                 </div>
               </div>
 
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                <span className="text-xs font-semibold text-slate-700">Show Scroll Indicator</span>
-                <input
-                  type="checkbox"
-                  checked={design.showScrollIndicator !== false}
-                  onChange={(event) => updateDesign("showScrollIndicator", event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-violet-600"
-                />
-              </label>
             </>
           ) : null}
 
           {activeTab === "Content" && !isHero ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="text-xs font-semibold text-slate-700">Content Source</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">{definition.description}</p>
+            <div>
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Section content</h3>
               <div className="mt-3 space-y-3">
                 <TextField label="Heading" value={content.heading ?? ""} placeholder={definition.label} onChange={(value) => updateContent("heading", value)} />
                 <TextAreaField label="Body" value={content.body ?? ""} placeholder={definition.description} onChange={(value) => updateContent("body", value)} />
@@ -299,7 +243,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                 <h3 className="text-sm font-semibold text-slate-950">Layout</h3>
                 <p className="mt-3 text-xs font-medium text-slate-500">Section surface</p><div className="mt-1 grid grid-cols-3 border border-slate-200 text-xs font-semibold">{(["default", "white", "soft"] as const).map((tone) => <button key={tone} type="button" onClick={() => updateDesign("backgroundTone", tone)} className={`h-9 capitalize ${(design.backgroundTone ?? "default") === tone ? "bg-[#eff6fc] text-[#0f6cbd]" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{tone}</button>)}</div>
                 <p className="mt-3 text-xs font-medium text-slate-500">Content width</p><div className="mt-1 grid grid-cols-3 border border-slate-200 text-xs font-semibold">{(["narrow", "standard", "wide"] as const).map((width) => <button key={width} type="button" onClick={() => updateDesign("contentWidth", width)} className={`h-9 capitalize ${(design.contentWidth ?? "standard") === width ? "bg-[#eff6fc] text-[#0f6cbd]" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{width}</button>)}</div>
-                <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-lg border border-slate-200 text-xs font-semibold">
+                <div className="mt-3 grid grid-cols-2 overflow-hidden border border-slate-300 text-xs font-semibold">
                   {(["left", "center"] as const).map((align) => (
                     <button
                       key={align}
@@ -307,20 +251,20 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
                       onClick={() => updateDesign("textAlign", align)}
                       className={[
                         "h-9 capitalize",
-                        (design.textAlign ?? "left") === align ? "bg-violet-50 text-violet-700" : "bg-white text-slate-500 hover:bg-slate-50",
+                        (design.textAlign ?? "left") === align ? "bg-sky-50 text-sky-700" : "bg-white text-slate-500 hover:bg-slate-50",
                       ].join(" ")}
                     >
                       {align}
                     </button>
                   ))}
                 </div>
-                <label className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                <label className="mt-3 flex items-center justify-between border border-slate-300 bg-white px-3 py-2.5">
                   <span className="text-xs font-semibold text-slate-700">Compact Spacing</span>
-                  <input type="checkbox" checked={Boolean(design.compact)} onChange={(event) => updateDesign("compact", event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-violet-600" />
+                  <input type="checkbox" checked={Boolean(design.compact)} onChange={(event) => updateDesign("compact", event.target.checked)} className="h-4 w-4 border-slate-300 text-sky-600" />
                 </label>
-                <label className="mt-2 flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                <label className="mt-2 flex items-center justify-between border border-slate-300 bg-white px-3 py-2.5">
                   <span className="text-xs font-semibold text-slate-700">Show Scroll Indicator</span>
-                  <input type="checkbox" checked={design.showScrollIndicator !== false} onChange={(event) => updateDesign("showScrollIndicator", event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-violet-600" />
+                  <input type="checkbox" checked={design.showScrollIndicator !== false} onChange={(event) => updateDesign("showScrollIndicator", event.target.checked)} className="h-4 w-4 border-slate-300 text-sky-600" />
                 </label>
               </div>
             </div>
@@ -330,24 +274,20 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, on
             <div className="space-y-3">
               <TextField label="Anchor ID" value={advanced.anchorId ?? ""} placeholder={section.id} onChange={(value) => updateAdvanced("anchorId", value)} />
               <TextField label="Custom CSS Class" value={advanced.customCssClass ?? ""} placeholder="optional-class-name" onChange={(value) => updateAdvanced("customCssClass", value)} />
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-800">
+              <div className="border-l-2 border-amber-500 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900">
                 Advanced values are sanitized before saving. Custom classes are stored for future theme hooks and do not execute code.
               </div>
             </div>
           ) : null}
 
-          {activeTab !== "Advanced" ? <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-3">
-            <p className="text-xs font-semibold text-violet-800">Connected Fields</p>
-            <ul className="mt-2 space-y-1 text-[11px] text-violet-900">
+          {activeTab !== "Advanced" && sourceFields.length > 0 ? <div className="border border-slate-300 bg-slate-100 px-3 py-3">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">Connected event fields</p>
+            <ul className="mt-2 grid gap-1 text-[11px] text-slate-700">
               {sourceFields.map((field) => (
-                <li key={field}>{field}</li>
+                <li key={field} className="flex items-center gap-2"><span className="h-1.5 w-1.5 bg-sky-500" aria-hidden />{field}</li>
               ))}
             </ul>
           </div> : null}
-
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700">
-            Changes are auto-saved.
-          </div>
         </section>
       </div>
     </aside>

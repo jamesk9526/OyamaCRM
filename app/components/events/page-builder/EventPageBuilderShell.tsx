@@ -67,15 +67,14 @@ function moveSectionOrder(
   sectionId: EventPageSectionId,
   direction: "up" | "down",
 ): EventPageSectionState[] {
-  const index = sections.findIndex((section) => section.id === sectionId);
-  if (index < 0) return sections;
-
-  const nextIndex = direction === "up" ? index - 1 : index + 1;
-  if (nextIndex < 0 || nextIndex >= sections.length) return sections;
-
+  const visiblePositions = sections.flatMap((section, index) => section.enabled ? [index] : []);
+  const visibleIndex = visiblePositions.findIndex((index) => sections[index]?.id === sectionId);
+  const nextVisibleIndex = direction === "up" ? visibleIndex - 1 : visibleIndex + 1;
+  if (visibleIndex < 0 || nextVisibleIndex < 0 || nextVisibleIndex >= visiblePositions.length) return sections;
+  const index = visiblePositions[visibleIndex];
+  const nextIndex = visiblePositions[nextVisibleIndex];
   const next = [...sections];
-  const [item] = next.splice(index, 1);
-  next.splice(nextIndex, 0, item);
+  [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
   return next;
 }
 
@@ -400,12 +399,12 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
 
   if (loading) {
     return (
-      <div className="h-full bg-[#f7f8fc] p-5">
-        <div className="h-14 animate-pulse rounded-xl bg-slate-200" />
-        <div className="mt-4 grid gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white lg:grid-cols-[250px_minmax(0,1fr)_320px]">
-          <div className="h-[640px] animate-pulse bg-slate-100" />
-          <div className="h-[640px] animate-pulse bg-slate-50" />
-          <div className="h-[640px] animate-pulse bg-slate-100" />
+      <div className="h-full bg-slate-900">
+        <div className="h-[108px] animate-pulse bg-slate-950" />
+        <div className="grid min-h-[620px] border-t border-slate-700 bg-white lg:grid-cols-[280px_minmax(0,1fr)_340px]">
+          <div className="animate-pulse border-r border-slate-300 bg-slate-100" />
+          <div className="animate-pulse bg-slate-200" />
+          <div className="animate-pulse border-l border-slate-300 bg-slate-100" />
         </div>
       </div>
     );
@@ -413,8 +412,8 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
 
   if (error || !event) {
     return (
-      <div className="m-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        {error ?? "Event not found."}
+      <div className="grid h-full min-h-[420px] place-items-center bg-slate-100 p-5">
+        <div className="w-full max-w-lg border-l-4 border-red-600 bg-white p-5 shadow-sm"><p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-red-600">Builder unavailable</p><p className="mt-2 text-sm text-slate-700">{error ?? "Event not found."}</p></div>
       </div>
     );
   }
@@ -424,8 +423,9 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#f7f8fc]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-200">
       <EventPageBuilderTopBar
+        eventId={eventId}
         eventName={event.name}
         resolvedPageUrl={draftPreviewUrl}
         pageSlug={pageSlug}
@@ -447,9 +447,9 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
         onPublishToggle={handlePublishToggle}
       />
 
-      <div className="flex shrink-0 border-b border-[#d1d1d1] bg-white p-1 lg:hidden" role="tablist" aria-label="Page builder panels">{(["sections", "preview", "settings"] as const).map((panel) => <button key={panel} type="button" role="tab" aria-selected={compactPanel === panel} onClick={() => setCompactPanel(panel)} className={`min-h-9 flex-1 border-b-2 text-xs font-semibold capitalize ${compactPanel === panel ? "border-[#0f6cbd] text-[#0f548c]" : "border-transparent text-[#616161]"}`}>{panel}</button>)}</div>
+      <div className="flex shrink-0 border-b border-slate-400 bg-slate-800 p-1 lg:hidden" role="tablist" aria-label="Page builder panels">{(["sections", "preview", "settings"] as const).map((panel) => <button key={panel} type="button" role="tab" aria-selected={compactPanel === panel} onClick={() => setCompactPanel(panel)} className={`min-h-10 flex-1 border-b-2 font-mono text-[10px] font-bold uppercase tracking-[0.12em] ${compactPanel === panel ? "border-sky-400 bg-slate-700 text-white" : "border-transparent text-slate-400"}`}>{panel === "sections" ? "Structure" : panel === "settings" ? "Properties" : "Canvas"}</button>)}</div>
 
-      <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)_360px]">
+      <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)_340px] 2xl:grid-cols-[300px_minmax(0,1fr)_380px]">
         <div className={`${compactPanel === "sections" ? "block" : "hidden"} min-h-0 lg:block`}><EventPageBuilderSectionRail
           sections={sections}
           selectedSectionId={selectedSection.id}
@@ -461,8 +461,14 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
             setSections((current) => reorderSectionsByDrop(current, draggedSectionId, targetSectionId));
           }}
           onToggleSection={(sectionId) => {
+            const target = sections.find((section) => section.id === sectionId);
             setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, enabled: !section.enabled } : section)));
-            setSelectedSectionId(sectionId);
+            if (target?.enabled && selectedSectionId === sectionId) {
+              const nextVisible = sections.find((section) => section.id !== sectionId && section.enabled);
+              if (nextVisible) setSelectedSectionId(nextVisible.id);
+            } else if (!target?.enabled) {
+              setSelectedSectionId(sectionId);
+            }
           }}
         /></div>
 
@@ -478,11 +484,6 @@ export default function EventPageBuilderShell({ eventId }: EventPageBuilderShell
           branding={branding ?? undefined}
           onUpdateSection={(sectionId, updater) => {
             setSections((current) => current.map((section) => (section.id === sectionId ? updater(section) : section)));
-          }}
-          onDeleteSection={(sectionId) => {
-            setSections((current) => current.map((section) => (section.id === sectionId ? { ...section, enabled: false } : section)));
-            const nextVisible = sections.find((section) => section.id !== sectionId && section.enabled);
-            if (nextVisible) setSelectedSectionId(nextVisible.id);
           }}
         /></div>
       </div>

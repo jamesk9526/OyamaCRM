@@ -100,6 +100,17 @@ Validation: targeted TypeScript and ESLint checks pass; Stripe webhook and Trivi
 | Simplified live Trivia behavior | Working | `TriviaEventsLinkPanel.tsx`, `RoundQuestionBuilderPanel.tsx`, `HostControlPanel.tsx`, `ProjectorDisplayView.tsx`, `useTriviaModuleState.ts`, `server/src/routes/trivia.ts` | Fixed the unreadable linked-Events panel, added explicit zero/no-timer questions end to end, removed timer controls/stages when disabled, refreshed shared live state every two seconds and on focus/visibility changes, and retained animated projector stage transitions with reduced-motion support. |
 | Focused regression | Working | `pnpm typecheck`; Events, Stripe webhook, Donations, and Trivia event-night suites | Web/server typechecks pass and the focused lane passes 83/83 tests, including wrong-PIN denial, reservation updates, email audience preview, Stripe fallback/settlement contracts, donation CRUD, linked-Events controls, and untimed Trivia behavior. |
 
+## 2026-08-30 Event Public Site Builder Redesign
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Canonical industrial builder workspace | Working | `app/components/events/page-builder/EventPageBuilderShell.tsx`, `EventPageBuilderTopBar.tsx`, `EventPageBuilderSectionRail.tsx`, `EventPageBuilderInspector.tsx` | Rebuilt the event public-site editor around one command deck, one Structure panel, one Properties panel, and one live canvas. Duplicate visibility and autosave controls were removed. |
+| Predictable section composition | Working | `EventPageBuilderSectionRail.tsx`, `EventPageBuilderShell.tsx` | Visible sections are the canonical page order, hidden blocks live only in the searchable library, and keyboard-accessible move controls skip hidden positions. |
+| Responsive preview and public output | Working | `EventPageBuilderPreview.tsx`, `EventPageBuilderPreviewDialog.tsx`, `app/components/events/public/PublicEventPage.tsx` | Desktop/tablet/mobile canvases remain available; full preview closes with Escape; the published event document now renders edge to edge rather than inside a CRM card. |
+| Production source validation | Working | `pnpm typecheck:web`, `pnpm build`, `tests/unit/navigation-boundaries.test.ts`, `git diff --check` | TypeScript, production build, seven navigation tests, and whitespace validation passed. Database smoke validation requires MySQL at `localhost:3306`; focused ESLint is blocked by a missing pnpm package file. |
+
+Audit: `docs/status/audit-artifacts/2026-08-30-event-public-site-builder-redesign.md`.
+
 ## 2026-08-11 Event Registration Payment and Check-In Pass
 
 | Capability | Status | Evidence | Notes |
