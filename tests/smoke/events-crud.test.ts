@@ -617,6 +617,11 @@ describe("events CRUD", () => {
             enabled: true,
             lockToEventData: true,
             content: {
+              eventDate: "October 17, 2026",
+              eventTime: "5:30 PM",
+              locationName: "Engage Church",
+              locationAddress: "16 W Olive St, Aurora, MO",
+              attire: "Formal / Black Tie Optional",
               scheduleItems: [{ time: "6:00 PM", label: "Doors open" }],
               faqItems: [{ question: "Can I host a table?", answer: "Yes." }],
               galleryImages: ["https://example.org/event.jpg"],
@@ -642,6 +647,9 @@ describe("events CRUD", () => {
     expect(persisted.status).toBe(200);
     expect(persisted.body.sections).toHaveLength(3);
     expect(persisted.body.sections[0].content.attire).toBe("Business formal");
+    expect(persisted.body.sections[1].content.eventDate).toBe("October 17, 2026");
+    expect(persisted.body.sections[1].content.locationName).toBe("Engage Church");
+    expect(persisted.body.sections[1].content.attire).toBe("Formal / Black Tie Optional");
     expect(persisted.body.sections[1].content.scheduleItems[0].label).toBe("Doors open");
     expect(persisted.body.sections[1].content.faqItems[0].question).toBe("Can I host a table?");
     expect(persisted.body.sections[2].enabled).toBe(false);

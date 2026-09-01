@@ -74,7 +74,7 @@ function sponsorName(sponsor: EventBuilderSponsor): string {
 }
 
 function locationLine(data: EventPageBuilderWorkspaceData): string {
-  return [data.event.address, data.event.city, data.event.state].filter(Boolean).join(", ") || "Address not configured";
+  return [data.event.address, data.event.city, data.event.state, data.event.zip].filter(Boolean).join(", ") || "Address not configured";
 }
 
 function daysUntil(startDate: string): number {
@@ -197,14 +197,24 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "event-details") {
+    const recordDate = new Date(data.event.startDate);
+    const defaultDate = Number.isNaN(recordDate.getTime())
+      ? "Date not set"
+      : recordDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    const defaultTime = formatDateTimeRange(data.event.startDate, data.event.endDate).split("•")[1]?.trim() || "Time not set";
+    const date = content.eventDate?.trim() || defaultDate;
+    const time = content.eventTime?.trim() || defaultTime;
+    const venue = content.locationName?.trim() || data.event.location?.trim() || "TBD";
+    const address = content.locationAddress?.trim() || locationLine(data);
+    const attire = content.attire?.trim() || "Attire not specified";
     return (
       <section id="event-details" className={`border-t border-slate-200 bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
         <div className="mt-6 grid gap-5 text-sm text-slate-700 sm:grid-cols-2 md:mt-7 md:grid-cols-4">
-          <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Date</span>{new Date(data.event.startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
-          <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Time</span>{formatDateTimeRange(data.event.startDate, data.event.endDate).split("•")[1] ?? "Time not set"}</p>
-          <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Location</span>{data.event.location ?? "TBD"}<br />{locationLine(data)}</p>
-          <p><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Attire</span>Formal / Black Tie Optional</p>
+          <p className="min-w-0 break-words"><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Date</span>{date}</p>
+          <p className="min-w-0 break-words"><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Time</span>{time}</p>
+          <p className="min-w-0 break-words"><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Location</span>{venue}{address ? <><br /><span className="whitespace-pre-line">{address}</span></> : null}</p>
+          <p className="min-w-0 break-words"><span className="block text-xs font-semibold uppercase tracking-[0.14em] text-violet-600">Attire</span>{attire}</p>
         </div>
       </section>
     );

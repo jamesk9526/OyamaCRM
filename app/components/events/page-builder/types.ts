@@ -81,7 +81,12 @@ export interface EventPageSectionState {
     mediaUrl?: string;
     documentLabel?: string;
     documentUrl?: string;
-    /** Dress code / attire guidance shown in the hero details row. */
+    /** Event Details overrides. Empty values continue to use the event record. */
+    eventDate?: string;
+    eventTime?: string;
+    locationName?: string;
+    locationAddress?: string;
+    /** Dress code / attire guidance shown in the Event Details row. */
     attire?: string;
     /** Structured schedule items for the Schedule section. */
     scheduleItems?: Array<{ time?: string; label?: string }>;

@@ -271,6 +271,10 @@ interface StoredEventPageBuilderSection {
     mediaUrl?: string;
     documentLabel?: string;
     documentUrl?: string;
+    eventDate?: string;
+    eventTime?: string;
+    locationName?: string;
+    locationAddress?: string;
     attire?: string;
     scheduleItems?: Array<{ time?: string; label?: string }>;
     faqItems?: Array<{ question?: string; answer?: string }>;
@@ -527,6 +531,10 @@ function sanitizeEventPageBuilderSections(value: unknown): StoredEventPageBuilde
         mediaUrl: safePageBuilderText(rawContent.mediaUrl, 800),
         documentLabel: safePageBuilderText(rawContent.documentLabel, 120),
         documentUrl: safePageBuilderText(rawContent.documentUrl, 800),
+        eventDate: safePageBuilderText(rawContent.eventDate, 120),
+        eventTime: safePageBuilderText(rawContent.eventTime, 120),
+        locationName: safePageBuilderText(rawContent.locationName, 180),
+        locationAddress: safePageBuilderText(rawContent.locationAddress, 400),
         attire: safePageBuilderText(rawContent.attire, 180),
         scheduleItems: sanitizePageBuilderScheduleItems(rawContent.scheduleItems),
         faqItems: sanitizePageBuilderFaqItems(rawContent.faqItems),

@@ -181,7 +181,22 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, br
             </>
           ) : null}
 
-          {activeTab === "Content" && !isHero ? (
+          {activeTab === "Content" && section.id === "event-details" ? (
+            <div>
+              <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Event details</h3>
+              <p className="mt-2 text-xs leading-5 text-slate-500">Leave a field blank to keep it synchronized with the event record.</p>
+              <div className="mt-3 space-y-3">
+                <TextField label="Heading" value={content.heading ?? ""} placeholder={definition.label} onChange={(value) => updateContent("heading", value)} />
+                <TextField label="Date" value={content.eventDate ?? ""} placeholder="October 17, 2026" onChange={(value) => updateContent("eventDate", value)} />
+                <TextField label="Time" value={content.eventTime ?? ""} placeholder="5:30 PM" onChange={(value) => updateContent("eventTime", value)} />
+                <TextField label="Location" value={content.locationName ?? ""} placeholder="Engage Church" onChange={(value) => updateContent("locationName", value)} />
+                <TextAreaField label="Address" value={content.locationAddress ?? ""} placeholder={"16 W Olive St,\nAurora, MO"} onChange={(value) => updateContent("locationAddress", value)} />
+                <TextField label="Attire / dress code" value={content.attire ?? ""} placeholder="Formal / Black Tie Optional" onChange={(value) => updateContent("attire", value)} />
+              </div>
+            </div>
+          ) : null}
+
+          {activeTab === "Content" && !isHero && section.id !== "event-details" ? (
             <div>
               <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Section content</h3>
               <div className="mt-3 space-y-3">
