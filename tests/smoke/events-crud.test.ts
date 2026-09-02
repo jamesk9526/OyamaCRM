@@ -20,6 +20,8 @@ let checkinCode = "";
 let savedEventPageSlug = "";
 let publicReservationOrderNumber = "";
 let publicReservationPin = "";
+let publicRegistrationReplayKey = "";
+let publicRegistrationReplayBody: Record<string, unknown> = {};
 
 beforeAll(async () => {
   const mod = await import("@/server/src/index");
@@ -703,22 +705,25 @@ describe("events CRUD", () => {
     expect(savedEventPageSlug).toBeTruthy();
     expect(ticketTypeId).toBeTruthy();
 
+    publicRegistrationReplayKey = `smoke-public-${Date.now()}`;
+    publicRegistrationReplayBody = {
+      ticketTypeId,
+      quantity: 1,
+      consentAccepted: true,
+      attendees: [
+        {
+          firstName: "Public",
+          lastName: "Registrant",
+          email: `public-registrant-${Date.now()}@example.org`,
+          phone: "555-0101",
+          dietaryRestrictions: "Vegetarian",
+        },
+      ],
+    };
     const res = await request(app)
       .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
-      .send({
-        ticketTypeId,
-        quantity: 1,
-        consentAccepted: true,
-        attendees: [
-          {
-            firstName: "Public",
-            lastName: "Registrant",
-            email: `public-registrant-${Date.now()}@example.org`,
-            phone: "555-0101",
-            dietaryRestrictions: "Vegetarian",
-          },
-        ],
-      });
+      .set("Idempotency-Key", publicRegistrationReplayKey)
+      .send(publicRegistrationReplayBody);
 
     expect(res.status).toBe(201);
     expect(res.body.order?.orderNumber).toMatch(/^PUB-/);
@@ -734,6 +739,19 @@ describe("events CRUD", () => {
     expect(["sent", "skipped", "failed"]).toContain(res.body.email?.status);
     expect(typeof res.body.email?.detail).toBe("string");
     expect(res.body.payment).toMatchObject({ required: true, provider: "offline", checkoutUrl: null });
+  });
+
+  it("replays the same public registration without creating another order or guest", async () => {
+    const replay = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", publicRegistrationReplayKey)
+      .send(publicRegistrationReplayBody);
+
+    expect(replay.status).toBe(201);
+    expect(replay.body.replayed).toBe(true);
+    expect(replay.body.order?.orderNumber).toBe(publicReservationOrderNumber);
+    expect(replay.body.guests).toHaveLength(1);
+    expect(replay.body.email?.status).toBe("skipped");
   });
 
   it("protects and updates public reservation details with the emailed PIN", async () => {
@@ -789,6 +807,7 @@ describe("events CRUD", () => {
 
     const res = await request(app)
       .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", `smoke-table-${unique}`)
       .send({
         ticketTypeId: tableTicketTypeId,
         quantity: 1,
@@ -825,6 +844,7 @@ describe("events CRUD", () => {
 
     const res = await request(app)
       .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", `smoke-multi-${unique}`)
       .send({
         ticketTypeId,
         quantity: 2,
@@ -874,6 +894,7 @@ describe("events CRUD", () => {
 
     const res = await request(app)
       .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", `smoke-nopay-${Date.now()}`)
       .send({
         ticketTypeId,
         quantity: 1,
@@ -904,6 +925,7 @@ describe("events CRUD", () => {
 
     const res = await request(app)
       .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", `smoke-stripe-${Date.now()}`)
       .send({
         ticketTypeId,
         quantity: 1,

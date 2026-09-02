@@ -1602,7 +1602,11 @@ function parsePdfFontFamily(attributes: string, innerHtml = ""): PdfFontFamily |
   const match = `${attributes} ${innerHtml}`.match(/font-family\s*:\s*([^;"'>]+)/i);
   const value = match?.[1]?.replace(/["']/g, "").trim().toLowerCase() ?? "";
   if (!value) return undefined;
-  if (value.includes("times") || value.includes("georgia") || value.includes("serif")) return "times";
+  // `sans-serif` contains the substring `serif`, so classify sans-serif
+  // families first or the server silently changes Arial/Helvetica canvas text
+  // into Times and produces different wrapping and pagination.
+  if (value.includes("arial") || value.includes("helvetica") || value.includes("sans-serif")) return "helvetica";
+  if (value.includes("times") || value.includes("georgia") || /(^|[,\s])serif($|[,\s])/.test(value)) return "times";
   if (value.includes("courier") || value.includes("mono")) return "courier";
   return "helvetica";
 }
@@ -2250,10 +2254,9 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   if (!signature) return blocks;
   const next = [...blocks];
   if (next.length > 0) {
-    // Keep the sign-off visually anchored near the footer, like the editable
-    // canvas, without letting it collide with the reserved footer area.
+    // Keep the sign-off with the body. A fill spacer created a large unexplained
+    // blank region and made the server PDF diverge from the editable canvas.
     next.push({ kind: "spacer", height: 10 });
-    next.push({ kind: "spacer", height: 0, fill: true });
   }
   if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
   if (signature.signatureImageUrl) {
@@ -4306,6 +4309,8 @@ router.get("/templates/:id/publish-history", requirePermission("letters.view"), 
 
 /** POST /api/letters/templates/:id/sample-pdf — Renders one sample merged template PDF server-side. */
 router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), async (req, res) => {
+  const requestId = randomUUID();
+  res.setHeader("x-request-id", requestId);
   const organizationId = await requireOrganizationId(req);
   const userId = req.user?.sub;
   if (!organizationId || !userId) {
@@ -4481,6 +4486,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sample PDF export failure";
     console.error("[letters] Sample PDF export failed", {
+      requestId,
       templateId: template.id,
       templateName: previewTemplate.name,
       organizationId,
@@ -4497,6 +4503,7 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
       organizationId,
       userId,
       metadata: {
+        requestId,
         mode: "SERVER_RENDER",
         status: "FAILED",
         error: message,
@@ -4504,14 +4511,15 @@ router.post("/templates/:id/sample-pdf", requirePermission("letters.edit"), asyn
     });
 
     if (error instanceof LetterPdfLayoutError) {
-      res.status(422).json({ error: { code: error.code, message } });
+      res.status(422).json({ error: { code: error.code, message, requestId } });
       return;
     }
 
     res.status(500).json({
       error: {
         code: "PDF_EXPORT_FAILED",
-        message: "Failed to export sample template PDF.",
+        message: `Failed to export sample template PDF. Reference: ${requestId}`,
+        requestId,
         details: process.env.NODE_ENV === "production" ? undefined : message,
       },
     });

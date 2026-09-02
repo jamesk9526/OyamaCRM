@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { API_BASE } from "@/app/lib/auth-client";
 
 interface PublicPayload {
+  canonicalRegistrationPath?: string | null;
   event: { id: string; name: string; venue: string; hostName: string; startAt: string };
   registration: {
     signupOpen: boolean; publicSlug: string; headline: string; description: string; accentColor: string; contactEmail: string;
@@ -43,7 +44,12 @@ export default function TriviaPublicRegistrationPage({ slug }: { slug: string })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body?.error?.message ?? "This event page is unavailable.");
-        setPayload(body as PublicPayload);
+        const publicPayload = body as PublicPayload;
+        if (publicPayload.canonicalRegistrationPath) {
+          window.location.replace(publicPayload.canonicalRegistrationPath);
+          return;
+        }
+        setPayload(publicPayload);
       })
       .catch((requestError) => { if (requestError?.name !== "AbortError") setLoadError(requestError instanceof Error ? requestError.message : "This event page is unavailable."); });
     return () => controller.abort();

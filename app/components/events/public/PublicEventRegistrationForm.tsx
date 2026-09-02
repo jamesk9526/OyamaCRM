@@ -1,7 +1,7 @@
 /** Focused public checkout for durable Event orders and Stripe handoff. */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, Check, ChevronDown, LockKeyhole, MapPin, Printer } from "lucide-react";
 import type { EventBuilderEventDetail, EventBuilderTicketType, EventPageBranding, EventPagePaymentPolicy } from "@/app/components/events/page-builder/types";
 
@@ -98,7 +98,8 @@ function EventOrderSummary(props: { event?: EventBuilderEventDetail; branding?: 
 }
 
 export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, paymentPolicy = "OfflineFollowUp", currency = "USD", event, branding, eventImageUrl, previewOnly = false }: PublicEventRegistrationFormProps) {
-  const activeTickets = useMemo(() => ticketTypes.filter((ticket) => ticket.id), [ticketTypes]);
+  const allTickets = useMemo(() => ticketTypes.filter((ticket) => ticket.id), [ticketTypes]);
+  const activeTickets = useMemo(() => allTickets.filter((ticket) => ticket.available == null || ticket.available > 0), [allTickets]);
   const [ticketTypeId, setTicketTypeId] = useState(activeTickets[0]?.id ?? "");
   const [quantity, setQuantity] = useState("1");
   const [tableName, setTableName] = useState("");
@@ -111,6 +112,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
   const [result, setResult] = useState<RegistrationResult | null>(null);
   const [reservation, setReservation] = useState<ReservationStatus | null>(null);
   const [paymentReturn, setPaymentReturn] = useState<PaymentReturnState>(null);
+  const lastSubmissionRef = useRef<{ body: string; key: string } | null>(null);
 
   const selectedTicket = activeTickets.find((ticket) => ticket.id === ticketTypeId) ?? activeTickets[0] ?? null;
   const requestedTicketUnits = Math.max(1, Math.min(10, Number(quantity) || 1));
@@ -175,13 +177,22 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
     setError(null);
     setResult(null);
     try {
+      const requestBody = JSON.stringify({ ticketTypeId: selectedTicket.id, quantity: requestedTicketUnits, tableName: selectedTicket.isTable ? tableName.trim() : undefined, consentAccepted, attendees: attendees.slice(0, requestedSeats).map((attendee, index) => index === 0 || addGuestsNow ? attendee : createBlankAttendee()) });
+      const previousSubmission = lastSubmissionRef.current;
+      const idempotencyKey = previousSubmission?.body === requestBody
+        ? previousSubmission.key
+        : window.crypto.randomUUID();
+      lastSubmissionRef.current = { body: requestBody, key: idempotencyKey };
       const response = await fetch(`/api/events/public/page/${encodeURIComponent(pageSlug)}/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketTypeId: selectedTicket.id, quantity: requestedTicketUnits, tableName: selectedTicket.isTable ? tableName.trim() : undefined, consentAccepted, attendees: attendees.slice(0, requestedSeats).map((attendee, index) => index === 0 || addGuestsNow ? attendee : createBlankAttendee()) }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey, "X-Request-ID": idempotencyKey },
+        body: requestBody,
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error?.message ?? "Registration could not be completed.");
+      if (!response.ok) {
+        const supportId = payload?.error?.requestId ?? response.headers.get("x-request-id");
+        throw new Error(`${payload?.error?.message ?? "Registration could not be completed."}${supportId ? ` Support reference: ${supportId}.` : ""}`);
+      }
       const completed = payload as RegistrationResult;
       setResult(completed);
       window.sessionStorage.setItem(storageKey(pageSlug, completed.order.orderNumber), JSON.stringify(completed));
@@ -198,7 +209,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
     }
   }
 
-  if (activeTickets.length === 0) return <p className="py-8 text-center text-sm text-slate-500">Registration options are not available yet.</p>;
+  if (activeTickets.length === 0) return <div role="status" className="py-10 text-center"><p className="font-semibold text-slate-900">Registration is currently unavailable.</p><p className="mt-2 text-sm text-slate-500">This event may be sold out or registration may not be open yet. Contact the event organizer if you need assistance.</p></div>;
 
   if (redirecting) return <section className="mx-auto max-w-xl px-5 py-16 text-center" role="status" aria-live="polite"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100"><LockKeyhole className="h-5 w-5 text-slate-700" /></span><h2 className="mt-5 text-2xl font-semibold tracking-[-0.02em] text-slate-950">Secure payment</h2><p className="mt-2 text-sm text-slate-600">You&apos;ll complete your payment securely through Stripe.</p></section>;
 
@@ -230,7 +241,7 @@ export default function PublicEventRegistrationForm({ pageSlug, ticketTypes, pay
       <div className="px-4 py-7 sm:px-8 sm:py-10 lg:px-10">
         {paymentReturn ? <div role="status" className="mb-7 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-semibold">{paymentReturn === "cancelled" ? "Payment not completed" : "Checking payment status"}</p><p className="mt-1">{paymentReturn === "cancelled" ? "Your saved registration could not be restored in this browser. Use the payment link in your confirmation email or contact the organizer." : "Use your confirmation email to view the saved registration if this message remains."}</p></div> : null}
         <div><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Registration</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em] text-slate-950">Reserve seats for this event</h2></div>
-        <fieldset className="mt-8"><legend className="text-sm font-semibold text-slate-950">Registration option</legend><div className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">{activeTickets.map((ticket) => <label key={ticket.id} className={`grid min-h-[72px] cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-3 py-3 transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4 ${ticketTypeId === ticket.id ? "bg-[color-mix(in_srgb,var(--event-brand-primary)_6%,white)]" : "bg-white hover:bg-slate-50"}`}><input type="radio" name="ticketTypeId" value={ticket.id} checked={ticketTypeId === ticket.id} onChange={() => setTicketTypeId(ticket.id)} disabled={previewOnly} className="h-5 w-5 shrink-0 accent-[var(--event-brand-primary)] sm:h-4 sm:w-4" /><span className="min-w-0"><span className="block break-words text-sm font-semibold text-slate-950">{ticket.name}</span><span className="mt-0.5 block break-words text-xs leading-5 text-slate-500">{ticket.isTable ? `Seats ${ticket.seatsIncluded ?? 1} guests` : ticket.description || "Individual registration"}{ticket.available != null ? ` · ${ticket.available} available` : ""}</span></span><span className="col-start-2 text-sm font-semibold text-slate-950 sm:col-start-3 sm:row-start-1">{money(ticket.price)}</span></label>)}</div></fieldset>
+        <fieldset className="mt-8"><legend className="text-sm font-semibold text-slate-950">Registration option</legend><div className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">{allTickets.map((ticket) => { const soldOut = ticket.available != null && ticket.available <= 0; return <label key={ticket.id} className={`grid min-h-[72px] grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-3 py-3 transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4 ${soldOut ? "cursor-not-allowed bg-slate-50 text-slate-500" : `cursor-pointer ${ticketTypeId === ticket.id ? "bg-[color-mix(in_srgb,var(--event-brand-primary)_6%,white)]" : "bg-white hover:bg-slate-50"}`}`}><input type="radio" name="ticketTypeId" value={ticket.id} checked={ticketTypeId === ticket.id} onChange={() => setTicketTypeId(ticket.id)} disabled={previewOnly || soldOut} className="h-5 w-5 shrink-0 accent-[var(--event-brand-primary)] sm:h-4 sm:w-4" /><span className="min-w-0"><span className="block break-words text-sm font-semibold">{ticket.name}</span><span className="mt-0.5 block break-words text-xs leading-5 text-slate-500">{ticket.isTable ? `Seats ${ticket.seatsIncluded ?? 1} guests` : ticket.description || "Individual registration"}{soldOut ? " · Sold out" : ticket.available != null ? ` · ${ticket.available} available` : ""}</span></span><span className="col-start-2 text-sm font-semibold sm:col-start-3 sm:row-start-1">{money(ticket.price)}</span></label>; })}</div></fieldset>
         <div className="mt-6 grid gap-4 sm:grid-cols-[150px_1fr] sm:items-end"><label className="text-sm font-medium text-slate-800">Quantity<input type="number" min="1" max="10" value={quantity} onChange={(changeEvent) => setQuantity(changeEvent.target.value)} disabled={previewOnly} className={inputClass} /></label><p className="pb-3 text-sm text-slate-500">{requestedSeats} attendee seat{requestedSeats === 1 ? "" : "s"} included</p></div>
         {selectedTicket?.isTable ? <label className="mt-5 block text-sm font-medium text-slate-800">Table or team name <span className="font-normal text-slate-400">(optional)</span><input value={tableName} onChange={(changeEvent) => setTableName(changeEvent.target.value)} disabled={previewOnly} maxLength={120} placeholder="For example, The Bright Ideas" className={inputClass} /><span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">A unique table number is assigned automatically and included with your confirmation.</span></label> : null}
         <fieldset className="mt-9 border-t border-slate-200 pt-7"><legend className="text-lg font-semibold text-slate-950">Contact information</legend><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-slate-800 sm:col-span-2">Email<input type="email" autoComplete="email" required value={primaryAttendee.email} onChange={(changeEvent) => updateAttendee(0, "email", changeEvent.target.value)} disabled={previewOnly} className={inputClass} /></label><label className="text-sm font-medium text-slate-800">First name<input autoComplete="given-name" required value={primaryAttendee.firstName} onChange={(changeEvent) => updateAttendee(0, "firstName", changeEvent.target.value)} disabled={previewOnly} className={inputClass} /></label><label className="text-sm font-medium text-slate-800">Last name<input autoComplete="family-name" required value={primaryAttendee.lastName} onChange={(changeEvent) => updateAttendee(0, "lastName", changeEvent.target.value)} disabled={previewOnly} className={inputClass} /></label><label className="text-sm font-medium text-slate-800 sm:col-span-2">Phone <span className="font-normal text-slate-400">(optional)</span><input type="tel" autoComplete="tel" value={primaryAttendee.phone} onChange={(changeEvent) => updateAttendee(0, "phone", changeEvent.target.value)} disabled={previewOnly} className={inputClass} /></label></div></fieldset>

@@ -37,6 +37,24 @@ type LetterTextAlign = "left" | "center" | "right" | "justify";
 type LetterTableBorderStyle = "solid" | "dashed" | "none";
 const LETTER_TEMPLATE_AI_ASSISTED_MARKER = "oyama-ai-assisted";
 const PREVIEW_EXPORT_RECIPIENTS_PER_PART = 40;
+const LETTER_PDF_PREVIEW_TIMEOUT_MS = 45_000;
+
+function isRequestAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+async function letterPdfResponseError(response: Response, fallback: string): Promise<Error> {
+  const requestId = response.headers.get("x-request-id")?.trim() ?? "";
+  let message = `${fallback} (${response.status}).`;
+  try {
+    const parsed = await response.json();
+    if (parsed?.error?.message) message = String(parsed.error.message);
+  } catch {
+    // Keep the status-based message when a proxy returns HTML or an empty body.
+  }
+  if (requestId && !message.includes(requestId)) message = `${message} Reference: ${requestId}`;
+  return new Error(message);
+}
 
 type PreparedBulkDownload = {
   objectUrl: string;
@@ -1290,6 +1308,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [editorPdfOpen, setEditorPdfOpen] = useState(false);
   const [editorPdfLoading, setEditorPdfLoading] = useState(false);
   const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
+  const editorPdfAbortRef = useRef<AbortController | null>(null);
   const [canvasOverflowing, setCanvasOverflowing] = useState(false);
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -1448,6 +1467,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     };
   }, [editorPdfUrl]);
 
+  useEffect(() => () => editorPdfAbortRef.current?.abort(), []);
+
   function readEditorPdfFileName(response: Response, fallback: string): string {
     const disposition = response.headers.get("content-disposition") ?? "";
     const quotedMatch = disposition.match(/filename="([^"]+)"/i);
@@ -1482,34 +1503,31 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }
 
   async function openServerPdfPreview(targetConstituentId = testConstituentId) {
+    if (editorPdfAbortRef.current) return;
     if (!targetConstituentId) {
       setTestConstituentLookupOpen(true);
       setEditorPdfError("Choose a test constituent before rendering the live PDF preview.");
       return;
     }
 
-    const activeTemplateId = templateId || await save();
-    if (!activeTemplateId) return;
-
+    const controller = new AbortController();
+    editorPdfAbortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), LETTER_PDF_PREVIEW_TIMEOUT_MS);
     setEditorPdfLoading(true);
     setEditorPdfError(null);
     try {
+      const activeTemplateId = templateId || await save();
+      if (!activeTemplateId) return;
       const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1`, {
         method: "POST",
+        signal: controller.signal,
         body: JSON.stringify({
           constituentId: targetConstituentId,
           draft: currentDraftSnapshot(),
         }),
       });
       if (!response.ok) {
-        let message = `Server PDF preview failed (${response.status}).`;
-        try {
-          const parsed = await response.json();
-          if (parsed?.error?.message) message = String(parsed.error.message);
-        } catch {
-          // Keep default message when response is not JSON.
-        }
-        throw new Error(message);
+        throw await letterPdfResponseError(response, "Server PDF preview failed");
       }
 
       const pdfBlob = await response.blob();
@@ -1526,8 +1544,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setTestConstituentLookupOpen(false);
       setNotice("Server-rendered PDF preview refreshed.");
     } catch (requestError) {
-      setEditorPdfError(errorMessage(requestError, "Failed to render server PDF preview."));
+      setEditorPdfError(isRequestAbort(requestError)
+        ? "The server PDF preview timed out after 45 seconds. Your draft is still saved; try again or continue to Publish Review and use the request reference shown there."
+        : errorMessage(requestError, "Failed to render server PDF preview."));
     } finally {
+      window.clearTimeout(timeout);
+      if (editorPdfAbortRef.current === controller) editorPdfAbortRef.current = null;
       setEditorPdfLoading(false);
     }
   }
@@ -2698,6 +2720,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       </div> : null}
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
+      {editorPdfError && !editorPdfOpen ? <Alert tone="amber">{editorPdfError}</Alert> : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[248px_minmax(0,1fr)_320px] lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
         <aside className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
           <div className="space-y-2.5">
@@ -3256,6 +3279,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [activePublishTab, setActivePublishTab] = useState<PublishReviewTab>("summary");
+  const savedPreviewAbortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
     if (!templateId) {
@@ -3294,6 +3318,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
 
   useEffect(() => {
     return () => {
+      savedPreviewAbortRef.current?.abort();
       if (savedPreviewPdfUrl) {
         URL.revokeObjectURL(savedPreviewPdfUrl);
       }
@@ -3357,14 +3382,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
         method: "POST",
       });
       if (!response.ok) {
-        let message = `Sample PDF export failed (${response.status}).`;
-        try {
-          const parsed = await response.json();
-          if (parsed?.error?.message) message = String(parsed.error.message);
-        } catch {
-          // Keep default message when response is not JSON.
-        }
-        throw new Error(message);
+        throw await letterPdfResponseError(response, "Sample PDF export failed");
       }
 
       const pdfBlob = await response.blob();
@@ -3386,7 +3404,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
         templateId,
         templateName: template?.name ?? null,
         error: errorMessage(requestError, "Failed to open sample PDF preview."),
-        rawPrintBodyHtml: template?.printBody ?? "",
+        printBodyLength: template?.printBody?.length ?? 0,
       });
       setError(errorMessage(requestError, "Failed to open sample PDF preview."));
     } finally {
@@ -3395,22 +3413,20 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   }
 
   const loadSavedPreviewPdf = useCallback(async () => {
-    if (!templateId) return;
+    if (!templateId || !template) return;
+    savedPreviewAbortRef.current?.abort();
+    const controller = new AbortController();
+    savedPreviewAbortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), LETTER_PDF_PREVIEW_TIMEOUT_MS);
     setSavedPreviewPdfLoading(true);
     setSavedPreviewPdfError(null);
     try {
       const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(templateId)}/sample-pdf?preview=1&inline=1`, {
         method: "POST",
+        signal: controller.signal,
       });
       if (!response.ok) {
-        let message = `Sample PDF preview failed (${response.status}).`;
-        try {
-          const parsed = await response.json();
-          if (parsed?.error?.message) message = String(parsed.error.message);
-        } catch {
-          // Keep default message when response is not JSON.
-        }
-        throw new Error(message);
+        throw await letterPdfResponseError(response, "Sample PDF preview failed");
       }
       const pdfBlob = await response.blob();
       if (pdfBlob.size === 0) {
@@ -3422,21 +3438,29 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
         return nextUrl;
       });
     } catch (requestError) {
+      if (isRequestAbort(requestError) && savedPreviewAbortRef.current !== controller) return;
+      const previewError = isRequestAbort(requestError)
+        ? "The server PDF preview timed out after 45 seconds. Retry from the PDF Preview review step."
+        : errorMessage(requestError, "Unable to load server preview.");
       console.warn("[OyamaLetters PDF Preview Diagnostics] Failed to load inline server preview.", {
         templateId,
         templateName: template?.name ?? null,
-        error: errorMessage(requestError, "Unable to load server preview."),
-        rawPrintBodyHtml: template?.printBody ?? "",
+        error: previewError,
+        printBodyLength: template?.printBody?.length ?? 0,
       });
-      setSavedPreviewPdfError(errorMessage(requestError, "Unable to load server preview."));
+      setSavedPreviewPdfError(previewError);
       setSavedPreviewPdfUrl((current) => {
         if (current) URL.revokeObjectURL(current);
         return null;
       });
     } finally {
-      setSavedPreviewPdfLoading(false);
+      window.clearTimeout(timeout);
+      if (savedPreviewAbortRef.current === controller) {
+        savedPreviewAbortRef.current = null;
+        setSavedPreviewPdfLoading(false);
+      }
     }
-  }, [template?.name, template?.printBody, templateId]);
+  }, [template, templateId]);
 
   useEffect(() => {
     void loadSavedPreviewPdf();

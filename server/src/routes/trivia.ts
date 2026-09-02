@@ -11,7 +11,7 @@ import type { Prisma } from "@prisma/client";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
-import { evaluateRecipientEligibility, hashPublicEmailToken, isValidEmailAddress } from "../services/email-compliance.js";
+import { evaluateRecipientEligibility, hashPublicEmailToken } from "../services/email-compliance.js";
 import { prisma } from "../lib/prisma.js";
 import { createEventTable, syncEventTableSeats } from "../services/event-table-service.js";
 
@@ -681,51 +681,6 @@ function triviaEmailFrame(title: string, body: string, footer = ""): string {
   return `<!doctype html><html><body style="margin:0;background:#07111f;font-family:Arial,sans-serif;color:#e2e8f0"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#07111f;padding:24px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0d1b2e;border:1px solid #334155"><tr><td style="padding:24px;border-bottom:3px solid #38bdf8"><div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#67e8f9">Oyama Trivia</div><h1 style="margin:8px 0 0;font-size:28px;color:#ffffff">${escapeEmailHtml(title)}</h1></td></tr><tr><td style="padding:24px;font-size:15px;line-height:1.65">${body}</td></tr>${footer ? `<tr><td style="padding:18px 24px;border-top:1px solid #334155;font-size:12px;line-height:1.5;color:#94a3b8">${footer}</td></tr>` : ""}</table></td></tr></table></body></html>`;
 }
 
-async function sendTriviaRegistrationConfirmation(params: {
-  organizationId: string;
-  event: JsonObject;
-  settings: JsonObject;
-  team: JsonObject;
-}): Promise<{ status: "sent" | "skipped" | "failed"; detail: string }> {
-  const email = String(params.team.contactEmail ?? "").trim().toLowerCase();
-  if (!isValidEmailAddress(email)) return { status: "skipped", detail: "No valid confirmation email was supplied." };
-  try {
-    const eligibility = await evaluateRecipientEligibility({
-      organizationId: params.organizationId,
-      purpose: "TRANSACTIONAL",
-      candidates: [{ email }],
-    });
-    if (!eligibility.recipients.includes(email)) {
-      const decision = eligibility.decisions.find((item) => item.email === email);
-      return { status: "skipped", detail: decision?.ineligibilityReason ?? "This address is not eligible for email." };
-    }
-    const members = Array.isArray(params.team.players) ? params.team.players.map((name) => String(name)).filter(Boolean) : [];
-    const amountDue = Math.max(0, Number(params.team.amountDue) || 0);
-    const currency = String(params.settings.currency ?? "USD");
-    const paymentUrl = typeof params.settings.paymentUrl === "string" && /^https:\/\//i.test(params.settings.paymentUrl) ? params.settings.paymentUrl : "";
-    const body = [
-      `<p style="margin-top:0">Hello ${escapeEmailHtml(params.team.tableHostName ?? params.team.captainName ?? "Table host")},</p>`,
-      `<p>Your RSVP for <strong style="color:#fff">${escapeEmailHtml(params.event.name)}</strong> was successful.</p>`,
-      `<div style="margin:20px 0;padding:18px;background:#081321;border-left:4px solid #38bdf8"><div><strong>Team:</strong> ${escapeEmailHtml(params.team.name)}</div><div><strong>Table number:</strong> ${escapeEmailHtml(params.team.tableNumber)}</div><div><strong>Check-in code:</strong> <span style="font-size:24px;letter-spacing:5px;color:#67e8f9">${escapeEmailHtml(params.team.registrationCode)}</span></div><div><strong>Seats:</strong> ${escapeEmailHtml(params.team.playerCount)}</div>${amountDue > 0 ? `<div><strong>Amount due:</strong> ${escapeEmailHtml(currency)} ${amountDue.toFixed(2)}</div>` : ""}</div>`,
-      members.length ? `<p><strong>Table members</strong><br>${members.map(escapeEmailHtml).join("<br>")}</p>` : "",
-      `<p>${escapeEmailHtml(params.settings.confirmationMessage ?? "Your table is registered.")}</p>`,
-      paymentUrl && amountDue > 0 ? `<p><a href="${escapeEmailHtml(paymentUrl)}" style="display:inline-block;padding:12px 18px;background:#38bdf8;color:#07111f;text-decoration:none;font-weight:bold">Continue to payment</a></p>` : "",
-      `<p style="color:#cbd5e1">${escapeEmailHtml(params.settings.paymentInstructions ?? "")}</p>`,
-    ].join("");
-    const sender = await createOrganizationEmailSender(params.organizationId);
-    await sender.send({
-      to: email,
-      subject: `RSVP confirmed: ${String(params.event.name ?? "Trivia Night")}`,
-      text: `Your RSVP for ${String(params.event.name ?? "Trivia Night")} was successful.\nTeam: ${String(params.team.name ?? "")}\nTable: ${String(params.team.tableNumber ?? "")}\nCheck-in code: ${String(params.team.registrationCode ?? "")}\nMembers: ${members.join(", ") || "Not listed"}\n${amountDue > 0 ? `Amount due: ${currency} ${amountDue.toFixed(2)}\n` : ""}${paymentUrl ? `Payment: ${paymentUrl}\n` : ""}`,
-      html: triviaEmailFrame("Your table is confirmed", body),
-      fromNameOverride: String(params.event.name ?? "Oyama Trivia"),
-    });
-    return { status: "sent", detail: `Confirmation sent to ${email}.` };
-  } catch (error) {
-    return { status: "failed", detail: error instanceof Error ? error.message : "The confirmation email could not be sent." };
-  }
-}
-
 function makeAccessCode(store: StoreShape): string {
   const activeHashes = new Set<string>();
   const now = Date.now();
@@ -1056,6 +1011,16 @@ function findPublishedEventBySlug(store: StoreShape, slug: string): { organizati
   return null;
 }
 
+async function canonicalTriviaRegistrationPath(organizationId: string, event: JsonObject): Promise<string | null> {
+  const linkedEventId = String(event.linkedEventsEventId ?? "").trim();
+  if (!linkedEventId) return null;
+  const setting = await prisma.pluginSetting.findUnique({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY } },
+    select: { config: true },
+  });
+  return publicEventPagePath(setting?.config, linkedEventId);
+}
+
 function publicRegistrationPayload(event: JsonObject, settings: JsonObject): JsonObject {
   const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
   const maximumTables = Math.max(1, Number(settings.maximumTables) || 30);
@@ -1097,91 +1062,33 @@ publicRouter.get("/registration/:slug", async (req, res) => {
   const store = await loadStore();
   const match = findPublishedEventBySlug(store, String(req.params.slug ?? ""));
   if (!match) { res.status(404).json({ error: { code: "NOT_FOUND", message: "This trivia registration page is not published." } }); return; }
-  res.json(publicRegistrationPayload(match.event, match.settings));
+  const canonicalRegistrationPath = await canonicalTriviaRegistrationPath(match.organizationId, match.event);
+  res.json({ ...publicRegistrationPayload(match.event, match.settings), canonicalRegistrationPath });
 });
 
 publicRouter.post("/registration/:slug", publicRegistrationLimiter, async (req, res) => {
   const store = await loadStore();
   const match = findPublishedEventBySlug(store, String(req.params.slug ?? ""));
   if (!match) { res.status(404).json({ error: { code: "NOT_FOUND", message: "This trivia registration page is not published." } }); return; }
-  const { organizationId, event, settings, orgStore } = match;
-  if (settings.signupOpen !== true) { res.status(409).json({ error: { code: "REGISTRATION_CLOSED", message: "Registration is currently closed." } }); return; }
-  const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
-  const maximumTables = Math.max(1, Number(settings.maximumTables) || 30);
-  if (teams.filter((team) => team.active !== false).length >= maximumTables) {
-    res.status(409).json({ error: { code: "EVENT_FULL", message: "All available trivia tables are currently reserved." } }); return;
-  }
-  const teamName = String(req.body?.teamName ?? "").trim().slice(0, 100);
-  const tableHostName = String(req.body?.tableHostName ?? "").trim().slice(0, 100);
-  const contactEmail = String(req.body?.contactEmail ?? "").trim().toLowerCase().slice(0, 160);
-  const contactPhone = String(req.body?.contactPhone ?? "").trim().slice(0, 40);
-  const payerName = String(req.body?.payerName ?? tableHostName).trim().slice(0, 100);
-  const payerEmail = String(req.body?.payerEmail ?? contactEmail).trim().toLowerCase().slice(0, 160);
-  const maximumSeats = Math.max(1, Number(settings.maximumSeatsPerTable) || 8);
-  const memberNames = Array.isArray(req.body?.members)
-    ? req.body.members.map((item: unknown) => String(item).trim().slice(0, 100)).filter(Boolean).slice(0, maximumSeats)
-    : [];
-  const requestedSeats = Math.max(1, Math.min(maximumSeats, Math.max(Number(req.body?.seatCount) || 1, memberNames.length)));
-  if (!teamName || !tableHostName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Team name, table host, and a valid contact email are required." } }); return;
-  }
-  const paymentMode = ["free", "per_seat", "per_table", "mixed"].includes(String(settings.paymentMode)) ? String(settings.paymentMode) : "free";
-  const configuredProvider = ["stripe", "paypal"].includes(String(settings.paymentProvider)) ? String(settings.paymentProvider) : "offline";
-  if (paymentMode !== "free" && configuredProvider !== "offline" && !(typeof settings.paymentUrl === "string" && /^https:\/\//i.test(settings.paymentUrl))) {
-    res.status(409).json({ error: { code: "PAYMENT_NOT_READY", message: "Online registration is temporarily closed while the organizer finishes payment setup." } });
+  const { organizationId, event } = match;
+  const canonicalRegistrationPath = await canonicalTriviaRegistrationPath(organizationId, event);
+  if (canonicalRegistrationPath) {
+    res.status(409).json({
+      error: {
+        code: "CANONICAL_REGISTRATION_REQUIRED",
+        message: "Registration for this trivia event has moved to its secure Event Studio page.",
+        registrationPath: canonicalRegistrationPath,
+      },
+    });
     return;
   }
-  const requestedChoice = req.body?.paymentChoice === "table" ? "table" : "seat";
-  const paymentChoice = paymentMode === "per_table" ? "table" : paymentMode === "per_seat" ? "seat" : paymentMode === "mixed" ? requestedChoice : "seat";
-  const amountDue = paymentMode === "free" ? 0 : paymentChoice === "table"
-    ? Math.max(0, Number(settings.tablePrice) || 0)
-    : Math.max(0, Number(settings.seatPrice) || 0) * requestedSeats;
-  const usedCodes = new Set(teams.map((team) => String(team.registrationCode ?? "")));
-  let registrationCode = "";
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const candidate = String(randomInt(1000, 10_000));
-    if (!usedCodes.has(candidate)) { registrationCode = candidate; break; }
-  }
-  if (!registrationCode) { res.status(503).json({ error: { code: "CODE_UNAVAILABLE", message: "Registration is temporarily unavailable. Please try again." } }); return; }
-  const provider = configuredProvider;
-  const teamId = `team-${randomUUID().slice(0, 12)}`;
-  const tableNumber = nextAvailableTableNumber(teams);
-  const team: JsonObject = {
-    id: teamId, name: teamName, players: memberNames, playerCount: requestedSeats, score: 0, bonusPoints: 0,
-    active: true, color: "#38bdf8", icon: "star", sortOrder: teams.length, checkInStatus: "expected", checkedInAt: null,
-    tableNumber, captainName: tableHostName, tableHostName, contactName: tableHostName,
-    contactEmail, contactPhone, registrationSource: "public", registrationCode, paymentChoice,
-    paymentStatus: amountDue > 0 ? "pending" : "not_required", paymentProvider: provider, amountDue, payerName, payerEmail,
-    notes: String(req.body?.notes ?? "").trim().slice(0, 500),
-  };
-  teams.push(team);
-  event.teams = teams;
-  event.updatedAt = nowIso();
-  orgStore.updatedAt = nowIso();
-  pushAudit(orgStore, String(event.id ?? ""), "check_in", `Public registration received for ${teamName}`, { teamId, registrationCode, amountDue, paymentChoice });
-  if (String(event.linkedEventsEventId ?? "").trim()) {
-    try {
-      await syncTriviaEventToOyamaEvents(organizationId, event);
-      await syncTriviaEventFromOyamaEvents(organizationId, event, { force: true });
-      pushAudit(orgStore, String(event.id ?? ""), "sync", "Public RSVP synchronized to Oyama Events", { teamId });
-    } catch (error) {
-      event.eventsSyncError = error instanceof Error ? error.message : "Oyama Events roster sync failed.";
-      pushAudit(orgStore, String(event.id ?? ""), "sync", "Public RSVP saved but Oyama Events sync failed", { teamId, error: String(event.eventsSyncError) });
-    }
-  }
-  await persistStore(store);
-  const emailResult = await sendTriviaRegistrationConfirmation({ organizationId, event, settings, team });
-  pushAudit(orgStore, String(event.id ?? ""), "manual", `RSVP confirmation email ${emailResult.status}`, { teamId, email: contactEmail, detail: emailResult.detail });
-  await persistStore(store);
-  res.status(201).json({
-    registration: { teamId, teamName, tableHostName, registrationCode, tableNumber: team.tableNumber, seatCount: requestedSeats, amountDue, currency: String(settings.currency ?? "USD"), paymentStatus: team.paymentStatus },
-    payment: { provider, checkoutUrl: amountDue > 0 && typeof settings.paymentUrl === "string" && /^https:\/\//i.test(settings.paymentUrl) ? settings.paymentUrl : "", instructions: settings.paymentInstructions ?? "" },
-    confirmationMessage: settings.confirmationMessage ?? "Your team is registered.",
-    email: {
-      status: emailResult.status,
-      detail: emailResult.status === "sent" ? emailResult.detail : emailResult.status === "skipped" ? emailResult.detail : "Your RSVP succeeded, but the confirmation email could not be sent. Save your check-in code.",
+  res.status(503).json({
+    error: {
+      code: "TRIVIA_REGISTRATION_MIGRATION_REQUIRED",
+      message: "Registration is temporarily unavailable while this trivia event is connected to Event Studio. Contact the organizer for help.",
     },
   });
+  return;
 });
 
 async function claimTemporaryAccess(req: Request, eventId?: string): Promise<{ accessToken: string; eventId: string; pass: TriviaAccessPass } | null> {

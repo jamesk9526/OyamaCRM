@@ -1,6 +1,18 @@
 # Production Readiness Checklist
 
-Last updated: 2026-08-17 (OYAMADonorPROFILE foundation)
+Last updated: 2026-09-02 (Letters PDF preview reliability)
+
+## 2026-09-02 Letters PDF Parity and Preview Reliability Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Canvas and server PDF keep the same base font family and wrapping | Working | The PDF parser now recognizes Arial/Helvetica/`sans-serif` as Helvetica before testing the standalone serif family, preventing the former Times substitution and page reflow. Covered by `tests/unit/letters-pdf-layout.test.ts`. |
+| Salutation and sign-off remain in normal document flow | Working | Recipient-address deduplication retains the following merged salutation, and automatic signatures use a compact normal spacer instead of filling all remaining page height. |
+| Builder and Publish Review preview requests fail safely | Working | Preview calls are single-flight, cancel on unmount/replacement, time out after 45 seconds, expose visible actionable errors, and include a server request reference on PDF failures. Publish Review waits for the saved template before requesting its embedded PDF, eliminating the duplicate render race. |
+| Preview diagnostics avoid donor-facing content | Working | Client diagnostics report template identity, failure, and body length without logging raw letter HTML. Server failures retain request-correlated audit and structured logs. |
+| Focused and compile validation | Working | Letters unit/source suites passed 68/68; web and server TypeScript checks passed; ESLint completed with 0 errors (repository baseline warnings remain); desktop and 390 × 844 Publish Review checks kept preview and publish actions reachable, and the embedded server PDF loaded without an error state. |
+
+Detailed evidence: `docs/status/audit-artifacts/2026-09-02-letters-pdf-preview-reliability.md`.
 
 ## 2026-08-17 OYAMADonorPROFILE Gate
 
@@ -938,3 +950,18 @@ Notes:
 - [ ] Complete two-browser concurrency rehearsal for builder, host, scorekeeper, check-in, projector, recovery, and reconnect behavior.
 - [ ] Complete physical-device and accessibility QA for the right drawer, 200% zoom, keyboard use, projector output, and poor-network recovery.
 - [ ] Replace whole-module state synchronization with event-versioned or operation-specific writes before supporting multiple simultaneous authoring sessions.
+
+## Events + public registration reliability checks (2026-09-02)
+
+- [x] Require retry-safe idempotency for public registration and return the existing order for an identical replay.
+- [x] Reject idempotency-key reuse when registration details differ and expose a support request reference.
+- [x] Keep Stripe Checkout creation idempotent and suppress duplicate confirmation email on a replay.
+- [x] Route legacy public Trivia signup to the relational Event Studio registration transaction; fail closed when an event has not been migrated.
+- [x] Reject public registration for draft, closed, completed, or cancelled Events.
+- [x] Disable sold-out ticket choices in the public UI while retaining server-side capacity checks.
+- [x] Pass Prisma generation, typecheck, lint (zero errors), focused 97-test regression, production build, and public registration browser E2E.
+- [ ] Apply migrations and verify legacy Trivia counts against staging.
+- [ ] Complete Stripe sandbox and low-dollar live proof transactions with the production webhook.
+- [ ] Verify production proxy hops and rate limiting from separate external client networks.
+- [ ] Complete two-browser event-night, physical-device, 200% zoom, keyboard, projector, and degraded-network rehearsal.
+- [ ] Approve an abandoned paid-reservation expiry/release policy before high-volume limited-capacity sales.

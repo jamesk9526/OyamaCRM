@@ -108,6 +108,12 @@ describe("letters PDF layout parsing", () => {
     expect(blocks[0]).toMatchObject({ kind: "paragraph", fontFamily: "times", fontSize: 14 });
   });
 
+  it("does not misclassify sans-serif canvas text as a serif PDF font", () => {
+    const blocks = htmlToPdfBlocks('<p><span style="font-family: Arial, Helvetica, sans-serif;">Canvas parity text</span></p>');
+
+    expect(blocks[0]).toMatchObject({ kind: "paragraph", fontFamily: "helvetica" });
+  });
+
   it("treats the canvas page-break marker and legacy page-break CSS as an intentional page break", () => {
     const blocks = htmlToPdfBlocks('<p>First page</p><div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div><p>Second page</p>');
 
@@ -328,10 +334,25 @@ describe("letters PDF layout parsing", () => {
 
     expect(blocks).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "spacer", height: 10 }),
-      expect.objectContaining({ kind: "spacer", fill: true }),
       expect.objectContaining({ kind: "paragraph", text: "With gratitude," }),
       expect.objectContaining({ kind: "paragraph", text: "Jordan Lee" }),
     ]));
+    expect(blocks).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "spacer", fill: true }),
+    ]));
+  });
+
+  it("keeps a merged salutation when recipient chrome removes a leading address", async () => {
+    const blocks = await buildLetterPdfBodyBlocks(
+      "<p>Elizabeth Brisindine</p><p>P.O. Box 403</p><p>Marionville, MO 65705</p><p>Dear Elizabeth Brisindine,</p><p>Thank you for your support.</p>",
+      undefined,
+      { fullName: "Elizabeth Brisindine", addressLine1: "P.O. Box 403", addressLine2: "", city: "Marionville", state: "MO", zip: "65705" },
+    );
+
+    expect(blocks.filter((block) => block.kind === "paragraph").map((block) => block.text)).toEqual([
+      "Dear Elizabeth Brisindine,",
+      "Thank you for your support.",
+    ]);
   });
 
   it("does not duplicate a signature block already present at the end of the body", async () => {

@@ -864,10 +864,26 @@ function isValidPublicRegistrationEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function generatePublicOrderNumber(prefix = "PUB"): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = randomBytes(3).toString("hex").toUpperCase();
-  return `${prefix}-${timestamp}-${random}`;
+function normalizePublicRegistrationIdempotencyKey(value: unknown): string {
+  const key = typeof value === "string" ? value.trim() : "";
+  return /^[A-Za-z0-9._-]{16,128}$/.test(key) ? key : "";
+}
+
+function publicRegistrationOrderNumber(eventId: string, idempotencyKey: string): string {
+  const digest = createHash("sha256")
+    .update(`${eventId}:${idempotencyKey}`, "utf8")
+    .digest("hex")
+    .slice(0, 24)
+    .toUpperCase();
+  return `PUB-${digest}`;
+}
+
+function publicRegistrationRequestFingerprint(value: Record<string, unknown>): string {
+  return createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
+}
+
+function publicRegistrationOrderNote(requestFingerprint: string): string {
+  return `Public event page registration. Request fingerprint: ${requestFingerprint}`;
 }
 
 async function generateUniqueCheckinCode(tx: Prisma.TransactionClient): Promise<string> {
@@ -1268,6 +1284,8 @@ router.get("/public/page/:pageSlug", async (req, res) => {
 
 /** POST /api/events/public/page/:pageSlug/register — Public self-registration for a published event page. */
 router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, async (req, res) => {
+  const requestId = normalizePublicRegistrationIdempotencyKey(req.get("x-request-id")) || randomBytes(8).toString("hex");
+  res.setHeader("x-request-id", requestId);
   const pageSlug = sanitizeEventPageSlug(req.params.pageSlug);
   if (!pageSlug) {
     res.status(400).json({
@@ -1325,6 +1343,17 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
   }
 
   const body = isRecord(req.body) ? req.body : {};
+  const idempotencyKey = normalizePublicRegistrationIdempotencyKey(req.get("idempotency-key"));
+  if (!idempotencyKey) {
+    res.status(400).json({
+      error: {
+        code: "IDEMPOTENCY_KEY_REQUIRED",
+        message: "A valid registration request key is required. Refresh the page and try again.",
+        requestId,
+      },
+    });
+    return;
+  }
   const ticketTypeId = normalizeTextInput(body.ticketTypeId, 120);
   const requestedTicketUnits = Math.max(1, Number(body.quantity ?? 1));
   const consentAccepted = body.consentAccepted === true;
@@ -1350,6 +1379,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
       id: true,
       organizationId: true,
       name: true,
+      status: true,
       startDate: true,
       registrationDeadline: true,
       capacity: true,
@@ -1363,6 +1393,17 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
 
   if (event.registrationDeadline && event.registrationDeadline.getTime() < Date.now()) {
     res.status(409).json({ error: { code: "REGISTRATION_CLOSED", message: "Registration is closed for this event." } });
+    return;
+  }
+
+  if (event.status !== "PUBLISHED" && event.status !== "REGISTRATION_OPEN") {
+    res.status(409).json({
+      error: {
+        code: "REGISTRATION_CLOSED",
+        message: event.status === "CANCELLED" ? "This event has been cancelled." : "Registration is not currently open for this event.",
+        requestId,
+      },
+    });
     return;
   }
 
@@ -1432,9 +1473,46 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
   const totalAmount = unitPrice * ticketUnits;
   const paymentStatus: EventGuestPaymentStatus = totalAmount > 0 ? "DUE" : "COMP";
   const orderStatus = totalAmount > 0 ? "PENDING" : "CONFIRMED";
-  const orderNumber = generatePublicOrderNumber();
+  const orderNumber = publicRegistrationOrderNumber(event.id, idempotencyKey);
   const partyName = `${buyer.firstName} ${buyer.lastName}`.trim();
   const requestedTableName = normalizeTextInput(body.tableName, 120);
+  const requestFingerprint = publicRegistrationRequestFingerprint({
+    eventId: event.id,
+    pageSlug,
+    paymentPolicy: match.paymentPolicy,
+    ticketTypeId: ticketType.id,
+    ticketUnits,
+    requestedTableName,
+    attendees,
+  });
+  const orderNote = publicRegistrationOrderNote(requestFingerprint);
+
+  const loadExistingRegistration = async () => {
+    const order = await prisma.eventOrder.findUnique({
+      where: { orderNumber },
+      include: { items: { include: { ticketType: true } } },
+    });
+    if (!order) return null;
+    if (order.eventId !== event.id || order.notes !== orderNote) return "conflict" as const;
+    const [guests, table] = await Promise.all([
+      prisma.eventGuest.findMany({
+        where: { orderId: order.id },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true, firstName: true, lastName: true, email: true, checkinCode: true,
+          paymentStatus: true, rsvpStatus: true,
+        },
+      }),
+      prisma.eventTable.findFirst({
+        where: { eventId: event.id, notes: `Created from public registration order ${order.orderNumber}.` },
+        select: {
+          id: true, name: true, tableNumber: true, capacity: true, hostName: true,
+          seats: { orderBy: { seatNumber: "asc" }, select: { id: true, seatNumber: true } },
+        },
+      }),
+    ]);
+    return { order, guests, table };
+  };
 
   const persistRegistration = () => prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const [currentEventGuestCount, currentTicketGuestCount] = await Promise.all([
@@ -1486,7 +1564,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
         feeAmount: 0,
         paymentMethod: "ONLINE",
         paidAt: totalAmount === 0 ? new Date() : undefined,
-        notes: "Public event page registration.",
+        notes: orderNote,
         items: {
           create: [{
             ticketTypeId: ticketType.id,
@@ -1620,8 +1698,19 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
   }, { isolationLevel: "Serializable" });
 
   let result: Awaited<ReturnType<typeof persistRegistration>>;
+  let replayed = false;
   try {
-    result = await persistRegistration();
+    const existing = await loadExistingRegistration();
+    if (existing === "conflict") {
+      res.status(409).json({ error: { code: "IDEMPOTENCY_KEY_REUSED", message: "This registration request key was already used for different details. Refresh the page and try again.", requestId } });
+      return;
+    }
+    if (existing) {
+      result = existing;
+      replayed = true;
+    } else {
+      result = await persistRegistration();
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "PUBLIC_EVENT_CAPACITY_CONFLICT") {
@@ -1632,17 +1721,29 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
       res.status(409).json({ error: { code: "TICKET_SOLD_OUT", message: "That ticket option just sold out. Refresh the page to see current availability." } });
       return;
     }
-    if (isPrismaUniqueConstraintError(error) || (error && typeof error === "object" && "code" in error && error.code === "P2034")) {
+    if (isPrismaUniqueConstraintError(error)) {
+      const existing = await loadExistingRegistration();
+      if (existing && existing !== "conflict") {
+        result = existing;
+        replayed = true;
+      } else {
+        res.status(409).json({
+          error: { code: "REGISTRATION_CONFLICT", message: "Another registration was completed at the same time. Please submit again.", requestId },
+        });
+        return;
+      }
+    } else if (error && typeof error === "object" && "code" in error && error.code === "P2034") {
       res.status(409).json({
-        error: { code: "REGISTRATION_CONFLICT", message: "Another registration was completed at the same time. Please submit again." },
+        error: { code: "REGISTRATION_CONFLICT", message: "Another registration was completed at the same time. Please submit again.", requestId },
+      });
+      return;
+    } else {
+      console.error(`[events.public-registration:${requestId}] Registration persistence failed`, error);
+      res.status(500).json({
+        error: { code: "REGISTRATION_FAILED", message: "Registration could not be saved. No payment was collected. Please try again.", requestId },
       });
       return;
     }
-    console.error("Public event registration failed:", error);
-    res.status(500).json({
-      error: { code: "REGISTRATION_FAILED", message: "Registration could not be saved. No payment was collected. Please try again." },
-    });
-    return;
   }
 
   let stripeCheckout: Awaited<ReturnType<typeof createEventStripeCheckout>> | null = null;
@@ -1667,6 +1768,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
         data: { transactionId: `stripe:checkout:${stripeCheckout.sessionId}` },
       });
     } catch (error) {
+      console.error(`[events.public-registration:${requestId}] Stripe checkout creation failed for order ${result.order.orderNumber}`, error);
       checkoutError = {
         code: error instanceof EventStripeCheckoutError ? error.code : "STRIPE_CHECKOUT_FAILED",
         message: error instanceof Error ? error.message : "Secure checkout could not be opened. Your reservation is still saved.",
@@ -1674,7 +1776,10 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
     }
   }
 
-  const emailResult = await sendPublicEventRegistrationConfirmation({
+  const emailResult = replayed ? {
+    status: "skipped" as const,
+    detail: "This was a safe retry of an existing registration; no duplicate confirmation email was sent.",
+  } : await sendPublicEventRegistrationConfirmation({
     organizationId: event.organizationId,
     event,
     buyer,
@@ -1691,6 +1796,8 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
   });
 
   res.status(201).json({
+    requestId,
+    replayed,
     order: {
       id: result.order.id,
       orderNumber: result.order.orderNumber,

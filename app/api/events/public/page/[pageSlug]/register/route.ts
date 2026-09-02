@@ -20,10 +20,16 @@ export async function POST(request: Request, context: PublicPageRegisterRouteCon
   }
 
   const apiBase = resolveEventsApiBaseUrl();
+  const clientAddress = request.headers.get("cf-connecting-ip")
+    ?? request.headers.get("x-real-ip")
+    ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const upstream = await fetch(`${apiBase}/api/events/public/page/${encodeURIComponent(pageSlug)}/register`, {
     method: "POST",
     headers: {
       "content-type": request.headers.get("content-type") ?? "application/json",
+      ...(request.headers.get("idempotency-key") ? { "idempotency-key": request.headers.get("idempotency-key")! } : {}),
+      ...(request.headers.get("x-request-id") ? { "x-request-id": request.headers.get("x-request-id")! } : {}),
+      ...(process.env.NODE_ENV === "production" && clientAddress ? { "x-forwarded-for": clientAddress } : {}),
     },
     body: await request.text(),
     cache: "no-store",
@@ -37,6 +43,8 @@ export async function POST(request: Request, context: PublicPageRegisterRouteCon
     headers: {
       "content-type": contentType,
       "cache-control": "no-store",
+      ...(upstream.headers.get("x-request-id") ? { "x-request-id": upstream.headers.get("x-request-id")! } : {}),
+      ...(upstream.headers.get("retry-after") ? { "retry-after": upstream.headers.get("retry-after")! } : {}),
     },
   });
 }

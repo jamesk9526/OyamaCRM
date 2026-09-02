@@ -113,8 +113,8 @@ async function main() {
     await page.getByLabel(/I agree to share/i).check();
     await page.getByRole("button", { name: /^Register$/i }).click();
 
-    await page.getByText(/Registration received/i).waitFor({ timeout: 30000 });
-    await page.getByText(/Code:/i).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /You’re registered/i }).waitFor({ timeout: 30000 });
+    await page.getByText(/^Confirmation$/i).waitFor({ timeout: 15000 });
 
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 4);
     if (overflow) {

@@ -25,15 +25,16 @@ describe("Trivia event-night controls", () => {
     expect(remote).toContain('"x-trivia-access"');
   });
 
-  it("publishes capacity-aware public signup with table, seat, and mixed payment options", () => {
+  it("routes public trivia signup through the durable Event Studio registration transaction", () => {
     const route = read("server/src/routes/trivia.ts");
     const settings = read("app/components/trivia/TriviaRegistrationSettingsPanel.tsx");
     const publicPage = read("app/components/trivia/TriviaPublicRegistrationPage.tsx");
 
     expect(route).toContain('publicRouter.get("/registration/:slug"');
     expect(route).toContain('publicRouter.post("/registration/:slug"');
-    expect(route).toContain('"EVENT_FULL"');
-    expect(route).toContain("sendTriviaRegistrationConfirmation");
+    expect(route).toContain("canonicalTriviaRegistrationPath");
+    expect(route).toContain('"CANONICAL_REGISTRATION_REQUIRED"');
+    expect(route).toContain('"TRIVIA_REGISTRATION_MIGRATION_REQUIRED"');
     expect(route).toContain('router.post("/events/:eventId/registration-invitations"');
     expect(route).toContain('"EVENT_PROMOTION"');
     expect(route).toContain("amountDue");
@@ -45,6 +46,7 @@ describe("Trivia event-night controls", () => {
     expect(publicPage).toContain("Table host name");
     expect(publicPage).toContain("four-digit check-in code");
     expect(publicPage).toContain("confirmation.email.status");
+    expect(publicPage).toContain("window.location.replace(publicPayload.canonicalRegistrationPath)");
   });
 
   it("uses strict unique numeric table identifiers and exposes full member editing at check-in", () => {

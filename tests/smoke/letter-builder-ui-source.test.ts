@@ -138,6 +138,20 @@ describe("letter builder UI redesign source contract", () => {
     expect(printPage).toContain("LetterPrintRoute");
   });
 
+  it("keeps live PDF previews bounded, single-flight, and request-correlated", () => {
+    const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
+    const lettersRoute = read("server/src/routes/letters.ts");
+
+    expect(workspace).toContain("LETTER_PDF_PREVIEW_TIMEOUT_MS = 45_000");
+    expect(workspace).toContain("editorPdfAbortRef.current");
+    expect(workspace).toContain("savedPreviewAbortRef.current");
+    expect(workspace).toContain("if (!templateId || !template) return");
+    expect(workspace).toContain('response.headers.get("x-request-id")');
+    expect(workspace).not.toContain("rawPrintBodyHtml");
+    expect(lettersRoute).toContain('res.setHeader("x-request-id", requestId)');
+    expect(lettersRoute).toContain('code: "PDF_EXPORT_FAILED"');
+  });
+
   it("uses live API data instead of placeholder builder state", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
     const lettersRoute = read("server/src/routes/letters.ts");
