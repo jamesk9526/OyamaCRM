@@ -120,6 +120,8 @@ describe("letter builder UI redesign source contract", () => {
     expect(workspace).toContain("<LetterPage");
     expect(workspace).toContain("bodySlot=");
     expect(workspace).toContain("Production Preview");
+    expect(workspace).toContain("pdfPreviewFingerprint");
+    expect(workspace).toContain("Preview out of date - refresh to include the latest edits");
     expect(workspace).toContain("Add Page");
     expect(letterPage).toContain("export default function LetterPage");
     expect(letterPage).toContain("document?: LetterDocument");

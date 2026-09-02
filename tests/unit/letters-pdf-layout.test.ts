@@ -342,6 +342,17 @@ describe("letters PDF layout parsing", () => {
     ]));
   });
 
+  it("uses the same default closing phrase as the editor canvas", async () => {
+    const blocks = await buildLetterPdfBodyBlocks(
+      "<p>Thank you for your support.</p>",
+      { signerName: "Jordan Lee", signerTitle: "Executive Director" },
+    );
+
+    expect(blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "paragraph", text: "With gratitude,", keepTogether: "signature" }),
+    ]));
+  });
+
   it("keeps a merged salutation when recipient chrome removes a leading address", async () => {
     const blocks = await buildLetterPdfBodyBlocks(
       "<p>Elizabeth Brisindine</p><p>P.O. Box 403</p><p>Marionville, MO 65705</p><p>Dear Elizabeth Brisindine,</p><p>Thank you for your support.</p>",
@@ -452,6 +463,41 @@ describe("letters PDF layout parsing", () => {
     });
 
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? [])).toHaveLength(1);
+  });
+
+  it("keeps a bottom-aligned signature image, signer, and title on one page", async () => {
+    const signatureImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const pdf = await renderGeneratedLetterPdf({
+      templateName: "Bottom Signature Test",
+      subject: "",
+      constituentName: "Test Donor",
+      generatedAt: new Date("2026-09-02T12:00:00.000Z"),
+      mergedPrintBody: [
+        `<p>${"Thank you for making compassionate care possible in our community. ".repeat(12)}</p>`,
+        '<table data-letter-table="true"><tbody><tr><th>Gift Detail</th><th>Value</th></tr><tr><td>Donation Amount</td><td>$50.00</td></tr></tbody></table>',
+        '<div data-letter-spacer="fill" style="min-height:240px;"></div>',
+      ].join(""),
+      branding: {
+        organizationName: "Test Organization",
+        tagline: "",
+        addressLine: "",
+        contactLine: "",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#0f766e",
+      },
+      presets: {
+        signatureBlock: {
+          signerName: "Rebecca Haine",
+          signerTitle: "Executive Director",
+          signatureImageUrl: signatureImage,
+        },
+      },
+    });
+
     expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? [])).toHaveLength(1);
   });
 

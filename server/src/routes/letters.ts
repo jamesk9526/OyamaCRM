@@ -1262,7 +1262,7 @@ function stripHtmlInline(value: string): string {
     .trim();
 }
 
-type PdfContentBlock =
+type PdfContentBlock = (
   | { kind: "heading"; text: string; level: number; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
   | { kind: "paragraph"; text: string; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
   | { kind: "quote"; text: string; lineHeight?: number; align?: PdfTextAlign; fontSize?: number; fontFamily?: PdfFontFamily }
@@ -1279,7 +1279,8 @@ type PdfContentBlock =
       dataUrl?: string;
       format?: "PNG" | "JPEG" | "WEBP";
       aspectRatio?: number;
-    };
+    }
+) & { keepTogether?: "signature" };
 
 type PdfTextAlign = "left" | "center" | "right" | "justify";
 type PdfFontFamily = "helvetica" | "times" | "courier";
@@ -2256,24 +2257,26 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   if (next.length > 0) {
     // Keep the sign-off with the body. A fill spacer created a large unexplained
     // blank region and made the server PDF diverge from the editable canvas.
-    next.push({ kind: "spacer", height: 10 });
+    next.push({ kind: "spacer", height: 10, keepTogether: "signature" });
   }
-  if (signature.closingPhrase) next.push({ kind: "paragraph", text: signature.closingPhrase });
+  // Match LetterPage's visible fallback so the editable canvas and PDF do not
+  // disagree when an older signature preset has no saved closing phrase.
+  next.push({ kind: "paragraph", text: signature.closingPhrase?.trim() || "With gratitude,", keepTogether: "signature" });
   if (signature.signatureImageUrl) {
     // A compact signature is more likely to stay with the closing/table on its
     // intended page while still reading clearly in the printed letter.
-    next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 28 });
+    next.push({ kind: "image", src: signature.signatureImageUrl, alt: `${signature.signerName} signature`, widthPercent: 28, keepTogether: "signature" });
   } else {
-    next.push({ kind: "paragraph", text: signature.typedSignature || signature.signerName });
+    next.push({ kind: "paragraph", text: signature.typedSignature || signature.signerName, keepTogether: "signature" });
   }
   if (signature.signerName && signature.typedSignature && signature.typedSignature !== signature.signerName) {
-    next.push({ kind: "paragraph", text: signature.signerName });
+    next.push({ kind: "paragraph", text: signature.signerName, keepTogether: "signature" });
   } else if (signature.signatureImageUrl && signature.signerName) {
-    next.push({ kind: "paragraph", text: signature.signerName });
+    next.push({ kind: "paragraph", text: signature.signerName, keepTogether: "signature" });
   }
-  if (signature.signerTitle) next.push({ kind: "paragraph", text: signature.signerTitle });
+  if (signature.signerTitle) next.push({ kind: "paragraph", text: signature.signerTitle, keepTogether: "signature" });
   const contact = [signature.email, signature.phone].filter(Boolean).join(" | ");
-  if (contact) next.push({ kind: "paragraph", text: contact });
+  if (contact) next.push({ kind: "paragraph", text: contact, keepTogether: "signature" });
   return next;
 }
 
@@ -2484,6 +2487,17 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
 
   const renderedBlocks = blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock];
   renderedBlocks.forEach((block, index) => {
+    if (block.keepTogether && renderedBlocks[index - 1]?.keepTogether !== block.keepTogether) {
+      let groupedHeight = 0;
+      for (let groupedIndex = index; groupedIndex < renderedBlocks.length; groupedIndex += 1) {
+        const groupedBlock = renderedBlocks[groupedIndex];
+        if (groupedBlock.keepTogether !== block.keepTogether) break;
+        groupedHeight += estimatedBlockHeight(groupedBlock);
+      }
+      // Leave a tiny buffer for jsPDF's fractional image/text measurements.
+      // Without it, an exactly bottom-aligned signature can orphan its title.
+      ensurePageSpace(groupedHeight + 2);
+    }
     if (block.kind === "pageBreak") {
       if (index < renderedBlocks.length - 1) {
         doc.addPage(layout.format);
@@ -2503,7 +2517,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       cursorY += 18;
     } else if (block.kind === "spacer") {
       if (block.fill) {
-        const remainingHeight = renderedBlocks.slice(index + 1).reduce((total, nextBlock) => total + estimatedBlockHeight(nextBlock), 0);
+        const remainingHeight = renderedBlocks.slice(index + 1).reduce((total, nextBlock) => total + estimatedBlockHeight(nextBlock), 0) + 2;
         const bottomAlignedY = pageHeight - marginBottom - remainingHeight;
         if (bottomAlignedY > cursorY) cursorY = bottomAlignedY;
       } else {

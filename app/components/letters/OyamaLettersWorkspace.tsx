@@ -1308,6 +1308,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [editorPdfOpen, setEditorPdfOpen] = useState(false);
   const [editorPdfLoading, setEditorPdfLoading] = useState(false);
   const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
+  const [editorPdfFingerprint, setEditorPdfFingerprint] = useState<string | null>(null);
   const editorPdfAbortRef = useRef<AbortController | null>(null);
   const [canvasOverflowing, setCanvasOverflowing] = useState(false);
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
@@ -1485,6 +1486,17 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     };
   }
 
+  function pdfPreviewFingerprint(snapshot: TemplateDraft, constituentId: string): string {
+    return JSON.stringify({
+      constituentId,
+      name: snapshot.name,
+      printSubject: snapshot.printSubject,
+      printBody: snapshot.printBody,
+      printLayoutJson: snapshot.printLayoutJson,
+      signatureBlockId: snapshot.signatureBlockId,
+    });
+  }
+
   function updatePageSize(nextPageSize: LetterPageSize) {
     setPageSize(nextPageSize);
     setDraft((current) => ({
@@ -1518,12 +1530,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     try {
       const activeTemplateId = templateId || await save();
       if (!activeTemplateId) return;
+      const previewDraft = currentDraftSnapshot();
+      const previewFingerprint = pdfPreviewFingerprint(previewDraft, targetConstituentId);
       const response = await apiFetchResponse(`/api/letters/templates/${encodeURIComponent(activeTemplateId)}/sample-pdf?preview=1&inline=1`, {
         method: "POST",
         signal: controller.signal,
         body: JSON.stringify({
           constituentId: targetConstituentId,
-          draft: currentDraftSnapshot(),
+          draft: previewDraft,
         }),
       });
       if (!response.ok) {
@@ -1540,6 +1554,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       });
       setEditorPdfFileName(readEditorPdfFileName(response, `${sanitizeClientFileName(draft.name || "letter-template")}_preview.pdf`));
       setEditorPdfTitle(`Live PDF Preview${selected ? ` - ${personName(selected)}` : ""}`);
+      setEditorPdfFingerprint(previewFingerprint);
       setEditorPdfOpen(true);
       setTestConstituentLookupOpen(false);
       setNotice("Server-rendered PDF preview refreshed.");
@@ -2416,6 +2431,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }, [draft.printBody, inlineSuggestEnabled, loading, previewMode]);
 
   const dirty = draftDiffers(draft, savedDraft);
+  const editorPdfStale = Boolean(
+    editorPdfUrl
+    && editorPdfFingerprint !== pdfPreviewFingerprint(currentDraftSnapshot(), testConstituentId),
+  );
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -2564,7 +2583,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
             <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test recipient"}</Button>
             <Button onClick={addPage}>Add Page</Button>
-            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Preview"}</Button>
+            <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : editorPdfStale ? "Refresh PDF" : "Preview"}</Button>
             <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
             <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Publish</Button>
           </div>
@@ -3242,15 +3261,16 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-base font-semibold text-slate-900">{editorPdfTitle}</p>
-                <p className="truncate text-xs text-slate-600">Server-rendered final PDF preview · {editorPdfFileName}</p>
+                <p className={editorPdfStale ? "truncate text-xs font-semibold text-amber-700" : "truncate text-xs text-slate-600"}>{editorPdfStale ? "Preview out of date - refresh to include the latest edits" : `Server-rendered final PDF preview · ${editorPdfFileName}`}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <a href={editorPdfUrl} download={editorPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Save PDF</a>
-                <Button onClick={printEditorPdf}>Print</Button>
+                {editorPdfStale ? <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : "Refresh PDF"}</Button> : <a href={editorPdfUrl} download={editorPdfFileName} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">Save PDF</a>}
+                <Button onClick={printEditorPdf} disabled={editorPdfStale}>Print</Button>
                 <Button onClick={() => setEditorPdfOpen(false)}>Close</Button>
               </div>
             </div>
             {editorPdfError ? <Alert tone="amber">{editorPdfError}</Alert> : null}
+            {editorPdfStale ? <Alert tone="amber">This PDF was rendered before the latest letter or recipient changes. Refresh it before saving or printing.</Alert> : null}
             <object title="Editor Live PDF Preview" data={`${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="min-h-0 flex-1 bg-slate-100">
               <div className="flex h-full items-center justify-center bg-slate-100 p-6 text-center text-sm text-slate-700">
                 This browser is not rendering the PDF inline. Use Print to open the print preview window or Save PDF to download it.
