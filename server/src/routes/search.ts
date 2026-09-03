@@ -59,6 +59,7 @@ const DONOR_TOOLS: ToolItem[] = [
   { id: "tool-donor-steward-signals", label: "Steward Signals", href: "/steward-signals", keywords: ["opportunity", "signals", "ai"] },
   { id: "tool-donor-reports", label: "Reports", href: "/reports", keywords: ["analytics", "kpi", "export", "donor reports"] },
   { id: "tool-donor-communications", label: "Communications", href: "/communications", keywords: ["email", "newsletter", "outreach"] },
+  { id: "tool-donor-qr-codes", label: "QR Codes", href: "/qr-codes", keywords: ["qr", "short link", "redirect", "scan tracking", "campaign link"] },
   { id: "tool-donor-data-tools", label: "Data Tools", href: "/data-tools", keywords: ["import", "merge", "dedupe"] },
 ];
 

@@ -1,0 +1,6 @@
+C:\Users\James\Documents\GitHub\OyamaCRM\OyamaPrint\Installer\obj\Release\OyamaPrint.Installer.wixproj.CoreCompileInputs.cache
+C:\Users\James\Documents\GitHub\OyamaCRM\OyamaPrint\Installer\obj\Release\OyamaPrint.Installer.wixproj.BindTracking-neutral.txt
+C:\Users\James\Documents\GitHub\OyamaCRM\OyamaPrint\artifacts\msi\OyamaPrint-26.9.6690-x64.msi
+C:\Users\James\Documents\GitHub\OyamaCRM\OyamaPrint\artifacts\msi\OyamaPrint-26.9.6690-x64.wixpdb
+C:\Users\James\Documents\GitHub\OyamaCRM\OyamaPrint\Installer\obj\Release\OyamaPrint-26.9.6690-x64.msi
+C:\Users\James\Documents\GitHub\OyamaCRM\OyamaPrint\Installer\obj\Release\OyamaPrint-26.9.6690-x64.wixpdb

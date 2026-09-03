@@ -462,6 +462,7 @@ model Organization {
   grants            Grant[]
   webmasterSites    WebmasterSite[]
   webmasterPages    WebmasterPage[]
+  qrCodeLinks        QrCodeLink[]
 
   // ─── Plugin / Integration back-relations ────────────────────────────────
   pluginSettings         PluginSetting[]
@@ -577,6 +578,7 @@ model User {
   aiContextFiles                AiContextFile[]
   donorResearchFindingsCreated  DonorResearchFinding[] @relation("DonorResearchFindingCreatedBy")
   donorResearchFindingsReviewed DonorResearchFinding[] @relation("DonorResearchFindingReviewedBy")
+  qrCodeLinksCreated            QrCodeLink[]            @relation("QrCodeLinkCreatedBy")
 }
 
 // ─── Steward AI Memory & Context ─────────────────────────────────────────────
@@ -1810,6 +1812,43 @@ model AuditLog {
   createdAt      DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ─── Trackable QR links ─────────────────────────────────────────────────────
+
+model QrCodeLink {
+  id             String    @id @default(cuid())
+  organizationId String
+  createdById    String?
+  name           String    @db.VarChar(160)
+  slug           String    @unique @db.VarChar(64)
+  destinationUrl String    @db.Text
+  notes          String?   @db.Text
+  active         Boolean   @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("QrCodeLinkCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  scans        QrCodeScan[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, active])
+}
+
+model QrCodeScan {
+  id          String   @id @default(cuid())
+  qrCodeLinkId String
+  scannedAt   DateTime @default(now())
+  visitorHash String?  @db.VarChar(64)
+  deviceType  String   @default("unknown") @db.VarChar(24)
+  referrer    String?  @db.VarChar(500)
+
+  qrCodeLink QrCodeLink @relation(fields: [qrCodeLinkId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeLinkId, scannedAt])
+  @@index([qrCodeLinkId, visitorHash])
 }
 
 model WatchdogFeedbackTicket {

@@ -1,6 +1,16 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-09-02 (Letters PDF preview reliability)_
+_Last focused audit: 2026-09-03 (Trackable QR codes)_
+
+## 2026-09-03 Trackable QR Codes
+
+| Capability | Status | Evidence | Notes |
+|---|---|---|---|
+| Durable QR redirects | Working after migration | `app/qr-codes/page.tsx`, `server/src/routes/qr-codes.ts`, `prisma/migrations/20260903120000_add_trackable_qr_codes/migration.sql` | Communications-authorized staff can create a short link, download its QR PNG, and update the HTTP(S) destination later without reprinting. Links can be paused, expired, or deleted with audit entries. |
+| Privacy-conscious scan analytics | Working after migration | `QrCodeScan`, `/api/qr-codes/:id/analytics`, `tests/api/qr-codes.api.test.ts` | Public scans redirect with HTTP 302 even if telemetry fails. Tracking retains timestamp, device category, referrer origin, and a one-way visitor hash; raw IP addresses and referrer paths/query values are not stored. |
+| Responsive QR management workspace | Working | `app/components/qr-codes/QrCodesWorkspace.tsx`, Donor CRM sidebar/search | The workspace includes explicit loading/error/empty states, accessible labeled creation and editing fields, pause/delete controls, daily/device analytics, copy, test, and high-resolution PNG download actions. Desktop and 390 × 844 checks showed no horizontal overflow or unreachable controls. |
+
+Validation: Prisma schema generation/validation, web/server TypeScript checks, focused lint, four unit contracts, authenticated create/scan/update/pause API coverage, and responsive browser inspection.
 
 ## 2026-08-17 OYAMADonorPROFILE Foundation
 

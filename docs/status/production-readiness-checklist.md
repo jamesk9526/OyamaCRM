@@ -1,6 +1,15 @@
 # Production Readiness Checklist
 
-Last updated: 2026-09-02 (Letters PDF preview reliability)
+Last updated: 2026-09-03 (Trackable QR codes)
+
+## 2026-09-03 Trackable QR Codes Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Redirect destinations stay editable after printing | Working after migration | `QrCodeLink` stores a stable unique alias separately from its validated HTTP(S) destination; update and pause operations are organization-scoped and permission-gated. |
+| Public scans redirect reliably and do not expose CRM data | Working after migration | `/api/qr-codes/public/:slug` is public by design, returns 302 for active links and 404/410 for missing or inactive links, disables caching, and continues redirecting if telemetry persistence fails. |
+| Tracking minimizes retained visitor data | Working after migration | The server stores a one-way salted visitor hash rather than raw IP, reduces referrers to their origin, derives then discards the user agent after assigning a device/bot category, and exposes analytics only to users with `view:communications`. Configure a unique `QR_TRACKING_SALT` in production. |
+| Focused and responsive validation | Working | QR unit and API coverage passes; Prisma validates; web/server typechecks pass; focused ESLint has no errors; desktop and 390 × 844 browser checks found no horizontal overflow or clipped actions. |
 
 ## 2026-09-02 Letters PDF Parity and Preview Reliability Snapshot
 

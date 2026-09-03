@@ -32,6 +32,7 @@ const DONOR_ICONS = {
   contactsManager: <DonorPackIcon slug="contacts-manager" />,
   letters: <DonorPackIcon slug="letters" />,
   livecom: <DonorPackIcon slug="communications" />,
+  qrCodes: <DonorPackIcon slug="workflow-automation" />,
   stewardPaths: <AdvancedPackIcon name="steward-paths-special" />,
   signals: <DonorPackIcon slug="steward-signals" />,
   research: <DonorPackIcon slug="steward-signals" />,
@@ -244,6 +245,15 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           icon: DONOR_ICONS.letters,
           kind: "communication_tool" as const,
           description: "Review and create accurate email and letter companions without replacing the source template.",
+        },
+        {
+          id: "qr-codes",
+          label: "QR Codes",
+          href: "/qr-codes",
+          icon: DONOR_ICONS.qrCodes,
+          kind: "communication_tool" as const,
+          permissions: ["view:communications"],
+          description: "Create editable QR destinations and review privacy-conscious scan analytics.",
         },
         {
           id: "steward-paths",

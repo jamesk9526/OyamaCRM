@@ -1,0 +1,184 @@
+<Window x:Class="OyamaPrint.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OyamaPrint" Height="920" Width="1580" MinHeight="700" MinWidth="1100"
+        Background="#E9EEF3" WindowStartupLocation="CenterScreen">
+  <DockPanel LastChildFill="True" Background="White">
+    <Border DockPanel.Dock="Top" Background="#062D52" Height="54">
+      <Grid Margin="18,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Image Source="pack://application:,,,/OyamaPrint;component/Assets/oyama-crm-logo.png" Width="118" Height="38" Stretch="Uniform" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0,0,0">
+          <Border Background="#FFFFFF" Width="1" Height="25" Opacity="0.3" Margin="0,0,16,0" />
+          <TextBlock Text="oyamaPrint" Foreground="White" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="  /  " Foreground="#6EA4CC" FontSize="17" />
+          <TextBlock x:Name="WindowDocumentTitle" Text="Print workspace" Foreground="#D6E8F5" FontSize="14" />
+        </StackPanel>
+        <Border Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#0C3B64" CornerRadius="4" Padding="16,7" MinWidth="280">
+          <TextBlock Text="Search projects, templates, and fields" Foreground="#ADC9DE" HorizontalAlignment="Center" />
+        </Border>
+        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+          <Ellipse Width="8" Height="8" Fill="#40C878" Margin="0,0,7,0" />
+          <TextBlock x:Name="ConnectionStatusText" Foreground="#E7F2FA" VerticalAlignment="Center" />
+          <Button x:Name="AccountButton" Margin="16,0,0,0" Padding="10,5" Background="#0C3B64" BorderBrush="#37688E" Foreground="White" Click="AccountButton_Click" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <TabControl DockPanel.Dock="Top" Background="White" BorderBrush="#D5DEE8" Height="142">
+      <TabItem Header="File">
+        <WrapPanel Background="#FBFCFE" Margin="12,8">
+          <Button Content="New project" Style="{StaticResource PrimaryButton}" Click="NewButton_Click" Margin="0,0,6,0" />
+          <Button Content="Save project" Click="SaveProjectButton_Click" Margin="0,0,6,0" />
+          <Button Content="Sync CRM template" Click="SaveTemplateButton_Click" Margin="0,0,6,0" />
+          <Button Content="Print preview" Click="PrintPreviewButton_Click" Margin="0,0,6,0" />
+          <Button Content="Export local PDF" Click="LocalPdfButton_Click" Margin="0,0,6,0" />
+          <Button Content="Sign out" Click="AccountButton_Click" />
+        </WrapPanel>
+      </TabItem>
+      <TabItem Header="Home" IsSelected="True">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Background="#FBFCFE">
+        <Grid Background="#FBFCFE" Margin="12,8" MinWidth="1370">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <StackPanel Grid.Column="0" Margin="0,0,18,0">
+            <TextBlock Text="PROJECT" Foreground="#68798A" FontSize="10" FontWeight="Bold" Margin="2,0,0,5" />
+            <StackPanel Orientation="Horizontal"><Button Content="＋ New" Click="NewButton_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,5,0" /><Button Content="Save" Click="SaveProjectButton_Click" Margin="0,0,5,0" /><Button Content="Sync template" Click="SaveTemplateButton_Click" ToolTip="Create or update this template in Oyama CRM" /></StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,5,0,0"><Button Content="↶ Undo" Command="ApplicationCommands.Undo" CommandTarget="{Binding ElementName=Editor}" Margin="0,0,5,0" /><Button Content="↷ Redo" Command="ApplicationCommands.Redo" CommandTarget="{Binding ElementName=Editor}" /></StackPanel>
+          </StackPanel>
+          <Border Grid.Column="1" Width="1" Background="#D5DEE8" Margin="0,0,18,0" />
+          <StackPanel Grid.Column="2" Margin="0,0,18,0">
+            <TextBlock Text="FONT" Foreground="#68798A" FontSize="10" FontWeight="Bold" Margin="2,0,0,5" />
+            <StackPanel Orientation="Horizontal">
+              <ComboBox x:Name="FontFamilyBox" Width="130" SelectionChanged="FontFamilyBox_SelectionChanged"><ComboBoxItem Content="Aptos" IsSelected="True" /><ComboBoxItem Content="Arial" /><ComboBoxItem Content="Calibri" /><ComboBoxItem Content="Georgia" /><ComboBoxItem Content="Times New Roman" /></ComboBox>
+              <ComboBox x:Name="FontSizeBox" Width="58" Margin="5,0" SelectionChanged="FontSizeBox_SelectionChanged"><ComboBoxItem Content="10" /><ComboBoxItem Content="11" IsSelected="True" /><ComboBoxItem Content="12" /><ComboBoxItem Content="14" /><ComboBoxItem Content="16" /><ComboBoxItem Content="18" /></ComboBox>
+              <Button Content="B" FontWeight="Bold" Width="36" Click="BoldButton_Click" /><Button Width="36" Content="I" FontStyle="Italic" Click="ItalicButton_Click" Margin="4,0,0,0" /><Button Width="36" Click="UnderlineButton_Click" Margin="4,0,0,0"><TextBlock Text="U" TextDecorations="Underline" /></Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,5,0,0"><Button Content="A+" Click="IncreaseFontButton_Click" Margin="0,0,4,0" /><Button Content="A−" Click="DecreaseFontButton_Click" Margin="0,0,4,0" /><Button Content="abc̶" Click="StrikeButton_Click" Margin="0,0,4,0" /><Button Content="Highlight" Click="HighlightButton_Click" Margin="0,0,4,0" /><Button Content="Clear" Click="ClearFormattingButton_Click" /></StackPanel>
+          </StackPanel>
+          <StackPanel Grid.Column="3" Margin="0,0,18,0">
+            <TextBlock Text="PARAGRAPH" Foreground="#68798A" FontSize="10" FontWeight="Bold" Margin="2,0,0,5" />
+            <WrapPanel><Button Content="☰ Left" Click="AlignLeft_Click" Margin="0,0,5,0" /><Button Content="☷ Center" Click="AlignCenter_Click" Margin="0,0,5,0" /><Button Content="☰ Right" Click="AlignRight_Click" Margin="0,0,5,0" /><Button Content="• List" Click="Bullets_Click" /></WrapPanel>
+            <WrapPanel Margin="0,5,0,0"><Button Content="Justify" Click="JustifyButton_Click" Margin="0,0,5,0" /><Button Content="1. List" Click="NumberingButton_Click" Margin="0,0,5,0" /><Button Content="← Indent" Click="DecreaseIndentButton_Click" Margin="0,0,5,0" /><Button Content="Indent →" Click="IncreaseIndentButton_Click" /></WrapPanel>
+          </StackPanel>
+          <StackPanel Grid.Column="4" Margin="0,0,18,0">
+            <TextBlock Text="STYLES" Foreground="#68798A" FontSize="10" FontWeight="Bold" Margin="2,0,0,5" />
+            <StackPanel Orientation="Horizontal"><Button Content="Normal" Click="NormalStyleButton_Click" Margin="0,0,5,0" /><Button Content="Heading 1" Click="Heading1StyleButton_Click" Margin="0,0,5,0" /><Button Content="Heading 2" Click="Heading2StyleButton_Click" Margin="0,0,5,0" /><Button Content="Title" Click="TitleStyleButton_Click" /></StackPanel>
+          </StackPanel>
+          <StackPanel Grid.Column="5">
+            <TextBlock Text="OUTPUT" Foreground="#68798A" FontSize="10" FontWeight="Bold" Margin="2,0,0,5" />
+            <StackPanel Orientation="Horizontal"><Button Content="Print preview" Click="PrintPreviewButton_Click" Margin="0,0,5,0" /><Button Content="Print" Click="PrintButton_Click" Margin="0,0,5,0" /><Button Content="Export PDF" Style="{StaticResource PrimaryButton}" Click="LocalPdfButton_Click" /></StackPanel>
+          </StackPanel>
+        </Grid>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Insert">
+        <WrapPanel Background="#FBFCFE" Margin="12,8"><Button Content="Insert merge field" Click="InsertSelectedField_Click" Margin="0,0,6,0" /><Button Content="Recipient address block" Click="RecipientBlockButton_Click" Margin="0,0,6,0" /><Button Content="Organization name" Click="OrganizationFieldButton_Click" Margin="0,0,6,0" /><Button Content="Staff signature fields" Click="StaffSignatureButton_Click" Margin="0,0,6,0" /><Button Content="Insert date" Click="Date_Click" Margin="0,0,6,0" /><Button Content="Page break" Click="PageBreak_Click" /></WrapPanel>
+      </TabItem>
+      <TabItem Header="Merge">
+        <WrapPanel Background="#FBFCFE" Margin="12,8"><Button Content="CRM audience lists" Click="ShowAudienceButton_Click" Margin="0,0,6,0" /><Button Content="Run preflight" Click="RunPreflight_Click" /></WrapPanel>
+      </TabItem>
+      <TabItem Header="Layout">
+        <WrapPanel Background="#FBFCFE" Margin="12,8"><Button Content="Letter  8.5 × 11 in" IsEnabled="False" Margin="0,0,6,0" /><Button Content="Margins  0.75 in" IsEnabled="False" Margin="0,0,6,0" /><Button Content="Show rulers" Click="Rulers_Click" /></WrapPanel>
+      </TabItem>
+      <TabItem Header="Review"><TextBlock Margin="18" Text="Use preflight in the Merge panel to find unresolved fields before printing." Foreground="#506477" /></TabItem>
+      <TabItem Header="Output"><WrapPanel Margin="12,8"><Button Content="Print preview" Click="PrintPreviewButton_Click" Margin="0,0,6,0" /><Button Content="Export local PDF" Style="{StaticResource PrimaryButton}" Click="LocalPdfButton_Click" /></WrapPanel></TabItem>
+    </TabControl>
+
+    <Border DockPanel.Dock="Bottom" Height="36" Background="#F8FAFC" BorderBrush="#D5DEE8" BorderThickness="0,1,0,0">
+      <Grid Margin="16,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock x:Name="PageStatusText" Text="Page 1" VerticalAlignment="Center" Foreground="#506477" />
+        <TextBlock x:Name="DocumentStatusText" Grid.Column="1" Margin="24,0" Text="Ready" VerticalAlignment="Center" Foreground="#506477" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="Print faithful" Foreground="#506477" Margin="0,0,22,0" /><TextBlock Text="100%" Foreground="#506477" /></StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="250" MinWidth="220" /><ColumnDefinition Width="*" MinWidth="520" /><ColumnDefinition Width="280" MinWidth="250" /></Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="#FAFBFD" BorderBrush="#D5DEE8" BorderThickness="0,0,1,0">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="14,14,14,8">
+            <Grid><TextBlock Text="Print projects" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Content="New ▾" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" Click="NewButton_Click" /></Grid>
+            <TextBox x:Name="ProjectSearchBox" Margin="0,12,0,6" TextChanged="ProjectSearchBox_TextChanged" ToolTip="Search local projects" />
+            <Button Content="⌂  Recent" HorizontalContentAlignment="Left" BorderThickness="0" Background="Transparent" Click="ShowRecentButton_Click" />
+            <Button Content="✉  Letters" HorizontalContentAlignment="Left" Background="#E4F0FB" BorderBrush="#B9D4EB" FontWeight="SemiBold" Margin="0,3,0,0" />
+            <Button Content="▤  Forms  ·  Coming soon" HorizontalContentAlignment="Left" BorderThickness="0" Background="Transparent" IsEnabled="False" Margin="0,3,0,0" />
+            <Button Content="▭  Labels &amp; envelopes  ·  Coming soon" HorizontalContentAlignment="Left" BorderThickness="0" Background="Transparent" IsEnabled="False" Margin="0,3,0,0" />
+            <Button Content="▥  Receipts  ·  Coming soon" HorizontalContentAlignment="Left" BorderThickness="0" Background="Transparent" IsEnabled="False" Margin="0,3,0,0" />
+            <Button Content="▥  Reports  ·  Coming soon" HorizontalContentAlignment="Left" BorderThickness="0" Background="Transparent" IsEnabled="False" Margin="0,3,0,0" />
+          </StackPanel>
+          <Grid Margin="12,4,12,12">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <TextBlock Text="LOCAL PROJECTS" FontSize="10" FontWeight="Bold" Foreground="#68798A" Margin="4,5" />
+            <ListBox x:Name="ProjectsList" Grid.Row="1" BorderThickness="0" Background="Transparent" SelectionChanged="ProjectsList_SelectionChanged">
+              <ListBox.ContextMenu><ContextMenu><MenuItem Header="Duplicate project" Click="DuplicateProjectMenu_Click" /><MenuItem Header="Delete project" Click="DeleteProjectMenu_Click" /></ContextMenu></ListBox.ContextMenu>
+              <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,6"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding DisplayMeta}" FontSize="11" Foreground="#728191" Margin="0,3,0,0" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+            <Grid Grid.Row="2" Margin="4,10,4,4"><TextBlock Text="CRM TEMPLATES" FontSize="10" FontWeight="Bold" Foreground="#68798A" /><Button Content="Refresh" HorizontalAlignment="Right" Padding="6,2" MinHeight="24" Click="RefreshButton_Click" /></Grid>
+            <ListBox x:Name="TemplatesList" Grid.Row="3" BorderThickness="0" Background="Transparent" SelectionChanged="TemplatesList_SelectionChanged">
+              <ListBox.ContextMenu><ContextMenu><MenuItem Header="Open as project" Click="OpenTemplateMenu_Click" /><Separator /><MenuItem Header="Duplicate template" Click="DuplicateTemplateMenu_Click" /><MenuItem Header="Publish template" Click="PublishTemplateMenu_Click" /><MenuItem Header="Archive template" Click="ArchiveTemplateMenu_Click" /></ContextMenu></ListBox.ContextMenu>
+              <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,6"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Category}" FontSize="11" Foreground="#728191" Margin="0,3,0,0" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </DockPanel>
+      </Border>
+
+      <Grid Grid.Column="1" Background="#E9EEF3">
+        <Grid.RowDefinitions><RowDefinition Height="48" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Border Background="White" BorderBrush="#D5DEE8" BorderThickness="0,0,0,1" Padding="12,7">
+          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBox x:Name="TemplateNameBox" BorderThickness="0" Background="Transparent" FontSize="16" FontWeight="SemiBold" Text="Untitled letter" TextChanged="TemplateNameBox_TextChanged" />
+            <TextBlock Grid.Column="1" Text="Auto-saved locally" Foreground="#627589" VerticalAlignment="Center" Margin="12,0" />
+          </Grid>
+        </Border>
+        <Grid Grid.Row="1">
+          <Grid.RowDefinitions><RowDefinition Height="26" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <TextBlock x:Name="RulerText" Text="        0        1        2        3        4        5        6        7        8 in" Foreground="#607487" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="28,14,28,28">
+            <Border Width="816" MinHeight="1056" Background="White" BorderBrush="#C7D1DC" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Top">
+              <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Margin="54,38,54,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
+                    <Image x:Name="DocumentLogoImage" Width="54" Height="54" Stretch="Uniform" Margin="0,0,12,0" />
+                    <StackPanel VerticalAlignment="Center"><TextBlock x:Name="DocumentOrganizationText" FontSize="16" FontWeight="Bold" Foreground="#1264A3" /><TextBlock x:Name="DocumentTaglineText" Foreground="#607487" FontSize="10" /></StackPanel>
+                  </StackPanel>
+                  <TextBlock x:Name="DocumentContactText" Grid.Column="1" FontSize="10" Foreground="#34485B" TextAlignment="Right" TextWrapping="Wrap" MaxWidth="220" />
+                </Grid>
+                <RichTextBox x:Name="Editor" Grid.Row="1" Margin="54,8,54,54" Padding="0" BorderThickness="0" Background="Transparent" FontFamily="Aptos" FontSize="11" AcceptsTab="True" VerticalScrollBarVisibility="Hidden" TextChanged="Editor_TextChanged" />
+              </Grid>
+            </Border>
+          </ScrollViewer>
+        </Grid>
+      </Grid>
+
+      <Border Grid.Column="2" Background="#FAFBFD" BorderBrush="#D5DEE8" BorderThickness="1,0,0,0">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="14,14,14,8">
+            <TextBlock Text="Merge &amp; document" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="CRM data stays permissioned. PDF creation happens on this computer." TextWrapping="Wrap" Foreground="#607487" FontSize="11" Margin="0,5,0,10" />
+            <TextBox x:Name="FieldSearchBox" ToolTip="Search merge fields" TextChanged="FieldSearchBox_TextChanged" />
+          </StackPanel>
+          <Grid Margin="12,0,12,12">
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <TreeView x:Name="MergeFieldsTree" BorderThickness="0" Background="Transparent" SelectedItemChanged="MergeFieldsTree_SelectedItemChanged" MouseDoubleClick="MergeFieldsTree_MouseDoubleClick" />
+            <Button Grid.Row="1" Content="Insert selected field" Style="{StaticResource PrimaryButton}" Click="InsertSelectedField_Click" Margin="0,8,0,0" />
+            <Expander Grid.Row="2" Header="CRM audience lists" Margin="0,14,0,0" x:Name="AudienceExpander">
+              <ListBox x:Name="AudienceListsList" MaxHeight="145" DisplayMemberPath="DisplayName" SelectionChanged="AudienceListsList_SelectionChanged" />
+            </Expander>
+            <StackPanel Grid.Row="3" Margin="0,14,0,0">
+              <TextBlock Text="Preview recipient" FontWeight="SemiBold" />
+              <TextBlock Text="Search CRM constituents, then preview with their permitted merge data." Foreground="#607487" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,6" />
+              <DockPanel><Button DockPanel.Dock="Right" Content="Search" Margin="6,0,0,0" Click="SearchRecipientsButton_Click" /><TextBox x:Name="RecipientSearchBox" ToolTip="Search by name or email" KeyDown="RecipientSearchBox_KeyDown" /></DockPanel>
+              <ComboBox x:Name="RecipientResultsBox" DisplayMemberPath="SearchDisplay" SelectionChanged="RecipientResultsBox_SelectionChanged" Margin="0,6,0,0" Visibility="Collapsed" />
+              <Button Content="Preview merged letter" Click="MergedPreviewButton_Click" Margin="0,6,0,0" />
+            </StackPanel>
+            <Border Grid.Row="4" Background="#EFF8F1" BorderBrush="#B8DEC2" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,14,0,0">
+              <StackPanel><TextBlock Text="Preflight" FontWeight="SemiBold" /><TextBlock x:Name="PreflightText" Text="✓ Document ready" Foreground="#18753C" Margin="0,6,0,0" TextWrapping="Wrap" /><Button Content="Run preflight again" HorizontalAlignment="Left" Margin="-4,8,0,0" BorderThickness="0" Background="Transparent" Foreground="#1264A3" Click="RunPreflight_Click" /></StackPanel>
+            </Border>
+          </Grid>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

@@ -74,3 +74,6 @@ OyamaBridgeDesktopServer/oyama-bridge-desktop-server-1.0.0.tgz
 /apps/letters/.next
 /public/uploads
 /OyamaManage Desktop/node_modules
+/OyamaPrint/bin
+/OyamaPrint/obj
+/OyamaPrint/artifacts

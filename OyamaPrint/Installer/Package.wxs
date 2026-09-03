@@ -1,0 +1,45 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="OyamaPrint"
+           Manufacturer="OyamaCRM"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="EFB0692A-AC72-4328-B042-C0832CCCAAC0"
+           Scope="perMachine">
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of OyamaPrint is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="OyamaPrint" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="OYAMACRM_MENU" Name="OyamaCRM">
+        <Directory Id="OYAMAPRINT_MENU" Name="OyamaPrint" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="OyamaPrintFeature" Title="OyamaPrint" Level="1">
+      <ComponentGroupRef Id="OyamaPrintFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="OyamaPrintFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+      <Component Id="OyamaPrintStartMenuShortcut" Directory="OYAMAPRINT_MENU" Guid="*">
+        <Shortcut Id="OyamaPrintShortcut"
+                  Name="OyamaPrint"
+                  Description="OyamaCRM printable documents workspace"
+                  Target="[INSTALLFOLDER]OyamaPrint.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveOyamaPrintStartMenuFolder" Directory="OYAMAPRINT_MENU" On="uninstall" />
+        <RegistryValue Root="HKLM"
+                       Key="Software\OyamaCRM\OyamaPrint"
+                       Name="StartMenuShortcut"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

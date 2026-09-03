@@ -1,0 +1,38 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <SolidColorBrush x:Key="BrandBrush" Color="#1264A3" />
+  <SolidColorBrush x:Key="BrandDarkBrush" Color="#062D52" />
+  <SolidColorBrush x:Key="CanvasBrush" Color="#E9EEF3" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#D5DEE8" />
+  <SolidColorBrush x:Key="TextBrush" Color="#152638" />
+  <Style TargetType="Button">
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="Background" Value="White" />
+    <Setter Property="BorderBrush" Value="#C9D4DF" />
+    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+  </Style>
+  <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="Background" Value="{StaticResource BrandBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style TargetType="TextBox">
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="BorderBrush" Value="#C9D4DF" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style TargetType="PasswordBox">
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="BorderBrush" Value="#C9D4DF" />
+  </Style>
+  <Style TargetType="ComboBox">
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="Padding" Value="7,3" />
+  </Style>
+</ResourceDictionary>

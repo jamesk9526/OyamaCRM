@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "OkYk1HAKeFs=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\James\\Documents\\GitHub\\OyamaCRM\\OyamaPrint\\tests\\OyamaPrint.VisualSmoke\\OyamaPrint.VisualSmoke.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\James\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\8.0.2\\microsoft.extensions.dependencyinjection.abstractions.8.0.2.nupkg.sha512",
+    "C:\\Users\\James\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\8.0.3\\microsoft.extensions.logging.abstractions.8.0.3.nupkg.sha512",
+    "C:\\Users\\James\\.nuget\\packages\\pdfsharp-wpf\\6.2.4\\pdfsharp-wpf.6.2.4.nupkg.sha512",
+    "C:\\Users\\James\\.nuget\\packages\\system.security.cryptography.pkcs\\8.0.1\\system.security.cryptography.pkcs.8.0.1.nupkg.sha512"
+  ],
+  "logs": []
+}
