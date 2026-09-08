@@ -2513,7 +2513,22 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
     }
     return groupedHeight;
   };
+  const signatureAfterTrailingSpacers = (index: number): { signatureIndex: number; spacerHeight: number } | null => {
+    let signatureIndex = index;
+    let spacerHeight = 0;
+    while (signatureIndex < renderedBlocks.length) {
+      const candidate = renderedBlocks[signatureIndex];
+      if (candidate.kind !== "spacer" || candidate.fill) break;
+      spacerHeight += candidate.height;
+      signatureIndex += 1;
+    }
+    return renderedBlocks[signatureIndex]?.keepTogether === "signature"
+      ? { signatureIndex, spacerHeight }
+      : null;
+  };
+  const compactedTrailingSpacerIndexes = new Set<number>();
   renderedBlocks.forEach((block, index) => {
+    if (compactedTrailingSpacerIndexes.has(index)) return;
     if (block.keepTogether && renderedBlocks[index - 1]?.keepTogether !== block.keepTogether) {
       let groupedHeight = 0;
       for (let groupedIndex = index; groupedIndex < renderedBlocks.length; groupedIndex += 1) {
@@ -2552,15 +2567,23 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
         const bottomAlignedY = pageHeight - marginBottom - remainingHeight;
         if (bottomAlignedY > cursorY) cursorY = bottomAlignedY;
       } else {
-        const followingKeepTogether = renderedBlocks[index + 1]?.keepTogether;
-        if (followingKeepTogether) {
-          // A fixed editor spacer can be useful for visual balance, but it
-          // must not send an otherwise fitting automatic signature onto a
-          // mostly empty second page. Retain as much spacer as the printable
-          // area permits and reserve a small measurement buffer for the group.
-          const groupHeight = keepTogetherHeightAfter(index, followingKeepTogether);
+        const trailingSignature = signatureAfterTrailingSpacers(index);
+        if (trailingSignature) {
+          // The canvas may retain several empty paragraphs (and a legacy
+          // fixed spacer) before its automatic signature. Preserve their
+          // combined visual space where it fits, but never let that empty
+          // layout run split an otherwise fitting signature onto page two.
+          const groupHeight = keepTogetherHeightAfter(trailingSignature.signatureIndex - 1, "signature");
           const availableSpacerHeight = pageHeight - marginBottom - cursorY - groupHeight - 4;
-          cursorY += Math.max(0, Math.min(block.height, availableSpacerHeight));
+          if (availableSpacerHeight >= 0) {
+            cursorY += Math.min(trailingSignature.spacerHeight, availableSpacerHeight);
+            for (let spacerIndex = index + 1; spacerIndex < trailingSignature.signatureIndex; spacerIndex += 1) {
+              compactedTrailingSpacerIndexes.add(spacerIndex);
+            }
+          } else {
+            ensurePageSpace(block.height);
+            cursorY += block.height;
+          }
         } else {
           ensurePageSpace(block.height);
           cursorY += block.height;

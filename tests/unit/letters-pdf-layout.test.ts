@@ -586,6 +586,41 @@ describe("letters PDF layout parsing", () => {
     expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? [])).toHaveLength(1);
   });
 
+  it("compacts a saved run of blank layout blocks before an automatic signature", async () => {
+    const pdf = await renderGeneratedLetterPdf({
+      templateName: "Legacy Blank Layout Signature",
+      subject: "",
+      constituentName: "Test Donor",
+      generatedAt: new Date("2026-09-08T12:00:00.000Z"),
+      mergedPrintBody: [
+        `<p>${"Thank you for supporting compassionate care in our community. ".repeat(18)}</p>`,
+        '<table data-letter-table="true"><tbody><tr><th>Gift Detail</th><th>Value</th></tr><tr><td>Donation Amount</td><td>$50.00</td></tr><tr><td>Donation Date</td><td>September 8, 2026</td></tr></tbody></table>',
+        '<div data-letter-spacer="72" style="height:72px;"></div><p></p><table><tbody></tbody></table><p></p><p></p>',
+      ].join(""),
+      branding: {
+        organizationName: "The Pregnancy Care Center",
+        tagline: "",
+        addressLine: "",
+        contactLine: "",
+        taxId: "",
+        footerLegalText: "",
+        logoDataUrl: null,
+        logoFormat: null,
+        primaryColor: "#6b2c73",
+      },
+      presets: {
+        signatureBlock: {
+          signerName: "Rebecca Haine",
+          signerTitle: "Executive Director",
+          closingPhrase: "With gratitude,",
+          typedSignature: "Rebecca Haine",
+        },
+      },
+    });
+
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? [])).toHaveLength(1);
+  });
+
   it("creates another PDF page only for an explicit page break", async () => {
     const pdf = await renderGeneratedLetterPdf({
       templateName: "Intentional Two Pages",
