@@ -2504,6 +2504,15 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   };
 
   const renderedBlocks = blocks.length > 0 ? blocks : [{ kind: "paragraph", text: "(No letter content)" } as PdfContentBlock];
+  const keepTogetherHeightAfter = (index: number, key: NonNullable<PdfContentBlock["keepTogether"]>) => {
+    let groupedHeight = 0;
+    for (let groupedIndex = index + 1; groupedIndex < renderedBlocks.length; groupedIndex += 1) {
+      const groupedBlock = renderedBlocks[groupedIndex];
+      if (groupedBlock.keepTogether !== key) break;
+      groupedHeight += estimatedBlockHeight(groupedBlock);
+    }
+    return groupedHeight;
+  };
   renderedBlocks.forEach((block, index) => {
     if (block.keepTogether && renderedBlocks[index - 1]?.keepTogether !== block.keepTogether) {
       let groupedHeight = 0;
@@ -2543,8 +2552,19 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
         const bottomAlignedY = pageHeight - marginBottom - remainingHeight;
         if (bottomAlignedY > cursorY) cursorY = bottomAlignedY;
       } else {
-        ensurePageSpace(block.height);
-        cursorY += block.height;
+        const followingKeepTogether = renderedBlocks[index + 1]?.keepTogether;
+        if (followingKeepTogether) {
+          // A fixed editor spacer can be useful for visual balance, but it
+          // must not send an otherwise fitting automatic signature onto a
+          // mostly empty second page. Retain as much spacer as the printable
+          // area permits and reserve a small measurement buffer for the group.
+          const groupHeight = keepTogetherHeightAfter(index, followingKeepTogether);
+          const availableSpacerHeight = pageHeight - marginBottom - cursorY - groupHeight - 4;
+          cursorY += Math.max(0, Math.min(block.height, availableSpacerHeight));
+        } else {
+          ensurePageSpace(block.height);
+          cursorY += block.height;
+        }
       }
     } else if (block.kind === "image") {
       if (!block.dataUrl || !block.format) return;
