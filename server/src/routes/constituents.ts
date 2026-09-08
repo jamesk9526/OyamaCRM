@@ -47,7 +47,7 @@ router.use((req, res, next) => {
   if (req.method === "GET") {
     return requirePermission("view:constituents")(req, res, next);
   }
-  if (req.method === "POST" && req.path === "/import") {
+  if (req.method === "POST" && (req.path === "/import" || req.path.startsWith("/import/"))) {
     return requirePermission("import:data")(req, res, next);
   }
   if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
@@ -385,6 +385,7 @@ interface ConstituentImportRollbackPlan {
   blockedReasons: string[];
   safeDeleteCreatedIds: string[];
   safeRestoreUpdatedSnapshots: ConstituentImportUpdatedSnapshot[];
+  safeDeleteAudienceListIds: string[];
   blockedCreated: Array<{ id: string; reason: string }>;
   blockedUpdated: Array<{ id: string; reason: string }>;
 }
@@ -548,31 +549,32 @@ async function buildConstituentImportRollbackPlan(params: {
   const blockedReasons: string[] = [];
   const safeDeleteCreatedIds: string[] = [];
   const safeRestoreUpdatedSnapshots: ConstituentImportUpdatedSnapshot[] = [];
+  const safeDeleteAudienceListIds: string[] = [];
   const blockedCreated: Array<{ id: string; reason: string }> = [];
   const blockedUpdated: Array<{ id: string; reason: string }> = [];
 
   if (!metadata.rollbackSupported) {
     blockedReasons.push("Rollback is unavailable for this run because safety snapshots were truncated.");
-    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, safeDeleteAudienceListIds, blockedCreated, blockedUpdated };
   }
 
   if (metadata.rolledBackAt) {
     blockedReasons.push("This import run has already been rolled back.");
-    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, safeDeleteAudienceListIds, blockedCreated, blockedUpdated };
   }
 
   const completedAt = new Date(metadata.completedAt);
   const rollbackEligibleUntil = new Date(metadata.rollbackEligibleUntil);
   if (Number.isNaN(completedAt.getTime())) {
     blockedReasons.push("Import metadata is missing a valid completion timestamp.");
-    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, safeDeleteAudienceListIds, blockedCreated, blockedUpdated };
   }
   if (!Number.isNaN(rollbackEligibleUntil.getTime()) && Date.now() > rollbackEligibleUntil.getTime()) {
     blockedReasons.push("Rollback window expired for this import run.");
-    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, blockedCreated, blockedUpdated };
+    return { canRollback: false, blockedReasons, safeDeleteCreatedIds, safeRestoreUpdatedSnapshots, safeDeleteAudienceListIds, blockedCreated, blockedUpdated };
   }
 
-  const [createdRows, updatedRows] = await Promise.all([
+  const [createdRows, updatedRows, audienceLists] = await Promise.all([
     metadata.createdIds.length > 0
       ? prisma.constituent.findMany({
           where: { organizationId, id: { in: metadata.createdIds } },
@@ -585,7 +587,18 @@ async function buildConstituentImportRollbackPlan(params: {
           select: { id: true, updatedAt: true },
         })
       : Promise.resolve([]),
+    (metadata.audienceListIds?.length ?? 0) > 0
+      ? prisma.emailRecipientList.findMany({
+          where: { organizationId, id: { in: metadata.audienceListIds } },
+          select: { id: true, updatedAt: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const safeThrough = new Date(completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_CHANGE_TOLERANCE_MS);
+  for (const list of audienceLists) {
+    if (list.updatedAt <= safeThrough) safeDeleteAudienceListIds.push(list.id);
+  }
 
   const createdMap = new Map(createdRows.map((row) => [row.id, row]));
   for (const createdId of metadata.createdIds) {
@@ -620,7 +633,7 @@ async function buildConstituentImportRollbackPlan(params: {
     safeRestoreUpdatedSnapshots.push(snapshot);
   }
 
-  if (safeDeleteCreatedIds.length === 0 && safeRestoreUpdatedSnapshots.length === 0) {
+  if (safeDeleteCreatedIds.length === 0 && safeRestoreUpdatedSnapshots.length === 0 && safeDeleteAudienceListIds.length === 0) {
     blockedReasons.push("No rollback-safe records remain for this import run.");
   }
 
@@ -629,6 +642,7 @@ async function buildConstituentImportRollbackPlan(params: {
     blockedReasons,
     safeDeleteCreatedIds,
     safeRestoreUpdatedSnapshots,
+    safeDeleteAudienceListIds,
     blockedCreated,
     blockedUpdated,
   };
@@ -1950,19 +1964,19 @@ router.post("/import", async (req, res) => {
 
   if (!dryRun) {
     const safeAudienceName = audienceList?.name?.trim().slice(0, 160) ?? "";
-    const audience = safeAudienceName && affectedConstituentIds.size > 0
+    const audience = safeAudienceName
       ? await prisma.emailRecipientList.create({
           data: {
             organizationId: resolvedOrgId,
             name: safeAudienceName,
             description: audienceList?.description?.trim().slice(0, 500) || "Created from a reviewed constituent CSV import.",
             createdById: req.user?.sub ?? null,
-            recipients: {
+            ...(affectedConstituentIds.size > 0 ? { recipients: {
               createMany: {
                 data: Array.from(affectedConstituentIds).map((constituentId) => ({ constituentId })),
                 skipDuplicates: true,
               },
-            },
+            } } : {}),
           },
           include: { _count: { select: { recipients: true } } },
         })
@@ -2143,6 +2157,7 @@ router.post("/import/:runId/rollback/preview", requirePermission("import:data"),
       blockedCreated: plan.blockedCreated.length,
       blockedUpdated: plan.blockedUpdated.length,
       trackedAudienceLists: metadata.audienceListIds?.length ?? 0,
+      canDeleteAudienceLists: plan.safeDeleteAudienceListIds.length,
     },
     blockedReasons: plan.blockedReasons,
     blockedCreated: plan.blockedCreated.slice(0, 25),
@@ -2209,14 +2224,11 @@ router.post("/import/:runId/rollback", requirePermission("import:data"), async (
 
   let deletedAudienceLists = 0;
   await prisma.$transaction(async (tx) => {
-    if ((metadata.audienceListIds?.length ?? 0) > 0) {
-      const completedAt = new Date(metadata.completedAt);
-      const safeThrough = new Date(completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_CHANGE_TOLERANCE_MS);
+    if (plan.safeDeleteAudienceListIds.length > 0) {
       const deletion = await tx.emailRecipientList.deleteMany({
         where: {
           organizationId,
-          id: { in: metadata.audienceListIds },
-          updatedAt: { lte: safeThrough },
+          id: { in: plan.safeDeleteAudienceListIds },
         },
       });
       deletedAudienceLists = deletion.count;
@@ -2335,6 +2347,22 @@ const mergeRelationNames = [
 ] as const;
 type MergeRelationName = typeof mergeRelationNames[number];
 type MergeRelationSnapshot = { sourceId: string; relation: MergeRelationName; ids: string[] };
+type MergeRecipientListSnapshot = {
+  sourceId: string;
+  listId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  targetHadMember: boolean;
+};
+type MergeGroupMembershipSnapshot = {
+  sourceId: string;
+  groupId: string;
+  relationshipLabel: string | null;
+  isPrimary: boolean;
+  sourceWasPrimaryConstituent: boolean;
+  targetHadMember: boolean;
+};
 
 async function moveMergeRelations(tx: Prisma.TransactionClient, sourceId: string, targetId: string, onlyIds?: Partial<Record<MergeRelationName, string[]>>) {
   const where = (relation: MergeRelationName) => ({ constituentId: sourceId, ...(onlyIds?.[relation] ? { id: { in: onlyIds[relation] } } : {}) });
@@ -2414,6 +2442,8 @@ router.post("/merge", async (req, res) => {
     const keepSnapshot = createMergeSnapshot(keep as unknown as Record<string, unknown> & { tags: Array<{ tagId: string }> });
     const sourceSnapshots = sources.map((source) => createMergeSnapshot(source as unknown as Record<string, unknown> & { tags: Array<{ tagId: string }> }));
     const relationSnapshots: MergeRelationSnapshot[] = [];
+    const recipientListSnapshots: MergeRecipientListSnapshot[] = [];
+    const groupMembershipSnapshots: MergeGroupMembershipSnapshot[] = [];
     for (const source of sources) {
       const relationIds = await Promise.all([
         tx.donation.findMany({ where: { constituentId: source.id }, select: { id: true } }), tx.pledge.findMany({ where: { constituentId: source.id }, select: { id: true } }),
@@ -2431,7 +2461,7 @@ router.post("/merge", async (req, res) => {
 
     let workingKeep = keep;
     for (const source of sources) {
-      await tx.constituent.update({
+      workingKeep = await tx.constituent.update({
       where: { id: keep.id },
       data: {
         firstName: mergedString("firstName") ?? workingKeep.firstName, lastName: mergedString("lastName") ?? workingKeep.lastName, donorStatus: mergedDonorStatus ?? workingKeep.donorStatus,
@@ -2444,6 +2474,7 @@ router.post("/merge", async (req, res) => {
         lastGiftAmount: !workingKeep.lastGiftDate || (source.lastGiftDate && source.lastGiftDate > workingKeep.lastGiftDate) ? source.lastGiftAmount : workingKeep.lastGiftAmount,
         notes: [workingKeep.notes, source.notes ? `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}):\n${source.notes}` : `Merged duplicate ${source.firstName} ${source.lastName} (${source.id}).`].filter(Boolean).join("\n\n"),
       },
+      include: { tags: true },
     });
       for (const tag of source.tags) {
       await tx.constituentTag.upsert({
@@ -2453,7 +2484,49 @@ router.post("/merge", async (req, res) => {
       });
     }
       await moveMergeRelations(tx, source.id, keep.id);
-      await tx.constituentGroupMember.updateMany({ where: { constituentId: source.id }, data: { constituentId: keep.id } });
+      const sourceListMembers = await tx.emailRecipientListMember.findMany({
+        where: { constituentId: source.id },
+        select: { id: true, listId: true, email: true, firstName: true, lastName: true },
+      });
+      for (const member of sourceListMembers) {
+        const targetMember = await tx.emailRecipientListMember.findFirst({
+          where: { listId: member.listId, constituentId: keep.id },
+          select: { id: true },
+        });
+        recipientListSnapshots.push({
+          sourceId: source.id,
+          listId: member.listId,
+          email: member.email,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          targetHadMember: Boolean(targetMember),
+        });
+        if (targetMember) {
+          await tx.emailRecipientListMember.delete({ where: { id: member.id } });
+        } else {
+          await tx.emailRecipientListMember.update({ where: { id: member.id }, data: { constituentId: keep.id } });
+        }
+      }
+      const sourceGroupMemberships = await tx.constituentGroupMember.findMany({
+        where: { constituentId: source.id },
+        select: { id: true, groupId: true, relationshipLabel: true, isPrimary: true, group: { select: { primaryConstituentId: true } } },
+      });
+      for (const membership of sourceGroupMemberships) {
+        const targetMember = await tx.constituentGroupMember.findFirst({ where: { groupId: membership.groupId, constituentId: keep.id }, select: { id: true } });
+        groupMembershipSnapshots.push({
+          sourceId: source.id,
+          groupId: membership.groupId,
+          relationshipLabel: membership.relationshipLabel,
+          isPrimary: membership.isPrimary,
+          sourceWasPrimaryConstituent: membership.group.primaryConstituentId === source.id,
+          targetHadMember: Boolean(targetMember),
+        });
+        if (targetMember) await tx.constituentGroupMember.delete({ where: { id: membership.id } });
+        else await tx.constituentGroupMember.update({ where: { id: membership.id }, data: { constituentId: keep.id } });
+        if (membership.group.primaryConstituentId === source.id) {
+          await tx.constituentGroup.update({ where: { id: membership.groupId }, data: { primaryConstituentId: keep.id } });
+        }
+      }
     await tx.constituentTag.deleteMany({ where: { constituentId: source.id } });
     await tx.constituent.delete({ where: { id: source.id } });
     await tx.activity.create({
@@ -2464,9 +2537,8 @@ router.post("/merge", async (req, res) => {
         metadata: { source: "contacts-manager:duplicate-merge", mergedConstituentId: source.id },
       },
     });
-      workingKeep = { ...workingKeep, email: workingKeep.email || source.email, phone: workingKeep.phone || source.phone };
     }
-    const audit = await tx.auditLog.create({ data: { organizationId, userId: req.user?.sub, action: "CONSTITUENT_MERGED", entity: "Constituent", entityId: keep.id, metadata: { version: 1, keepSnapshot, sourceSnapshots, relationSnapshots, sourceIds, undoAvailable: true } as unknown as Prisma.InputJsonValue } });
+    const audit = await tx.auditLog.create({ data: { organizationId, userId: req.user?.sub, action: "CONSTITUENT_MERGED", entity: "Constituent", entityId: keep.id, metadata: { version: 2, keepSnapshot, sourceSnapshots, relationSnapshots, recipientListSnapshots, groupMembershipSnapshots, sourceIds, undoAvailable: true } as unknown as Prisma.InputJsonValue } });
     return audit.id;
   });
 
@@ -2504,7 +2576,7 @@ router.post("/merge-history/:mergeAuditId/undo", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) return res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
   const audit = await prisma.auditLog.findFirst({ where: { id: req.params.mergeAuditId, organizationId, action: "CONSTITUENT_MERGED", entity: "Constituent" } });
-  const metadata = audit?.metadata as { keepSnapshot?: MergeSnapshot; sourceSnapshots?: MergeSnapshot[]; relationSnapshots?: MergeRelationSnapshot[]; undoAvailable?: boolean; undoneAt?: string } | null;
+  const metadata = audit?.metadata as { keepSnapshot?: MergeSnapshot; sourceSnapshots?: MergeSnapshot[]; relationSnapshots?: MergeRelationSnapshot[]; recipientListSnapshots?: MergeRecipientListSnapshot[]; groupMembershipSnapshots?: MergeGroupMembershipSnapshot[]; undoAvailable?: boolean; undoneAt?: string } | null;
   if (!audit || !metadata?.undoAvailable || metadata.undoneAt || !metadata.keepSnapshot || !Array.isArray(metadata.sourceSnapshots) || !Array.isArray(metadata.relationSnapshots)) {
     return res.status(404).json({ error: { code: "MERGE_NOT_REVERSIBLE", message: "This merge is not available to undo." } });
   }
@@ -2526,6 +2598,40 @@ router.post("/merge-history/:mergeAuditId/undo", async (req, res) => {
     for (const sourceId of sourceIds) {
       const relationIds = Object.fromEntries(metadata.relationSnapshots!.filter((item) => item.sourceId === sourceId).map((item) => [item.relation, item.ids])) as Partial<Record<MergeRelationName, string[]>>;
       await moveMergeRelations(tx, keepId, sourceId, relationIds);
+    }
+    for (const membership of metadata.recipientListSnapshots ?? []) {
+      if (!membership.targetHadMember) {
+        await tx.emailRecipientListMember.deleteMany({ where: { listId: membership.listId, constituentId: keepId } });
+      }
+      await tx.emailRecipientListMember.upsert({
+        where: { listId_constituentId: { listId: membership.listId, constituentId: membership.sourceId } },
+        update: {},
+        create: {
+          listId: membership.listId,
+          constituentId: membership.sourceId,
+          email: membership.email,
+          firstName: membership.firstName,
+          lastName: membership.lastName,
+        },
+      });
+    }
+    for (const membership of metadata.groupMembershipSnapshots ?? []) {
+      if (!membership.targetHadMember) {
+        await tx.constituentGroupMember.deleteMany({ where: { groupId: membership.groupId, constituentId: keepId } });
+      }
+      await tx.constituentGroupMember.upsert({
+        where: { groupId_constituentId: { groupId: membership.groupId, constituentId: membership.sourceId } },
+        update: {},
+        create: {
+          groupId: membership.groupId,
+          constituentId: membership.sourceId,
+          relationshipLabel: membership.relationshipLabel,
+          isPrimary: membership.isPrimary,
+        },
+      });
+      if (membership.sourceWasPrimaryConstituent) {
+        await tx.constituentGroup.update({ where: { id: membership.groupId }, data: { primaryConstituentId: membership.sourceId } });
+      }
     }
     await tx.auditLog.update({ where: { id: audit.id }, data: { metadata: { ...metadata, undoAvailable: false, undoneAt: new Date().toISOString(), undoneByUserId: req.user?.sub } as unknown as Prisma.InputJsonValue } });
     await tx.activity.create({ data: { constituentId: keepId, type: "NOTE", description: `Restored ${sourceIds.length} constituent profile${sourceIds.length === 1 ? "" : "s"} by undoing a duplicate merge.`, metadata: { source: "contacts-manager:duplicate-merge-undo", mergeAuditId: audit.id } } });

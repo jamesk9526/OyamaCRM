@@ -2263,7 +2263,12 @@ function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfP
   // separate. Keeping it here would force the automatically appended signature
   // onto an otherwise blank second page. Preserve page breaks between real body
   // blocks, but discard empty trailing pages before adding the signature.
-  while (next[next.length - 1]?.kind === "pageBreak") next.pop();
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    const block = next[index];
+    if (block.kind === "spacer") continue;
+    if (block.kind === "pageBreak") next.splice(index, 1);
+    break;
+  }
   if (next.length > 0) {
     // Keep the sign-off with the body. A fill spacer created a large unexplained
     // blank region and made the server PDF diverge from the editable canvas.

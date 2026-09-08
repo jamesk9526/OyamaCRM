@@ -525,6 +525,7 @@ describe("letters PDF layout parsing", () => {
         `<p>${"Thank you for supporting compassionate care in our community. ".repeat(18)}</p>`,
         '<table data-letter-table="true"><tbody><tr><th>Gift Detail</th><th>Value</th></tr><tr><td>Donation Amount</td><td>$50.00</td></tr><tr><td>Donation Date</td><td>September 8, 2026</td></tr></tbody></table>',
         '<div data-letter-page-break="true" style="break-after:page;page-break-after:always;">Page break</div>',
+        '<div data-letter-spacer="fill" style="min-height:240px;"></div>',
       ].join(""),
       branding: {
         organizationName: "The Pregnancy Care Center",

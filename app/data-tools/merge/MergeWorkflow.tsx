@@ -65,40 +65,44 @@ const COMPARE_FIELDS: Array<{ key: keyof MergeConstituent; label: string }> = [
  * Matches on: identical email, OR same last name + first name containment.
  * Returns every matching pair in the loaded organization dataset.
  */
-function findDuplicates(constituents: MergeConstituent[]): DuplicatePair[] {
+export function findDuplicates(constituents: MergeConstituent[]): DuplicatePair[] {
   const pairs: DuplicatePair[] = [];
-  const seen = new Set<string>(); // avoid symmetric duplicates
-
-  for (let i = 0; i < constituents.length; i++) {
-    for (let j = i + 1; j < constituents.length; j++) {
-      const a = constituents[i];
-      const b = constituents[j];
-
-      // Pairwise key to prevent duplicate pair insertion
-      const pairKey = `${a.id}|${b.id}`;
-      if (seen.has(pairKey)) continue;
-
-      const emailMatch =
-        a.email && b.email &&
-        a.email.toLowerCase().trim() === b.email.toLowerCase().trim();
-
-      const nameMatch =
-        a.lastName.toLowerCase() === b.lastName.toLowerCase() &&
-        (a.firstName.toLowerCase().includes(b.firstName.toLowerCase()) ||
-         b.firstName.toLowerCase().includes(a.firstName.toLowerCase()));
-
-      if (emailMatch || nameMatch) {
-        pairs.push({ a, b, matchReason: emailMatch ? "email" : "name" });
-        seen.add(pairKey);
+  const seen = new Set<string>();
+  const pairKey = (a: MergeConstituent, b: MergeConstituent) => [a.id, b.id].sort().join("|");
+  const addBucketPairs = (bucket: MergeConstituent[], reason: DuplicatePair["matchReason"], predicate?: (a: MergeConstituent, b: MergeConstituent) => boolean) => {
+    for (let i = 0; i < bucket.length; i += 1) {
+      for (let j = i + 1; j < bucket.length; j += 1) {
+        const a = bucket[i];
+        const b = bucket[j];
+        const key = pairKey(a, b);
+        if (seen.has(key) || (predicate && !predicate(a, b))) continue;
+        seen.add(key);
+        pairs.push({ a, b, matchReason: reason });
       }
-
     }
+  };
+
+  const emailBuckets = new Map<string, MergeConstituent[]>();
+  const lastNameBuckets = new Map<string, MergeConstituent[]>();
+  for (const constituent of constituents) {
+    const email = constituent.email?.trim().toLowerCase();
+    if (email) emailBuckets.set(email, [...(emailBuckets.get(email) ?? []), constituent]);
+    const lastName = constituent.lastName.trim().toLowerCase();
+    if (lastName) lastNameBuckets.set(lastName, [...(lastNameBuckets.get(lastName) ?? []), constituent]);
+  }
+  for (const bucket of emailBuckets.values()) if (bucket.length > 1) addBucketPairs(bucket, "email");
+  for (const bucket of lastNameBuckets.values()) if (bucket.length > 1) {
+    addBucketPairs(bucket, "name", (a, b) => {
+      const aFirst = a.firstName.trim().toLowerCase();
+      const bFirst = b.firstName.trim().toLowerCase();
+      return Boolean(aFirst && bFirst && (aFirst.includes(bFirst) || bFirst.includes(aFirst)));
+    });
   }
 
   return pairs;
 }
 
-function duplicateGroups(pairs: DuplicatePair[]): DuplicateGroup[] {
+export function duplicateGroups(pairs: DuplicatePair[]): DuplicateGroup[] {
   const recordById = new Map<string, MergeConstituent>();
   const adjacent = new Map<string, Set<string>>();
   for (const pair of pairs) {
@@ -137,7 +141,7 @@ function duplicateGroups(pairs: DuplicatePair[]): DuplicateGroup[] {
   return groups;
 }
 
-function oldestRecord(records: MergeConstituent[]): MergeConstituent {
+export function oldestRecord(records: MergeConstituent[]): MergeConstituent {
   return [...records].sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY;
     const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY;
