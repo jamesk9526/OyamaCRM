@@ -4,6 +4,7 @@
 // Sub-components: CircularProgress, StatCard, StepperSidebar, FieldDetailsPanel.
 
 import { useState, useRef, useCallback, useMemo, useEffect, Fragment } from "react";
+import Link from "next/link";
 import { CRM_CONSTITUENT_FIELDS, FIELD_GROUPS, detectChurchValues, getConstituentAutoMapField } from "./fieldMap";
 import type { CrmField } from "./fieldMap";
 import { parseCSV, computeColumnStats } from "./csvParser";
@@ -57,6 +58,8 @@ interface ImportResult {
   rollbackEligibleUntil?: string;
   audienceRecipients?: number;
   audienceSegments?: number;
+  audienceList?: { id: string; name: string; recipientsCount: number } | null;
+  affectedConstituentIds?: string[];
 }
 
 interface ImportRollbackPreview {
@@ -818,6 +821,12 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
             matchPhone,
             duplicateResolution,
             allowOrgImport,
+            audienceList: !dryRun && addToAudienceList
+              ? {
+                  name: audienceListName.trim() || `${file?.name?.replace(/\.[^.]+$/, "") || "Imported"} Audience`,
+                  description: "Created from a reviewed donor-side CSV import. Members stay linked to their CRM records.",
+                }
+              : undefined,
           }),
         },
       );
@@ -825,14 +834,6 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
       const segmentLists = deriveImportSegments(validationResult.valid);
       if (!dryRun && addToAudienceList && recipientEmails.length > 0) {
         const baseName = audienceListName.trim() || `${file?.name?.replace(/\.[^.]+$/, "") || "Imported"} Audience`;
-        await apiFetch("/api/email-campaigns/lists", {
-          method: "POST",
-          body: JSON.stringify({
-            name: baseName,
-            description: "Created from donor-side CSV import. Client-service files are not supported by this importer.",
-            recipientEmails,
-          }),
-        });
         await Promise.all(segmentLists.map((segment) => apiFetch("/api/email-campaigns/lists", {
           method: "POST",
           body: JSON.stringify({
@@ -844,7 +845,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
       }
       setImportResult({
         ...res,
-        audienceRecipients: !dryRun && addToAudienceList ? recipientEmails.length : undefined,
+        audienceRecipients: res.audienceList?.recipientsCount,
         audienceSegments: !dryRun && addToAudienceList ? segmentLists.length : undefined,
       });
       if (!dryRun) {
@@ -1434,8 +1435,8 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <label className={`cursor-pointer rounded-lg border p-3 ${duplicateResolution === "merge" ? "border-green-500 bg-white" : "border-orange-200 bg-orange-50"}`}>
                   <input type="radio" name="duplicateResolution" value="merge" checked={duplicateResolution === "merge"} onChange={() => setDuplicateResolution("merge")} className="sr-only" />
-                  <span className="block text-sm font-semibold text-gray-900">Merge / update existing</span>
-                  <span className="mt-0.5 block text-xs text-gray-600">Keep one contact and update it with mapped CSV fields and tags.</span>
+                  <span className="block text-sm font-semibold text-gray-900">Automatically merge / update duplicates</span>
+                  <span className="mt-0.5 block text-xs text-gray-600">Keep one CRM contact for matching source ID, email, or phone rows and combine mapped fields and tags. Existing opt-outs remain protected.</span>
                 </label>
                 <label className={`cursor-pointer rounded-lg border p-3 ${duplicateResolution === "skip" ? "border-green-500 bg-white" : "border-orange-200 bg-orange-50"}`}>
                   <input type="radio" name="duplicateResolution" value="skip" checked={duplicateResolution === "skip"} onChange={() => setDuplicateResolution("skip")} className="sr-only" />
@@ -1453,7 +1454,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
             <div>
               <p className="text-sm font-semibold text-green-900">Add imported emails to a Contacts Manager list</p>
               <p className="mt-0.5 text-xs text-green-700">
-                Use this for newsletter, announcement, church, business, or donor audience CSVs. Rows without email can still import as constituents, but they cannot be added to an email list.
+                Save every imported or matched contact as a durable CRM-linked audience member. Contacts without email remain in the list for letters and future enrichment.
               </p>
             </div>
             <button
@@ -1581,7 +1582,8 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
           {typeof importResult.audienceRecipients === "number" && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-              Contacts Manager audience list created with {importResult.audienceRecipients.toLocaleString()} imported email recipient{importResult.audienceRecipients === 1 ? "" : "s"}.
+              Contacts Manager audience list <span className="font-semibold">{importResult.audienceList?.name}</span> saved with {importResult.audienceRecipients.toLocaleString()} CRM-linked member{importResult.audienceRecipients === 1 ? "" : "s"}.
+              {importResult.audienceList?.id ? <Link href={`/contacts-manager/lists?listId=${encodeURIComponent(importResult.audienceList.id)}`} className="ml-1 font-semibold underline">Open list</Link> : null}
               {typeof importResult.audienceSegments === "number" && importResult.audienceSegments > 0 ? ` ${importResult.audienceSegments} auto-segment list${importResult.audienceSegments === 1 ? "" : "s"} also created.` : ""}
             </div>
           )}

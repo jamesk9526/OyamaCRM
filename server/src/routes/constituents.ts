@@ -354,6 +354,7 @@ interface ConstituentImportRollbackSummary {
   restoredUpdated: number;
   blockedCreated: number;
   blockedUpdated: number;
+  deletedAudienceLists?: number;
 }
 
 interface ConstituentImportRunMetadata {
@@ -368,6 +369,7 @@ interface ConstituentImportRunMetadata {
   duplicatesInFile: number;
   createdIds: string[];
   updatedSnapshots: ConstituentImportUpdatedSnapshot[];
+  audienceListIds?: string[];
   rollbackSupported: boolean;
   rollbackTrackingTruncated: boolean;
   completedAt: string;
@@ -503,6 +505,9 @@ function readConstituentImportRunMetadata(raw: Prisma.JsonValue | null): Constit
     duplicatesInFile: Number(candidate.duplicatesInFile ?? 0),
     createdIds: candidate.createdIds.filter((id): id is string => typeof id === "string"),
     updatedSnapshots: candidate.updatedSnapshots as ConstituentImportUpdatedSnapshot[],
+    audienceListIds: Array.isArray(candidate.audienceListIds)
+      ? candidate.audienceListIds.filter((id): id is string => typeof id === "string")
+      : [],
     rollbackSupported: Boolean(candidate.rollbackSupported),
     rollbackTrackingTruncated: Boolean(candidate.rollbackTrackingTruncated),
     completedAt: String(candidate.completedAt ?? ""),
@@ -1558,6 +1563,7 @@ router.post("/import", async (req, res) => {
     matchPhone = true,
     duplicateResolution = "merge",
     allowOrgImport = true,
+    audienceList,
   } = req.body as {
     records: Array<Record<string, string>>;
     mode: ConstituentImportMode;
@@ -1568,6 +1574,7 @@ router.post("/import", async (req, res) => {
     duplicateResolution?: "merge" | "skip";
     /** When true, records tagged _isOrg="true" by the wizard are imported as ORGANIZATION constituents */
     allowOrgImport: boolean;
+    audienceList?: { name?: string; description?: string };
   };
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -1587,10 +1594,13 @@ router.post("/import", async (req, res) => {
   let duplicatesInFile = 0;
   const errors: string[] = [];
   const seenInFileDedupKeys = new Set<string>();
+  const importedConstituentIdByDedupKey = new Map<string, string>();
+  const affectedConstituentIds = new Set<string>();
 
   const importRunId = dryRun ? undefined : `constituent-import-${randomUUID()}`;
   const createdConstituentIds: string[] = [];
   const updatedSnapshots: ConstituentImportUpdatedSnapshot[] = [];
+  const snapshottedConstituentIds = new Set<string>();
   let rollbackTrackingTruncated = false;
 
   /** Parse common CSV booleans like True/False, Yes/No, 1/0. */
@@ -1715,8 +1725,10 @@ router.post("/import", async (req, res) => {
       const inFileDedupKey = buildConstituentInFileDedupKey(rec);
       if (seenInFileDedupKeys.has(inFileDedupKey)) {
         duplicatesInFile++;
-        skipped++;
-        continue;
+        if (duplicateResolution === "skip" || mode === "create_only") {
+          skipped++;
+          continue;
+        }
       }
       seenInFileDedupKeys.add(inFileDedupKey);
 
@@ -1843,8 +1855,10 @@ router.post("/import", async (req, res) => {
           : null;
         const existingByPhone = !existingByExtId && !existingByEmail ? await findExistingByPhone(data.phone) : null;
 
-        const exists = existingByExtId ?? existingByEmail ?? existingByPhone;
+        const existingInFileId = importedConstituentIdByDedupKey.get(inFileDedupKey);
+        const exists = existingInFileId ? { id: existingInFileId } : existingByExtId ?? existingByEmail ?? existingByPhone;
         if (exists) {
+          importedConstituentIdByDedupKey.set(inFileDedupKey, exists.id);
           if (duplicateResolution === "skip" || mode === "create_only") {
             skipped++;
           } else {
@@ -1855,26 +1869,30 @@ router.post("/import", async (req, res) => {
             skipped++;
           } else {
             created++;
+            importedConstituentIdByDedupKey.set(inFileDedupKey, `dry-run:${inFileDedupKey}`);
           }
         }
         continue;
       }
 
       // Real import — find potential duplicate
-      const existingByExtId = matchExtId && data.externalId
+      const existingInFileId = importedConstituentIdByDedupKey.get(inFileDedupKey);
+      const existingByExtId = !existingInFileId && matchExtId && data.externalId
         ? await prisma.constituent.findFirst({ where: { externalId: data.externalId, organizationId: resolvedOrgId }, select: { id: true } })
         : null;
-      const existingByEmail = !existingByExtId && matchEmail && data.email
+      const existingByEmail = !existingInFileId && !existingByExtId && matchEmail && data.email
         ? await prisma.constituent.findFirst({ where: { email: data.email, organizationId: resolvedOrgId }, select: { id: true } })
         : null;
-      const existingByPhone = !existingByExtId && !existingByEmail ? await findExistingByPhone(data.phone) : null;
-      const existing = existingByExtId ?? existingByEmail ?? existingByPhone;
+      const existingByPhone = !existingInFileId && !existingByExtId && !existingByEmail ? await findExistingByPhone(data.phone) : null;
+      const existing = existingInFileId ? { id: existingInFileId } : existingByExtId ?? existingByEmail ?? existingByPhone;
 
       if (existing) {
+        affectedConstituentIds.add(existing.id);
+        importedConstituentIdByDedupKey.set(inFileDedupKey, existing.id);
         if (mode === "create_only" || duplicateResolution === "skip") { skipped++; continue; }
 
         let rollbackSnapshot: ConstituentImportUpdatedSnapshot | null = null;
-        if (importRunId && !rollbackTrackingTruncated) {
+        if (importRunId && !rollbackTrackingTruncated && !snapshottedConstituentIds.has(existing.id)) {
           const before = await prisma.constituent.findFirst({
             where: { id: existing.id, organizationId: resolvedOrgId },
             select: CONSTITUENT_IMPORT_ROLLBACK_SELECT,
@@ -1885,11 +1903,22 @@ router.post("/import", async (req, res) => {
               before: toConstituentRollbackSnapshot(before),
               tagIds: before.tags.map((tag) => tag.tagId),
             };
+            snapshottedConstituentIds.add(existing.id);
           }
         }
 
         // upsert / update_only — update the existing record (do not change organizationId)
-        await prisma.constituent.update({ where: { id: existing.id }, data: scalars });
+        // Imported opt-outs may add protection, but a merge must never clear an
+        // existing communication suppression merely because the CSV is blank.
+        const mergeScalars = {
+          ...scalars,
+          doNotEmail: data.doNotEmail ? true : undefined,
+          doNotCall: data.doNotCall ? true : undefined,
+          doNotMail: data.doNotMail ? true : undefined,
+          doNotContact: data.doNotContact ? true : undefined,
+          emailOptOut: data.emailOptOut ? true : undefined,
+        };
+        await prisma.constituent.update({ where: { id: existing.id }, data: mergeScalars });
         await applyImportedTags(existing.id, rec.tags, data.type, rec);
 
         if (rollbackSnapshot) {
@@ -1909,6 +1938,8 @@ router.post("/import", async (req, res) => {
         });
         await applyImportedTags(createdConstituent.id, rec.tags, data.type, rec);
         createdConstituentIds.push(createdConstituent.id);
+        affectedConstituentIds.add(createdConstituent.id);
+        importedConstituentIdByDedupKey.set(inFileDedupKey, createdConstituent.id);
         created++;
       }
     } catch (err) {
@@ -1917,6 +1948,24 @@ router.post("/import", async (req, res) => {
   }
 
   if (!dryRun) {
+    const safeAudienceName = audienceList?.name?.trim().slice(0, 160) ?? "";
+    const audience = safeAudienceName && affectedConstituentIds.size > 0
+      ? await prisma.emailRecipientList.create({
+          data: {
+            organizationId: resolvedOrgId,
+            name: safeAudienceName,
+            description: audienceList?.description?.trim().slice(0, 500) || "Created from a reviewed constituent CSV import.",
+            createdById: req.user?.sub ?? null,
+            recipients: {
+              createMany: {
+                data: Array.from(affectedConstituentIds).map((constituentId) => ({ constituentId })),
+                skipDuplicates: true,
+              },
+            },
+          },
+          include: { _count: { select: { recipients: true } } },
+        })
+      : null;
     const completedAt = new Date();
     const rollbackEligibleUntil = new Date(completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_WINDOW_HOURS * 60 * 60 * 1000);
     const rollbackSupported = !rollbackTrackingTruncated;
@@ -1934,6 +1983,7 @@ router.post("/import", async (req, res) => {
         duplicatesInFile,
         createdIds: createdConstituentIds,
         updatedSnapshots,
+        audienceListIds: audience ? [audience.id] : [],
         rollbackSupported,
         rollbackTrackingTruncated,
         completedAt: completedAt.toISOString(),
@@ -1983,6 +2033,8 @@ router.post("/import", async (req, res) => {
       importRunId,
       rollbackSupported,
       rollbackEligibleUntil: rollbackEligibleUntil.toISOString(),
+      audienceList: audience ? { id: audience.id, name: audience.name, recipientsCount: audience._count.recipients } : null,
+      affectedConstituentIds: Array.from(affectedConstituentIds),
     });
     return;
   }
@@ -2089,6 +2141,7 @@ router.post("/import/:runId/rollback/preview", requirePermission("import:data"),
       canRestoreUpdated: plan.safeRestoreUpdatedSnapshots.length,
       blockedCreated: plan.blockedCreated.length,
       blockedUpdated: plan.blockedUpdated.length,
+      trackedAudienceLists: metadata.audienceListIds?.length ?? 0,
     },
     blockedReasons: plan.blockedReasons,
     blockedCreated: plan.blockedCreated.slice(0, 25),
@@ -2153,7 +2206,20 @@ router.post("/import/:runId/rollback", requirePermission("import:data"), async (
     return;
   }
 
+  let deletedAudienceLists = 0;
   await prisma.$transaction(async (tx) => {
+    if ((metadata.audienceListIds?.length ?? 0) > 0) {
+      const completedAt = new Date(metadata.completedAt);
+      const safeThrough = new Date(completedAt.getTime() + CONSTITUENT_IMPORT_ROLLBACK_CHANGE_TOLERANCE_MS);
+      const deletion = await tx.emailRecipientList.deleteMany({
+        where: {
+          organizationId,
+          id: { in: metadata.audienceListIds },
+          updatedAt: { lte: safeThrough },
+        },
+      });
+      deletedAudienceLists = deletion.count;
+    }
     for (const snapshot of plan.safeRestoreUpdatedSnapshots) {
       await tx.constituent.update({
         where: { id: snapshot.id },
@@ -2185,6 +2251,7 @@ router.post("/import/:runId/rollback", requirePermission("import:data"), async (
     restoredUpdated: plan.safeRestoreUpdatedSnapshots.length,
     blockedCreated: plan.blockedCreated.length,
     blockedUpdated: plan.blockedUpdated.length,
+    deletedAudienceLists,
   };
 
   const updatedRunMetadata: ConstituentImportRunMetadata = {
@@ -2210,6 +2277,7 @@ router.post("/import/:runId/rollback", requirePermission("import:data"), async (
       restoredUpdated: rollbackSummary.restoredUpdated,
       blockedCreated: rollbackSummary.blockedCreated,
       blockedUpdated: rollbackSummary.blockedUpdated,
+      deletedAudienceLists: rollbackSummary.deletedAudienceLists,
     },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],

@@ -2259,6 +2259,11 @@ function firstPageLetterBodyStartY(presets: LetterPdfPresetContext, layout: Lett
 function appendSignatureBlocks(blocks: PdfContentBlock[], signature?: LetterPdfPresetContext["signatureBlock"]): PdfContentBlock[] {
   if (!signature) return blocks;
   const next = [...blocks];
+  // A page break at the very end of the editable body has no body content to
+  // separate. Keeping it here would force the automatically appended signature
+  // onto an otherwise blank second page. Preserve page breaks between real body
+  // blocks, but discard empty trailing pages before adding the signature.
+  while (next[next.length - 1]?.kind === "pageBreak") next.pop();
   if (next.length > 0) {
     // Keep the sign-off with the body. A fill spacer created a large unexplained
     // blank region and made the server PDF diverge from the editable canvas.
@@ -2525,7 +2530,11 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       cursorY += 18;
     } else if (block.kind === "spacer") {
       if (block.fill) {
-        const remainingHeight = renderedBlocks.slice(index + 1).reduce((total, nextBlock) => total + estimatedBlockHeight(nextBlock), 0) + 2;
+        // Reserve a little more than the measured trailing content. Image and
+        // text metrics can differ by fractional points between estimation and
+        // drawing; the extra room prevents a bottom-aligned signature title
+        // from spilling onto a nearly empty continuation page.
+        const remainingHeight = renderedBlocks.slice(index + 1).reduce((total, nextBlock) => total + estimatedBlockHeight(nextBlock), 0) + 12;
         const bottomAlignedY = pageHeight - marginBottom - remainingHeight;
         if (bottomAlignedY > cursorY) cursorY = bottomAlignedY;
       } else {

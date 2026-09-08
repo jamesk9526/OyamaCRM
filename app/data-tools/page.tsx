@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MergeWorkflow from "./merge/MergeWorkflow";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -63,6 +63,7 @@ interface ImportHistoryItem {
   skipped: number;
   errors: number;
   rollbackSupported: boolean;
+  rollbackEligibleUntil: string;
   rolledBackAt: string | null;
   createdAt: string;
   startedBy: {
@@ -70,6 +71,22 @@ interface ImportHistoryItem {
     name: string;
     email: string;
   } | null;
+}
+
+interface ImportRollbackPreview {
+  runId: string;
+  confirmationText: string;
+  canRollback: boolean;
+  alreadyRolledBack: boolean;
+  rollbackEligibleUntil: string;
+  summary: {
+    canDeleteCreated: number;
+    canRestoreUpdated: number;
+    blockedCreated: number;
+    blockedUpdated: number;
+    trackedAudienceLists?: number;
+  };
+  blockedReasons: string[];
 }
 
 interface NameFixIssue {
@@ -93,6 +110,13 @@ export default function DataToolsPage() {
   const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [rollbackRun, setRollbackRun] = useState<ImportHistoryItem | null>(null);
+  const [rollbackPreview, setRollbackPreview] = useState<ImportRollbackPreview | null>(null);
+  const [rollbackConfirmation, setRollbackConfirmation] = useState("");
+  const [rollbackBusy, setRollbackBusy] = useState(false);
+  const [rollbackError, setRollbackError] = useState<string | null>(null);
+  const [rollbackSuccess, setRollbackSuccess] = useState<string | null>(null);
+  const rollbackDialogRef = useRef<HTMLDialogElement>(null);
   const [exporting, setExporting] = useState<"constituents" | "donations" | "campaigns" | "designations" | null>(null);
   const [nameFixOpen, setNameFixOpen] = useState(false);
   const [activeIssueKey, setActiveIssueKey] = useState<string | null>(null);
@@ -110,6 +134,16 @@ export default function DataToolsPage() {
     summary: string;
   } | null>(null);
   const spFileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadImportHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const response = await apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=20");
+      setImportHistory(Array.isArray(response.items) ? response.items : []);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -132,6 +166,62 @@ export default function DataToolsPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    const dialog = rollbackDialogRef.current;
+    if (!rollbackRun || !dialog) return;
+    dialog.showModal();
+    return () => dialog.close();
+  }, [rollbackRun]);
+
+  function closeRollbackDialog() {
+    if (rollbackBusy) return;
+    setRollbackRun(null);
+    setRollbackPreview(null);
+    setRollbackConfirmation("");
+    setRollbackError(null);
+  }
+
+  async function reviewRollback(run: ImportHistoryItem) {
+    setRollbackRun(run);
+    setRollbackPreview(null);
+    setRollbackConfirmation("");
+    setRollbackError(null);
+    setRollbackSuccess(null);
+    setRollbackBusy(true);
+    try {
+      const preview = await apiFetch<ImportRollbackPreview>(`/api/constituents/import/${encodeURIComponent(run.runId)}/rollback/preview`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setRollbackPreview(preview);
+    } catch (error) {
+      setRollbackError(error instanceof Error ? error.message : "Could not review this rollback.");
+    } finally {
+      setRollbackBusy(false);
+    }
+  }
+
+  async function executeRollback() {
+    if (!rollbackRun || !rollbackPreview?.canRollback || rollbackConfirmation !== rollbackPreview.confirmationText) return;
+    setRollbackBusy(true);
+    setRollbackError(null);
+    try {
+      const result = await apiFetch<{ deletedCreated: number; restoredUpdated: number; deletedAudienceLists?: number }>(`/api/constituents/import/${encodeURIComponent(rollbackRun.runId)}/rollback`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: true, confirmationText: rollbackConfirmation }),
+      });
+      setRollbackSuccess(`Rollback completed: ${result.deletedCreated} created contact(s) removed, ${result.restoredUpdated} contact(s) restored, and ${result.deletedAudienceLists ?? 0} unchanged import list(s) removed.`);
+      setRollbackRun(null);
+      setRollbackPreview(null);
+      setRollbackConfirmation("");
+      await loadImportHistory();
+    } catch (error) {
+      setRollbackError(error instanceof Error ? error.message : "Rollback failed.");
+    } finally {
+      setRollbackBusy(false);
+    }
+  }
 
   const quality = useMemo(() => {
     const missingEmail = constituents.filter((c) => !c.email).length;
