@@ -34,7 +34,7 @@ export default function GuidedImportWizard() {
       : kind === "eventGuests"
         ? "You will review guests, RSVP, ticket, and check-in fields."
         : createList
-          ? "A reviewed contact import can also create a reusable email audience."
+          ? "A reviewed contact import can create a reusable CRM audience with or without email addresses."
           : "You will review contact identity, preferences, and duplicate handling.";
 
   return (
@@ -105,7 +105,7 @@ export default function GuidedImportWizard() {
               className="mt-0.5 rounded border-gray-300 text-green-600"
             />
             <span>
-              Create Contacts Manager audience lists from imported email rows and auto-segment Newsletter, Churches, Businesses, and Organizations.
+              Create a Contacts Manager audience from every imported or matched contact. You can keep contacts without email for mail, calls, letters, and future enrichment, or choose email-ready contacts only. Email-ready members are auto-segmented as Newsletter, Churches, Businesses, and Organizations.
             </span>
           </label>
           <div className="mt-3 border-l-4 border-[#0f6cbd] bg-[#eff6fc] p-3 text-xs text-slate-700">

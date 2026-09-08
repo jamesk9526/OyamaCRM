@@ -1589,7 +1589,7 @@ router.post("/import", async (req, res) => {
     duplicateResolution?: "merge" | "skip";
     /** When true, records tagged _isOrg="true" by the wizard are imported as ORGANIZATION constituents */
     allowOrgImport: boolean;
-    audienceList?: { name?: string; description?: string };
+    audienceList?: { name?: string; description?: string; includeContactsWithoutEmail?: boolean };
   };
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -1964,6 +1964,17 @@ router.post("/import", async (req, res) => {
 
   if (!dryRun) {
     const safeAudienceName = audienceList?.name?.trim().slice(0, 160) ?? "";
+    const includeContactsWithoutEmail = audienceList?.includeContactsWithoutEmail !== false;
+    const audienceMembers = safeAudienceName && affectedConstituentIds.size > 0
+      ? await prisma.constituent.findMany({
+          where: { organizationId: resolvedOrgId, id: { in: Array.from(affectedConstituentIds) } },
+          select: { id: true, email: true },
+        })
+      : [];
+    const audienceConstituentIds = audienceMembers
+      .filter((member) => includeContactsWithoutEmail || Boolean(member.email?.trim()))
+      .map((member) => member.id);
+    const audienceEmailReadyRecipients = audienceMembers.filter((member) => Boolean(member.email?.trim())).length;
     const audience = safeAudienceName
       ? await prisma.emailRecipientList.create({
           data: {
@@ -1971,9 +1982,9 @@ router.post("/import", async (req, res) => {
             name: safeAudienceName,
             description: audienceList?.description?.trim().slice(0, 500) || "Created from a reviewed constituent CSV import.",
             createdById: req.user?.sub ?? null,
-            ...(affectedConstituentIds.size > 0 ? { recipients: {
+            ...(audienceConstituentIds.length > 0 ? { recipients: {
               createMany: {
-                data: Array.from(affectedConstituentIds).map((constituentId) => ({ constituentId })),
+                data: audienceConstituentIds.map((constituentId) => ({ constituentId })),
                 skipDuplicates: true,
               },
             } } : {}),
@@ -2048,7 +2059,13 @@ router.post("/import", async (req, res) => {
       importRunId,
       rollbackSupported,
       rollbackEligibleUntil: rollbackEligibleUntil.toISOString(),
-      audienceList: audience ? { id: audience.id, name: audience.name, recipientsCount: audience._count.recipients } : null,
+      audienceList: audience ? {
+        id: audience.id,
+        name: audience.name,
+        recipientsCount: audience._count.recipients,
+        emailReadyRecipients: audienceEmailReadyRecipients,
+        includesContactsWithoutEmail: includeContactsWithoutEmail,
+      } : null,
       affectedConstituentIds: Array.from(affectedConstituentIds),
     });
     return;

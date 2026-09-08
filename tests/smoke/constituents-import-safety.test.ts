@@ -335,4 +335,62 @@ describe("constituent import safety", () => {
 
     expect([200, 409]).toContain(cleanup.status);
   });
+
+  it("creates an import audience with or without contacts that lack email", async () => {
+    const suffix = `${Date.now()}`;
+    const allContactsName = `Import audience all contacts ${suffix}`;
+    const emailReadyName = `Import audience email ready ${suffix}`;
+    const records = [
+      { firstName: "Audience", lastName: `No Email ${suffix}`, externalId: `audience-no-email-${suffix}` },
+      { firstName: "Audience", lastName: `Email Ready ${suffix}`, email: `audience-${suffix}@example.com`, externalId: `audience-email-${suffix}` },
+    ];
+
+    const importAudience = async (name: string, includeContactsWithoutEmail: boolean) => request(app)
+      .post("/api/constituents/import")
+      .set(auth())
+      .send({
+        records,
+        mode: "create_only",
+        dryRun: false,
+        matchExtId: true,
+        matchEmail: true,
+        matchPhone: true,
+        duplicateResolution: "merge",
+        allowOrgImport: true,
+        audienceList: { name, includeContactsWithoutEmail },
+      });
+
+    const allContactsImport = await importAudience(allContactsName, true);
+    expect(allContactsImport.status).toBe(200);
+    expect(allContactsImport.body.audienceList).toMatchObject({
+      name: allContactsName,
+      recipientsCount: 2,
+      emailReadyRecipients: 1,
+      includesContactsWithoutEmail: true,
+    });
+
+    const allContactsList = await request(app)
+      .get(`/api/email-campaigns/lists/${allContactsImport.body.audienceList.id}`)
+      .set(auth());
+    expect(allContactsList.status).toBe(200);
+    expect(allContactsList.body.recipients).toHaveLength(2);
+    expect(allContactsList.body.recipients.some((member: { email?: string | null }) => !member.email)).toBe(true);
+
+    const emailReadyImport = await importAudience(emailReadyName, false);
+    expect(emailReadyImport.status).toBe(200);
+    expect(emailReadyImport.body.audienceList).toMatchObject({
+      name: emailReadyName,
+      recipientsCount: 1,
+      emailReadyRecipients: 1,
+      includesContactsWithoutEmail: false,
+    });
+
+    for (const runId of [allContactsImport.body.importRunId, emailReadyImport.body.importRunId]) {
+      const rollback = await request(app)
+        .post(`/api/constituents/import/${runId}/rollback`)
+        .set(auth())
+        .send({ confirm: true, confirmationText: `ROLLBACK-CONSTITUENT-IMPORT:${runId}` });
+      expect([200, 409]).toContain(rollback.status);
+    }
+  });
 });

@@ -58,7 +58,13 @@ interface ImportResult {
   rollbackEligibleUntil?: string;
   audienceRecipients?: number;
   audienceSegments?: number;
-  audienceList?: { id: string; name: string; recipientsCount: number } | null;
+  audienceList?: {
+    id: string;
+    name: string;
+    recipientsCount: number;
+    emailReadyRecipients: number;
+    includesContactsWithoutEmail: boolean;
+  } | null;
   affectedConstituentIds?: string[];
 }
 
@@ -537,9 +543,10 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
   const [allowOrgImport, setAllowOrgImport] = useState(true);
   /** When true, sample values in each column are scanned for church/ministry name patterns */
   const [churchDetectionMode, setChurchDetectionMode] = useState(true);
-  /** When enabled, imported email rows are saved as a Contacts Manager audience list after import. */
+  /** When enabled, imported and matched contacts are saved as a Contacts Manager audience list after import. */
   const [addToAudienceList, setAddToAudienceList] = useState(defaultAudienceListMode);
   const [audienceListName, setAudienceListName] = useState("");
+  const [includeContactsWithoutEmail, setIncludeContactsWithoutEmail] = useState(true);
 
   // ── Step 5: Import result ────────────────────────────────────────────────
   const [importing, setImporting] = useState(false);
@@ -607,6 +614,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
     if (!validationResult) return 0;
     return new Set(validationResult.valid.map((row) => row.email?.trim().toLowerCase()).filter(Boolean)).size;
   }, [validationResult]);
+  const importContactCount = validationResult?.valid.length ?? 0;
 
   /** Data-quality observations derived from column statistics — shown in Step 1 */
   const dataWarnings = useMemo<string[]>(() => {
@@ -824,7 +832,8 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
             audienceList: !dryRun && addToAudienceList
               ? {
                   name: audienceListName.trim() || `${file?.name?.replace(/\.[^.]+$/, "") || "Imported"} Audience`,
-                  description: "Created from a reviewed donor-side CSV import. Members stay linked to their CRM records.",
+                  description: "Created from a reviewed donor-side CSV import. Members stay linked to their CRM records, including contacts without email when selected.",
+                  includeContactsWithoutEmail,
                 }
               : undefined,
           }),
@@ -1452,7 +1461,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-green-900">Add imported emails to a Contacts Manager list</p>
+              <p className="text-sm font-semibold text-green-900">Create a Contacts Manager audience list</p>
               <p className="mt-0.5 text-xs text-green-700">
                 Save every imported or matched contact as a durable CRM-linked audience member. Contacts without email remain in the list for letters and future enrichment.
               </p>
@@ -1461,13 +1470,15 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
               type="button"
               onClick={() => setAddToAudienceList((value) => !value)}
               aria-pressed={addToAudienceList}
+              aria-label="Create an audience list from this import"
               className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors ${addToAudienceList ? "bg-green-600" : "bg-gray-200"}`}
             >
               <span className={`mt-0.5 inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${addToAudienceList ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
           </div>
           {addToAudienceList && (
-            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px]">
+            <div className="mt-3 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_200px]">
               <input
                 value={audienceListName}
                 onChange={(event) => setAudienceListName(event.target.value)}
@@ -1475,9 +1486,35 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
                 className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm"
               />
               <div className="rounded-lg bg-white px-3 py-2 text-xs text-green-800">
-                <span className="block font-semibold">{importEmailCount.toLocaleString()}</span>
-                emails detected
+                <span className="block font-semibold">{importContactCount.toLocaleString()} contacts</span>
+                {importEmailCount.toLocaleString()} email-ready
               </div>
+              </div>
+              <fieldset className="grid gap-2 sm:grid-cols-2">
+                <legend className="sr-only">Audience membership</legend>
+                <label className={`cursor-pointer rounded-lg border bg-white p-3 ${includeContactsWithoutEmail ? "border-green-500 ring-1 ring-green-200" : "border-green-200"}`}>
+                  <input
+                    type="radio"
+                    name="audience-membership"
+                    checked={includeContactsWithoutEmail}
+                    onChange={() => setIncludeContactsWithoutEmail(true)}
+                    className="sr-only"
+                  />
+                  <span className="block text-sm font-semibold text-green-950">Every imported contact</span>
+                  <span className="mt-1 block text-xs text-green-800">Keep contacts without email for letters, calling, mail, and future enrichment.</span>
+                </label>
+                <label className={`cursor-pointer rounded-lg border bg-white p-3 ${!includeContactsWithoutEmail ? "border-green-500 ring-1 ring-green-200" : "border-green-200"}`}>
+                  <input
+                    type="radio"
+                    name="audience-membership"
+                    checked={!includeContactsWithoutEmail}
+                    onChange={() => setIncludeContactsWithoutEmail(false)}
+                    className="sr-only"
+                  />
+                  <span className="block text-sm font-semibold text-green-950">Email-ready contacts only</span>
+                  <span className="mt-1 block text-xs text-green-800">Create a delivery-focused list from contacts that currently have an email address.</span>
+                </label>
+              </fieldset>
             </div>
           )}
         </div>
@@ -1582,7 +1619,8 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
           {typeof importResult.audienceRecipients === "number" && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-              Contacts Manager audience list <span className="font-semibold">{importResult.audienceList?.name}</span> saved with {importResult.audienceRecipients.toLocaleString()} CRM-linked member{importResult.audienceRecipients === 1 ? "" : "s"}.
+              Contacts Manager audience list <span className="font-semibold">{importResult.audienceList?.name}</span> saved with {importResult.audienceRecipients.toLocaleString()} CRM-linked member{importResult.audienceRecipients === 1 ? "" : "s"}
+              {importResult.audienceList?.includesContactsWithoutEmail ? ", including contacts without email" : ""}. {importResult.audienceList?.emailReadyRecipients.toLocaleString() ?? 0} currently email-ready.
               {importResult.audienceList?.id ? <Link href={`/contacts-manager/lists?listId=${encodeURIComponent(importResult.audienceList.id)}`} className="ml-1 font-semibold underline">Open list</Link> : null}
               {typeof importResult.audienceSegments === "number" && importResult.audienceSegments > 0 ? ` ${importResult.audienceSegments} auto-segment list${importResult.audienceSegments === 1 ? "" : "s"} also created.` : ""}
             </div>
@@ -1734,7 +1772,7 @@ export default function ImportWizard({ existingConstituents, defaultAudienceList
 
         {addToAudienceList && !dryRun && (
           <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-xs text-green-700">
-            This import will also create a Contacts Manager audience list from {importEmailCount.toLocaleString()} unique email recipient{importEmailCount === 1 ? "" : "s"} and auto-segment Newsletter, Churches, Businesses, and Organizations when those tags or names are detected.
+            This import will create a Contacts Manager audience list from {includeContactsWithoutEmail ? `${importContactCount.toLocaleString()} imported or matched contact${importContactCount === 1 ? "" : "s"}, including people without email` : `${importEmailCount.toLocaleString()} email-ready contact${importEmailCount === 1 ? "" : "s"}`}. Email-ready contacts are also auto-segmented as Newsletter, Churches, Businesses, and Organizations when those tags or names are detected.
           </div>
         )}
 
