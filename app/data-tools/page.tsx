@@ -112,6 +112,8 @@ export default function DataToolsPage() {
   const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [rollbackRun, setRollbackRun] = useState<ImportHistoryItem | null>(null);
   const [rollbackPreview, setRollbackPreview] = useState<ImportRollbackPreview | null>(null);
   const [rollbackConfirmation, setRollbackConfirmation] = useState("");
@@ -139,9 +141,13 @@ export default function DataToolsPage() {
 
   const loadImportHistory = useCallback(async () => {
     setHistoryLoading(true);
+    setHistoryError(null);
     try {
       const response = await apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=20");
       setImportHistory(Array.isArray(response.items) ? response.items : []);
+    } catch (error) {
+      setImportHistory([]);
+      setHistoryError(error instanceof Error ? error.message : "Recent import history could not be loaded.");
     } finally {
       setHistoryLoading(false);
     }
@@ -151,20 +157,40 @@ export default function DataToolsPage() {
     async function load() {
       setLoading(true);
       setHistoryLoading(true);
-      try {
-        const [constData, donationData, importHistoryData] = await Promise.all([
-          apiFetch<Constituent[]>("/api/constituents?limit=all"),
-          apiFetch<{ items?: Donation[] } | Donation[]>("/api/donations?limit=500"),
-          apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=5"),
-        ]);
+      setDataLoadError(null);
+      setHistoryError(null);
+      const [constituentsResult, donationsResult, historyResult] = await Promise.allSettled([
+        apiFetch<Constituent[]>("/api/constituents?limit=all"),
+        apiFetch<{ items?: Donation[] } | Donation[]>("/api/donations?limit=500"),
+        apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=5"),
+      ]);
+
+      if (constituentsResult.status === "fulfilled") {
+        const constData = constituentsResult.value;
         setConstituents(Array.isArray(constData) ? constData : []);
+      } else {
+        setConstituents([]);
+        setDataLoadError(constituentsResult.reason instanceof Error ? constituentsResult.reason.message : "CRM contacts could not be loaded.");
+      }
+
+      if (donationsResult.status === "fulfilled") {
+        const donationData = donationsResult.value;
         const d = donationData as { items?: Donation[] };
         setDonations(Array.isArray(donationData) ? donationData : (d.items ?? []));
-        setImportHistory(Array.isArray(importHistoryData.items) ? importHistoryData.items : []);
-      } finally {
-        setLoading(false);
-        setHistoryLoading(false);
+      } else {
+        setDonations([]);
+        setDataLoadError((current) => current ?? (donationsResult.reason instanceof Error ? donationsResult.reason.message : "Donation data could not be loaded."));
       }
+
+      if (historyResult.status === "fulfilled") {
+        const importHistoryData = historyResult.value;
+        setImportHistory(Array.isArray(importHistoryData.items) ? importHistoryData.items : []);
+      } else {
+        setImportHistory([]);
+        setHistoryError(historyResult.reason instanceof Error ? historyResult.reason.message : "Recent import history could not be loaded.");
+      }
+      setLoading(false);
+      setHistoryLoading(false);
     }
     load();
   }, []);
@@ -540,6 +566,12 @@ export default function DataToolsPage() {
         }}
       />
 
+      {dataLoadError && (
+        <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Some Data Tools records could not be loaded: {dataLoadError}
+        </p>
+      )}
+
       <GuidedImportWizard />
 
       <AudienceCsvListTool constituents={constituents} />
@@ -568,6 +600,8 @@ export default function DataToolsPage() {
         {rollbackSuccess && <p role="status" className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{rollbackSuccess}</p>}
         {historyLoading ? (
           <p className="text-sm text-gray-500">Loading recent imports...</p>
+        ) : historyError ? (
+          <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Recent import history is unavailable: {historyError}</p>
         ) : importHistory.length === 0 ? (
           <p className="text-sm text-gray-500">No recent donor import runs found.</p>
         ) : (
