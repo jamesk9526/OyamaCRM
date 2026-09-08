@@ -370,6 +370,7 @@ interface ConstituentImportRunMetadata {
   duplicatesInFile: number;
   createdIds: string[];
   updatedSnapshots: ConstituentImportUpdatedSnapshot[];
+  affectedConstituentIds?: string[];
   audienceListIds?: string[];
   rollbackSupported: boolean;
   rollbackTrackingTruncated: boolean;
@@ -507,6 +508,9 @@ function readConstituentImportRunMetadata(raw: Prisma.JsonValue | null): Constit
     duplicatesInFile: Number(candidate.duplicatesInFile ?? 0),
     createdIds: candidate.createdIds.filter((id): id is string => typeof id === "string"),
     updatedSnapshots: candidate.updatedSnapshots as ConstituentImportUpdatedSnapshot[],
+    affectedConstituentIds: Array.isArray(candidate.affectedConstituentIds)
+      ? candidate.affectedConstituentIds.filter((id): id is string => typeof id === "string")
+      : undefined,
     audienceListIds: Array.isArray(candidate.audienceListIds)
       ? candidate.audienceListIds.filter((id): id is string => typeof id === "string")
       : [],
@@ -518,6 +522,15 @@ function readConstituentImportRunMetadata(raw: Prisma.JsonValue | null): Constit
     rolledBackBy: typeof candidate.rolledBackBy === "string" ? candidate.rolledBackBy : undefined,
     rollbackSummary: candidate.rollbackSummary,
   };
+}
+
+/** Recover the audience represented by an import, including compatible older audit records. */
+function getImportAudienceConstituentIds(metadata: ConstituentImportRunMetadata): string[] {
+  return Array.from(new Set([
+    ...(metadata.affectedConstituentIds ?? []),
+    ...metadata.createdIds,
+    ...metadata.updatedSnapshots.map((snapshot) => snapshot.id),
+  ]));
 }
 
 function countConstituentDeleteGuards(row: ConstituentImportDeleteGuardRecord): number {
@@ -1976,20 +1989,29 @@ router.post("/import", async (req, res) => {
       .map((member) => member.id);
     const audienceEmailReadyRecipients = audienceMembers.filter((member) => Boolean(member.email?.trim())).length;
     const audience = safeAudienceName
-      ? await prisma.emailRecipientList.create({
-          data: {
-            organizationId: resolvedOrgId,
-            name: safeAudienceName,
-            description: audienceList?.description?.trim().slice(0, 500) || "Created from a reviewed constituent CSV import.",
-            createdById: req.user?.sub ?? null,
-            ...(audienceConstituentIds.length > 0 ? { recipients: {
-              createMany: {
-                data: audienceConstituentIds.map((constituentId) => ({ constituentId })),
-                skipDuplicates: true,
-              },
-            } } : {}),
-          },
-          include: { _count: { select: { recipients: true } } },
+      ? await prisma.$transaction(async (tx) => {
+          const createdList = await tx.emailRecipientList.create({
+            data: {
+              organizationId: resolvedOrgId,
+              name: safeAudienceName,
+              description: audienceList?.description?.trim().slice(0, 500) || "Created from a reviewed constituent CSV import.",
+              createdById: req.user?.sub ?? null,
+            },
+          });
+          if (audienceConstituentIds.length > 0) {
+            await tx.emailRecipientListMember.createMany({
+              data: audienceConstituentIds.map((constituentId) => ({ listId: createdList.id, constituentId })),
+              skipDuplicates: true,
+            });
+          }
+          const createdWithCount = await tx.emailRecipientList.findUniqueOrThrow({
+            where: { id: createdList.id },
+            include: { _count: { select: { recipients: true } } },
+          });
+          if (createdWithCount._count.recipients !== audienceConstituentIds.length) {
+            throw new Error(`Audience list membership was incomplete: expected ${audienceConstituentIds.length}, saved ${createdWithCount._count.recipients}.`);
+          }
+          return createdWithCount;
         })
       : null;
     const completedAt = new Date();
@@ -2009,6 +2031,7 @@ router.post("/import", async (req, res) => {
         duplicatesInFile,
         createdIds: createdConstituentIds,
         updatedSnapshots,
+        affectedConstituentIds: Array.from(affectedConstituentIds),
         audienceListIds: audience ? [audience.id] : [],
         rollbackSupported,
         rollbackTrackingTruncated,
@@ -2112,6 +2135,8 @@ router.get("/import/history", requirePermission("import:data"), async (req, res)
       rollbackTrackingTruncated: metadata.rollbackTrackingTruncated,
       rollbackEligibleUntil: metadata.rollbackEligibleUntil,
       rolledBackAt: metadata.rolledBackAt ?? null,
+      audienceContactCount: getImportAudienceConstituentIds(metadata).length,
+      canAddToAudience: !metadata.rolledBackAt && getImportAudienceConstituentIds(metadata).length > 0,
       createdAt: row.createdAt.toISOString(),
       startedBy: row.user ? {
         id: row.user.id,
@@ -2122,6 +2147,109 @@ router.get("/import/history", requirePermission("import:data"), async (req, res)
   });
 
   res.json({ items });
+});
+
+/** POST /api/constituents/import/:runId/audience-list — add one prior import to a saved audience. */
+router.post("/import/:runId/audience-list", requirePermission("import:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+
+  const runId = String(req.params.runId ?? "").trim();
+  const listId = String(req.body?.listId ?? "").trim();
+  if (!runId || !listId) {
+    res.status(400).json({ error: { code: "IMPORT_AND_LIST_REQUIRED", message: "Select an import and an audience list." } });
+    return;
+  }
+
+  const [runLog, list] = await Promise.all([
+    prisma.auditLog.findFirst({
+      where: { organizationId, action: "CONSTITUENT_IMPORT_RUN", entity: "ConstituentImportRun", entityId: runId },
+    }),
+    prisma.emailRecipientList.findFirst({ where: { id: listId, organizationId }, select: { id: true, name: true } }),
+  ]);
+  if (!runLog) {
+    res.status(404).json({ error: { code: "IMPORT_RUN_NOT_FOUND", message: "Import run not found." } });
+    return;
+  }
+  if (!list) {
+    res.status(404).json({ error: { code: "AUDIENCE_LIST_NOT_FOUND", message: "Audience list not found." } });
+    return;
+  }
+
+  const metadata = readConstituentImportRunMetadata(runLog.metadata);
+  if (!metadata) {
+    res.status(422).json({ error: { code: "IMPORT_RUN_METADATA_INVALID", message: "Import run metadata is invalid." } });
+    return;
+  }
+  if (metadata.rolledBackAt) {
+    res.status(409).json({ error: { code: "IMPORT_ALREADY_ROLLED_BACK", message: "This import was rolled back and cannot be added to an audience." } });
+    return;
+  }
+
+  const importedIds = getImportAudienceConstituentIds(metadata);
+  if (importedIds.length === 0) {
+    res.status(422).json({
+      error: {
+        code: "IMPORT_AUDIENCE_UNAVAILABLE",
+        message: "This older import did not retain contact identifiers, so its audience cannot be reconstructed.",
+      },
+    });
+    return;
+  }
+
+  const contacts = await prisma.constituent.findMany({
+    where: { organizationId, id: { in: importedIds }, closedAt: null },
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
+  const emailReadyContacts = contacts.filter((contact) => Boolean(contact.email?.trim())).length;
+  const result = await prisma.$transaction(async (tx) => {
+    const inserted = contacts.length > 0
+      ? await tx.emailRecipientListMember.createMany({
+          data: contacts.map((contact) => ({
+            listId,
+            constituentId: contact.id,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+          })),
+          skipDuplicates: true,
+        })
+      : { count: 0 };
+    await tx.emailRecipientList.update({ where: { id: listId }, data: { updatedAt: new Date() } });
+    const totalRecipients = await tx.emailRecipientListMember.count({ where: { listId } });
+    return { addedCount: inserted.count, totalRecipients };
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      organizationId,
+      userId: req.user?.sub ?? null,
+      action: "CONSTITUENT_IMPORT_ADDED_TO_AUDIENCE_LIST",
+      entity: "EmailRecipientList",
+      entityId: listId,
+      metadata: {
+        importRunId: runId,
+        eligibleContacts: contacts.length,
+        emailReadyContacts,
+        addedCount: result.addedCount,
+        totalRecipients: result.totalRecipients,
+      },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"] ?? null,
+    },
+  });
+
+  res.json({
+    runId,
+    listId,
+    listName: list.name,
+    eligibleContacts: contacts.length,
+    emailReadyContacts,
+    addedCount: result.addedCount,
+    totalRecipients: result.totalRecipients,
+  });
 });
 
 /** POST /api/constituents/import/:runId/rollback/preview — evaluate which rows can be rolled back safely. */

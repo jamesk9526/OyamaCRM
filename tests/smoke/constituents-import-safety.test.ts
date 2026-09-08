@@ -376,6 +376,48 @@ describe("constituent import safety", () => {
     expect(allContactsList.body.recipients).toHaveLength(2);
     expect(allContactsList.body.recipients.some((member: { email?: string | null }) => !member.email)).toBe(true);
 
+    const repairList = await request(app)
+      .post("/api/email-campaigns/lists")
+      .set(auth())
+      .send({ name: `Recovered import audience ${suffix}`, recipientConstituentIds: [] });
+    expect(repairList.status).toBe(201);
+
+    const addPreviousImport = await request(app)
+      .post(`/api/constituents/import/${allContactsImport.body.importRunId}/audience-list`)
+      .set(auth())
+      .send({ listId: repairList.body.id });
+    expect(addPreviousImport.status).toBe(200);
+    expect(addPreviousImport.body).toMatchObject({
+      eligibleContacts: 2,
+      emailReadyContacts: 1,
+      addedCount: 2,
+      totalRecipients: 2,
+    });
+
+    const addPreviousImportAgain = await request(app)
+      .post(`/api/constituents/import/${allContactsImport.body.importRunId}/audience-list`)
+      .set(auth())
+      .send({ listId: repairList.body.id });
+    expect(addPreviousImportAgain.status).toBe(200);
+    expect(addPreviousImportAgain.body).toMatchObject({ addedCount: 0, totalRecipients: 2 });
+
+    const history = await request(app)
+      .get("/api/constituents/import/history?limit=10")
+      .set(auth());
+    expect(history.status).toBe(200);
+    expect(history.body.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        runId: allContactsImport.body.importRunId,
+        audienceContactCount: 2,
+        canAddToAudience: true,
+      }),
+    ]));
+
+    const deleteRepairList = await request(app)
+      .delete(`/api/email-campaigns/lists/${repairList.body.id}`)
+      .set(auth());
+    expect([200, 204]).toContain(deleteRepairList.status);
+
     const emailReadyImport = await importAudience(emailReadyName, false);
     expect(emailReadyImport.status).toBe(200);
     expect(emailReadyImport.body.audienceList).toMatchObject({

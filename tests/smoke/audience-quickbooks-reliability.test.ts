@@ -14,6 +14,17 @@ describe("audience and QuickBooks reliability", () => {
     expect(lists).toContain("formatMemberAddress(row.contact)");
   });
 
+  it("can restore a prior constituent import into any saved audience", () => {
+    const lists = read("app/components/contacts-manager/AudienceListManager.tsx");
+    const constituentsRoute = read("server/src/routes/constituents.ts");
+    expect(lists).toContain("Add Previous Import");
+    expect(lists).toContain("Email is not required");
+    expect(lists).toContain("/audience-list");
+    expect(constituentsRoute).toContain('router.post("/import/:runId/audience-list"');
+    expect(constituentsRoute).toContain("affectedConstituentIds: Array.from(affectedConstituentIds)");
+    expect(constituentsRoute).toContain("skipDuplicates: true");
+  });
+
   it("refreshes a saved list and prevents unrelated recipient-source unions", () => {
     const workspace = read("app/components/letters/OyamaLettersWorkspace.tsx");
     expect(workspace).toContain("const missingListIds = selectedListIds;");

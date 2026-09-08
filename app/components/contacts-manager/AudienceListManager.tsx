@@ -27,6 +27,26 @@ interface SavedAudienceList {
   updatedAt: string;
 }
 
+interface ConstituentImportHistoryItem {
+  runId: string;
+  recordCount: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  createdAt: string;
+  rolledBackAt?: string | null;
+  audienceContactCount: number;
+  canAddToAudience: boolean;
+}
+
+interface ImportAudienceResult {
+  listName: string;
+  eligibleContacts: number;
+  emailReadyContacts: number;
+  addedCount: number;
+  totalRecipients: number;
+}
+
 export interface SavedAudienceMember {
   id: string;
   constituentId?: string | null;
@@ -64,6 +84,10 @@ export default function AudienceListManager({
   const [churchTagFilter, setChurchTagFilter] = useState<"ANY" | "INCLUDE" | "EXCLUDE">("ANY");
   const [checkedMemberIds, setCheckedMemberIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [importHistory, setImportHistory] = useState<ConstituentImportHistoryItem[]>([]);
+  const [selectedImportRunId, setSelectedImportRunId] = useState("");
+  const [importHistoryLoading, setImportHistoryLoading] = useState(true);
+  const [importHistoryError, setImportHistoryError] = useState("");
 
   const activeList = lists.find((list) => list.id === activeListId) ?? lists[0] ?? null;
   const activeMembers = activeList ? listRecipientsById[activeList.id] ?? [] : [];
@@ -105,6 +129,27 @@ export default function AudienceListManager({
     setMemberSearch("");
     setChurchTagFilter("ANY");
   }, [activeList?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setImportHistoryLoading(true);
+    apiFetch<{ items: ConstituentImportHistoryItem[] }>("/api/constituents/import/history?limit=50")
+      .then((response) => {
+        if (cancelled) return;
+        const availableRuns = (response?.items ?? []).filter((item) => item.canAddToAudience);
+        setImportHistory(availableRuns);
+        setSelectedImportRunId((current) => current || availableRuns[0]?.runId || "");
+        setImportHistoryError("");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setImportHistoryError(error instanceof Error ? error.message : "Import history is unavailable.");
+      })
+      .finally(() => {
+        if (!cancelled) setImportHistoryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   async function runAction(action: () => Promise<string>) {
     setSaving(true);
@@ -177,6 +222,21 @@ export default function AudienceListManager({
       });
       setCheckedMemberIds(new Set());
       return `Removed all members from ${activeList.name}.`;
+    });
+  }
+
+  async function addPreviousImportToList() {
+    if (!activeList || !selectedImportRunId) return;
+    await runAction(async () => {
+      const result = await apiFetch<ImportAudienceResult>(`/api/constituents/import/${encodeURIComponent(selectedImportRunId)}/audience-list`, {
+        method: "POST",
+        body: JSON.stringify({ listId: activeList.id }),
+      });
+      if (result.addedCount === 0) {
+        return `All ${result.eligibleContacts} contacts from that import were already in ${result.listName}. The list still has ${result.totalRecipients} members.`;
+      }
+      const withoutEmail = result.eligibleContacts - result.emailReadyContacts;
+      return `Added ${result.addedCount} contacts from the import to ${result.listName}. The list now has ${result.totalRecipients} members${withoutEmail > 0 ? `, including ${withoutEmail} without email` : ""}.`;
     });
   }
 
@@ -311,6 +371,35 @@ export default function AudienceListManager({
             })} className="mt-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Create Merged List</button>
           </ToolPanel>
 
+          <ToolPanel title="Add Previous Import">
+            <p className="text-xs text-gray-500">Choose a completed constituent import and add every matching CRM contact to the selected list. Email is not required.</p>
+            <label className="mt-3 block text-xs font-semibold text-gray-700">
+              Previous import
+              <select
+                value={selectedImportRunId}
+                onChange={(event) => setSelectedImportRunId(event.target.value)}
+                disabled={importHistoryLoading || importHistory.length === 0}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-normal disabled:bg-gray-100 disabled:text-gray-500"
+              >
+                {importHistory.length === 0 ? <option value="">{importHistoryLoading ? "Loading imports…" : "No recoverable imports found"}</option> : null}
+                {importHistory.map((item) => (
+                  <option key={item.runId} value={item.runId}>
+                    {formatImportDate(item.createdAt)} · {item.audienceContactCount} contacts · {item.created} created, {item.updated} updated, {item.skipped} matched
+                  </option>
+                ))}
+              </select>
+            </label>
+            {importHistoryError ? <p role="alert" className="mt-2 text-xs text-red-700">{importHistoryError}</p> : null}
+            <button
+              type="button"
+              disabled={!activeList || !selectedImportRunId || saving || importHistoryLoading}
+              onClick={() => void addPreviousImportToList()}
+              className="mt-3 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              Add Import to Selected List
+            </button>
+          </ToolPanel>
+
           <ToolPanel title="Delete List">
             <p className="text-xs text-gray-500">Deletes the selected saved list. Constituents are not deleted.</p>
             <button type="button" disabled={!activeList || saving} onClick={() => activeList && window.confirm(`Delete "${activeList.name}"?`) && void runAction(async () => {
@@ -329,6 +418,12 @@ function formatMemberAddress(row: ConstituentRow): string {
   const street = [row.addressLine1, row.addressLine2].filter(Boolean).join(", ");
   const locality = [row.city, [row.state, row.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   return [street, locality].filter(Boolean).join(" · ");
+}
+
+function formatImportDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Previous import";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(parsed);
 }
 
 function ToolPanel({ title, children }: { title: string; children: React.ReactNode }) {
