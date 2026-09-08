@@ -221,6 +221,12 @@ interface MergeLinePreviewResponse {
   items: MergeLinePreviewItem[];
 }
 
+interface MergeFieldCatalogResponse {
+  sections: MergeFieldSection[];
+  /** Complete renderer-supported registry, including hidden sensitive and legacy aliases. */
+  validationFields?: string[];
+}
+
 interface BatchResult {
   dryRun?: boolean;
   batchId?: string;
@@ -1265,6 +1271,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const selectedEditorImageRef = useRef<HTMLImageElement | null>(null);
   const [draft, setDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
   const [mergeSections, setMergeSections] = useState<MergeFieldSection[]>([]);
+  const [validationMergeFields, setValidationMergeFields] = useState<string[]>([]);
   const [signatures, setSignatures] = useState<SignatureBlock[]>([]);
   const [globalHeaderPresets, setGlobalHeaderPresets] = useState<HeaderPreset[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
@@ -1360,13 +1367,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setLoading(Boolean(templateId));
     try {
       const [fields, signatureRows, headerRows, brandingRow, constituentRows] = await Promise.all([
-        apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
+        apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
         apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
+      setValidationMergeFields(fields.validationFields ?? fields.sections?.flatMap((section) => section.fields) ?? []);
       setSignatures(signatureRows);
       setGlobalHeaderPresets(headerRows);
       setBranding(normalizeBrandingSettings(brandingRow));
@@ -2478,7 +2486,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       }))
       .filter((section) => section.fields.length > 0);
   }, [mergeFieldSearch, mergeSections]);
-  const mergeRegistry = useMemo(() => new Set(allFields.map(normalizeToken)), [allFields]);
+  const mergeRegistry = useMemo(
+    () => new Set([...allFields, ...validationMergeFields].map(normalizeToken)),
+    [allFields, validationMergeFields],
+  );
   const detectedTokens = useMemo(
     () => extractTokens(`${draft.printSubject ?? ""} ${draft.printBody ?? ""} ${draft.emailSubject ?? ""} ${draft.emailBody ?? ""}`),
     [draft.emailBody, draft.emailSubject, draft.printBody, draft.printSubject],
@@ -2486,6 +2497,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const unknownTokens = useMemo(
     () => detectedTokens.filter((token) => !mergeRegistry.has(normalizeToken(token))),
     [detectedTokens, mergeRegistry],
+  );
+  const unknownTokenSuggestions = useMemo(
+    () => unknownTokens.map((token) => ({ token, suggestion: suggestMergeFieldToken(token, mergeRegistry) })),
+    [mergeRegistry, unknownTokens],
   );
   const localChecklist = useMemo(() => [
     { key: "name", label: "Template name", ok: Boolean(draft.name.trim()), missingHint: "Add a template name." },
@@ -2498,6 +2513,26 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     },
   ], [draft.name, draft.printBody, unknownTokens]);
   const localChecklistReady = localChecklist.every((item) => item.ok);
+  function replaceMergeFieldToken(token: string, replacement: string) {
+    const replaceToken = (value: string) => value.split(token).join(replacement);
+    const current = currentDraftSnapshot();
+    const nextBody = replaceToken(current.printBody);
+    if (nextBody === current.printBody && replaceToken(current.printSubject) === current.printSubject && replaceToken(current.emailSubject) === current.emailSubject && replaceToken(current.emailBody) === current.emailBody) return;
+    setHistory((entries) => [...entries.slice(-24), current.printBody]);
+    setFuture([]);
+    if (editorRef.current) editorRef.current.innerHTML = nextBody;
+    setDraft((existing) => ({
+      ...existing,
+      printBody: nextBody,
+      printSubject: replaceToken(existing.printSubject),
+      emailSubject: replaceToken(existing.emailSubject),
+      emailBody: replaceToken(existing.emailBody),
+    }));
+    setMergeLinePreviewToken(replacement);
+    setMergeLinePreview(null);
+    setMergeLinePreviewError(null);
+    setNotice(`Replaced ${token} with ${replacement}.`);
+  }
   async function loadMergeLinePreview(token: string) {
     const normalized = normalizeToken(token);
     if (!mergeRegistry.has(normalized)) {
@@ -3068,6 +3103,22 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     ) : (
                       <p className="mt-2 text-xs text-slate-500">No merge fields detected yet.</p>
                     )}
+                    {unknownTokenSuggestions.length > 0 ? (
+                      <div className="mt-3 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
+                        <p className="text-xs font-semibold text-amber-950">Fix merge fields before generating</p>
+                        {unknownTokenSuggestions.map(({ token, suggestion }) => (
+                          <div key={token} className="rounded border border-amber-200 bg-white px-2.5 py-2 text-xs text-slate-700">
+                            <p><span className="font-mono font-semibold text-amber-900">{token}</span> is not recognized by the letter renderer.</p>
+                            {suggestion ? (
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                <span>Did you mean <span className="font-mono font-semibold text-emerald-800">{suggestion}</span>?</span>
+                                <button type="button" onClick={() => replaceMergeFieldToken(token, suggestion)} className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100">Replace</button>
+                              </div>
+                            ) : <p className="mt-1 text-amber-800">Use the field picker above to insert a supported token. Keep both opening and closing braces.</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {mergeLinePreviewToken ? (
                       <div className="mt-3 rounded-md border border-slate-200 bg-white p-2">
                         <p className="text-[11px] font-semibold text-slate-700">Line preview for <span className="font-mono">{mergeLinePreviewToken}</span></p>
@@ -3334,6 +3385,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
   const router = useRouter();
   const [template, setTemplate] = useState<LetterTemplateDetail | null>(null);
   const [sections, setSections] = useState<MergeFieldSection[]>([]);
+  const [validationMergeFields, setValidationMergeFields] = useState<string[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING_SETTINGS);
   const [validation, setValidation] = useState<PublishValidationResult | null>(null);
   const [publishHistory, setPublishHistory] = useState<PublishHistoryItem[]>([]);
@@ -3359,7 +3411,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
     try {
       const [templateResult, fieldsResult, brandingResult, validationResult, historyResult] = await Promise.all([
         apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
-        apiFetch<{ sections: MergeFieldSection[] }>("/api/letters/merge-fields"),
+        apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
         apiFetch<BrandingSettings>("/api/settings/branding"),
         apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
           method: "POST",
@@ -3369,6 +3421,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       ]);
       setTemplate(templateResult);
       setSections(fieldsResult.sections ?? []);
+      setValidationMergeFields(fieldsResult.validationFields ?? fieldsResult.sections?.flatMap((section) => section.fields) ?? []);
       setBranding(normalizeBrandingSettings(brandingResult));
       setValidation(validationResult);
       setPublishHistory(historyResult.items ?? []);
@@ -3392,7 +3445,10 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
     };
   }, [savedPreviewPdfUrl]);
 
-  const registry = useMemo(() => new Set(sections.flatMap((section) => section.fields).map(normalizeToken)), [sections]);
+  const registry = useMemo(
+    () => new Set([...sections.flatMap((section) => section.fields), ...validationMergeFields].map(normalizeToken)),
+    [sections, validationMergeFields],
+  );
   const tokens = useMemo(() => extractTokens(`${template?.printSubject ?? ""} ${template?.printBody ?? ""} ${template?.emailSubject ?? ""} ${template?.emailBody ?? ""}`), [template]);
   const unknownTokens = tokens.filter((token) => !registry.has(normalizeToken(token)));
   const validationBlockers = validation?.blockers ?? [];
@@ -7829,6 +7885,63 @@ function normalizeToken(token: string): string {
   }
   if (trimmed.startsWith("//")) return trimmed.replace(/\s+/g, "");
   return trimmed.replace(/\s+/g, "");
+}
+
+/** Suggest the closest renderer-supported token without guessing when the match is weak. */
+function suggestMergeFieldToken(token: string, registry: Set<string>): string | null {
+  const normalized = normalizeToken(token);
+  const key = mergeTokenComparableKey(normalized);
+  if (!key) return null;
+  const source = key.split(".")[0] ?? "";
+  const candidates = Array.from(registry)
+    .filter((candidate) => candidate.startsWith("{{"))
+    .filter((candidate) => {
+      const candidateKey = mergeTokenComparableKey(candidate);
+      return !source || candidateKey.split(".")[0] === source;
+    });
+  const pool = candidates.length > 0 ? candidates : Array.from(registry).filter((candidate) => candidate.startsWith("{{"));
+  let closest: { token: string; distance: number } | null = null;
+  for (const candidate of pool) {
+    const distance = editDistance(key.toLowerCase(), mergeTokenComparableKey(candidate).toLowerCase());
+    if (!closest || distance < closest.distance || (distance === closest.distance && candidate.length < closest.token.length)) {
+      closest = { token: candidate, distance };
+    }
+  }
+  if (!closest) return null;
+  const allowedDistance = key.length <= 8 ? 2 : Math.max(2, Math.floor(key.length * 0.28));
+  return closest.distance <= allowedDistance ? closest.token : null;
+}
+
+function mergeTokenComparableKey(token: string): string {
+  return normalizeToken(token)
+    .replace(/^{{|}}$/g, "")
+    .replace(/^\{|\}$/g, "")
+    .replace(/^\/\//, "")
+    .split("|")[0]
+    ?.trim()
+    .replace(/\s+/g, "") ?? "";
+}
+
+function editDistance(left: string, right: string): number {
+  if (left === right) return 0;
+  if (!left) return right.length;
+  if (!right) return left.length;
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = previous[0] ?? 0;
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const above = previous[rightIndex] ?? 0;
+      const cost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      previous[rightIndex] = Math.min(
+        (previous[rightIndex - 1] ?? 0) + 1,
+        above + 1,
+        diagonal + cost,
+      );
+      diagonal = above;
+    }
+  }
+  return previous[right.length] ?? 0;
 }
 
 function decorateMergeTokens(html: string, registry: Set<string>): string {

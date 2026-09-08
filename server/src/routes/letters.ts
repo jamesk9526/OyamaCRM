@@ -3077,6 +3077,14 @@ router.get("/merge-fields", requirePermission("letters.view"), async (req, res) 
 
   res.json({
     sections: sections.filter((section) => (section.sensitive ? canViewSensitive : true)),
+    // Field names themselves are safe to validate. Returning the full registry keeps
+    // editor validation aligned with the renderer even when a role cannot browse a
+    // sensitive field category or a legacy token is only listed for compatibility.
+    validationFields: Array.from(new Set([
+      ...SIMPLE_LETTER_MERGE_FIELDS,
+      ...COMPATIBILITY_LETTER_MERGE_FIELDS,
+      ...SUPPORTED_LETTER_MERGE_FIELDS,
+    ])),
     canViewSensitive,
   });
 });
