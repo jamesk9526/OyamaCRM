@@ -8,9 +8,11 @@ import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
 import GuidedImportWizard from "@/app/components/data-tools/GuidedImportWizard";
+import AudienceCsvListTool from "./AudienceCsvListTool";
 
 interface Constituent {
   id: string;
+  createdAt: string;
   firstName: string;
   lastName: string;
   email?: string;
@@ -151,7 +153,7 @@ export default function DataToolsPage() {
       setHistoryLoading(true);
       try {
         const [constData, donationData, importHistoryData] = await Promise.all([
-          apiFetch<Constituent[]>("/api/constituents?limit=500"),
+          apiFetch<Constituent[]>("/api/constituents?limit=all"),
           apiFetch<{ items?: Donation[] } | Donation[]>("/api/donations?limit=500"),
           apiFetch<{ items?: ImportHistoryItem[] }>("/api/constituents/import/history?limit=5"),
         ]);
@@ -540,6 +542,8 @@ export default function DataToolsPage() {
 
       <GuidedImportWizard />
 
+      <AudienceCsvListTool constituents={constituents} />
+
       <div id="data-tools-import" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
         Use Guided Import for contacts, audience lists, donations, and event guest files. Review each file before importing it into Donor CRM.
       </div>
@@ -561,6 +565,7 @@ export default function DataToolsPage() {
             Open full import workspace
           </Link>
         </div>
+        {rollbackSuccess && <p role="status" className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{rollbackSuccess}</p>}
         {historyLoading ? (
           <p className="text-sm text-gray-500">Loading recent imports...</p>
         ) : importHistory.length === 0 ? (
@@ -586,9 +591,16 @@ export default function DataToolsPage() {
                       {item.recordCount} rows · {item.created} created · {item.updated} updated · {item.skipped} skipped · {item.errors} errors
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${item.rolledBackAt ? "bg-slate-100 text-slate-700" : item.rollbackSupported ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                        {item.rolledBackAt ? "Rolled back" : item.rollbackSupported ? "Rollback available" : "Rollback unavailable"}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${item.rolledBackAt ? "bg-slate-100 text-slate-700" : item.rollbackSupported ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                          {item.rolledBackAt ? "Rolled back" : item.rollbackSupported ? "Rollback available" : "Rollback unavailable"}
+                        </span>
+                        {!item.rolledBackAt && (
+                          <button type="button" onClick={() => void reviewRollback(item)} className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            Review rollback
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{item.startedBy?.name || item.startedBy?.email || "Unknown"}</td>
                   </tr>
@@ -622,6 +634,44 @@ export default function DataToolsPage() {
           </button>
         </div>
       </div>
+
+      {rollbackRun && (
+        <dialog ref={rollbackDialogRef} onCancel={(event) => { event.preventDefault(); closeRollbackDialog(); }} className="m-auto w-[min(94vw,38rem)] max-h-[88vh] overflow-y-auto rounded-xl border border-gray-200 bg-white p-0 shadow-2xl backdrop:bg-slate-950/50">
+          <div className="border-b border-gray-200 px-5 py-4">
+            <h2 className="text-base font-semibold text-gray-900">Review import rollback</h2>
+            <p className="mt-1 text-sm text-gray-500">Run started {new Date(rollbackRun.createdAt).toLocaleString()}</p>
+          </div>
+          <div className="space-y-4 px-5 py-4">
+            {rollbackBusy && !rollbackPreview && <p className="text-sm text-gray-600">Checking every imported record for later changes and linked data…</p>}
+            {rollbackPreview && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <QualityCard label="Created contacts removable" value={rollbackPreview.summary.canDeleteCreated} hint="Only unchanged contacts without linked CRM activity" />
+                  <QualityCard label="Updated contacts restorable" value={rollbackPreview.summary.canRestoreUpdated} hint="Only records unchanged since the import" />
+                </div>
+                {(rollbackPreview.summary.trackedAudienceLists ?? 0) > 0 && <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">This rollback also tracks {rollbackPreview.summary.trackedAudienceLists} audience list{rollbackPreview.summary.trackedAudienceLists === 1 ? "" : "s"}. An unchanged list created by the import will be removed.</p>}
+                {rollbackPreview.blockedReasons.length > 0 && (
+                  <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <p className="font-semibold">Rollback cannot run safely</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-5">{rollbackPreview.blockedReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                  </div>
+                )}
+                {rollbackPreview.canRollback && (
+                  <label className="block text-sm font-medium text-gray-800">
+                    Type <strong>{rollbackPreview.confirmationText}</strong> to confirm
+                    <input value={rollbackConfirmation} onChange={(event) => setRollbackConfirmation(event.target.value)} autoComplete="off" className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200" />
+                  </label>
+                )}
+              </>
+            )}
+            {rollbackError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{rollbackError}</p>}
+          </div>
+          <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-gray-200 bg-white px-5 py-4">
+            <button type="button" onClick={closeRollbackDialog} disabled={rollbackBusy} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Close</button>
+            {rollbackPreview?.canRollback && <button type="button" onClick={() => void executeRollback()} disabled={rollbackBusy || rollbackConfirmation !== rollbackPreview.confirmationText} className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40">{rollbackBusy ? "Rolling back…" : "Run rollback"}</button>}
+          </div>
+        </dialog>
+      )}
 
       {/* ── Data Quality ── */}
       <div id="data-tools-quality" className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">

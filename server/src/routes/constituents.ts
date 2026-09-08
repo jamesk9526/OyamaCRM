@@ -65,6 +65,7 @@ router.use((req, res, next) => {
  */
 const CONSTITUENT_SELECT = {
   id: true,
+  createdAt: true,
   firstName: true,
   lastName: true,
   organizationName: true,

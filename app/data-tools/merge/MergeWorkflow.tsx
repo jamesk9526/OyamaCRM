@@ -9,6 +9,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 /** Constituent record shape used in the merge workflow */
 export interface MergeConstituent {
   id: string;
+  createdAt?: string;
   firstName: string;
   lastName: string;
   email?: string;
@@ -33,8 +34,15 @@ interface MergeWorkflowProps {
 
 interface MergeRequestPayload {
   keepId: string;
-  mergeId: string;
+  mergeId?: string;
+  mergeIds?: string[];
   mergedFields: Partial<MergeConstituent>;
+}
+
+interface DuplicateGroup {
+  id: string;
+  records: MergeConstituent[];
+  pairs: DuplicatePair[];
 }
 
 // ─── Fields shown in the side-by-side comparison ──────────────────────────────
@@ -55,7 +63,7 @@ const COMPARE_FIELDS: Array<{ key: keyof MergeConstituent; label: string }> = [
 /**
  * findDuplicates: scans all constituents for potential duplicates.
  * Matches on: identical email, OR same last name + first name containment.
- * Returns at most 50 pairs to keep the UI manageable.
+ * Returns every matching pair in the loaded organization dataset.
  */
 function findDuplicates(constituents: MergeConstituent[]): DuplicatePair[] {
   const pairs: DuplicatePair[] = [];
@@ -84,12 +92,57 @@ function findDuplicates(constituents: MergeConstituent[]): DuplicatePair[] {
         seen.add(pairKey);
       }
 
-      // Cap results for performance
-      if (pairs.length >= 50) return pairs;
     }
   }
 
   return pairs;
+}
+
+function duplicateGroups(pairs: DuplicatePair[]): DuplicateGroup[] {
+  const recordById = new Map<string, MergeConstituent>();
+  const adjacent = new Map<string, Set<string>>();
+  for (const pair of pairs) {
+    recordById.set(pair.a.id, pair.a);
+    recordById.set(pair.b.id, pair.b);
+    if (!adjacent.has(pair.a.id)) adjacent.set(pair.a.id, new Set());
+    if (!adjacent.has(pair.b.id)) adjacent.set(pair.b.id, new Set());
+    adjacent.get(pair.a.id)!.add(pair.b.id);
+    adjacent.get(pair.b.id)!.add(pair.a.id);
+  }
+
+  const visited = new Set<string>();
+  const groups: DuplicateGroup[] = [];
+  for (const id of adjacent.keys()) {
+    if (visited.has(id)) continue;
+    const pending = [id];
+    const ids: string[] = [];
+    visited.add(id);
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      ids.push(current);
+      for (const neighbor of adjacent.get(current) ?? []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          pending.push(neighbor);
+        }
+      }
+    }
+    const records = ids.map((recordId) => recordById.get(recordId)!).filter(Boolean);
+    groups.push({
+      id: [...ids].sort().join("|"),
+      records,
+      pairs: pairs.filter((pair) => ids.includes(pair.a.id) && ids.includes(pair.b.id)),
+    });
+  }
+  return groups;
+}
+
+function oldestRecord(records: MergeConstituent[]): MergeConstituent {
+  return [...records].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY;
+    return aTime - bTime || a.id.localeCompare(b.id);
+  })[0];
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -211,7 +264,7 @@ function MergeEditor({
         <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-4">
           <p className="text-sm font-semibold text-blue-800 mb-3">Merged Record Preview</p>
           <p className="mb-3 text-xs text-blue-700">
-            Keeping record ID ending in <span className="font-semibold">{payload.keepId.slice(-6)}</span> and merging record ID ending in <span className="font-semibold">{payload.mergeId.slice(-6)}</span>.
+            Keeping record ID ending in <span className="font-semibold">{payload.keepId.slice(-6)}</span> and merging record ID ending in <span className="font-semibold">{payload.mergeId?.slice(-6)}</span>.
           </p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
             {COMPARE_FIELDS.map(({ key, label }) => (
@@ -358,12 +411,21 @@ export default function MergeWorkflow({ constituents }: MergeWorkflowProps) {
   const [selected, setSelected]   = useState<DuplicatePair | null>(null);
   const [skipped, setSkipped]     = useState<Set<string>>(new Set());
   const [scanning, setScanning]   = useState(false);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [bulkReview, setBulkReview] = useState(false);
+  const [bulkMerging, setBulkMerging] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
 
   /** Kick off duplicate scan — wrapped in timeout to allow UI to update first */
   function scan() {
     setScanning(true);
     setSelected(null);
     setPairs(null);
+    setSelectedGroupIds(new Set());
+    setBulkReview(false);
+    setBulkError(null);
+    setBulkSuccess(null);
     setTimeout(() => {
       setPairs(findDuplicates(constituents));
       setScanning(false);
@@ -383,11 +445,41 @@ export default function MergeWorkflow({ constituents }: MergeWorkflowProps) {
     });
 
     // After a successful merge, remove this pair from the review queue.
-    const key = `${selected!.a.id}|${selected!.b.id}`;
-    setSkipped((s) => new Set([...s, key]));
+    const removedIds = new Set([payload.mergeId, ...(payload.mergeIds ?? [])].filter((id): id is string => Boolean(id)));
+    setPairs((current) => (current ?? []).filter((pair) => !removedIds.has(pair.a.id) && !removedIds.has(pair.b.id)));
   }
 
   const activePairs = (pairs ?? []).filter((p) => !skipped.has(`${p.a.id}|${p.b.id}`));
+  const groups = duplicateGroups(activePairs);
+  const selectedGroups = groups.filter((group) => selectedGroupIds.has(group.id));
+
+  async function mergeSelectedGroups() {
+    if (selectedGroups.length === 0) return;
+    setBulkMerging(true);
+    setBulkError(null);
+    let mergedGroups = 0;
+    const removedIds = new Set<string>();
+    try {
+      for (const group of selectedGroups) {
+        const keep = oldestRecord(group.records);
+        const mergeIds = group.records.filter((record) => record.id !== keep.id).map((record) => record.id);
+        await apiFetch("/api/constituents/merge", {
+          method: "POST",
+          body: JSON.stringify({ keepId: keep.id, mergeIds, mergedFields: {} }),
+        });
+        mergeIds.forEach((id) => removedIds.add(id));
+        mergedGroups += 1;
+      }
+      setPairs((current) => (current ?? []).filter((pair) => !removedIds.has(pair.a.id) && !removedIds.has(pair.b.id)));
+      setSelectedGroupIds(new Set());
+      setBulkReview(false);
+      setBulkSuccess(`Merged ${mergedGroups} duplicate group${mergedGroups === 1 ? "" : "s"}. The oldest record was retained in each group.`);
+    } catch (error) {
+      setBulkError(`${error instanceof Error ? error.message : "Bulk merge failed."} ${mergedGroups} group${mergedGroups === 1 ? " was" : "s were"} completed before the error.`);
+    } finally {
+      setBulkMerging(false);
+    }
+  }
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
@@ -424,6 +516,66 @@ export default function MergeWorkflow({ constituents }: MergeWorkflowProps) {
             Found <strong>{activePairs.length}</strong> suspected duplicate pair{activePairs.length !== 1 ? "s" : ""}.
             {skipped.size > 0 && ` (${skipped.size} dismissed)`}
           </p>
+          {groups.length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={groups.length > 0 && selectedGroupIds.size === groups.length}
+                    onChange={(event) => setSelectedGroupIds(event.target.checked ? new Set(groups.map((group) => group.id)) : new Set())}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  Select all duplicate groups ({groups.length})
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setBulkReview(true)}
+                  disabled={selectedGroups.length === 0 || bulkMerging}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Review merge all ({selectedGroups.length})
+                </button>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {groups.map((group) => {
+                  const oldest = oldestRecord(group.records);
+                  return (
+                    <label key={group.id} className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 bg-white p-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedGroupIds.has(group.id)}
+                        onChange={(event) => setSelectedGroupIds((current) => {
+                          const next = new Set(current);
+                          if (event.target.checked) next.add(group.id); else next.delete(group.id);
+                          return next;
+                        })}
+                        className="mt-0.5 h-4 w-4 accent-blue-600"
+                      />
+                      <span className="min-w-0 text-sm text-slate-700">
+                        <span className="block font-semibold text-slate-900">{group.records.length} matching records</span>
+                        <span className="block truncate">Keep oldest: {oldest.firstName} {oldest.lastName}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {bulkReview && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                  <p className="font-semibold">Merge {selectedGroups.length} selected duplicate group{selectedGroups.length === 1 ? "" : "s"}?</p>
+                  <p className="mt-1">The oldest record in each group will remain. Gifts, activities, tags, consent protections, and linked CRM history move to it. Each group creates an undo record.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setBulkReview(false)} disabled={bulkMerging} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700">Cancel</button>
+                    <button type="button" onClick={() => void mergeSelectedGroups()} disabled={bulkMerging} className="rounded-md bg-red-700 px-3 py-1.5 font-semibold text-white hover:bg-red-600 disabled:opacity-50">
+                      {bulkMerging ? "Merging groups…" : "Merge all selected"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {bulkError && <p role="alert" className="text-sm text-red-700">{bulkError}</p>}
+              {bulkSuccess && <p role="status" className="text-sm text-green-700">{bulkSuccess}</p>}
+            </div>
+          )}
           <DuplicateList pairs={activePairs} onSelect={setSelected} skipped={skipped} />
         </div>
       )}
