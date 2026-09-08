@@ -1,6 +1,14 @@
 # OyamaCRM Feature Status Audit
 
-_Last focused audit: 2026-09-03 (Trackable QR codes)_
+_Last focused audit: 2026-09-08 (Letter print proofs)_
+
+## 2026-09-08 Letter Print Proofs
+
+The letter builder now reads page counts from the returned production PDF, rather than counting explicit page breaks. The proof appears inside the editor, becomes stale after draft/recipient changes, and can refresh after edits. The writing canvas remains continuous; only the rendered proof represents final pagination for the chosen recipient.
+
+Page setup uses the same 0.125–1.5-inch margin bounds as export and the correct A4 width. Fit-to-width and continuous writing keep long documents accessible. PDF layout now interprets line-height units, measures text with its actual font/size, preserves figure alignment, and bounds oversized images. Builder, generation, and queue Print actions open the PDF directly rather than printing an HTML iframe wrapper.
+
+Validation and limitations: see `docs/status/audit-artifacts/2026-09-08-letter-print-fidelity.md`. Authenticated CRM persistence and generation remain unverified for this change because the local database was unavailable.
 
 ## 2026-09-03 Trackable QR Codes
 

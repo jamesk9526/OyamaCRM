@@ -1,6 +1,18 @@
 # Production Readiness Checklist
 
-Last updated: 2026-09-03 (Trackable QR codes)
+Last updated: 2026-09-08 (Letter print proofs)
+
+## 2026-09-08 Letter Print Proofs Snapshot
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Accurate page-count reporting | Implemented; fixture verified | Counts use `PDFDocument.getPageCount()` on the exact preview bytes; edits invalidate the count and optionally refresh the proof. Manual breaks are reported separately. |
+| Print uses the PDF page layout | Implemented | Shared `pdf-print.ts` opens the original PDF for the native viewer's print control; no HTML wrapper is printed. |
+| Accessible editing and page setup | Fixture verified | Continuous canvas, A4 width, fit-to-width, matching margin bounds, and native modal dialog; mobile/tablet/laptop/desktop checks use synthetic data with the real editor. |
+| Final production pagination in the editable canvas | Not claimed | The editable HTML is continuous and may differ from PDF layout. The in-editor PDF proof is authoritative for its selected recipient; merge data can change page counts for other recipients. |
+| Authenticated save/generation regression | Pending database | Local MySQL at `localhost:3306` was unreachable. Fixture saves do not validate CRM authorization or persistence. |
+
+Evidence: `docs/status/audit-artifacts/2026-09-08-letter-print-fidelity.md`.
 
 ## 2026-09-03 Trackable QR Codes Snapshot
 

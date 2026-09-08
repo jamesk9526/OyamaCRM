@@ -1276,6 +1276,7 @@ type PdfContentBlock = (
       src: string;
       alt: string;
       widthPercent: number;
+      align?: PdfTextAlign;
       dataUrl?: string;
       format?: "PNG" | "JPEG" | "WEBP";
       aspectRatio?: number;
@@ -1328,7 +1329,7 @@ function parsePdfImageWidth(attributes: string): number {
   return 100;
 }
 
-function parsePdfImageBlock(attributes: string): PdfContentBlock | null {
+function parsePdfImageBlock(attributes: string): Extract<PdfContentBlock, { kind: "image" }> | null {
   const src = readHtmlAttribute(attributes, "src");
   if (!src) return null;
   return {
@@ -1336,13 +1337,17 @@ function parsePdfImageBlock(attributes: string): PdfContentBlock | null {
     src,
     alt: readHtmlAttribute(attributes, "alt"),
     widthPercent: parsePdfImageWidth(attributes),
+    align: parsePdfTextAlign(attributes),
   };
 }
 
 function parsePdfLineHeight(attributes: string, innerHtml = ""): number | undefined {
-  const match = `${attributes} ${innerHtml}`.match(/line-height\s*:\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const match = `${attributes} ${innerHtml}`.match(/line-height\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(px|pt|%|em)?/i);
   if (!match) return undefined;
-  const value = Number.parseFloat(match[1]);
+  const raw = Number.parseFloat(match[1]);
+  const fontSize = parsePdfFontSize(attributes, innerHtml) ?? 10.5;
+  const unit = match[2]?.toLowerCase();
+  const value = unit === "px" ? raw * 0.75 / fontSize : unit === "pt" ? raw / fontSize : unit === "%" ? raw / 100 : raw;
   return Number.isFinite(value) ? Math.min(2.5, Math.max(1, value)) : undefined;
 }
 
@@ -1629,8 +1634,8 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
   });
   const normalized = tableSafeHtml
     .replace(/\r\n/g, "\n")
-    .replace(/<\s*\/\s*(div|section|article)\s*>/gi, "</p>")
-    .replace(/<\s*(div|section|article)\b([^>]*)>/gi, "<p$2>");
+    .replace(/<\s*\/\s*(div|section|article|figure)\s*>/gi, "</p>")
+    .replace(/<\s*(div|section|article|figure)\b([^>]*)>/gi, "<p$2>");
 
   const pattern = /<\s*(h[1-3]|p|li|blockquote|tr)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*img\b([^>]*)>|<\s*hr\b[^>]*>/gi;
   let match: RegExpExecArray | null = pattern.exec(normalized);
@@ -1687,7 +1692,7 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       } else {
         const nestedImageAttributes = inner.match(/<\s*img\b([^>]*)>/i)?.[1];
         const nestedImage = nestedImageAttributes ? parsePdfImageBlock(nestedImageAttributes) : null;
-        if (nestedImage) blocks.push(nestedImage);
+        if (nestedImage) blocks.push({ ...nestedImage, align: nestedImage.align ?? align });
         else {
           const spacer = parsePdfSpacer(attributes, inner);
           if (spacer) blocks.push(spacer);
@@ -2367,6 +2372,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   const tableRowHeight = (block: Extract<PdfContentBlock, { kind: "tableRow" }>) => {
     const cellWidth = maxTextWidth / Math.max(block.cells.length, 1);
     const contentHeights = block.cells.map((cell) => {
+      doc.setFont("helvetica", cell.bold ? "bold" : "normal");
       doc.setFontSize(9);
       const lineCount = (doc.splitTextToSize(cell.text, Math.max(12, cellWidth - cell.padding * 2)) as string[]).length;
       return Math.max(1, lineCount) * 11 + cell.padding * 2 + 4;
@@ -2375,6 +2381,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
   };
 
   const estimatedBlockHeight = (block: PdfContentBlock): number => {
+    if ("text" in block) doc.setFont(block.fontFamily ?? "helvetica", block.kind === "heading" ? "bold" : block.kind === "quote" ? "italic" : "normal");
     if (block.kind === "heading") {
       const size = block.fontSize ?? (block.level === 1 ? 18 : block.level === 2 ? 15 : 13);
       return textHeight(block.text, size, block.lineHeight) + 10;
@@ -2403,7 +2410,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       return block.aspectRatio ? width / block.aspectRatio + 8 : width * 0.35 + 8;
     }
     if (block.kind === "tableRow") return tableRowHeight(block);
-    return textHeight(block.text, 10.5, block.lineHeight ?? 1.32) + 7;
+    return textHeight(block.text, block.fontSize ?? 10.5, block.lineHeight ?? 1.32) + 7;
   };
 
   const writeText = (
@@ -2442,6 +2449,7 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
 
   const writeQuote = (block: Extract<PdfContentBlock, { kind: "quote" }>) => {
     const fontSize = block.fontSize ?? 10.5;
+    doc.setFont(block.fontFamily ?? "helvetica", "italic");
     const estimatedHeight = Math.max(18, textHeight(block.text, fontSize, block.lineHeight, 18));
     ensurePageSpace(estimatedHeight + 8);
     const quoteTop = cursorY - 9;
@@ -2530,10 +2538,14 @@ function renderPdfContentBlocks(doc: JsPdfDocument, blocks: PdfContentBlock[], o
       const sourceWidth = Number(properties.width ?? 0);
       const sourceHeight = Number(properties.height ?? 0);
       if (sourceWidth <= 0 || sourceHeight <= 0) return;
-      const imageWidth = maxTextWidth * (block.widthPercent / 100);
-      const imageHeight = imageWidth * (sourceHeight / sourceWidth);
+      const requestedWidth = maxTextWidth * (block.widthPercent / 100);
+      // Oversized images must fit inside one printable page without clipping.
+      const maxImageHeight = pageHeight - marginBottom - (options.continuationStartY ?? contentTop) - 8;
+      const imageHeight = Math.min(requestedWidth * (sourceHeight / sourceWidth), maxImageHeight);
+      const imageWidth = imageHeight * (sourceWidth / sourceHeight);
       ensurePageSpace(imageHeight + 8);
-      doc.addImage(block.dataUrl, block.format, marginLeft, cursorY, imageWidth, imageHeight);
+      const imageX = block.align === "right" ? pageWidth - marginRight - imageWidth : block.align === "center" ? marginLeft + (maxTextWidth - imageWidth) / 2 : marginLeft;
+      doc.addImage(block.dataUrl, block.format, imageX, cursorY, imageWidth, imageHeight);
       cursorY += imageHeight + 8;
     } else if (block.kind === "tableRow") {
       const rowHeight = tableRowHeight(block);

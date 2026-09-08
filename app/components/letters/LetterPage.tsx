@@ -50,6 +50,7 @@ export interface LetterPageProps {
   marginLeft?: number;
   className?: string;
   minHeight?: number | string;
+  pageWidth?: number;
   screenShadow?: boolean;
   fixedHeight?: boolean;
   autoSignature?: boolean;
@@ -94,6 +95,7 @@ export default function LetterPage({
   marginLeft = 0.25,
   className = "",
   minHeight = LETTER_HEIGHT_PX,
+  pageWidth = LETTER_WIDTH_PX,
   screenShadow = true,
   fixedHeight = false,
   autoSignature = true,
@@ -160,7 +162,8 @@ export default function LetterPage({
   const pageStyle = {
     "--letter-primary": primaryColor,
     "--letter-accent": accentColor,
-    width: LETTER_WIDTH_PX,
+    width: pageWidth,
+    boxSizing: "border-box",
     minHeight,
     ...(fixedHeight ? { height: minHeight } : {}),
     paddingTop: `${resolvedMarginTop}in`,
@@ -226,7 +229,7 @@ export default function LetterPage({
         </section>
       )}
 
-      <section className="mt-5 flex-1 min-h-0 overflow-hidden text-[14px] leading-[18.5px] text-slate-950" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+      <section className={`mt-5 flex-1 min-h-0 ${fixedHeight ? "overflow-hidden" : ""} text-[14px] leading-[18.5px] text-slate-950`} style={{ fontFamily: "Arial, Helvetica, sans-serif", overflowWrap: "anywhere" }}>
         {displaySalutation ? <p className="mb-3">{displaySalutation}</p> : null}
         {bodySlot ?? (
           resolvedBodyHtml.trim()

@@ -13,6 +13,20 @@ import {
 } from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
+  it.each(["18px", "13.5pt", "150%", "1.5em", "1.5"])("converts CSS line height %s without inflating printed paragraphs", (lineHeight) => {
+    const [block] = htmlToPdfBlocks(`<p style="font-size:9pt;line-height:${lineHeight}">Thank you.</p>`);
+    expect(block).toMatchObject({ kind: "paragraph", fontSize: 9, lineHeight: 1.5 });
+  });
+
+  it("retains figure alignment and width from editor image controls", () => {
+    const [block] = htmlToPdfBlocks('<figure data-letter-image-block="true" style="text-align:right"><img src="data:image/png;base64,test" data-letter-width="35" /></figure>');
+    expect(block).toMatchObject({ kind: "image", align: "right", widthPercent: 35 });
+  });
+
+  it("uses the same supported margin limits for saved and requested page layouts", () => {
+    expect(resolveLetterPdfPageLayout({ letterPdfLayout: { margins: { top: 0.125, right: 2.5, bottom: 0, left: "bad" } } }))
+      .toMatchObject({ marginTop: 9, marginRight: 108, marginBottom: 9, marginLeft: 18 });
+  });
   it("places letterhead chrome correctly on single- and multi-page letters", () => {
     expect(letterPdfChromeVisibility(1, 1)).toEqual({ header: true, footer: true });
 

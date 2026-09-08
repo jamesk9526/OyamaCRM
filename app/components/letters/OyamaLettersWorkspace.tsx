@@ -11,6 +11,7 @@ import { getConstituentDisplayName } from "@/app/components/constituents/constit
 import { formatDonationDate } from "@/app/components/donations/donation-utils";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import LetterPage from "@/app/components/letters/LetterPage";
+import { openPdfPrintView } from "@/app/components/letters/pdf-print";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
 import {
   DEFAULT_BRANDING_SETTINGS,
@@ -447,8 +448,8 @@ function asPlainRecord(value: unknown): Record<string, unknown> {
 }
 
 function asSavedMargin(value: unknown, fallback: number): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) && parsed >= 0.125 && parsed <= 1.5 ? parsed : fallback;
+  const parsed = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? Math.min(1.5, Math.max(0.125, parsed)) : fallback;
 }
 
 function readLetterPdfLayout(value: unknown): { pageSize: LetterPageSize; margins: LetterMargins } {
@@ -1254,6 +1255,9 @@ function TemplateLibrary() {
 function TemplateBuilder({ templateId }: { templateId?: string }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const [canvasWidth, setCanvasWidth] = useState(0);
+  const [fitCanvas, setFitCanvas] = useState(true);
   const previewBodyRef = useRef<HTMLDivElement | null>(null);
   const savedEditorRangeRef = useRef<Range | null>(null);
   const lastInlineSuggestionRequestRef = useRef("");
@@ -1306,9 +1310,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [editorPdfTitle, setEditorPdfTitle] = useState("Server PDF Preview");
   const [editorPdfFileName, setEditorPdfFileName] = useState("letter-template-preview.pdf");
   const [editorPdfOpen, setEditorPdfOpen] = useState(false);
+  const editorPdfDialogRef = useRef<HTMLDialogElement | null>(null);
   const [editorPdfLoading, setEditorPdfLoading] = useState(false);
   const [editorPdfError, setEditorPdfError] = useState<string | null>(null);
   const [editorPdfFingerprint, setEditorPdfFingerprint] = useState<string | null>(null);
+  const [editorPdfPageCount, setEditorPdfPageCount] = useState<number | null>(null);
+  const [autoRefreshProof, setAutoRefreshProof] = useState(true);
   const editorPdfAbortRef = useRef<AbortController | null>(null);
   const [canvasOverflowing, setCanvasOverflowing] = useState(false);
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
@@ -1440,6 +1447,14 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }, [load]);
 
   useEffect(() => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => setCanvasWidth(entry.contentRect.width));
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [loading]);
+
+  useEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
     const normalizedBody = draft.printBody || "<p></p>";
@@ -1469,6 +1484,13 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }, [editorPdfUrl]);
 
   useEffect(() => () => editorPdfAbortRef.current?.abort(), []);
+
+  useEffect(() => {
+    const dialog = editorPdfDialogRef.current;
+    if (!editorPdfOpen || !dialog) return;
+    dialog.showModal();
+    return () => dialog.close();
+  }, [editorPdfOpen]);
 
   function readEditorPdfFileName(response: Response, fallback: string): string {
     const disposition = response.headers.get("content-disposition") ?? "";
@@ -1514,7 +1536,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     }));
   }
 
-  async function openServerPdfPreview(targetConstituentId = testConstituentId) {
+  async function openServerPdfPreview(targetConstituentId = testConstituentId, openDialog = true) {
     if (editorPdfAbortRef.current) return;
     if (!targetConstituentId) {
       setTestConstituentLookupOpen(true);
@@ -1546,6 +1568,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
 
       const pdfBlob = await response.blob();
       if (pdfBlob.size === 0) throw new Error("Server PDF preview returned an empty file.");
+      const { PDFDocument } = await import("pdf-lib");
+      const renderedPdf = await PDFDocument.load(await pdfBlob.arrayBuffer());
+      setEditorPdfPageCount(renderedPdf.getPageCount());
       const objectUrl = URL.createObjectURL(pdfBlob);
       const selected = constituents.find((item) => item.id === targetConstituentId);
       setEditorPdfUrl((previous) => {
@@ -1555,7 +1580,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setEditorPdfFileName(readEditorPdfFileName(response, `${sanitizeClientFileName(draft.name || "letter-template")}_preview.pdf`));
       setEditorPdfTitle(`Live PDF Preview${selected ? ` - ${personName(selected)}` : ""}`);
       setEditorPdfFingerprint(previewFingerprint);
-      setEditorPdfOpen(true);
+      if (openDialog) setEditorPdfOpen(true);
       setTestConstituentLookupOpen(false);
       setNotice("Server-rendered PDF preview refreshed.");
     } catch (requestError) {
@@ -1571,26 +1596,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
 
   function printEditorPdf() {
     if (!editorPdfUrl) return;
-    const printWindow = window.open("", "_blank", "width=1100,height=900");
-    if (!printWindow) {
+    if (!openPdfPrintView(editorPdfUrl)) {
       setEditorPdfError("Browser blocked the print preview window. Allow popups for this site and try Print again.");
-      return;
     }
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head><title>${escapeHtml(editorPdfTitle)}</title></head>
-        <body style="margin:0;background:#f1f5f9;">
-          <iframe src="${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH" style="border:0;width:100vw;height:100vh;"></iframe>
-          <script>
-            window.addEventListener("load", function () {
-              setTimeout(function () { window.focus(); window.print(); }, 650);
-            });
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
   }
 
   async function save(nextStatus?: TemplateStatus) {
@@ -2433,8 +2441,16 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const dirty = draftDiffers(draft, savedDraft);
   const editorPdfStale = Boolean(
     editorPdfUrl
-    && editorPdfFingerprint !== pdfPreviewFingerprint(currentDraftSnapshot(), testConstituentId),
+    && editorPdfFingerprint !== pdfPreviewFingerprint(draft, testConstituentId),
   );
+
+  useEffect(() => {
+    if (!autoRefreshProof || !editorPdfStale || editorPdfLoading || editorPdfError || !testConstituentId) return;
+    const timer = window.setTimeout(() => void openServerPdfPreview(testConstituentId, false), 1200);
+    return () => window.clearTimeout(timer);
+    // Render only after the draft settles; failures require an explicit retry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefreshProof, editorPdfStale, editorPdfLoading, editorPdfError, testConstituentId, draft]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -2517,10 +2533,11 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const canvasClosing = selectedSignature?.closingPhrase || branding.defaultLetterClosingPhrase;
   const canvasBodyHasSignature = letterBodyHasSignature(draft.printBody, canvasSigner, canvasSignerTitle, canvasClosing);
   const explicitPageBreakCount = countLetterPageBreaks(draft.printBody);
-  const intendedPageCount = explicitPageBreakCount + 1;
   const pageSizeShort = pageSize.includes("Letter") ? "8.5 x 11 in" : pageSize.includes("Legal") ? "8.5 x 14 in" : "A4";
   const pageMetrics = pageSizeToMetrics(pageSize);
   const editorFrameWidth = pageMetrics.width + 84;
+  const canvasScale = fitCanvas && canvasWidth > 0 ? Math.min(1, canvasWidth / editorFrameWidth) : zoom / 100;
+  const printedPageStatus = editorPdfLoading ? "Calculating printed pages…" : editorPdfError ? "Print proof unavailable" : editorPdfStale ? "Page count needs refresh" : editorPdfPageCount ? `${editorPdfPageCount} printed ${editorPdfPageCount === 1 ? "page" : "pages"} for this recipient` : "Render print proof to count pages";
   const selectedTestConstituent = constituents.find((item) => item.id === testConstituentId) ?? null;
   const globalHeaderPreset = globalHeaderPresets.find((item) => item.isDefault && item.isActive) ?? null;
   const canvasHeaderMode = globalHeaderPreset?.rightColumnMode === "RECIPIENT" || globalHeaderPreset?.rightColumnMode === "CUSTOM"
@@ -2564,7 +2581,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
           <button type="button" onClick={() => setAiComposerOpen(true)} title="Open Steward AI writer" className="flex h-8 w-8 shrink-0 items-center justify-center border border-[#9cc5e8] bg-[#eff6fc] text-sm font-bold text-[#0f548c] transition hover:bg-white" aria-label="Open Steward AI writer">✦</button>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-            <span title="Click the page to write · use Insert for fields and blocks · Preview before publish" className="hidden text-xs font-semibold text-slate-600 xl:inline">Words: {wordCount}</span>
+            <span aria-live="polite" className="text-xs font-semibold text-slate-600">{printedPageStatus}</span>
             <span className={[
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
               saveFailure ? "text-red-700" : dirty ? "text-[#5c3b00]" : "text-[#0f548c]",
@@ -2576,9 +2593,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </span>
             <span title={localChecklistReady ? "Ready for server preflight" : `${localChecklist.filter((item) => !item.ok).length} item${localChecklist.filter((item) => !item.ok).length === 1 ? "" : "s"} to review`} className={["hidden border px-2 py-1 text-[11px] font-semibold xl:inline", localChecklistReady ? "border-[#9cc5e8] bg-[#eff6fc] text-[#0f548c]" : "border-[#e1b96a] bg-[#fff4ce] text-[#5c3b00]"].join(" ")}>{localChecklistReady ? "Ready" : "Review"}</span>
             {notice ? <span className="hidden max-w-64 truncate text-xs font-semibold text-[#0f548c] 2xl:inline">{notice}</span> : null}
-            <IconButton label="Zoom out" onClick={() => setZoom((current) => Math.max(60, current - 10))}>-</IconButton>
-            <span className="w-12 text-center text-xs font-semibold text-slate-600">{zoom}%</span>
-            <IconButton label="Zoom in" onClick={() => setZoom((current) => Math.min(160, current + 10))}>+</IconButton>
+            <IconButton label="Zoom out" onClick={() => { setFitCanvas(false); setZoom(Math.max(25, Math.round(canvasScale * 100) - 10)); }}>-</IconButton>
+            <span className="w-12 text-center text-xs font-semibold text-slate-600">{Math.round(canvasScale * 100)}%</span>
+            <IconButton label="Zoom in" onClick={() => { setFitCanvas(false); setZoom(Math.min(160, Math.round(canvasScale * 100) + 10)); }}>+</IconButton>
             <IconButton label="Undo" onClick={undoBody} disabled={history.length === 0}>↶</IconButton>
             <IconButton label="Redo" onClick={redoBody} disabled={future.length === 0}>↷</IconButton>
             <Button onClick={() => setTestConstituentLookupOpen(true)}>{selectedTestConstituent ? personName(selectedTestConstituent) : "Test recipient"}</Button>
@@ -2740,7 +2757,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {editorPdfError && !editorPdfOpen ? <Alert tone="amber">{editorPdfError}</Alert> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[248px_minmax(0,1fr)_320px] lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[208px_minmax(0,1fr)] xl:grid-cols-[224px_minmax(0,1fr)_280px] lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
         <aside className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
           <div className="space-y-2.5">
             <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-3 shadow-sm">
@@ -2810,11 +2827,17 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </details>
           </div>
         </aside>
-        <section className="order-2 min-w-0 overflow-auto rounded-[24px] border border-white/90 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.95),transparent_34%),linear-gradient(180deg,#edf3f6_0%,#e4ece9_100%)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_24px_55px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 sm:p-5 lg:order-none">
+        <section className="order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
+          <div ref={canvasViewportRef} className="w-full min-w-0">
+          <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+            <CheckField label="Fit canvas to width" checked={fitCanvas} onChange={setFitCanvas} />
+            <span>Continuous editing · use Print proof for page breaks</span>
+          </div>
+          <div style={{ zoom: canvasScale, width: editorFrameWidth }}>
           {showMarginGuides ? <EditorRuler pageWidth={pageMetrics.width} leftGutter={30} /> : null}
-          <div className="mx-auto flex max-w-full gap-2" style={{ width: editorFrameWidth }}>
+          <div className="mx-auto flex gap-2" style={{ width: editorFrameWidth }}>
             {showMarginGuides ? <EditorVerticalRuler pageHeight={pageMetrics.height} /> : <div className="w-7 shrink-0" />}
-            <div className="max-w-full" style={{ width: pageMetrics.width, transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}>
+            <div className="shrink-0" style={{ width: pageMetrics.width }}>
               <LetterPage
                 branding={branding}
                 recipient={canvasRecipient}
@@ -2837,7 +2860,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   signatureUrl: selectedSignature?.signatureImageUrl || branding.defaultLetterSignatureImageUrl,
                   closing: canvasClosing,
                 }}
-                fixedHeight
+                pageWidth={pageMetrics.width}
                 autoSignature={!canvasBodyHasSignature}
                 bodySlot={(
                   <>
@@ -2875,6 +2898,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               />
             </div>
           </div>
+          </div>
+          </div>
           <div className="mx-auto mt-4 flex min-h-10 max-w-full flex-wrap items-center gap-2 rounded-xl border border-white bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-[0_8px_24px_rgba(15,23,42,0.08)] backdrop-blur" style={{ width: editorFrameWidth }}>
             <span className="font-semibold text-slate-700">Editor canvas</span>
             <span className="text-slate-300 select-none">·</span>
@@ -2882,20 +2907,40 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <span className="text-slate-300 select-none">·</span>
             <span>Words: {wordCount}</span>
             <span className="text-slate-300 select-none">·</span>
-            <span className={canvasOverflowing ? "font-semibold text-red-700" : "font-semibold text-emerald-700"}>
-              {canvasOverflowing ? "Auto-flows in production" : `${intendedPageCount} ${intendedPageCount === 1 ? "planned page" : "planned pages"}`}
+            <span className="font-semibold text-slate-700" aria-live="polite">
+              {printedPageStatus}
             </span>
             <span className="text-slate-300 select-none">·</span>
-            <span>Editor canvas</span>
-            <span className="ml-auto">{zoom}%</span>
+            <span>{explicitPageBreakCount} manual {explicitPageBreakCount === 1 ? "break" : "breaks"}</span>
+            <span className="ml-auto">{Math.round(canvasScale * 100)}%</span>
           </div>
           {canvasOverflowing ? (
             <div className="mx-auto mt-2 max-w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" style={{ width: editorFrameWidth }}>
-              This editor page is full. The production PDF automatically continues on the next page. Multi-page letters keep the header on page 1 and move the footer to the final page; use Add Page when you want to choose the break yourself.
+              Content continues below. Render the print proof to check automatic page breaks for the selected recipient, or use Add Page to choose a break.
             </div>
           ) : null}
+          <section aria-label="Print proof" className="mt-4 min-w-0 rounded-md border border-slate-300 bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-900">Print proof</h2>
+                <p className="text-xs text-slate-600">Exact PDF pages for the selected recipient. Editing above uses a continuous canvas.</p>
+              </div>
+              <Button onClick={() => void openServerPdfPreview(testConstituentId, false)} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering…" : "Refresh print proof"}</Button>
+            </div>
+            <div className="my-2 flex flex-wrap items-center gap-3">
+              <CheckField label="Refresh proof after edits" checked={autoRefreshProof} onChange={setAutoRefreshProof} />
+              <Button onClick={() => setTestConstituentLookupOpen(true)}>Choose proof recipient</Button>
+              {editorPdfUrl ? <Button onClick={() => setEditorPdfOpen(true)}>Expand PDF</Button> : null}
+            </div>
+            {editorPdfStale ? <p role="status" className="mb-2 text-xs font-semibold text-amber-800">Preview out of date - refresh to include the latest edits</p> : null}
+            {editorPdfUrl ? (
+              <object title="Print proof PDF" data={`${editorPdfUrl}#toolbar=1&navpanes=0&view=FitH`} type="application/pdf" className="h-[65dvh] min-h-64 w-full bg-slate-100">
+                <p className="p-3 text-sm">PDF preview is unavailable in this browser. <a href={editorPdfUrl} target="_blank" rel="noreferrer" className="underline">Open the rendered PDF</a>.</p>
+              </object>
+            ) : <p className="py-4 text-sm text-slate-600">Choose a recipient and render a proof to verify page breaks, signature placement, and margins before printing.</p>}
+          </section>
         </section>
-        <aside className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl xl:order-none xl:max-h-none">
+        <aside className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:col-span-2 xl:col-span-1 xl:order-none xl:max-h-none">
           <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 p-2 backdrop-blur">
             {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-8 rounded-lg px-2.5 text-[11px] font-semibold transition-all", inspectorTab === tab ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
           </div>
@@ -2910,6 +2955,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 <InspectorCard title="Page Setup" tooltip="Page size and margin guides control the printable canvas used for preview and server-rendered PDF output.">
                   <LabeledSelect label="Page Size" value={pageSize} onChange={(value) => updatePageSize(value as LetterPageSize)} options={["Letter (8.5 x 11 in)", "Legal (8.5 x 14 in)", "A4 (8.27 x 11.69 in)"]} />
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margins (inches)</p>
+                  <p className="text-xs text-slate-600">0.125–1.5 inches, applied when you leave the field.</p>
                   <div className="grid grid-cols-2 gap-3">
                     <NumberField label="Top" value={margins.top} onChange={(value) => updateMargins({ top: value })} />
                     <NumberField label="Bottom" value={margins.bottom} onChange={(value) => updateMargins({ bottom: value })} />
@@ -3255,12 +3301,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       ) : null}
 
       {editorPdfOpen && editorPdfUrl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+        <dialog ref={editorPdfDialogRef} aria-labelledby="editor-pdf-title" onCancel={() => setEditorPdfOpen(false)} className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none items-center justify-center border-0 bg-transparent p-3 open:flex sm:p-6">
           <button type="button" aria-label="Close live PDF preview" className="absolute inset-0 bg-slate-950/60" onClick={() => setEditorPdfOpen(false)} />
-          <div className="relative z-10 flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div className="relative z-10 flex h-full max-h-[88dvh] w-full max-w-6xl flex-col overflow-auto rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
               <div className="min-w-0">
-                <p className="truncate text-base font-semibold text-slate-900">{editorPdfTitle}</p>
+                <p id="editor-pdf-title" className="break-words text-base font-semibold text-slate-900">{editorPdfTitle}</p>
                 <p className={editorPdfStale ? "truncate text-xs font-semibold text-amber-700" : "truncate text-xs text-slate-600"}>{editorPdfStale ? "Preview out of date - refresh to include the latest edits" : `Server-rendered final PDF preview · ${editorPdfFileName}`}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -3268,6 +3314,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                 <Button onClick={printEditorPdf} disabled={editorPdfStale}>Print</Button>
                 <Button onClick={() => setEditorPdfOpen(false)}>Close</Button>
               </div>
+              <p className="w-full text-xs text-slate-600">Print opens the PDF directly. Use the PDF viewer’s print control and select the matching paper size.</p>
             </div>
             {editorPdfError ? <Alert tone="amber">{editorPdfError}</Alert> : null}
             {editorPdfStale ? <Alert tone="amber">This PDF was rendered before the latest letter or recipient changes. Refresh it before saving or printing.</Alert> : null}
@@ -3277,7 +3324,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               </div>
             </object>
           </div>
-        </div>
+        </dialog>
       ) : null}
     </main>
   );
@@ -4414,26 +4461,9 @@ function GenerateWorkspace() {
 
   function printCurrentPdf() {
     if (!pdfViewerUrl) return;
-    const printWindow = window.open("", "_blank", "width=1100,height=900");
-    if (!printWindow) {
+    if (!openPdfPrintView(pdfViewerUrl)) {
       setPdfError("Browser blocked the print preview window. Allow popups for this site and try Print again.");
-      return;
     }
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head><title>${escapeHtml(pdfViewerTitle)}</title></head>
-        <body style="margin:0;background:#f1f5f9;">
-          <iframe src="${pdfViewerUrl}#toolbar=1&navpanes=0&view=FitH" style="border:0;width:100vw;height:100vh;"></iframe>
-          <script>
-            window.addEventListener("load", function () {
-              setTimeout(function () { window.focus(); window.print(); }, 650);
-            });
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
   }
 
   async function openIndividualPdf(letterId: string) {
@@ -6278,26 +6308,9 @@ function QueueWorkspace() {
 
   function printQueuePdf() {
     if (!pdfViewerUrl) return;
-    const printWindow = window.open("", "_blank", "width=1100,height=900");
-    if (!printWindow) {
+    if (!openPdfPrintView(pdfViewerUrl)) {
       setPdfError("Browser blocked the print preview window. Allow popups for this site and try Print again.");
-      return;
     }
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head><title>${escapeHtml(pdfViewerTitle)}</title></head>
-        <body style="margin:0;background:#f1f5f9;">
-          <iframe src="${pdfViewerUrl}#toolbar=1&navpanes=0&view=FitH" style="border:0;width:100vw;height:100vh;"></iframe>
-          <script>
-            window.addEventListener("load", function () {
-              setTimeout(function () { window.focus(); window.print(); }, 650);
-            });
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
   }
 
   async function applyQueueAction(action: string) {
@@ -7407,10 +7420,17 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const [input, setInput] = useState(String(value));
+  useEffect(() => setInput(String(value)), [value]);
+  function commit() {
+    const normalized = asSavedMargin(input, value);
+    setInput(String(normalized));
+    onChange(normalized);
+  }
   return (
     <label className="block text-xs font-semibold text-slate-700">
       {label}
-      <input type="number" min={0.25} max={2.5} step={0.25} value={value} onChange={(event) => onChange(Number(event.target.value) || 1)} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm font-normal" />
+      <input type="number" min={0.125} max={1.5} step={0.125} value={input} onChange={(event) => setInput(event.target.value)} onBlur={commit} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} className="mt-1 h-10 w-full min-w-0 rounded-md border border-slate-300 px-3 text-sm font-normal focus-visible:outline-2 focus-visible:outline-blue-600" />
     </label>
   );
 }
