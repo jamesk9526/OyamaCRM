@@ -83,6 +83,21 @@ describe("letters-merge", () => {
     expect(output).toBe("Dear Ava Taylor, legacy Ava Taylor");
   });
 
+  it("recognizes common double-brace firstName and lastName aliases", () => {
+    const keys = collectMergeFieldKeys("Dear {{firstName}} {{lastName}},");
+    const output = renderMergeFields(
+      "Dear {{firstName}} {{lastName}},",
+      {
+        "donor.firstName": "Ava",
+        "donor.lastName": "Taylor",
+      },
+    );
+
+    expect(keys).toEqual(["donor.firstName", "donor.lastName"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    expect(output).toBe("Dear Ava Taylor,");
+  });
+
   it("renders simple brace aliases from canonical donor and gift values", () => {
     const keys = collectMergeFieldKeys("Dear {first} {last}, thank you for {amount} on {giftDate}.");
     const output = renderMergeFields(

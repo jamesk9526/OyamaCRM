@@ -1,5 +1,6 @@
 /** Unit coverage for server-side letter PDF block parsing. */
 import { describe, expect, it } from "vitest";
+import { collectMergeFieldKeys, renderMergeFields, unsupportedMergeFieldKeys } from "@/server/src/services/letters-merge";
 import {
   buildLetterPdfBodyBlocks,
   extractLeadingLetterDate,
@@ -13,6 +14,31 @@ import {
 } from "@/server/src/routes/letters";
 
 describe("letters PDF layout parsing", () => {
+  it.each([
+    "Dear {{firstName}} {{lastName}},<p>Thank you for your support.</p>",
+    "<span>Dear {{firstName}} {{lastName}},</span><div>Thank you for your support.</div>",
+  ])("keeps an unwrapped editor greeting through detection, merging, and PDF parsing: %s", async (html) => {
+    const keys = collectMergeFieldKeys(html);
+    expect(keys).toEqual(["donor.firstName", "donor.lastName"]);
+    expect(unsupportedMergeFieldKeys(keys)).toEqual([]);
+    const merged = renderMergeFields(html, {
+      "donor.firstName": "Elizabeth",
+      "donor.lastName": "Brisindine",
+    });
+    const blocks = await buildLetterPdfBodyBlocks(merged);
+    expect(blocks.filter((block) => block.kind === "paragraph").map((block) => block.text)).toEqual([
+      "Dear Elizabeth Brisindine,",
+      "Thank you for your support.",
+    ]);
+  });
+
+  it("preserves inline text before, between, and after structured PDF blocks", () => {
+    const blocks = htmlToPdfBlocks("Opening<br>Second line<p>Body</p><strong>Middle</strong><hr>Closing");
+    expect(blocks.map((block) => "text" in block ? block.text : block.kind)).toEqual([
+      "Opening", "Second line", "Body", "Middle", "divider", "Closing",
+    ]);
+  });
+
   it.each(["18px", "13.5pt", "150%", "1.5em", "1.5"])("converts CSS line height %s without inflating printed paragraphs", (lineHeight) => {
     const [block] = htmlToPdfBlocks(`<p style="font-size:9pt;line-height:${lineHeight}">Thank you.</p>`);
     expect(block).toMatchObject({ kind: "paragraph", fontSize: 9, lineHeight: 1.5 });

@@ -2487,7 +2487,11 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       .filter((section) => section.fields.length > 0);
   }, [mergeFieldSearch, mergeSections]);
   const mergeRegistry = useMemo(
-    () => new Set([...allFields, ...validationMergeFields].map(normalizeToken)),
+    () => new Set([
+      ...BUILT_IN_LETTER_COMPATIBILITY_TOKENS,
+      ...allFields,
+      ...validationMergeFields,
+    ].map(normalizeToken)),
     [allFields, validationMergeFields],
   );
   const detectedTokens = useMemo(
@@ -7847,6 +7851,21 @@ function ensureEditorSelection(editor: HTMLDivElement): void {
 const CANONICAL_LETTER_TOKEN_PATTERN = /\{\{\s*([a-zA-Z0-9_.]+)(?:\s*\|\s*([^}]+?))?\s*\}\}/g;
 const SIMPLE_LETTER_TOKEN_PATTERN = /(^|[^{])\{\s*([a-zA-Z][a-zA-Z0-9_]*)(?:\s*\|\s*([^}]+?))?\s*\}(?!\})/g;
 const SLASH_LETTER_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_]*)(?![\w/])/g;
+
+// Keep the editor accurate during the initial catalog fetch (and when a catalog
+// request is briefly unavailable). These tokens are renderer-supported aliases,
+// not a second source of truth for the full field picker.
+const BUILT_IN_LETTER_COMPATIBILITY_TOKENS = [
+  "{{preferredName}}", "{{firstName}}", "{{lastName}}", "{{fullName}}", "{{email}}", "{{addressBlock}}",
+  "{{amount}}", "{{giftAmount}}", "{{donationAmount}}", "{{lastGiftAmount}}", "{{date}}", "{{giftDate}}",
+  "{{lastGiftDate}}", "{{receiptNumber}}", "{{taxDeductibleAmount}}", "{{totalYtdGiving}}", "{{giftCount}}",
+  "{{firstGiftDate}}", "{{campaignName}}", "{{organizationName}}", "{{organizationAddress}}", "{{organizationPhone}}",
+  "{{organizationEmail}}", "{{organizationWebsite}}", "{{organizationTaxId}}", "{{staffName}}", "{{staff.name}}",
+  "{{staffTitle}}", "{{staffEmail}}", "{{signatureName}}", "{{currentYear}}", "{{currentDate}}",
+  "{first}", "{last}", "{name}", "{preferred}", "{email}", "{phone}", "{address}", "{amount}",
+  "{giftDate}", "{fund}", "{campaign}", "{receipt}", "{year}", "{totalGiving}", "{orgName}", "{staffName}",
+  "//first", "//last", "//name", "//amount", "//giftDate",
+] as const;
 
 function extractTokens(value: string): string[] {
   const tokens = new Set<string>();

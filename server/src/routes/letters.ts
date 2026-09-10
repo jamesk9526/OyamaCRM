@@ -1638,8 +1638,15 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
     .replace(/<\s*(div|section|article|figure)\b([^>]*)>/gi, "<p$2>");
 
   const pattern = /<\s*(h[1-3]|p|li|blockquote|tr)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>|<\s*img\b([^>]*)>|<\s*hr\b[^>]*>/gi;
+  // contentEditable can leave a typed greeting as a top-level text node (or
+  // inline span) before pasted paragraphs. Preserve the gaps between matched
+  // blocks as well as the blocks themselves so merged names cannot disappear.
+  let consumedThrough = 0;
   let match: RegExpExecArray | null = pattern.exec(normalized);
   while (match) {
+    const precedingText = htmlToPlainText(normalized.slice(consumedThrough, match.index));
+    if (precedingText) blocks.push(...plainTextToPdfBlocks(precedingText));
+    consumedThrough = pattern.lastIndex;
     const tag = (match[1] ?? (match[4] !== undefined ? "img" : "hr")).toLowerCase();
     const attributes = match[2] ?? match[4] ?? "";
     const inner = match[3] ?? "";
@@ -1700,6 +1707,11 @@ export function htmlToPdfBlocks(html: string): PdfContentBlock[] {
       }
     }
     match = pattern.exec(normalized);
+  }
+
+  if (consumedThrough > 0) {
+    const trailingText = htmlToPlainText(normalized.slice(consumedThrough));
+    if (trailingText) blocks.push(...plainTextToPdfBlocks(trailingText));
   }
 
   if (blocks.length === 0) {
