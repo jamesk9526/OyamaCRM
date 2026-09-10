@@ -13,6 +13,7 @@ import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/Workspace
 import LetterPage from "@/app/components/letters/LetterPage";
 import { openPdfPrintView } from "@/app/components/letters/pdf-print";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
+import QRCode from "qrcode";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -106,11 +107,20 @@ const LETTER_BLOCK_LIBRARY = [
       { id: "impactGrid", label: "Impact Grid", glyph: "▤" },
       { id: "signature", label: "Signature", glyph: "✒" },
       { id: "image", label: "Image", glyph: "▧" },
+      { id: "qrCode", label: "QR Code", glyph: "QR" },
     ],
   },
 ] as const;
 
 type LetterBlockTemplateId = typeof LETTER_BLOCK_LIBRARY[number]["blocks"][number]["id"];
+
+interface LetterQrLink {
+  id: string;
+  name: string;
+  shortUrl: string;
+  destinationUrl: string;
+  active: boolean;
+}
 
 interface OyamaLettersWorkspaceProps {
   view?: WorkspaceView;
@@ -1293,6 +1303,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [selectedImageWidth, setSelectedImageWidth] = useState<number | null>(null);
   const [selectedImageAlt, setSelectedImageAlt] = useState("");
   const [selectedImageAlign, setSelectedImageAlign] = useState<"left" | "center" | "right">("center");
+  const [selectedImageKind, setSelectedImageKind] = useState<"image" | "qr">("image");
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [qrLinks, setQrLinks] = useState<LetterQrLink[]>([]);
+  const [qrLinksLoading, setQrLinksLoading] = useState(false);
+  const [qrLinksError, setQrLinksError] = useState<string | null>(null);
+  const [selectedQrLinkId, setSelectedQrLinkId] = useState("");
+  const [qrDestination, setQrDestination] = useState("");
+  const [qrLabel, setQrLabel] = useState("Scan to learn more");
+  const [qrSize, setQrSize] = useState(30);
   const [zoom, setZoom] = useState(100);
   // The editable canvas is intentionally distinct from the production preview.
   // All user-facing preview and print actions open the server-rendered PDF.
@@ -1903,6 +1922,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       case "image":
         insertImage();
         return;
+      case "qrCode":
+        openQrDialog();
+        return;
     }
   }
 
@@ -2077,6 +2099,56 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     imageInputRef.current?.click();
   }
 
+  function openQrDialog() {
+    if (!ensureEditableDocument()) return;
+    setQrDialogOpen(true);
+    setQrLinksError(null);
+    if (qrLinks.length > 0) return;
+    setQrLinksLoading(true);
+    void apiFetch<{ items: LetterQrLink[] }>("/api/qr-codes")
+      .then((response) => {
+        setQrLinks(response.items ?? []);
+        if (response.items?.[0]) {
+          setSelectedQrLinkId(response.items[0].id);
+          setQrDestination(response.items[0].shortUrl);
+        }
+      })
+      .catch((requestError) => setQrLinksError(errorMessage(requestError, "Saved QR codes could not be loaded.")))
+      .finally(() => setQrLinksLoading(false));
+  }
+
+  function selectQrLink(id: string) {
+    setSelectedQrLinkId(id);
+    const link = qrLinks.find((item) => item.id === id);
+    if (link) setQrDestination(link.shortUrl);
+  }
+
+  async function insertQrCode() {
+    if (!ensureEditableDocument()) return;
+    const destination = qrDestination.trim();
+    if (!destination) {
+      setQrLinksError("Enter a destination URL or select a saved QR code.");
+      return;
+    }
+    try {
+      const dataUrl = await QRCode.toDataURL(destination, {
+        width: 720,
+        margin: 3,
+        errorCorrectionLevel: "H",
+        color: { dark: "#0f172a", light: "#ffffff" },
+      });
+      const normalizedSize = Math.min(100, Math.max(10, Math.round(qrSize)));
+      const sourceName = qrLinks.find((item) => item.id === selectedQrLinkId)?.name;
+      const alt = qrLabel.trim() || sourceName || "QR code";
+      const caption = qrLabel.trim() ? `<figcaption style="margin-top:6px;font-size:11px;color:#475569;">${escapeHtml(qrLabel.trim())}</figcaption>` : "";
+      insertBlock(`<figure data-letter-image-block="true" data-letter-qr-block="true" data-letter-qr-destination="${escapeHtml(destination)}" style="margin:12px 0; text-align:center;"><img src="${dataUrl}" alt="${escapeHtml(alt)}" data-letter-width="${normalizedSize}" data-letter-qr="true" style="width:${normalizedSize}%; max-width:100%; height:auto; image-rendering:pixelated;" />${caption}</figure>`);
+      setQrDialogOpen(false);
+      setNotice(sourceName ? `QR code inserted: ${sourceName}.` : "QR code inserted into the letter.");
+    } catch (requestError) {
+      setQrLinksError(errorMessage(requestError, "The QR code could not be generated."));
+    }
+  }
+
   async function handleImageFileSelected(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -2118,6 +2190,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setSelectedImageWidth(null);
       setSelectedImageAlt("");
       setSelectedImageAlign("center");
+      setSelectedImageKind("image");
       return;
     }
     selectedEditorImageRef.current = target;
@@ -2125,6 +2198,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     const width = Number.isFinite(marker) ? marker : Math.round((target.getBoundingClientRect().width / Math.max(1, editorRef.current?.getBoundingClientRect().width ?? 1)) * 100);
     setSelectedImageWidth(Math.min(100, Math.max(10, width)));
     setSelectedImageAlt(target.alt || "");
+    setSelectedImageKind(target.dataset.letterQr === "true" ? "qr" : "image");
     const container = target.closest<HTMLElement>("[data-letter-image-block], figure, p, div");
     const textAlign = container?.style.textAlign === "left" || container?.style.textAlign === "right" ? container.style.textAlign : "center";
     setSelectedImageAlign(textAlign);
@@ -2197,9 +2271,10 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     setSelectedImageWidth(null);
     setSelectedImageAlt("");
     setSelectedImageAlign("center");
+    setSelectedImageKind("image");
     commitBody(editor.innerHTML);
     editor.focus();
-    setNotice("Image removed from the letter.");
+    setNotice(`${selectedImageKind === "qr" ? "QR code" : "Image"} removed from the letter.`);
   }
 
   function insertSignature(signature?: SignatureBlock | null) {
@@ -2686,6 +2761,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </RibbonGroup>
             <RibbonGroup label="Tools">
               <RibbonToolButton iconName="pdf-preview" glyph="▣" label="Image" onClick={insertImage} />
+              <RibbonToolButton iconName="canvas-builder" glyph="QR" label="QR Code" onClick={openQrDialog} />
               <RibbonToolButton iconName="canvas-builder" glyph="▦" label="Table" onClick={insertTable} />
               <RibbonToolButton iconName="page-break" glyph="↵" label="Add Page" onClick={addPage} />
               <RibbonToolButton iconName="validation-check" glyph="✓" label="Spelling" onClick={runSpellCheck} />
@@ -3213,11 +3289,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                     <Button onClick={() => insertTablePreset("signatureContact")}>Signature Contact Table</Button>
                   </div>
                 </InspectorCard>
-                <InspectorCard title="Selected Image Size">
+                <InspectorCard title="Selected Element">
                   {selectedImageWidth === null ? (
-                    <p className="text-xs text-slate-500">Insert a PNG, JPG, or WEBP image up to 5 MB, then select it here to set size, alignment, and accessible alt text.</p>
+                    <p className="text-xs text-slate-500">Select an image or QR code in the letter to set its size, alignment, and accessible alt text.</p>
                   ) : (
                     <div className="space-y-3">
+                      <p className="text-xs font-semibold text-slate-700">{selectedImageKind === "qr" ? "Selected QR code" : "Selected image"}</p>
                       <label className="block text-xs font-semibold text-slate-700">
                         Alt Text
                         <input
@@ -3251,9 +3328,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                         onClick={removeSelectedImage}
                         className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
                       >
-                        Remove Image
+                        Remove {selectedImageKind === "qr" ? "QR Code" : "Image"}
                       </button>
-                      <p className="text-[11px] leading-4 text-slate-500">Select a broken image in the letter, then use Remove Image to delete its link.</p>
+                      <p className="text-[11px] leading-4 text-slate-500">Click any image or QR code in the letter to select it. Width changes are saved with the template.</p>
                     </div>
                   )}
                 </InspectorCard>
@@ -3262,6 +3339,53 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           </div>
         </aside>
       </div>
+      {qrDialogOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="insert-qr-title">
+          <div className="flex max-h-[min(720px,calc(100dvh-24px))] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">Insert tool</p>
+                <h2 id="insert-qr-title" className="mt-1 text-lg font-semibold text-slate-950">Add a QR code to this letter</h2>
+                <p className="mt-1 text-sm text-slate-600">Choose a saved trackable QR code or encode a URL directly. You can resize it after insertion.</p>
+              </div>
+              <button type="button" onClick={() => setQrDialogOpen(false)} className="rounded-md px-2 py-1 text-xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Close QR code dialog">×</button>
+            </div>
+            <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
+              {qrLinksLoading ? <p className="mb-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">Loading saved QR codes…</p> : null}
+              {qrLinksError ? <p role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{qrLinksError}</p> : null}
+              <label className="block text-sm font-semibold text-slate-800">
+                Saved QR code
+                <select value={selectedQrLinkId} onChange={(event) => selectQrLink(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100">
+                  <option value="">Use a URL below</option>
+                  {qrLinks.map((link) => <option key={link.id} value={link.id}>{link.name}{link.active ? "" : " (paused)"}</option>)}
+                </select>
+              </label>
+              <label className="mt-4 block text-sm font-semibold text-slate-800">
+                Destination URL
+                <input value={qrDestination} onChange={(event) => { setSelectedQrLinkId(""); setQrDestination(event.target.value); }} placeholder="https://example.org/give" type="url" className="mt-1.5 min-h-11 w-full rounded-md border border-slate-300 px-3 text-sm font-normal text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+                <span className="mt-1 block text-xs font-normal text-slate-500">Saved QR codes use their durable short URL, so their destination can be updated later.</span>
+              </label>
+              <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
+                <label className="block text-sm font-semibold text-slate-800">
+                  Caption (optional)
+                  <input value={qrLabel} onChange={(event) => setQrLabel(event.target.value)} placeholder="Scan to learn more" className="mt-1.5 min-h-11 w-full rounded-md border border-slate-300 px-3 text-sm font-normal text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+                </label>
+                <label className="block text-sm font-semibold text-slate-800">
+                  Starting width
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input aria-label="QR code starting width" type="range" min="10" max="75" step="5" value={qrSize} onChange={(event) => setQrSize(Number(event.target.value))} className="min-w-0 flex-1" />
+                    <span className="w-10 text-right text-sm tabular-nums text-slate-600">{qrSize}%</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+              <Button onClick={() => setQrDialogOpen(false)}>Cancel</Button>
+              <Button onClick={() => void insertQrCode()} tone="primary">Insert QR code</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {aiComposerOpen ? (
         <div className="fixed inset-x-3 bottom-4 z-40 mx-auto max-w-5xl rounded-full border border-slate-300 bg-white/95 px-3 py-2 shadow-2xl backdrop-blur">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
