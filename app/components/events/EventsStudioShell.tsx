@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
 import { apiFetch } from "@/app/lib/auth-client";
 import { resolveLegacyGlobalEventsRedirect } from "@/app/lib/events-route-boundaries";
@@ -64,6 +65,8 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const mobileRailRef = useRef<HTMLElement>(null);
+  useDialogFocus(mobileRailRef, mobileRailOpen, () => setMobileRailOpen(false));
   const redirectTarget = resolveLegacyGlobalEventsRedirect(pathname, searchParams);
   const isProjector = /\/trivia\/projector(?:\/|$)/.test(pathname);
   const isTriviaWorkspace = /\/events\/[^/]+\/trivia(?:\/|$)/.test(pathname);
@@ -84,7 +87,8 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   }, []);
   useEffect(() => {
     setMobileRailOpen(false);
-    if (!eventId) { setEvent(null); return; }
+    setEvent(null);
+    if (!eventId) return;
     let current = true;
     void apiFetch<EventSummary>(`/api/events/${eventId}`).then((item) => { if (current) setEvent(item); }).catch(() => { if (current) setEvent({ id: eventId }); });
     return () => { current = false; };
@@ -121,7 +125,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
         {collapsed ? <div className="grid place-items-center"><span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-100 text-indigo-700"><CalendarDays className="h-4 w-4" /></span></div> : <div><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-600">Current event</p><h2 className="mt-1 truncate text-base font-bold text-slate-950">{event?.name ?? "Event"}</h2></div><span className="rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-bold capitalize text-indigo-700">{statusLabel(event?.status)}</span></div><p className="mt-2 text-xs leading-5 text-slate-500">{eventDate(event?.startDate)}{event?.location ? <><br />{event.location}</> : null}</p></div>}
       </div>
       <nav className="min-h-0 flex-1 overflow-y-auto p-2" aria-label="Event workspace navigation">
-        {navGroups.map((group) => <section key={group.label} className="mb-4 last:mb-0">{!collapsed ? <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{group.label}</p> : null}<div className="space-y-1">{group.items.map((item) => { const Icon = item.icon; const href = `/events/${eventId}/${item.segment}`; const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={item.segment} href={href} title={collapsed ? item.label : undefined} aria-current={active ? "page" : undefined} onClick={() => setMobileRailOpen(false)} className={`event-studio-right-nav-item ${active ? "is-active" : ""} ${collapsed ? "is-collapsed" : ""}`}><Icon className="h-[18px] w-[18px] shrink-0" />{!collapsed ? <span className="min-w-0 truncate">{item.label}</span> : null}</Link>; })}</div></section>)}
+        {navGroups.map((group) => <section key={group.label} className="mb-4 last:mb-0">{!collapsed ? <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{group.label}</p> : null}<div className="space-y-1">{group.items.map((item) => { const Icon = item.icon; const href = `/events/${eventId}/${item.segment}`; const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={item.segment} href={href} aria-label={item.label} title={collapsed ? item.label : undefined} aria-current={active ? "page" : undefined} onClick={() => setMobileRailOpen(false)} className={`event-studio-right-nav-item ${active ? "is-active" : ""} ${collapsed ? "is-collapsed" : ""}`}><Icon className="h-[18px] w-[18px] shrink-0" />{!collapsed ? <span className="min-w-0 truncate">{item.label}</span> : null}</Link>; })}</div></section>)}
       </nav>
       <div className="border-t border-slate-200 p-2">
         <button type="button" onClick={toggleRail} className="event-studio-right-nav-item hidden w-full lg:flex" aria-label={collapsed ? "Expand event navigation" : "Collapse event navigation"}>{collapsed ? <PanelRightOpen className="h-[18px] w-[18px]" /> : <PanelRightClose className="h-[18px] w-[18px]" />}{!collapsed ? <span>Collapse navigation</span> : null}</button>
@@ -131,6 +135,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
 
   return (
     <div className="event-studio-shell min-h-dvh bg-[#f6f7fb] text-slate-900">
+      <a href="#event-main-content" className="crm-skip-link">Skip to event workspace</a>
       <header className="event-studio-header sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-3 px-3 sm:px-5">
           <Link href="/events" className="flex shrink-0 items-center gap-2 font-semibold" aria-label="Events home"><span className="event-studio-product-mark grid h-9 w-9 place-items-center text-white"><CalendarDays className="h-[18px] w-[18px]" /></span><span className="hidden sm:block"><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-amber-400">Oyama</span><span className="block text-sm leading-4 text-white">Event Operations</span></span></Link>
@@ -141,17 +146,17 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
           {eventId ? <div className="hidden min-w-0 lg:block"><p className="truncate text-sm font-bold">{currentItem?.label ?? "Event workspace"}</p><p className="truncate text-[11px] text-slate-500">{event?.name ?? "Event"}</p></div> : null}
           <div className="ml-auto flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white" title={user.email}>{initials(`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email)}</div>
-            {eventId ? <button type="button" onClick={() => setMobileRailOpen(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 bg-white lg:hidden" aria-label="Open event navigation"><Menu className="h-5 w-5" /></button> : null}
+            {eventId ? <button type="button" onClick={() => setMobileRailOpen(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 bg-white lg:hidden" aria-label="Open event navigation" aria-expanded={mobileRailOpen} aria-controls="event-mobile-navigation"><Menu className="h-5 w-5" /></button> : null}
           </div>
         </div>
       </header>
 
       <div className="mx-auto flex max-w-[1800px] items-start">
-        <main className={`min-w-0 flex-1 ${isPublicSiteBuilder ? "h-[calc(100dvh-4rem)] min-h-0 overflow-hidden" : "min-h-[calc(100dvh-4rem)]"} ${isTriviaWorkspace ? "event-trivia-admin-content" : ""}`}><ErrorBoundary>{redirectTarget ? <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">Opening the selected event…</div> : children}</ErrorBoundary></main>
+        <main id="event-main-content" tabIndex={-1} className={`min-w-0 flex-1 ${isPublicSiteBuilder ? "h-[calc(100dvh-4rem)] min-h-0 overflow-hidden" : "min-h-[calc(100dvh-4rem)]"} ${isTriviaWorkspace ? "event-trivia-admin-content" : ""}`}><ErrorBoundary>{redirectTarget ? <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">Opening the selected event…</div> : children}</ErrorBoundary></main>
         {eventId ? <aside className={`event-studio-right-rail sticky top-16 hidden h-[calc(100dvh-4rem)] shrink-0 flex-col border-l lg:flex ${railCollapsed ? "w-[68px]" : "w-[260px]"}`}>{renderRail(railCollapsed)}</aside> : null}
       </div>
 
-      {eventId && mobileRailOpen ? <><button type="button" className="fixed inset-0 z-50 bg-slate-950/55 lg:hidden" onClick={() => setMobileRailOpen(false)} aria-label="Close event navigation" /><aside className="event-studio-mobile-rail fixed inset-y-0 right-0 z-[60] flex w-[min(88vw,320px)] flex-col border-l shadow-2xl lg:hidden"><div className="flex h-14 items-center justify-between border-b px-4"><div className="flex items-center gap-2"><ChevronLeft className="h-4 w-4 text-amber-400" /><span className="text-sm font-bold">Event navigation</span></div><button type="button" onClick={() => setMobileRailOpen(false)} className="grid h-9 w-9 place-items-center hover:bg-white/10" aria-label="Close navigation"><X className="h-5 w-5" /></button></div>{renderRail(false)}</aside></> : null}
+      {eventId && mobileRailOpen ? <><button type="button" className="fixed inset-0 z-50 bg-slate-950/55 lg:hidden" onClick={() => setMobileRailOpen(false)} aria-label="Close event navigation" /><aside ref={mobileRailRef} id="event-mobile-navigation" role="dialog" aria-modal="true" aria-label="Event navigation" tabIndex={-1} className="event-studio-mobile-rail fixed inset-y-0 right-0 z-[60] flex w-[min(88vw,320px)] flex-col border-l shadow-2xl lg:hidden"><div className="flex h-14 items-center justify-between border-b px-4"><div className="flex items-center gap-2"><ChevronLeft className="h-4 w-4 text-amber-400" /><span className="text-sm font-bold">Event navigation</span></div><button type="button" onClick={() => setMobileRailOpen(false)} className="grid h-9 w-9 place-items-center hover:bg-white/10" aria-label="Close navigation"><X className="h-5 w-5" /></button></div>{renderRail(false)}</aside></> : null}
     </div>
   );
 }

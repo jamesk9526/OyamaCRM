@@ -1,0 +1,300 @@
+# UI and event operations audit — 2026-09-15
+
+## Result and boundaries
+
+Partial audit and implemented fixes. Inventoried 265 page routes; this is not a claim that all routes were opened or visually reviewed. No production readiness certification. Database-backed validation is blocked because configured MySQL at localhost:3306 is unavailable. No data was seeded, published, sent, or migrated.
+
+## Implemented fixes
+
+- Shared modal focus no longer resets when a parent rerenders a form with an inline close callback. Keyboard cycling excludes hidden controls, restores opener focus, cancels deferred focus on unmount, and supports Escape.
+- Shared workspace controls and Events mobile navigation use dialog focus behavior and announce expanded state. Collapsed event links have explicit accessible names.
+- DonorCRM and Events provide skip links. Shared workspace headings and action rows wrap on narrow screens.
+- New Event rejects repeat submission while saving and serializes the entered local date/time to an explicit UTC timestamp. Event-mode cards show keyboard focus.
+- Trivia actions read the latest committed state, preserving batched score, timer, and display operations before React rerenders.
+- Trivia recovery loads history when event/view/sync mode changes, rather than issuing repeated requests whenever its API object rerenders. History failures are caught and displayed. Loading no longer immediately reports a missing event.
+- Event registry distinguishes happening-now, upcoming, unscheduled, and past/archived events. An event no longer becomes completed immediately when doors open; missing dates do not hide records. Open buttons identify their event.
+
+## Validation
+
+- Focused Vitest suite: 8 files, 45 tests passed, including new batched Trivia action and event grouping regressions.
+- Chromium shared-modal fixture: passed at 390, 768, and 1440 pixel widths; typing focus, forward/reverse Tab, Escape, opener focus, and scroll restoration. This tests real shared modal code with mocked route context, not authenticated app workflows or visual fidelity.
+- Web TypeScript check: passed using node node_modules/typescript/bin/tsc --noEmit --incremental false.
+- Initial focused lint: passed; final expanded lint recorded in task response.
+- Event reporting database tests: setup failed because MySQL at localhost:3306 is unreachable; 2 tests skipped.
+
+## Remaining verification and issues
+
+1. Start/provide an isolated development database and authenticated app. Run Events CRUD, public registration, capacity and table allocation, check-in, payment reconciliation, and Trivia relational persistence tests.
+2. Verify simultaneous host, judge, remote, and projector sessions, reconnects, refreshes, snapshots, restore, and remote pass expiry/revocation. Full-state Trivia writes and failed-write recovery need further review: a failed write is not retained in the in-memory queue, and later polling can replace local edits. This audit does not claim to fix that broader synchronization design.
+3. Review each route below in desktop/tablet/mobile browsers for overflow, typography, contrast, missing labels, empty/error/loading states, permission boundaries, and completion of its primary action. The shared fixes apply only to components that use them.
+4. Verify external integrations and outbound communication in their appropriate test environments. No real messages or payments were triggered.
+
+## Route inventory
+
+Every route below is inventoried from the filesystem; route-level visual and operational coverage remains pending unless specifically described above.
+
+- /
+- /[publicEventSlug]
+- /apps
+- /apps/password-vault
+- /apps/stripe
+- /apps/trivia
+- /apps/trivia/display/[eventId]
+- /apps/trivia/display/[eventId]/check-in
+- /apps/trivia/display/[eventId]/leaderboard
+- /apps/trivia/events
+- /apps/trivia/events/[eventId]/answer-key
+- /apps/trivia/events/[eventId]/builder
+- /apps/trivia/events/[eventId]/check-in
+- /apps/trivia/events/[eventId]/host
+- /apps/trivia/events/[eventId]/judge
+- /apps/trivia/events/[eventId]/overview
+- /apps/trivia/events/[eventId]/printables
+- /apps/trivia/events/[eventId]/recovery
+- /apps/trivia/events/[eventId]/registration
+- /apps/trivia/events/[eventId]/scoreboard
+- /apps/trivia/events/[eventId]/scores
+- /apps/trivia/events/new
+- /apps/trivia/remote
+- /apps/trivia/remote/[eventId]
+- /automations
+- /board
+- /campaigns
+- /campaigns/[id]
+- /communications
+- /communications/[campaignId]
+- /communications/[campaignId]/review
+- /communications/[campaignId]/schedule
+- /communications/letters-printables
+- /communications/letters-printables/generate
+- /communications/library/campaigns
+- /communications/library/segments
+- /communications/library/templates
+- /communications/log
+- /communications/new
+- /communications/new/audience
+- /communications/new/editor
+- /communications/new/preset
+- /communications/new/review
+- /communications/new/send
+- /communications/new/type
+- /constituents
+- /constituents/[id]
+- /constituents/[id]/edit
+- /constituents/new
+- /contacts-manager
+- /contacts-manager/fullscreen
+- /contacts-manager/lists
+- /custom-fields
+- /data-tools
+- /data-tools/import
+- /data-tools/import/donation
+- /data-tools/import/events-guests
+- /data-tools/organization-conversion
+- /designations
+- /donations
+- /donations/[id]
+- /donations/[id]/edit
+- /donations/new
+- /donor-profile
+- /donor-research
+- /email-builder
+- /event-reservations
+- /events
+- /events/[eventId]
+- /events/[eventId]/check-in
+- /events/[eventId]/communications
+- /events/[eventId]/day
+- /events/[eventId]/donations
+- /events/[eventId]/emails
+- /events/[eventId]/event-page
+- /events/[eventId]/files
+- /events/[eventId]/follow-up
+- /events/[eventId]/fundraising
+- /events/[eventId]/guests
+- /events/[eventId]/hosts
+- /events/[eventId]/orders
+- /events/[eventId]/overview
+- /events/[eventId]/payments
+- /events/[eventId]/registration
+- /events/[eventId]/reports
+- /events/[eventId]/settings
+- /events/[eventId]/sponsors
+- /events/[eventId]/tables
+- /events/[eventId]/tasks
+- /events/[eventId]/tickets
+- /events/[eventId]/trivia
+- /events/[eventId]/trivia/builder
+- /events/[eventId]/trivia/check-in
+- /events/[eventId]/trivia/host
+- /events/[eventId]/trivia/judge
+- /events/[eventId]/trivia/printables
+- /events/[eventId]/trivia/projector
+- /events/[eventId]/trivia/recovery
+- /events/[eventId]/trivia/scoreboard
+- /events/[eventId]/trivia/scores
+- /events/[eventId]/volunteers
+- /events/check-in
+- /events/communications
+- /events/donations
+- /events/emails
+- /events/events
+- /events/files
+- /events/follow-up
+- /events/fundraising
+- /events/guests
+- /events/hosts
+- /events/orders
+- /events/page-builder
+- /events/reports
+- /events/settings
+- /events/setup
+- /events/sponsors
+- /events/tables
+- /events/tasks
+- /events/templates
+- /events/tickets
+- /events/volunteers
+- /events/workspace
+- /give/[token]
+- /grants
+- /grants/[id]
+- /help
+- /help/[slug]
+- /integrations/stripe
+- /letters
+- /letters-printables
+- /letters-printables/generate
+- /livecom
+- /livecom/embed-test
+- /livecom/inbox
+- /login
+- /login/forgot-password
+- /login/reset-password
+- /meetings
+- /notifications
+- /offline
+- /ogentic
+- /oyama-email
+- /oyama-email/analytics
+- /oyama-email/audience
+- /oyama-email/calendar
+- /oyama-email/callender
+- /oyama-email/campaigns
+- /oyama-email/campaigns/[campaignId]
+- /oyama-email/campaigns/new
+- /oyama-email/docs
+- /oyama-email/queue
+- /oyama-email/send
+- /oyama-email/settings
+- /oyama-email/templates
+- /oyama-email/templates/[templateId]/builder
+- /oyama-email/templates/[templateId]/publish
+- /oyama-email/templates/new
+- /oyama-letters
+- /oyama-letters/batches
+- /oyama-letters/docs
+- /oyama-letters/generate
+- /oyama-letters/how-to
+- /oyama-letters/labels
+- /oyama-letters/queue
+- /oyama-letters/settings
+- /oyama-letters/templates
+- /oyama-letters/templates/[templateId]
+- /oyama-letters/templates/[templateId]/builder
+- /oyama-letters/templates/[templateId]/print
+- /oyama-letters/templates/[templateId]/publish
+- /oyama-letters/templates/new
+- /password
+- /payments
+- /preferences/[token]
+- /qr-codes
+- /quickbooks-sync
+- /reports
+- /reports/builder
+- /reports/donor-crm
+- /reports/manager
+- /settings
+- /settings/about
+- /settings/ai
+- /settings/appearance
+- /settings/audit
+- /settings/branding
+- /settings/branding/letter-presets
+- /settings/branding/signatures
+- /settings/dashboard-appearance
+- /settings/desktop-app
+- /settings/donor
+- /settings/email
+- /settings/events
+- /settings/forms
+- /settings/import-export
+- /settings/integrations
+- /settings/meetings
+- /settings/modules
+- /settings/organization
+- /settings/payments
+- /settings/plugins
+- /settings/profile
+- /settings/project-status
+- /settings/roles
+- /settings/scheduling
+- /settings/security
+- /settings/site-embeds
+- /settings/system
+- /settings/system-status
+- /settings/system-updates
+- /settings/tasks
+- /settings/users
+- /settings/workspaces
+- /setup
+- /steward-ai-workspace
+- /steward-paths
+- /steward-paths/[id]
+- /steward-paths/[id]/activity
+- /steward-paths/[id]/analytics
+- /steward-paths/[id]/builder
+- /steward-paths/[id]/enrollments
+- /steward-paths/[id]/history
+- /steward-paths/[id]/playground
+- /steward-paths/[id]/publish
+- /steward-paths/[id]/review
+- /steward-paths/activity
+- /steward-paths/analytics
+- /steward-paths/builder
+- /steward-paths/builder/[id]
+- /steward-paths/enrollments
+- /steward-paths/library
+- /steward-paths/livecom
+- /steward-paths/new
+- /steward-paths/review
+- /steward-paths/settings
+- /steward-signals
+- /steward-signals/email-draft-studio
+- /tablelink
+- /tablelink/[eventId]/[tableUid]
+- /tablelink/invite/[token]
+- /tasks
+- /template-convert
+- /trivia/[slug]
+- /unsubscribe/[token]
+- /volunteers
+- /watchdog
+- /watchdog/alerts
+- /watchdog/audit
+- /watchdog/backups
+- /watchdog/feedback-tickets
+- /watchdog/health
+- /watchdog/restore
+- /watchdog/runbooks
+- /watchdog/security
+- /watchdog/settings
+- /watchdog/support-tickets
+- /watchdog/vault
+- /webmaster
+- /webmaster/[workspace]
+- /webmaster/builder
+- /webmaster/editor
+- /webmaster/page-builder
+- /webmaster/preview/[siteId]/[pageId]
+- /webmaster/publishing

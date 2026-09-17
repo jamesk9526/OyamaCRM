@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
+import { FileUp } from "lucide-react";
 import TeamManagerPanel from "@/app/components/trivia/TeamManagerPanel";
 import TriviaGameMap from "@/app/components/trivia/TriviaGameMap";
 import TriviaGameTemplateLibrary from "@/app/components/trivia/TriviaGameTemplateLibrary";
@@ -31,6 +33,7 @@ export default function TriviaEventBuilderPage() {
 
   return (
     <section className="trivia-builder-page space-y-5">
+      <div className="flex justify-end"><Link href="/events/trivia-import" className="event-trivia-primary-action"><FileUp className="h-4 w-4" />Import trivia game</Link></div>
       <TriviaQuestionBulkAddPanel
         rounds={event.rounds}
         defaultPoints={event.gameTemplate?.defaultQuestionPoints ?? event.scoringRules.defaultQuestionPoints}

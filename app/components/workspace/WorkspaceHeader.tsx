@@ -14,12 +14,12 @@ interface WorkspaceHeaderProps {
 export default function WorkspaceHeader({ title, description, actions, mobileControlButton }: WorkspaceHeaderProps) {
   return (
     <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <h1 className="text-lg font-semibold text-gray-900 min-[1440px]:text-xl">{title}</h1>
+      <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
+        <h1 className="break-words text-xl font-semibold text-gray-900 min-[1440px]:text-xl">{title}</h1>
         {description && <p className="mt-0.5 max-w-3xl text-sm text-gray-500">{description}</p>}
       </div>
 
-      <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+      <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end">
         {mobileControlButton}
         {actions}
       </div>

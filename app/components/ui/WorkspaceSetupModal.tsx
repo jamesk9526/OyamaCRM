@@ -1,7 +1,8 @@
 /** Shared setup-style modal shell with module-aware accent theming for CRM modals. */
 "use client";
 
-import { type ReactNode, useEffect, useId, useMemo, useRef } from "react";
+import { type ReactNode, useId, useMemo, useRef } from "react";
+import { useDialogFocus } from "./useDialogFocus";
 import { usePathname } from "next/navigation";
 import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 
@@ -100,58 +101,7 @@ export default function WorkspaceSetupModal({
   const isDark = appearance === "dark";
   const showChecklist = checklist.length > 0;
 
-  // Every shared CRM dialog should have a dependable way out, including when
-  // a form field or a nested scroll area has focus.
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusableSelector = [
-      "a[href]",
-      "button:not([disabled])",
-      "input:not([disabled])",
-      "select:not([disabled])",
-      "textarea:not([disabled])",
-      "[tabindex]:not([tabindex='-1'])",
-    ].join(",");
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key === "Tab" && dialogRef.current) {
-        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
-          .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
-        if (focusable.length === 0) {
-          event.preventDefault();
-          dialogRef.current.focus();
-          return;
-        }
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-    window.requestAnimationFrame(() => {
-      const preferredTarget = dialogRef.current?.querySelector<HTMLElement>("[data-modal-autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])");
-      (preferredTarget ?? dialogRef.current)?.focus();
-    });
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [onClose]);
+  useDialogFocus(dialogRef, true, onClose);
 
   const shellClass = isDark
     ? "border-slate-800 bg-[#020617] text-slate-100 shadow-[0_30px_120px_rgba(2,6,23,0.85)]"

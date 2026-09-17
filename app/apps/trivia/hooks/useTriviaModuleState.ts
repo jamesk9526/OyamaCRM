@@ -35,6 +35,7 @@ import {
 } from "@/app/apps/trivia/lib/trivia-store";
 import { createDefaultDisplaySettings, createDefaultLiveState, createDefaultScoringRules } from "@/app/apps/trivia/lib/trivia-demo-data";
 import { createSampleTriviaEvent } from "@/app/apps/trivia/lib/trivia-sample-data";
+import type { TriviaGameImport } from "@/app/apps/trivia/lib/trivia-game-import";
 import {
   createServerTriviaSnapshot,
   createIntegratedTriviaEvent,
@@ -307,7 +308,7 @@ export function useTriviaModuleState() {
   }
 
   function replaceStateWithEvent(nextEvent: TriviaEvent) {
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     commit(nextState);
   }
 
@@ -339,13 +340,13 @@ export function useTriviaModuleState() {
     const integratedEvent = created.event;
 
     const nextState: TriviaModuleState = {
-      events: [integratedEvent, ...state.events.filter((event) => event.id !== integratedEvent.id)],
+      events: [integratedEvent, ...stateRef.current.events.filter((event) => event.id !== integratedEvent.id)],
       liveByEventId: {
-        ...state.liveByEventId,
+        ...stateRef.current.liveByEventId,
         [integratedEvent.id]: createDefaultLiveState(integratedEvent),
       },
       scoreHistoryByEventId: {
-        ...state.scoreHistoryByEventId,
+        ...stateRef.current.scoreHistoryByEventId,
         [integratedEvent.id]: [],
       },
     };
@@ -359,13 +360,13 @@ export function useTriviaModuleState() {
     const sampleEvent = createSampleTriviaEvent(eventId);
 
     const nextState: TriviaModuleState = {
-      events: [sampleEvent, ...state.events],
+      events: [sampleEvent, ...stateRef.current.events],
       liveByEventId: {
-        ...state.liveByEventId,
+        ...stateRef.current.liveByEventId,
         [eventId]: createDefaultLiveState(sampleEvent),
       },
       scoreHistoryByEventId: {
-        ...state.scoreHistoryByEventId,
+        ...stateRef.current.scoreHistoryByEventId,
         [eventId]: [],
       },
     };
@@ -375,8 +376,8 @@ export function useTriviaModuleState() {
   }
 
   function updateEventStatus(eventId: string, status: TriviaEventStatus) {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
     if (!event) return;
 
     const nextEvent: TriviaEvent = {
@@ -390,7 +391,7 @@ export function useTriviaModuleState() {
       return;
     }
 
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     nextState.liveByEventId[eventId] = {
       ...live,
       checkInOpenedAt: status === "check_in_open" ? live.checkInOpenedAt ?? new Date().toISOString() : live.checkInOpenedAt ?? null,
@@ -405,7 +406,7 @@ export function useTriviaModuleState() {
   }
 
   function updateEventSettings(eventId: string, input: UpdateEventSettingsInput) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
 
     const nextEvent: TriviaEvent = {
@@ -430,7 +431,7 @@ export function useTriviaModuleState() {
   }
 
   function updateRegistrationSettings(eventId: string, input: Partial<TriviaRegistrationSettings>) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const defaults = createDefaultTriviaRegistrationSettings(event.name, event.id);
     replaceStateWithEvent({
@@ -452,7 +453,7 @@ export function useTriviaModuleState() {
 
   /** Applies a reusable game plan without deleting authored rounds or questions. */
   function applyGameTemplate(eventId: string, template: TriviaGameTemplate) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const requiredRounds = Math.max(1, Math.min(20, template.roundCount));
     const rounds = [...event.rounds];
@@ -471,7 +472,7 @@ export function useTriviaModuleState() {
   }
 
   function addTeam(eventId: string, input: AddTeamInput) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
 
     const nextOrder = event.teams.length;
@@ -506,7 +507,7 @@ export function useTriviaModuleState() {
   }
 
   function updateTeam(eventId: string, teamId: string, input: UpdateTeamInput): TriviaTeamUpdateResult {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return { ok: false, error: "Event not found." };
     const normalizedTableNumber = input.tableNumber === undefined ? undefined : normalizeTriviaTableNumber(input.tableNumber);
     if (input.tableNumber !== undefined && !normalizedTableNumber) {
@@ -565,7 +566,7 @@ export function useTriviaModuleState() {
   }
 
   function reorderTeam(eventId: string, teamId: string, direction: -1 | 1) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
 
     const ordered = normalizeTeamOrder(event.teams);
@@ -590,8 +591,8 @@ export function useTriviaModuleState() {
   }
 
   function removeTeam(eventId: string, teamId: string) {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
 
     const nextEvent: TriviaEvent = {
@@ -600,7 +601,7 @@ export function useTriviaModuleState() {
       updatedAt: new Date().toISOString(),
     };
 
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     nextState.liveByEventId[eventId] = {
       ...live,
       winnerTeamId: live.winnerTeamId === teamId ? null : live.winnerTeamId,
@@ -614,7 +615,7 @@ export function useTriviaModuleState() {
   }
 
   function addRound(eventId: string, input: AddRoundInput): TriviaRound | null {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return null;
 
     const round: TriviaRound = {
@@ -631,7 +632,7 @@ export function useTriviaModuleState() {
       updatedAt: new Date().toISOString(),
     };
 
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     const live = nextState.liveByEventId[eventId] ?? createDefaultLiveState(nextEvent);
 
     if (!live.activeRoundId) {
@@ -647,6 +648,30 @@ export function useTriviaModuleState() {
 
     commit(nextState);
     return round;
+  }
+
+  function importGame(eventId: string, game: TriviaGameImport): { ok: boolean; message: string } {
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    if (!event) return { ok: false, message: "Choose an existing trivia event." };
+    if (["live", "paused", "completed", "archived"].includes(event.status)) return { ok: false, message: "Import into a draft event before the game starts." };
+    if (event.rounds.length + game.rounds.length > 20) return { ok: false, message: "This event cannot exceed 20 rounds. Remove rounds or choose another event." };
+    const rounds: TriviaRound[] = game.rounds.map((round) => ({
+      id: createTriviaId("round"),
+      title: round.title,
+      description: round.description,
+      roundType: round.roundType,
+      questions: round.questions.map((question) => ({
+        id: createTriviaId("question"), prompt: question.prompt, scoringAnswer: question.answer, audienceAnswer: question.answer,
+        points: question.points, timeLimitSec: question.seconds, hostNotes: question.hostNotes ?? "",
+        questionType: "text", options: [], acceptedAnswers: [], explanation: "", revealText: "", mediaUrl: "",
+      })),
+    }));
+    const nextEvent = { ...event, rounds: [...event.rounds, ...rounds], updatedAt: new Date().toISOString() };
+    const nextState = replaceEvent(stateRef.current, nextEvent);
+    const live = nextState.liveByEventId[eventId] ?? createDefaultLiveState(nextEvent);
+    if (!live.activeRoundId) nextState.liveByEventId[eventId] = { ...live, activeRoundId: rounds[0].id, activeQuestionIndex: 0, stage: "round_intro", updatedAt: new Date().toISOString() };
+    commit(nextState);
+    return { ok: true, message: `Added ${rounds.length} rounds and ${rounds.reduce((count, round) => count + round.questions.length, 0)} questions to ${event.name}.` };
   }
 
   function addQuestions(eventId: string, roundId: string, inputs: AddQuestionInput[]): AddQuestionsResult {
@@ -695,20 +720,20 @@ export function useTriviaModuleState() {
   }
 
   function updateRound(eventId: string, roundId: string, input: Partial<Pick<TriviaRound, "title" | "description" | "roundType">>) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const rounds = event.rounds.map((round) => round.id === roundId ? { ...round, ...input, title: input.title?.trim() || round.title } : round);
     replaceStateWithEvent({ ...event, rounds, updatedAt: new Date().toISOString() });
   }
 
   function removeRound(eventId: string, roundId: string) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const removedIndex = event.rounds.findIndex((round) => round.id === roundId);
     if (removedIndex < 0) return;
     const rounds = event.rounds.filter((round) => round.id !== roundId);
     const nextEvent = { ...event, rounds, updatedAt: new Date().toISOString() };
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     const live = nextState.liveByEventId[eventId];
     if (live?.activeRoundId === roundId) {
       const fallback = rounds[Math.min(removedIndex, Math.max(0, rounds.length - 1))] ?? null;
@@ -718,7 +743,7 @@ export function useTriviaModuleState() {
   }
 
   function updateWelcomeScreen(eventId: string, input: Partial<TriviaWelcomeScreen>) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const current: TriviaWelcomeScreen = event.welcomeScreen ?? { eyebrow: "Tonight's event", headline: event.name, subtitle: "Get ready for a great night of trivia.", showHost: true, showVenue: true };
     replaceStateWithEvent({ ...event, welcomeScreen: { ...current, ...input }, updatedAt: new Date().toISOString() });
@@ -726,7 +751,7 @@ export function useTriviaModuleState() {
 
   /** Updates an existing question without disturbing its round order or live selection. */
   function updateQuestion(eventId: string, roundId: string, questionId: string, input: UpdateQuestionInput) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
 
     const rounds = event.rounds.map((round) => {
@@ -741,7 +766,7 @@ export function useTriviaModuleState() {
   }
 
   function duplicateQuestion(eventId: string, roundId: string, questionId: string) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const rounds = event.rounds.map((round) => {
       if (round.id !== roundId) return round;
@@ -755,10 +780,10 @@ export function useTriviaModuleState() {
   }
 
   function removeQuestion(eventId: string, roundId: string, questionId: string) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const rounds = event.rounds.map((round) => round.id === roundId ? { ...round, questions: round.questions.filter((question) => question.id !== questionId) } : round);
-    const nextState = replaceEvent(state, { ...event, rounds, updatedAt: new Date().toISOString() });
+    const nextState = replaceEvent(stateRef.current, { ...event, rounds, updatedAt: new Date().toISOString() });
     const live = nextState.liveByEventId[eventId];
     if (live?.activeRoundId === roundId) {
       const round = rounds.find((item) => item.id === roundId);
@@ -769,7 +794,7 @@ export function useTriviaModuleState() {
 
   /** Reorders a round by dropping it before another round in the visual builder. */
   function reorderRound(eventId: string, roundId: string, targetRoundId: string) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event || roundId === targetRoundId) return;
     const sourceIndex = event.rounds.findIndex((round) => round.id === roundId);
     const targetIndex = event.rounds.findIndex((round) => round.id === targetRoundId);
@@ -784,14 +809,14 @@ export function useTriviaModuleState() {
 
   /** Moves or reorders a question while preserving the currently displayed question when possible. */
   function moveQuestion(eventId: string, questionId: string, sourceRoundId: string, targetRoundId: string, targetIndex: number) {
-    const event = state.events.find((item) => item.id === eventId);
+    const event = stateRef.current.events.find((item) => item.id === eventId);
     if (!event) return;
     const sourceRound = event.rounds.find((round) => round.id === sourceRoundId);
     const targetRound = event.rounds.find((round) => round.id === targetRoundId);
     const question = sourceRound?.questions.find((item) => item.id === questionId);
     if (!sourceRound || !targetRound || !question) return;
 
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     const activeQuestionId = live
       ? event.rounds.find((round) => round.id === live.activeRoundId)?.questions[live.activeQuestionIndex]?.id ?? null
       : null;
@@ -807,7 +832,7 @@ export function useTriviaModuleState() {
     nextTarget.questions.splice(insertionIndex, 0, question);
 
     const nextEvent = { ...event, rounds, updatedAt: new Date().toISOString() };
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     if (live) {
       const activeRound = rounds.find((round) => round.id === live.activeRoundId);
       const preservedIndex = activeQuestionId ? activeRound?.questions.findIndex((item) => item.id === activeQuestionId) ?? -1 : -1;
@@ -824,8 +849,8 @@ export function useTriviaModuleState() {
   }
 
   function applyScoreAction(eventId: string, input: ApplyScoreActionInput) {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
 
     const teamIndex = event.teams.findIndex((team) => team.id === input.teamId);
@@ -861,7 +886,7 @@ export function useTriviaModuleState() {
       updatedAt: new Date().toISOString(),
     };
 
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     nextState.liveByEventId[eventId] = {
       ...live,
       updatedAt: new Date().toISOString(),
@@ -869,15 +894,15 @@ export function useTriviaModuleState() {
       lastScoreActionAt: scoreAction.createdAt,
       lastScoreActionSummary: `${scoreAction.actionType} ${scoreAction.delta >= 0 ? `+${scoreAction.delta}` : scoreAction.delta} (${scoreAction.reason})`,
     };
-    nextState.scoreHistoryByEventId[eventId] = [...(state.scoreHistoryByEventId[eventId] ?? []), scoreAction];
+    nextState.scoreHistoryByEventId[eventId] = [...(stateRef.current.scoreHistoryByEventId[eventId] ?? []), scoreAction];
 
     commit(nextState);
   }
 
   function undoScoreActionById(eventId: string, actionId: string) {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
-    const history = state.scoreHistoryByEventId[eventId] ?? [];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
+    const history = stateRef.current.scoreHistoryByEventId[eventId] ?? [];
     if (!event || !live || history.length === 0) return;
 
     const target = history.find((entry) => entry.id === actionId);
@@ -898,7 +923,7 @@ export function useTriviaModuleState() {
       updatedAt: new Date().toISOString(),
     };
 
-    const nextState = replaceEvent(state, nextEvent);
+    const nextState = replaceEvent(stateRef.current, nextEvent);
     nextState.scoreHistoryByEventId[eventId] = history.filter((entry) => entry.id !== actionId);
     const latest = nextState.scoreHistoryByEventId[eventId][nextState.scoreHistoryByEventId[eventId].length - 1] ?? null;
     nextState.liveByEventId[eventId] = {
@@ -915,21 +940,21 @@ export function useTriviaModuleState() {
   }
 
   function undoLastScoreAction(eventId: string) {
-    const history = state.scoreHistoryByEventId[eventId] ?? [];
+    const history = stateRef.current.scoreHistoryByEventId[eventId] ?? [];
     if (history.length === 0) return;
     const lastAction = history[history.length - 1];
     undoScoreActionById(eventId, lastAction.id);
   }
 
   function setActiveRound(eventId: string, roundId: string) {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
 
     const round = event.rounds.find((item) => item.id === roundId);
     const question = round?.questions[0];
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       activeRoundId: roundId,
@@ -947,8 +972,8 @@ export function useTriviaModuleState() {
   }
 
   function setQuestionIndex(eventId: string, nextIndex: number) {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
 
     const activeRound = event.rounds.find((round) => round.id === live.activeRoundId);
@@ -963,7 +988,7 @@ export function useTriviaModuleState() {
           ? "tiebreaker"
           : "question";
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       activeQuestionIndex: boundedIndex,
@@ -981,10 +1006,10 @@ export function useTriviaModuleState() {
   }
 
   function setDisplayStage(eventId: string, stage: TriviaDisplayStage, actionLabel: string) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       stage,
@@ -1003,10 +1028,10 @@ export function useTriviaModuleState() {
   }
 
   function setWinner(eventId: string, teamId: string | null) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       stage: "winner",
@@ -1020,10 +1045,10 @@ export function useTriviaModuleState() {
   }
 
   function setTimerRunning(eventId: string, running: boolean) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       timerRunning: running,
@@ -1035,12 +1060,12 @@ export function useTriviaModuleState() {
   }
 
   function setTimerRemaining(eventId: string, remainingSec: number) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
     const bounded = Math.max(0, remainingSec);
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       timerRemainingSec: bounded,
@@ -1053,12 +1078,12 @@ export function useTriviaModuleState() {
   }
 
   function resetTimer(eventId: string, nextDefaultSec?: number) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
     const defaultSec = nextDefaultSec ?? live.timerDefaultSec;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       timerDefaultSec: defaultSec,
@@ -1072,10 +1097,10 @@ export function useTriviaModuleState() {
   }
 
   function markProjectorOpened(eventId: string) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       displayOpenedAt: live.displayOpenedAt ?? new Date().toISOString(),
@@ -1088,10 +1113,10 @@ export function useTriviaModuleState() {
   }
 
   function setProjectorConnectionStatus(eventId: string, status: TriviaConnectionStatus) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       projectorConnectionStatus: status,
@@ -1102,10 +1127,10 @@ export function useTriviaModuleState() {
   }
 
   function setScorekeeperConnectionStatus(eventId: string, status: TriviaConnectionStatus) {
-    const live = state.liveByEventId[eventId];
+    const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
-    const nextState = { ...state, liveByEventId: { ...state.liveByEventId } };
+    const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       scorekeeperConnectionStatus: status,
@@ -1116,9 +1141,9 @@ export function useTriviaModuleState() {
   }
 
   function deleteEvent(eventId: string) {
-    const nextEvents = state.events.filter((event) => event.id !== eventId);
-    const nextLiveByEventId = { ...state.liveByEventId };
-    const nextScoreHistoryByEventId = { ...state.scoreHistoryByEventId };
+    const nextEvents = stateRef.current.events.filter((event) => event.id !== eventId);
+    const nextLiveByEventId = { ...stateRef.current.liveByEventId };
+    const nextScoreHistoryByEventId = { ...stateRef.current.scoreHistoryByEventId };
     delete nextLiveByEventId[eventId];
     delete nextScoreHistoryByEventId[eventId];
 
@@ -1154,8 +1179,8 @@ export function useTriviaModuleState() {
           updatedAt: new Date().toISOString(),
         }));
 
-      const liveByEventId = { ...state.liveByEventId };
-      const scoreHistoryByEventId = { ...state.scoreHistoryByEventId };
+      const liveByEventId = { ...stateRef.current.liveByEventId };
+      const scoreHistoryByEventId = { ...stateRef.current.scoreHistoryByEventId };
       cleaned.forEach((event) => {
         if (!liveByEventId[event.id]) {
           liveByEventId[event.id] = createDefaultLiveState(event);
@@ -1179,13 +1204,13 @@ export function useTriviaModuleState() {
   }
 
   function exportStatePackage(): string {
-    return JSON.stringify(state, null, 2);
+    return JSON.stringify(stateRef.current, null, 2);
   }
 
   async function createEventSnapshot(eventId: string, label = "Manual snapshot"): Promise<TriviaEventSnapshot> {
-    const event = state.events.find((item) => item.id === eventId);
-    const live = state.liveByEventId[eventId];
-    const scoreHistory = state.scoreHistoryByEventId[eventId] ?? [];
+    const event = stateRef.current.events.find((item) => item.id === eventId);
+    const live = stateRef.current.liveByEventId[eventId];
+    const scoreHistory = stateRef.current.scoreHistoryByEventId[eventId] ?? [];
     if (!event || !live) {
       throw new Error("Unable to create snapshot: event not found.");
     }
@@ -1240,13 +1265,13 @@ export function useTriviaModuleState() {
       throw new Error("Snapshot not found.");
     }
 
-    const nextEvents = state.events.map((event) => (event.id === eventId ? localSnapshot.event : event));
+    const nextEvents = stateRef.current.events.map((event) => (event.id === eventId ? localSnapshot.event : event));
     const nextLiveByEventId = {
-      ...state.liveByEventId,
+      ...stateRef.current.liveByEventId,
       [eventId]: localSnapshot.live,
     };
     const nextScoreHistoryByEventId = {
-      ...state.scoreHistoryByEventId,
+      ...stateRef.current.scoreHistoryByEventId,
       [eventId]: localSnapshot.scoreHistory,
     };
 
@@ -1264,7 +1289,7 @@ export function useTriviaModuleState() {
       return auditEntries;
     }
 
-    const localHistory = state.scoreHistoryByEventId[eventId] ?? [];
+    const localHistory = stateRef.current.scoreHistoryByEventId[eventId] ?? [];
     const localAudit = [...localHistory].reverse().map((entry) => ({
       id: entry.id,
       eventId,
@@ -1315,6 +1340,7 @@ export function useTriviaModuleState() {
     reorderTeam,
     removeTeam,
     addRound,
+    importGame,
     addQuestion,
     addQuestions,
     updateQuestion,

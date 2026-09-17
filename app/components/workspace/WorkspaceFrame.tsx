@@ -3,8 +3,9 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useDialogFocus } from "../ui/useDialogFocus";
 import WorkspaceHeader from "./WorkspaceHeader";
 import WorkspaceMain from "./WorkspaceMain";
 
@@ -29,6 +30,10 @@ export default function WorkspaceFrame({
 }: WorkspaceFrameProps) {
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const controlsId = useId();
+  useDialogFocus(controlsRef, mobileControlsOpen, () => setMobileControlsOpen(false));
+
   return (
     <div className="min-w-0 max-w-full space-y-3 min-[1440px]:space-y-4">
       <WorkspaceHeader
@@ -40,6 +45,8 @@ export default function WorkspaceFrame({
             type="button"
             onClick={() => setMobileControlsOpen(true)}
             data-workspace-controls-trigger="true"
+            aria-expanded={mobileControlsOpen}
+            aria-controls={controlsId}
             className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 min-[1440px]:hidden"
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -60,7 +67,7 @@ export default function WorkspaceFrame({
 
       {controlRail && mobileControlsOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 p-3 min-[1440px]:hidden">
-          <div className="ml-auto flex h-full max-h-[calc(100vh-1.5rem)] w-[min(320px,100%)] flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+          <div ref={controlsRef} id={controlsId} role="dialog" aria-modal="true" aria-label="Workspace controls" tabIndex={-1} className="ml-auto flex h-full max-h-[calc(100vh-1.5rem)] w-[min(320px,100%)] flex-col overflow-hidden rounded-xl bg-white shadow-xl">
             <div className="sticky top-0 z-10 mb-2 flex items-center justify-between border-b border-gray-200 bg-white px-3 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Workspace Controls</p>
               <button

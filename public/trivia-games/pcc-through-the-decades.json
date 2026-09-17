@@ -1,0 +1,342 @@
+{
+  "format": "oyama-trivia-game",
+  "version": 1,
+  "title": "PCC Trivia Night — Through the Decades",
+  "rounds": [
+    {
+      "title": "Round 1: 1980s",
+      "description": "",
+      "roundType": "normal",
+      "questions": [
+        {
+          "prompt": "What was the first music video ever played on MTV?",
+          "answer": "\"Video Killed the Radio Star\" by The Buggles",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "How much power does the flux capacitor need?",
+          "answer": "1.21 gigawatts",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What planet is ALF from?",
+          "answer": "Melmac",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Which 1983 doll came with adoption papers?",
+          "answer": "Cabbage Patch Kids",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "In which country was Tetris invented?",
+          "answer": "The Soviet Union",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Who became the first American woman in space, in 1983?",
+          "answer": "Sally Ride",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Duran Duran took their name from a character in which film?",
+          "answer": "Barbarella",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "In which building does Die Hard take place?",
+          "answer": "Nakatomi Plaza",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "The Simpsons began as shorts on which series?",
+          "answer": "The Tracey Ullman Show",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What was Mario originally called in Donkey Kong?",
+          "answer": "Jumpman",
+          "points": 10,
+          "seconds": 30
+        }
+      ]
+    },
+    {
+      "title": "Round 2: 2000s",
+      "description": "",
+      "roundType": "normal",
+      "questions": [
+        {
+          "prompt": "What networking site was launched by Mark Zuckerberg in 2004?",
+          "answer": "Facebook",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What nickname was given to Angelina Jolie and Brad Pitt when they started dating?",
+          "answer": "Brangelina",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What was the name of the smallest version of the iPod that Apple ever released?",
+          "answer": "The iPod Shuffle",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What animated film won the first ever Academy Award for Best Animated Feature in 2001?",
+          "answer": "Shrek",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "February of 2003, this tragedy involved the loss of all 7 crew members. What was it?",
+          "answer": "The Space Shuttle Columbia Disaster",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What teen comedy and Broadway musical from 2004 included a clique called “The Plastics”, led by queen bee Regina George?",
+          "answer": "Mean Girls",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "The Patriots won the Superbowl three times between 2000 and 2005, Tom Brady won MVP in tow of these three games. Who was the (other) winner of the 2005 MVP for the Patriots?",
+          "answer": "Deion Branch",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Seattle Grace Hospital is the center of operations for what 2000s drama series?",
+          "answer": "Grey’s Anatomy",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "April 23 of 2005, the very first video was uploaded to this site.",
+          "answer": "YouTube",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "While in Sarasota, FL, then President Bush was listening to children read when he was informed about the twin towers on September 11, 2001. What was the name of the elementary school he was visiting?",
+          "answer": "Emma E. Booker Elementary School",
+          "points": 10,
+          "seconds": 30
+        }
+      ]
+    },
+    {
+      "title": "Round 3: 2020s",
+      "description": "",
+      "roundType": "normal",
+      "questions": [
+        {
+          "prompt": "Travis Kelce and Taylor Swift famously started dating in 2023, in what country did he attend his first Taylor Swift concert as her official boyfriend on November 11, 2023?",
+          "answer": "Argentina",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "In March 2020, Netflix released what would become a viral docu-series- what was it called?",
+          "answer": "Tiger King",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What AI app launched in November 2022, became the fastest growing consumer application in history?",
+          "answer": "ChatGPT",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Sabrina Carpenter declared “I’m working late, cause I’m a singer” in which 2024 summer hit?",
+          "answer": "Espresso",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "The US just finished hosting the FIFA World Cup in 2026, what country hosted it in 2022?",
+          "answer": "Qatar",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Which track from Disney’s “Encanto” became their first Billboard Hot 100 number since “A Whole New World”?",
+          "answer": "We Don’t Talk About Bruno",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What years in the 2020s have the Chiefs won the Superbowl?",
+          "answer": "2020, 2023, 2024",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Tragically assassinated on September 10, 2025, Charlie Kirk was speaking on what campus in Utah?",
+          "answer": "Utah Valley University",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "COVID 19 would shut the entire world down starting in 2020, in what province of China did scientists think the virus began?",
+          "answer": "Wuhan, China",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Stepping back from their duties as royal members, Meghan Markle and Prince Harry left the UK and moved to the US in 2020- what portmanteau would this move become known as?",
+          "answer": "Megxit",
+          "points": 10,
+          "seconds": 30
+        }
+      ]
+    },
+    {
+      "title": "Round 4: 1960s",
+      "description": "",
+      "roundType": "normal",
+      "questions": [
+        {
+          "prompt": "Who was the first African American women elected to congress in 1968?",
+          "answer": "Shirley Chisholm",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What famous cartoon characters debuted on their popular TV show in 1960?",
+          "answer": "The Flintstones",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "This first-of-its-kind event, was broadcast simultaneously on CBS and NBC on January 15, 1967. It went on to become an annual event. By what name is this event known today?",
+          "answer": "The Superbowl (specifically Superbowl I)",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What is the significance of 200 Hurd Rd, Bethel, NY?",
+          "answer": "It’s where Woodstock took place",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What was the name of the treaty that limited nuclear arms in 1968?",
+          "answer": "The Nuclear Proliferation Treaty",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "September 26, 1968 This TV show debuted and would become the longest running crime show in TV history until it is overtaken by “Law and Order” in 2003.",
+          "answer": "Hawaii Five-O",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "In what year did The Beatles famously perform on The Ed Sullivan Show?",
+          "answer": "1964",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What significant event occurred on July 20, 1969?",
+          "answer": "Apollo 11 landed on the moon",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What dance was made famous by Chubby Checker in 1960 and went on to become the largest craze of the decade?",
+          "answer": "The Twist",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "In a famous ad from this 1965, which lady was asked “What took you so long?”",
+          "answer": "Aunt Jemima",
+          "points": 10,
+          "seconds": 30
+        }
+      ]
+    },
+    {
+      "title": "Tie Breaker: General Trivia",
+      "description": "",
+      "roundType": "tiebreaker",
+      "questions": [
+        {
+          "prompt": "What is the hardest substance found in the human body?",
+          "answer": "Tooth enamel",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Completing a rotation in roughly 10 hours, which planet in our solar system has the shortest day?",
+          "answer": "Jupiter",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What is the only letter in the alphabet that is completely missing from all official element names and chemical symbols on the periodic table?",
+          "answer": "J",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Which US state has the longest coastline?",
+          "answer": "Alaska",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What Spanish city is famous for the unfinished “Sagrada Familia”? Designed by Antoni Gaudi, the church has been under construction for 140 years.",
+          "answer": "Barcelona, Spain",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "What was the original title of Jane Austen’s “Pride and Prejudice”?",
+          "answer": "First Impressions",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "In the world of computers, what does the acronym “URL” stand for?",
+          "answer": "Uniform Resource Locator",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Completely blind and dictating the poem to his daughters over several years, John Milton wrote what epic?",
+          "answer": "Paradise Lost",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Salvador Dali, in 1931, famously painted a melting clock in “The Persistance of Memory”. While many people think the clock represents relativity, Dali claimed the idea came from what?",
+          "answer": "seeing cheese melt in the sun",
+          "points": 10,
+          "seconds": 30
+        },
+        {
+          "prompt": "Famous for it’s realistic aerial dogfight sequences, this silent film won the first-ever Academy Award for Best Picture in 1929.",
+          "answer": "Wings",
+          "points": 10,
+          "seconds": 30
+        }
+      ]
+    }
+  ]
+}

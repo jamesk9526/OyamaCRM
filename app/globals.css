@@ -43,6 +43,27 @@ body {
   overscroll-behavior-y: contain;
 }
 
+/* Reach the working canvas without tabbing through every navigation item. */
+.crm-skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 200;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 4px 16px #0f172a33;
+}
+
+.crm-skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid #0f6cbd;
+  outline-offset: 2px;
+}
+
 [data-crm-scroll-root="true"] {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;

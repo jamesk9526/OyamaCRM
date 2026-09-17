@@ -1,5 +1,11 @@
 # Production Readiness Checklist
 
+## 2026-09-15 UI and event operations audit
+
+Shared modal/navigation accessibility, responsive workspace headers, event-night registry visibility, event creation timestamps, batched Trivia state actions, and recovery request handling improved. Focused regression checks passed; complete route-by-route visual review and database-backed Events/Trivia verification remain pending. MySQL at localhost:3306 is unavailable. Multi-device synchronization and failed-write recovery remain unverified.
+
+Evidence: [UI and event operations audit](audit-artifacts/2026-09-15-ui-event-operations.md).
+
 Last updated: 2026-09-08 (Letter print proofs)
 
 ## 2026-09-08 Letter Print Proofs Snapshot

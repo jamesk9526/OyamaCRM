@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowRight, BarChart3, Gamepad2, Play, Plus, Settings2, Users } from "lucide-react";
+import { ArrowRight, BarChart3, FileUp, Gamepad2, Play, Plus, Settings2, Users } from "lucide-react";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
 
 export default function TriviaDashboardPage() {
@@ -20,7 +20,7 @@ export default function TriviaDashboardPage() {
     <div className="mx-auto max-w-[1320px] space-y-5">
       <header className="flex flex-col gap-4 border-b border-[#d1d1d1] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-semibold text-[#5c2d91]">OYAMA TRIVIA</p><h1 className="mt-1 text-2xl font-semibold tracking-tight">Trivia home</h1><p className="mt-1 max-w-2xl text-sm text-[#616161]">Build the game, open registration, and run the room from one event workspace.</p></div>
-        <div className="flex gap-2"><Link href="/apps/trivia/events" className="event-studio-secondary-button"><Gamepad2 className="h-4 w-4" />All events</Link><Link href="/apps/trivia/events/new" className="trivia-primary-button"><Plus className="h-4 w-4" />New trivia event</Link></div>
+        <div className="flex flex-wrap gap-2"><Link href="/apps/trivia/events" className="event-studio-secondary-button"><Gamepad2 className="h-4 w-4" />All events</Link><Link href="/apps/trivia/events/new" className="event-studio-secondary-button"><Plus className="h-4 w-4" />New trivia event</Link><Link href="/events/trivia-import" className="trivia-primary-button"><FileUp className="h-4 w-4" />Import trivia game</Link></div>
       </header>
 
       <section className="grid grid-cols-2 gap-px overflow-hidden border border-[#d1d1d1] bg-[#d1d1d1] lg:grid-cols-4" aria-label="Trivia summary">

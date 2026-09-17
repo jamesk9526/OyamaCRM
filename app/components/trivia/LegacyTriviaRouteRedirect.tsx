@@ -11,6 +11,7 @@ export default function LegacyTriviaRouteRedirect() {
   const { state, syncMode, setSyncMode } = useTriviaModuleState();
   const target = useMemo(() => {
     const parts = pathname.split("/").filter(Boolean);
+    if (parts[2] === "import") return "/events/trivia-import";
     if (parts.length <= 2 || parts[2] === "events" && !parts[3]) return "/events";
     if (parts[2] === "events" && parts[3] === "new") return "/events";
     const oldId = parts[2] === "display" ? parts[3] : parts[2] === "events" ? parts[3] : null;
