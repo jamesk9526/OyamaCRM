@@ -187,7 +187,7 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
     <section className="trivia-visual-builder">
       <header className="trivia-builder-commandbar">
         <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Event workspace</p><div className="mt-1 flex items-center gap-3"><h1 className="truncate text-2xl font-semibold text-white">Trivia Builder</h1><span className="border border-violet-400/50 bg-violet-500/15 px-2 py-1 text-xs font-semibold text-violet-200">{event.status}</span></div><p className="mt-1 text-sm text-slate-300">{event.name} · {event.rounds.length} rounds · {totalQuestions} questions</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="hidden text-xs text-emerald-200 sm:inline">Saved automatically</span><Link href={`/events/${event.id}/trivia/projector`} target="_blank" className="border border-cyan-400/70 bg-cyan-500/10 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20">▷ Preview</Link><Link href={`/events/${event.id}/trivia/host`} className="border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700">Host panel</Link></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="hidden text-xs text-emerald-200 sm:inline">Saved automatically</span><Link href={`/events/${event.id}/trivia`} className="trivia-builder-header-link">Overview</Link><Link href={`/events/${event.id}/trivia/projector`} target="_blank" className="border border-cyan-400/70 bg-cyan-500/10 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20">▷ Preview</Link><Link href={`/events/${event.id}/trivia/host`} className="border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700">Host panel</Link></div>
       </header>
 
       <section className="border-b border-slate-700 bg-slate-900 px-4 py-4 sm:px-5" aria-labelledby="question-authoring-title">
@@ -207,15 +207,8 @@ export default function TriviaGameMap({ event, onReorderRound, onMoveQuestion, o
       </section>
 
       <div className="trivia-builder-workspace">
-        <aside className="trivia-builder-palette" aria-label="Builder components">
-          <div><h2>Components</h2><p>Choose a block to add to the game flow.</p></div>
-          <button type="button" onClick={() => setRoundModalOpen(true)} className="trivia-builder-component"><span className="bg-cyan-500/20 text-cyan-200">○</span><span><strong>Round</strong><small>Add a themed question set</small></span><b>⠿</b></button>
-          <button type="button" disabled={event.rounds.length === 0} onClick={() => openQuestionComposer("roundId" in selection ? selection.roundId : event.rounds[0]?.id)} className="trivia-builder-component"><span className="bg-emerald-500/20 text-emerald-200">?</span><span><strong>Question</strong><small>Add to the selected round</small></span><b>⠿</b></button>
-          <Link href={`/events/${event.id}/trivia`} className="trivia-builder-component"><span className="bg-violet-500/20 text-violet-200">⌁</span><span><strong>Trivia overview</strong><small>Readiness and event-night tools</small></span><b>→</b></Link>
-          <div className="trivia-builder-tip"><strong>Tip</strong><p>Drag a round or question to rearrange the run of show. Select a question to edit it here.</p></div>
-        </aside>
-
         <main className="trivia-builder-canvas" aria-label="Visual game map">
+          <p className="trivia-builder-canvas-hint">Game flow <span>· Select a block to edit · Drag to reorder</span></p>
           <div className="trivia-builder-flow">
             <button type="button" onClick={() => setSelection({ kind: "welcome" })} className={`trivia-builder-system-node trivia-builder-welcome ${selection.kind === "welcome" ? "is-selected" : ""}`}><span>⚑</span><div><strong>{welcome.headline || "Welcome"}</strong><small>Welcome screen</small></div></button>
             <div className="trivia-builder-connector trivia-builder-connector-top" aria-hidden="true" />

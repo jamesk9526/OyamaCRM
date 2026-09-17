@@ -959,6 +959,31 @@ body {
 .event-trivia-admin-content .trivia-builder-backup button { border-color: #4338ca; background: #4f46e5; color: #ffffff; }
 .event-trivia-admin-content .trivia-builder-backup > p:last-child { color: #4338ca; }
 
+/* Keep the game map in front; batch entry and setup remain secondary. */
+.trivia-builder-page { min-width: 0; }
+.trivia-builder-workspace { grid-template-columns: minmax(0, 1fr) 310px; min-height: 620px; }
+.trivia-builder-header-link { border: 1px solid #475569; padding: .5rem .75rem; color: #e2e8f0; font-size: .875rem; font-weight: 600; }
+.trivia-builder-header-link:hover { background: #334155; }
+.trivia-builder-canvas-hint { position: sticky; left: 0; z-index: 1; width: fit-content; padding: 1rem 1.25rem 0; color: #7dd3fc; font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.trivia-builder-canvas-hint span { color: #94a3b8; font-weight: 500; letter-spacing: normal; text-transform: none; }
+.trivia-builder-flow { width: max-content; min-width: 100%; min-height: 610px; padding-top: 1.5rem; }
+.trivia-builder-rounds { justify-content: center; }
+.trivia-builder-round { width: 164px; }
+.trivia-builder-add-round { width: 150px; }
+.event-trivia-admin-content .trivia-builder-header-link { border-color: #cbd5e1; color: #334155; }
+.event-trivia-admin-content .trivia-builder-header-link:hover { background: #eef2ff; }
+.event-trivia-admin-content .trivia-builder-canvas-hint { color: #4338ca; }
+.event-trivia-admin-content .trivia-builder-canvas-hint span { color: #64748b; }
+
+@media (max-width: 1200px) {
+  .trivia-builder-workspace { grid-template-columns: minmax(0, 1fr); }
+  .trivia-builder-inspector { grid-column: auto; border-left: 0; border-top: 1px solid #243854; }
+}
+@media (max-width: 760px) {
+  .trivia-builder-flow { min-width: 820px; }
+  .trivia-builder-canvas-hint { padding: .75rem 1rem 0; }
+}
+
 /* Audience display package. These styles intentionally live outside the admin
    shell and prioritize projector contrast, motion, and long-distance reading. */
 .trivia-projector {

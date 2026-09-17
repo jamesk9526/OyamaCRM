@@ -33,13 +33,6 @@ export default function TriviaEventBuilderPage() {
 
   return (
     <section className="trivia-builder-page space-y-5">
-      <div className="flex justify-end"><Link href="/events/trivia-import" className="event-trivia-primary-action"><FileUp className="h-4 w-4" />Import trivia game</Link></div>
-      <TriviaQuestionBulkAddPanel
-        rounds={event.rounds}
-        defaultPoints={event.gameTemplate?.defaultQuestionPoints ?? event.scoringRules.defaultQuestionPoints}
-        defaultTimeLimitSec={event.gameTemplate?.defaultTimeLimitSec ?? 30}
-        onAddQuestions={(roundId, questions) => addQuestions(event.id, roundId, questions)}
-      />
       <TriviaGameMap
         event={event}
         onAddRound={(title, description, roundType) => addRound(event.id, { title, description, roundType })}
@@ -52,6 +45,13 @@ export default function TriviaEventBuilderPage() {
         onUpdateWelcome={(updates) => updateWelcomeScreen(event.id, updates)}
         onReorderRound={(roundId, targetRoundId) => reorderRound(event.id, roundId, targetRoundId)}
         onMoveQuestion={(questionId, sourceRoundId, targetRoundId, targetIndex) => moveQuestion(event.id, questionId, sourceRoundId, targetRoundId, targetIndex)}
+      />
+
+      <TriviaQuestionBulkAddPanel
+        rounds={event.rounds}
+        defaultPoints={event.gameTemplate?.defaultQuestionPoints ?? event.scoringRules.defaultQuestionPoints}
+        defaultTimeLimitSec={event.gameTemplate?.defaultTimeLimitSec ?? 30}
+        onAddQuestions={(roundId, questions) => addQuestions(event.id, roundId, questions)}
       />
 
       <details className="trivia-builder-advanced">
@@ -68,6 +68,7 @@ export default function TriviaEventBuilderPage() {
           <div className="trivia-builder-backup xl:col-span-2"><div><p>Data tools</p><h2>Bring a game plan with you</h2><span>Copy a single-event backup, or import a prepared JSON game package.</span></div><div className="flex flex-wrap gap-2"><button type="button" onClick={copyEventPackage}>Copy event JSON</button><button type="button" onClick={() => setImportMessage(importEventsFromJson(importText).message)}>Import JSON</button></div><textarea value={importText} onChange={(input) => setImportText(input.target.value)} placeholder="Paste a trivia event JSON package to import" />{importMessage ? <p>{importMessage}</p> : null}</div>
         </div>
       </details>
+      <div className="flex justify-end"><Link href="/events/trivia-import" className="event-trivia-secondary-action"><FileUp className="h-4 w-4" />Import a trivia game</Link></div>
     </section>
   );
 }
