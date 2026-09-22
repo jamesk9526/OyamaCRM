@@ -539,6 +539,7 @@ Use only these status labels:
 | Item | State | Evidence |
 |---|---|---|
 | Exact identifiers protected | Working | Donation import checks existing receipt numbers and transaction IDs within the organization. A single exact match is preserved by default; multiple exact matches are stopped for review. |
+| Partial gift deductibility recorded | Working in code; migration required | Donation create/edit validates that the deductible amount is between zero and the gift amount, stores donor receipt requests and tax notes, and uses the stored portion in letter and email merge fields. Deploy `20260922140000_add_donation_tax_credit_tracking` before enabling the updated form against a live database. Receipt preparation remains a reviewed OyamaLetters action. |
 | Ambiguous matches reviewable | Working | Same donor, UTC calendar day, amount, and status candidates are reported as potential matches, not called duplicates. They pause by default until staff reviews or elects to continue. |
 | Repeat files visible | Working | Browser-generated SHA-256 source fingerprints are retained in the import audit record. A previously committed source file requires a dry run and explicit acknowledgement before it can be imported again. |
 | Full import rollback | Working | Recent constituent import runs are listed in Data Tools with a server-calculated safety preview, typed confirmation, guarded restore/delete execution, and cleanup of unchanged audience lists created by the run. Records changed later or linked to new CRM activity remain protected. |

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PAYMENT_METHODS, DONATION_STATUSES, methodLabel } from "./donation-utils";
+import { CheckCircle2, ExternalLink, Gift, Info, ReceiptText, Repeat2 } from "lucide-react";
+import { PAYMENT_METHODS, DONATION_STATUSES, formatCurrency, formatDonationDate, methodLabel } from "./donation-utils";
 import { apiFetch } from "@/app/lib/auth-client";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
@@ -10,6 +12,8 @@ import { getConstituentDisplayName } from "@/app/components/constituents/constit
 type Props = {
   mode?: "create" | "edit";
   donationId?: string;
+  receiptNumber?: string | null;
+  receiptSentAt?: string | null;
   defaultValues?: Partial<FormData>;
   constituents: { id: string; firstName: string; lastName: string; email?: string }[];
   campaigns:    { id: string; name: string }[];
@@ -84,6 +88,9 @@ type FormData = {
   isRecurring: boolean;
   frequency: string;
   taxDeductible: boolean;
+  taxDeductibleAmount: string;
+  taxDeductibleNotes: string;
+  taxReceiptRequested: boolean;
   notes: string;
   eventId: string;
 };
@@ -99,14 +106,26 @@ function getTodayInputValue(): string {
 const EMPTY: FormData = {
   constituentId: "", amount: "", date: getTodayInputValue(),
   paymentMethod: "ONLINE", checkNumber: "", campaignId: "", designationId: "",
-  status: "COMPLETED", isRecurring: false, frequency: "", taxDeductible: true, notes: "", eventId: "",
+  status: "COMPLETED", isRecurring: false, frequency: "", taxDeductible: true,
+  taxDeductibleAmount: "", taxDeductibleNotes: "", taxReceiptRequested: false,
+  notes: "", eventId: "",
 };
 
-export default function DonationForm({ mode = "create", donationId, defaultValues, constituents, campaigns, designations, onCancel, onSaved }: Props) {
+export default function DonationForm({ mode = "create", donationId, receiptNumber, receiptSentAt, defaultValues, constituents, campaigns, designations, onCancel, onSaved }: Props) {
   const router = useRouter();
-  const [form, setForm] = useState<FormData>({ ...EMPTY, ...defaultValues });
+  const [form, setForm] = useState<FormData>(() => {
+    const initial = { ...EMPTY, ...defaultValues };
+    return {
+      ...initial,
+      taxDeductibleAmount: initial.taxDeductible
+        ? initial.taxDeductibleAmount || initial.amount
+        : "0",
+    };
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [constituentQuery, setConstituentQuery] = useState("");
   const [constituentResults, setConstituentResults] = useState<ConstituentOption[]>([]);
   const [constituentSearchOpen, setConstituentSearchOpen] = useState(false);
@@ -186,7 +205,31 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
   }
 
   function update(field: keyof FormData, value: string | boolean) {
+    setHasUnsavedChanges(true);
     setForm(p => ({ ...p, [field]: value }));
+  }
+
+  function updateAmount(value: string) {
+    setHasUnsavedChanges(true);
+    setForm((previous) => ({
+      ...previous,
+      amount: value,
+      taxDeductibleAmount: previous.taxDeductible
+        && (!previous.taxDeductibleAmount || previous.taxDeductibleAmount === previous.amount)
+        ? value
+        : previous.taxDeductibleAmount,
+    }));
+  }
+
+  function toggleTaxDeductible(checked: boolean) {
+    setHasUnsavedChanges(true);
+    setForm((previous) => ({
+      ...previous,
+      taxDeductible: checked,
+      taxDeductibleAmount: checked
+        ? previous.taxDeductibleAmount === "0" ? previous.amount : previous.taxDeductibleAmount || previous.amount
+        : "0",
+    }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -194,6 +237,10 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
     if (saving) return;
     if (!form.constituentId) { setError("Please select a constituent."); return; }
     if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Please enter a valid amount."); return; }
+    if (form.taxDeductible && Number(form.taxDeductibleAmount) > Number(form.amount)) {
+      setError("Tax-deductible amount cannot exceed the gift amount.");
+      return;
+    }
     setError(null);
     setSaving(true);
 
@@ -210,6 +257,8 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
             designationId: form.designationId || null,
             checkNumber:   form.checkNumber   || null,
             frequency:     form.isRecurring ? form.frequency : null,
+            taxDeductibleAmount: form.taxDeductible ? form.taxDeductibleAmount || form.amount : "0",
+            taxDeductibleNotes: form.taxDeductibleNotes || null,
             notes:         form.notes || null,
           }),
         }) as { id?: string };
@@ -288,67 +337,202 @@ export default function DonationForm({ mode = "create", donationId, defaultValue
       </div>
 
       {/* Gift Details */}
-      <div className="space-y-4 border border-[#edebe9] bg-white p-5">
-        <h3 className="text-base font-semibold text-[#323130]">Gift details</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="gift-details-heading">
+        <div className="flex items-start gap-3 border-b border-slate-200 px-5 py-4 sm:px-6">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <Gift className="size-5" aria-hidden="true" />
+          </span>
           <div>
-            <label className={labelCls}>Amount ($) *</label>
-            <input type="number" min="0" step="0.01" placeholder="0.00" className={inputCls}
-              value={form.amount} onChange={e => update("amount", e.target.value)} required />
+            <h3 id="gift-details-heading" className="text-lg font-semibold text-slate-950">Gift details</h3>
+            <p className="mt-0.5 text-sm text-slate-600">Enter the amount, payment information, and tax-receipt preferences.</p>
           </div>
-          <div>
-            <label className={labelCls}>Date *</label>
-            <input type="date" className={inputCls}
-              value={form.date} onChange={e => update("date", e.target.value)} required />
-          </div>
-          <div>
-            <label className={labelCls}>Payment Method</label>
-            <select className={selectCls} value={form.paymentMethod} onChange={e => update("paymentMethod", e.target.value)}>
-              {PAYMENT_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}
-            </select>
-          </div>
-          {form.paymentMethod === "CHECK" && (
+        </div>
+
+        <div className="space-y-5 p-5 sm:p-6">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Check Number</label>
-              <input type="text" placeholder="1234" className={inputCls}
-                value={form.checkNumber} onChange={e => update("checkNumber", e.target.value)} />
+              <label htmlFor="gift-amount" className={labelCls}>Amount ($) *</label>
+              <input id="gift-amount" type="number" min="0" step="0.01" placeholder="0.00" className={inputCls}
+                value={form.amount} onChange={e => updateAmount(e.target.value)} required />
             </div>
-          )}
-          <div>
-            <label className={labelCls}>Status</label>
-            <select className={selectCls} value={form.status} onChange={e => update("status", e.target.value)}>
-              {DONATION_STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
-            </select>
+            <div>
+              <label htmlFor="gift-date" className={labelCls}>Date *</label>
+              <input id="gift-date" type="date" className={inputCls}
+                value={form.date} onChange={e => update("date", e.target.value)} required />
+            </div>
+            <div>
+              <label htmlFor="gift-payment-method" className={labelCls}>Payment method</label>
+              <select id="gift-payment-method" className={selectCls} value={form.paymentMethod} onChange={e => update("paymentMethod", e.target.value)}>
+                {PAYMENT_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}
+              </select>
+            </div>
+            {form.paymentMethod === "CHECK" && (
+              <div>
+                <label htmlFor="gift-check-number" className={labelCls}>Check number</label>
+                <input id="gift-check-number" type="text" placeholder="1234" className={inputCls}
+                  value={form.checkNumber} onChange={e => update("checkNumber", e.target.value)} />
+              </div>
+            )}
+            <div>
+              <label htmlFor="gift-status" className={labelCls}>Status</label>
+              <select id="gift-status" className={selectCls} value={form.status} onChange={e => update("status", e.target.value)}>
+                {DONATION_STATUSES.map(s => <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.taxDeductible}
+                  onChange={(event) => toggleTaxDeductible(event.target.checked)}
+                  className="mt-0.5 size-4 rounded border-slate-400 text-blue-700 focus:ring-blue-600"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-950">Tax deductible</span>
+                  <span className="mt-0.5 block text-xs text-slate-600">Track the portion of this gift eligible for the donor&apos;s tax receipt.</span>
+                </span>
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  aria-expanded={showReceiptPreview}
+                  aria-controls="gift-receipt-preview"
+                  onClick={() => setShowReceiptPreview((open) => !open)}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-blue-300 bg-white px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+                >
+                  <ReceiptText className="size-4" aria-hidden="true" />
+                  {showReceiptPreview ? "Hide receipt data" : "Preview receipt data"}
+                </button>
+                {mode === "edit" && donationId && !hasUnsavedChanges ? (
+                  <Link
+                    href={`/oyama-letters/generate?mode=single&constituentId=${encodeURIComponent(form.constituentId)}&donationId=${encodeURIComponent(donationId)}`}
+                    className="inline-flex h-9 items-center gap-2 rounded-md border border-blue-300 bg-white px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+                  >
+                    Prepare receipt
+                    <ExternalLink className="size-3.5" aria-hidden="true" />
+                  </Link>
+                ) : mode === "edit" && hasUnsavedChanges ? (
+                  <span className="text-xs font-medium text-blue-800">Save changes to prepare a receipt with these details.</span>
+                ) : null}
+              </div>
+            </div>
+
+            {showReceiptPreview ? (
+              <div id="gift-receipt-preview" className="mt-4 rounded-lg border border-blue-200 bg-white p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-950">Receipt data preview</p>
+                <p className="mt-1 text-xs text-slate-600">The final receipt uses your selected template and is reviewed in OyamaLetters.</p>
+                <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  <div><dt className="text-xs text-slate-500">Donor</dt><dd className="font-medium">{constituentQuery || "Select a donor"}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Gift date</dt><dd className="font-medium">{formatDonationDate(form.date)}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Gift amount</dt><dd className="font-medium">{formatCurrency(form.amount)}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Tax-deductible amount</dt><dd className="font-medium">{formatCurrency(form.taxDeductible ? form.taxDeductibleAmount || form.amount : 0)}</dd></div>
+                </dl>
+              </div>
+            ) : null}
+
+            {form.taxDeductible ? (
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(190px,0.7fr)_minmax(0,1.25fr)]">
+                <div>
+                  <label htmlFor="gift-tax-amount" className={labelCls}>Tax-deductible amount ($)</label>
+                  <input
+                    id="gift-tax-amount"
+                    type="number"
+                    min="0"
+                    max={form.amount || undefined}
+                    step="0.01"
+                    className={inputCls}
+                    value={form.taxDeductibleAmount}
+                    onChange={(event) => update("taxDeductibleAmount", event.target.value)}
+                    placeholder={form.amount || "0.00"}
+                  />
+                  <p className="mt-1.5 text-xs text-slate-600">Use a partial amount when goods or services reduced the eligible value.</p>
+                </div>
+
+                <div className="flex min-h-28 flex-col justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-center">
+                  <CheckCircle2 className="mx-auto size-6 text-emerald-700" aria-hidden="true" />
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">Receipt amount</p>
+                  <p className="text-2xl font-semibold text-emerald-900">
+                    {formatCurrency(form.taxDeductibleAmount || form.amount)}
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="gift-tax-notes" className={labelCls}>Tax-deductible notes</label>
+                  <textarea
+                    id="gift-tax-notes"
+                    rows={3}
+                    className={`${inputCls} resize-y`}
+                    value={form.taxDeductibleNotes}
+                    onChange={(event) => update("taxDeductibleNotes", event.target.value)}
+                    placeholder="Document non-deductible portions or special receipt instructions."
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                This gift will show a $0.00 tax-deductible amount on receipt merge fields.
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-col gap-3 border-t border-blue-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.taxReceiptRequested}
+                  onChange={(event) => update("taxReceiptRequested", event.target.checked)}
+                  className="mt-0.5 size-4 rounded border-slate-400 text-blue-700 focus:ring-blue-600"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">Tax receipt requested</span>
+                  <span className="block text-xs text-slate-600">Record the donor&apos;s request without sending anything automatically.</span>
+                </span>
+              </label>
+              <span className="text-xs font-medium text-slate-600" role="status">
+                {receiptSentAt
+                  ? `Receipt sent ${new Date(receiptSentAt).toLocaleDateString()}`
+                  : receiptNumber
+                    ? `Receipt ${receiptNumber} recorded`
+                    : form.taxReceiptRequested
+                      ? "Requested · not yet prepared"
+                      : "No receipt request recorded"}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input type="checkbox" checked={form.isRecurring} onChange={e => update("isRecurring", e.target.checked)}
+                className="mt-0.5 size-4 rounded border-slate-400 text-blue-700 focus:ring-blue-600" />
+              <Repeat2 className="size-5 text-slate-500" aria-hidden="true" />
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">Recurring gift</span>
+                <span className="block text-xs text-slate-600">Mark this gift as part of an ongoing giving series.</span>
+              </span>
+            </label>
+            {form.isRecurring ? (
+              <div className="mt-3 max-w-sm pl-12">
+                <label className={labelCls}>Frequency</label>
+                <select className={selectCls} value={form.frequency} onChange={e => update("frequency", e.target.value)}>
+                  <option value="">— Select —</option>
+                  <option value="WEEKLY">Weekly</option>
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="QUARTERLY">Quarterly</option>
+                  <option value="ANNUALLY">Annually</option>
+                </select>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+            <Info className="mt-0.5 size-5 shrink-0 text-violet-700" aria-hidden="true" />
+            <p><span className="font-semibold">Receipt workflow:</span> A receipt is prepared only when you choose to create it in the receipt workspace.</p>
           </div>
         </div>
-
-        {/* Checkboxes */}
-        <div className="flex flex-wrap gap-x-6 gap-y-3 pt-1">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-[#323130]">
-            <input type="checkbox" checked={form.taxDeductible} onChange={e => update("taxDeductible", e.target.checked)}
-              className="rounded-sm border-[#8a8886] text-[#0078d4] focus:ring-[#0078d4]" />
-            Tax Deductible
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-[#323130]">
-            <input type="checkbox" checked={form.isRecurring} onChange={e => update("isRecurring", e.target.checked)}
-              className="rounded-sm border-[#8a8886] text-[#0078d4] focus:ring-[#0078d4]" />
-            Recurring Gift
-          </label>
-        </div>
-
-        {form.isRecurring && (
-          <div>
-            <label className={labelCls}>Frequency</label>
-            <select className={selectCls} value={form.frequency} onChange={e => update("frequency", e.target.value)}>
-              <option value="">— Select —</option>
-              <option value="WEEKLY">Weekly</option>
-              <option value="MONTHLY">Monthly</option>
-              <option value="QUARTERLY">Quarterly</option>
-              <option value="ANNUALLY">Annually</option>
-            </select>
-          </div>
-        )}
-      </div>
+      </section>
 
       {/* Attribution */}
       <div className="space-y-4 border border-[#edebe9] bg-white p-5">

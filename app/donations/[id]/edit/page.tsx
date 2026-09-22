@@ -49,6 +49,13 @@ function toFormDefaults(d: Record<string, unknown>) {
     isRecurring:   Boolean(d.isRecurring),
     frequency:     (d.frequency as string) ?? "",
     taxDeductible: d.taxDeductible !== false,
+    taxDeductibleAmount: d.taxDeductibleAmount != null
+      ? String(d.taxDeductibleAmount)
+      : d.taxDeductible !== false && d.amount != null
+        ? String(d.amount)
+        : "0",
+    taxDeductibleNotes: (d.taxDeductibleNotes as string) ?? "",
+    taxReceiptRequested: d.taxReceiptRequested === true,
     notes:         (d.notes as string) ?? "",
   };
 }
@@ -110,7 +117,7 @@ export default function EditDonationPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-5">
+      <div className="mx-auto max-w-5xl space-y-5">
         <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading…</div>
       </div>
     );
@@ -125,7 +132,7 @@ export default function EditDonationPage() {
   const donorName = donor ? `${donor.firstName ?? ""} ${donor.lastName ?? ""}`.trim() : "donation";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       <WorkspaceBreadcrumbBar
         items={[
           { label: "Donor CRM", href: "/" },
@@ -140,6 +147,8 @@ export default function EditDonationPage() {
       <DonationForm
         mode="edit"
         donationId={id}
+        receiptNumber={typeof donation.receiptNumber === "string" ? donation.receiptNumber : null}
+        receiptSentAt={typeof donation.receiptSentAt === "string" ? donation.receiptSentAt : null}
         defaultValues={toFormDefaults(donation)}
         constituents={constituents}
         campaigns={campaigns}

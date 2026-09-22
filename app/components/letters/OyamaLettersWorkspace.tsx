@@ -4086,7 +4086,7 @@ function GenerateWorkspace() {
   const [recipientTab, setRecipientTab] = useState<"all" | "missingAddress" | "missingRequired" | "suppressed">("all");
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [recipientStepTab, setRecipientStepTab] = useState<"lists" | "segments" | "filters" | "individuals">("segments");
-  const [donationMode, setDonationMode] = useState<DonationMode>("recent");
+  const [donationMode, setDonationMode] = useState<DonationMode>(searchParams.get("donationId") ? "specific" : "recent");
   const [donationDateRange, setDonationDateRange] = useState("All time");
   const [donationType, setDonationType] = useState("All Types");
   const [donationMinimum, setDonationMinimum] = useState("");
@@ -7982,7 +7982,7 @@ const SLASH_LETTER_TOKEN_PATTERN = /(^|[\s([>])\/\/([a-zA-Z][a-zA-Z0-9_]*)(?![\w
 const BUILT_IN_LETTER_COMPATIBILITY_TOKENS = [
   "{{preferredName}}", "{{firstName}}", "{{lastName}}", "{{fullName}}", "{{email}}", "{{addressBlock}}",
   "{{amount}}", "{{giftAmount}}", "{{donationAmount}}", "{{lastGiftAmount}}", "{{date}}", "{{giftDate}}",
-  "{{lastGiftDate}}", "{{receiptNumber}}", "{{taxDeductibleAmount}}", "{{totalYtdGiving}}", "{{giftCount}}",
+  "{{lastGiftDate}}", "{{receiptNumber}}", "{{taxDeductibleAmount}}", "{{taxDeductibleTotal}}", "{{totalYtdGiving}}", "{{giftCount}}",
   "{{firstGiftDate}}", "{{campaignName}}", "{{organizationName}}", "{{organizationAddress}}", "{{organizationPhone}}",
   "{{organizationEmail}}", "{{organizationWebsite}}", "{{organizationTaxId}}", "{{staffName}}", "{{staff.name}}",
   "{{staffTitle}}", "{{staffEmail}}", "{{signatureName}}", "{{currentYear}}", "{{currentDate}}",
