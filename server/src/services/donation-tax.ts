@@ -54,3 +54,14 @@ export function resolveDonationTaxDetails(
 
   return { taxDeductible, taxDeductibleAmount };
 }
+
+export function sumTaxDeductibleGiving(
+  gifts: Array<{ amount: unknown; taxDeductible: boolean; taxDeductibleAmount: unknown | null }>,
+): number {
+  const cents = gifts.reduce((sum, gift) => {
+    if (!gift.taxDeductible) return sum;
+    const amount = gift.taxDeductibleAmount ?? gift.amount;
+    return sum + Math.round(toMoneyNumber(amount, "Tax-deductible amount") * 100);
+  }, 0);
+  return cents / 100;
+}

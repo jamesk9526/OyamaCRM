@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveDonationTaxDetails } from "@/server/src/services/donation-tax";
+import { resolveDonationTaxDetails, sumTaxDeductibleGiving } from "@/server/src/services/donation-tax";
 
 describe("resolveDonationTaxDetails", () => {
   it("defaults a deductible gift to the full gift amount", () => {
@@ -46,5 +46,15 @@ describe("resolveDonationTaxDetails", () => {
       taxDeductible: true,
       taxDeductibleAmount: 60,
     });
+  });
+});
+
+describe("sumTaxDeductibleGiving", () => {
+  it("totals only the eligible portions of completed gifts", () => {
+    expect(sumTaxDeductibleGiving([
+      { amount: "100", taxDeductible: true, taxDeductibleAmount: "75" },
+      { amount: "50", taxDeductible: false, taxDeductibleAmount: "50" },
+      { amount: "25", taxDeductible: true, taxDeductibleAmount: null },
+    ])).toBe(100);
   });
 });

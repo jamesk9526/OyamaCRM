@@ -261,6 +261,18 @@ describe("letters-merge", () => {
     expect(output).toBe("$42.50 $42.50 R-100 $42.50 $500.00 4 January 10, 2026 June 15, 2026");
   });
 
+  it("keeps the year-end deductible total distinct from gross giving", () => {
+    const output = renderMergeFields(
+      "{{year.totalGiving}} {{year.taxDeductibleTotal}} {{taxDeductibleTotal}}",
+      {
+        "year.totalGiving": "$175.00",
+        "year.taxDeductibleTotal": "$100.00",
+      },
+    );
+
+    expect(output).toBe("$175.00 $100.00 $100.00");
+  });
+
   it("contains core donor and gift merge tokens", () => {
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{donor.firstName}}");
     expect(SUPPORTED_LETTER_MERGE_FIELDS).toContain("{{constituent.firstName}}");

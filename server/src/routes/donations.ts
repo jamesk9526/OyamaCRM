@@ -739,7 +739,7 @@ router.put("/:id", async (req, res) => {
     data: {
       campaignId:    campaignId    || undefined,
       designationId: designationId || undefined,
-      amount:        amount        || undefined,
+      amount:        amount !== undefined ? amount : undefined,
       date:          date ? parseDonationDateInput(date) : undefined,
       paymentMethod: paymentMethod || undefined,
       checkNumber:   checkNumber   || undefined,

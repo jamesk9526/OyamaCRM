@@ -1,6 +1,7 @@
 /** Shared execution helpers for letters preview/generation across API routes and steward-path steps. */
 import { type LetterCategory, type LetterTemplateStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { sumTaxDeductibleGiving } from "./donation-tax.js";
 import { collectMergeFieldKeys, renderMergeFields, unsupportedMergeFieldKeys } from "./letters-merge.js";
 import {
   getConstituentContactFullName,
@@ -297,12 +298,13 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
           date: { gte: yearStart, lte: yearEnd },
           status: "COMPLETED",
         },
-        select: { amount: true, date: true },
+        select: { amount: true, date: true, taxDeductible: true, taxDeductibleAmount: true },
         orderBy: { date: "asc" },
       })
     : [];
 
   const yearTotal = yearDonations.reduce((sum, donationRow) => sum + toNumber(donationRow.amount), 0);
+  const yearTaxDeductibleTotal = sumTaxDeductibleGiving(yearDonations);
   const firstGift = yearDonations[0]?.date ?? null;
   const lastGift = yearDonations[yearDonations.length - 1]?.date ?? null;
 
@@ -363,6 +365,7 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     ),
     "year": String(targetYear),
     "year.totalGiving": formatCurrency(yearTotal),
+    "year.taxDeductibleTotal": formatCurrency(yearTaxDeductibleTotal),
     "year.firstGiftDate": formatStoredDate(firstGift),
     "year.lastGiftDate": formatStoredDate(lastGift),
     "year.numberOfGifts": String(yearDonations.length),
