@@ -453,6 +453,7 @@ async function buildTemplateMergeVars(params: {
           frequency: true,
           receiptNumber: true,
           taxDeductible: true,
+          taxDeductibleAmount: true,
           campaignId: true,
           campaign: { select: { name: true, goal: true } },
           event: { select: { name: true, startDate: true, location: true, city: true, state: true } },
@@ -506,7 +507,7 @@ async function buildTemplateMergeVars(params: {
   const resolvedLastGiftDate = formatDate(donation?.date ?? recipient?.lastGiftDate ?? null);
   const donationAmount = formatCurrency(donation?.amount ?? recipient?.lastGiftAmount ?? null);
   const taxDeductibleAmount = donation?.taxDeductible
-    ? donationAmount
+    ? formatCurrency(donation.taxDeductibleAmount ?? donation.amount)
     : donation
       ? "$0.00"
       : "";

@@ -862,6 +862,7 @@ async function buildCampaignMergeContext(params: {
           frequency: true,
           receiptNumber: true,
           taxDeductible: true,
+          taxDeductibleAmount: true,
           campaignId: true,
           campaign: {
             select: {
@@ -924,7 +925,7 @@ async function buildCampaignMergeContext(params: {
   const resolvedLastGiftDate = formatCampaignDate(latestDonation?.date ?? constituent?.lastGiftDate ?? null);
   const donationAmount = formatCampaignCurrency(latestDonation?.amount ?? constituent?.lastGiftAmount ?? null);
   const taxDeductibleAmount = latestDonation?.taxDeductible
-    ? donationAmount
+    ? formatCampaignCurrency(latestDonation.taxDeductibleAmount ?? latestDonation.amount)
     : latestDonation
       ? "$0.00"
       : "";

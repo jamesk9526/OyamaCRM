@@ -904,6 +904,9 @@ model Donation {
   receiptSentAt        DateTime?
   acknowledgmentSentAt DateTime?
   taxDeductible        Boolean   @default(true)
+  taxDeductibleAmount  Decimal?  @db.Decimal(10, 2)
+  taxDeductibleNotes   String?   @db.Text
+  taxReceiptRequested  Boolean   @default(false)
 
   inKindDescription String?
   notes             String?

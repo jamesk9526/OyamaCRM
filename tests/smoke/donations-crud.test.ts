@@ -56,12 +56,18 @@ describe("donation CRUD", () => {
         transactionId: importSafetyTransactionId,
         status: "COMPLETED",
         taxDeductible: true,
+        taxDeductibleAmount: 225,
+        taxDeductibleNotes: "Goods valued at $25 were received.",
+        taxReceiptRequested: true,
         notes: "Smoke test donation",
       });
     expect(res.status).toBe(201);
     expect(res.body.id).toBeTruthy();
     expect(Number(res.body.amount)).toBe(250);
     expect(res.body.paymentMethod).toBe("CHECK");
+    expect(Number(res.body.taxDeductibleAmount)).toBe(225);
+    expect(res.body.taxDeductibleNotes).toBe("Goods valued at $25 were received.");
+    expect(res.body.taxReceiptRequested).toBe(true);
     donationId = res.body.id;
   });
 
@@ -149,9 +155,19 @@ describe("donation CRUD", () => {
     const res = await request(app)
       .put(`/api/donations/${donationId}`)
       .set(auth())
-      .send({ amount: 275, status: "COMPLETED", notes: "Updated by smoke test" });
+      .send({
+        amount: 275,
+        status: "COMPLETED",
+        taxDeductibleAmount: 250,
+        taxDeductibleNotes: "Updated deductible portion.",
+        taxReceiptRequested: false,
+        notes: "Updated by smoke test",
+      });
     expect(res.status).toBe(200);
     expect(Number(res.body.amount)).toBe(275);
+    expect(Number(res.body.taxDeductibleAmount)).toBe(250);
+    expect(res.body.taxDeductibleNotes).toBe("Updated deductible portion.");
+    expect(res.body.taxReceiptRequested).toBe(false);
   });
 
   it("filters donations by constituentId", async () => {

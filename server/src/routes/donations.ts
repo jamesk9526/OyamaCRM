@@ -27,6 +27,7 @@ import { executeStewardPathsForTrigger } from "../services/stewardPathsEngine.js
 import { enrollConstituentInTriggeredStewardPaths } from "../services/steward-path-enrollment-service.js";
 import { sendCampaignNow } from "./email-campaigns.js";
 import { ensureDonationQueuedForQuickBooks } from "./quickbooks.js";
+import { resolveDonationTaxDetails } from "../services/donation-tax.js";
 
 const router = Router();
 
@@ -543,7 +544,8 @@ router.post("/", async (req, res) => {
   const {
     constituentId, campaignId, designationId, pledgeId, eventId,
     amount, date, paymentMethod, checkNumber, transactionId, isRecurring,
-    frequency, status, taxDeductible, notes,
+    frequency, status, taxDeductible, taxDeductibleAmount,
+    taxDeductibleNotes, taxReceiptRequested, notes,
   } = req.body;
 
   const organizationId = await resolveOrganizationId({ req });
@@ -583,6 +585,19 @@ router.post("/", async (req, res) => {
     }
   }
 
+  let taxDetails: ReturnType<typeof resolveDonationTaxDetails>;
+  try {
+    taxDetails = resolveDonationTaxDetails({ amount, taxDeductible, taxDeductibleAmount });
+  } catch (error) {
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: error instanceof Error ? error.message : "Invalid tax-deductible amount.",
+      },
+    });
+    return;
+  }
+
   const donation = await prisma.donation.create({
     data: {
       constituentId,
@@ -598,7 +613,12 @@ router.post("/", async (req, res) => {
       isRecurring:   isRecurring   ?? false,
       frequency:     frequency     || undefined,
       status:        status        || "COMPLETED",
-      taxDeductible: taxDeductible ?? true,
+      taxDeductible: taxDetails.taxDeductible,
+      taxDeductibleAmount: taxDetails.taxDeductibleAmount,
+      taxDeductibleNotes: typeof taxDeductibleNotes === "string" && taxDeductibleNotes.trim()
+        ? taxDeductibleNotes.trim()
+        : undefined,
+      taxReceiptRequested: taxReceiptRequested === true,
       notes:         notes         || undefined,
     },
     include: INCLUDE,
@@ -674,7 +694,8 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const {
     campaignId, designationId, amount, date, paymentMethod,
-    checkNumber, transactionId, isRecurring, frequency, status, taxDeductible, notes,
+    checkNumber, transactionId, isRecurring, frequency, status, taxDeductible,
+    taxDeductibleAmount, taxDeductibleNotes, taxReceiptRequested, notes,
   } = req.body;
 
   const organizationId = await resolveOrganizationId({ req });
@@ -685,10 +706,31 @@ router.put("/:id", async (req, res) => {
 
   const existing = await prisma.donation.findFirst({
     where: { id: req.params.id, constituent: { organizationId } },
-    select: { id: true },
+    select: {
+      id: true,
+      amount: true,
+      taxDeductible: true,
+      taxDeductibleAmount: true,
+    },
   });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  let taxDetails: ReturnType<typeof resolveDonationTaxDetails>;
+  try {
+    taxDetails = resolveDonationTaxDetails(
+      { amount, taxDeductible, taxDeductibleAmount },
+      existing,
+    );
+  } catch (error) {
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: error instanceof Error ? error.message : "Invalid tax-deductible amount.",
+      },
+    });
     return;
   }
 
@@ -705,7 +747,14 @@ router.put("/:id", async (req, res) => {
       isRecurring,
       frequency:     frequency     || undefined,
       status:        status        || undefined,
-      taxDeductible,
+      taxDeductible: taxDetails.taxDeductible,
+      taxDeductibleAmount: taxDetails.taxDeductibleAmount,
+      taxDeductibleNotes: taxDeductibleNotes === null
+        ? null
+        : typeof taxDeductibleNotes === "string"
+          ? taxDeductibleNotes.trim() || null
+          : undefined,
+      taxReceiptRequested: typeof taxReceiptRequested === "boolean" ? taxReceiptRequested : undefined,
       notes:         notes         || undefined,
     },
   });

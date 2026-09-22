@@ -8,7 +8,11 @@ export type DonationRow = {
   isRecurring: boolean;
   frequency?: string | null;
   receiptNumber?: string | null;
+  receiptSentAt?: string | null;
   taxDeductible: boolean;
+  taxDeductibleAmount?: string | null;
+  taxDeductibleNotes?: string | null;
+  taxReceiptRequested?: boolean;
   notes?: string | null;
   constituent: {
     id: string;

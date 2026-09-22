@@ -358,7 +358,9 @@ export async function resolveLetterMergeContext(params: ResolveMergeContextInput
     "gift.campaign": campaignName,
     "gift.paymentMethod": donation?.paymentMethod ? donation.paymentMethod.replace(/_/g, " ") : "",
     "gift.receiptNumber": donation?.receiptNumber ?? "",
-    "gift.taxDeductibleAmount": formatCurrency(donation?.taxDeductible ? donation.amount : 0),
+    "gift.taxDeductibleAmount": formatCurrency(
+      donation?.taxDeductible ? donation.taxDeductibleAmount ?? donation.amount : 0,
+    ),
     "year": String(targetYear),
     "year.totalGiving": formatCurrency(yearTotal),
     "year.firstGiftDate": formatStoredDate(firstGift),
