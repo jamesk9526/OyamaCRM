@@ -1,5 +1,5 @@
 // Service layer for TableLink host access token issuance and verification.
-import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { prisma } from "../lib/prisma.js";
 
 function hashToken(rawToken: string): string {
@@ -32,14 +32,10 @@ export async function issueTableLinkAccessToken(input: {
 
 export async function verifyTableLinkAccessToken(input: { eventId: string; token: string }) {
   const tokenHash = hashToken(input.token);
-  const rows = await prisma.eventTableAccessToken.findMany({
-    where: { eventId: input.eventId, status: "ACTIVE" },
+  const matched = await prisma.eventTableAccessToken.findFirst({
+    where: { eventId: input.eventId, tokenHash, status: "ACTIVE" },
     include: { table: true },
-    orderBy: { createdAt: "desc" },
-    take: 20,
   });
-
-  const matched = rows.find((row) => timingSafeEqual(Buffer.from(row.tokenHash), Buffer.from(tokenHash)));
   if (!matched) return null;
   if (matched.expiresAt.getTime() < Date.now()) {
     await prisma.eventTableAccessToken.update({ where: { id: matched.id }, data: { status: "EXPIRED" } });

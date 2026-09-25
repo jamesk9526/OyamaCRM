@@ -49,6 +49,7 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
   const [payload, setPayload] = useState<InvitePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -63,11 +64,11 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
 
   const stateTitle = useMemo(() => {
     if (!status) return "Loading invitation";
-    if (status === "COMPLETED") return "This invitation has already been completed";
+    if (status === "COMPLETED") return message ? "Guest details submitted" : "This invitation has already been completed";
     if (status === "EXPIRED") return "This invitation has expired";
     if (status === "CANCELLED") return "This invitation was cancelled";
     return "Complete your guest details";
-  }, [status]);
+  }, [message, status]);
 
   useEffect(() => {
     let active = true;
@@ -104,9 +105,13 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, loadAttempt]);
 
   async function submitInvite() {
+    if (!firstName.trim() || !lastName.trim() || (!email.trim() && !phone.trim())) {
+      setError("Enter your first and last name, plus an email address or phone number.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -130,13 +135,7 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
       }
 
       setMessage("Thank you. Your guest profile has been submitted.");
-      const refreshResponse = await fetch(`/api/events/public/tablelink/invites/${encodeURIComponent(token)}`, {
-        cache: "no-store",
-      });
-      const refreshed = (await refreshResponse.json()) as InvitePayload;
-      if (refreshResponse.ok && refreshed.invite) {
-        setPayload(refreshed);
-      }
+      setPayload((current) => current ? { invite: { ...current.invite, status: "COMPLETED" } } : current);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to complete invitation.");
     } finally {
@@ -162,6 +161,7 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">EventSTUDIO Guest Invite</p>
           <h1 className="mt-2 text-2xl font-semibold text-slate-950">Invite unavailable</h1>
           <p className="mt-2 text-sm text-slate-600">{error ?? "This invite could not be found."}</p>
+          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className="mt-5 min-h-11 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50">Try again</button>
         </section>
       </main>
     );
@@ -185,7 +185,7 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
         {isFinalState ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-700">
-              {status === "COMPLETED" && "Your information was already submitted for this invitation."}
+              {status === "COMPLETED" && (message ? "Your guest details are saved for this invitation." : "Your information was already submitted for this invitation.")}
               {status === "EXPIRED" && "This invitation link has expired. Please contact your table host or event organizer."}
               {status === "CANCELLED" && "This invitation was cancelled by the organizer."}
             </p>
@@ -198,60 +198,60 @@ export default function PublicTableLinkInvitePage({ token }: PublicTableLinkInvi
             <h2 className="text-sm font-semibold text-slate-900">Guest Information</h2>
             <p className="mt-1 text-xs text-slate-500">Please complete your details so the host can finalize their table roster.</p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <input
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-medium text-slate-800">First name <span aria-hidden="true">*</span><input
                 value={firstName}
                 onChange={(event) => setFirstName(event.target.value)}
-                placeholder="First name"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
+                autoComplete="given-name"
+                required
+                className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
+              <label className="text-sm font-medium text-slate-800">Last name <span aria-hidden="true">*</span><input
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value)}
-                placeholder="Last name"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
+                autoComplete="family-name"
+                required
+                className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
+              <label className="text-sm font-medium text-slate-800">Email <span className="font-normal text-slate-500">(email or phone required)</span><input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="Email"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
+                autoComplete="email"
+                className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
+              <label className="text-sm font-medium text-slate-800">Phone<input
+                type="tel"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                placeholder="Phone"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-              <textarea
+                autoComplete="tel"
+                className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
+              <label className="text-sm font-medium text-slate-800 sm:col-span-2">Dietary restrictions <span className="font-normal text-slate-500">(optional)</span><textarea
                 value={dietaryRestrictions}
                 onChange={(event) => setDietaryRestrictions(event.target.value)}
-                placeholder="Dietary restrictions"
                 rows={2}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-              />
-              <textarea
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
+              <label className="text-sm font-medium text-slate-800 sm:col-span-2">Accessibility needs <span className="font-normal text-slate-500">(optional)</span><textarea
                 value={specialNeeds}
                 onChange={(event) => setSpecialNeeds(event.target.value)}
-                placeholder="Accessibility or special needs"
                 rows={2}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-              />
-              <textarea
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
+              <label className="text-sm font-medium text-slate-800 sm:col-span-2">Additional notes <span className="font-normal text-slate-500">(optional)</span><textarea
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                placeholder="Additional notes"
                 rows={2}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-              />
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+              /></label>
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button
                 onClick={() => void submitInvite()}
-                disabled={busy}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                disabled={busy || !firstName.trim() || !lastName.trim() || (!email.trim() && !phone.trim())}
+                className="min-h-11 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 disabled:opacity-60"
               >
                 {busy ? "Submitting..." : "Submit Guest Details"}
               </button>

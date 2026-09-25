@@ -1,5 +1,11 @@
 # OyamaCRM Feature Status Audit
 
+## 2026-09-25 Event public page audit
+
+Published EventSTUDIO pages now render event content on the server, show real countdown values, suppress unfinished optional sections, require working destinations for giving/document actions, and show accurate fundraising and registration availability. The builder exposes destination fields for those actions. Inactive or private events no longer resolve through published slugs, and the API rejects publishing their pages. Public TableLink access requests now email a limited-life token to the verified host instead of returning it to the requester; host and guest forms have visible labels, larger controls, and clearer completion/error handling. Event-specific title and sharing metadata are supplied while the CRM-wide crawler policy still disallows indexing.
+
+Web and server typechecks and the production web build passed. Database-backed Event/Trivia browser and API flows, Stripe settlement, and live TableLink delivery still require a configured MySQL instance and provider credentials. The local Vitest and ESLint executables were unavailable. See [event public page audit](audit-artifacts/2026-09-25-events-public-page-readiness.md).
+
 ## 2026-09-15 UI and event operations audit
 
 Shared modal/navigation accessibility, responsive workspace headers, event-night registry visibility, event creation timestamps, batched Trivia state actions, and recovery request handling improved. Focused regression checks passed; complete route-by-route visual review and database-backed Events/Trivia verification remain pending. MySQL at localhost:3306 is unavailable. Multi-device synchronization and failed-write recovery remain unverified.

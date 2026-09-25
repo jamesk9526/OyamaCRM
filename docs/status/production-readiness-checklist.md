@@ -1,5 +1,17 @@
 # Production Readiness Checklist
 
+## 2026-09-25 Event public pages
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Published page data and actions | Improved; source verified | Countdown, goals, prices, and registration availability use event data. Unfinished optional sections and dead donation/document controls are withheld from visitors; staff can configure action destinations in the builder. |
+| Public access boundary | Improved; source verified | GET hides inactive/private events, and page publishing rejects them. Registration remains server validated and deadline gated. |
+| Public TableLink access and form usability | Improved; source verified | Host access tokens are emailed to the matched host and withheld from public responses; requests are rate-limited and do not reveal whether a host matches. Set `NEXT_PUBLIC_APP_URL` or `FRONTEND_ORIGIN` to the deployed HTTPS origin and prove SMTP delivery. Sign-in, roster, and invite forms have visible labels and mobile-sized controls. |
+| Production build | Passed | Web/server TypeScript checks and Next production build passed; `git diff --check` passed. |
+| Database and provider proof | Pending | Run public registration, TableLink, Trivia, payment return/webhook, and multi-device browser tests against configured MySQL and Stripe test/live accounts. Vitest and ESLint binaries are missing in this checkout. |
+
+Evidence: [event public page audit](audit-artifacts/2026-09-25-events-public-page-readiness.md).
+
 ## 2026-09-15 UI and event operations audit
 
 Shared modal/navigation accessibility, responsive workspace headers, event-night registry visibility, event creation timestamps, batched Trivia state actions, and recovery request handling improved. Focused regression checks passed; complete route-by-route visual review and database-backed Events/Trivia verification remain pending. MySQL at localhost:3306 is unavailable. Multi-device synchronization and failed-write recovery remain unverified.

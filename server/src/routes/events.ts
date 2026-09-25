@@ -76,6 +76,13 @@ const publicReservationAccessLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: { code: "TOO_MANY_ATTEMPTS", message: "Too many reservation access attempts. Wait 15 minutes and try again." } },
 });
+const publicTableLinkAccessLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: { code: "TOO_MANY_ATTEMPTS", message: "Too many access requests. Wait 15 minutes and try again." } },
+});
 const CHECK_IN_EXCEPTION_STATUSES = new Set<EventCheckInExceptionStatus>(["OPEN", "RESOLVED", "DISMISSED"]);
 const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "api",
@@ -1130,6 +1137,8 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     where: {
       id: match.eventId,
       organizationId: match.organizationId,
+      active: true,
+      visibility: "PUBLIC",
     },
     select: {
       id: true,
@@ -2018,19 +2027,20 @@ async function resolvePublicTableLinkAccess(input: {
  * POST /api/events/public/tablelink/request-access
  * Public TableLink access request with event ID, table key, and host email.
  */
-router.post("/public/tablelink/request-access", async (req, res) => {
+router.post("/public/tablelink/request-access", publicTableLinkAccessLimiter, async (req, res) => {
   const eventId = String(req.body?.eventId ?? "").trim();
   const tableKey = String(req.body?.tableKey ?? "").trim();
   const email = String(req.body?.email ?? "").trim().toLowerCase();
+  const accepted = { ok: true, message: "If these details match a table host, an access link will arrive by email." };
 
   if (!eventId || !tableKey || !email) {
     res.status(400).json({ error: { code: "INVALID_INPUT", message: "eventId, tableKey, and email are required." } });
     return;
   }
 
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true, name: true } });
-  if (!event) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found." } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true, name: true, organizationId: true, active: true } });
+  if (!event?.active) {
+    res.status(202).json(accepted);
     return;
   }
 
@@ -2043,27 +2053,46 @@ router.post("/public/tablelink/request-access", async (req, res) => {
   });
 
   if (!table) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found." } });
+    res.status(202).json(accepted);
     return;
   }
 
   const hostEmail = String(table.hostEmail ?? "").trim().toLowerCase();
   if (!hostEmail || hostEmail !== email) {
-    res.status(403).json({ error: { code: "ACCESS_DENIED", message: "Email does not match table host." } });
+    res.status(202).json(accepted);
     return;
   }
 
+  const origin = normalizeAbsoluteOrigin(process.env.NEXT_PUBLIC_APP_URL ?? "")
+    ?? normalizeAbsoluteOrigin(process.env.FRONTEND_ORIGIN ?? "");
+  if (!origin) {
+    res.status(503).json({ error: { code: "ACCESS_DELIVERY_UNAVAILABLE", message: "Host access links are temporarily unavailable. Please contact the organizer." } });
+    return;
+  }
   const issued = await issueTableLinkAccessToken({ eventId: event.id, tableId: table.id, hostEmail });
-  res.json({
-    ok: true,
-    eventId: event.id,
-    eventName: event.name,
-    tableUid: table.tableUid,
-    tableKey: table.publicCode,
-    // TODO: backend email delivery needed; token returned for hosted portal bootstrap.
-    token: issued.token,
-    expiresAt: issued.expiresAt,
-  });
+  const accessUrl = `${origin}/tablelink/${encodeURIComponent(event.id)}/${encodeURIComponent(table.tableUid)}?token=${encodeURIComponent(issued.token)}`;
+  let emailLogId: string | null = null;
+  try {
+    const emailLog = await createEventEmailLog({ eventId: event.id, tableId: table.id, type: "HOST_ACCESS", recipientEmail: hostEmail, subject: `Access your table for ${event.name}` });
+    emailLogId = emailLog.id;
+    const sender = await createOrganizationEmailSender(event.organizationId);
+    await sender.send({
+      to: hostEmail,
+      subject: `Access your table for ${event.name}`,
+      text: `Use this private link to manage your table for ${event.name}:\n${accessUrl}\n\nThis link expires in 60 minutes. If you did not request it, you can ignore this email.`,
+      html: `<p>Use this private link to manage your table for ${escapeEventEmailHtml(event.name)}:</p><p><a href="${escapeEventEmailHtml(accessUrl)}">Open your table</a></p><p>This link expires in 60 minutes. If you did not request it, you can ignore this email.</p>`,
+      fromNameOverride: event.name,
+    });
+    await setEventEmailLogStatus(emailLog.id, "SENT").catch(() => undefined);
+    res.status(202).json(accepted);
+  } catch (error) {
+    await prisma.eventTableAccessToken.updateMany({
+      where: { tokenHash: createHash("sha256").update(issued.token).digest("hex") },
+      data: { status: "REVOKED" },
+    });
+    if (emailLogId) await setEventEmailLogStatus(emailLogId, "FAILED", error instanceof Error ? error.message : "Delivery failed").catch(() => undefined);
+    res.status(503).json({ error: { code: "ACCESS_DELIVERY_UNAVAILABLE", message: "The access email could not be sent. Please try again later or contact the organizer." } });
+  }
 });
 
 /** POST /api/events/public/tablelink/verify-token — verify public host token and resolve table scope. */
@@ -2560,7 +2589,7 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
 
   const event = await prisma.event.findFirst({
     where: { id: req.params.eventId, organizationId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, active: true, visibility: true },
   });
 
   if (!event) {
@@ -2652,6 +2681,13 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
   const nextStatus = req.body.status === undefined
     ? (previous?.status ?? "Draft")
     : normalizeEventPageStatus(req.body.status);
+
+  if (nextStatus === "Published" && (!event.active || event.visibility !== "PUBLIC")) {
+    res.status(409).json({
+      error: { code: "EVENT_NOT_PUBLIC", message: "Activate this event and set its visibility to Public before publishing its page." },
+    });
+    return;
+  }
 
   const deploymentTimestamp = new Date().toISOString();
   let nextLastPublishedAt = req.body.lastPublishedAt === undefined

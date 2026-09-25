@@ -13,7 +13,7 @@ import type {
   EventPageBranding,
 } from "@/app/components/events/page-builder/types";
 
-interface PublicEventPagePayload {
+export interface PublicEventPagePayload {
   event: EventBuilderEventDetail & {
     status?: string | null;
     active?: boolean | null;
@@ -32,6 +32,7 @@ interface PublicEventPagePayload {
 
 interface PublicEventPageProps {
   pageSlug: string;
+  initialPayload?: PublicEventPagePayload | null;
 }
 
 async function loadPublicEventPage(pageSlug: string): Promise<PublicEventPagePayload> {
@@ -64,13 +65,18 @@ function mergePublicSections(savedSections: EventPageSectionState[] | null | und
  * PublicEventPage renders the external-facing event page for one configured slug.
  * This route is intentionally outside CRM workspace auth so organizations can share it publicly.
  */
-export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
-  const [payload, setPayload] = useState<PublicEventPagePayload | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function PublicEventPage({ pageSlug, initialPayload = null }: PublicEventPageProps) {
+  const [payload, setPayload] = useState<PublicEventPagePayload | null>(initialPayload);
+  const [loading, setLoading] = useState(!initialPayload);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (initialPayload && attempt === 0) {
+      setPayload(initialPayload);
+      setLoading(false);
+      return;
+    }
     let active = true;
 
     async function load() {
@@ -91,7 +97,7 @@ export default function PublicEventPage({ pageSlug }: PublicEventPageProps) {
     return () => {
       active = false;
     };
-  }, [attempt, pageSlug]);
+  }, [attempt, initialPayload, pageSlug]);
 
   if (loading) {
     return (

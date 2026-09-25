@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 type TableStatus = "DRAFT" | "OPEN" | "SUBMITTED" | "LOCKED" | "EVENT_DAY" | "ARCHIVED";
 
@@ -59,7 +59,6 @@ interface PublicTableLinkPortalProps {
 /** PublicTableLinkPortal provides a host-facing TableLink login and roster workflow. */
 export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTableLinkPortalProps) {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const tokenFromQuery = searchParams.get("token") ?? "";
   const eventIdFromQuery = searchParams.get("eventId") ?? "";
@@ -133,18 +132,15 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
         }),
       });
       const payload = (await response.json()) as {
-        token?: string;
-        eventId?: string;
-        tableUid?: string;
+        ok?: boolean;
+        message?: string;
         error?: { message?: string };
       };
-      if (!response.ok || !payload.token || !payload.eventId || !payload.tableUid) {
+      if (!response.ok || !payload.ok) {
         throw new Error(payload.error?.message ?? "Unable to request access.");
       }
 
-      setToken(payload.token);
-      setMessage("Access granted. Opening your TableLink workspace...");
-      router.push(`/tablelink/${payload.eventId}/${payload.tableUid}?token=${encodeURIComponent(payload.token)}`);
+      setMessage(payload.message ?? "If these details match a table host, an access link will arrive by email.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to request access.");
     } finally {
@@ -278,37 +274,37 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
             Enter your Event ID, TableKey, and host email to request your secure table access link.
           </p>
 
-          <div className="mt-5 space-y-3">
-            <input
+          <div className="mt-6 space-y-4">
+            <label className="block text-sm font-medium text-slate-800">Event ID<input
               value={eventIdInput}
               onChange={(event) => setEventIdInput(event.target.value)}
-              placeholder="Event ID"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
+              autoComplete="off"
+              className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+            /></label>
+            <label className="block text-sm font-medium text-slate-800">TableKey<input
               value={tableKeyInput}
               onChange={(event) => setTableKeyInput(event.target.value)}
-              placeholder="TableKey (public code)"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
+              autoComplete="off"
+              className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+            /></label>
+            <label className="block text-sm font-medium text-slate-800">Host email<input
               type="email"
               value={emailInput}
               onChange={(event) => setEmailInput(event.target.value)}
-              placeholder="Host email"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
+              autoComplete="email"
+              className="mt-1 w-full min-h-11 rounded-md border border-slate-300 px-3 py-2 text-base focus:border-blue-700 focus:outline-none"
+            /></label>
           </div>
 
-          {error ? <p className="mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p> : null}
-          {message ? <p className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{message}</p> : null}
+          {error ? <p role="alert" className="mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+          {message ? <p role="status" className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
 
           <button
             onClick={() => void requestAccess()}
-            disabled={busy}
-            className="mt-5 w-full rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+            disabled={busy || !eventIdInput.trim() || !tableKeyInput.trim() || !emailInput.trim()}
+            className="mt-5 min-h-12 w-full rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 disabled:opacity-60"
           >
-            {busy ? "Requesting..." : "Request Access"}
+            {busy ? "Sending…" : "Email access link"}
           </button>
 
           <p className="mt-4 text-xs text-slate-500">
@@ -333,6 +329,7 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
         {loading ? <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">Loading table details...</div> : null}
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {message ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div> : null}
+        {!token && !detail ? <Link href={`/tablelink?eventId=${encodeURIComponent(eventId ?? "")}&tableKey=${encodeURIComponent(tableUid ?? "")}`} className="inline-flex min-h-11 items-center rounded-md bg-blue-700 px-4 text-sm font-semibold text-white">Request a host access link</Link> : null}
 
         {detail ? (
           <>
@@ -346,39 +343,39 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h2 className="text-sm font-semibold text-slate-900">Host Details</h2>
                 <p className="mt-1 text-xs text-slate-500">Keep your contact and table notes updated for event staff.</p>
-                <div className="mt-3 space-y-2">
-                  <input
+                <div className="mt-4 space-y-3">
+                  <label className="block text-sm font-medium text-slate-800">Host name<input
                     value={hostName}
                     onChange={(event) => setHostName(event.target.value)}
-                    placeholder="Host name"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <input
+                    autoComplete="name"
+                    className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base"
+                  /></label>
+                  <label className="block text-sm font-medium text-slate-800">Host phone<input
+                    type="tel"
                     value={hostPhone}
                     onChange={(event) => setHostPhone(event.target.value)}
-                    placeholder="Host phone"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <textarea
+                    autoComplete="tel"
+                    className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base"
+                  /></label>
+                  <label className="block text-sm font-medium text-slate-800">Table notes<textarea
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
-                    placeholder="Table notes"
                     rows={3}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-base"
+                  /></label>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     onClick={() => void saveHostDetails()}
                     disabled={busy || detail.status === "LOCKED"}
-                    className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                    className="min-h-11 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
                   >
                     Save Details
                   </button>
                   <button
                     onClick={() => void markSubmitted()}
                     disabled={busy || detail.status === "LOCKED" || detail.status === "SUBMITTED"}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                    className="min-h-11 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                   >
                     Mark Submitted
                   </button>
@@ -388,24 +385,23 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h2 className="text-sm font-semibold text-slate-900">Invite Guests</h2>
                 <p className="mt-1 text-xs text-slate-500">Send invite links seat-by-seat or for open seats.</p>
-                <div className="mt-3 space-y-2">
-                  <input
+                <div className="mt-4 space-y-3">
+                  <label className="block text-sm font-medium text-slate-800">Guest email<input
                     type="email"
                     value={inviteEmail}
                     onChange={(event) => setInviteEmail(event.target.value)}
-                    placeholder="Guest email"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <input
+                    className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base"
+                  /></label>
+                  <label className="block text-sm font-medium text-slate-800">Guest phone<input
+                    type="tel"
                     value={invitePhone}
                     onChange={(event) => setInvitePhone(event.target.value)}
-                    placeholder="Guest phone"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <select
+                    className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base"
+                  /></label>
+                  <label className="block text-sm font-medium text-slate-800">Seat preference<select
                     value={inviteSeatId}
                     onChange={(event) => setInviteSeatId(event.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="mt-1 min-h-11 w-full rounded-md border border-slate-300 px-3 py-2 text-base"
                   >
                     <option value="">No seat preference</option>
                     {detail.seats.map((seat) => (
@@ -413,12 +409,12 @@ export default function PublicTableLinkPortal({ eventId, tableUid }: PublicTable
                         Seat {seat.seatNumber} ({seat.status})
                       </option>
                     ))}
-                  </select>
+                  </select></label>
                 </div>
                 <button
                   onClick={() => void createInvite()}
-                  disabled={busy || detail.status === "LOCKED"}
-                  className="mt-3 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                  disabled={busy || detail.status === "LOCKED" || (!inviteEmail.trim() && !invitePhone.trim())}
+                  className="mt-4 min-h-11 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
                 >
                   Create Invite
                 </button>

@@ -202,15 +202,15 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, br
               <div className="mt-3 space-y-3">
                 <TextField label="Heading" value={content.heading ?? ""} placeholder={definition.label} onChange={(value) => updateContent("heading", value)} />
                 <TextAreaField label="Body" value={content.body ?? ""} placeholder={definition.description} onChange={(value) => updateContent("body", value)} />
-                {["cta-banner", "donation-form", "documents"].includes(section.id) ? (
+                {["cta-banner", "donation-goal", "progress-meter", "donation-form", "documents", "table-host-signup", "auction-preview", "live-appeal", "volunteer-callout"].includes(section.id) ? (
                   <>
-                    <TextField label="Button / Document Label" value={content.buttonText ?? content.documentLabel ?? ""} onChange={(value) => {
+                    <TextField label={section.id === "documents" ? "Document label" : "Button label"} value={content.buttonText ?? content.documentLabel ?? ""} onChange={(value) => {
                       updateContent("buttonText", value);
-                      updateContent("documentLabel", value);
+                      if (section.id === "documents") updateContent("documentLabel", value);
                     }} />
-                    <TextField label="Link URL" value={content.buttonLink ?? content.documentUrl ?? ""} onChange={(value) => {
+                    <TextField label={section.id === "documents" ? "Document URL" : "Destination URL"} value={content.buttonLink ?? content.documentUrl ?? ""} placeholder="https://..." onChange={(value) => {
                       updateContent("buttonLink", value);
-                      updateContent("documentUrl", value);
+                      if (section.id === "documents") updateContent("documentUrl", value);
                     }} />
                   </>
                 ) : null}

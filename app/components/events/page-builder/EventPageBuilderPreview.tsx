@@ -77,11 +77,16 @@ function locationLine(data: EventPageBuilderWorkspaceData): string {
   return [data.event.address, data.event.city, data.event.state, data.event.zip].filter(Boolean).join(", ") || "Address not configured";
 }
 
-function daysUntil(startDate: string): number {
-  const start = new Date(startDate);
-  if (Number.isNaN(start.getTime())) return 0;
-  const diff = start.getTime() - Date.now();
-  return Math.max(0, Math.ceil(diff / 86_400_000));
+function countdownParts(startDate: string, now: number): { days: number; hours: number; minutes: number; seconds: number } | null {
+  const start = new Date(startDate).getTime();
+  if (!Number.isFinite(start)) return null;
+  const remaining = Math.max(0, Math.floor((start - now) / 1000));
+  return {
+    days: Math.floor(remaining / 86_400),
+    hours: Math.floor((remaining % 86_400) / 3_600),
+    minutes: Math.floor((remaining % 3_600) / 60),
+    seconds: remaining % 60,
+  };
 }
 
 function sectionPadding(section: EventPageSectionState): string {
@@ -98,25 +103,79 @@ function textAlignClass(section: EventPageSectionState): string {
 
 function publicHref(value: string | undefined, fallback: string): string {
   const trimmed = value?.trim();
-  return trimmed || fallback;
+  if (!trimmed) return fallback;
+  if (/^#[a-z][a-z0-9-]*$/i.test(trimmed) || /^\/(?!\/)[^\s]*$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "https:" || url.protocol === "http:" || url.protocol === "mailto:" || url.protocol === "tel:") return trimmed;
+  } catch { /* Invalid destinations use the working default. */ }
+  return fallback;
+}
+
+function publicMediaUrl(value: string | null | undefined): string {
+  if (!value?.trim()) return "";
+  if (/^\/(?!\/)[^\s]*$/.test(value.trim())) return value.trim();
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? value.trim() : "";
+  } catch { return ""; }
+}
+
+function optionalPublicSectionReady(section: EventPageSectionState, data: EventPageBuilderWorkspaceData): boolean {
+  const content = section.content ?? {};
+  switch (section.id) {
+    case "donation-form":
+    case "live-appeal":
+    case "documents": return Boolean(publicHref(section.id === "documents" ? content.documentUrl || content.buttonLink : content.buttonLink, ""));
+    case "volunteer-callout": return Boolean(publicHref(content.buttonLink, "") || data.branding?.contactEmail);
+    case "table-host-signup": return Boolean(publicHref(content.buttonLink, "") || data.ticketTypes.some((ticket) => ticket.isTable));
+    case "auction-preview":
+    case "speaker-program":
+    case "impact-story":
+    case "accessibility": return Boolean(content.body?.trim() || (section.id === "speaker-program" && data.event.description?.trim()));
+    case "video": return Boolean(publicMediaUrl(content.mediaUrl));
+    case "image-gallery": return Boolean(content.galleryImages?.some((url) => publicMediaUrl(url)) || publicMediaUrl(content.mediaUrl));
+    case "highlights": return Boolean(content.highlightItems?.some((item) => item.title?.trim() && item.body?.trim()));
+    case "testimonial": return Boolean(content.body?.trim() && content.quoteAuthor?.trim());
+    case "contact-organizer": return Boolean(data.branding?.contactEmail || data.branding?.contactPhone);
+    case "map-location": return Boolean(data.event.location || data.event.address || publicMediaUrl(data.event.virtualUrl));
+    case "cta-banner": return Boolean(publicHref(content.buttonLink, "") || data.ticketTypes.length > 0);
+    case "schedule": return Boolean(content.scheduleItems?.some((item) => item.label?.trim()));
+    case "faq": return Boolean(content.faqItems?.some((item) => item.question?.trim() && item.answer?.trim()));
+    case "sponsorship-levels":
+    case "sponsor-logos": return data.sponsors.length > 0;
+    case "donation-goal": return Number(data.report?.revenue.goal ?? data.event.revenueGoal ?? 0) > 0;
+    case "progress-meter": return Number(data.report?.revenue.goal ?? data.event.revenueGoal ?? 0) > 0 || Number(data.report?.attendance.goal ?? data.event.registrationGoal ?? 0) > 0;
+    default: return true;
+  }
 }
 
 function tableLinkHref(data: EventPageBuilderWorkspaceData): string {
   return `/tablelink?eventId=${encodeURIComponent(data.event.id)}`;
 }
 
-function renderHero(section: EventPageSectionState, data: EventPageBuilderWorkspaceData) {
+function registrationAvailable(data: EventPageBuilderWorkspaceData): boolean {
+  return data.event.active !== false
+    && (data.event.status === "PUBLISHED" || data.event.status === "REGISTRATION_OPEN")
+    && (!data.event.registrationDeadline || new Date(data.event.registrationDeadline).getTime() >= Date.now())
+    && data.ticketTypes.some((ticket) => ticket.available == null || ticket.available > 0);
+}
+
+function renderHero(section: EventPageSectionState, data: EventPageBuilderWorkspaceData, allSections: EventPageSectionState[]) {
   const content = section.content ?? {};
   const design = section.design ?? {};
   const title = content.title?.trim() || data.event.name;
   // Subtitle intentionally falls to empty — staff set their own per-event tagline.
   const subtitle = content.subtitle?.trim() || "";
-  const backgroundImage = design.backgroundImageUrl?.trim() || "";
+  const backgroundImage = publicMediaUrl(design.backgroundImageUrl);
   const brandPrimary = data.branding?.primaryColor || "#0f6cbd";
   const brandAccent = data.branding?.accentColor || "#5c2d91";
-  const primaryHref = publicHref(content.primaryButtonLink, "#registration");
-  const secondaryHref = publicHref(content.secondaryButtonLink, "#event-details");
-  const lowestPrice = data.ticketTypes.length ? Math.min(...data.ticketTypes.map((ticket) => Number(ticket.price ?? 0))) : 0;
+  const hasRegistration = allSections.some((candidate) => candidate.id === "registration-form");
+  const hasDetails = allSections.some((candidate) => candidate.id === "event-details");
+  const primaryHref = publicHref(content.primaryButtonLink, hasRegistration ? "#registration" : hasDetails ? "#event-details" : "#hero");
+  const secondaryHref = publicHref(content.secondaryButtonLink, hasDetails ? "#event-details" : hasRegistration ? "#registration" : "#hero");
+  const activeTickets = data.ticketTypes.filter((ticket) => ticket.available == null || ticket.available > 0);
+  const lowestPrice = activeTickets.length ? data.paymentPolicy === "NoPaymentRequired" ? 0 : Math.min(...activeTickets.map((ticket) => Number(ticket.price ?? 0))) : null;
 
   return (
     <section className="bg-white text-slate-950">
@@ -135,16 +194,16 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
             {subtitle ? <p className="mt-3 break-words text-base leading-7 text-slate-600 sm:text-lg">{subtitle}</p> : data.event.description ? <p className="mt-4 max-w-2xl break-words text-base leading-7 text-slate-600">{data.event.description}</p> : null}
             <div className="mt-6 space-y-2 text-sm text-slate-700">
               <p className="break-words font-medium">{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
-              <p className="break-words">{data.event.location ?? "Location to be announced"}{locationLine(data) !== "Address not configured" ? ` · ${locationLine(data)}` : ""}</p>
+              <p className="break-words">{data.event.location || (publicMediaUrl(data.event.virtualUrl) ? "Online event" : "Location to be announced")}{locationLine(data) !== "Address not configured" ? ` · ${locationLine(data)}` : ""}</p>
             </div>
-            {lowestPrice >= 0 ? <p className="mt-5 text-sm text-slate-500">{lowestPrice > 0 ? `Registration from ${formatMoney(lowestPrice, data.currency)}` : "Free registration available"}</p> : null}
+            {lowestPrice !== null && (registrationAvailable(data) || !data.isPublicRegistration) ? <p className="mt-5 text-sm text-slate-500">{lowestPrice > 0 ? `Registration from ${formatMoney(lowestPrice, data.currency)}` : "Free registration available"}</p> : data.isPublicRegistration ? <p className="mt-5 text-sm font-medium text-slate-600">Registration is currently unavailable</p> : null}
             <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
               <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-12 items-center justify-center rounded-md px-7 text-sm font-semibold text-white">{content.primaryButtonText || "Register"}</a>
               <a href={secondaryHref} className="inline-flex min-h-11 items-center justify-center text-center text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">{content.secondaryButtonText || "View event details"}</a>
             </div>
           </div>
           <div className="aspect-[16/10] overflow-hidden rounded-lg bg-slate-100 md:aspect-[4/3]">
-            {design.backgroundType === "video" && design.backgroundImageUrl ? <video className="h-full w-full object-cover" src={design.backgroundImageUrl} autoPlay muted loop playsInline /> : backgroundImage ? <img src={backgroundImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center px-8 text-center text-white" style={{ background: `linear-gradient(145deg, ${brandPrimary}, ${brandAccent})` }}><span className="text-5xl font-semibold opacity-90">{title.slice(0, 1).toUpperCase()}</span></div>}
+            {design.backgroundType === "video" && backgroundImage ? <video className="h-full w-full object-cover" src={backgroundImage} autoPlay muted loop playsInline /> : backgroundImage ? <img src={backgroundImage} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center px-8 text-center text-white" style={{ background: `linear-gradient(145deg, ${brandPrimary}, ${brandAccent})` }}><span className="text-5xl font-semibold opacity-90">{title.slice(0, 1).toUpperCase()}</span></div>}
           </div>
         </div>
       </div>
@@ -152,7 +211,7 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
   );
 }
 
-function renderSection(section: EventPageSectionState, data: EventPageBuilderWorkspaceData, allSections: EventPageSectionState[]) {
+function renderSection(section: EventPageSectionState, data: EventPageBuilderWorkspaceData, allSections: EventPageSectionState[], now: number | null) {
   const report = data.report;
   const tableTicketTypes = data.ticketTypes.filter((ticketType) => ticketType.isTable);
   const goal = Number(report?.revenue.goal ?? data.event.revenueGoal ?? 0);
@@ -162,7 +221,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   const heading = content.heading || getSectionDefinition(section.id).label;
   const body = content.body || getSectionDefinition(section.id).description;
 
-  if (section.id === "hero") return renderHero(section, data);
+  if (section.id === "hero") return renderHero(section, data, allSections);
 
   if (section.id === "organization-banner") {
     const brand = data.branding;
@@ -171,22 +230,22 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         <div className="mx-auto flex max-w-5xl flex-col items-start gap-5 sm:flex-row sm:items-center">
           {brand?.logoUrl || brand?.logoSquareUrl ? <img src={brand.logoUrl || brand.logoSquareUrl} alt={`${organizationName(data)} logo`} className="max-h-20 w-auto max-w-56 object-contain" /> : <div className="grid h-16 w-16 place-items-center rounded-sm bg-slate-100 text-xl font-semibold text-slate-600">{organizationName(data).slice(0, 2).toUpperCase()}</div>}
           <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Presented by</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || organizationName(data)}</h2>{content.body || brand?.tagline ? <p className="mt-2 text-sm text-slate-600">{content.body || brand?.tagline}</p> : null}</div>
-          {brand?.websiteUrl ? <a href={brand.websiteUrl} className="event-brand-outline inline-flex min-h-11 w-full items-center justify-center px-4 text-sm font-semibold sm:w-auto">Visit our website</a> : null}
+          {publicMediaUrl(brand?.websiteUrl) ? <a href={publicMediaUrl(brand?.websiteUrl)} className="event-brand-outline inline-flex min-h-11 w-full items-center justify-center px-4 text-sm font-semibold sm:w-auto">Visit our website</a> : null}
         </div>
       </section>
     );
   }
 
   if (section.id === "countdown") {
-    const startsIn = daysUntil(data.event.startDate);
+    const countdown = now === null ? null : countdownParts(data.event.startDate, now);
     return (
       <section className={`${sectionPadding(section)} bg-white ${textAlignClass(section)}`}>
         <div className="mx-auto max-w-3xl rounded-xl border border-violet-100 bg-white px-3 py-4 text-center shadow-sm sm:px-5 sm:py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{heading || "The Event Begins In"}</p>
           <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden bg-slate-200 text-center sm:grid-cols-4">
-            {[[startsIn, "Days"], [14, "Hours"], [28, "Minutes"], [36, "Seconds"]].map(([value, label]) => (
+            {([[countdown?.days, "Days"], [countdown?.hours, "Hours"], [countdown?.minutes, "Minutes"], [countdown?.seconds, "Seconds"]] as const).map(([value, label]) => (
               <div key={label} className="min-w-0 bg-white px-1 py-3 sm:px-2">
-                <p className="text-xl font-semibold text-violet-600 sm:text-2xl">{value}</p>
+                <p className="text-xl font-semibold event-brand-primary-text sm:text-2xl">{value ?? "—"}</p>
                 <p className="truncate text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500 sm:text-[10px] sm:tracking-[0.12em]">{label}</p>
               </div>
             ))}
@@ -204,7 +263,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     const defaultTime = formatDateTimeRange(data.event.startDate, data.event.endDate).split("•")[1]?.trim() || "Time not set";
     const date = content.eventDate?.trim() || defaultDate;
     const time = content.eventTime?.trim() || defaultTime;
-    const venue = content.locationName?.trim() || data.event.location?.trim() || "TBD";
+    const venue = content.locationName?.trim() || data.event.location?.trim() || (publicMediaUrl(data.event.virtualUrl) ? "Online event" : "To be announced");
     const address = content.locationAddress?.trim() || locationLine(data);
     const attire = content.attire?.trim() || "Attire not specified";
     return (
@@ -221,7 +280,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "registration-form") {
-    const eventImageUrl = allSections.find((candidate) => candidate.id === "hero")?.design?.backgroundImageUrl;
+    const eventImageUrl = publicMediaUrl(allSections.find((candidate) => candidate.id === "hero")?.design?.backgroundImageUrl);
     return (
       <section id="registration" className="scroll-mt-4 bg-slate-50 px-0 py-6 sm:px-6 sm:py-12">
         <div className="mx-auto max-w-[900px]">
@@ -255,7 +314,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
           ))}
         </div>
         <a href={hostSignupHref} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white sm:w-auto">
-          {content.buttonText || "Open TableLink"}
+          {content.buttonText || "Access your table"}
         </a>
       </section>
     );
@@ -279,6 +338,10 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "donation-goal" || section.id === "progress-meter") {
+    const attendanceMode = section.id === "progress-meter" && goal <= 0;
+    const attendanceGoal = Number(report?.attendance.goal ?? data.event.registrationGoal ?? 0);
+    const attendanceTotal = Number(report?.attendance.total ?? 0);
+    const displayProgress = attendanceMode && attendanceGoal > 0 ? Math.min(100, Math.round((attendanceTotal / attendanceGoal) * 100)) : progress;
     return (
       <section className={`bg-white ${sectionPadding(section)}`}>
         <div className="grid gap-8 md:grid-cols-[1fr_320px] md:items-center">
@@ -287,16 +350,16 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
           </div>
           <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Our Goal</p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">{formatMoney(goal || 30000)}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{attendanceMode ? "Registration goal" : "Our goal"}</p>
+            <p className="mt-2 text-3xl font-bold text-slate-950">{attendanceMode ? attendanceGoal.toLocaleString() : goal > 0 ? formatMoney(goal, data.currency) : "Goal not set"}</p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>Raised {formatMoney(raised)}</span>
-              <span>{progress}%</span>
+              <span>{attendanceMode ? `${attendanceTotal.toLocaleString()} registered` : `Raised ${formatMoney(raised, data.currency)}`}</span>
+              <span>{displayProgress}%</span>
             </div>
             <div className="mt-2 h-2 rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min(100, progress)}%` }} />
+              <div className="h-full rounded-full event-brand-primary-bg" style={{ width: `${Math.min(100, displayProgress)}%` }} />
             </div>
-            <a href={publicHref(content.buttonLink, "#donate")} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-violet-600 text-sm font-semibold text-white">Make a Donation</a>
+            {publicHref(content.buttonLink, "") ? <a href={publicHref(content.buttonLink, "")} className="event-brand-primary-bg mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md text-sm font-semibold text-white">{content.buttonText || (attendanceMode ? "Register" : "Make a donation")}</a> : null}
           </aside>
         </div>
       </section>
@@ -304,17 +367,13 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "donation-form") {
+    const donationHref = publicHref(content.buttonLink, "");
     return (
       <section className={`bg-violet-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <div className="mx-auto max-w-3xl rounded-2xl border border-violet-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-950">{content.heading || "Make A Donation"}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[50, 100, 250, 500].map((amount) => (
-              <a key={amount} href={`${publicHref(content.buttonLink, "#registration")}?amount=${amount}`} className="inline-flex h-11 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700">${amount}</a>
-            ))}
-          </div>
-          <a href={publicHref(content.buttonLink, "#registration")} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg bg-violet-600 text-sm font-semibold text-white">{content.buttonText || "Give Now"}</a>
+          {donationHref ? <a href={donationHref} className="event-brand-primary-bg mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-md text-sm font-semibold text-white">{content.buttonText || "Open donation page"}</a> : <p className="mt-4 text-sm text-slate-500">Add a donation page URL in section settings to enable giving.</p>}
         </div>
       </section>
     );
@@ -359,14 +418,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             <h2 className="mt-2 text-2xl font-semibold text-slate-950">{heading}</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">{body}</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1">
-            {["Featured package", "Raffle moment", "Sponsor match"].map((item) => (
-              <article key={item} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-sm font-semibold text-slate-950">{item}</p>
-                <p className="mt-1 text-xs text-slate-500">Add item details, bidding URL, or auction handoff in section settings.</p>
-              </article>
-            ))}
-          </div>
+          {publicHref(content.buttonLink, "") ? <a href={publicHref(content.buttonLink, "")} className="event-brand-primary-bg inline-flex min-h-11 items-center justify-center px-5 text-sm font-semibold text-white">{content.buttonText || "View auction"}</a> : null}
         </div>
       </section>
     );
@@ -379,28 +431,23 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">Live Appeal</p>
         <h2 className="mt-2 text-3xl font-semibold">{heading}</h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-50/80">{body}</p>
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[100, 250, 500, 1000].map((amount) => (
-            <a key={amount} href={content.buttonLink || "#donate"} className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-3 py-3 text-center text-sm font-semibold text-white hover:bg-white/15">
-              {formatMoney(amount)}
-            </a>
-          ))}
-        </div>
-        {goal ? <p className="mt-4 text-xs text-emerald-100/80">Event goal: {formatMoney(goal)}</p> : null}
+        {publicHref(content.buttonLink, "") ? <a href={publicHref(content.buttonLink, "")} className="mt-6 inline-flex min-h-12 items-center justify-center rounded-md border border-white/40 px-5 text-sm font-semibold text-white hover:bg-white/10">{content.buttonText || "Support this event"}</a> : null}
+        {goal ? <p className="mt-4 text-xs text-emerald-100/80">Event goal: {formatMoney(goal, data.currency)}</p> : null}
       </section>
     );
   }
 
   if (section.id === "volunteer-callout") {
+    const volunteerHref = publicHref(content.buttonLink, data.branding?.contactEmail ? `mailto:${data.branding.contactEmail}?subject=${encodeURIComponent(data.event.name)}` : "");
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <div className="rounded-2xl border border-violet-100 bg-violet-50 p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">Volunteer Team</p>
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">{heading}</h2>
           <p className="mt-3 text-sm leading-6 text-slate-700">{body}</p>
-          <a href={content.buttonLink || `mailto:events@example.org?subject=${encodeURIComponent(data.event.name)}`} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-violet-700 px-4 py-2 text-center text-sm font-semibold text-white sm:w-auto">
+          {volunteerHref ? <a href={volunteerHref} className="event-brand-primary-bg mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-md px-4 py-2 text-center text-sm font-semibold text-white sm:w-auto">
             {content.buttonText || "Volunteer for this event"}
-          </a>
+          </a> : null}
         </div>
       </section>
     );
@@ -412,8 +459,8 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
         <h2 className="text-2xl font-semibold">{heading}</h2>
         <p className="mt-2 text-sm leading-6 text-white/70">{body}</p>
         <div className="mt-5 aspect-video overflow-hidden rounded-2xl border border-white/15 bg-white/10">
-          {content.mediaUrl ? (
-            <iframe className="h-full w-full" src={content.mediaUrl} title={heading} loading="lazy" allowFullScreen />
+          {publicMediaUrl(content.mediaUrl) ? (
+            <iframe className="h-full w-full" src={publicMediaUrl(content.mediaUrl)} title={heading} loading="lazy" allowFullScreen />
           ) : (
             <div className="grid h-full place-items-center text-sm text-white/60">Add a video embed URL in section settings.</div>
           )}
@@ -423,7 +470,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   if (section.id === "image-gallery") {
-    const galleryImages = (content.galleryImages as string[] | undefined) ?? (content.mediaUrl ? [content.mediaUrl] : []);
+    const galleryImages = ((content.galleryImages as string[] | undefined) ?? (content.mediaUrl ? [content.mediaUrl] : [])).map(publicMediaUrl).filter(Boolean);
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
@@ -483,7 +530,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
             <h2 className="break-words text-2xl font-semibold">{heading}</h2>
             <p className="mt-2 break-words text-sm text-violet-100">{body}</p>
           </div>
-          <a href={content.buttonLink || "#registration"} className="inline-flex min-h-12 items-center justify-center rounded-lg bg-white px-5 py-3 text-center text-sm font-semibold text-violet-700">
+          <a href={publicHref(content.buttonLink, "#registration")} className="inline-flex min-h-12 items-center justify-center rounded-lg bg-white px-5 py-3 text-center text-sm font-semibold text-violet-700">
             {content.buttonText || "Take Action"}
           </a>
         </div>
@@ -496,7 +543,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
       <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
-        <a href={content.documentUrl || content.buttonLink || data.publicUrl} className="mt-5 inline-flex min-h-11 w-full items-center justify-center break-words rounded-lg border border-violet-200 bg-white px-4 py-2 text-center text-sm font-semibold text-violet-700 sm:w-auto">
+        <a href={publicHref(content.documentUrl || content.buttonLink, "")} className="mt-5 inline-flex min-h-11 w-full items-center justify-center break-words rounded-lg border border-violet-200 bg-white px-4 py-2 text-center text-sm font-semibold text-violet-700 sm:w-auto">
           {content.documentLabel || content.buttonText || "Open Document"}
         </a>
       </section>
@@ -529,8 +576,9 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
       <section className={`bg-slate-50 ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <h2 className="text-2xl font-semibold text-slate-950">{heading}</h2>
         <div className="mt-5 rounded-xl border border-slate-200 bg-white p-5">
-          <p className="font-semibold text-slate-950">{data.event.location ?? "Venue name not set"}</p>
-          <p className="mt-1 text-sm text-slate-600">{locationLine(data)}</p>
+          <p className="font-semibold text-slate-950">{data.event.location || (publicMediaUrl(data.event.virtualUrl) ? "Online event" : "Venue")}</p>
+          {locationLine(data) !== "Address not configured" ? <p className="mt-1 text-sm text-slate-600">{locationLine(data)}</p> : null}
+          {publicMediaUrl(data.event.virtualUrl) ? <a href={publicMediaUrl(data.event.virtualUrl)} className="event-brand-primary-text mt-3 inline-flex min-h-11 items-center font-semibold underline underline-offset-4">Join online</a> : null}
         </div>
       </section>
     );
@@ -589,11 +637,22 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
 /** Shared public-page document renderer used by both builder preview and published pages. */
 export function EventPageDocument({ sections, selectedSectionId, data, onSelectSection }: EventPageDocumentProps) {
   const [registrationInView, setRegistrationInView] = useState(false);
-  const visibleSections = sections.filter((section) => section.enabled);
+  const [now, setNow] = useState<number | null>(null);
+  const visibleSections = sections.filter((section) => section.enabled && (!data.isPublicRegistration || optionalPublicSectionReady(section, data)));
+  const availableTickets = data.ticketTypes.filter((ticket) => ticket.available == null || ticket.available > 0);
+  const registrationOpen = registrationAvailable(data) && visibleSections.some((section) => section.id === "registration-form");
   const brandStyle = {
     "--event-brand-primary": data.branding?.primaryColor || "#0f6cbd",
     "--event-brand-accent": data.branding?.accentColor || "#5c2d91",
   } as CSSProperties;
+
+  useEffect(() => {
+    if (!visibleSections.some((section) => section.id === "countdown")) return;
+    const refresh = () => setNow(Date.now());
+    refresh();
+    const timer = window.setInterval(refresh, 1000);
+    return () => window.clearInterval(timer);
+  }, [sections, data.isPublicRegistration]);
 
   useEffect(() => {
     if (!data.isPublicRegistration) {
@@ -646,11 +705,11 @@ export function EventPageDocument({ sections, selectedSectionId, data, onSelectS
             ].join(" ")}
             aria-label={onSelectSection ? `Edit ${definition.label}` : undefined}
           >
-            {renderSection(section, data, visibleSections)}
+            {renderSection(section, data, visibleSections, now)}
           </div>
         );
       })}
-      {data.isPublicRegistration && data.ticketTypes.length > 0 ? <div aria-hidden={registrationInView} className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/96 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur transition duration-200 md:hidden ${registrationInView ? "pointer-events-none translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}><div className="mx-auto flex max-w-md items-center justify-between gap-4"><div className="min-w-0"><p className="text-xs text-slate-500">Registration from</p><p className="truncate font-semibold text-slate-950">{formatMoney(Math.min(...data.ticketTypes.map((ticket) => Number(ticket.price ?? 0))), data.currency)}</p></div><a href="#registration" tabIndex={registrationInView ? -1 : undefined} className="event-brand-primary-bg inline-flex min-h-12 shrink-0 items-center justify-center rounded-md px-6 text-sm font-semibold text-white">Register</a></div></div> : null}
+      {data.isPublicRegistration && registrationOpen ? <div aria-hidden={registrationInView} className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/96 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_18px_rgba(15,23,42,0.08)] backdrop-blur transition duration-200 md:hidden ${registrationInView ? "pointer-events-none translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}><div className="mx-auto flex max-w-md items-center justify-between gap-4"><div className="min-w-0"><p className="text-xs text-slate-500">Registration from</p><p className="truncate font-semibold text-slate-950">{formatMoney(data.paymentPolicy === "NoPaymentRequired" ? 0 : Math.min(...availableTickets.map((ticket) => Number(ticket.price ?? 0))), data.currency)}</p></div><a href="#registration" tabIndex={registrationInView ? -1 : undefined} className="event-brand-primary-bg inline-flex min-h-12 shrink-0 items-center justify-center rounded-md px-6 text-sm font-semibold text-white">Register</a></div></div> : null}
     </div>
   );
 }

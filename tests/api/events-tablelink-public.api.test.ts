@@ -1,8 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import request from "supertest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@/server/src/lib/prisma";
+
+const sentMail = vi.hoisted(() => vi.fn());
+vi.mock("@/server/src/services/smtp-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/src/services/smtp-service")>();
+  return { ...actual, createOrganizationEmailSender: async () => ({ send: sentMail }) };
+});
 
 let app: Awaited<typeof import("@/server/src/index")>["default"];
 let token = "";
@@ -14,6 +20,7 @@ let hostEmail = "";
 let hostToken = "";
 
 beforeAll(async () => {
+  process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3000";
   const mod = await import("@/server/src/index");
   app = mod.default;
 
@@ -60,29 +67,36 @@ beforeAll(async () => {
 });
 
 describe("events public tablelink api", () => {
-  it("denies host access requests when email does not match table host", async () => {
+  it("does not disclose whether a host email matches", async () => {
+    const previousMailCount = sentMail.mock.calls.length;
     const res = await request(app).post("/api/events/public/tablelink/request-access").send({
       eventId,
       tableKey,
       email: "wrong-host@example.org",
     });
 
-    expect(res.status).toBe(403);
-    expect(res.body?.error?.code).toBe("ACCESS_DENIED");
+    expect(res.status).toBe(202);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.token).toBeUndefined();
+    expect(sentMail.mock.calls).toHaveLength(previousMailCount);
   });
 
-  it("issues and verifies a host access token for the matching host email", async () => {
+  it("emails a host access token without returning it to the requester", async () => {
     const issue = await request(app).post("/api/events/public/tablelink/request-access").send({
       eventId,
       tableKey,
       email: hostEmail,
     });
 
-    expect(issue.status).toBe(200);
+    expect(issue.status).toBe(202);
     expect(issue.body.ok).toBe(true);
-    expect(issue.body.tableUid).toBe(tableUid);
-    expect(typeof issue.body.token).toBe("string");
-    hostToken = String(issue.body.token ?? "");
+    expect(issue.body.token).toBeUndefined();
+    const delivery = sentMail.mock.lastCall?.[0] as { to?: string; text?: string } | undefined;
+    expect(delivery?.to).toBe(hostEmail);
+    const accessUrl = delivery?.text?.match(/https?:\/\/[^\s]+/)?.[0];
+    expect(accessUrl).toBeTruthy();
+    hostToken = new URL(accessUrl!).searchParams.get("token") ?? "";
+    expect(hostToken).toBeTruthy();
 
     const verify = await request(app).post("/api/events/public/tablelink/verify-token").send({
       eventId,
@@ -93,6 +107,16 @@ describe("events public tablelink api", () => {
     expect(verify.body.ok).toBe(true);
     expect(verify.body.eventId).toBe(eventId);
     expect(verify.body.tableUid).toBe(tableUid);
+  });
+
+  it("revokes a newly issued token if host email delivery fails", async () => {
+    const revokedBefore = await prisma.eventTableAccessToken.count({ where: { tableId, status: "REVOKED" } });
+    sentMail.mockRejectedValueOnce(new Error("SMTP unavailable"));
+    const issue = await request(app).post("/api/events/public/tablelink/request-access").send({ eventId, tableKey, email: hostEmail });
+    expect(issue.status).toBe(503);
+    expect(issue.body.token).toBeUndefined();
+    const revokedAfter = await prisma.eventTableAccessToken.count({ where: { tableId, status: "REVOKED" } });
+    expect(revokedAfter).toBe(revokedBefore + 1);
   });
 
   it("requires a public token for host portal table detail", async () => {
