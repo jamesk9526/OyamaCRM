@@ -236,11 +236,14 @@ export default function DonationForm({ mode = "create", donationId, receiptNumbe
     e.preventDefault();
     if (saving) return;
     if (!form.constituentId) { setError("Please select a constituent."); return; }
-    if (!form.amount || isNaN(parseFloat(form.amount))) { setError("Please enter a valid amount."); return; }
-    if (form.taxDeductible && Number(form.taxDeductibleAmount) > Number(form.amount)) {
-      setError("Tax-deductible amount cannot exceed the gift amount.");
+    const giftAmount = Number(form.amount);
+    const deductibleAmount = Number(form.taxDeductibleAmount || form.amount);
+    if (!form.amount || !Number.isFinite(giftAmount) || giftAmount < 0 || Math.abs(giftAmount * 100 - Math.round(giftAmount * 100)) > 0.000001) { setError("Enter a valid gift amount with at most two decimal places."); return; }
+    if (form.taxDeductible && (!Number.isFinite(deductibleAmount) || deductibleAmount < 0 || deductibleAmount > giftAmount || Math.abs(deductibleAmount * 100 - Math.round(deductibleAmount * 100)) > 0.000001)) {
+      setError("Enter a tax-deductible amount between zero and the gift amount, with at most two decimal places.");
       return;
     }
+    if (form.isRecurring && !form.frequency) { setError("Choose a frequency for this recurring gift."); return; }
     setError(null);
     setSaving(true);
 
@@ -266,7 +269,7 @@ export default function DonationForm({ mode = "create", donationId, receiptNumbe
         if (onSaved) {
           await onSaved(savedRes?.id);
         } else {
-          router.push("/donations");
+          router.push(mode === "edit" && donationId ? `/donations/${encodeURIComponent(donationId)}` : "/donations");
           router.refresh();
         }
       } catch (err) {
@@ -284,15 +287,16 @@ export default function DonationForm({ mode = "create", donationId, receiptNumbe
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="border border-[#a4262c] bg-[#fdf3f4] px-4 py-3 text-sm text-[#a4262c]">{error}</div>
+        <div role="alert" className="border border-[#a4262c] bg-[#fdf3f4] px-4 py-3 text-sm text-[#a4262c]">{error}</div>
       )}
 
       {/* Donor */}
       <div className="space-y-4 border border-[#edebe9] bg-white p-5">
         <h3 className="text-base font-semibold text-[#323130]">Donor</h3>
         <div ref={constituentSearchRef} className="relative">
-          <label className={labelCls}>Constituent *</label>
+          <label htmlFor="gift-constituent" className={labelCls}>Constituent *</label>
           <input
+            id="gift-constituent"
             type="text"
             className={inputCls}
             placeholder="Search donors by name, email, or phone..."
@@ -515,8 +519,8 @@ export default function DonationForm({ mode = "create", donationId, receiptNumbe
             </label>
             {form.isRecurring ? (
               <div className="mt-3 max-w-sm pl-12">
-                <label className={labelCls}>Frequency</label>
-                <select className={selectCls} value={form.frequency} onChange={e => update("frequency", e.target.value)}>
+                <label htmlFor="gift-frequency" className={labelCls}>Frequency *</label>
+                <select id="gift-frequency" required className={selectCls} value={form.frequency} onChange={e => update("frequency", e.target.value)}>
                   <option value="">— Select —</option>
                   <option value="WEEKLY">Weekly</option>
                   <option value="MONTHLY">Monthly</option>
@@ -539,15 +543,15 @@ export default function DonationForm({ mode = "create", donationId, receiptNumbe
         <h3 className="text-base font-semibold text-[#323130]">Attribution</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>Fund / Designation</label>
-            <select className={selectCls} value={form.designationId} onChange={e => update("designationId", e.target.value)}>
+            <label htmlFor="gift-designation" className={labelCls}>Fund / Designation</label>
+            <select id="gift-designation" className={selectCls} value={form.designationId} onChange={e => update("designationId", e.target.value)}>
               <option value="">— Undesignated —</option>
               {designations.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div>
-            <label className={labelCls}>Campaign</label>
-            <select className={selectCls} value={form.campaignId} onChange={e => update("campaignId", e.target.value)}>
+            <label htmlFor="gift-campaign" className={labelCls}>Campaign</label>
+            <select id="gift-campaign" className={selectCls} value={form.campaignId} onChange={e => update("campaignId", e.target.value)}>
               <option value="">— None —</option>
               {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>

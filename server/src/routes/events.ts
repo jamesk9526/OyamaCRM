@@ -1169,6 +1169,8 @@ router.get("/public/page/:pageSlug", async (req, res) => {
         available: true,
         isTable: true,
         seatsIncluded: true,
+        minPerOrder: true,
+        maxPerOrder: true,
       },
       orderBy: [{ isTable: "desc" }, { price: "asc" }],
     }),
@@ -1355,7 +1357,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
     return;
   }
   const ticketTypeId = normalizeTextInput(body.ticketTypeId, 120);
-  const requestedTicketUnits = Math.max(1, Number(body.quantity ?? 1));
+  const requestedTicketUnits = Number(body.quantity ?? 1);
   const consentAccepted = body.consentAccepted === true;
 
   if (!ticketTypeId) {
@@ -1433,9 +1435,17 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
 
   const maxPerOrder = Math.max(1, ticketType.maxPerOrder ?? 10);
   const minPerOrder = Math.max(1, Math.min(ticketType.minPerOrder, maxPerOrder));
-  const ticketUnits = Math.min(maxPerOrder, Math.max(minPerOrder, requestedTicketUnits));
+  if (!Number.isSafeInteger(requestedTicketUnits) || requestedTicketUnits < minPerOrder || requestedTicketUnits > maxPerOrder) {
+    res.status(400).json({ error: { code: "INVALID_QUANTITY", message: `Choose between ${minPerOrder} and ${maxPerOrder} tickets.` } });
+    return;
+  }
+  const ticketUnits = requestedTicketUnits;
   const seatsPerTicket = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
-  const requestedSeats = Math.min(MAX_SEATS_PER_PUBLIC_REGISTRATION, ticketUnits * seatsPerTicket);
+  const requestedSeats = ticketUnits * seatsPerTicket;
+  if (requestedSeats > MAX_SEATS_PER_PUBLIC_REGISTRATION) {
+    res.status(400).json({ error: { code: "TOO_MANY_SEATS", message: `A registration can reserve at most ${MAX_SEATS_PER_PUBLIC_REGISTRATION} seats.` } });
+    return;
+  }
   const attendees = normalizePublicRegistrationAttendees(body, requestedSeats);
   const buyer = attendees[0];
 
@@ -1449,28 +1459,12 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
     return;
   }
 
-  const [eventGuestCount, ticketGuestCount] = await Promise.all([
-    prisma.eventGuest.count({ where: { eventId: event.id } }),
-    prisma.eventGuest.count({ where: { eventId: event.id, ticketTypeId: ticketType.id } }),
-  ]);
-
-  if (event.capacity != null && event.capacity > 0 && eventGuestCount + requestedSeats > event.capacity) {
-    res.status(409).json({ error: { code: "EVENT_CAPACITY_REACHED", message: "Not enough event capacity remains for this registration." } });
-    return;
-  }
-
-  if (ticketType.capacity != null && ticketType.capacity > 0 && ticketGuestCount + requestedSeats > ticketType.capacity) {
-    res.status(409).json({ error: { code: "TICKET_CAPACITY_REACHED", message: "Not enough ticket capacity remains for this registration." } });
-    return;
-  }
-
-  if (ticketType.available != null && ticketType.available < ticketUnits) {
-    res.status(409).json({ error: { code: "TICKET_SOLD_OUT", message: "Not enough ticket availability remains for this registration." } });
-    return;
-  }
-
   const unitPrice = match.paymentPolicy === "NoPaymentRequired" ? 0 : Number(ticketType.price ?? 0);
   const totalAmount = unitPrice * ticketUnits;
+  if (!Number.isSafeInteger(Math.round(totalAmount * 100)) || totalAmount < 0) {
+    res.status(409).json({ error: { code: "INVALID_TICKET_PRICE", message: "This ticket option has an invalid price. Contact the event organizer." } });
+    return;
+  }
   const paymentStatus: EventGuestPaymentStatus = totalAmount > 0 ? "DUE" : "COMP";
   const orderStatus = totalAmount > 0 ? "PENDING" : "CONFIRMED";
   const orderNumber = publicRegistrationOrderNumber(event.id, idempotencyKey);
@@ -1748,7 +1742,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
 
   let stripeCheckout: Awaited<ReturnType<typeof createEventStripeCheckout>> | null = null;
   let checkoutError: { code: string; message: string } | null = null;
-  if (totalAmount > 0 && match.paymentPolicy === "StripeCheckout") {
+  if (totalAmount > 0 && match.paymentPolicy === "StripeCheckout" && !result.order.paidAt && result.order.status !== "CONFIRMED") {
     try {
       stripeCheckout = await createEventStripeCheckout({
         organizationId: event.organizationId,
@@ -1763,8 +1757,8 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
         totalAmount,
         returnOrigin: resolveEventPageOrigin(req),
       });
-      await prisma.eventOrder.update({
-        where: { id: result.order.id },
+      await prisma.eventOrder.updateMany({
+        where: { id: result.order.id, paidAt: null, status: "PENDING" },
         data: { transactionId: `stripe:checkout:${stripeCheckout.sessionId}` },
       });
     } catch (error) {
@@ -1816,13 +1810,13 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
       capacity: result.table.capacity,
       hostName: result.table.hostName,
     } : null,
-    message: totalAmount <= 0
+    message: result.order.paidAt || result.order.status === "CONFIRMED"
       ? "Registration confirmed."
       : stripeCheckout
         ? "Registration reserved. Continue to Stripe to complete secure payment."
         : "Registration reserved. Payment is still due; event staff can help complete it.",
     payment: totalAmount > 0 ? {
-      required: true,
+      required: !result.order.paidAt && result.order.status !== "CONFIRMED",
       provider: match.paymentPolicy === "StripeCheckout" ? "stripe" : "offline",
       checkoutUrl: stripeCheckout?.checkoutUrl ?? null,
       mode: stripeCheckout?.mode ?? null,

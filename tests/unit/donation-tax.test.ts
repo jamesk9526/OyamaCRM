@@ -38,6 +38,15 @@ describe("resolveDonationTaxDetails", () => {
     })).toThrow("Tax-deductible amount cannot exceed the gift amount.");
   });
 
+  it("rejects fractional cents instead of silently changing the gift", () => {
+    expect(() => resolveDonationTaxDetails({ amount: "10.005" })).toThrow("Gift amount must have at most two decimal places.");
+    expect(() => resolveDonationTaxDetails({ amount: "10.00", taxDeductibleAmount: "9.999" })).toThrow("Tax-deductible amount must have at most two decimal places.");
+  });
+
+  it("rejects blank gift amounts instead of recording zero", () => {
+    expect(() => resolveDonationTaxDetails({ amount: "" })).toThrow("Gift amount must be a non-negative number.");
+  });
+
   it("preserves a partial amount when unrelated gift fields are updated", () => {
     expect(resolveDonationTaxDetails(
       { amount: 100, taxDeductible: true },

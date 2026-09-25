@@ -6,6 +6,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DashboardPanel, DASHBOARD_PANEL_CLASS } from "./shared/DashboardPrimitives";
 import { formatDashboardCompactCurrency, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import type { DashboardData, DonationPreview, DonorDashboardSummary } from "@/app/features/donor-dashboard/types";
+import { formatDonationDate } from "@/app/components/donations/donation-utils";
 
 const CHART_COLORS = ["#0f6cbd", "#115ea3", "#616161", "#d97706", "#8764b8"];
 
@@ -18,19 +19,8 @@ export interface DashboardAttentionItem {
   tone: "rose" | "amber" | "orange" | "violet";
 }
 
-function formatRelativeTime(dateValue: string): string {
-  const diffHours = Math.max(0, Math.floor((Date.now() - new Date(dateValue).getTime()) / 3_600_000));
-  if (diffHours < 1) return "just now";
-  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-}
-
 function formatGiftDate(dateValue: string): string {
-  const date = new Date(dateValue);
-  const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
-  const time = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
-  return `${day} · ${time}`;
+  return formatDonationDate(dateValue);
 }
 
 export function DonorDashboardOverviewSections({
@@ -62,7 +52,7 @@ export function DonorDashboardOverviewSections({
       id: donation.id,
       title: "Gift received",
       detail: `${donation.constituent?.firstName ?? "Donor"} ${donation.constituent?.lastName ?? ""} gave ${formatDashboardCurrency(toDashboardNumber(donation.amount))}`,
-      at: formatRelativeTime(donation.date),
+      at: formatGiftDate(donation.date),
     }));
     if ((summary?.newDonorsThisMonth ?? 0) > 0) {
       rows.unshift({
@@ -138,7 +128,7 @@ export function DonorDashboardOverviewSections({
                 {donations.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">No recent gifts are available for this dashboard period.</td></tr> : donations.slice(0, 6).map((donation) => (
                   <tr key={donation.id} className="border-t border-[#e5e5e5] transition-colors hover:bg-[#f3f2f1]">
                     <td className="px-4 py-2.5"><p className="font-semibold text-slate-800">{donation.constituent?.firstName ?? "Donor"} {donation.constituent?.lastName ?? ""}</p><p className="text-xs text-slate-500">{donation.campaign?.name ?? "General Giving"}</p></td>
-                    <td className="px-4 py-2.5 font-semibold text-[#0f548c]">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</td>
+                    <td className="px-4 py-2.5 font-semibold text-[#0f548c]"><Link href={`/donations/${encodeURIComponent(donation.id)}`} className="hover:underline">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</Link></td>
                     <td className="px-4 py-2.5 text-slate-600">{donation.designation?.name ?? "General Fund"}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{formatGiftDate(donation.date)}</td>
                   </tr>

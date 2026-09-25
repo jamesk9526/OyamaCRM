@@ -982,6 +982,8 @@ Notes:
 
 ## Events + public registration reliability checks (2026-09-02)
 
+The [2026-09-22 public registration and payment review](audit-artifacts/2026-09-22-events-public-registration-payment-review.md) corrected sold-out retry handling, quantity validation, paid-order Checkout replay, duplicate settlement activity, and sold-out return visibility. Web and API TypeScript checks passed. Vitest and ESLint were unavailable in this checkout; database and provider payment proofs remain pending.
+
 - [x] Require retry-safe idempotency for public registration and return the existing order for an identical replay.
 - [x] Reject idempotency-key reuse when registration details differ and expose a support request reference.
 - [x] Keep Stripe Checkout creation idempotent and suppress duplicate confirmation email on a replay.

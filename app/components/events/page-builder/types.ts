@@ -150,6 +150,8 @@ export interface EventBuilderTicketType {
   available?: number | null;
   isTable?: boolean;
   seatsIncluded?: number;
+  minPerOrder?: number;
+  maxPerOrder?: number | null;
 }
 
 export interface EventBuilderSponsor {

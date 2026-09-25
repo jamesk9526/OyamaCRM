@@ -14,7 +14,7 @@
  * @module routes/donations
  */
 import { Router } from "express";
-import type { DonationStatus, Prisma } from "@prisma/client";
+import { DonationStatus, PaymentMethod, RecurringFrequency, type Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -345,19 +345,27 @@ async function recalculateConstituentGivingRollups(constituentId: string): Promi
 }
 
 /** Parses donation date inputs with date-only semantics for YYYY-MM-DD values. */
-function parseDonationDateInput(raw?: string): Date | undefined {
-  if (!raw) return undefined;
+function parseDonationDateInput(raw: unknown): Date | undefined {
+  if (typeof raw !== "string" || !raw) return undefined;
   const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (ymdMatch) {
     const year = Number(ymdMatch[1]);
     const month = Number(ymdMatch[2]);
     const day = Number(ymdMatch[3]);
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const parsed = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? parsed : undefined;
   }
 
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed;
+}
+
+function invalidDonationChoice(paymentMethod: unknown, status: unknown, frequency: unknown, isRecurring: unknown): string | null {
+  if (paymentMethod != null && !Object.values(PaymentMethod).includes(paymentMethod as PaymentMethod)) return "Choose a valid payment method.";
+  if (status != null && !Object.values(DonationStatus).includes(status as DonationStatus)) return "Choose a valid gift status.";
+  if (isRecurring === true && !Object.values(RecurringFrequency).includes(frequency as RecurringFrequency)) return "Choose a frequency for recurring gifts.";
+  return null;
 }
 
 /**
@@ -554,6 +562,13 @@ router.post("/", async (req, res) => {
     return;
   }
 
+  const choiceError = invalidDonationChoice(paymentMethod, status, frequency, isRecurring);
+  const parsedDate = date == null || date === "" ? new Date() : parseDonationDateInput(date);
+  if (choiceError || !parsedDate) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: choiceError ?? "Enter a valid gift date." } });
+    return;
+  }
+
   const constituent = await prisma.constituent.findFirst({
     where: { id: constituentId, organizationId },
     select: { id: true },
@@ -572,6 +587,16 @@ router.post("/", async (req, res) => {
       res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid campaignId for your organization" } });
       return;
     }
+  }
+
+  if (designationId && !await prisma.designation.findFirst({ where: { id: designationId, active: true }, select: { id: true } })) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid fund or designation." } });
+    return;
+  }
+
+  if (pledgeId && !await prisma.pledge.findFirst({ where: { id: pledgeId, constituentId }, select: { id: true } })) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a pledge for this donor." } });
+    return;
   }
 
   if (eventId) {
@@ -606,12 +631,12 @@ router.post("/", async (req, res) => {
       pledgeId:      pledgeId      || undefined,
       eventId:       eventId       || undefined,
       amount,
-      date:          parseDonationDateInput(date) ?? new Date(),
+      date:          parsedDate,
       paymentMethod: paymentMethod || "ONLINE",
       checkNumber:   checkNumber   || undefined,
       transactionId: transactionId || undefined,
       isRecurring:   isRecurring   ?? false,
-      frequency:     frequency     || undefined,
+      frequency:     isRecurring === true ? frequency : undefined,
       status:        status        || "COMPLETED",
       taxDeductible: taxDetails.taxDeductible,
       taxDeductibleAmount: taxDetails.taxDeductibleAmount,
@@ -711,10 +736,27 @@ router.put("/:id", async (req, res) => {
       amount: true,
       taxDeductible: true,
       taxDeductibleAmount: true,
+      isRecurring: true,
+      frequency: true,
     },
   });
   if (!existing) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Donation not found" } });
+    return;
+  }
+
+  const choiceError = invalidDonationChoice(paymentMethod, status, frequency ?? existing.frequency, isRecurring ?? existing.isRecurring);
+  const parsedDate = date === undefined ? undefined : parseDonationDateInput(date);
+  if (choiceError || (date !== undefined && !parsedDate)) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: choiceError ?? "Enter a valid gift date." } });
+    return;
+  }
+  if (campaignId && !await prisma.campaign.findFirst({ where: { id: campaignId, organizationId }, select: { id: true } })) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a campaign for this organization." } });
+    return;
+  }
+  if (designationId && !await prisma.designation.findFirst({ where: { id: designationId }, select: { id: true } })) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid fund or designation." } });
     return;
   }
 
@@ -737,15 +779,15 @@ router.put("/:id", async (req, res) => {
   const donation = await prisma.donation.update({
     where: { id: req.params.id },
     data: {
-      campaignId:    campaignId    || undefined,
-      designationId: designationId || undefined,
+      campaignId:    campaignId === null ? null : campaignId || undefined,
+      designationId: designationId === null ? null : designationId || undefined,
       amount:        amount !== undefined ? amount : undefined,
-      date:          date ? parseDonationDateInput(date) : undefined,
+      date:          parsedDate,
       paymentMethod: paymentMethod || undefined,
       checkNumber:   checkNumber   || undefined,
       transactionId: transactionId || undefined,
       isRecurring,
-      frequency:     frequency     || undefined,
+      frequency:     isRecurring === false ? null : frequency || undefined,
       status:        status        || undefined,
       taxDeductible: taxDetails.taxDeductible,
       taxDeductibleAmount: taxDetails.taxDeductibleAmount,

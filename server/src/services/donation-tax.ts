@@ -11,9 +11,15 @@ type ExistingTaxDetails = {
 };
 
 function toMoneyNumber(value: unknown, label: string): number {
+  if (value === "" || value === null || typeof value === "boolean") {
+    throw new Error(`${label} must be a non-negative number.`);
+  }
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error(`${label} must be a non-negative number.`);
+  }
+  if (Math.abs(parsed * 100 - Math.round(parsed * 100)) > 0.000001) {
+    throw new Error(`${label} must have at most two decimal places.`);
   }
   return Math.round((parsed + Number.EPSILON) * 100) / 100;
 }

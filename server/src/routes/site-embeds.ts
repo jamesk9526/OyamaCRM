@@ -1855,8 +1855,8 @@ router.post("/public/stripe-webhook", async (req, res) => {
       const paidAtSeconds = Number(stripeObject.status_transitions && (stripeObject.status_transitions as Record<string, unknown>).paid_at);
       const paidAt = Number.isFinite(paidAtSeconds) && paidAtSeconds > 0 ? new Date(paidAtSeconds * 1000) : new Date();
       await prisma.$transaction(async (tx) => {
-        await tx.eventOrder.update({
-          where: { id: order.id },
+        const settled = await tx.eventOrder.updateMany({
+          where: { id: order.id, paidAt: null, status: "PENDING" },
           data: {
             status: "CONFIRMED",
             paymentMethod: "CREDIT_CARD",
@@ -1864,6 +1864,7 @@ router.post("/public/stripe-webhook", async (req, res) => {
             paidAt,
           },
         });
+        if (settled.count === 0) return;
         await tx.eventGuest.updateMany({
           where: { orderId: order.id },
           data: { paymentStatus: "PAID", rsvpStatus: "CONFIRMED" },

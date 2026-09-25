@@ -124,6 +124,12 @@ export default function NaturalisticDonorDashboard({
     { id: "campaigns", label: `${activeCampaignCount} active campaigns`, sub: "Review fundraising pace", tone: "violet", href: "/campaigns" },
     { id: "recommendations", label: `${highPriorityRecommendationCount} high-priority signals`, sub: "Review steward recommendations", tone: "blue", href: "/steward-signals" },
   ] as const;
+  const activeFocusItems = focusItems.filter((item) => {
+    if (item.id === "follow-up") return (summary?.newDonorsThisMonth ?? 0) > 0;
+    if (item.id === "receipts") return unackedCount > 0;
+    if (item.id === "campaigns") return activeCampaignCount > 0;
+    return highPriorityRecommendationCount > 0;
+  });
 
   const attentionItems: DashboardAttentionItem[] = [
     { id: "overdue", label: "Overdue donor tasks", sub: "Work due or overdue follow-ups", count: summary?.overdueTasks ?? 0, href: "/tasks", tone: "rose" },
@@ -262,7 +268,7 @@ export default function NaturalisticDonorDashboard({
               <Link href="/steward-signals" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800">View all <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {focusItems.map((item) => (
+              {activeFocusItems.length === 0 ? <p className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-5 text-sm text-emerald-800 sm:col-span-2">{summaryLoading || richLoading ? "Loading donor priorities…" : "No donor follow-up items need attention right now. Open reports for a deeper review."}</p> : activeFocusItems.map((item) => (
                 <Link key={item.id} href={item.href} className="group flex min-w-0 items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/55 px-3 py-3 transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
                   <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.tone === "indigo" ? "bg-sky-50 text-sky-700" : item.tone === "amber" ? "bg-amber-50 text-amber-700" : item.tone === "violet" ? "bg-violet-50 text-violet-700" : "bg-blue-50 text-blue-700"}`}>
                     {item.id === "follow-up" ? <UserPlus className="h-4 w-4" aria-hidden="true" /> : item.id === "receipts" ? <Gift className="h-4 w-4" aria-hidden="true" /> : item.id === "campaigns" ? <Target className="h-4 w-4" aria-hidden="true" /> : <Activity className="h-4 w-4" aria-hidden="true" />}

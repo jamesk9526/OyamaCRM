@@ -311,6 +311,7 @@ export default function DonationTable({
 
             <div className="mt-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
+                <Link href={`/donations/${d.id}`} className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-[#0f6cbd] bg-white border border-blue-200 rounded-md hover:bg-blue-50">Details</Link>
                 <Link
                   href={`/donations/${d.id}/edit`}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
@@ -403,7 +404,7 @@ export default function DonationTable({
                 </div>
               </td>
               <td className="px-4 py-2.5">
-                <span className="font-semibold tabular-nums text-slate-950">{formatCurrency(d.amount)}</span>
+                <Link href={`/donations/${d.id}`} className="font-semibold tabular-nums text-[#0f6cbd] hover:underline">{formatCurrency(d.amount)}</Link>
                 {d.isRecurring && (
                   <span className="ml-1.5 inline-block text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">Recurring</span>
                 )}
@@ -421,6 +422,7 @@ export default function DonationTable({
               </td>
               <td className="px-4 py-2.5 text-right">
                 <div className="flex items-center gap-1 justify-end flex-wrap">
+                  <Link href={`/donations/${d.id}`} className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-[#0f6cbd] bg-white border border-blue-200 rounded-md hover:bg-blue-50">Details</Link>
                   <Link
                     href={`/donations/${d.id}/edit`}
                     className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
