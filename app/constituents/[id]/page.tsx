@@ -21,8 +21,7 @@ import ConstituentStewardPathsPanel from "@/app/components/constituents/Constitu
 import EmailPreferencePanel from "@/app/components/constituents/EmailPreferencePanel";
 import DonorStewardSignalsWidget from "@/app/components/steward/DonorStewardSignalsWidget";
 import StewardContextButton from "@/app/components/ai/StewardContextButton";
-import WorkspaceFrame from "@/app/components/workspace/WorkspaceFrame";
-import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
+import CRMSecondaryMenu from "@/app/components/ui/crm/CRMSecondaryMenu";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface HouseholdData {
@@ -349,10 +348,7 @@ export default function ConstituentDetailPage() {
     lapseRisk === "Low" ? "text-emerald-600" : "text-gray-500";
 
   return (
-    <WorkspaceFrame
-      title={fullName}
-      description={`${typeLabel(c.type)} · ${statusLabel(c.donorStatus)}`}
-    >
+    <div className="donor-daily-workspace">
       <div className="space-y-4 pb-8">
         {reversibleMerge ? (
           <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -370,40 +366,8 @@ export default function ConstituentDetailPage() {
           <span className="font-medium text-gray-900 truncate">{fullName}</span>
         </nav>
 
-        <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-          <CRMActionBar
-            context={{
-            flags: {
-              hasOpenTasks: openTasks.length > 0,
-              hasReceiptableGift: c.donations.some((gift) => gift.status === "COMPLETED"),
-              canEmail,
-              canCall,
-              canMail,
-            },
-          }}
-          commandHandlers={{
-            "edit-profile": () => router.push(`/constituents/${id}/edit`),
-            "add-note": () => setTab("notes"),
-            "change-status": () => router.push(`/constituents/${id}/edit`),
-            "assign-owner": () => router.push(`/constituents/${id}/edit`),
-            "profile-add-gift": () => setShowGiftModal(true),
-            "profile-gift-history": () => setTab("giving"),
-            "profile-send-email": () => router.push(`/communications?new=1&source=constituent&constituentId=${id}`),
-            "profile-generate-letter": () => router.push(`/oyama-letters/generate?constituentId=${id}`),
-            "profile-log-call": () => router.push(`/meetings?constituentId=${id}`),
-            "profile-create-task": () => router.push(`/tasks?focus=my&constituentId=${id}`),
-            "profile-household": () => setTab("household"),
-            "profile-related-donors": () => setTab("household"),
-            "profile-overview-tab": () => setTab("overview"),
-            "profile-giving-tab": () => setTab("giving"),
-            "profile-timeline-tab": () => setTab("timeline"),
-            }}
-          />
-          <button type="button" onClick={() => setCloseAccountOpen(true)} className="min-h-10 shrink-0 rounded-md border border-red-300 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">Close account</button>
-        </div>
-
         {/* Profile Header */}
-        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_4%_0%,rgba(99,102,241,0.12),transparent_36%),linear-gradient(135deg,#f8f9ff_0%,#ffffff_58%,#f0f7ff_100%)] shadow-[0_12px_30px_rgba(15,23,42,0.055)]">
+        <div className="rounded-xl border border-slate-200 bg-white">
           {commRestrictions.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 bg-red-50 border-b border-red-200 px-5 py-2.5">
               <svg className="h-4 w-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -497,11 +461,11 @@ export default function ConstituentDetailPage() {
               </div>
 
               {/* Quick action buttons */}
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:max-w-[390px] lg:justify-end">
+              <div className="flex flex-wrap items-start gap-2 lg:max-w-[440px] lg:justify-end">
                 <button
                   type="button"
                   onClick={() => setShowGiftModal(true)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                  className="donor-button donor-button-primary"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
                   Record Gift
@@ -510,80 +474,62 @@ export default function ConstituentDetailPage() {
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                   Draft Email
                 </GuardedActionLink>
-                <GuardedActionLink href={`/oyama-letters/generate?constituentId=${id}`} allowed={canMail} blockedReason={!c.addressLine1 ? "Add a complete mailing address before creating mail." : "Mail is blocked by this constituent's communication preferences."}>
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                  Create Letter
-                </GuardedActionLink>
-                <GuardedActionLink href={`/oyama-letters/generate?constituentId=${id}&quickPrint=1`} allowed={canMail} blockedReason={!c.addressLine1 ? "Add a complete mailing address before printing mail." : "Mail is blocked by this constituent's communication preferences."}>
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                  Print Letter
-                </GuardedActionLink>
                 <Link href={`/tasks?focus=my&constituentId=${id}`} className={QA_BTN}>
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                   Create Task
                 </Link>
-                <Link href={`/constituents/${id}/edit`} className={QA_BTN}>
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  Edit Profile
-                </Link>
-                <Link href={`/donor-profile?constituentId=${encodeURIComponent(id)}`} className={QA_BTN}>
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4a7 7 0 1 0 4.9 12l4.1 4m-9-13a4 4 0 0 1 4 4"/></svg>
-                  OYAMADonorPROFILE
-                </Link>
+                <CRMSecondaryMenu>
+                  <GuardedActionLink href={`/oyama-letters/generate?constituentId=${id}`} allowed={canMail} blockedReason={!c.addressLine1 ? "Add a complete mailing address before creating mail." : "Mail is blocked by this constituent's communication preferences."}>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Create Letter
+                  </GuardedActionLink>
+                  <GuardedActionLink href={`/oyama-letters/generate?constituentId=${id}&quickPrint=1`} allowed={canMail} blockedReason={!c.addressLine1 ? "Add a complete mailing address before printing mail." : "Mail is blocked by this constituent's communication preferences."}>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                    Print Letter
+                  </GuardedActionLink>
+                  <Link href={`/constituents/${id}/edit`} className={QA_BTN}>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Edit Profile
+                  </Link>
+                  <Link href={`/donor-profile?constituentId=${encodeURIComponent(id)}`} className={QA_BTN}>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4a7 7 0 1 0 4.9 12l4.1 4m-9-13a4 4 0 0 1 4 4"/></svg>
+                    OYAMADonorPROFILE
+                  </Link>
+                  <Link href={`/meetings?constituentId=${id}`} className="donor-button">Log a meeting or call</Link>
+                  <button type="button" onClick={() => setTab("notes")} className="donor-button">Add a note</button>
+                  <button type="button" onClick={() => setCloseAccountOpen(true)} className="donor-button text-red-700">Close account</button>
+                </CRMSecondaryMenu>
               </div>
             </div>
 
-            {/* Steward AI chips */}
-            <div className="mt-4 border-t border-gray-100 pt-3 flex flex-wrap gap-1.5">
-              <StewardContextButton label="Relationship briefing" prompt={`Create an evidence-grounded relationship briefing for the donor on this profile. Prioritize verified CRM facts, giving designations and notes, recent interactions, distinct open tasks, household or group context, communication constraints, and a compliant next step. Call out missing or conflicting evidence.`} moduleKey="donor" mode="ask" variant="chip" />
-              <StewardContextButton label="Explain risk" prompt={`Explain the current lapse risk for the donor on this profile. Compare gift timing with established cadence, distinguish facts from model scores, account for recent interactions and distinct open tasks, and state what evidence is missing.`} moduleKey="donor" mode="analyze" variant="chip" />
-              <StewardContextButton label="Draft thank-you" prompt={`Draft a review-ready personal thank-you email for the donor on this profile using only verified profile facts and completed gifts. Respect all communication preferences, avoid unsupported impact claims, and do not imply it was sent.`} moduleKey="donor" mode="draft" variant="chip" disabled={!canEmail} title={canEmail ? "Draft a grounded thank-you" : "Email is unavailable or restricted for this donor"} />
-              <StewardContextButton label="Call briefing" prompt={`Create a concise call briefing for the donor on this profile using recent verified relationship context. Include appreciation, a discovery question, and a low-pressure next step. Respect communication restrictions and do not invent personal details.`} moduleKey="donor" mode="action" variant="chip" disabled={!canCall} title={canCall ? "Prepare a grounded call briefing" : "Phone outreach is unavailable or restricted for this donor"} />
-            </div>
           </div>
         </div>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <KpiCard label="Lifetime Giving" value={formatCurrency(c.totalLifetimeGiving)} onClick={() => setTab("giving")} />
           <KpiCard label="Last Gift" value={c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "—"} sub={c.lastGiftDate ? formatDate(c.lastGiftDate) : undefined} onClick={() => setTab("giving")} />
           <KpiCard label="Open Work" value={String(distinctOpenTasks.length)} sub={openTasks.length > distinctOpenTasks.length ? `${openTasks.length} task records · duplicates grouped` : overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : undefined} subColor={overdueTasks.length > 0 ? "text-red-600" : undefined} onClick={() => setTab("tasks")} />
-          <KpiCard label="Lapse Risk" value={lapseRisk} valueColor={lapseRiskColor} onClick={() => setTab("overview")} />
-          <KpiCard label="Opportunity" value={`${opportunityScore}/100`} valueColor={engagementColor(opportunityScore)} onClick={() => setTab("overview")} />
         </div>
 
         {/* Two-column main content */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* Left: Tabbed workspace */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Tab navigation */}
-            <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-50/70 scrollbar-hide">
-              {tabs.map((tabItem) => {
-                const isActive = tab === tabItem.key;
-                return (
-                  <button
-                    key={tabItem.key}
-                    type="button"
-                    onClick={() => setTab(tabItem.key)}
-                    className={`relative flex shrink-0 items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap focus:outline-none ${
-                      isActive
-                        ? "text-indigo-700 border-b-2 border-indigo-600 -mb-px bg-white"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
-                    }`}
-                  >
-                    {tabItem.label}
-                    {tabItem.count != null && tabItem.count > 0 && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${isActive ? "bg-indigo-100 text-indigo-700" : "bg-gray-200 text-gray-600"}`}>
-                        {tabItem.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+          <div className="bg-white rounded-xl border border-gray-200">
+            <div className="flex flex-wrap items-center gap-1 rounded-t-xl border-b border-slate-200 bg-slate-50 p-2" aria-label="Profile sections">
+              {tabs.filter((item) => !["timeline", "files", "audit"].includes(item.key)).map((item) => (
+                <button key={item.key} type="button" aria-pressed={tab === item.key} aria-controls="profile-section-content" onClick={() => setTab(item.key)}
+                  className={`min-h-11 rounded-lg px-3 text-sm font-semibold ${tab === item.key ? "bg-white text-[var(--crm-accent)] ring-1 ring-slate-200" : "text-slate-600 hover:bg-white"}`}>
+                  {item.label}{item.count != null && item.count > 0 ? <span className="ml-1.5 text-xs text-slate-500">{item.count}</span> : null}
+                </button>
+              ))}
+              <CRMSecondaryMenu label={["timeline", "files", "audit"].includes(tab) ? `More: ${tabs.find((item) => item.key === tab)?.label}` : "More"}>
+                {tabs.filter((item) => ["timeline", "files", "audit"].includes(item.key)).map((item) => <button key={item.key} type="button" aria-pressed={tab === item.key} aria-controls="profile-section-content" onClick={() => setTab(item.key)} className="donor-button">{item.label}</button>)}
+              </CRMSecondaryMenu>
             </div>
 
             {/* Tab content */}
-            <div className="p-5">
+            <div id="profile-section-content" className="p-4 sm:p-5">
               {tab === "overview" && (
                 <OverviewTab
                   constituent={c}
@@ -629,7 +575,24 @@ export default function ConstituentDetailPage() {
 
           {/* Right sidebar */}
           <aside className="space-y-4">
-            <DonorStewardSignalsWidget constituentId={id} />
+            <details className="rounded-xl border border-slate-200 bg-white p-4">
+              <summary className="min-h-11 cursor-pointer text-sm font-semibold text-slate-800">Steward insights and briefings</summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-slate-500">Computed indicators for staff review.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <KpiCard label="Lapse Risk" value={lapseRisk} valueColor={lapseRiskColor} onClick={() => setTab("overview")} />
+                  <KpiCard label="Opportunity" value={`${opportunityScore}/100`} valueColor={engagementColor(opportunityScore)} onClick={() => setTab("overview")} />
+                </div>
+                {/* Steward AI chips */}
+                <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                  <StewardContextButton label="Relationship briefing" prompt={`Create an evidence-grounded relationship briefing for the donor on this profile. Prioritize verified CRM facts, giving designations and notes, recent interactions, distinct open tasks, household or group context, communication constraints, and a compliant next step. Call out missing or conflicting evidence.`} moduleKey="donor" mode="ask" variant="chip" />
+                  <StewardContextButton label="Explain risk" prompt={`Explain the current lapse risk for the donor on this profile. Compare gift timing with established cadence, distinguish facts from model scores, account for recent interactions and distinct open tasks, and state what evidence is missing.`} moduleKey="donor" mode="analyze" variant="chip" />
+                  <StewardContextButton label="Draft thank-you" prompt={`Draft a review-ready personal thank-you email for the donor on this profile using only verified profile facts and completed gifts. Respect all communication preferences, avoid unsupported impact claims, and do not imply it was sent.`} moduleKey="donor" mode="draft" variant="chip" disabled={!canEmail} title={canEmail ? "Draft a grounded thank-you" : "Email is unavailable or restricted for this donor"} />
+                  <StewardContextButton label="Call briefing" prompt={`Create a concise call briefing for the donor on this profile using recent verified relationship context. Include appreciation, a discovery question, and a low-pressure next step. Respect communication restrictions and do not invent personal details.`} moduleKey="donor" mode="action" variant="chip" disabled={!canCall} title={canCall ? "Prepare a grounded call briefing" : "Phone outreach is unavailable or restricted for this donor"} />
+                </div>
+                <DonorStewardSignalsWidget constituentId={id} />
+              </div>
+            </details>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="profile-safeguards-title">
               <div className="flex items-center justify-between gap-3">
@@ -783,13 +746,13 @@ export default function ConstituentDetailPage() {
 
         <p className="text-xs text-gray-400">Record created {formatDate(c.createdAt)}</p>
       </div>
-    </WorkspaceFrame>
+    </div>
   );
 }
 
 // ─── Shared style constants ───────────────────────────────────────────────────
 
-const QA_BTN = "inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 transition-colors shadow-sm";
+const QA_BTN = "donor-button";
 const ACTION_BTN = "inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800 transition-colors shadow-sm";
 
 function GuardedActionLink({ href, allowed, blockedReason, children, className = QA_BTN }: { href: string; allowed: boolean; blockedReason: string; children: React.ReactNode; className?: string }) {
@@ -874,7 +837,7 @@ function OverviewTab({
   return (
     <div className="space-y-4">
       {/* Relationship summary */}
-      <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 px-4 py-3">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
         <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-1.5">Relationship Summary</p>
         <p className="text-sm leading-relaxed text-gray-700">{summary}</p>
       </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CalendarDays, RefreshCw } from "lucide-react";
-import { createDefaultEventPageSectionState } from "@/app/components/events/page-builder/section-config";
+import { mergeEventPageSections } from "@/app/components/events/page-builder/section-config";
 import { EventPageDocument } from "@/app/components/events/page-builder/EventPageBuilderPreview";
 import type {
   EventBuilderEventDetail,
@@ -24,7 +24,7 @@ export interface PublicEventPagePayload {
   pageSlug: string;
   pageUrl: string;
   status: "Draft" | "Published";
-  paymentPolicy?: "StripeCheckout" | "OfflineFollowUp" | "NoPaymentRequired";
+  paymentPolicy?: "StripeCheckout" | "PayAtEvent" | "OfflineFollowUp" | "NoPaymentRequired";
   currency?: string;
   sections: EventPageSectionState[] | null;
   branding?: EventPageBranding;
@@ -42,23 +42,6 @@ async function loadPublicEventPage(pageSlug: string): Promise<PublicEventPagePay
     throw new Error("The event page is temporarily unavailable. Please try again.");
   }
   return (await response.json()) as PublicEventPagePayload;
-}
-
-function mergePublicSections(savedSections: EventPageSectionState[] | null | undefined): EventPageSectionState[] {
-  const defaults = createDefaultEventPageSectionState();
-  if (!savedSections?.length) return defaults;
-  const defaultById = new Map(defaults.map((section) => [section.id, section]));
-  const savedIds = new Set(savedSections.map((section) => section.id));
-  return [
-    ...savedSections.map((section) => ({
-      ...(defaultById.get(section.id) ?? section),
-      ...section,
-      content: { ...(defaultById.get(section.id)?.content ?? {}), ...(section.content ?? {}) },
-      design: { ...(defaultById.get(section.id)?.design ?? {}), ...(section.design ?? {}) },
-      advanced: { ...(defaultById.get(section.id)?.advanced ?? {}), ...(section.advanced ?? {}) },
-    })),
-    ...defaults.filter((section) => !savedIds.has(section.id)),
-  ];
 }
 
 /**
@@ -129,7 +112,7 @@ export default function PublicEventPage({ pageSlug, initialPayload = null }: Pub
   const ticketTypes = payload.ticketTypes ?? [];
   const sponsors = payload.sponsors ?? [];
   const report = payload.report;
-  const sections = mergePublicSections(payload.sections);
+  const sections = mergeEventPageSections(payload.sections);
 
   return (
     <main className="min-h-screen w-full overflow-x-clip bg-white pb-24 text-slate-900 md:pb-0">

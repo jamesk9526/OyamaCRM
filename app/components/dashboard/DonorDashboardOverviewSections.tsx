@@ -1,42 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DashboardPanel, DASHBOARD_PANEL_CLASS } from "./shared/DashboardPrimitives";
 import { formatDashboardCompactCurrency, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
-import type { DashboardData, DonationPreview, DonorDashboardSummary } from "@/app/features/donor-dashboard/types";
-import { formatDonationDate } from "@/app/components/donations/donation-utils";
+import type { DashboardData } from "@/app/features/donor-dashboard/types";
 
 const CHART_COLORS = ["#0f6cbd", "#115ea3", "#616161", "#d97706", "#8764b8"];
-
-export interface DashboardAttentionItem {
-  id: string;
-  label: string;
-  sub: string;
-  count: number;
-  href: string;
-  tone: "rose" | "amber" | "orange" | "violet";
-}
-
-function formatGiftDate(dateValue: string): string {
-  return formatDonationDate(dateValue);
-}
 
 export function DonorDashboardOverviewSections({
   designationSlices,
   designationTotal,
   suggestions,
-  donations,
-  summary,
-  attentionItems,
 }: {
   designationSlices: DashboardData["designationSlices"];
   designationTotal: number;
   suggestions: DashboardData["stewardshipAlerts"];
-  donations: DonationPreview[];
-  summary: DonorDashboardSummary | null;
-  attentionItems: DashboardAttentionItem[];
 }) {
   const topDesignations = useMemo(() => {
     const total = designationSlices.reduce((sum, slice) => sum + slice.amount, 0);
@@ -46,24 +25,6 @@ export function DonorDashboardOverviewSections({
       percentage: total > 0 ? Math.round((slice.amount / total) * 100) : 0,
     }));
   }, [designationSlices]);
-
-  const activityRows = useMemo(() => {
-    const rows = donations.slice(0, 5).map((donation) => ({
-      id: donation.id,
-      title: "Gift received",
-      detail: `${donation.constituent?.firstName ?? "Donor"} ${donation.constituent?.lastName ?? ""} gave ${formatDashboardCurrency(toDashboardNumber(donation.amount))}`,
-      at: formatGiftDate(donation.date),
-    }));
-    if ((summary?.newDonorsThisMonth ?? 0) > 0) {
-      rows.unshift({
-        id: "new-donors",
-        title: "New donor activity",
-        detail: `${summary!.newDonorsThisMonth.toLocaleString()} new donor${summary!.newDonorsThisMonth === 1 ? "" : "s"} added this month`,
-        at: "this month",
-      });
-    }
-    return rows.slice(0, 5);
-  }, [donations, summary]);
 
   const recommendations = suggestions.slice(0, 4);
 
@@ -119,44 +80,6 @@ export function DonorDashboardOverviewSections({
         </DashboardPanel>
       </section>
 
-      <section className="mt-3 grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[1.35fr_1.05fr_0.9fr]">
-        <DashboardPanel title="Recent Gifts" action={<Link href="/donations" className="text-xs font-semibold text-[#0f6cbd] hover:text-[#115ea3]">Open donation ledger</Link>}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50/80 text-[11px] uppercase tracking-[0.08em] text-slate-500"><tr><th className="px-4 py-2.5">Donor</th><th className="px-4 py-2.5">Amount</th><th className="px-4 py-2.5">Fund</th><th className="px-4 py-2.5">Date</th></tr></thead>
-              <tbody>
-                {donations.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">No recent gifts are available for this dashboard period.</td></tr> : donations.slice(0, 6).map((donation) => (
-                  <tr key={donation.id} className="border-t border-[#e5e5e5] transition-colors hover:bg-[#f3f2f1]">
-                    <td className="px-4 py-2.5"><p className="font-semibold text-slate-800">{donation.constituent?.firstName ?? "Donor"} {donation.constituent?.lastName ?? ""}</p><p className="text-xs text-slate-500">{donation.campaign?.name ?? "General Giving"}</p></td>
-                    <td className="px-4 py-2.5 font-semibold text-[#0f548c]"><Link href={`/donations/${encodeURIComponent(donation.id)}`} className="hover:underline">{formatDashboardCurrency(toDashboardNumber(donation.amount))}</Link></td>
-                    <td className="px-4 py-2.5 text-slate-600">{donation.designation?.name ?? "General Fund"}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{formatGiftDate(donation.date)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </DashboardPanel>
-
-        <DashboardPanel title="Recent Activity" meta="Latest donor updates">
-          <div className="space-y-3 px-4 py-3">
-            {activityRows.length === 0 ? <p className="py-5 text-center text-sm text-slate-500">No recent donor activity is available.</p> : activityRows.map((row) => (
-              <div key={row.id} className="group flex items-start gap-3 rounded-[2px] px-2 py-1.5 transition-colors hover:bg-[#f3f2f1]"><span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-[2px] bg-[#eff6fc] text-[#0f6cbd]">•</span><div><p className="text-sm font-semibold text-slate-800">{row.title}</p><p className="text-xs text-slate-600">{row.detail}</p><p className="mt-0.5 text-[11px] text-slate-400">{row.at}</p></div></div>
-            ))}
-          </div>
-        </DashboardPanel>
-
-        <DashboardPanel title="Needs Attention" meta="Linked donor work queues">
-          <div className="space-y-1.5 px-4 py-3">
-            {attentionItems.length === 0 ? <p className="py-5 text-center text-sm text-slate-500">No dashboard work queues currently need attention.</p> : attentionItems.map((item) => (
-              <Link key={item.id} href={item.href} className="group grid grid-cols-[1fr_auto] items-center gap-2 rounded-[2px] border border-[#e5e5e5] bg-white px-3 py-2.5 transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa]">
-                <div><p className="text-sm font-semibold text-slate-800">{item.label}</p><p className="text-[11px] text-slate-500">{item.sub}</p></div>
-                <div className="flex items-center gap-2"><span className={`text-sm font-bold ${item.tone === "rose" ? "text-rose-700" : item.tone === "amber" ? "text-amber-700" : item.tone === "orange" ? "text-orange-700" : "text-violet-700"}`}>{item.count}</span><span className="text-slate-400">›</span></div>
-              </Link>
-            ))}
-          </div>
-        </DashboardPanel>
-      </section>
     </>
   );
 }

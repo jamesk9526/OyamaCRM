@@ -1,10 +1,34 @@
 # Production Readiness Checklist
 
+## 2026-09-26 Donor CRM daily workspace
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Daily navigation and permissions | Implemented; unit/browser verified | Seven direct links, Fundraising/Stewardship/Administration disclosures, nested active routes, QuickBooks visibility, and the shared mobile drawer with keyboard containment. |
+| Relationship dashboard, directory, profiles, donation browsing | Implemented; browser fixtures verified | Authenticated 390/768/1024/1440-pixel checks for six route/profile variants, with no page-level horizontal overflow; search, filters, sorting, selection, restricted actions, secondary panels, and existing gift-entry handoffs checked. Entry forms were not redesigned. |
+| Frontend checks | Passed | Web typecheck, changed-file lint, isolated production build, 63 focused non-database tests, and 34 authenticated Chromium checks. |
+| Database-backed donation/profile integration | Pending schema synchronization | Local MySQL lacks `Donation.taxDeductibleAmount`; 13 donation CRUD smoke tests fail and live donation/profile reads cannot establish end-to-end readiness. The live donation error and Retry state were checked at 390 pixels. Apply and verify the repository's existing migration through the normal deployment process, then rerun the smoke and live browser checks. No schema or data changes were made for this UI work. |
+
+Exact validation and screenshots: [Donor daily workspace audit](audit-artifacts/2026-09-26-donor-daily-workspace/README.md).
+
+## 2026-09-26 Guided Event Creator
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Four-step creation and draft resume | Implemented; browser fixtures verified | New Standard/Trivia events, retained ticket IDs after partial saves, page-save failure recovery, draft resume, desktop/mobile layouts, and explicit publication. |
+| Server launch boundary | Isolated API verified | Readiness and publication enforce organization scope, ticket/payment compatibility, available checkout/webhook configuration, and address checks. Draft lifecycle opening and page publication share a transaction. |
+| Preview and save safety | Fixture verified | Shared page renderer, preview-only registration controls, serialized saves, save-before-publish, failed publication remains Draft, and modal focus containment. |
+| Database/provider integration | Pending | MySQL at `localhost:3306` is unavailable. Run the database-backed Events CRUD/public registration suites and Stripe test/live confirmation checks before deployment. |
+
+Evidence and exact validation: [guided creator audit](audit-artifacts/guided-event-creator/README.md).
+
 ## 2026-09-25 Event public pages
 
 | Release gate | Status | Evidence |
 |---|---|---|
 | Published page data and actions | Improved; source verified | Countdown, goals, prices, and registration availability use event data. Unfinished optional sections and dead donation/document controls are withheld from visitors; staff can configure action destinations in the builder. |
+| Pay at event registrations | Implemented; database proof pending | The builder offers a separate **Pay at event check-in** policy. Public registrations retain the ticket price and a pending payment balance without starting Stripe checkout; the form, receipt, API response, and confirmation email state when payment is due. Event Payments has a reviewed cash/check/external-card record action that atomically confirms the order and guest payment status. Confirm the full registration-to-check-in flow against a configured database before launch. |
+| Public organizer logos | Improved; browser proof pending | Existing uploaded branding URLs resolve through the public app origin even when saved with an old API host. Public event sections try the alternate logo and then organizer initials if an image fails. Keep the API upload directory persistent and verify real logo requests after deployment. |
 | Public access boundary | Improved; source verified | GET hides inactive/private events, and page publishing rejects them. Registration remains server validated and deadline gated. |
 | Public TableLink access and form usability | Improved; source verified | Host access tokens are emailed to the matched host and withheld from public responses; requests are rate-limited and do not reveal whether a host matches. Set `NEXT_PUBLIC_APP_URL` or `FRONTEND_ORIGIN` to the deployed HTTPS origin and prove SMTP delivery. Sign-in, roster, and invite forms have visible labels and mobile-sized controls. |
 | Production build | Passed | Web/server TypeScript checks and Next production build passed; `git diff --check` passed. |

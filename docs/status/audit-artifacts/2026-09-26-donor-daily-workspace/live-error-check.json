@@ -1,0 +1,8 @@
+{
+  "route": "/donations",
+  "plainError": true,
+  "hasRetry": true,
+  "noFalseZero": true,
+  "noServerCommand": true,
+  "pageOverflow": false
+}

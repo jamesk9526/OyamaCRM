@@ -12,8 +12,10 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, open: boolean
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overflow = document.body.style.overflow;
     const candidates = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(
-      "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])",
-    ) ?? []).filter((element) => element.getClientRects().length > 0 && !element.closest('[inert], [aria-hidden="true"]'));
+      "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex='-1'])",
+    ) ?? []).filter((element) => element.getClientRects().length > 0
+      && !element.closest('[inert], [aria-hidden="true"]')
+      && (element.tagName === "SUMMARY" || !element.closest("details:not([open])")));
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();

@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronRight, FileUp, Gamepad2, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import { eventRegistryGroup } from "@/app/lib/event-registry";
-import NewEventModal from "@/app/components/events/NewEventModal";
 import type { EventItem } from "@/app/components/events/types";
 
 function dateLabel(value: string): string {
@@ -19,16 +17,14 @@ function EventRow({ event }: { event: EventItem }) {
   const collected = Number(event.collectedRevenue ?? 0);
   return <article className="group grid gap-4 border-b border-slate-200 px-4 py-5 last:border-b-0 hover:bg-slate-50 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6">
     <div className="flex min-w-0 gap-3"><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${event.type === "TRIVIA" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>{event.type === "TRIVIA" ? <Gamepad2 className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h2 className="break-words font-semibold">{event.name}</h2><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-slate-600">{event.type === "TRIVIA" ? "TRIVIA NIGHT" : "STANDARD EVENT"}</span></div><p className="mt-1 text-sm text-slate-500">{dateLabel(event.startDate)}{event.location ? ` · ${event.location}` : ""}</p><p className="mt-1 text-sm text-slate-600">{registrations.toLocaleString()} registered{collected > 0 ? ` · ${collected.toLocaleString("en-US", { style: "currency", currency: "USD" })} collected` : ""}</p></div></div>
-    <Link aria-label={`Open ${event.name}`} href={`/events/${event.id}/overview`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold hover:border-blue-500 hover:text-blue-700">Open <ChevronRight className="h-4 w-4" /></Link>
+    <div className="flex flex-wrap items-center gap-2">{event.pageStatus === "Draft" ? <Link href={`/events/${event.id}/create`} className="inline-flex min-h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700">Continue creation</Link> : null}<Link aria-label={`Open ${event.name}`} href={`/events/${event.id}/overview`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold hover:border-blue-500 hover:text-blue-700">Open <ChevronRight className="h-4 w-4" /></Link></div>
   </article>;
 }
 
 export default function EventsRegistryPage() {
-  const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState("");
   function loadEvents() { let current = true; setLoading(true); setError(""); void apiFetch<EventItem[]>("/api/events").then((items) => { if (current) setEvents(Array.isArray(items) ? items : []); }).catch((reason) => { if (current) setError(reason instanceof Error ? reason.message : "Events could not be loaded."); }).finally(() => { if (current) setLoading(false); }); return () => { current = false; }; }
   useEffect(() => loadEvents(), []);
@@ -40,14 +36,14 @@ export default function EventsRegistryPage() {
   const past = filtered.filter((event) => eventRegistryGroup(event, now) === "past").sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
 
   return <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-    <header className="event-industrial-page-header"><div><p className="event-industrial-kicker">Oyama / Event Operations</p><h1>Events</h1><p>Find an operation, create one, or continue from the next required task.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowModal(true)} className="event-industrial-secondary"><Plus className="h-4 w-4" />New event</button><Link href="/events/trivia-import" className="event-industrial-primary"><FileUp className="h-4 w-4" />Import trivia game</Link></div></header>
+    <header className="event-industrial-page-header"><div><p className="event-industrial-kicker">Oyama / Event Operations</p><h1>Events</h1><p>Find an operation, create one, or continue from the next required task.</p></div><div className="flex flex-wrap gap-2"><Link href="/events/new" className="event-industrial-primary"><Plus className="h-4 w-4" />New event</Link><Link href="/events/trivia-import" className="event-industrial-primary"><FileUp className="h-4 w-4" />Import trivia game</Link></div></header>
     <label className="relative mt-7 block"><span className="sr-only">Search events</span><Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" /><input value={query} onChange={(input) => setQuery(input.target.value)} placeholder="Search events" className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" /></label>
-    {loading ? <div className="mt-8 space-y-3" role="status" aria-label="Loading events"><div className="h-28 animate-pulse rounded-md bg-slate-200" /><div className="h-28 animate-pulse rounded-md bg-slate-200" /></div> : error ? <section className="event-industrial-panel mt-8 p-6"><TriangleAlert className="h-6 w-6 text-amber-700" /><h2 className="mt-3 text-lg font-semibold">Events unavailable</h2><p className="mt-1 text-sm text-slate-600">{error}</p><button type="button" onClick={() => void loadEvents()} className="event-industrial-secondary mt-5"><RefreshCw className="h-4 w-4" />Try again</button></section> : filtered.length === 0 ? <section className="event-industrial-panel mt-8 grid min-h-72 place-items-center border-dashed p-8 text-center"><div><CalendarDays className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-semibold">{events.length ? "No matching events" : "Create your first event"}</h2><p className="mt-1 text-sm text-slate-500">{events.length ? "Try a different search." : "Start with a standard event or trivia night."}</p>{!events.length ? <button type="button" onClick={() => setShowModal(true)} className="event-industrial-primary mt-4">Create event</button> : null}</div></section> : <div className="mt-9 space-y-10">
+    {loading ? <div className="mt-8 space-y-3" role="status" aria-label="Loading events"><div className="h-28 animate-pulse rounded-md bg-slate-200" /><div className="h-28 animate-pulse rounded-md bg-slate-200" /></div> : error ? <section className="event-industrial-panel mt-8 p-6"><TriangleAlert className="h-6 w-6 text-amber-700" /><h2 className="mt-3 text-lg font-semibold">Events unavailable</h2><p className="mt-1 text-sm text-slate-600">{error}</p><button type="button" onClick={() => void loadEvents()} className="event-industrial-secondary mt-5"><RefreshCw className="h-4 w-4" />Try again</button></section> : filtered.length === 0 ? <section className="event-industrial-panel mt-8 grid min-h-72 place-items-center border-dashed p-8 text-center"><div><CalendarDays className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-semibold">{events.length ? "No matching events" : "Create your first event"}</h2><p className="mt-1 text-sm text-slate-500">{events.length ? "Try a different search." : "Start with a standard event or trivia night."}</p>{!events.length ? <Link href="/events/new" className="event-industrial-primary mt-4">Create event</Link> : null}</div></section> : <div className="mt-9 space-y-10">
       {current.length ? <section><h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Happening now</h2><div className="event-industrial-panel overflow-hidden">{current.map((event) => <EventRow key={event.id} event={event} />)}</div></section> : null}
       {unscheduled.length ? <section><h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Date not set</h2><div className="event-industrial-panel overflow-hidden">{unscheduled.map((event) => <EventRow key={event.id} event={event} />)}</div></section> : null}
       {upcoming.length ? <section><h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Upcoming operations</h2><div className="event-industrial-panel overflow-hidden">{upcoming.map((event) => <EventRow key={event.id} event={event} />)}</div></section> : null}
       {past.length ? <section><h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Past and archived</h2><div className="event-industrial-panel overflow-hidden">{past.map((event) => <EventRow key={event.id} event={event} />)}</div></section> : null}
     </div>}
-    {showModal ? <NewEventModal onClose={() => setShowModal(false)} onCreated={(event) => { setShowModal(false); router.push(`/events/${event.id}/overview`); }} /> : null}
+
   </div>;
 }

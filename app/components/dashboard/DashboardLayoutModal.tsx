@@ -4,6 +4,7 @@
 
 import { useRef, useState } from "react";
 import type { DashboardWidgetSize } from "@/app/components/dashboard/DashboardWidget";
+import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
 import type { AutoArrangePreset, DashboardLayoutMode } from "./dashboardPageConfig";
 
 export interface WidgetMeta {
@@ -80,6 +81,8 @@ export default function DashboardLayoutModal({
   const [localLayoutMode, setLocalLayoutMode] = useState<DashboardLayoutMode>(initialLayoutMode);
   const [localAutoArrangePreset, setLocalAutoArrangePreset] = useState<AutoArrangePreset>(initialAutoArrangePreset);
   const [activeTab, setActiveTab] = useState<"widgets" | "layout" | "settings">("widgets");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, true, onClose);
   const dragFrom = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -162,18 +165,25 @@ export default function DashboardLayoutModal({
       onClick={onClose}
     >
       <div
-        className="flex h-[92dvh] w-full max-w-none flex-col overflow-hidden rounded-t-[28px] border border-white/80 bg-white/95 shadow-[0_28px_90px_rgba(15,23,42,0.28)] backdrop-blur-xl md:h-auto md:max-h-[calc(100dvh-2rem)] md:max-w-5xl md:rounded-[28px]"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dashboard-layout-title"
+        tabIndex={-1}
+        className="flex h-[92dvh] w-full max-w-none flex-col overflow-hidden rounded-t-xl border border-slate-200 bg-white shadow-xl md:h-auto md:max-h-[calc(100dvh-2rem)] md:max-w-5xl md:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-[radial-gradient(circle_at_88%_0%,rgba(16,185,129,0.13),transparent_28%),linear-gradient(135deg,#f8fcfa,#ffffff)] px-4 py-4 md:px-6 md:py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-4 md:px-6 md:py-5">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-slate-900">Customize Dashboard Layout</h2>
+            <h2 id="dashboard-layout-title" className="text-lg font-semibold tracking-tight text-slate-900">Customize Dashboard Layout</h2>
             <p className="mt-0.5 text-xs text-gray-400">
               Reorder, show/hide, and resize your dashboard widgets
             </p>
           </div>
           <button
+            type="button"
+            data-modal-autofocus
             onClick={onClose}
             className="rounded-xl border border-slate-200 bg-white p-2 text-slate-400 shadow-sm transition-all hover:-translate-y-px hover:border-emerald-200 hover:text-slate-700"
             title="Close"

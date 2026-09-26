@@ -29,7 +29,9 @@ export async function usableBrandingAssetUrl(value: unknown, organizationId: str
   const assetPath = path.resolve(process.cwd(), "public", "uploads", "branding", match[1], match[2]);
   try {
     await access(assetPath);
-    return normalized;
+    // Uploaded media is proxied by the public app. An old API or localhost
+    // origin cannot be loaded by visitors, so always use the app-relative path.
+    return pathname;
   } catch {
     return "";
   }

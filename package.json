@@ -33,6 +33,7 @@
     "test:e2e": "node tests/e2e/ui-production-smoke.mjs",
     "test:e2e:events": "node tests/e2e/events-command-center.e2e.mjs",
     "test:e2e:events-public": "node tests/e2e/events-public-page-builder.e2e.mjs",
+    "test:e2e:events-creator": "node --import tsx tests/e2e/events-guided-creator.e2e.mjs",
     "test:e2e:auth": "node tests/e2e/auth.e2e.mjs",
     "test:e2e:watchdog": "node tests/e2e/watchdog.e2e.mjs",
     "test:e2e:letters": "node tests/e2e/oyama-letters-batch.e2e.mjs",

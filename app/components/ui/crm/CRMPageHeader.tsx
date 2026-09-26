@@ -25,8 +25,8 @@ export default function CRMPageHeader({ breadcrumb, title, description, status, 
       </div>
       {(primaryAction || secondaryActions) ? (
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {secondaryActions}
           {primaryAction}
+          {secondaryActions}
         </div>
       ) : null}
     </header>

@@ -139,7 +139,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, br
             <p className="text-xs leading-5 text-slate-600">{definition.description}</p>
           </div>
 
-          {activeTab === "Advanced" ? null : (
+          {activeTab === "Advanced" ? (
           <div>
             <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Data binding</h3>
             <div className="mt-2 space-y-2">
@@ -160,7 +160,7 @@ export default function EventPageBuilderInspector({ section, onUpdateSection, br
               </label>
             </div>
           </div>
-          )}
+          ) : null}
 
           {activeTab === "Content" && isHero ? (
             <>

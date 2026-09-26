@@ -31,7 +31,6 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
-import NewEventModal from "@/app/components/events/NewEventModal";
 import type { EventItem, EventsDashboardSummary } from "@/app/components/events/types";
 
 function formatEventDate(value?: string | null): string {
@@ -127,7 +126,6 @@ export default function EventsWorkspaceSelectorPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [summary, setSummary] = useState<EventsDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showNewEventModal, setShowNewEventModal] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState("");
 
   useEffect(() => {
@@ -183,7 +181,7 @@ export default function EventsWorkspaceSelectorPage() {
         primaryAction={
           <button
             type="button"
-            onClick={() => setShowNewEventModal(true)}
+            onClick={() => router.push("/events/new")}
             className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 transition-colors shadow-sm hover:shadow-md"
           >
             + Create Event
@@ -238,7 +236,7 @@ export default function EventsWorkspaceSelectorPage() {
           </button>
           <button
             type="button"
-            onClick={() => setShowNewEventModal(true)}
+            onClick={() => router.push("/events/new")}
             className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
           >
             Create Event
@@ -318,7 +316,7 @@ export default function EventsWorkspaceSelectorPage() {
           <p className="text-sm text-slate-600 mt-1">Create your first event to get started with EventSTUDIO</p>
           <button
             type="button"
-            onClick={() => setShowNewEventModal(true)}
+            onClick={() => router.push("/events/new")}
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
           >
             Create Event
@@ -354,18 +352,7 @@ export default function EventsWorkspaceSelectorPage() {
         </section>
       )}
 
-      {/* Modal */}
-      {showNewEventModal && (
-        <NewEventModal
-          onClose={() => setShowNewEventModal(false)}
-          onCreated={() => {
-            setShowNewEventModal(false);
-            apiFetch<EventItem[]>("/api/events").then((data) => {
-              setEvents(Array.isArray(data) ? data : []);
-            });
-          }}
-        />
-      )}
+
     </div>
   );
 }

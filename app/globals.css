@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./globals-animations.css";
+@import "./donor-workspace.css";
 
 :root {
   --background: #f5f5f5;

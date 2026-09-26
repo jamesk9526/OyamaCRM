@@ -13,7 +13,7 @@ import { logAudit } from "../lib/audit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
 import { requirePermission } from "../middleware/requirePermission.js";
-import { readPaymentGatewayPublicSettings, type PaymentGatewayPublicSettings } from "../services/payment-gateway-settings.js";
+import { readPaymentGatewayPublicSettings, readPaymentGatewayRuntimeConfig, type PaymentGatewayPublicSettings } from "../services/payment-gateway-settings.js";
 import { createEventStripeCheckout, EventStripeCheckoutError } from "../services/event-stripe-checkout.js";
 import { createEventTable } from "../services/event-table-service.js";
 import { createCheckInRecord, reverseCheckIn, getCheckInLiveCounts } from "../services/checkin-service.js";
@@ -43,6 +43,8 @@ import type {
   EventTableStatus,
   Prisma,
 } from "@prisma/client";
+
+import { evaluateCreationReadiness, validateCreationTicket } from "../services/event-creation-readiness.js";
 
 const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
@@ -225,7 +227,7 @@ interface EventsManagerIntegrationSnapshot extends EventsManagerIntegrationSourc
 }
 
 type EventPageBuilderStatus = "Draft" | "Published";
-type EventPagePaymentPolicy = "StripeCheckout" | "OfflineFollowUp" | "NoPaymentRequired";
+type EventPagePaymentPolicy = "StripeCheckout" | "PayAtEvent" | "OfflineFollowUp" | "NoPaymentRequired";
 type EventPageDeploymentAction = "Published" | "Unpublished";
 
 type StoredEventPageSectionId =
@@ -389,7 +391,7 @@ function normalizeEventPageStatus(value: unknown): EventPageBuilderStatus {
 }
 
 function normalizeEventPagePaymentPolicy(value: unknown): EventPagePaymentPolicy {
-  if (value === "StripeCheckout" || value === "NoPaymentRequired") return value;
+  if (value === "StripeCheckout" || value === "PayAtEvent" || value === "NoPaymentRequired") return value;
   return "OfflineFollowUp";
 }
 
@@ -653,9 +655,11 @@ function escapeEventEmailHtml(value: unknown): string {
     .replace(/'/g, "&#039;");
 }
 
-function safeEventEmailImageUrl(value: string): string {
+function safeEventEmailImageUrl(value: string, publicAssetBaseUrl: string): string {
   try {
-    const parsed = new URL(value);
+    const parsed = value.startsWith("/") && !value.startsWith("//")
+      ? new URL(value, publicAssetBaseUrl)
+      : new URL(value);
     return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
   } catch {
     return "";
@@ -696,7 +700,7 @@ async function sendPublicEventRegistrationConfirmation(params: {
   try {
     const branding = await loadOrganizationBrandingContext(params.organizationId);
     const brandName = branding.organizationName || "Oyama Events";
-    const brandLogoUrl = safeEventEmailImageUrl(branding.logoUrl || branding.logoSquareUrl);
+    const brandLogoUrl = safeEventEmailImageUrl(branding.logoUrl || branding.logoSquareUrl, new URL(params.manageReservationUrl).origin);
     const eligibility = await evaluateRecipientEligibility({
       organizationId: params.organizationId,
       purpose: "TRANSACTIONAL",
@@ -727,7 +731,9 @@ async function sendPublicEventRegistrationConfirmation(params: {
       ? "No payment is due."
       : params.paymentPolicy === "StripeCheckout"
         ? `$${params.totalAmount.toFixed(2)} is due through secure Stripe checkout.`
-        : `$${params.totalAmount.toFixed(2)} is due. Event staff will follow up with payment instructions.`;
+        : params.paymentPolicy === "PayAtEvent"
+          ? `$${params.totalAmount.toFixed(2)} is due at event check-in. Please bring a payment method.`
+          : `$${params.totalAmount.toFixed(2)} is due. Event staff will follow up with payment instructions.`;
     const paymentActionHtml = params.checkoutUrl
       ? `<p style="margin:20px 0"><a href="${escapeEventEmailHtml(params.checkoutUrl)}" style="display:inline-block;background:#0f6cbd;color:#ffffff;text-decoration:none;padding:11px 18px;font-weight:600">Complete secure payment</a></p>`
       : "";
@@ -1565,7 +1571,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
         status: orderStatus,
         totalAmount,
         feeAmount: 0,
-        paymentMethod: "ONLINE",
+        paymentMethod: match.paymentPolicy === "StripeCheckout" ? "ONLINE" : null,
         paidAt: totalAmount === 0 ? new Date() : undefined,
         notes: orderNote,
         items: {
@@ -1823,10 +1829,12 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
       ? "Registration confirmed."
       : stripeCheckout
         ? "Registration reserved. Continue to Stripe to complete secure payment."
-        : "Registration reserved. Payment is still due; event staff can help complete it.",
+        : match.paymentPolicy === "PayAtEvent"
+          ? "Registration reserved. Pay the amount due at event check-in."
+          : "Registration reserved. Payment is still due; event staff can help complete it.",
     payment: totalAmount > 0 ? {
       required: !result.order.paidAt && result.order.status !== "CONFIRMED",
-      provider: match.paymentPolicy === "StripeCheckout" ? "stripe" : "offline",
+      provider: match.paymentPolicy === "StripeCheckout" ? "stripe" : match.paymentPolicy === "PayAtEvent" ? "at_event" : "offline",
       checkoutUrl: stripeCheckout?.checkoutUrl ?? null,
       mode: stripeCheckout?.mode ?? null,
       error: checkoutError,
@@ -2531,6 +2539,36 @@ router.post("/manager-integrations/import", requireRole("admin"), async (req, re
   }
 });
 
+/** Read only, permissioned readiness; no gateway credentials leave the server. */
+async function creationReadiness(organizationId: string, eventId: string, override?: { pageSlug: string; paymentPolicy: string; sections?: StoredEventPageBuilderEntry["sections"] }) {
+  const event = await prisma.event.findFirst({ where: { id: eventId, organizationId }, include: { ticketTypes: true } });
+  if (!event) return null;
+  const settings = await prisma.pluginSetting.findMany({ where: { pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY, enabled: true }, select: { organizationId: true, config: true } });
+  const own = settings.find((row) => row.organizationId === organizationId);
+  const stored = readStoredEventPageBuilderConfig(own?.config).events[eventId];
+  const page = override ?? stored;
+  const pageSlug = page?.pageSlug ?? defaultEventPageSlug(event.name);
+  const slugUnique = !settings.some((row) => Object.entries(readStoredEventPageBuilderConfig(row.config).events).some(([id, entry]) => entry.pageSlug === pageSlug && !(row.organizationId === organizationId && id === eventId)));
+  const runtime = page?.paymentPolicy === "StripeCheckout" ? await readPaymentGatewayRuntimeConfig(organizationId) : null;
+  const mode = runtime?.stripe.mode;
+  const secretPrefix = mode === "production" ? /^(sk|rk)_live_/ : /^(sk|rk)_test_/;
+  return evaluateCreationReadiness({
+    event, tickets: event.ticketTypes, sections: page?.sections,
+    slugValid: Boolean(sanitizeEventPageSlug(pageSlug)), slugUnique,
+    paymentPolicy: page?.paymentPolicy,
+    stripeReady: Boolean(runtime?.stripe.enabled && runtime.stripe.publishableKey.startsWith(mode === "production" ? "pk_live_" : "pk_test_") && secretPrefix.test(runtime.stripe.secretKey) && runtime.stripe.webhookSecret),
+    stripeMode: mode,
+  });
+}
+
+router.get("/:eventId/creation-readiness", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) { res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } }); return; }
+  const readiness = await creationReadiness(organizationId, req.params.eventId);
+  if (!readiness) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found." } }); return; }
+  res.json(readiness);
+});
+
 /** GET /api/events/:eventId/page-builder-config — Event page URL and publish metadata for one scoped event. */
 router.get("/:eventId/page-builder-config", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -2589,7 +2627,7 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
 
   const event = await prisma.event.findFirst({
     where: { id: req.params.eventId, organizationId },
-    select: { id: true, name: true, active: true, visibility: true },
+    select: { id: true, name: true, active: true, visibility: true, status: true },
   });
 
   if (!event) {
@@ -2705,6 +2743,9 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     nextLastPublishedAt = null;
   }
 
+  if (req.body.paymentPolicy !== undefined && !["StripeCheckout", "PayAtEvent", "OfflineFollowUp", "NoPaymentRequired"].includes(req.body.paymentPolicy)) {
+    res.status(400).json({ error: { code: "INVALID_INPUT", message: "Choose a supported payment policy." } }); return;
+  }
   const nextPaymentPolicy = req.body.paymentPolicy === undefined
     ? (previous?.paymentPolicy ?? "OfflineFollowUp")
     : normalizeEventPagePaymentPolicy(req.body.paymentPolicy);
@@ -2712,6 +2753,14 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
   const nextSections = req.body.sections === undefined
     ? previous?.sections
     : sanitizeEventPageBuilderSections(req.body.sections);
+
+  if (nextStatus === "Published" && nextSections?.some((section) => section.id === "registration-form" && section.enabled)) {
+    const readiness = await creationReadiness(organizationId, event.id, { pageSlug: nextPageSlug, paymentPolicy: nextPaymentPolicy, sections: nextSections });
+    if (!readiness?.ready) {
+      res.status(409).json({ error: { code: "CREATION_NOT_READY", message: readiness?.checks.filter((check) => !check.passed).map((check) => check.label).join(". ") || "Event is not ready to publish." }, readiness });
+      return;
+    }
+  }
 
   if (invalidExplicitLastPublishedAt) {
     res.status(400).json({
@@ -2750,23 +2799,30 @@ router.patch("/:eventId/page-builder-config", async (req, res) => {
     },
   };
 
-  await prisma.pluginSetting.upsert({
-    where: {
-      organizationId_pluginKey: {
+  await prisma.$transaction(async (tx) => {
+    // A published registration page must also accept registrations. Keep this
+    // lifecycle change atomic with the page publication, and never reopen closed events.
+    if (nextStatus === "Published" && event.status === "DRAFT" && nextSections?.some((section) => section.id === "registration-form" && section.enabled)) {
+      await tx.event.updateMany({ where: { id: event.id, organizationId, status: "DRAFT" }, data: { status: "PUBLISHED" } });
+    }
+    await tx.pluginSetting.upsert({
+      where: {
+        organizationId_pluginKey: {
+          organizationId,
+          pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+        },
+      },
+      create: {
         organizationId,
         pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
+        enabled: true,
+        config: nextConfig as unknown as Prisma.InputJsonValue,
       },
-    },
-    create: {
-      organizationId,
-      pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY,
-      enabled: true,
-      config: nextConfig as unknown as Prisma.InputJsonValue,
-    },
-    update: {
-      enabled: true,
-      config: nextConfig as unknown as Prisma.InputJsonValue,
-    },
+      update: {
+        enabled: true,
+        config: nextConfig as unknown as Prisma.InputJsonValue,
+      },
+    });
   });
 
   await logAudit({
@@ -2903,7 +2959,9 @@ router.get("/", async (req, res) => {
     _sum: { totalAmount: true },
   });
   const revenue = new Map(collectedByEvent.map((entry) => [entry.eventId, Number(entry._sum.totalAmount ?? 0)]));
-  res.json(events.map((event) => ({ ...event, collectedRevenue: revenue.get(event.id) ?? 0 })));
+  const pageSetting = await prisma.pluginSetting.findUnique({ where: { organizationId_pluginKey: { organizationId, pluginKey: EVENTS_PAGE_BUILDER_PLUGIN_KEY } }, select: { config: true } });
+  const pages = readStoredEventPageBuilderConfig(pageSetting?.config).events;
+  res.json(events.map((event) => ({ ...event, pageStatus: pages[event.id]?.status ?? "Draft", collectedRevenue: revenue.get(event.id) ?? 0 })));
 });
 
 /** GET /api/events/:id — Get event detail with full relations. */
@@ -3207,12 +3265,15 @@ router.post("/:eventId/ticket-types", async (req, res) => {
 
   const { name, description, price, capacity, available, sortOrder, active, isTable, seatsIncluded, minPerOrder, maxPerOrder } = req.body;
 
+  const ticketError = validateCreationTicket({ ...req.body, price: req.body.price ?? 0 });
+  if (ticketError) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: ticketError } }); return; }
+
   const ticketType = await prisma.ticketType.create({
     data: {
       eventId: req.params.eventId,
       name,
       description: description ?? undefined,
-      price,
+      price: Number(price ?? 0),
       capacity: capacity ?? undefined,
       available: available ?? capacity ?? undefined,
       sortOrder: sortOrder ?? 0,
@@ -3246,6 +3307,11 @@ router.patch("/:eventId/ticket-types/:id", async (req, res) => {
   }
 
   const { name, description, price, capacity, available, sortOrder, active, isTable, seatsIncluded, minPerOrder, maxPerOrder } = req.body;
+
+  const existingTicket = await prisma.ticketType.findFirst({ where: { id: req.params.id, eventId: req.params.eventId } });
+  if (!existingTicket) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } }); return; }
+  const ticketError = validateCreationTicket({ ...existingTicket, ...req.body });
+  if (ticketError) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: ticketError } }); return; }
 
   const ticketType = await prisma.ticketType.update({
     where: { id: req.params.id, eventId: req.params.eventId },
@@ -3644,6 +3710,62 @@ router.patch("/orders/:orderId", async (req, res) => {
     return nextOrder;
   });
 
+  res.json(updated);
+});
+
+/** POST /api/events/orders/:orderId/record-payment — Settle a manual event payment. */
+router.post("/orders/:orderId/record-payment", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+  const paymentMethod = req.body?.paymentMethod;
+  if (paymentMethod !== "CASH" && paymentMethod !== "CHECK" && paymentMethod !== "CREDIT_CARD") {
+    res.status(400).json({ error: { code: "INVALID_PAYMENT_METHOD", message: "Choose cash, check, or a card payment collected at the event." } });
+    return;
+  }
+
+  const order = await prisma.eventOrder.findFirst({
+    where: { id: req.params.orderId, event: { organizationId } },
+    select: { id: true, totalAmount: true, status: true, paidAt: true, paymentMethod: true },
+  });
+  if (!order) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "Order not found." } });
+    return;
+  }
+  if (order.status !== "PENDING" || order.paidAt || Number(order.totalAmount) <= 0 || order.paymentMethod === "ONLINE") {
+    res.status(409).json({ error: { code: "PAYMENT_NOT_RECORDABLE", message: "This order is not awaiting an in-person payment." } });
+    return;
+  }
+
+  const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const changed = await tx.eventOrder.updateMany({
+      where: { id: order.id, status: "PENDING", paidAt: null, OR: [{ paymentMethod: null }, { paymentMethod: { not: "ONLINE" } }] },
+      data: { status: "CONFIRMED", paidAt: new Date(), paymentMethod },
+    });
+    if (changed.count !== 1) return null;
+    await tx.eventGuest.updateMany({ where: { orderId: order.id }, data: { paymentStatus: "PAID" } });
+    return tx.eventOrder.findUnique({ where: { id: order.id } });
+  });
+  if (!updated) {
+    res.status(409).json({ error: { code: "PAYMENT_ALREADY_RECORDED", message: "This order changed while recording payment. Refresh and review it." } });
+    return;
+  }
+  try {
+    await logAudit({
+      action: "EVENT_PAYMENT_RECORDED",
+      entity: "EventOrder",
+      entityId: order.id,
+      userId: req.user?.sub,
+      organizationId,
+      metadata: { paymentMethod, totalAmount: Number(order.totalAmount) },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  } catch (error) {
+    console.error("[events.record-payment] Payment saved but audit log failed", error);
+  }
   res.json(updated);
 });
 
@@ -5073,7 +5195,7 @@ router.post("/:eventId/emails/send", async (req, res) => {
     loadOrganizationBrandingContext(organizationId),
   ]);
   const brandName = branding.organizationName || event.name;
-  const brandLogoUrl = safeEventEmailImageUrl(branding.logoUrl || branding.logoSquareUrl);
+  const brandLogoUrl = safeEventEmailImageUrl(branding.logoUrl || branding.logoSquareUrl, resolveEventPageOrigin(req));
   let sent = 0;
   const failures: Array<{ email: string; message: string }> = [];
   const eventDate = event.startDate.toLocaleString();

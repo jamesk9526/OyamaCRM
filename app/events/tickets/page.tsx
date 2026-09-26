@@ -14,6 +14,8 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 
+import { TicketFields, saveEventTicket } from "@/app/components/events/creator/event-forms";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EventItem {
@@ -192,29 +194,7 @@ export default function EventTicketsPage() {
     setSaving(true);
     setError(null);
     try {
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        price: parseFloat(form.price) || 0,
-        capacity: form.capacity ? parseInt(form.capacity, 10) : undefined,
-        isTable: form.isTable,
-        seatsIncluded: form.isTable ? parseInt(form.seatsIncluded, 10) || 8 : 1,
-        minPerOrder: parseInt(form.minPerOrder, 10) || 1,
-        maxPerOrder: form.maxPerOrder ? parseInt(form.maxPerOrder, 10) : undefined,
-        active: form.active,
-      };
-
-      if (editingTicket) {
-        await apiFetch(`/api/events/${selectedEventId}/ticket-types/${editingTicket.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-      } else {
-        await apiFetch(`/api/events/${selectedEventId}/ticket-types`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
+      await saveEventTicket(selectedEventId, form, editingTicket?.id);
       setShowModal(false);
       setEditingTicket(null);
       loadTicketTypes();
@@ -512,9 +492,6 @@ function TicketTypeModal({
   );
 
   /** Generic field updater */
-  function setField<K extends keyof TicketTypeFormState>(key: K, value: TicketTypeFormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -526,133 +503,7 @@ function TicketTypeModal({
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setField("name", e.target.value)}
-              placeholder="e.g. General Admission, VIP Table"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setField("description", e.target.value)}
-              placeholder="Optional description shown to guests"
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-            />
-          </div>
-
-          {/* Price */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Price ($)</label>
-            <input
-              type="number"
-              value={form.price}
-              onChange={(e) => setField("price", e.target.value)}
-              min="0"
-              step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          {/* Table ticket toggle */}
-          <div className="flex items-center gap-3">
-            <input
-              id="isTable"
-              type="checkbox"
-              checked={form.isTable}
-              onChange={(e) => {
-                setField("isTable", e.target.checked);
-                if (e.target.checked && form.seatsIncluded === "1") {
-                  setField("seatsIncluded", "8");
-                }
-              }}
-              className="w-4 h-4 text-amber-600 border-gray-300 rounded"
-            />
-            <label htmlFor="isTable" className="text-sm font-semibold text-gray-700 cursor-pointer">
-              Table Ticket (covers multiple guests)
-            </label>
-          </div>
-
-          {/* Seats included — shown only for table tickets */}
-          {form.isTable && (
-            <div className="ml-7">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Seats Included</label>
-              <input
-                type="number"
-                value={form.seatsIncluded}
-                onChange={(e) => setField("seatsIncluded", e.target.value)}
-                min="1"
-                className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-          )}
-
-          {/* Capacity */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Capacity (leave blank for unlimited)
-            </label>
-            <input
-              type="number"
-              value={form.capacity}
-              onChange={(e) => setField("capacity", e.target.value)}
-              min="0"
-              placeholder="Unlimited"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </div>
-
-          {/* Order limits */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Min per Order</label>
-              <input
-                type="number"
-                value={form.minPerOrder}
-                onChange={(e) => setField("minPerOrder", e.target.value)}
-                min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Max per Order <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <input
-                type="number"
-                value={form.maxPerOrder}
-                onChange={(e) => setField("maxPerOrder", e.target.value)}
-                min="1"
-                placeholder="No max"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-          </div>
-
-          {/* Active */}
-          <div className="flex items-center gap-3">
-            <input
-              id="active"
-              type="checkbox"
-              checked={form.active}
-              onChange={(e) => setField("active", e.target.checked)}
-              className="w-4 h-4 text-amber-600 border-gray-300 rounded"
-            />
-            <label htmlFor="active" className="text-sm font-semibold text-gray-700 cursor-pointer">
-              Active (visible and available for purchase)
-            </label>
-          </div>
+          <TicketFields value={form} onChange={setForm} />
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">

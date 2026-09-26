@@ -20,6 +20,8 @@ import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
 interface Props {
   constituents: ConstituentRow[];
   loading?: boolean;
+  filtered?: boolean;
+  onClearFilters?: () => void;
   onCloseAccount?: (id: string) => void;
   onEmailTemplate?: (id: string) => void;
   onLetterTemplate?: (id: string) => void;
@@ -81,7 +83,7 @@ function ConstituentRowMoreMenu({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Open constituent actions"
@@ -147,12 +149,15 @@ function ConstituentRowMoreMenu({
 export default function ConstituentTable({
   constituents,
   loading,
+  filtered = false,
+  onClearFilters,
   onCloseAccount,
   onEmailTemplate,
   onLetterTemplate,
   selectedIds = [],
   onSelectionChange,
 }: Props) {
+  const [moreColumns, setMoreColumns] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -165,6 +170,7 @@ export default function ConstituentTable({
     }
   }
 
+  const visibleColumns = COLUMNS.filter((column) => moreColumns || !["type", "ytd", "engagement", "tags"].includes(column.key));
   const sorted = [...constituents].sort((a, b) => {
     let aVal: string | number = "";
     let bVal: string | number = "";
@@ -230,8 +236,8 @@ export default function ConstituentTable({
       <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
         <EmptyStateCard
           className="border-0 shadow-none"
-          title="No constituents in this view"
-          description="Add a constituent record, import donors from a file, or ask Steward to suggest the right data setup for your next outreach cycle."
+          title={filtered ? "No matching constituents" : "No constituents yet"}
+          description={filtered ? "Try a different search or clear your filters." : "Add a constituent or import your existing records to get started."}
           icon={(
             <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 20a7 7 0 0 1 14 0" />
@@ -239,6 +245,7 @@ export default function ConstituentTable({
           )}
           actions={(
             <>
+              {filtered ? <button type="button" onClick={onClearFilters} className="donor-button">Clear filters</button> : null}
               <ActionButton label="Add Constituent" variant="primary" href="/constituents/new" />
               <ActionButton label="Import Donors" variant="secondary" href="/data-tools/import" />
               <StewardContextButton
@@ -256,7 +263,17 @@ export default function ConstituentTable({
   }
 
   return (
-    <div className="overflow-hidden bg-white">
+    <div className="bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <label htmlFor="constituent-page-sort">Sort this page</label>
+          <select id="constituent-page-sort" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm">
+            {COLUMNS.filter((column) => column.sortable).map((column) => <option key={column.key} value={column.key}>{column.label}</option>)}
+          </select>
+          <button type="button" className="donor-button" onClick={() => setSortDir((current) => current === "asc" ? "desc" : "asc")} aria-label={`Sort this page ${sortDir === "asc" ? "descending" : "ascending"}`}>{sortDir === "asc" ? "Ascending" : "Descending"}</button>
+        </div>
+        <button type="button" className="donor-button hidden lg:inline-flex" aria-expanded={moreColumns} aria-controls="constituent-table" onClick={() => setMoreColumns((current) => !current)}>{moreColumns ? "Fewer columns" : "More columns"}</button>
+      </div>
       <div className="divide-y divide-slate-100 lg:hidden">
         {sorted.map((c) => (
           <article key={c.id} className="p-3.5">
@@ -275,12 +292,13 @@ export default function ConstituentTable({
 
             <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
-                <p className="text-slate-500">Type</p>
-                <p className="font-semibold text-slate-800">{typeLabel(c.type)}</p>
+                <p className="text-slate-500">Lifetime giving</p>
+                <p className="font-semibold text-slate-800">{formatCurrency(c.totalLifetimeGiving)}</p>
               </div>
               <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
-                <p className="text-slate-500">YTD</p>
-                <p className="font-semibold text-slate-950">{formatCurrency(c.totalYtdGiving)}</p>
+                <p className="text-slate-500">Last gift</p>
+                <p className="font-semibold text-slate-950">{c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "No gifts"}</p>
+                {c.lastGiftDate ? <p className="text-slate-500">{formatDate(c.lastGiftDate)}</p> : null}
               </div>
             </div>
 
@@ -292,10 +310,10 @@ export default function ConstituentTable({
 
             <div className="mt-3 flex items-center justify-between gap-2">
               <div className="flex flex-wrap gap-2">
-                <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                <Link href={`/constituents/${c.id}/edit`} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
                   Edit
                 </Link>
-                <Link href={`/donor-profile?constituentId=${encodeURIComponent(c.id)}`} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
+                <Link href={`/donor-profile?constituentId=${encodeURIComponent(c.id)}`} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
                   OYAMADonorPROFILE
                 </Link>
               </div>
@@ -306,7 +324,7 @@ export default function ConstituentTable({
       </div>
 
       <div className="hidden overflow-x-auto lg:block">
-        <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
+        <table id="constituent-table" className={`w-full ${moreColumns ? "min-w-[1100px]" : "min-w-[640px]"} border-separate border-spacing-0 text-sm`}>
           <thead>
             <tr className="border-b border-[#d1d1d1] bg-[#f3f2f1]">
               {selectable ? (
@@ -314,9 +332,12 @@ export default function ConstituentTable({
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible constituents" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                 </th>
               ) : null}
-              {COLUMNS.map((col) => (
-                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-2.5 text-left text-[11px] font-semibold text-[#424242] ${col.sortable ? "cursor-pointer select-none hover:text-[#0f6cbd]" : ""}`} onClick={() => col.sortable && handleSort(col.key)}>
-                  <span className="flex items-center gap-1">{col.label}{col.sortable && sortKey === col.key ? <span className="text-indigo-600">{sortDir === "asc" ? "↑" : "↓"}</span> : null}</span>
+              {visibleColumns.map((col) => (
+                <th key={col.key} className={`sticky top-0 z-10 whitespace-nowrap border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-2.5 text-left text-[11px] font-semibold text-[#424242] ${col.sortable ? "cursor-pointer select-none hover:text-[#0f6cbd]" : ""}`} aria-sort={col.sortable && sortKey === col.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
+                  {col.sortable ? <button type="button" onClick={() => handleSort(col.key)} className="flex min-h-11 items-center gap-1" aria-label={`Sort this page by ${col.label}`}>
+                    {col.label}{sortKey === col.key ? <span aria-hidden="true">{sortDir === "asc" ? " ↑" : " ↓"}</span> : null}
+                  </button> : col.label}
+
                 </th>
               ))}
             </tr>
@@ -333,13 +354,13 @@ export default function ConstituentTable({
                   <Link href={`/constituents/${c.id}`} className="font-semibold text-slate-900 transition-colors hover:text-[#0f6cbd] hover:underline">{getConstituentDisplayName(c)}</Link>
                   {c.email ? <p className="mt-0.5 text-xs text-slate-400">{c.email}</p> : null}
                 </td>
-                <td className="px-4 py-2.5 whitespace-nowrap align-top text-gray-600">{typeLabel(c.type)}</td>
+                {moreColumns ? <td className="px-4 py-2.5 whitespace-nowrap align-top text-gray-600">{typeLabel(c.type)}</td> : null}
                 <td className="px-4 py-2.5 align-top"><ConstituentStatusBadge status={c.donorStatus} /></td>
-                <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">{formatCurrency(c.totalYtdGiving)}</td>
+                {moreColumns ? <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">{formatCurrency(c.totalYtdGiving)}</td> : null}
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{formatCurrency(c.totalLifetimeGiving)}{c.giftCount > 0 ? <span className="ml-1 text-xs text-gray-400">({c.giftCount} gifts)</span> : null}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{c.lastGiftAmount ? <><span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span><p className="text-xs text-gray-400">{formatDate(c.lastGiftDate)}</p></> : <span className="text-gray-400">No gifts</span>}</td>
-                <td className="px-4 py-2.5 align-top"><div className="flex items-center justify-end gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-green-500" style={{ width: `${c.engagementScore}%` }} /></div><span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>{c.engagementScore}</span></div></td>
-                <td className="px-4 py-2.5 align-top"><ConstituentTags tags={c.tags} align="end" /></td>
+                {moreColumns ? <td className="px-4 py-2.5 align-top"><div className="flex items-center justify-end gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-green-500" style={{ width: `${c.engagementScore}%` }} /></div><span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>{c.engagementScore}</span></div></td> : null}
+                {moreColumns ? <td className="px-4 py-2.5 align-top"><ConstituentTags tags={c.tags} align="end" /></td> : null}
                 <td className="px-4 py-2.5 align-top">
                   <div className="flex items-center justify-end gap-1">
                     <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50">Edit</Link>

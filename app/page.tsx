@@ -1,7 +1,6 @@
 /**
  * Dashboard page — OyamaCRM Donor CRM home screen.
- * Renders the naturalistic mission-portal experience with configurable hero image,
- * floating impact band, steward intelligence, giving charts, and campaign cards.
+ * Relationships, follow-up, and preserved customizable insight widgets.
  */
 "use client";
 
@@ -9,7 +8,7 @@ import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
-import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
+import CRMSecondaryMenu from "@/app/components/ui/crm/CRMSecondaryMenu";
 import NaturalisticDonorDashboard from "./components/dashboard/NaturalisticDonorDashboard";
 import DashboardLayoutModal from "./components/dashboard/DashboardLayoutModal";
 import DashboardWidgetRenderer from "./components/dashboard/DashboardWidgetRenderer";
@@ -36,10 +35,6 @@ export default function DashboardPage() {
           <p className="mt-1 text-xs text-slate-500">Open the reports, queues, and charts selected for this dashboard.</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {showInsights ? <button type="button" onClick={dashboardState.toggleLayoutLock} className="hidden min-h-8 items-center rounded-[2px] px-2 text-[11px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 sm:inline-flex" title={dashboardState.locked ? "Unlock dashboard layout" : "Lock dashboard layout"}>{dashboardState.locked ? "Layout locked" : "Lock layout"}</button> : null}
-          {showInsights ? <button type="button" onClick={dashboardState.toggleEditMode} disabled={dashboardState.locked} className={`inline-flex min-h-8 items-center rounded-[2px] border px-2.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${dashboardState.editMode ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-slate-200 bg-white text-slate-700 hover:border-[#0f6cbd]"}`}>
-            {dashboardState.editMode ? "Done arranging" : "Reorder"}
-          </button> : null}
           <button
             type="button"
             aria-expanded={showInsights}
@@ -62,7 +57,7 @@ export default function DashboardPage() {
       </div>
 
       {showInsights ? <div id="dashboard-detailed-insights" className="p-4 sm:p-5">
-        {dashboardState.editMode ? <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[2px] border border-[#cfe4fa] bg-[#eff6fc] px-3 py-2.5 text-xs text-[#0f548c]"><span>Drag a widget by its header or use the arrow controls. Size changes are saved automatically in this browser.</span><button type="button" onClick={dashboardState.openCustomizeModal} className="font-semibold underline underline-offset-2">Open full customization</button></div> : null}
+        {dashboardState.editMode ? <div className="mb-4 rounded-lg border border-[#cfe4fa] bg-[#eff6fc] px-3 py-2.5 text-xs text-[#0f548c]">Drag a widget by its header or use the arrow controls. Size changes are saved automatically in this browser.</div> : null}
 
         <div className={dashboardState.sectionLayoutClassName}>
           {dashboardState.visibleWidgetOrder.map((id, idx) => (
@@ -92,46 +87,11 @@ export default function DashboardPage() {
   );
 
   return (
-    <EnterprisePageShell
-      ribbon={(
-        <CRMActionBar
-          context={{
-            flags: {
-              dashboardEditMode: dashboardState.editMode,
-            },
-          }}
-          commandHandlers={{
-            "refresh-dashboard": () => {
-              void dashboardState.load();
-            },
-            "customize-dashboard": dashboardState.openCustomizeModal,
-            "quick-add": () => {
-              window.location.href = "/constituents/new";
-            },
-            "needs-attention": () => {
-              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            },
-            "steward-recommendations": dashboardState.enableAiWidgets,
-            "giving-trends": () => {
-              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            },
-            "donor-activity": () => {
-              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            },
-            "campaign-health": () => {
-              document.getElementById("dashboard-insights")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            },
-            "card-layout": () => dashboardState.applySmartLayout("BALANCED"),
-            "compact-layout": dashboardState.openCustomizeModal,
-            "toggle-widgets": dashboardState.openCustomizeModal,
-            "reset-layout": dashboardState.resetLayout,
-          }}
-        />
-      )}
-    >
+    <EnterprisePageShell>
       <NaturalisticDonorDashboard
         greeting={greeting}
         name={name}
+        loadError={dashboardState.loadError}
         loading={dashboardState.loading}
         summary={dashboardState.summary ?? null}
         retention={dashboardState.retention ?? null}
@@ -140,17 +100,13 @@ export default function DashboardPage() {
         reportingYearMode={dashboardState.reportingYearMode}
         onRefresh={dashboardState.load}
         headerActions={(
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => dashboardState.applySmartLayout("FEATURE_FIRST")} className="hidden min-h-9 items-center rounded-[2px] border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-[#0f6cbd] hover:text-[#0f548c] sm:inline-flex">Smart layout</button>
-            <button
-              type="button"
-              onClick={dashboardState.openCustomizeModal}
-              className="inline-flex min-h-9 items-center rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-3.5 text-xs font-semibold text-white transition hover:bg-[#115ea3]"
-              aria-label="Customize dashboard"
-            >
-              Customize
-            </button>
-          </div>
+          <CRMSecondaryMenu label="Dashboard options">
+            <button type="button" className="donor-button" onClick={dashboardState.openCustomizeModal}>Customize dashboard</button>
+            <button type="button" className="donor-button" onClick={dashboardState.toggleLayoutLock}>{dashboardState.locked ? "Unlock layout" : "Lock layout"}</button>
+            <button type="button" className="donor-button" disabled={dashboardState.locked} onClick={() => { setInsightsExpanded(true); dashboardState.toggleEditMode(); }}>{dashboardState.editMode ? "Done arranging" : "Reorder widgets"}</button>
+            <button type="button" className="donor-button" onClick={() => dashboardState.applySmartLayout("FEATURE_FIRST")}>Smart layout</button>
+            <button type="button" className="donor-button" onClick={dashboardState.resetLayout}>Reset widget layout</button>
+          </CRMSecondaryMenu>
         )}
         extraSections={<div id="dashboard-insights">{widgetArea}</div>}
       />

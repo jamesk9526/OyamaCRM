@@ -12,6 +12,7 @@ export interface EventItem {
   registrationGoal?: number | null;
   revenueGoal?: number | null;
   active: boolean;
+  pageStatus?: "Draft" | "Published";
   collectedRevenue?: number;
   _count?: {
     attendances: number;

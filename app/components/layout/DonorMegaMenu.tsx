@@ -1,327 +1,16 @@
-/**
- * DonorMegaMenu — compact DonorCRM workspace navigation below the global TopBar.
- * Each section opens a dark mega panel with canonical donor workflows grouped by intent.
- */
+/** Daily Donor CRM navigation. Desktop and mobile use the same route catalog. */
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { ChevronDown, Search, X } from "lucide-react";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
-import OyamaDonorPackIcon from "@/app/components/ui/OyamaDonorPackIcon";
-import { type DonorAccentTone } from "@/app/lib/workspace-settings";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface NavItem {
-  id: string;
-  label: string;
-  href: string;
-  description?: string;
-  badge?: string;
-}
-
-interface NavSection {
-  id: string;
-  label: string;
-  /** Direct link — renders as a simple link, no dropdown. */
-  href?: string;
-  /** Route families that should keep a direct-link section visibly active. */
-  matchPrefixes?: string[];
-  /** Dropdown columns. Each inner array is one column. */
-  columns?: NavItem[][];
-  /** If true, section is shown only when QB Sync plugin is enabled. */
-  requiresQb?: boolean;
-}
-
-interface RibbonTab {
-  id: string;
-  label: string;
-  href: string;
-  match: string[];
-}
-
-interface RibbonCommand {
-  id: string;
-  label: string;
-  href: string;
-  icon: string;
-  tone: "green" | "blue" | "purple" | "orange" | "teal" | "amber" | "slate";
-  badge?: string;
-}
-
-interface RibbonCommandGroup {
-  label: string;
-  commands: RibbonCommand[];
-}
-
-// ── Nav data ─────────────────────────────────────────────────────────────────
-
-const BASE_NAV_SECTIONS: NavSection[] = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    href: "/",
-  },
-  {
-    id: "donors",
-    label: "Donors",
-    columns: [
-      [
-        {
-          id: "constituents",
-          label: "Constituents",
-          href: "/constituents",
-          description: "Donors, volunteers, and all supporters",
-        },
-        {
-          id: "donations",
-          label: "Donations",
-          href: "/donations",
-          description: "Gifts, giving history, and activity",
-        },
-        {
-          id: "tasks",
-          label: "Tasks",
-          href: "/tasks",
-          description: "Follow-up tasks and stewardship",
-        },
-        {
-          id: "contacts-manager",
-          label: "Audience Lists",
-          href: "/contacts-manager",
-          description: "Reusable donor audiences",
-        },
-      ],
-    ],
-  },
-  {
-    id: "fundraising",
-    label: "Fundraising",
-    columns: [
-      [
-        {
-          id: "campaigns",
-          label: "Campaigns",
-          href: "/campaigns",
-          description: "Fundraising campaigns and appeals",
-        },
-        {
-          id: "reports",
-          label: "Reports",
-          href: "/reports",
-          description: "Giving, retention, and pipeline",
-        },
-        {
-          id: "grants",
-          label: "Grants",
-          href: "/grants",
-          description: "Grant opportunities and deadlines",
-        },
-        {
-          id: "payments",
-          label: "Payments",
-          href: "/payments",
-          description: "Payment records and transactions",
-        },
-        {
-          id: "designations",
-          label: "Designations",
-          href: "/designations",
-          description: "Fund options used in donation entry",
-        },
-      ],
-    ],
-  },
-  {
-    id: "communications",
-    label: "Communications",
-    href: "/communications",
-    matchPrefixes: ["/communications", "/oyama-email", "/oyama-letters", "/livecom"],
-  },
-  {
-    id: "operations",
-    label: "Operations",
-    columns: [
-      [
-        {
-          id: "meetings",
-          label: "Meetings",
-          href: "/meetings",
-          description: "Donor meetings and touchpoints",
-        },
-        {
-          id: "steward-paths",
-          label: "Steward Paths",
-          href: "/steward-paths",
-          description: "Engagement sequences and workflows",
-        },
-        {
-          id: "livecom",
-          label: "LiveCom Inbox",
-          href: "/livecom/inbox",
-          description: "Live donor chat and inbox",
-        },
-        {
-          id: "steward-signals",
-          label: "Steward Signals",
-          href: "/steward-signals",
-          description: "Donor signals and opportunities",
-        },
-        {
-          id: "agent-steward",
-          label: "Steward Copilot",
-          href: "/steward-ai-workspace",
-          description: "AI-powered CRM assistant",
-          badge: "AI",
-        },
-      ],
-      [
-        {
-          id: "settings",
-          label: "Settings",
-          href: "/settings",
-          description: "Workspace and CRM configuration",
-        },
-        {
-          id: "imports",
-          label: "Imports",
-          href: "/data-tools/import",
-          description: "Import constituents and records",
-        },
-        {
-          id: "data-tools",
-          label: "Data Tools",
-          href: "/data-tools",
-          description: "Quality checks, exports, and merge",
-        },
-        {
-          id: "custom-fields",
-          label: "Custom Fields",
-          href: "/custom-fields",
-          description: "Organization-specific fields",
-        },
-        {
-          id: "help",
-          label: "Help",
-          href: "/help?scope=donor&scopePath=/",
-          description: "Help guides and walkthroughs",
-        },
-      ],
-    ],
-  },
-];
-
-const QB_SYNC_ITEM: NavItem = {
-  id: "qb-sync",
-  label: "QB Sync",
-  href: "/quickbooks-sync",
-  description: "Queue and sync donations to QuickBooks",
-};
-
-const RIBBON_TABS: RibbonTab[] = [
-  { id: "home", label: "Home", href: "/", match: ["/"] },
-  { id: "constituents", label: "Constituents", href: "/constituents", match: ["/constituents", "/contacts-manager", "/volunteers"] },
-  { id: "giving", label: "Giving", href: "/donations", match: ["/donations", "/campaigns", "/grants", "/payments", "/designations", "/quickbooks-sync"] },
-  { id: "outreach", label: "Outreach", href: "/communications", match: ["/communications", "/email-builder", "/oyama-letters", "/livecom", "/meetings", "/steward-paths"] },
-  { id: "reports", label: "Reports", href: "/reports", match: ["/reports", "/steward-signals", "/steward-ai-workspace"] },
-  { id: "data", label: "Data", href: "/data-tools", match: ["/data-tools", "/custom-fields"] },
-  { id: "tools", label: "Tools", href: "/settings", match: ["/settings", "/help", "/steward-paths"] },
-  { id: "view", label: "View", href: "/preferences", match: ["/preferences"] },
-];
-
-const HOME_RIBBON_GROUPS: RibbonCommandGroup[] = [
-  {
-    label: "Create",
-    commands: [
-      { id: "add-constituent", label: "Add Constituent", href: "/constituents/new", icon: "person-add", tone: "green" },
-      { id: "record-donation", label: "Record Donation", href: "/donations?recordGift=1", icon: "gift", tone: "green" },
-      { id: "create-task", label: "Create Task", href: "/tasks", icon: "task", tone: "purple" },
-    ],
-  },
-  {
-    label: "Communicate",
-    commands: [
-      { id: "send-email", label: "Send Email", href: "/communications", icon: "mail", tone: "blue" },
-      { id: "create-letter", label: "Create Letter", href: "/oyama-letters", icon: "document", tone: "blue" },
-      { id: "add-campaign", label: "Add to Campaign", href: "/campaigns", icon: "megaphone", tone: "blue" },
-    ],
-  },
-  {
-    label: "Data & Import",
-    commands: [
-      { id: "import-data", label: "Import Data", href: "/data-tools/import", icon: "import", tone: "orange" },
-      { id: "data-quality", label: "Data Quality", href: "/data-tools", icon: "database", tone: "orange" },
-      { id: "dedupe", label: "Deduplicate Manager", href: "/contacts-manager", icon: "people-check", tone: "orange" },
-    ],
-  },
-  {
-    label: "Analyze",
-    commands: [
-      { id: "view-reports", label: "View Reports", href: "/reports", icon: "bar-chart", tone: "teal" },
-      { id: "dashboard-analytics", label: "Dashboard Analytics", href: "/", icon: "pie-chart", tone: "teal" },
-      { id: "giving-trends", label: "Giving Trends", href: "/reports", icon: "line-chart", tone: "teal" },
-    ],
-  },
-  {
-    label: "Manage",
-    commands: [
-      { id: "steward-paths", label: "Steward Paths", href: "/steward-paths", icon: "path", tone: "purple" },
-      { id: "designations", label: "Designations", href: "/designations", icon: "tag", tone: "purple" },
-      { id: "settings", label: "Settings", href: "/settings", icon: "settings", tone: "purple" },
-    ],
-  },
-  {
-    label: "Quick Actions",
-    commands: [
-      { id: "favorites", label: "Favorites", href: "/preferences", icon: "star", tone: "amber" },
-      { id: "help", label: "More", href: "/help?scope=donor&scopePath=/", icon: "more", tone: "slate" },
-    ],
-  },
-];
-
-// ── Helper icons ─────────────────────────────────────────────────────────────
-
-function ChevronDown({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={`h-3 w-3 flex-shrink-0 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  );
-}
-
-/** Section-level icon glyphs sourced from the donor icon pack. */
-function NavGlyph({ id }: { id: string }) {
-  const slugById: Record<string, string> = {
-    dashboard: "donor-dashboard",
-    donors: "constituents",
-    fundraising: "campaigns",
-    communications: "communications",
-    operations: "settings",
-  };
-
-  const slug = slugById[id];
-
-  if (slug) {
-    return <OyamaDonorPackIcon slug={slug} size={16} className="h-4 w-4 rounded-full" alt="" />;
-  }
-
-  return (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-    </svg>
-  );
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
+import type { CrmSidebarItem } from "./CrmSidebar";
+import { buildDonorDailyNavigation, isDonorNavigationItemVisible, resolveDonorNavigationActiveItem } from "./sidebar-configs";
+import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
+import type { DonorAccentTone } from "@/app/lib/workspace-settings";
 
 interface DonorMegaMenuProps {
   donorAccentTone?: DonorAccentTone;
@@ -329,483 +18,86 @@ interface DonorMegaMenuProps {
   scrolled?: boolean;
 }
 
-interface DarkAccentTheme {
-  navActive: string;
-  navRing: string;
-  navText: string;
-  navTextStrong: string;
-  iconTint: string;
-  iconTintSoft: string;
-  iconBorder: string;
-  badge: string;
-}
-
-const DARK_ACCENT_THEMES: Record<DonorAccentTone, DarkAccentTheme> = {
-  green: {
-    navActive: "bg-[#0f6cbd]/25",
-    navRing: "ring-1 ring-[#60cdff]/60 border-[#3a96dd]",
-    navText: "text-[#bde7ff]",
-    navTextStrong: "text-white",
-    iconTint: "text-[#bde7ff]",
-    iconTintSoft: "bg-[#0f6cbd]/30",
-    iconBorder: "border-[#3a96dd]/70",
-    badge: "bg-[#0f6cbd]/35 text-[#d8f2ff] ring-1 ring-[#60cdff]/30",
-  },
-  blue: {
-    navActive: "bg-blue-500/20",
-    navRing: "ring-1 ring-blue-300/50 border-blue-400/70",
-    navText: "text-blue-100",
-    navTextStrong: "text-white",
-    iconTint: "text-blue-200",
-    iconTintSoft: "bg-blue-500/20",
-    iconBorder: "border-blue-400/60",
-    badge: "bg-blue-500/20 text-blue-100 ring-1 ring-blue-300/30",
-  },
-  teal: {
-    navActive: "bg-teal-500/20",
-    navRing: "ring-1 ring-teal-300/50 border-teal-400/70",
-    navText: "text-teal-100",
-    navTextStrong: "text-white",
-    iconTint: "text-teal-200",
-    iconTintSoft: "bg-teal-500/20",
-    iconBorder: "border-teal-400/60",
-    badge: "bg-teal-500/20 text-teal-100 ring-1 ring-teal-300/30",
-  },
-  amber: {
-    navActive: "bg-amber-500/20",
-    navRing: "ring-1 ring-amber-300/50 border-amber-400/70",
-    navText: "text-amber-100",
-    navTextStrong: "text-white",
-    iconTint: "text-amber-200",
-    iconTintSoft: "bg-amber-500/20",
-    iconBorder: "border-amber-400/60",
-    badge: "bg-amber-500/20 text-amber-100 ring-1 ring-amber-300/30",
-  },
-};
-
-export default function DonorMegaMenu({ donorAccentTone = "blue", chromeTint }: DonorMegaMenuProps) {
-  const [openSection, setOpenSection] = useState<string | null>(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobileSectionId, setMobileSectionId] = useState<string | null>(null);
-  const [dropdownAnchor, setDropdownAnchor] = useState<DOMRect | null>(null);
-  const [mounted, setMounted] = useState(false);
+export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
   const { qbEnabled } = usePlugins();
-  const accentTheme = DARK_ACCENT_THEMES[donorAccentTone] ?? DARK_ACCENT_THEMES.blue;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const groups = useMemo(() => buildDonorDailyNavigation({ qbEnabled }).map((group) => ({
+    ...group,
+    items: group.items.filter((item) => isDonorNavigationItemVisible(item, user)),
+  })).filter((group) => group.items.length), [qbEnabled, user]);
+  const activeItem = resolveDonorNavigationActiveItem(groups, pathname);
 
-  // Build the full nav sections, injecting QB Sync into Fundraising when enabled.
-  const navSections: NavSection[] = useMemo(() => BASE_NAV_SECTIONS.map((section) => {
-    if (section.id === "fundraising" && qbEnabled) {
-      return {
-        ...section,
-        columns: section.columns
-          ? [[...section.columns[0], QB_SYNC_ITEM], ...(section.columns.slice(1))]
-          : [[QB_SYNC_ITEM]],
-      };
-    }
-    return section;
-  }), [qbEnabled]);
-
-  // Track client mount for portal rendering.
+  useDialogFocus(dialogRef, mobileOpen, () => setMobileOpen(false));
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
   useEffect(() => {
-    setMounted(true);
+    const toggle = () => setMobileOpen((current) => !current);
+    window.addEventListener("crm:toggle-donor-nav", toggle);
+    return () => window.removeEventListener("crm:toggle-donor-nav", toggle);
+  }, []);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const closeOnDesktop = () => { if (desktop.matches) setMobileOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
   }, []);
 
-  // Close on route change.
-  useEffect(() => {
-    setOpenSection(null);
-    setMobileNavOpen(false);
-    setMobileSectionId(null);
-    setDropdownAnchor(null);
-  }, [pathname]);
-
-  // The compact DonorCRM header owns the mobile trigger; keep the menu state here
-  // so the same information architecture is used on every donor route.
-  useEffect(() => {
-    function toggleMobileNavigation() {
-      setMobileNavOpen((current) => !current);
-      setMobileSectionId(null);
-    }
-
-    window.addEventListener("crm:toggle-donor-nav", toggleMobileNavigation);
-    return () => window.removeEventListener("crm:toggle-donor-nav", toggleMobileNavigation);
-  }, []);
-
-  // Production polish: close transient panels when the viewport changes or Escape is pressed.
-  useEffect(() => {
-    if (!openSection) return;
-
-    function closeDropdown() {
-      setOpenSection(null);
-      setDropdownAnchor(null);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeDropdown();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", closeDropdown);
-    document.addEventListener("scroll", closeDropdown, true);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", closeDropdown);
-      document.removeEventListener("scroll", closeDropdown, true);
-    };
-  }, [openSection]);
-
-  // Keep mobile menus stable and dismissible on small screens.
-  useEffect(() => {
-    if (!mobileNavOpen && !mobileSectionId) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMobileNavOpen(false);
-        setMobileSectionId(null);
-      }
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [mobileNavOpen, mobileSectionId]);
-
-  /**
-   * Returns true if the given section contains the current pathname
-   * (used to highlight the active top-nav button).
-   */
-  function isSectionActive(section: NavSection): boolean {
-    if (section.href) {
-      return pathname === section.href || section.matchPrefixes?.some((prefix) => pathname.startsWith(prefix)) || false;
-    }
-    const allHrefs = section.columns?.flat().map((i) => i.href) ?? [];
-    return allHrefs.some((h) => pathname === h || pathname.startsWith(h.split("?")[0] + "/"));
+  function navigation(mobile: boolean) {
+    const itemLink = (item: CrmSidebarItem) => (
+      <Link key={item.id} href={item.href} aria-current={activeItem === item.id ? "page" : undefined}
+        onClick={() => setMobileOpen(false)}
+        className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${activeItem === item.id ? "bg-white/15 font-semibold text-white ring-1 ring-white/20" : "text-slate-200 hover:bg-white/10 hover:text-white"}`}>
+        <span className="h-[18px] w-[18px] shrink-0" aria-hidden="true">{item.icon}</span>
+        <span>{item.label}</span>
+      </Link>
+    );
+    return (
+      <nav aria-label={mobile ? "Mobile Donor CRM" : "Donor CRM"} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        {groups.map((group) => group.collapsible ? (
+          <details key={`${group.id}-${pathname}`} open={group.items.some((item) => item.id === activeItem)} className="group border-t border-white/10 pt-2">
+            <summary tabIndex={0} className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 text-xs font-semibold text-slate-300 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 [&::-webkit-details-marker]:hidden">
+              {group.label}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <div className="mt-1 space-y-1">{group.items.map(itemLink)}</div>
+          </details>
+        ) : (
+          <div key={group.id} className="space-y-1">
+            <p className="px-3 pb-2 pt-1 text-xs font-semibold text-slate-300">{group.label}</p>
+            {group.items.map(itemLink)}
+          </div>
+        ))}
+      </nav>
+    );
   }
 
-  // Compute portal position for open dropdown.
-  const activeSectionForPortal = openSection ? navSections.find((s) => s.id === openSection) : null;
-  const activeMobileSection = mobileSectionId ? navSections.find((s) => s.id === mobileSectionId) : null;
-  const portalColCount = activeSectionForPortal?.columns?.length ?? 1;
-  const portalMinWidth = portalColCount > 1 ? 560 : 320;
-  const portalLeft = dropdownAnchor
-    ? Math.max(8, Math.min(dropdownAnchor.right + 8, window.innerWidth - portalMinWidth - 8))
-    : 0;
-  const portalId = activeSectionForPortal ? `donor-mega-menu-${activeSectionForPortal.id}` : undefined;
-
+  const railStyle = { backgroundColor: chromeTint?.dark ?? "#242424", borderColor: chromeTint?.border ?? "#424242" };
   return (
     <>
-    {mobileNavOpen ? (
-      <div className="fixed inset-0 z-[52] md:hidden" role="dialog" aria-modal="true" aria-label="DonorCRM navigation">
-        <button
-          type="button"
-          aria-label="Close DonorCRM navigation"
-          onClick={() => setMobileNavOpen(false)}
-          className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
-        />
-        <div
-          className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
-          style={chromeTint ? { background: `linear-gradient(165deg, ${chromeTint.dark}, ${chromeTint.mid} 58%, ${chromeTint.base})`, borderColor: chromeTint.border } : { background: "#292929", borderColor: "#4b4b4b" }}
-        >
-          <div className="mx-auto max-w-xl">
-            <div className="mb-3 flex items-center justify-between gap-3 px-1">
-              <div>
-                <p className="text-sm font-semibold text-white">DonorCRM</p>
-                <p className="mt-0.5 text-xs text-slate-300">Navigate records, fundraising, outreach, and administration.</p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={() => setMobileNavOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200 transition-colors hover:bg-white/[0.12] hover:text-white"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
+      <aside style={railStyle} className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r md:flex">
+        {navigation(false)}
+        <button type="button" onClick={() => window.dispatchEvent(new Event("crm:focus-topbar-search"))}
+          className="m-3 flex min-h-11 items-center gap-3 rounded-lg border border-white/20 px-3 text-sm text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+          <Search className="h-4 w-4" aria-hidden="true" />Search CRM
+        </button>
+      </aside>
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-[65] md:hidden">
+          <div className="absolute inset-0 bg-slate-950/45" onClick={() => setMobileOpen(false)} />
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Donor CRM navigation" tabIndex={-1}
+            style={railStyle} className="relative flex h-full w-[min(320px,90vw)] flex-col border-r pb-[env(safe-area-inset-bottom)] text-white">
+            <div className="flex min-h-14 items-center justify-between border-b border-white/15 px-4">
+              <span className="text-sm font-semibold">Donor CRM</span>
+              <button type="button" data-modal-autofocus onClick={() => setMobileOpen(false)} aria-label="Close navigation"
+                className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {navSections.map((section) => {
-                const active = isSectionActive(section);
-                const sectionClass = active
-                  ? "border-[#3a96dd] bg-white/10 text-white"
-                  : "border-white/10 bg-white/[0.035] text-slate-100 hover:border-white/20 hover:bg-white/[0.08]";
-
-                if (section.href) {
-                  return (
-                    <Link
-                      key={section.id}
-                      href={section.href}
-                      onClick={() => setMobileNavOpen(false)}
-                      className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${sectionClass}`}
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-[#cfe4fa]">
-                        <NavGlyph id={section.id} />
-                      </span>
-                      <span className="text-sm font-semibold">{section.label}</span>
-                    </Link>
-                  );
-                }
-
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    aria-haspopup="dialog"
-                    onClick={() => {
-                      setMobileNavOpen(false);
-                      setMobileSectionId(section.id);
-                    }}
-                    className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${sectionClass}`}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-[#cfe4fa]">
-                      <NavGlyph id={section.id} />
-                    </span>
-                    <span className="min-w-0 flex-1 text-sm font-semibold">{section.label}</span>
-                    <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" />
-                    </svg>
-                  </button>
-                );
-              })}
-            </div>
+            {navigation(true)}
           </div>
         </div>
-      </div>
-    ) : null}
-
-    <nav
-      aria-label="DonorCRM primary navigation"
-      className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r md:flex shadow-[12px_0_30px_rgba(0,0,0,0.12)]"
-      style={chromeTint ? { background: `linear-gradient(180deg, ${chromeTint.mid}, ${chromeTint.dark} 76%)`, borderColor: chromeTint.border } : { background: "#292929", borderColor: "#4b4b4b" }}
-    >
-      <div className="border-b border-white/10 bg-white/[0.025] px-4 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">DonorCRM</p>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[#3a96dd] shadow-[0_0_10px_rgba(58,150,221,0.8)]" aria-hidden="true" />
-          <p className="text-sm font-semibold text-white">Fundraising workspace</p>
-        </div>
-      </div>
-      <div className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
-        <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Workspaces</p>
-        {navSections.map((section) => {
-          const active = isSectionActive(section);
-          const open = openSection === section.id;
-          const itemClass = active || open
-            ? "border-[#3a96dd]/80 bg-[#0f6cbd]/25 text-white shadow-[inset_3px_0_0_#60cdff,0_8px_18px_rgba(0,0,0,0.12)]"
-            : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.07] hover:text-white";
-
-          if (section.href) {
-            return (
-              <Link
-                key={section.id}
-                href={section.href}
-                className={`relative flex min-h-11 items-center gap-3 rounded-xl border px-3 text-[13px] font-semibold transition-all ${itemClass}`}
-              >
-                {active ? <span className="absolute inset-y-1 left-0 w-0.5 bg-[#3a96dd]" aria-hidden="true" /> : null}
-                <span className="text-slate-300"><NavGlyph id={section.id} /></span>
-                {section.label}
-              </Link>
-            );
-          }
-
-          return (
-            <button
-              key={section.id}
-              type="button"
-              onClick={(event) => {
-                if (open) {
-                  setOpenSection(null);
-                  setDropdownAnchor(null);
-                } else {
-                  setDropdownAnchor(event.currentTarget.getBoundingClientRect());
-                  setOpenSection(section.id);
-                }
-              }}
-              aria-expanded={open}
-              aria-haspopup="menu"
-              aria-controls={open ? `donor-mega-menu-${section.id}` : undefined}
-              className={`relative flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 text-left text-[13px] font-semibold transition-all ${itemClass}`}
-            >
-              {active || open ? <span className="absolute inset-y-1 left-0 w-0.5 bg-[#3a96dd]" aria-hidden="true" /> : null}
-              <span className="text-slate-300"><NavGlyph id={section.id} /></span>
-              <span className="flex-1">{section.label}</span>
-              <ChevronDown open={open} />
-            </button>
-          );
-        })}
-      </div>
-      <div className="border-t border-white/10 bg-black/10 p-3">
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("crm:focus-topbar-search"))}
-          className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-left text-xs font-medium text-slate-300 transition-all hover:border-[#3a96dd]/60 hover:bg-[#0f6cbd]/20 hover:text-white"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" d="m20 20-4.2-4.2M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" /></svg>
-          Search DonorCRM
-          <span className="ml-auto text-[10px] text-slate-500">Ctrl K</span>
-        </button>
-      </div>
-    </nav>
-
-    {activeMobileSection?.columns ? (
-      <div className="fixed inset-0 z-[50] md:hidden" role="dialog" aria-modal="true" aria-label={`${activeMobileSection.label} navigation`}>
-        <button
-          type="button"
-          aria-label={`Close ${activeMobileSection.label} navigation`}
-          onClick={() => setMobileSectionId(null)}
-          className="absolute inset-0 bg-slate-950/25 backdrop-blur-[2px]"
-        />
-        <div className="absolute inset-x-2 bottom-2 flex max-h-[82dvh] flex-col overflow-hidden rounded-2xl border border-[#4b4b4b] bg-[#242424] text-slate-100 shadow-[0_28px_80px_rgba(0,0,0,0.48)] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[radial-gradient(circle_at_10%_0%,rgba(58,150,221,0.18),transparent_34%),linear-gradient(90deg,#292929,#202020)] px-4 py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
-                <NavGlyph id={activeMobileSection.id} />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{activeMobileSection.label}</p>
-                <p className="truncate text-xs text-slate-400">Choose a donor workspace or workflow.</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              aria-label="Close menu"
-              onClick={() => setMobileSectionId(null)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-300 shadow-sm transition-colors hover:bg-white/[0.12] hover:text-white"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-            {activeMobileSection.columns.flat().map((item) => {
-              const itemActive =
-                pathname === item.href ||
-                pathname.startsWith(item.href.split("?")[0] + "/");
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  onClick={() => setMobileSectionId(null)}
-                  className={`group flex items-start gap-3 rounded-xl border px-3 py-3 transition-colors ${
-                    itemActive
-                      ? `${accentTheme.navRing} ${accentTheme.navActive} ${accentTheme.navText}`
-                      : "border-white/10 text-slate-200 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-white/[0.06] text-slate-400 group-hover:bg-white/[0.12] group-hover:text-slate-200"}`}>
-                    <NavGlyph id={activeMobileSection.id} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className={`flex items-center gap-1.5 text-sm font-semibold leading-tight ${itemActive ? accentTheme.navTextStrong : "text-slate-100"}`}>
-                      <span className="truncate">{item.label}</span>
-                      {item.badge ? (
-                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.badge}`}>
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </span>
-                    {item.description ? (
-                    <span className="mt-0.5 block text-xs leading-snug text-slate-400">{item.description}</span>
-                    ) : null}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    ) : null}
-
-    {/* Portal: dropdown panel rendered in document.body to escape overflow-x-auto clipping */}
-    {mounted && activeSectionForPortal?.columns && dropdownAnchor && createPortal(
-      <>
-        {/* Backdrop — closes dropdown on outside click */}
-        <div
-          className="fixed inset-0 z-[48]"
-          onClick={() => { setOpenSection(null); setDropdownAnchor(null); }}
-        />
-        {/* Dropdown panel */}
-        <div
-          style={{
-            position: "fixed",
-            top: dropdownAnchor.top,
-            left: portalLeft,
-            minWidth: portalMinWidth,
-            maxWidth: "calc(100vw - 16px)",
-            zIndex: 49,
-          }}
-          id={portalId}
-          role="menu"
-          aria-label={`${activeSectionForPortal.label} navigation`}
-          className="overflow-hidden rounded-2xl border border-[#4b4b4b] bg-[#242424] text-slate-100 shadow-[0_28px_80px_rgba(0,0,0,0.5)]"
-        >
-          {/* Panel header */}
-          <div className="border-b border-white/10 bg-[radial-gradient(circle_at_15%_0%,rgba(58,150,221,0.18),transparent_34%),linear-gradient(90deg,#292929,#202020)] px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm ${accentTheme.iconBorder} ${accentTheme.iconTintSoft} ${accentTheme.iconTint}`}>
-                <NavGlyph id={activeSectionForPortal.id} />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-white">{activeSectionForPortal.label}</p>
-                <p className="text-xs text-slate-400">Open the canonical donor workspace or workflow.</p>
-              </div>
-            </div>
-          </div>
-          {/* Item columns */}
-          <div className={`grid gap-2 p-3 ${portalColCount > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-            {activeSectionForPortal.columns.map((col, colIdx) => (
-              <div key={colIdx} className="flex flex-col gap-1" role="presentation">
-                {col.map((item) => {
-                  const itemActive =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href.split("?")[0] + "/");
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      onClick={() => { setOpenSection(null); setDropdownAnchor(null); }}
-                      role="menuitem"
-                      className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-                        itemActive
-                          ? `${accentTheme.navRing} ${accentTheme.navActive} ${accentTheme.navText}`
-                        : "border-transparent text-slate-200 hover:border-white/15 hover:bg-white/[0.07] hover:text-white"
-                      }`}
-                    >
-                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${itemActive ? `${accentTheme.iconTintSoft} ${accentTheme.iconTint}` : "bg-white/[0.06] text-slate-400 group-hover:bg-white/[0.12] group-hover:text-slate-200"}`}>
-                        <NavGlyph id={activeSectionForPortal.id} />
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-sm font-medium leading-tight ${itemActive ? accentTheme.navTextStrong : "text-slate-100"}`}>
-                            {item.label}
-                          </span>
-                          {item.badge && (
-                            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${accentTheme.badge}`}>
-                              {item.badge}
-                            </span>
-                          )}
-                        </div>
-                        {item.description && (
-                          <p className="mt-0.5 text-xs leading-snug text-slate-400">{item.description}</p>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      </>,
-      document.body
-    )}
+      ) : null}
     </>
   );
 }

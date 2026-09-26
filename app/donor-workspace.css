@@ -1,0 +1,43 @@
+@layer components {
+/* Scoped to redesigned Donor CRM browse surfaces; entry forms and other products keep their styles. */
+.donor-daily-workspace {
+  min-width: 0;
+  padding-top: 1rem;
+}
+.donor-daily-workspace .donor-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border: 1px solid var(--crm-border);
+  border-radius: .5rem;
+  padding: .5rem .875rem;
+  background: var(--crm-surface);
+  color: var(--foreground);
+  font-size: .875rem;
+  font-weight: 600;
+}
+.donor-daily-workspace .donor-button:hover { background: var(--crm-accent-soft); }
+.donor-daily-workspace .donor-button-primary {
+  border-color: var(--crm-accent);
+  background: var(--crm-accent);
+  color: white;
+}
+.donor-daily-workspace .donor-button-primary:hover { filter: brightness(.92); background: var(--crm-accent); }
+.donor-daily-workspace :is(button,a,summary,input,select):focus-visible {
+  outline: 2px solid var(--crm-accent);
+  outline-offset: 3px;
+}
+.donor-daily-workspace button:disabled { cursor: not-allowed; opacity: .5; }
+.donor-daily-workspace .crm-page-header-surface { box-shadow: none; background: var(--crm-surface); }
+.donor-daily-workspace .crm-card-surface { box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .donor-daily-workspace *, .donor-daily-workspace *::before, .donor-daily-workspace *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+}

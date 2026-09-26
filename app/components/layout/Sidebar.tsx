@@ -6,7 +6,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import CrmSidebar from "@/app/components/layout/CrmSidebar";
 import CrmBrandLockup from "@/app/components/layout/CrmBrandLockup";
-import { buildDonorSidebarGroups } from "@/app/components/layout/sidebar-configs";
+import { buildDonorDailyNavigation, isDonorNavigationItemVisible } from "@/app/components/layout/sidebar-configs";
 import type { DonorAccentTone } from "@/app/lib/workspace-settings";
 import type { DashboardChromeTint } from "@/app/lib/dashboard-image-tint";
 
@@ -23,7 +23,9 @@ export default function Sidebar({ forceExpanded = false, donorAccentTone = "gree
   const { qbEnabled } = usePlugins();
   const { user } = useAuth();
 
-  const groups = useMemo(() => buildDonorSidebarGroups({ qbEnabled }), [qbEnabled]);
+  const groups = useMemo(() => buildDonorDailyNavigation({ qbEnabled }).map((group) => ({
+    ...group, items: group.items.filter((item) => isDonorNavigationItemVisible(item, user)),
+  })), [qbEnabled, user]);
 
   return (
     <CrmSidebar

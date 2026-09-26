@@ -1,0 +1,215 @@
+{
+  "fixtureMode": true,
+  "checks": [
+    {
+      "id": "dashboard",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "constituents",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "donations",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-individual",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-organization",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-household",
+      "width": 390,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "dashboard",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "constituents",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "donations",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-individual",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-organization",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-household",
+      "width": 768,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "dashboard",
+      "width": 1024,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "constituents",
+      "width": 1024,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "donations",
+      "width": 1024,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-individual",
+      "width": 1024,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-organization",
+      "width": 1024,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-household",
+      "width": 1024,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "dashboard",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "constituents",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "donations",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-individual",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-organization",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "profile-household",
+      "width": 1440,
+      "pageOverflow": false,
+      "mainOverflow": false,
+      "headingCount": 1
+    },
+    {
+      "id": "dashboard-search-and-customization",
+      "passed": true
+    },
+    {
+      "id": "directory-columns-sorting-selection-quick-views",
+      "passed": true
+    },
+    {
+      "id": "profile-individual-secondary-panels-and-gift-entry",
+      "passed": true
+    },
+    {
+      "id": "profile-organization-secondary-panels-and-gift-entry",
+      "passed": true
+    },
+    {
+      "id": "profile-household-secondary-panels-and-gift-entry",
+      "passed": true
+    },
+    {
+      "id": "restricted-profile-communication-guard",
+      "passed": true
+    },
+    {
+      "id": "donations-acknowledgment-modal-and-legacy-route",
+      "passed": true
+    },
+    {
+      "id": "mobile-navigation-focus-and-route-dismissal",
+      "passed": true
+    },
+    {
+      "id": "directory-error-retry-and-empty-search",
+      "passed": true
+    },
+    {
+      "id": "directory-stale-search-response-protection",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "missingSamples": []
+}

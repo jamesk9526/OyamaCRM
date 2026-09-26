@@ -1,6 +1,6 @@
 // Central sidebar configuration maps for Donor, Events, and Watchdog modules.
 
-import type { CrmSidebarGroup, SidebarItemBadge } from "@/app/components/layout/CrmSidebar";
+import { isSidebarItemActive, isSidebarItemVisible, type CrmSidebarGroup, type CrmSidebarItem, type SidebarItemBadge } from "@/app/components/layout/CrmSidebar";
 import OyamaGradientIcon from "@/app/components/ui/OyamaGradientIcon";
 import OyamaAdvancedIcon from "@/app/components/ui/OyamaAdvancedIcon";
 import OyamaDonorPackIcon from "@/app/components/ui/OyamaDonorPackIcon";
@@ -323,6 +323,52 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       defaultOpen: false,
       collapsible: true,
       items: systemItems,
+    },
+  ];
+}
+
+export function isDonorNavigationItemVisible(item: CrmSidebarItem, user: { role: string; permissions?: string[] } | null): boolean {
+  return Boolean(user && isSidebarItemVisible(item, user.role)
+    && (!item.permissions?.length || item.permissions.every((permission) => user.permissions?.includes(permission))));
+}
+
+/** Prefer a specific destination over its parent, e.g. Imports over Data Tools. */
+export function resolveDonorNavigationActiveItem(groups: CrmSidebarGroup[], pathname: string): string | undefined {
+  return groups.flatMap((group) => group.items)
+    .filter((item) => isSidebarItemActive(item, pathname, ""))
+    .sort((a, b) => (b.activePath ?? b.href).length - (a.activePath ?? a.href).length)[0]?.id;
+}
+
+/** Canonical daily navigation, shared by desktop and mobile Donor CRM surfaces. */
+export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSidebarGroup[] {
+  const items = buildDonorSidebarGroups(options).flatMap((group) => group.items);
+  const take = (ids: string[]) => ids.flatMap((id) => items.filter((item) => item.id === id));
+  return [
+    {
+      id: "daily", label: "Donor CRM", collapsible: false, defaultOpen: true,
+      items: [
+        ...take(["dashboard", "constituents", "donations", "tasks", "campaigns", "reports"]),
+        { id: "communications", label: "Communications", href: "/communications", icon: DONOR_ICONS.communications, permissions: ["view:communications"] },
+      ],
+    },
+    {
+      id: "fundraising", label: "Fundraising", collapsible: true, defaultOpen: false,
+      items: take(["grants", "payments", "designations", "qb-sync"]),
+    },
+    {
+      id: "stewardship", label: "Stewardship", collapsible: true, defaultOpen: false,
+      items: [
+        ...take(["donor-research", "steward-signals", "meetings", "oyama-email", "oyama-letters", "template-convert", "qr-codes", "steward-paths", "livecom", "volunteers", "events"]),
+        { id: "contacts-manager", label: "Audience Lists", href: "/contacts-manager", icon: DONOR_ICONS.contactsManager },
+        { id: "agent-steward", label: "Steward Copilot", href: "/steward-ai-workspace", icon: DONOR_ICONS.agentSteward },
+      ],
+    },
+    {
+      id: "administration", label: "Administration", collapsible: true, defaultOpen: false,
+      items: [
+        ...take(["notifications", "settings", "data-tools", "custom-fields", "help"]),
+        { id: "imports", label: "Imports", href: "/data-tools/import", icon: DONOR_ICONS.dataTools },
+      ],
     },
   ];
 }

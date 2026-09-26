@@ -128,3 +128,30 @@ export function getSectionSourceFields(sectionId: EventPageSectionId): string[] 
 export function getSectionDefinition(sectionId: EventPageSectionId): EventPageSectionDefinition {
   return EVENT_PAGE_SECTION_DEFINITIONS.find((section) => section.id === sectionId) ?? EVENT_PAGE_SECTION_DEFINITIONS[0];
 }
+
+export function mergeEventPageSections(savedSections: EventPageSectionState[] | null | undefined): EventPageSectionState[] {
+  const defaults = createDefaultEventPageSectionState();
+  if (!Array.isArray(savedSections) || savedSections.length === 0) return defaults;
+
+  const defaultById = new Map(defaults.map((section) => [section.id, section]));
+  const savedIds = new Set(savedSections.map((section) => section.id));
+  return [
+    ...savedSections.map((section) => ({
+      ...(defaultById.get(section.id) ?? section),
+      ...section,
+      content: {
+        ...(defaultById.get(section.id)?.content ?? {}),
+        ...(section.content ?? {}),
+      },
+      design: {
+        ...(defaultById.get(section.id)?.design ?? {}),
+        ...(section.design ?? {}),
+      },
+      advanced: {
+        ...(defaultById.get(section.id)?.advanced ?? {}),
+        ...(section.advanced ?? {}),
+      },
+    })),
+    ...defaults.filter((section) => !savedIds.has(section.id)).map((section) => ({ ...section, enabled: false })),
+  ];
+}

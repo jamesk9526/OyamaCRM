@@ -7,6 +7,8 @@ import { Check, RefreshCw, Save, TriangleAlert } from "lucide-react";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 
+import { EventDetailsFields, eventDetailsPayload } from "@/app/components/events/creator/event-forms";
+
 interface EventSettingsRecord {
   id: string;
   name: string;
@@ -113,6 +115,7 @@ export default function EventSettingsPage() {
         method: "PATCH",
         body: JSON.stringify({
           ...form,
+          ...eventDetailsPayload(form),
           name: form.name.trim(),
           description: form.description?.trim() || null,
           location: form.location?.trim() || null,
@@ -122,8 +125,8 @@ export default function EventSettingsPage() {
           zip: form.zip?.trim() || null,
           virtualUrl: form.virtualUrl?.trim() || null,
           internalNotes: form.internalNotes?.trim() || null,
-          endDate: form.endDate || null,
-          registrationDeadline: form.registrationDeadline || null,
+          endDate: form.endDate ? new Date(form.endDate).toISOString() : null,
+          registrationDeadline: form.registrationDeadline ? new Date(form.registrationDeadline).toISOString() : null,
           capacity: form.capacity === "" ? null : Number(form.capacity),
           registrationGoal: form.registrationGoal === "" ? null : Number(form.registrationGoal),
           revenueGoal: form.revenueGoal === "" ? null : Number(form.revenueGoal),
@@ -157,20 +160,15 @@ export default function EventSettingsPage() {
         <section className="event-industrial-panel p-5 sm:p-6">
           <div className="event-industrial-section-heading"><div><p>01 / Identity</p><h2>Public event details</h2></div><span>{record.type.replaceAll("_", " ")}</span></div>
           <div className="mt-5 grid gap-5">
-            <label className={labelClass}>Event name<input required maxLength={160} value={form.name} onChange={(event) => patch("name", event.target.value)} className={inputClass} /></label>
-            <label className={labelClass}>Description<textarea rows={4} maxLength={10_000} value={form.description ?? ""} onChange={(event) => patch("description", event.target.value)} className={`${inputClass} resize-y py-3`} /></label>
+            <EventDetailsFields value={form} onChange={(value) => setForm((current) => current ? { ...current, ...value } : current)} />
             <div className="grid gap-4 sm:grid-cols-2"><label className={labelClass}>Lifecycle<select value={form.status} onChange={(event) => patch("status", event.target.value)} className={inputClass}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="REGISTRATION_OPEN">Registration open</option><option value="REGISTRATION_CLOSED">Registration closed</option><option value="IN_PROGRESS">In progress</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></label><label className={labelClass}>Visibility<select value={form.visibility} onChange={(event) => patch("visibility", event.target.value)} className={inputClass}><option value="PUBLIC">Public</option><option value="PRIVATE">Private</option><option value="INVITE_ONLY">Invite only</option></select></label></div>
           </div>
         </section>
 
         <section className="event-industrial-panel p-5 sm:p-6">
           <div className="event-industrial-section-heading"><div><p>02 / Schedule</p><h2>Operating window</h2></div></div>
-          <div className="mt-5 grid gap-4"><label className={labelClass}>Starts<input required type="datetime-local" value={form.startDate} onChange={(event) => patch("startDate", event.target.value)} className={inputClass} /></label><label className={labelClass}>Ends<input type="datetime-local" min={form.startDate} value={form.endDate ?? ""} onChange={(event) => patch("endDate", event.target.value)} className={inputClass} /></label><label className={labelClass}>Registration deadline<input type="datetime-local" max={form.startDate} value={form.registrationDeadline ?? ""} onChange={(event) => patch("registrationDeadline", event.target.value)} className={inputClass} /></label></div>
-        </section>
+          <label className={`${labelClass} mt-5 block`}>Registration deadline<input type="datetime-local" max={form.startDate} value={form.registrationDeadline ?? ""} onChange={(event) => patch("registrationDeadline", event.target.value)} className={inputClass} /></label>
 
-        <section className="event-industrial-panel p-5 sm:p-6">
-          <div className="event-industrial-section-heading"><div><p>03 / Venue</p><h2>Location and access</h2></div></div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className={`${labelClass} sm:col-span-2`}>Venue name<input maxLength={255} value={form.location ?? ""} onChange={(event) => patch("location", event.target.value)} className={inputClass} /></label><label className={`${labelClass} sm:col-span-2`}>Street address<input maxLength={255} value={form.address ?? ""} onChange={(event) => patch("address", event.target.value)} className={inputClass} /></label><label className={labelClass}>City<input maxLength={120} value={form.city ?? ""} onChange={(event) => patch("city", event.target.value)} className={inputClass} /></label><div className="grid grid-cols-[1fr_110px] gap-3"><label className={labelClass}>State<input maxLength={80} value={form.state ?? ""} onChange={(event) => patch("state", event.target.value)} className={inputClass} /></label><label className={labelClass}>ZIP<input maxLength={24} value={form.zip ?? ""} onChange={(event) => patch("zip", event.target.value)} className={inputClass} /></label></div><label className={`${labelClass} sm:col-span-2`}>Virtual event URL<input type="url" value={form.virtualUrl ?? ""} onChange={(event) => patch("virtualUrl", event.target.value)} placeholder="https://" className={inputClass} /></label></div>
         </section>
 
         <section className="event-industrial-panel p-5 sm:p-6">

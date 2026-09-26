@@ -4,6 +4,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Monitor, MousePointer2, Smartphone, Tablet } from "lucide-react";
 import PublicEventRegistrationForm from "@/app/components/events/public/PublicEventRegistrationForm";
+import EventBrandLogo from "@/app/components/events/public/EventBrandLogo";
 import { getSectionDefinition } from "@/app/components/events/page-builder/section-config";
 import type {
   EventBuilderSponsor,
@@ -182,7 +183,7 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
       <div className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-5">
         <nav className="flex items-center justify-between gap-2 border-b border-slate-200 pb-4 text-xs" aria-label="Event page">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            {data.branding?.logoUrl || data.branding?.logoSquareUrl ? <img src={data.branding.logoUrl || data.branding.logoSquareUrl} alt={`${organizationName(data)} logo`} className="h-8 max-w-28 shrink-0 object-contain object-left sm:h-9 sm:max-w-36" /> : <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 font-bold text-slate-700 sm:h-9 sm:w-9">{organizationName(data).split(" ").map((word: string) => word[0] ?? "").slice(0, 2).join("").toUpperCase() || "EV"}</div>}
+            <EventBrandLogo name={organizationName(data)} primaryUrl={data.branding?.logoUrl} secondaryUrl={data.branding?.logoSquareUrl} className="h-8 max-w-28 shrink-0 object-contain object-left sm:h-9 sm:max-w-36" fallbackClassName="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 font-bold text-slate-700 sm:h-9 sm:w-9" />
             <div className="hidden min-w-0 max-w-[170px] truncate font-semibold text-slate-700 sm:block">{organizationName(data)}</div>
           </div>
           <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-11 max-w-[52vw] shrink-0 items-center justify-center rounded-md px-3 font-semibold text-white sm:max-w-none sm:px-5"><span className="truncate">{content.primaryButtonText || "Register"}</span></a>
@@ -196,7 +197,7 @@ function renderHero(section: EventPageSectionState, data: EventPageBuilderWorksp
               <p className="break-words font-medium">{formatDateTimeRange(data.event.startDate, data.event.endDate)}</p>
               <p className="break-words">{data.event.location || (publicMediaUrl(data.event.virtualUrl) ? "Online event" : "Location to be announced")}{locationLine(data) !== "Address not configured" ? ` · ${locationLine(data)}` : ""}</p>
             </div>
-            {lowestPrice !== null && (registrationAvailable(data) || !data.isPublicRegistration) ? <p className="mt-5 text-sm text-slate-500">{lowestPrice > 0 ? `Registration from ${formatMoney(lowestPrice, data.currency)}` : "Free registration available"}</p> : data.isPublicRegistration ? <p className="mt-5 text-sm font-medium text-slate-600">Registration is currently unavailable</p> : null}
+            {lowestPrice !== null && (registrationAvailable(data) || !data.isPublicRegistration) ? <p className="mt-5 text-sm text-slate-500">{lowestPrice > 0 ? `Registration from ${formatMoney(lowestPrice, data.currency)}${data.paymentPolicy === "PayAtEvent" ? " · Pay at check-in" : ""}` : "Free registration available"}</p> : data.isPublicRegistration ? <p className="mt-5 text-sm font-medium text-slate-600">Registration is currently unavailable</p> : null}
             <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
               <a href={primaryHref} className="event-brand-primary-bg inline-flex min-h-12 items-center justify-center rounded-md px-7 text-sm font-semibold text-white">{content.primaryButtonText || "Register"}</a>
               <a href={secondaryHref} className="inline-flex min-h-11 items-center justify-center text-center text-sm font-semibold text-slate-700 underline decoration-slate-300 underline-offset-4">{content.secondaryButtonText || "View event details"}</a>
@@ -228,7 +229,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
     return (
       <section className={`bg-white ${sectionPadding(section)} ${textAlignClass(section)}`}>
         <div className="mx-auto flex max-w-5xl flex-col items-start gap-5 sm:flex-row sm:items-center">
-          {brand?.logoUrl || brand?.logoSquareUrl ? <img src={brand.logoUrl || brand.logoSquareUrl} alt={`${organizationName(data)} logo`} className="max-h-20 w-auto max-w-56 object-contain" /> : <div className="grid h-16 w-16 place-items-center rounded-sm bg-slate-100 text-xl font-semibold text-slate-600">{organizationName(data).slice(0, 2).toUpperCase()}</div>}
+          <EventBrandLogo name={organizationName(data)} primaryUrl={brand?.logoUrl} secondaryUrl={brand?.logoSquareUrl} className="max-h-20 w-auto max-w-56 object-contain" fallbackClassName="grid h-16 w-16 shrink-0 place-items-center rounded-sm bg-slate-100 text-xl font-semibold text-slate-600" />
           <div className="min-w-0 flex-1"><p className="text-xs font-semibold uppercase tracking-[0.14em] event-brand-primary-text">Presented by</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{content.heading || organizationName(data)}</h2>{content.body || brand?.tagline ? <p className="mt-2 text-sm text-slate-600">{content.body || brand?.tagline}</p> : null}</div>
           {publicMediaUrl(brand?.websiteUrl) ? <a href={publicMediaUrl(brand?.websiteUrl)} className="event-brand-outline inline-flex min-h-11 w-full items-center justify-center px-4 text-sm font-semibold sm:w-auto">Visit our website</a> : null}
         </div>
@@ -631,7 +632,7 @@ function renderSection(section: EventPageSectionState, data: EventPageBuilderWor
   }
 
   const brand = data.branding;
-  return <footer className="bg-slate-950 px-4 py-8 text-sm text-white sm:px-8 lg:px-12"><div className="mx-auto flex max-w-5xl flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"><div className="min-w-0">{brand?.logoUrl ? <img src={brand.logoUrl} alt={`${organizationName(data)} logo`} className="mb-3 max-h-12 max-w-44 object-contain object-left brightness-0 invert" /> : null}<p className="break-words font-semibold">{organizationName(data)}</p><p className="mt-1 break-words text-white/70">{brand?.tagline || data.event.name}</p>{brand?.addressLine ? <p className="mt-2 break-words text-xs leading-5 text-white/60">{brand.addressLine}</p> : null}</div><div className="min-w-0 text-left text-xs leading-5 text-white/65 sm:text-right">{brand?.contactEmail ? <a className="block break-all py-1 hover:text-white" href={`mailto:${brand.contactEmail}`}>{brand.contactEmail}</a> : null}{brand?.contactPhone ? <a className="mt-1 block py-1 hover:text-white" href={`tel:${brand.contactPhone}`}>{brand.contactPhone}</a> : null}<p className="mt-2 break-words">© {new Date(data.event.startDate).getFullYear()} {brand?.legalOrganizationName || organizationName(data)}</p>{brand?.footerLegalText ? <p className="mt-1 max-w-md break-words">{brand.footerLegalText}</p> : null}</div></div></footer>;
+  return <footer className="bg-slate-950 px-4 py-8 text-sm text-white sm:px-8 lg:px-12"><div className="mx-auto flex max-w-5xl flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"><div className="min-w-0"><EventBrandLogo name={organizationName(data)} primaryUrl={brand?.logoUrl} secondaryUrl={brand?.logoSquareUrl} className="mb-3 max-h-12 max-w-44 object-contain object-left brightness-0 invert" fallbackClassName="mb-3 grid h-10 w-10 place-items-center rounded-full bg-white/15 text-xs font-bold text-white" /><p className="break-words font-semibold">{organizationName(data)}</p><p className="mt-1 break-words text-white/70">{brand?.tagline || data.event.name}</p>{brand?.addressLine ? <p className="mt-2 break-words text-xs leading-5 text-white/60">{brand.addressLine}</p> : null}</div><div className="min-w-0 text-left text-xs leading-5 text-white/65 sm:text-right">{brand?.contactEmail ? <a className="block break-all py-1 hover:text-white" href={`mailto:${brand.contactEmail}`}>{brand.contactEmail}</a> : null}{brand?.contactPhone ? <a className="mt-1 block py-1 hover:text-white" href={`tel:${brand.contactPhone}`}>{brand.contactPhone}</a> : null}<p className="mt-2 break-words">© {new Date(data.event.startDate).getFullYear()} {brand?.legalOrganizationName || organizationName(data)}</p>{brand?.footerLegalText ? <p className="mt-1 max-w-md break-words">{brand.footerLegalText}</p> : null}</div></div></footer>;
 }
 
 /** Shared public-page document renderer used by both builder preview and published pages. */

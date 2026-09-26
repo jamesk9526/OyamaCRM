@@ -561,7 +561,7 @@ describe("events CRUD", () => {
     expect(typeof res.body.pageUrl).toBe("string");
     expect(res.body.pageUrl).toContain(`/${res.body.pageSlug}`);
     expect(["Draft", "Published"]).toContain(res.body.status);
-    expect(["StripeCheckout", "OfflineFollowUp", "NoPaymentRequired"]).toContain(res.body.paymentPolicy);
+    expect(["StripeCheckout", "PayAtEvent", "OfflineFollowUp", "NoPaymentRequired"]).toContain(res.body.paymentPolicy);
     expect(Array.isArray(res.body.deploymentHistory)).toBe(true);
   });
 
@@ -937,6 +937,12 @@ describe("events CRUD", () => {
     expect(res.body.order?.status).toBe("PENDING");
     expect(res.body.payment).toMatchObject({ required: true, provider: "stripe", checkoutUrl: null });
     expect(res.body.payment?.error?.code).toBe("STRIPE_NOT_READY");
+
+    const manualSettlement = await request(app)
+      .post(`/api/events/orders/${res.body.order.id}/record-payment`)
+      .set(auth())
+      .send({ paymentMethod: "CASH" });
+    expect(manualSettlement.status).toBe(409);
   });
 
   it("tracks remaining ticket availability after staff and public registrations", async () => {
@@ -950,6 +956,58 @@ describe("events CRUD", () => {
     expect(res.status).toBe(200);
     const ticket = (res.body as Array<{ id: string; available?: number | null }>).find((row) => row.id === ticketTypeId);
     expect(ticket?.available).toBe(143);
+  });
+
+  it("reserves paid seats for payment at event check-in without online checkout", async () => {
+    const policy = await request(app)
+      .patch(`/api/events/${eventId}/page-builder-config`)
+      .set(auth())
+      .send({ pageSlug: savedEventPageSlug, status: "Published", paymentPolicy: "PayAtEvent" });
+
+    expect(policy.status).toBe(200);
+    expect(policy.body.paymentPolicy).toBe("PayAtEvent");
+
+    const res = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", `smoke-pay-at-event-${Date.now()}`)
+      .send({
+        ticketTypeId,
+        quantity: 1,
+        consentAccepted: true,
+        attendees: [{ firstName: "AtEvent", lastName: "Registrant", email: `at-event-${Date.now()}@example.org` }],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.order?.status).toBe("PENDING");
+    expect(res.body.order?.totalAmount).toBeGreaterThan(0);
+    expect(res.body.guests[0]?.paymentStatus).toBe("DUE");
+    expect(res.body.payment).toMatchObject({ required: true, provider: "at_event", checkoutUrl: null });
+    expect(res.body.message).toContain("Pay the amount due at event check-in");
+
+    const invalidMethod = await request(app)
+      .post(`/api/events/orders/${res.body.order.id}/record-payment`)
+      .set(auth())
+      .send({ paymentMethod: "ONLINE" });
+    expect(invalidMethod.status).toBe(400);
+
+    const recorded = await request(app)
+      .post(`/api/events/orders/${res.body.order.id}/record-payment`)
+      .set(auth())
+      .send({ paymentMethod: "CASH" });
+    expect(recorded.status).toBe(200);
+    expect(recorded.body).toMatchObject({ status: "CONFIRMED", paymentMethod: "CASH" });
+    expect(recorded.body.paidAt).toBeTruthy();
+
+    const guests = await request(app).get(`/api/events/${eventId}/guests`).set(auth());
+    const orderGuests = (guests.body as Array<{ order?: { id: string }; paymentStatus?: string }>).filter((guest) => guest.order?.id === res.body.order.id);
+    expect(orderGuests).toHaveLength(1);
+    expect(orderGuests[0]?.paymentStatus).toBe("PAID");
+
+    const repeated = await request(app)
+      .post(`/api/events/orders/${res.body.order.id}/record-payment`)
+      .set(auth())
+      .send({ paymentMethod: "CASH" });
+    expect(repeated.status).toBe(409);
   });
 
   it("does not expose draft event pages publicly", async () => {

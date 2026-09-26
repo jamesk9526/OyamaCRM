@@ -35,7 +35,7 @@ export default function EventPageBuilderSectionRail({ sections, selectedSectionI
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Structure</p>
           <h2 className="truncate text-sm font-semibold text-slate-950">Page sections</h2>
         </div>
-        <span className="border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-600">{visibleSections.length} LIVE</span>
+        <span className="border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-600">{visibleSections.length} ON PAGE</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">

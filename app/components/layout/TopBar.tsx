@@ -391,6 +391,7 @@ function GlobalSearch({
 
   useEffect(() => {
     function focusSearch() {
+      if (!inputRef.current?.getClientRects().length) return;
       inputRef.current?.focus();
       setOpen(true);
     }
@@ -967,6 +968,19 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, []);
 
   useEffect(() => {
+    const focusRequested = () => {
+      if (window.matchMedia("(max-width: 1279px)").matches) {
+        setNotificationsOpen(false);
+        setMobileQuickOpen(false);
+        setCompactActionsOpen(false);
+        setMobileSearchOpen(true);
+      }
+    };
+    window.addEventListener("crm:focus-topbar-search", focusRequested);
+    return () => window.removeEventListener("crm:focus-topbar-search", focusRequested);
+  }, []);
+
+  useEffect(() => {
     const hasOpenPanel = feedbackOpen || notificationsOpen || mobileQuickOpen || mobileSearchOpen || compactActionsOpen;
 
     function handleEscape(event: KeyboardEvent) {
@@ -1411,7 +1425,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
           {/* Mobile top-right priority controls */}
           <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
-            <WorkspaceStatusControl dark={isDonorEnterpriseChrome} />
+            <div className={isDonorEnterpriseChrome ? "hidden sm:block" : ""}><WorkspaceStatusControl dark={isDonorEnterpriseChrome} /></div>
             <Link
               href="/donor-profile"
               title="Open OYAMADonorPROFILE"
@@ -1810,6 +1824,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </button>
               </div>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
+                {isDonorEnterpriseChrome && showModuleSwitcher ? (
+                  <div className="pb-2 sm:hidden"><ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled /></div>
+                ) : null}
                 {isStewardSignalsWorkspace && (
                   <button
                     title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}

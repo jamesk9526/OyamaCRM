@@ -6,7 +6,7 @@ interface PublishReadinessItem { label: string; passed: boolean }
 interface EventPageBuilderTopBarProps {
   eventId: string; eventName: string; resolvedPageUrl: string; pageSlug: string; pageSlugDraft: string; saveUrlPending: boolean;
   urlFeedback: string | null; status: EventPageStatus; lastPublishedAt: string | null; paymentPolicy: EventPagePaymentPolicy;
-  deploymentHistory: EventPageDeploymentHistoryEntry[]; autoSaveState: "idle" | "saving" | "saved" | "error";
+  deploymentHistory: EventPageDeploymentHistoryEntry[]; autoSaveState: "idle" | "pending" | "saving" | "saved" | "error";
   publishReadiness: PublishReadinessItem[]; branding?: EventPageBranding;
   onPaymentPolicyChange: (value: EventPagePaymentPolicy) => void; onPageSlugDraftChange: (value: string) => void;
   onSavePageSlug: () => void; onPreview: () => void; onPreviewRegistration: () => void; onPublishToggle: () => void;
@@ -23,7 +23,7 @@ function formatTimestamp(value: string | null): string {
 export default function EventPageBuilderTopBar(props: EventPageBuilderTopBarProps) {
   const publishReady = props.publishReadiness.every((item) => item.passed);
   const readinessCount = props.publishReadiness.filter((item) => item.passed).length;
-  const saveState = props.autoSaveState === "saving"
+  const saveState = props.autoSaveState === "saving" || props.autoSaveState === "pending"
     ? { label: "Saving", className: "text-amber-300", icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> }
     : props.autoSaveState === "error"
       ? { label: "Save failed", className: "text-red-300", icon: <AlertTriangle className="h-3.5 w-3.5" /> }
@@ -69,7 +69,7 @@ export default function EventPageBuilderTopBar(props: EventPageBuilderTopBarProp
           </div>
           <label className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Registration payment
             <select value={props.paymentPolicy} onChange={(event) => props.onPaymentPolicyChange(event.target.value as EventPagePaymentPolicy)} className="mt-1.5 h-9 w-full border border-slate-600 bg-slate-950 px-3 font-sans text-sm font-medium normal-case tracking-normal text-white outline-none focus:border-sky-400">
-              <option value="StripeCheckout">Stripe secure checkout</option><option value="OfflineFollowUp">Offline payment follow-up</option><option value="NoPaymentRequired">No payment required</option>
+              <option value="StripeCheckout">Stripe secure checkout</option><option value="PayAtEvent">Pay at event check-in</option><option value="OfflineFollowUp">Offline payment follow-up</option><option value="NoPaymentRequired">No payment required</option>
             </select>
           </label>
           <div className="xl:col-span-2">

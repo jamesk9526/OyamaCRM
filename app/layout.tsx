@@ -4,7 +4,6 @@ import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
 import { PluginProvider } from "./components/plugins/PluginProvider";
 import PWARegister from "./components/pwa/PWARegister";
-import ReleaseUpdateBanner from "./components/layout/ReleaseUpdateBanner";
 
 export const metadata: Metadata = {
   title: "OyamaCRM v1.45b",
@@ -67,7 +66,6 @@ export default function RootLayout({
         <AuthProvider>
           <PluginProvider>
             <AppShell>{children}</AppShell>
-            <ReleaseUpdateBanner />
           </PluginProvider>
         </AuthProvider>
       </body>
