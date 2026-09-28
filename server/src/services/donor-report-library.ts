@@ -10,9 +10,11 @@ import {
 } from "../lib/dateRanges.js";
 import { centsToMoney, moneyToCents } from "../lib/money.js";
 import { parseCalendarDateExclusiveEnd, parseCalendarDateStart } from "../lib/dateOnlyRanges.js";
+import { sumTaxDeductibleGiving } from "./donation-tax.js";
 
 export const DONOR_LIBRARY_REPORT_KEYS = [
   "batch-receipts",
+  "tax-deductible-giving",
   "unacknowledged-gifts",
   "donations",
   "donations-by-designation",
@@ -210,6 +212,9 @@ function baseDonationWhere(organizationId: string, options: DonorLibraryReportOp
 const donationSelection = {
   id: true,
   amount: true,
+  taxDeductible: true,
+  taxDeductibleAmount: true,
+  taxDeductibleNotes: true,
   date: true,
   paymentMethod: true,
   isRecurring: true,
@@ -251,7 +256,7 @@ function emptyReport(report: DonorLibraryReportKey, title: string, description: 
 
 async function donationRowsReport(
   organizationId: string,
-  reportKey: "donations" | "batch-receipts",
+  reportKey: "donations" | "batch-receipts" | "tax-deductible-giving",
   options: DonorLibraryReportOptions,
 ): Promise<DonorLibraryReport> {
   const donations = await prisma.donation.findMany({
@@ -261,8 +266,8 @@ async function donationRowsReport(
   });
   const totalCents = donations.reduce((total, donation) => total + cents(donation.amount), 0);
 
-  if (reportKey === "batch-receipts") {
-    const donors = new Map<string, { donorId: string; donorName: string; email: string | null; address: string | null; giftCount: number; totalCents: number; latestGiftDate: string; receiptCount: number; acknowledgedCount: number }>();
+  if (reportKey === "batch-receipts" || reportKey === "tax-deductible-giving") {
+    const donors = new Map<string, { donorId: string; donorName: string; email: string | null; address: string | null; giftCount: number; totalCents: number; deductibleCents: number; latestGiftDate: string; receiptCount: number; acknowledgedCount: number }>();
     for (const donation of donations) {
       const existing = donors.get(donation.constituent.id) ?? {
         donorId: donation.constituent.id,
@@ -271,12 +276,14 @@ async function donationRowsReport(
         address: donorAddress(donation.constituent),
         giftCount: 0,
         totalCents: 0,
+        deductibleCents: 0,
         latestGiftDate: donation.date.toISOString(),
         receiptCount: 0,
         acknowledgedCount: 0,
       };
       existing.giftCount += 1;
       existing.totalCents += cents(donation.amount);
+      if (reportKey === "tax-deductible-giving") existing.deductibleCents += cents(sumTaxDeductibleGiving([donation]));
       if (donation.date > new Date(existing.latestGiftDate)) existing.latestGiftDate = donation.date.toISOString();
       if (donation.receiptNumber || donation.receiptSentAt) existing.receiptCount += 1;
       if (donation.acknowledgmentSentAt) existing.acknowledgedCount += 1;
@@ -291,10 +298,33 @@ async function donationRowsReport(
         address: donor.address,
         giftCount: donor.giftCount,
         totalAmount: dollars(donor.totalCents),
+        taxDeductibleAmount: dollars(donor.deductibleCents),
+        nonDeductibleAmount: dollars(donor.totalCents - donor.deductibleCents),
         latestGiftDate: donor.latestGiftDate,
         receiptStatus: donor.receiptCount === donor.giftCount ? "Receipt recorded" : `${donor.giftCount - donor.receiptCount} need receipt`,
         acknowledgmentStatus: donor.acknowledgedCount === donor.giftCount ? "Acknowledged" : `${donor.giftCount - donor.acknowledgedCount} pending`,
       }));
+    if (reportKey === "tax-deductible-giving") {
+      return {
+        ...emptyReport(reportKey, "Tax-deductible giving", "One row per constituent with completed gift totals and stored tax-deductible values for the selected period.", options),
+        summary: [
+          { label: "Gift total", value: dollars(totalCents), type: "currency" },
+          { label: "Tax-deductible total", value: dollars(donations.reduce((sum, donation) => sum + cents(sumTaxDeductibleGiving([donation])), 0)), type: "currency" },
+          { label: "Constituents", value: rows.length, type: "number" },
+        ],
+        columns: [
+          { key: "donorName", label: "Constituent", linkToDonor: true },
+          { key: "email", label: "Email" },
+          { key: "address", label: "Mailing address" },
+          { key: "giftCount", label: "Gifts", type: "number" },
+          { key: "totalAmount", label: "Total donations", type: "currency" },
+          { key: "taxDeductibleAmount", label: "Tax-deductible amount", type: "currency" },
+          { key: "nonDeductibleAmount", label: "Non-deductible amount", type: "currency" },
+        ],
+        rows,
+        notices: ["Amounts reflect the tax-deductible values recorded on completed gifts. Review individual gift details before issuing an official tax receipt."],
+      };
+    }
     return {
       ...emptyReport(reportKey, "Batch receipts", "A receipt-ready register grouped by donor. Print or export the reviewed list before creating receipt communications.", options),
       summary: [
@@ -332,6 +362,7 @@ async function donationRowsReport(
       { key: "designation", label: "Designation" },
       { key: "paymentMethod", label: "Payment method" },
       { key: "amount", label: "Amount", type: "currency" },
+      { key: "taxDeductibleAmount", label: "Tax-deductible amount", type: "currency" },
       { key: "receiptNumber", label: "Receipt #" },
     ],
     rows: donations.map((donation) => ({
@@ -343,9 +374,45 @@ async function donationRowsReport(
       designation: donation.designation?.name ?? "General / undesignated",
       paymentMethod: donation.paymentMethod.replace(/_/g, " "),
       amount: dollars(cents(donation.amount)),
+      taxDeductibleAmount: sumTaxDeductibleGiving([donation]),
       receiptNumber: donation.receiptNumber ?? "—",
     })),
     notices: [],
+  };
+}
+
+export async function buildConstituentGivingStatement(
+  organizationId: string,
+  constituentId: string,
+  options: DonorLibraryReportOptions,
+) {
+  const [organization, constituent, donations] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+    prisma.constituent.findFirst({ where: { id: constituentId, organizationId }, select: donationSelection.constituent.select }),
+    prisma.donation.findMany({
+      where: { ...baseDonationWhere(organizationId, options), constituentId },
+      select: donationSelection,
+      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
+  if (!constituent) return null;
+  const totalCents = donations.reduce((sum, donation) => sum + cents(donation.amount), 0);
+  const deductibleCents = donations.reduce((sum, donation) => sum + cents(sumTaxDeductibleGiving([donation])), 0);
+  return {
+    organizationName: organization?.name ?? "Organization",
+    constituent: { id: constituent.id, name: donorName(constituent), address: donorAddress(constituent), email: constituent.email },
+    period: period(options.from, options.through),
+    gifts: donations.map((donation) => ({
+      date: donation.date.toISOString(),
+      receiptNumber: donation.receiptNumber,
+      designation: donation.designation?.name ?? "General / undesignated",
+      amount: dollars(cents(donation.amount)),
+      taxDeductibleAmount: sumTaxDeductibleGiving([donation]),
+      taxDeductibleNotes: donation.taxDeductibleNotes,
+    })),
+    totalAmount: dollars(totalCents),
+    taxDeductibleAmount: dollars(deductibleCents),
+    generatedAt: new Date().toISOString(),
   };
 }
 
@@ -1183,6 +1250,7 @@ export async function buildDonorLibraryReport(
 
   switch (report) {
     case "batch-receipts": return donationRowsReport(organizationId, "batch-receipts", options);
+    case "tax-deductible-giving": return donationRowsReport(organizationId, "tax-deductible-giving", options);
     case "unacknowledged-gifts": return unacknowledgedGiftsReport(organizationId, options);
     case "donations": return donationRowsReport(organizationId, "donations", options);
     case "donations-by-designation": return donorsByDesignationReport(organizationId, options);

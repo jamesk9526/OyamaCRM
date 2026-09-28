@@ -22,6 +22,7 @@ import { completedDonationWhere } from "../lib/donationScope.js";
 import { generateLetterFromTemplate } from "../services/letters-execution.js";
 import {
   buildDonorLibraryReport,
+  buildConstituentGivingStatement,
   isDonorLibraryReportKey,
   parseDonorLibraryReportOptions,
 } from "../services/donor-report-library.js";
@@ -1399,6 +1400,23 @@ router.get("/exports/donors-by-designation.csv", requirePermission("export:data"
  * grid, print view, and CSV export all use this same report builder so staff do
  * not review one number and export another.
  */
+router.get("/library/tax-deductible-giving/constituents/:constituentId", requirePermission("export:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+  const constituentId = Array.isArray(req.params.constituentId) ? req.params.constituentId[0] ?? "" : req.params.constituentId;
+  const options = parseDonorLibraryReportOptions("tax-deductible-giving", req.query as Record<string, unknown>);
+  const statement = await buildConstituentGivingStatement(organizationId, constituentId, options);
+  if (!statement) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "Constituent not found." } });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(statement);
+});
+
 router.get("/library/:reportKey", async (req, res) => {
   const reportKey = Array.isArray(req.params.reportKey) ? req.params.reportKey[0] ?? "" : req.params.reportKey;
   if (!isDonorLibraryReportKey(reportKey)) {

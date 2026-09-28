@@ -17,6 +17,7 @@ import {
 
 type ReportKey =
   | "batch-receipts"
+  | "tax-deductible-giving"
   | "unacknowledged-gifts"
   | "donations"
   | "donations-by-designation"
@@ -88,8 +89,19 @@ interface DesignationOption {
   name: string;
 }
 
+interface GivingStatement {
+  organizationName: string;
+  constituent: { id: string; name: string; address: string | null; email: string | null };
+  period: { label: string };
+  gifts: Array<{ date: string; receiptNumber: string | null; designation: string; amount: number; taxDeductibleAmount: number; taxDeductibleNotes: string | null }>;
+  totalAmount: number;
+  taxDeductibleAmount: number;
+  generatedAt: string;
+}
+
 const REPORTS: ReportDefinition[] = [
   { key: "batch-receipts", title: "Batch Receipts", description: "Review a receipt-ready register grouped by donor before creating receipt communications.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
+  { key: "tax-deductible-giving", title: "Tax-deductible Giving", description: "One constituent per row with total donations, tax-deductible amounts, and individual printable giving statements.", source: "Completed donations", capabilities: "Grid, CSV, Statements", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "unacknowledged-gifts", title: "Unacknowledged Gifts", description: "Find completed gifts that still need a recorded thank-you, then review the donor before starting a letter or email.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations", title: "Donations", description: "Print or export a detailed list of completed gifts in a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations-by-designation", title: "Donations by Designation", description: "See completed giving grouped by donor and designation.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true, defaultRange: "month-to-date" },
@@ -188,6 +200,7 @@ function DocumentIcon() {
 export default function DonorReportsSpreadsheet() {
   const [selected, setSelected] = useState<ReportDefinition | null>(null);
   const [report, setReport] = useState<ReportData | null>(null);
+  const [reportQuery, setReportQuery] = useState("");
   const [designations, setDesignations] = useState<DesignationOption[]>([]);
   const [from, setFrom] = useState(currentYearStart);
   const [through, setThrough] = useState(() => localDateInput(new Date()));
@@ -220,27 +233,6 @@ export default function DonorReportsSpreadsheet() {
       .catch(() => setDesignations([]));
   }, []);
 
-  const query = useMemo(() => {
-    const params = new URLSearchParams();
-    if (!selected) return params;
-    params.set("dateBasis", reportingMode);
-    if (selected.scope === "date") {
-      params.set("from", from);
-      params.set("through", through);
-    }
-    if (selected.scope === "year") params.set("year", year);
-    if (selected.scope === "lapse") {
-      params.set("lapseMode", lapseMode);
-      params.set("lapseFromYear", lapseFromYear);
-      params.set("lapseThroughYear", lapseThroughYear);
-      params.set("lapseNotSinceYear", lapseNotSinceYear);
-    }
-    if (selected.supportsPayment && paymentMethod) params.set("paymentMethod", paymentMethod);
-    if (selected.supportsDesignation && designationId) params.set("designationId", designationId);
-    if (selected.supportsLimit) params.set("limit", limit);
-    return params;
-  }, [selected, from, through, year, lapseMode, lapseFromYear, lapseThroughYear, lapseNotSinceYear, paymentMethod, designationId, limit, reportingMode]);
-
   const loadReport = useCallback(async (definition: ReportDefinition, mode: "open" | "refresh" = "open") => {
     if (mode === "open") setSelected(definition);
     setLoading(true);
@@ -269,6 +261,7 @@ export default function DonorReportsSpreadsheet() {
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const nextReport = await apiFetch<ReportData>(`/api/reports/library/${definition.key}${suffix}`);
       setReport(nextReport);
+      setReportQuery(params.toString());
       setShowInsights(definition.key === "crm-performance-scorecard");
       if (typeof window !== "undefined") {
         window.history.replaceState({}, "", `/reports?report=${encodeURIComponent(definition.key)}`);
@@ -300,7 +293,7 @@ export default function DonorReportsSpreadsheet() {
     setExporting(true);
     setError(null);
     try {
-      const suffix = query.toString() ? `?${query.toString()}` : "";
+      const suffix = reportQuery ? `?${reportQuery}` : "";
       const response = await apiFetchResponse(`/api/reports/exports/library/${selected.key}.csv${suffix}`);
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -337,6 +330,28 @@ export default function DonorReportsSpreadsheet() {
     printWindow.document.close();
     printWindow.focus();
     window.setTimeout(() => printWindow.print(), 120);
+  };
+
+  const handlePrintStatement = async (constituentId: string) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError("Your browser blocked the print window. Allow pop-ups and try again.");
+      return;
+    }
+    printWindow.document.write("<!doctype html><html><body><p>Preparing giving statement...</p></body></html>");
+    try {
+      const suffix = reportQuery ? `?${reportQuery}` : "";
+      const statement = await apiFetch<GivingStatement>(`/api/reports/library/tax-deductible-giving/constituents/${encodeURIComponent(constituentId)}${suffix}`);
+      const rows = statement.gifts.map((gift) => `<tr><td>${escapeHtml(formatDate(gift.date))}</td><td>${escapeHtml(gift.receiptNumber ?? "")}</td><td>${escapeHtml(gift.designation)}</td><td>${escapeHtml(formatCurrency(gift.amount))}</td><td>${escapeHtml(formatCurrency(gift.taxDeductibleAmount))}</td></tr>${gift.taxDeductibleNotes ? `<tr><td colspan="5" class="notes">${escapeHtml(gift.taxDeductibleNotes)}</td></tr>` : ""}`).join("");
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html><html><head><title>Giving statement - ${escapeHtml(statement.constituent.name)}</title><style>body{font-family:Segoe UI,Arial,sans-serif;color:#172033;margin:32px;line-height:1.45}h1{font-size:23px;margin:0}h2{font-size:18px;margin:32px 0 4px}.muted{color:#52606f;font-size:12px}.totals{display:flex;gap:32px;margin:24px 0;font-size:15px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;border-bottom:1px solid #cbd5e1;padding:8px 6px}th{background:#f1f5f9}.notes{color:#52606f;font-style:italic}.footer{margin-top:24px;font-size:11px;color:#52606f}@page{size:letter;margin:15mm}</style></head><body><h1>${escapeHtml(statement.organizationName)}</h1><div class="muted">Constituent giving statement</div><h2>${escapeHtml(statement.constituent.name)}</h2><div>${escapeHtml(statement.constituent.address ?? "")}</div><div>${escapeHtml(statement.constituent.email ?? "")}</div><p>Completed donations: ${escapeHtml(statement.period.label)}</p><div class="totals"><div><strong>Total donations</strong><br>${escapeHtml(formatCurrency(statement.totalAmount))}</div><div><strong>Tax-deductible amount</strong><br>${escapeHtml(formatCurrency(statement.taxDeductibleAmount))}</div></div><table><thead><tr><th>Date</th><th>Receipt #</th><th>Designation</th><th>Donation</th><th>Tax-deductible</th></tr></thead><tbody>${rows || `<tr><td colspan="5">No completed gifts in this period.</td></tr>`}</tbody></table><p class="footer">This statement reflects amounts recorded in the CRM. Review gift details and any goods or services provided before using it as an official tax receipt. Generated ${escapeHtml(formatDateTime(statement.generatedAt))}.</p></body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      window.setTimeout(() => printWindow.print(), 120);
+    } catch (printError) {
+      printWindow.close();
+      setError(printError instanceof Error ? printError.message : "Unable to prepare this giving statement.");
+    }
   };
 
   const handleGenerateLetters = (currentReport: ReportData) => {
@@ -404,6 +419,7 @@ export default function DonorReportsSpreadsheet() {
           onRun={() => void loadReport(selected, "refresh")}
           onExport={() => void handleExport()}
           onPrint={handlePrint}
+          onPrintStatement={(constituentId) => void handlePrintStatement(constituentId)}
           displayMode={displayMode}
           onDisplayModeChange={setDisplayMode}
           onShowInsights={() => setShowInsights(true)}
@@ -491,6 +507,7 @@ function ReportRunner({
   onRun,
   onExport,
   onPrint,
+  onPrintStatement,
   displayMode,
   onDisplayModeChange,
   onShowInsights,
@@ -528,6 +545,7 @@ function ReportRunner({
   onRun: () => void;
   onExport: () => void;
   onPrint: () => void;
+  onPrintStatement: (constituentId: string) => void;
   displayMode: "grid" | "visual";
   onDisplayModeChange: (mode: "grid" | "visual") => void;
   onShowInsights: () => void;
@@ -594,7 +612,7 @@ function ReportRunner({
       </div>
 
       {error ? <div className="m-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div> : null}
-      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} displayMode={displayMode} onGenerateLetters={onGenerateLetters} /> : null}
+      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} displayMode={displayMode} onGenerateLetters={onGenerateLetters} onPrintStatement={onPrintStatement} /> : null}
     </section>
   );
 }
@@ -607,7 +625,7 @@ function ReportLoading() {
   return <div className="p-4"><div className="grid gap-px overflow-hidden rounded border border-slate-300 bg-slate-200">{Array.from({ length: 9 }, (_, index) => <div key={index} className="h-11 animate-pulse bg-white" />)}</div></div>;
 }
 
-function ReportOutput({ report, displayMode, onGenerateLetters }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void }) {
+function ReportOutput({ report, displayMode, onGenerateLetters, onPrintStatement }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void; onPrintStatement: (constituentId: string) => void }) {
   const [showAudienceDialog, setShowAudienceDialog] = useState(false);
   const [audienceName, setAudienceName] = useState("");
   const [audienceDescription, setAudienceDescription] = useState("");
@@ -675,7 +693,7 @@ function ReportOutput({ report, displayMode, onGenerateLetters }: { report: Repo
       {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Create a reusable audience or open letter generation with all {donorRowCount.toLocaleString()} unique CRM constituent{donorRowCount === 1 ? "" : "s"} represented by this report.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={openAudienceDialog} className="rounded-md border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Save as audience list</button><button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div></div> : null}
       {audienceMessage ? <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span>{audienceMessage}</span><div className="flex items-center gap-3"><Link href="/contacts-manager/lists" className="font-semibold hover:underline">Open audience lists →</Link><button type="button" onClick={() => setAudienceMessage(null)} className="font-semibold hover:underline">Dismiss</button></div></div> : null}
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
-      {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} />}
+      {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} onPrintStatement={onPrintStatement} />}
       {showAudienceDialog ? <AudienceSaveDialog
         audienceDonorIds={audienceDonorIds}
         audienceEmails={audienceEmails}
@@ -744,7 +762,7 @@ function AudienceSaveDialog({
   );
 }
 
-function ReportGrid({ report }: { report: ReportData }) {
+function ReportGrid({ report, onPrintStatement }: { report: ReportData; onPrintStatement: (constituentId: string) => void }) {
   return (
     <div className="rounded border border-slate-300">
       <div className="divide-y divide-slate-200 lg:hidden">
@@ -753,6 +771,7 @@ function ReportGrid({ report }: { report: ReportData }) {
           <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
             {report.columns.map((column) => <div key={column.key} className="min-w-0 rounded-md bg-slate-50 px-2.5 py-2"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{column.label}</dt><dd className={`mt-0.5 break-words text-sm text-slate-900 ${column.type === "currency" || column.type === "number" ? "font-semibold tabular-nums" : ""}`}>{column.linkToDonor && typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="font-medium text-blue-700 hover:underline">{formatCell(row[column.key] ?? null, column.type ?? "text")}</Link> : formatCell(row[column.key] ?? null, column.type ?? "text")}</dd></div>)}
           </dl>
+          {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <button type="button" onClick={() => onPrintStatement(String(row.donorId))} className="mt-3 text-xs font-semibold text-blue-700 hover:underline">Print statement</button> : null}
         </article>)}
         {report.rows.length === 0 ? <div className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</div> : null}
       </div>
@@ -762,6 +781,7 @@ function ReportGrid({ report }: { report: ReportData }) {
           <tr>
             <th className="w-11 border-r border-white/20 px-3 py-2 text-right font-semibold">#</th>
             {report.columns.map((column) => <th key={column.key} className="whitespace-nowrap border-r border-white/20 px-3 py-2 font-semibold last:border-r-0">{column.label}</th>)}
+            {report.report === "tax-deductible-giving" ? <th className="px-3 py-2 font-semibold">Statement</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -770,8 +790,9 @@ function ReportGrid({ report }: { report: ReportData }) {
             {report.columns.map((column) => <td key={column.key} title={`${column.label}: ${formatCell(row[column.key] ?? null, column.type ?? "text")}`} className={`border-b border-r border-slate-200 px-3 py-2 align-top ${column.type === "currency" || column.type === "number" ? "text-right tabular-nums" : ""}`}>
               {column.linkToDonor && typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="font-medium text-[#0f6cbd] hover:underline">{formatCell(row[column.key] ?? null, column.type ?? "text")}</Link> : formatCell(row[column.key] ?? null, column.type ?? "text")}
             </td>)}
+            {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <td className="border-b border-slate-200 px-3 py-2"><button type="button" onClick={() => onPrintStatement(String(row.donorId))} className="whitespace-nowrap font-medium text-[#0f6cbd] hover:underline">Print statement</button></td> : null}
           </tr>)}
-          {report.rows.length === 0 ? <tr><td colSpan={report.columns.length + 1} className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</td></tr> : null}
+          {report.rows.length === 0 ? <tr><td colSpan={report.columns.length + 1 + (report.report === "tax-deductible-giving" ? 1 : 0)} className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</td></tr> : null}
         </tbody>
       </table>
       </div>
