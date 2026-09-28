@@ -1172,7 +1172,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     return;
   }
 
-  const [ticketTypes, sponsors, attendanceTotal, checkedInTotal, orderAggregate, donationAggregate, ticketGuestCounts] = await Promise.all([
+  const [ticketTypes, sponsors, attendanceTotal, checkedInTotal, orderAggregate, donationAggregate, ticketUnitTotals] = await Promise.all([
     prisma.ticketType.findMany({
       where: { eventId: event.id, active: true },
       select: {
@@ -1225,18 +1225,18 @@ router.get("/public/page/:pageSlug", async (req, res) => {
       _sum: { amount: true },
       _count: { id: true },
     }),
-    prisma.eventGuest.groupBy({
+    prisma.eventOrderItem.groupBy({
       by: ["ticketTypeId"],
-      where: { eventId: event.id, ticketTypeId: { not: null } },
-      _count: { id: true },
+      where: { ticketType: { eventId: event.id } },
+      _sum: { quantity: true },
     }),
   ]);
 
-  const guestCountByTicket = new Map(ticketGuestCounts.map((row) => [row.ticketTypeId, row._count.id]));
+  const soldUnitsByTicket = new Map(ticketUnitTotals.map((row) => [row.ticketTypeId, row._sum.quantity ?? 0]));
   const remainingEventSeats = event.capacity != null && event.capacity > 0 ? event.capacity - attendanceTotal : null;
   const publicTicketTypes = ticketTypes.map((ticket) => ({
     ...ticket,
-    available: remainingPublicTicketUnits(ticket, guestCountByTicket.get(ticket.id) ?? 0, remainingEventSeats),
+    available: remainingPublicTicketUnits(ticket, soldUnitsByTicket.get(ticket.id) ?? 0, remainingEventSeats),
   }));
 
   const revenueFromOrders = Number(orderAggregate._sum.totalAmount ?? 0);
@@ -1536,14 +1536,14 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
   };
 
   const persistRegistration = () => prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const [currentEventGuestCount, currentTicketGuestCount] = await Promise.all([
+    const [currentEventGuestCount, currentTicketUnits] = await Promise.all([
       tx.eventGuest.count({ where: { eventId: event.id } }),
-      tx.eventGuest.count({ where: { eventId: event.id, ticketTypeId: ticketType.id } }),
+      tx.eventOrderItem.aggregate({ where: { ticketTypeId: ticketType.id }, _sum: { quantity: true } }),
     ]);
     if (event.capacity != null && event.capacity > 0 && currentEventGuestCount + requestedSeats > event.capacity) {
       throw new Error("PUBLIC_EVENT_CAPACITY_CONFLICT");
     }
-    if (ticketType.capacity != null && ticketType.capacity > 0 && currentTicketGuestCount + requestedSeats > ticketType.capacity) {
+    if (ticketType.capacity != null && ticketType.capacity > 0 && (currentTicketUnits._sum.quantity ?? 0) + ticketUnits > ticketType.capacity) {
       throw new Error("PUBLIC_TICKET_CAPACITY_CONFLICT");
     }
 
@@ -3540,15 +3540,15 @@ router.post("/:eventId/orders", async (req, res) => {
   });
 
   const requestedSeats = normalizedItems.reduce((sum, item) => sum + item.seatCount, 0);
-  const [eventGuestCount, ticketGuestCounts] = await Promise.all([
+  const [eventGuestCount, ticketUnitTotals] = await Promise.all([
     prisma.eventGuest.count({ where: { eventId: req.params.eventId } }),
-    prisma.eventGuest.groupBy({
+    prisma.eventOrderItem.groupBy({
       by: ["ticketTypeId"],
-      where: { eventId: req.params.eventId, ticketTypeId: { in: normalizedItems.map((item) => item.ticketType.id) } },
-      _count: { id: true },
+      where: { ticketTypeId: { in: normalizedItems.map((item) => item.ticketType.id) } },
+      _sum: { quantity: true },
     }),
   ]);
-  const guestCountByTicketType = new Map(ticketGuestCounts.map((row) => [row.ticketTypeId, row._count.id]));
+  const soldUnitsByTicketType = new Map(ticketUnitTotals.map((row) => [row.ticketTypeId, row._sum.quantity ?? 0]));
 
   if (event.capacity != null && event.capacity > 0 && eventGuestCount + requestedSeats > event.capacity) {
     res.status(409).json({ error: { code: "EVENT_CAPACITY_REACHED", message: "Not enough event capacity remains for this order." } });
@@ -3556,9 +3556,9 @@ router.post("/:eventId/orders", async (req, res) => {
   }
 
   for (const item of normalizedItems) {
-    const existingGuests = guestCountByTicketType.get(item.ticketType.id) ?? 0;
-    if (item.ticketType.capacity != null && item.ticketType.capacity > 0 && existingGuests + item.seatCount > item.ticketType.capacity) {
-      res.status(409).json({ error: { code: "TICKET_CAPACITY_REACHED", message: `${item.ticketType.name} does not have enough remaining seat capacity.` } });
+    const soldUnits = soldUnitsByTicketType.get(item.ticketType.id) ?? 0;
+    if (item.ticketType.capacity != null && item.ticketType.capacity > 0 && soldUnits + item.quantity > item.ticketType.capacity) {
+      res.status(409).json({ error: { code: "TICKET_CAPACITY_REACHED", message: `${item.ticketType.name} does not have enough remaining tickets.` } });
       return;
     }
     if (item.ticketType.available != null && item.ticketType.available < item.quantity) {

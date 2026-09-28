@@ -879,7 +879,7 @@ describe("events CRUD", () => {
     const ticket = await request(app)
       .post(`/api/events/${eventId}/ticket-types`)
       .set(auth())
-      .send({ name: "Couples", price: 120, capacity: 6, seatsIncluded: 2, isTable: false });
+      .send({ name: "Couples", price: 120, capacity: 3, seatsIncluded: 2, isTable: false });
     expect(ticket.status).toBe(201);
 
     const before = await request(app).get(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}`);

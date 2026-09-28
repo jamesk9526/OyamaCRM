@@ -14,7 +14,7 @@ import { useUnsavedEventChanges } from "./useUnsavedEventChanges";
 type Step = "details" | "registration" | "design" | "review";
 interface Readiness { ready: boolean; checks: { id: string; label: string; passed: boolean; step: Step }[]; warnings: string[]; nextStep: Step }
 interface EventRecord extends EventDetailsFieldsValue { id: string; type: string; active: boolean; visibility: string; registrationDeadline?: string | null; capacity?: number | null }
-interface TicketRecord { id: string; name: string; description?: string | null; price: number | string; capacity?: number | null; isTable: boolean; seatsIncluded: number; minPerOrder: number; maxPerOrder?: number | null; active: boolean }
+interface TicketRecord { id: string; name: string; description?: string | null; price: number | string; capacity?: number | null; available?: number | null; isTable: boolean; seatsIncluded: number; minPerOrder: number; maxPerOrder?: number | null; active: boolean }
 interface TicketDraft extends TicketFormValue { key: string; id?: string }
 const steps: { id: Step; label: string; description: string }[] = [
   { id: "details", label: "Details", description: "Tell guests what, when, and where." },
@@ -24,7 +24,7 @@ const steps: { id: Step; label: string; description: string }[] = [
 ];
 const emptyDetails: EventDetailsFieldsValue = { name: "", description: "", startDate: "", endDate: "", location: "", address: "", city: "", state: "", zip: "", virtualUrl: "" };
 function ticketDraft(ticket: TicketRecord): TicketDraft {
-  return { key: ticket.id, id: ticket.id, name: ticket.name, description: ticket.description ?? "", price: String(ticket.price), capacity: ticket.capacity == null ? "" : String(ticket.capacity), isTable: ticket.isTable, seatsIncluded: String(ticket.seatsIncluded), minPerOrder: String(ticket.minPerOrder), maxPerOrder: ticket.maxPerOrder == null ? "" : String(ticket.maxPerOrder), active: ticket.active };
+  return { key: ticket.id, id: ticket.id, name: ticket.name, description: ticket.description ?? "", price: String(ticket.price), capacity: ticket.capacity == null ? "" : String(ticket.capacity), available: ticket.available == null ? "" : String(ticket.available), isTable: ticket.isTable, seatsIncluded: String(ticket.seatsIncluded), minPerOrder: String(ticket.minPerOrder), maxPerOrder: ticket.maxPerOrder == null ? "" : String(ticket.maxPerOrder), active: ticket.active };
 }
 
 export default function GuidedEventCreator({ eventId: initialId }: { eventId?: string }) {

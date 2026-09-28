@@ -11,10 +11,10 @@ interface Ticket {
   isTable?: boolean; seatsIncluded?: number; minPerOrder?: number; maxPerOrder?: number | null;
 }
 
-export function remainingPublicTicketUnits(ticket: Pick<Ticket, "capacity" | "available" | "seatsIncluded">, registeredGuests: number, remainingEventSeats: number | null): number | null {
+export function remainingPublicTicketUnits(ticket: Pick<Ticket, "capacity" | "available" | "seatsIncluded">, soldTicketUnits: number, remainingEventSeats: number | null): number | null {
   const seatsPerTicket = Math.max(1, ticket.seatsIncluded ?? 1);
   const limits = [ticket.available ?? Infinity];
-  if (ticket.capacity != null && ticket.capacity > 0) limits.push(Math.floor(Math.max(0, ticket.capacity - registeredGuests) / seatsPerTicket));
+  if (ticket.capacity != null && ticket.capacity > 0) limits.push(Math.max(0, ticket.capacity - soldTicketUnits));
   if (remainingEventSeats != null) limits.push(Math.floor(Math.max(0, remainingEventSeats) / seatsPerTicket));
   const remaining = Math.max(0, Math.min(...limits));
   return Number.isFinite(remaining) ? remaining : null;
@@ -50,7 +50,7 @@ export function evaluateCreationReadiness(input: {
   const purchasable = active.some((ticket) => !validateCreationTicket(ticket as unknown as Record<string, unknown>)
     && (ticket.available == null || ticket.available >= (ticket.minPerOrder ?? 1))
     && ((ticket.minPerOrder ?? 1) * (ticket.seatsIncluded ?? 1) <= 50)
-    && (ticket.capacity == null || ticket.capacity === 0 || ticket.capacity >= (ticket.minPerOrder ?? 1) * (ticket.seatsIncluded ?? 1)));
+    && (ticket.capacity == null || ticket.capacity === 0 || ticket.capacity >= (ticket.minPerOrder ?? 1)));
   const checks: CreationCheck[] = [
     { id: "details", label: "Event name and dates are valid", step: "details", passed: Boolean(event.name.trim()) && Number.isFinite(event.startDate.getTime()) && (!event.endDate || event.endDate >= event.startDate) && (!event.registrationDeadline || event.registrationDeadline <= event.startDate) },
     { id: "public", label: "Event is active and public", step: "details", passed: event.active && event.visibility === "PUBLIC" },

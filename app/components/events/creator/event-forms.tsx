@@ -41,24 +41,26 @@ export function EventDetailsFields({ value, onChange }: { value: EventDetailsFie
 }
 
 export interface TicketFormValue {
-  name: string; description: string; price: string; capacity: string; isTable: boolean; seatsIncluded: string;
+  name: string; description: string; price: string; capacity: string; available: string; isTable: boolean; seatsIncluded: string;
   minPerOrder: string; maxPerOrder: string; active: boolean;
 }
-export const defaultCreationTicket: TicketFormValue = { name: "General Admission", description: "", price: "0", capacity: "", isTable: false, seatsIncluded: "1", minPerOrder: "1", maxPerOrder: "", active: true };
+export const defaultCreationTicket: TicketFormValue = { name: "General Admission", description: "", price: "0", capacity: "", available: "", isTable: false, seatsIncluded: "1", minPerOrder: "1", maxPerOrder: "", active: true };
 export function ticketPayload(form: TicketFormValue) {
-  return { name: form.name.trim(), description: form.description.trim() || null, price: Number(form.price), capacity: form.capacity === "" ? null : Number(form.capacity), isTable: form.isTable, seatsIncluded: Number(form.seatsIncluded), minPerOrder: Number(form.minPerOrder), maxPerOrder: form.maxPerOrder === "" ? null : Number(form.maxPerOrder), active: form.active };
+  return { name: form.name.trim(), description: form.description.trim() || null, price: Number(form.price), capacity: form.capacity === "" ? null : Number(form.capacity), available: form.available === "" ? null : Number(form.available), isTable: form.isTable, seatsIncluded: Number(form.seatsIncluded), minPerOrder: Number(form.minPerOrder), maxPerOrder: form.maxPerOrder === "" ? null : Number(form.maxPerOrder), active: form.active };
 }
 export function saveEventTicket<T>(eventId: string, form: TicketFormValue, id?: string): Promise<T> {
   return apiFetch<T>(`/api/events/${eventId}/ticket-types${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", body: JSON.stringify(ticketPayload(form)) });
 }
 export function TicketFields({ value, onChange }: { value: TicketFormValue; onChange: (value: TicketFormValue) => void }) {
-  function field(key: "name" | "price" | "capacity" | "seatsIncluded" | "minPerOrder" | "maxPerOrder", label: string, required = false) {
-    return <label className="block text-sm font-medium text-slate-700">{label}<input className={creatorInput} type={key === "name" ? "text" : "number"} min={key === "price" || key === "capacity" ? 0 : 1} max={key === "price" ? 100000000 : key === "seatsIncluded" ? 50 : key === "name" ? undefined : 1000000} maxLength={key === "name" ? 160 : undefined} step={key === "price" ? "0.01" : 1} required={required} value={value[key]} onChange={(event) => onChange({ ...value, [key]: event.target.value })} /></label>;
+  function field(key: "name" | "price" | "capacity" | "available" | "seatsIncluded" | "minPerOrder" | "maxPerOrder", label: string, required = false) {
+    return <label className="block text-sm font-medium text-slate-700">{label}<input className={creatorInput} type={key === "name" ? "text" : "number"} min={["price", "capacity", "available"].includes(key) ? 0 : 1} max={key === "price" ? 100000000 : key === "seatsIncluded" ? 50 : key === "name" ? undefined : 1000000} maxLength={key === "name" ? 160 : undefined} step={key === "price" ? "0.01" : 1} required={required} value={value[key]} onChange={(event) => onChange({ ...value, [key]: event.target.value })} /></label>;
   }
-  return <div className="space-y-4">
-    <div className="grid gap-4 sm:grid-cols-2">{field("name", "Ticket name", true)}{field("price", "Price (0 for free)", true)}</div>
-    <div className="grid gap-4 sm:grid-cols-2">{field("seatsIncluded", "Guests per ticket", true)}<label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={value.isTable} onChange={(event) => onChange({ ...value, isTable: event.target.checked, seatsIncluded: event.target.checked && value.seatsIncluded === "1" ? "8" : value.seatsIncluded })} />Reserve a table for this ticket</label></div>
-    <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-blue-700">Capacity, purchase limits, and description</summary><div className="mt-4 space-y-4">{field("capacity", "Guest capacity (blank for unlimited)")}<div className="grid gap-4 sm:grid-cols-2">{field("minPerOrder", "Minimum per order", true)}{field("maxPerOrder", "Maximum per order (default 10)")}</div><label className="block text-sm font-medium">Description<textarea className={`${creatorInput} py-2`} value={value.description} onChange={(event) => onChange({ ...value, description: event.target.value })} /></label></div></details>
-    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.active} onChange={(event) => onChange({ ...value, active: event.target.checked })} />Available for registration</label>
+  return <div className="space-y-6">
+    <div className="grid gap-4 sm:grid-cols-2">{field("name", "Ticket name", true)}{field("price", "Price per ticket", true)}</div>
+    <div className="grid gap-4 sm:grid-cols-2">{field("seatsIncluded", "Guests per ticket", true)}<label className="flex min-h-11 items-center gap-3 self-end text-sm font-medium text-slate-700"><input className="h-4 w-4 accent-blue-600" type="checkbox" checked={value.isTable} onChange={(event) => onChange({ ...value, isTable: event.target.checked, seatsIncluded: event.target.checked && value.seatsIncluded === "1" ? "8" : value.seatsIncluded })} />Reserve a table for each ticket</label></div>
+    <div className="border-t border-slate-200 pt-5"><h3 className="text-sm font-semibold text-slate-900">Inventory</h3><p className="mt-1 text-xs text-slate-500">Limits count tickets; event capacity counts guests.</p><div className="mt-3 grid gap-4 sm:grid-cols-2">{field("capacity", "Total ticket limit")}{field("available", "Tickets remaining")}</div><p className="mt-2 text-xs text-slate-500">New tickets start with the total limit available. Edit remaining tickets to change what guests can reserve now.</p></div>
+    <div className="border-t border-slate-200 pt-5"><h3 className="text-sm font-semibold text-slate-900">Order limits</h3><div className="mt-3 grid gap-4 sm:grid-cols-2">{field("minPerOrder", "Minimum per order", true)}{field("maxPerOrder", "Maximum per order")}</div><p className="mt-2 text-xs text-slate-500">Leave maximum blank for 10 tickets per order.</p></div>
+    <div className="border-t border-slate-200 pt-5"><label className="block text-sm font-medium text-slate-700">Description <span className="font-normal text-slate-500">(optional)</span><textarea className={`${creatorInput} py-2`} rows={3} value={value.description} onChange={(event) => onChange({ ...value, description: event.target.value })} /></label></div>
+    <label className="flex min-h-11 items-center gap-3 border-t border-slate-200 pt-5 text-sm font-medium text-slate-700"><input className="h-4 w-4 accent-blue-600" type="checkbox" checked={value.active} onChange={(event) => onChange({ ...value, active: event.target.checked })} />Available for registration</label>
   </div>;
 }

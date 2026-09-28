@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ticketPayload } from "@/app/components/events/creator/event-forms";
 import { evaluateCreationReadiness, remainingPublicTicketUnits, validateCreationTicket } from "@/server/src/services/event-creation-readiness";
 
 const input = () => ({
@@ -37,15 +38,20 @@ describe("event creation readiness", () => {
     expect(evaluateCreationReadiness({ ...input(), event: { ...input().event, registrationDeadline: new Date("2030-08-01") } }).ready).toBe(false);
     expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: true, seatsIncluded: 8, minPerOrder: 7 }] }).ready).toBe(false);
     expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: true, seatsIncluded: 8 }] }).ready).toBe(true);
-    expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: false, seatsIncluded: 2, capacity: 3, minPerOrder: 2 }] }).ready).toBe(false);
+    expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: false, seatsIncluded: 2, capacity: 1, minPerOrder: 2 }] }).ready).toBe(false);
   });
 });
 describe("public ticket availability", () => {
+  it("keeps two guests per ticket when saving a non-table couples option", () => {
+    expect(ticketPayload({ name: "Couples", description: "", price: "120", capacity: "4", available: "3", isTable: false, seatsIncluded: "2", minPerOrder: "1", maxPerOrder: "", active: true })).toMatchObject({ seatsIncluded: 2, isTable: false, capacity: 4, available: 3 });
+  });
   it("counts couples tickets in guest seats while inventory counts ticket units", () => {
-    const ticket = { seatsIncluded: 2, capacity: 6, available: 5 };
+    const ticket = { seatsIncluded: 2, capacity: 3, available: 3 };
     expect(remainingPublicTicketUnits(ticket, 0, 20)).toBe(3);
-    expect(remainingPublicTicketUnits(ticket, 4, 20)).toBe(1);
-    expect(remainingPublicTicketUnits(ticket, 4, 1)).toBe(0);
+    expect(remainingPublicTicketUnits({ ...ticket, available: 2 }, 1, 20)).toBe(2);
+    expect(remainingPublicTicketUnits({ ...ticket, available: 2 }, 1, 1)).toBe(0);
+    expect(remainingPublicTicketUnits({ seatsIncluded: 2, capacity: 120, available: 61 }, 59, 200)).toBe(61);
+    expect(remainingPublicTicketUnits({ seatsIncluded: 2, capacity: 120, available: 1 }, 59, 200)).toBe(1);
     expect(remainingPublicTicketUnits({ seatsIncluded: 1, capacity: null, available: null }, 0, null)).toBeNull();
   });
 });

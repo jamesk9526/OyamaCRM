@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { X } from "lucide-react";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -48,6 +49,7 @@ interface TicketTypeFormState {
   description: string;
   price: string;
   capacity: string;
+  available: string;
   isTable: boolean;
   seatsIncluded: string;
   minPerOrder: string;
@@ -60,6 +62,7 @@ const DEFAULT_FORM: TicketTypeFormState = {
   description: "",
   price: "0",
   capacity: "",
+  available: "",
   isTable: false,
   seatsIncluded: "1",
   minPerOrder: "1",
@@ -207,8 +210,7 @@ export default function EventTicketsPage() {
 
   // ─── Computed metrics ────────────────────────────────────────────────────
   const activeTypes = ticketTypes.filter((t) => t.active).length;
-  const totalCapacity = ticketTypes.reduce((sum, t) => sum + (t.capacity ?? 0), 0);
-  const totalSold = ticketTypes.reduce((sum, t) => sum + t._count.guests, 0);
+  const totalRegisteredSeats = ticketTypes.reduce((sum, t) => sum + t._count.guests, 0);
   const tableTypes = ticketTypes.filter((t) => t.isTable).length;
 
   if (!eventScoped) {
@@ -297,7 +299,7 @@ export default function EventTicketsPage() {
             <MetricCard label="Total Types" value={ticketTypes.length} />
             <MetricCard label="Active Types" value={activeTypes} color="amber" />
             <MetricCard label="Table Types" value={tableTypes} color="blue" />
-            <MetricCard label="Total Sold" value={totalSold} helper={totalCapacity > 0 ? `of ${totalCapacity} capacity` : undefined} />
+            <MetricCard label="Registered Seats" value={totalRegisteredSeats} />
           </div>
 
           {/* Ticket types list */}
@@ -334,9 +336,8 @@ export default function EventTicketsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {ticketTypes.map((ticket) => {
-                    const sold = ticket._count.guests;
-                    const capLabel = ticket.capacity ? `${sold} / ${ticket.capacity}` : `${sold} sold`;
-                    const pct = ticket.capacity && ticket.capacity > 0 ? Math.min(100, Math.round((sold / ticket.capacity) * 100)) : null;
+                    const capLabel = ticket.available == null ? "Unlimited tickets" : `${ticket.available} ticket${ticket.available === 1 ? "" : "s"} left${ticket.capacity ? ` / ${ticket.capacity} total` : ""}`;
+                    const pct = ticket.capacity && ticket.capacity > 0 && ticket.available != null ? Math.min(100, Math.max(0, Math.round(((ticket.capacity - ticket.available) / ticket.capacity) * 100))) : null;
                     return (
                       <tr key={ticket.id} className={`hover:bg-gray-50 ${!ticket.active ? "opacity-60" : ""}`}>
                         <td className="px-4 py-3">
@@ -486,6 +487,7 @@ function TicketTypeModal({
           description: ticketType.description ?? "",
           price: String(ticketType.price),
           capacity: ticketType.capacity ? String(ticketType.capacity) : "",
+          available: ticketType.available == null ? "" : String(ticketType.available),
           isTable: ticketType.isTable,
           seatsIncluded: String(ticketType.seatsIncluded),
           minPerOrder: String(ticketType.minPerOrder),
@@ -495,44 +497,24 @@ function TicketTypeModal({
       : DEFAULT_FORM
   );
 
-  /** Generic field updater */
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">
-            {ticketType ? "Edit Ticket Type" : "Add Ticket Type"}
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-6">
+      <form role="dialog" aria-modal="true" aria-labelledby="ticket-form-title" onSubmit={(event) => { event.preventDefault(); onSave(form); }} className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+          <h2 id="ticket-form-title" className="text-lg font-semibold text-slate-950">{ticketType ? "Edit ticket type" : "Add ticket type"}</h2>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Close ticket editor" className="grid h-8 w-8 shrink-0 place-items-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"><X className="h-4 w-4" /></button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
           <TicketFields value={form} onChange={setForm} />
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
+          {error ? <p role="alert" className="mt-5 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
         </div>
 
-        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave(form)}
-            disabled={saving || !form.name.trim()}
-            className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? "Saving..." : ticketType ? "Save Changes" : "Add Ticket Type"}
-          </button>
+        <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:px-6">
+          <button type="button" onClick={onClose} disabled={saving} className="min-h-10 border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={saving || !form.name.trim()} className="min-h-10 bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving..." : ticketType ? "Save changes" : "Add ticket type"}</button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
