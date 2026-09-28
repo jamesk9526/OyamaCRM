@@ -11,6 +11,15 @@ interface Ticket {
   isTable?: boolean; seatsIncluded?: number; minPerOrder?: number; maxPerOrder?: number | null;
 }
 
+export function remainingPublicTicketUnits(ticket: Pick<Ticket, "capacity" | "available" | "seatsIncluded">, registeredGuests: number, remainingEventSeats: number | null): number | null {
+  const seatsPerTicket = Math.max(1, ticket.seatsIncluded ?? 1);
+  const limits = [ticket.available ?? Infinity];
+  if (ticket.capacity != null && ticket.capacity > 0) limits.push(Math.floor(Math.max(0, ticket.capacity - registeredGuests) / seatsPerTicket));
+  if (remainingEventSeats != null) limits.push(Math.floor(Math.max(0, remainingEventSeats) / seatsPerTicket));
+  const remaining = Math.max(0, Math.min(...limits));
+  return Number.isFinite(remaining) ? remaining : null;
+}
+
 /** Validate the merged ticket record for both create and partial updates. */
 export function validateCreationTicket(ticket: Record<string, unknown>): string | null {
   if (typeof ticket.name !== "string" || !ticket.name.trim() || ticket.name.length > 160) return "Ticket name is required (160 characters or fewer).";
@@ -23,7 +32,7 @@ export function validateCreationTicket(ticket: Record<string, unknown>): string 
     if (value == null) continue;
     if ((typeof value !== "number" || !Number.isInteger(value)) || Number(value) < (["capacity", "available"].includes(key) ? 0 : 1) || Number(value) > 1_000_000) return `${key} must be a valid whole number.`;
   }
-  if (ticket.isTable && Number(ticket.seatsIncluded ?? 1) > 50) return "A table package can include at most 50 seats.";
+  if (Number(ticket.seatsIncluded ?? 1) > 50) return "A ticket can include at most 50 guests.";
   if (Number(ticket.minPerOrder ?? 1) > Number(ticket.maxPerOrder ?? 10)) return "Minimum tickets per order cannot exceed the maximum (10 when unspecified).";
   for (const key of ["active", "isTable"] as const) if (ticket[key] !== undefined && typeof ticket[key] !== "boolean") return `${key} must be true or false.`;
   return null;
@@ -40,8 +49,8 @@ export function evaluateCreationReadiness(input: {
   const active = tickets.filter((ticket) => ticket.active);
   const purchasable = active.some((ticket) => !validateCreationTicket(ticket as unknown as Record<string, unknown>)
     && (ticket.available == null || ticket.available >= (ticket.minPerOrder ?? 1))
-    && ((ticket.minPerOrder ?? 1) * (ticket.isTable ? ticket.seatsIncluded ?? 1 : 1) <= 50)
-    && (ticket.capacity == null || ticket.capacity === 0 || ticket.capacity >= (ticket.minPerOrder ?? 1) * (ticket.isTable ? ticket.seatsIncluded ?? 1 : 1)));
+    && ((ticket.minPerOrder ?? 1) * (ticket.seatsIncluded ?? 1) <= 50)
+    && (ticket.capacity == null || ticket.capacity === 0 || ticket.capacity >= (ticket.minPerOrder ?? 1) * (ticket.seatsIncluded ?? 1)));
   const checks: CreationCheck[] = [
     { id: "details", label: "Event name and dates are valid", step: "details", passed: Boolean(event.name.trim()) && Number.isFinite(event.startDate.getTime()) && (!event.endDate || event.endDate >= event.startDate) && (!event.registrationDeadline || event.registrationDeadline <= event.startDate) },
     { id: "public", label: "Event is active and public", step: "details", passed: event.active && event.visibility === "PUBLIC" },

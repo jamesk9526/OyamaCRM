@@ -119,7 +119,7 @@ export default function GuidedEventCreator({ eventId: initialId }: { eventId?: s
       if (!exit && !tickets.some((ticket) => ticket.active)) throw new Error("Add an active ticket before continuing.");
       // Keep IDs immediately: if a later write fails, retry updates these records.
       for (const ticket of ticketsRef.current) {
-        if (!ticket.name.trim() || !ticket.price.trim() || !ticket.minPerOrder.trim() || (ticket.isTable && !ticket.seatsIncluded.trim())) throw new Error("Complete the required ticket fields before saving.");
+        if (!ticket.name.trim() || !ticket.price.trim() || !ticket.minPerOrder.trim() || !ticket.seatsIncluded.trim()) throw new Error("Complete the required ticket fields before saving.");
         const saved = await saveEventTicket<TicketRecord>(id, ticket, ticket.id);
         ticketsRef.current = ticketsRef.current.map((item) => item.key === ticket.key ? { ...item, id: saved.id } : item);
         setTickets(ticketsRef.current);

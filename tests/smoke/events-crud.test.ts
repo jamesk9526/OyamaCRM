@@ -875,6 +875,54 @@ describe("events CRUD", () => {
     expect(res.body.guests.every((guest: { checkinCode?: string }) => /^[A-Z0-9]{6,}$/.test(guest.checkinCode ?? ""))).toBe(true);
   });
 
+  it("registers two couples tickets as four guests and reads remaining capacity", async () => {
+    const ticket = await request(app)
+      .post(`/api/events/${eventId}/ticket-types`)
+      .set(auth())
+      .send({ name: "Couples", price: 120, capacity: 6, seatsIncluded: 2, isTable: false });
+    expect(ticket.status).toBe(201);
+
+    const before = await request(app).get(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}`);
+    expect(before.status).toBe(200);
+    expect(before.body.ticketTypes.find((row: { id: string }) => row.id === ticket.body.id)?.available).toBe(3);
+
+    const unique = Date.now();
+    const registration = await request(app)
+      .post(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}/register`)
+      .set("Idempotency-Key", `smoke-couples-${unique}`)
+      .send({
+        ticketTypeId: ticket.body.id,
+        quantity: 2,
+        consentAccepted: true,
+        attendees: [
+          { firstName: "CoupleOne", lastName: "Primary", email: `couples-${unique}@example.org` },
+          { firstName: "CoupleOne", lastName: "Guest" },
+          { firstName: "CoupleTwo", lastName: "Primary" },
+          { firstName: "CoupleTwo", lastName: "Guest" },
+        ],
+      });
+    expect(registration.status).toBe(201);
+    expect(registration.body.table).toBeNull();
+    expect(registration.body.guests).toHaveLength(4);
+    expect(new Set(registration.body.guests.map((guest: { checkinCode: string }) => guest.checkinCode)).size).toBe(4);
+    expect(registration.body.order.totalAmount).toBe(240);
+
+    const after = await request(app).get(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}`);
+    expect(after.status).toBe(200);
+    expect(after.body.ticketTypes.find((row: { id: string }) => row.id === ticket.body.id)?.available).toBe(1);
+
+    const staffOrder = await request(app)
+      .post(`/api/events/${eventId}/orders`)
+      .set(auth())
+      .send({ constituentId: supportConstituentId, status: "PENDING", items: [{ ticketTypeId: ticket.body.id, quantity: 1 }] });
+    expect(staffOrder.status).toBe(201);
+    expect(staffOrder.body._count?.guests).toBe(2);
+
+    const soldOut = await request(app).get(`/api/events/public/page/${encodeURIComponent(savedEventPageSlug)}`);
+    expect(soldOut.status).toBe(200);
+    expect(soldOut.body.ticketTypes.find((row: { id: string }) => row.id === ticket.body.id)?.available).toBe(0);
+  });
+
   it("supports no-payment public registration policy", async () => {
     expect(eventId).toBeTruthy();
     expect(savedEventPageSlug).toBeTruthy();

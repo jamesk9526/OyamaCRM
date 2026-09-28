@@ -46,7 +46,7 @@ export interface TicketFormValue {
 }
 export const defaultCreationTicket: TicketFormValue = { name: "General Admission", description: "", price: "0", capacity: "", isTable: false, seatsIncluded: "1", minPerOrder: "1", maxPerOrder: "", active: true };
 export function ticketPayload(form: TicketFormValue) {
-  return { name: form.name.trim(), description: form.description.trim() || null, price: Number(form.price), capacity: form.capacity === "" ? null : Number(form.capacity), isTable: form.isTable, seatsIncluded: form.isTable ? Number(form.seatsIncluded) : 1, minPerOrder: Number(form.minPerOrder), maxPerOrder: form.maxPerOrder === "" ? null : Number(form.maxPerOrder), active: form.active };
+  return { name: form.name.trim(), description: form.description.trim() || null, price: Number(form.price), capacity: form.capacity === "" ? null : Number(form.capacity), isTable: form.isTable, seatsIncluded: Number(form.seatsIncluded), minPerOrder: Number(form.minPerOrder), maxPerOrder: form.maxPerOrder === "" ? null : Number(form.maxPerOrder), active: form.active };
 }
 export function saveEventTicket<T>(eventId: string, form: TicketFormValue, id?: string): Promise<T> {
   return apiFetch<T>(`/api/events/${eventId}/ticket-types${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", body: JSON.stringify(ticketPayload(form)) });
@@ -57,8 +57,7 @@ export function TicketFields({ value, onChange }: { value: TicketFormValue; onCh
   }
   return <div className="space-y-4">
     <div className="grid gap-4 sm:grid-cols-2">{field("name", "Ticket name", true)}{field("price", "Price (0 for free)", true)}</div>
-    <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={value.isTable} onChange={(event) => onChange({ ...value, isTable: event.target.checked, seatsIncluded: event.target.checked && value.seatsIncluded === "1" ? "8" : value.seatsIncluded })} />Table package — covers multiple guests</label>
-    {value.isTable ? field("seatsIncluded", "Seats included", true) : null}
+    <div className="grid gap-4 sm:grid-cols-2">{field("seatsIncluded", "Guests per ticket", true)}<label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={value.isTable} onChange={(event) => onChange({ ...value, isTable: event.target.checked, seatsIncluded: event.target.checked && value.seatsIncluded === "1" ? "8" : value.seatsIncluded })} />Reserve a table for this ticket</label></div>
     <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-blue-700">Capacity, purchase limits, and description</summary><div className="mt-4 space-y-4">{field("capacity", "Guest capacity (blank for unlimited)")}<div className="grid gap-4 sm:grid-cols-2">{field("minPerOrder", "Minimum per order", true)}{field("maxPerOrder", "Maximum per order (default 10)")}</div><label className="block text-sm font-medium">Description<textarea className={`${creatorInput} py-2`} value={value.description} onChange={(event) => onChange({ ...value, description: event.target.value })} /></label></div></details>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.active} onChange={(event) => onChange({ ...value, active: event.target.checked })} />Available for registration</label>
   </div>;

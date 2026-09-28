@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCreationReadiness, validateCreationTicket } from "@/server/src/services/event-creation-readiness";
+import { evaluateCreationReadiness, remainingPublicTicketUnits, validateCreationTicket } from "@/server/src/services/event-creation-readiness";
 
 const input = () => ({
   event: { name: "Community night", startDate: new Date("2030-10-01"), active: true, visibility: "PUBLIC", status: "DRAFT" },
@@ -37,8 +37,18 @@ describe("event creation readiness", () => {
     expect(evaluateCreationReadiness({ ...input(), event: { ...input().event, registrationDeadline: new Date("2030-08-01") } }).ready).toBe(false);
     expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: true, seatsIncluded: 8, minPerOrder: 7 }] }).ready).toBe(false);
     expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: true, seatsIncluded: 8 }] }).ready).toBe(true);
+    expect(evaluateCreationReadiness({ ...input(), tickets: [{ ...input().tickets[0], isTable: false, seatsIncluded: 2, capacity: 3, minPerOrder: 2 }] }).ready).toBe(false);
+  });
+});
+describe("public ticket availability", () => {
+  it("counts couples tickets in guest seats while inventory counts ticket units", () => {
+    const ticket = { seatsIncluded: 2, capacity: 6, available: 5 };
+    expect(remainingPublicTicketUnits(ticket, 0, 20)).toBe(3);
+    expect(remainingPublicTicketUnits(ticket, 4, 20)).toBe(1);
+    expect(remainingPublicTicketUnits(ticket, 4, 1)).toBe(0);
+    expect(remainingPublicTicketUnits({ seatsIncluded: 1, capacity: null, available: null }, 0, null)).toBeNull();
   });
 });
 describe("ticket validation", () => {
-  it.each([{ name: "", price: 0 }, { name: "Ticket", price: -1 }, { name: "Ticket", price: "bad" }, { name: "Ticket", price: true }, { name: "Ticket", price: " " }, { name: "Ticket", price: [] }, { name: "Ticket", price: 0, capacity: 1.5 }, { name: "Ticket", price: 0, minPerOrder: 5, maxPerOrder: 3 }, { name: "Table", price: 0, isTable: true, seatsIncluded: 51 }])("rejects invalid ticket %j", (ticket) => expect(validateCreationTicket(ticket)).toBeTruthy());
+  it.each([{ name: "", price: 0 }, { name: "Ticket", price: -1 }, { name: "Ticket", price: "bad" }, { name: "Ticket", price: true }, { name: "Ticket", price: " " }, { name: "Ticket", price: [] }, { name: "Ticket", price: 0, capacity: 1.5 }, { name: "Ticket", price: 0, minPerOrder: 5, maxPerOrder: 3 }, { name: "Table", price: 0, isTable: true, seatsIncluded: 51 }, { name: "Couples", price: 0, isTable: false, seatsIncluded: 51 }])("rejects invalid ticket %j", (ticket) => expect(validateCreationTicket(ticket)).toBeTruthy());
 });

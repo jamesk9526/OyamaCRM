@@ -208,7 +208,7 @@ export default function EventTicketsPage() {
   // ─── Computed metrics ────────────────────────────────────────────────────
   const activeTypes = ticketTypes.filter((t) => t.active).length;
   const totalCapacity = ticketTypes.reduce((sum, t) => sum + (t.capacity ?? 0), 0);
-  const totalSold = ticketTypes.reduce((sum, t) => sum + t._count.guests + t._count.orderItems, 0);
+  const totalSold = ticketTypes.reduce((sum, t) => sum + t._count.guests, 0);
   const tableTypes = ticketTypes.filter((t) => t.isTable).length;
 
   if (!eventScoped) {
@@ -334,7 +334,7 @@ export default function EventTicketsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {ticketTypes.map((ticket) => {
-                    const sold = ticket._count.guests + ticket._count.orderItems;
+                    const sold = ticket._count.guests;
                     const capLabel = ticket.capacity ? `${sold} / ${ticket.capacity}` : `${sold} sold`;
                     const pct = ticket.capacity && ticket.capacity > 0 ? Math.min(100, Math.round((sold / ticket.capacity) * 100)) : null;
                     return (
@@ -349,6 +349,10 @@ export default function EventTicketsPage() {
                           {ticket.isTable ? (
                             <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
                               Table ({ticket.seatsIncluded} seats)
+                            </span>
+                          ) : ticket.seatsIncluded > 1 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
+                              Group ({ticket.seatsIncluded} guests)
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">

@@ -44,7 +44,7 @@ import type {
   Prisma,
 } from "@prisma/client";
 
-import { evaluateCreationReadiness, validateCreationTicket } from "../services/event-creation-readiness.js";
+import { evaluateCreationReadiness, remainingPublicTicketUnits, validateCreationTicket } from "../services/event-creation-readiness.js";
 
 const router = Router();
 const EVENTS_MANAGER_INTEGRATIONS_PLUGIN_KEY = "events-manager-integrations";
@@ -726,7 +726,7 @@ async function sendPublicEventRegistrationConfirmation(params: {
     });
     const tableSummary = params.table
       ? `Table ${params.table.tableNumber ?? "pending"} — ${params.table.name} (${params.table.capacity} seats)`
-      : "Individual registration";
+      : `${params.guests.length} guest${params.guests.length === 1 ? "" : "s"} registered`;
     const amountSummary = params.totalAmount <= 0
       ? "No payment is due."
       : params.paymentPolicy === "StripeCheckout"
@@ -1172,7 +1172,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
     return;
   }
 
-  const [ticketTypes, sponsors, attendanceTotal, checkedInTotal, orderAggregate, donationAggregate] = await Promise.all([
+  const [ticketTypes, sponsors, attendanceTotal, checkedInTotal, orderAggregate, donationAggregate, ticketGuestCounts] = await Promise.all([
     prisma.ticketType.findMany({
       where: { eventId: event.id, active: true },
       select: {
@@ -1225,7 +1225,19 @@ router.get("/public/page/:pageSlug", async (req, res) => {
       _sum: { amount: true },
       _count: { id: true },
     }),
+    prisma.eventGuest.groupBy({
+      by: ["ticketTypeId"],
+      where: { eventId: event.id, ticketTypeId: { not: null } },
+      _count: { id: true },
+    }),
   ]);
+
+  const guestCountByTicket = new Map(ticketGuestCounts.map((row) => [row.ticketTypeId, row._count.id]));
+  const remainingEventSeats = event.capacity != null && event.capacity > 0 ? event.capacity - attendanceTotal : null;
+  const publicTicketTypes = ticketTypes.map((ticket) => ({
+    ...ticket,
+    available: remainingPublicTicketUnits(ticket, guestCountByTicket.get(ticket.id) ?? 0, remainingEventSeats),
+  }));
 
   const revenueFromOrders = Number(orderAggregate._sum.totalAmount ?? 0);
   const revenueFromDonations = Number(donationAggregate._sum.amount ?? 0);
@@ -1247,7 +1259,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
       ...event,
       revenueGoal,
     },
-    ticketTypes,
+    ticketTypes: publicTicketTypes,
     sponsors,
     report: {
       attendance: {
@@ -1455,7 +1467,7 @@ router.post("/public/page/:pageSlug/register", publicEventRegistrationLimiter, a
     return;
   }
   const ticketUnits = requestedTicketUnits;
-  const seatsPerTicket = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
+  const seatsPerTicket = Math.max(1, ticketType.seatsIncluded ?? 1);
   const requestedSeats = ticketUnits * seatsPerTicket;
   if (requestedSeats > MAX_SEATS_PER_PUBLIC_REGISTRATION) {
     res.status(400).json({ error: { code: "TOO_MANY_SEATS", message: `A registration can reserve at most ${MAX_SEATS_PER_PUBLIC_REGISTRATION} seats.` } });
@@ -3517,7 +3529,7 @@ router.post("/:eventId/orders", async (req, res) => {
     const minPerOrder = Math.max(1, Math.min(ticketType.minPerOrder, maxPerOrder));
     const quantity = Math.min(maxPerOrder, Math.max(minPerOrder, item.quantity));
     const unitPrice = Number(ticketType.price ?? 0);
-    const seatsIncluded = ticketType.isTable ? Math.max(1, ticketType.seatsIncluded ?? 1) : 1;
+    const seatsIncluded = Math.max(1, ticketType.seatsIncluded ?? 1);
     return {
       ticketType,
       quantity,
