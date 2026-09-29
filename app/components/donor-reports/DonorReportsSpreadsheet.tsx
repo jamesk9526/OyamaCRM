@@ -9,6 +9,7 @@ import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import DonationAudienceTool from "@/app/components/donor-reports/DonationAudienceTool";
+import { renderAnnualStatements, type AnnualGivingStatement } from "@/app/components/donor-reports/annual-statement-print";
 import {
   getStoredReportingYearMode,
   setStoredReportingYearMode,
@@ -48,7 +49,7 @@ interface ReportDefinition {
   description: string;
   source: string;
   capabilities: string;
-  scope: "date" | "year" | "lapse" | "none";
+  scope: "date" | "year" | "calendar-year" | "lapse" | "none";
   group: "Gift reports" | "Donor reports";
   supportsPayment?: boolean;
   supportsDesignation?: boolean;
@@ -89,19 +90,9 @@ interface DesignationOption {
   name: string;
 }
 
-interface GivingStatement {
-  organizationName: string;
-  constituent: { id: string; name: string; address: string | null; email: string | null };
-  period: { label: string };
-  gifts: Array<{ date: string; receiptNumber: string | null; designation: string; amount: number; taxDeductibleAmount: number; taxDeductibleNotes: string | null }>;
-  totalAmount: number;
-  taxDeductibleAmount: number;
-  generatedAt: string;
-}
-
 const REPORTS: ReportDefinition[] = [
   { key: "batch-receipts", title: "Batch Receipts", description: "Review a receipt-ready register grouped by donor before creating receipt communications.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
-  { key: "tax-deductible-giving", title: "Tax-deductible Giving", description: "One constituent per row with total donations, tax-deductible amounts, and individual printable giving statements.", source: "Completed donations", capabilities: "Grid, CSV, Statements", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
+  { key: "tax-deductible-giving", title: "Annual Donation Statements", description: "Review each constituent's calendar-year donations and tax-deductible total, then print individual or selected statements.", source: "Completed donations", capabilities: "Grid, CSV, Statements", scope: "calendar-year", group: "Gift reports" },
   { key: "unacknowledged-gifts", title: "Unacknowledged Gifts", description: "Find completed gifts that still need a recorded thank-you, then review the donor before starting a letter or email.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations", title: "Donations", description: "Print or export a detailed list of completed gifts in a selected date range.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true },
   { key: "donations-by-designation", title: "Donations by Designation", description: "See completed giving grouped by donor and designation.", source: "Completed donations", capabilities: "Grid, CSV, Print", scope: "date", group: "Gift reports", supportsPayment: true, supportsDesignation: true, defaultRange: "month-to-date" },
@@ -248,7 +239,7 @@ export default function DonorReportsSpreadsheet() {
         params.set("from", effectiveFrom);
         params.set("through", through);
       }
-      if (definition.scope === "year") params.set("year", year);
+      if (definition.scope === "year" || definition.scope === "calendar-year") params.set("year", year);
       if (definition.scope === "lapse") {
         params.set("lapseMode", lapseMode);
         params.set("lapseFromYear", lapseFromYear);
@@ -332,25 +323,27 @@ export default function DonorReportsSpreadsheet() {
     window.setTimeout(() => printWindow.print(), 120);
   };
 
-  const handlePrintStatement = async (constituentId: string) => {
+  const handlePrintStatements = async (constituentIds: string[]) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       setError("Your browser blocked the print window. Allow pop-ups and try again.");
       return;
     }
-    printWindow.document.write("<!doctype html><html><body><p>Preparing giving statement...</p></body></html>");
+    printWindow.document.write("<!doctype html><html><body><p>Preparing donation statements...</p></body></html>");
     try {
-      const suffix = reportQuery ? `?${reportQuery}` : "";
-      const statement = await apiFetch<GivingStatement>(`/api/reports/library/tax-deductible-giving/constituents/${encodeURIComponent(constituentId)}${suffix}`);
-      const rows = statement.gifts.map((gift) => `<tr><td>${escapeHtml(formatDate(gift.date))}</td><td>${escapeHtml(gift.receiptNumber ?? "")}</td><td>${escapeHtml(gift.designation)}</td><td>${escapeHtml(formatCurrency(gift.amount))}</td><td>${escapeHtml(formatCurrency(gift.taxDeductibleAmount))}</td></tr>${gift.taxDeductibleNotes ? `<tr><td colspan="5" class="notes">${escapeHtml(gift.taxDeductibleNotes)}</td></tr>` : ""}`).join("");
+      const params = new URLSearchParams(reportQuery);
+      const statements = await apiFetch<AnnualGivingStatement[]>("/api/reports/library/tax-deductible-giving/statements", {
+        method: "POST",
+        body: JSON.stringify({ year: params.get("year"), constituentIds }),
+      });
       printWindow.document.open();
-      printWindow.document.write(`<!doctype html><html><head><title>Giving statement - ${escapeHtml(statement.constituent.name)}</title><style>body{font-family:Segoe UI,Arial,sans-serif;color:#172033;margin:32px;line-height:1.45}h1{font-size:23px;margin:0}h2{font-size:18px;margin:32px 0 4px}.muted{color:#52606f;font-size:12px}.totals{display:flex;gap:32px;margin:24px 0;font-size:15px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;border-bottom:1px solid #cbd5e1;padding:8px 6px}th{background:#f1f5f9}.notes{color:#52606f;font-style:italic}.footer{margin-top:24px;font-size:11px;color:#52606f}@page{size:letter;margin:15mm}</style></head><body><h1>${escapeHtml(statement.organizationName)}</h1><div class="muted">Constituent giving statement</div><h2>${escapeHtml(statement.constituent.name)}</h2><div>${escapeHtml(statement.constituent.address ?? "")}</div><div>${escapeHtml(statement.constituent.email ?? "")}</div><p>Completed donations: ${escapeHtml(statement.period.label)}</p><div class="totals"><div><strong>Total donations</strong><br>${escapeHtml(formatCurrency(statement.totalAmount))}</div><div><strong>Tax-deductible amount</strong><br>${escapeHtml(formatCurrency(statement.taxDeductibleAmount))}</div></div><table><thead><tr><th>Date</th><th>Receipt #</th><th>Designation</th><th>Donation</th><th>Tax-deductible</th></tr></thead><tbody>${rows || `<tr><td colspan="5">No completed gifts in this period.</td></tr>`}</tbody></table><p class="footer">This statement reflects amounts recorded in the CRM. Review gift details and any goods or services provided before using it as an official tax receipt. Generated ${escapeHtml(formatDateTime(statement.generatedAt))}.</p></body></html>`);
+      printWindow.document.write(renderAnnualStatements(statements));
       printWindow.document.close();
       printWindow.focus();
       window.setTimeout(() => printWindow.print(), 120);
     } catch (printError) {
       printWindow.close();
-      setError(printError instanceof Error ? printError.message : "Unable to prepare this giving statement.");
+      setError(printError instanceof Error ? printError.message : "Unable to prepare donation statements.");
     }
   };
 
@@ -419,7 +412,7 @@ export default function DonorReportsSpreadsheet() {
           onRun={() => void loadReport(selected, "refresh")}
           onExport={() => void handleExport()}
           onPrint={handlePrint}
-          onPrintStatement={(constituentId) => void handlePrintStatement(constituentId)}
+          onPrintStatements={(constituentIds) => void handlePrintStatements(constituentIds)}
           displayMode={displayMode}
           onDisplayModeChange={setDisplayMode}
           onShowInsights={() => setShowInsights(true)}
@@ -463,7 +456,7 @@ function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: 
                 </div>
                 <p className="mt-3 text-sm leading-5 text-slate-600">{report.description}</p>
                 <p className="mt-1 text-xs text-slate-500" title="The live CRM records used to build this report">Source: {report.source}</p>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] font-medium text-slate-500">{report.scope === "date" ? "Date filters" : report.scope === "year" ? "Year comparison" : report.scope === "lapse" ? "Lapse history filters" : "All records"}</span><button type="button" onClick={() => onRun(report)} className="rounded-md bg-[#0f6cbd] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a9d]">Run report</button></div>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-4"><span className="text-[11px] font-medium text-slate-500">{report.scope === "date" ? "Date filters" : report.scope === "calendar-year" ? "Calendar year" : report.scope === "year" ? "Year comparison" : report.scope === "lapse" ? "Lapse history filters" : "All records"}</span><button type="button" onClick={() => onRun(report)} className="rounded-md bg-[#0f6cbd] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a9d]">Run report</button></div>
               </article>
             ))}
           </div>
@@ -507,7 +500,7 @@ function ReportRunner({
   onRun,
   onExport,
   onPrint,
-  onPrintStatement,
+  onPrintStatements,
   displayMode,
   onDisplayModeChange,
   onShowInsights,
@@ -545,7 +538,7 @@ function ReportRunner({
   onRun: () => void;
   onExport: () => void;
   onPrint: () => void;
-  onPrintStatement: (constituentId: string) => void;
+  onPrintStatements: (constituentIds: string[]) => void;
   displayMode: "grid" | "visual";
   onDisplayModeChange: (mode: "grid" | "visual") => void;
   onShowInsights: () => void;
@@ -563,7 +556,7 @@ function ReportRunner({
           </div>
           <p className="text-xs text-slate-500">Source: {definition.source}</p>
         </div>
-        <div className="mt-4 inline-flex rounded-lg border border-slate-300 bg-white p-1" aria-label="Reporting year basis">
+        {definition.scope !== "calendar-year" ? <div className="mt-4 inline-flex rounded-lg border border-slate-300 bg-white p-1" aria-label="Reporting year basis">
           {(["calendar", "fiscal"] as const).map((mode) => (
             <button
               key={mode}
@@ -574,7 +567,7 @@ function ReportRunner({
               {mode === "calendar" ? "Calendar year" : "Fiscal year"}
             </button>
           ))}
-        </div>
+        </div> : null}
       </div>
 
       <WorkspaceRibbon sticky={false} accentTone="blue" tabs={[{ label: "Report", active: true }]}> 
@@ -585,8 +578,8 @@ function ReportRunner({
           <WorkspaceRibbonButton label="Grid" onClick={() => onDisplayModeChange("grid")} disabled={!report || displayMode === "grid"} accentTone="blue" />
           <WorkspaceRibbonButton label="Visual" onClick={() => onDisplayModeChange("visual")} disabled={!report || displayMode === "visual"} accentTone="blue" />
           {definition.key === "crm-performance-scorecard" ? <WorkspaceRibbonButton label="AI insights" onClick={onShowInsights} disabled={!report} accentTone="blue" /> : null}
-          <WorkspaceRibbonButton label={exporting ? "Exporting" : "Export CSV"} onClick={onExport} disabled={!report || exporting} accentTone="blue" />
-          <WorkspaceRibbonButton label="Print report" onClick={onPrint} disabled={!report} accentTone="blue" />
+          <WorkspaceRibbonButton label={exporting ? "Exporting" : "Export CSV"} onClick={onExport} disabled={!report || exporting || (definition.scope === "calendar-year" && report.period?.from.slice(0, 4) !== year)} accentTone="blue" />
+          <WorkspaceRibbonButton label="Print report" onClick={onPrint} disabled={!report || (definition.scope === "calendar-year" && report.period?.from.slice(0, 4) !== year)} accentTone="blue" />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
@@ -597,6 +590,7 @@ function ReportRunner({
             <FilterField label="End date"><input type="date" value={through} onChange={(event) => onThroughChange(event.target.value)} className="report-input" /></FilterField>
           </> : null}
           {definition.scope === "year" ? <FilterField label="Comparison year"><input type="number" min="2000" max="2100" value={year} onChange={(event) => onYearChange(event.target.value)} className="report-input w-32" /></FilterField> : null}
+          {definition.scope === "calendar-year" ? <FilterField label="Calendar year"><input type="number" min="2000" max="2100" value={year} onChange={(event) => onYearChange(event.target.value)} className="report-input w-32" /></FilterField> : null}
           {definition.scope === "lapse" ? <>
             <FilterField label="Lapsed donor view"><select value={lapseMode} onChange={(event) => onLapseModeChange(event.target.value as "all" | "lastGiftRange" | "notSince")} className="report-input min-w-56"><option value="all">All marked lapsed</option><option value="lastGiftRange">Last gift year range</option><option value="notSince">No gift since year</option></select></FilterField>
             {lapseMode === "lastGiftRange" ? <><FilterField label="Last gift from"><input type="number" min="1900" max="2100" value={lapseFromYear} onChange={(event) => onLapseFromYearChange(event.target.value)} className="report-input w-28" /></FilterField><FilterField label="Last gift through"><input type="number" min="1900" max="2100" value={lapseThroughYear} onChange={(event) => onLapseThroughYearChange(event.target.value)} className="report-input w-28" /></FilterField></> : null}
@@ -612,7 +606,7 @@ function ReportRunner({
       </div>
 
       {error ? <div className="m-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div> : null}
-      {loading ? <ReportLoading /> : report ? <ReportOutput report={report} displayMode={displayMode} onGenerateLetters={onGenerateLetters} onPrintStatement={onPrintStatement} /> : null}
+      {loading ? <ReportLoading /> : report && definition.scope === "calendar-year" && report.period?.from.slice(0, 4) !== year ? <p className="p-5 text-sm text-slate-700">Run the report to load calendar year {year} before printing or exporting statements.</p> : report ? <ReportOutput report={report} displayMode={displayMode} onGenerateLetters={onGenerateLetters} onPrintStatements={onPrintStatements} /> : null}
     </section>
   );
 }
@@ -625,13 +619,19 @@ function ReportLoading() {
   return <div className="p-4"><div className="grid gap-px overflow-hidden rounded border border-slate-300 bg-slate-200">{Array.from({ length: 9 }, (_, index) => <div key={index} className="h-11 animate-pulse bg-white" />)}</div></div>;
 }
 
-function ReportOutput({ report, displayMode, onGenerateLetters, onPrintStatement }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void; onPrintStatement: (constituentId: string) => void }) {
+function ReportOutput({ report, displayMode, onGenerateLetters, onPrintStatements }: { report: ReportData; displayMode: "grid" | "visual"; onGenerateLetters: () => void; onPrintStatements: (constituentIds: string[]) => void }) {
   const [showAudienceDialog, setShowAudienceDialog] = useState(false);
   const [audienceName, setAudienceName] = useState("");
   const [audienceDescription, setAudienceDescription] = useState("");
   const [savingAudience, setSavingAudience] = useState(false);
   const [audienceMessage, setAudienceMessage] = useState<string | null>(null);
   const [audienceError, setAudienceError] = useState<string | null>(null);
+  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
+  const [statementSearch, setStatementSearch] = useState("");
+  useEffect(() => { setSelectedStatementIds([]); setStatementSearch(""); }, [report.generatedAt, report.report]);
+  const visibleStatementRows = report.report === "tax-deductible-giving" && statementSearch.trim()
+    ? report.rows.filter((row) => [row.donorName, row.email, row.address].some((value) => String(value ?? "").toLowerCase().includes(statementSearch.trim().toLowerCase())))
+    : report.rows;
   const donorRows = report.rows.filter((row) => typeof row.donorId === "string");
   const audienceDonorIds = Array.from(new Set([
     ...(report.audienceConstituentIds ?? []),
@@ -693,7 +693,8 @@ function ReportOutput({ report, displayMode, onGenerateLetters, onPrintStatement
       {donorRowCount > 0 ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5"><div><p className="text-sm font-semibold text-emerald-950">Turn this report into outreach</p><p className="text-xs text-emerald-800">Create a reusable audience or open letter generation with all {donorRowCount.toLocaleString()} unique CRM constituent{donorRowCount === 1 ? "" : "s"} represented by this report.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={openAudienceDialog} className="rounded-md border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Save as audience list</button><button type="button" onClick={onGenerateLetters} className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800">Generate letters →</button></div></div> : null}
       {audienceMessage ? <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"><span>{audienceMessage}</span><div className="flex items-center gap-3"><Link href="/contacts-manager/lists" className="font-semibold hover:underline">Open audience lists →</Link><button type="button" onClick={() => setAudienceMessage(null)} className="font-semibold hover:underline">Dismiss</button></div></div> : null}
       {report.notices.map((notice) => <p key={notice} className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">{notice}</p>)}
-      {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} onPrintStatement={onPrintStatement} />}
+      {report.report === "tax-deductible-giving" ? <div className="flex flex-wrap items-end justify-between gap-3 border-y border-slate-200 py-3"><label className="flex min-w-[220px] flex-col gap-1 text-xs font-medium text-slate-700">Find constituent<input type="search" value={statementSearch} onChange={(event) => setStatementSearch(event.target.value)} placeholder="Name, email, or address" className="report-input min-w-0" /></label><div className="flex flex-wrap items-center gap-2"><span className="mr-2 text-xs text-slate-600">{visibleStatementRows.length} shown · {selectedStatementIds.length} selected</span><button type="button" onClick={() => setSelectedStatementIds((current) => Array.from(new Set([...current, ...visibleStatementRows.map((row) => String(row.donorId))])).slice(0, 100))} disabled={visibleStatementRows.length === 0} className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Select visible (up to 100)</button><button type="button" onClick={() => setSelectedStatementIds([])} disabled={selectedStatementIds.length === 0} className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Clear</button><button type="button" onClick={() => onPrintStatements(selectedStatementIds)} disabled={selectedStatementIds.length === 0} className="rounded bg-[#0f6cbd] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a9d] disabled:opacity-50">Print selected statements</button></div></div> : null}
+      {displayMode === "visual" ? <VisualReport report={report} /> : report.comparisonMatrix ? <ComparisonMatrix matrix={report.comparisonMatrix} /> : <ReportGrid report={report} rows={visibleStatementRows} selectedStatementIds={selectedStatementIds} onToggleStatement={(id) => setSelectedStatementIds((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < 100 ? [...current, id] : current)} onPrintStatements={onPrintStatements} />}
       {showAudienceDialog ? <AudienceSaveDialog
         audienceDonorIds={audienceDonorIds}
         audienceEmails={audienceEmails}
@@ -762,37 +763,40 @@ function AudienceSaveDialog({
   );
 }
 
-function ReportGrid({ report, onPrintStatement }: { report: ReportData; onPrintStatement: (constituentId: string) => void }) {
+function ReportGrid({ report, rows, selectedStatementIds, onToggleStatement, onPrintStatements }: { report: ReportData; rows: ReportData["rows"]; selectedStatementIds: string[]; onToggleStatement: (constituentId: string) => void; onPrintStatements: (constituentIds: string[]) => void }) {
   return (
     <div className="rounded border border-slate-300">
       <div className="divide-y divide-slate-200 lg:hidden">
-        {report.rows.map((row, index) => <article key={`${row.donorId ?? row.taskId ?? index}`} className="p-3.5">
+        {rows.map((row, index) => <article key={`${row.donorId ?? row.taskId ?? index}`} className="p-3.5">
           <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-slate-500">Row {index + 1}</span>{typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="text-xs font-semibold text-blue-700 hover:underline">Open donor →</Link> : null}</div>
+          {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <label className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-700"><input type="checkbox" checked={selectedStatementIds.includes(String(row.donorId))} onChange={() => onToggleStatement(String(row.donorId))} disabled={!selectedStatementIds.includes(String(row.donorId)) && selectedStatementIds.length >= 100} /> Select {String(row.donorName)} for printing</label> : null}
           <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
             {report.columns.map((column) => <div key={column.key} className="min-w-0 rounded-md bg-slate-50 px-2.5 py-2"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{column.label}</dt><dd className={`mt-0.5 break-words text-sm text-slate-900 ${column.type === "currency" || column.type === "number" ? "font-semibold tabular-nums" : ""}`}>{column.linkToDonor && typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="font-medium text-blue-700 hover:underline">{formatCell(row[column.key] ?? null, column.type ?? "text")}</Link> : formatCell(row[column.key] ?? null, column.type ?? "text")}</dd></div>)}
           </dl>
-          {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <button type="button" onClick={() => onPrintStatement(String(row.donorId))} className="mt-3 text-xs font-semibold text-blue-700 hover:underline">Print statement</button> : null}
+          {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <button type="button" onClick={() => onPrintStatements([String(row.donorId)])} className="mt-3 text-xs font-semibold text-blue-700 hover:underline">Print statement</button> : null}
         </article>)}
-        {report.rows.length === 0 ? <div className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</div> : null}
+        {rows.length === 0 ? <div className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</div> : null}
       </div>
       <div className="hidden overflow-x-auto lg:block">
       <table className="min-w-full border-collapse text-sm">
         <thead className="bg-[#5d5d5d] text-left text-xs text-white">
           <tr>
             <th className="w-11 border-r border-white/20 px-3 py-2 text-right font-semibold">#</th>
+            {report.report === "tax-deductible-giving" ? <th className="w-10 border-r border-white/20 px-3 py-2 font-semibold">Select</th> : null}
             {report.columns.map((column) => <th key={column.key} className="whitespace-nowrap border-r border-white/20 px-3 py-2 font-semibold last:border-r-0">{column.label}</th>)}
             {report.report === "tax-deductible-giving" ? <th className="px-3 py-2 font-semibold">Statement</th> : null}
           </tr>
         </thead>
         <tbody>
-          {report.rows.map((row, index) => <tr key={`${row.donorId ?? row.taskId ?? index}`} title="Hover a value to inspect its source field" className="group hover:bg-[#f7fbff]">
+          {rows.map((row, index) => <tr key={`${row.donorId ?? row.taskId ?? index}`} title="Hover a value to inspect its source field" className="group hover:bg-[#f7fbff]">
             <td className="border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs tabular-nums text-slate-500">{index + 1}</td>
+            {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <td className="border-b border-r border-slate-200 px-3 py-2"><input type="checkbox" aria-label={`Select ${String(row.donorName)} for printing`} checked={selectedStatementIds.includes(String(row.donorId))} onChange={() => onToggleStatement(String(row.donorId))} disabled={!selectedStatementIds.includes(String(row.donorId)) && selectedStatementIds.length >= 100} /></td> : null}
             {report.columns.map((column) => <td key={column.key} title={`${column.label}: ${formatCell(row[column.key] ?? null, column.type ?? "text")}`} className={`border-b border-r border-slate-200 px-3 py-2 align-top ${column.type === "currency" || column.type === "number" ? "text-right tabular-nums" : ""}`}>
               {column.linkToDonor && typeof row.donorId === "string" ? <Link href={`/constituents/${encodeURIComponent(row.donorId)}`} className="font-medium text-[#0f6cbd] hover:underline">{formatCell(row[column.key] ?? null, column.type ?? "text")}</Link> : formatCell(row[column.key] ?? null, column.type ?? "text")}
             </td>)}
-            {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <td className="border-b border-slate-200 px-3 py-2"><button type="button" onClick={() => onPrintStatement(String(row.donorId))} className="whitespace-nowrap font-medium text-[#0f6cbd] hover:underline">Print statement</button></td> : null}
+            {report.report === "tax-deductible-giving" && typeof row.donorId === "string" ? <td className="border-b border-slate-200 px-3 py-2"><button type="button" onClick={() => onPrintStatements([String(row.donorId)])} className="whitespace-nowrap font-medium text-[#0f6cbd] hover:underline">Print statement</button></td> : null}
           </tr>)}
-          {report.rows.length === 0 ? <tr><td colSpan={report.columns.length + 1 + (report.report === "tax-deductible-giving" ? 1 : 0)} className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</td></tr> : null}
+          {rows.length === 0 ? <tr><td colSpan={report.columns.length + 1 + (report.report === "tax-deductible-giving" ? 2 : 0)} className="px-4 py-12 text-center text-sm text-slate-500">No matching records were found for this report.</td></tr> : null}
         </tbody>
       </table>
       </div>

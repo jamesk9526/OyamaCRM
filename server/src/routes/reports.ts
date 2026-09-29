@@ -23,6 +23,7 @@ import { generateLetterFromTemplate } from "../services/letters-execution.js";
 import {
   buildDonorLibraryReport,
   buildConstituentGivingStatement,
+  buildConstituentGivingStatements,
   isDonorLibraryReportKey,
   parseDonorLibraryReportOptions,
 } from "../services/donor-report-library.js";
@@ -1415,6 +1416,31 @@ router.get("/library/tax-deductible-giving/constituents/:constituentId", require
   }
   res.setHeader("Cache-Control", "no-store");
   res.json(statement);
+});
+
+router.post("/library/tax-deductible-giving/statements", requirePermission("export:data"), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(400).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+  const ids = req.body?.constituentIds;
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100 || ids.some((id) => typeof id !== "string" || !id.trim() || id.length > 100)) {
+    res.status(400).json({ error: { code: "INVALID_SELECTION", message: "Select between 1 and 100 constituents." } });
+    return;
+  }
+  if (!Number.isInteger(Number(req.body?.year)) || Number(req.body.year) < 2000 || Number(req.body.year) > 2100) {
+    res.status(400).json({ error: { code: "INVALID_YEAR", message: "Select a valid calendar year." } });
+    return;
+  }
+  const options = parseDonorLibraryReportOptions("tax-deductible-giving", { year: String(req.body.year) });
+  const statements = await buildConstituentGivingStatements(organizationId, ids, options);
+  if (statements.length !== new Set(ids).size) {
+    res.status(404).json({ error: { code: "CONSTITUENT_NOT_FOUND", message: "One or more constituents were not found." } });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(statements);
 });
 
 router.get("/library/:reportKey", async (req, res) => {

@@ -11,6 +11,7 @@ import {
 import { centsToMoney, moneyToCents } from "../lib/money.js";
 import { parseCalendarDateExclusiveEnd, parseCalendarDateStart } from "../lib/dateOnlyRanges.js";
 import { sumTaxDeductibleGiving } from "./donation-tax.js";
+import { loadOrganizationBrandingContext } from "./organization-branding.js";
 
 export const DONOR_LIBRARY_REPORT_KEYS = [
   "batch-receipts",
@@ -141,6 +142,25 @@ export function parseDonorLibraryReportOptions(
   const requestedLapseNotSinceYear = Number.parseInt(typeof query.lapseNotSinceYear === "string" ? query.lapseNotSinceYear : "", 10);
   const lapseMode = query.lapseMode === "lastGiftRange" || query.lapseMode === "notSince" ? query.lapseMode : "all";
 
+  if (report === "tax-deductible-giving") {
+    const year = Number.isFinite(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100
+      ? requestedYear
+      : now.getUTCFullYear();
+    return {
+      ...range,
+      from: new Date(Date.UTC(year, 0, 1)),
+      through: new Date(Date.UTC(year + 1, 0, 1) - 1),
+      limit: 100,
+      selectedYear: year,
+      dateBasis: "calendar",
+      fiscalYearStart,
+      lapseMode,
+      lapseFromYear: year - 2,
+      lapseThroughYear: year,
+      lapseNotSinceYear: year - 1,
+    };
+  }
+
   return {
     ...range,
     paymentMethod: PAYMENT_METHODS.includes(paymentCandidate as PaymentMethod) ? paymentCandidate as PaymentMethod : undefined,
@@ -215,6 +235,8 @@ const donationSelection = {
   taxDeductible: true,
   taxDeductibleAmount: true,
   taxDeductibleNotes: true,
+  checkNumber: true,
+  notes: true,
   date: true,
   paymentMethod: true,
   isRecurring: true,
@@ -237,6 +259,7 @@ const donationSelection = {
     },
   },
   designation: { select: { id: true, name: true } },
+  event: { select: { name: true } },
 } satisfies Prisma.DonationSelect;
 
 function emptyReport(report: DonorLibraryReportKey, title: string, description: string, options: DonorLibraryReportOptions): DonorLibraryReport {
@@ -306,13 +329,14 @@ async function donationRowsReport(
       }));
     if (reportKey === "tax-deductible-giving") {
       return {
-        ...emptyReport(reportKey, "Tax-deductible giving", "One row per constituent with completed gift totals and stored tax-deductible values for the selected period.", options),
+        ...emptyReport(reportKey, "Annual donation statements", "One row per constituent with completed donations and recorded tax-deductible amounts for the calendar year.", options),
         summary: [
           { label: "Gift total", value: dollars(totalCents), type: "currency" },
           { label: "Tax-deductible total", value: dollars(donations.reduce((sum, donation) => sum + cents(sumTaxDeductibleGiving([donation])), 0)), type: "currency" },
           { label: "Constituents", value: rows.length, type: "number" },
         ],
         columns: [
+          { key: "calendarYear", label: "Calendar year", type: "number" },
           { key: "donorName", label: "Constituent", linkToDonor: true },
           { key: "email", label: "Email" },
           { key: "address", label: "Mailing address" },
@@ -321,7 +345,7 @@ async function donationRowsReport(
           { key: "taxDeductibleAmount", label: "Tax-deductible amount", type: "currency" },
           { key: "nonDeductibleAmount", label: "Non-deductible amount", type: "currency" },
         ],
-        rows,
+        rows: rows.map((row) => ({ calendarYear: options.selectedYear, ...row })),
         notices: ["Amounts reflect the tax-deductible values recorded on completed gifts. Review individual gift details before issuing an official tax receipt."],
       };
     }
@@ -381,39 +405,74 @@ async function donationRowsReport(
   };
 }
 
+export async function buildConstituentGivingStatements(
+  organizationId: string,
+  constituentIds: string[],
+  options: DonorLibraryReportOptions,
+) {
+  const ids = Array.from(new Set(constituentIds));
+  if (ids.length === 0 || ids.length > 100) throw new Error("Select between 1 and 100 constituents.");
+  const [organization, constituents, donations] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+    prisma.constituent.findMany({ where: { id: { in: ids }, organizationId }, select: donationSelection.constituent.select }),
+    prisma.donation.findMany({
+      where: { ...baseDonationWhere(organizationId, options), constituentId: { in: ids } },
+      select: { ...donationSelection, constituentId: true },
+      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
+  const branding = await loadOrganizationBrandingContext(organizationId, organization?.name ?? "Organization");
+  const giftsByConstituent = new Map<string, typeof donations>();
+  for (const donation of donations) {
+    const gifts = giftsByConstituent.get(donation.constituentId) ?? [];
+    gifts.push(donation);
+    giftsByConstituent.set(donation.constituentId, gifts);
+  }
+  const constituentsById = new Map(constituents.map((constituent) => [constituent.id, constituent]));
+  return ids.flatMap((id) => {
+    const constituent = constituentsById.get(id);
+    if (!constituent) return [];
+    const gifts = giftsByConstituent.get(id) ?? [];
+    const totalCents = gifts.reduce((sum, donation) => sum + cents(donation.amount), 0);
+    const deductibleCents = gifts.reduce((sum, donation) => sum + cents(sumTaxDeductibleGiving([donation])), 0);
+    return [{
+      organizationName: branding.organizationName,
+      organizationAddress: branding.addressLine,
+      organizationPhone: branding.contactPhone,
+      organizationTaxId: branding.taxId,
+      constituent: {
+        id: constituent.id,
+        name: donorName(constituent),
+        addressLines: [constituent.addressLine1, constituent.addressLine2, [constituent.city, constituent.state, constituent.zip].filter(Boolean).join(" ")].filter((line): line is string => Boolean(line?.trim())),
+        email: constituent.email,
+      },
+      calendarYear: options.selectedYear,
+      period: period(options.from, options.through),
+      gifts: gifts.map((donation) => ({
+        date: donation.date.toISOString(),
+        giftId: donation.id,
+        receiptNumber: donation.receiptNumber,
+        event: donation.event?.name ?? null,
+        comment: donation.notes,
+        checkNumber: donation.checkNumber,
+        paymentMethod: donation.paymentMethod === "ACH" ? "ACH" : donation.paymentMethod.toLowerCase().replace(/(^|_)([a-z])/g, (_match, lead: string, letter: string) => `${lead ? " " : ""}${letter.toUpperCase()}`),
+        amount: dollars(cents(donation.amount)),
+        taxDeductibleAmount: sumTaxDeductibleGiving([donation]),
+        taxDeductibleNotes: donation.taxDeductibleNotes,
+      })),
+      totalAmount: dollars(totalCents),
+      taxDeductibleAmount: dollars(deductibleCents),
+      generatedAt: new Date().toISOString(),
+    }];
+  });
+}
+
 export async function buildConstituentGivingStatement(
   organizationId: string,
   constituentId: string,
   options: DonorLibraryReportOptions,
 ) {
-  const [organization, constituent, donations] = await Promise.all([
-    prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
-    prisma.constituent.findFirst({ where: { id: constituentId, organizationId }, select: donationSelection.constituent.select }),
-    prisma.donation.findMany({
-      where: { ...baseDonationWhere(organizationId, options), constituentId },
-      select: donationSelection,
-      orderBy: [{ date: "asc" }, { createdAt: "asc" }],
-    }),
-  ]);
-  if (!constituent) return null;
-  const totalCents = donations.reduce((sum, donation) => sum + cents(donation.amount), 0);
-  const deductibleCents = donations.reduce((sum, donation) => sum + cents(sumTaxDeductibleGiving([donation])), 0);
-  return {
-    organizationName: organization?.name ?? "Organization",
-    constituent: { id: constituent.id, name: donorName(constituent), address: donorAddress(constituent), email: constituent.email },
-    period: period(options.from, options.through),
-    gifts: donations.map((donation) => ({
-      date: donation.date.toISOString(),
-      receiptNumber: donation.receiptNumber,
-      designation: donation.designation?.name ?? "General / undesignated",
-      amount: dollars(cents(donation.amount)),
-      taxDeductibleAmount: sumTaxDeductibleGiving([donation]),
-      taxDeductibleNotes: donation.taxDeductibleNotes,
-    })),
-    totalAmount: dollars(totalCents),
-    taxDeductibleAmount: dollars(deductibleCents),
-    generatedAt: new Date().toISOString(),
-  };
+  return (await buildConstituentGivingStatements(organizationId, [constituentId], options))[0] ?? null;
 }
 
 /** Lists completed gifts that still need a thank-you, without changing any gift status. */
