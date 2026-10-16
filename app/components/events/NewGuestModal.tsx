@@ -8,19 +8,13 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
+import EventGuestTicketField from "./EventGuestTicketField";
 
 interface Constituent {
   id: string;
   firstName: string;
   lastName: string;
   email?: string;
-}
-
-interface TicketType {
-  id: string;
-  name: string;
-  price: number;
-  active?: boolean;
 }
 
 interface Props {
@@ -34,7 +28,6 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [constituents, setConstituents] = useState<Constituent[]>([]);
-  const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [constituentSearch, setConstituentSearch] = useState("");
   const [selectedConstituent, setSelectedConstituent] = useState<Constituent | null>(null);
 
@@ -49,18 +42,17 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
     notes: "",
   });
 
-  /** Load constituents and ticket types on mount */
+  const [constituentError, setConstituentError] = useState<string | null>(null);
+
+  /** Constituent linking is optional and must not prevent ticket assignment. */
   useEffect(() => {
     async function load() {
       try {
-        const [consData, ticketData] = await Promise.all([
-          apiFetch("/api/constituents"),
-          apiFetch(`/api/events/${eventId}/ticket-types`),
-        ]);
+        const consData = await apiFetch("/api/constituents");
         setConstituents(consData as Constituent[]);
-        setTicketTypes((ticketData as TicketType[]).filter((t) => t.active));
       } catch (err) {
         console.error("Failed to load data:", err);
+        setConstituentError("Constituent lookup is unavailable. You can still enter and register this guest.");
       }
     }
     load();
@@ -77,14 +69,11 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
     setConstituentSearch("");
     // Auto-fill form with constituent data
     setForm({
+      ...form,
       firstName: constituent.firstName,
       lastName: constituent.lastName,
       email: constituent.email || "",
       phone: "",
-      ticketTypeId: "",
-      dietaryRestrictions: "",
-      specialNeeds: "",
-      notes: "",
     });
   };
 
@@ -97,6 +86,7 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
   /** Submit the guest */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError("First and last name are required");
       return;
@@ -151,6 +141,7 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               Link to Constituent (Optional)
             </label>
+            {constituentError && <p role="status" className="mb-2 text-xs text-amber-800">{constituentError}</p>}
             {selectedConstituent ? (
               <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <div>
@@ -242,21 +233,7 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
           </div>
 
           {/* Ticket Type */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Ticket Type</label>
-            <select
-              value={form.ticketTypeId}
-              onChange={(e) => setForm({ ...form, ticketTypeId: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-            >
-              <option value="">None / Walk-in</option>
-              {ticketTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} - ${Number(t.price).toFixed(2)}
-                </option>
-              ))}
-            </select>
-          </div>
+          <EventGuestTicketField eventId={eventId} value={form.ticketTypeId} onChange={(ticketTypeId) => setForm({ ...form, ticketTypeId })} />
 
           {/* Dietary & Special Needs */}
           <div>

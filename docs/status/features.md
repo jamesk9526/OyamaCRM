@@ -1,8 +1,12 @@
 # OyamaCRM Feature Status Audit
 
-## 2026-10-16 Event guest registration fix
+## 2026-10-16 Event operations and Trivia audit
 
-All three Add Guest entry points retain the selected event instead of silently switching registration to the first event in the list. Save errors appear as alerts beside the submit button. Eight focused regression tests cover event selection, manual and linked guest payloads, optional tickets, required names, and failed-save recovery. Live database persistence and browser verification remain unverified in this environment.
+Guest registration retains the selected event, has a prominent Guest List action, and supports assigning or changing ticket types for manual guests independently of optional constituent lookup access. Table counts use numbered-seat assignments, Clear returns guests to the unassigned list, and table details expose Rename Table. Seat synchronization fills missing numbers while preserving occupied seats. Desktop/mobile browser fixtures verify registration, ticket retry/save/removal, clear/reseat, and rename without changing seating.
+
+The audit also hardened attendance transaction boundaries and duplicate/reversal handling, validated walk-in/replacement seating, scoped exception references and resolution to the event/organization, and validated bulk-check-in membership. Staff orders combine duplicate ticket rows and reserve inventory with transactional capacity checks; reporting uses actual guest-seat links. Trivia host controls improve question context, stage/timer safety, winner selection, and scoring validation.
+
+Focused regressions, changed-file lint, and web/server typechecks passed. Browser fixtures use real components and local API fixtures; live MySQL concurrency/persistence and production deployment remain unverified. Remaining invitation-completion, cancellation/refund, and staff table-ticket workflow gaps are recorded in the audit evidence: [guest/seating verification](audit-artifacts/2026-10-16-event-guest-operations/README.md), [check-in audit](audit-artifacts/2026-10-16-checkin-guest-audit.md), [event-system audit](audit-artifacts/2026-10-16-events-system-audit.md), [Trivia host audit](audit-artifacts/2026-10-16-trivia-host-audit.md).
 
 ## 2026-09-26 Donor CRM daily workspace
 

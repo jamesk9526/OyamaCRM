@@ -31,14 +31,14 @@ export async function getEventReportingSnapshot(eventId: string) {
   const tableStats = await prisma.eventTable.findMany({
     where: { eventId },
     include: {
-      _count: { select: { guests: true, seats: true } },
-      seats: { select: { status: true } },
+      seats: { select: { guest: { select: { rsvpStatus: true, checkedIn: true } } } },
     },
   });
 
   const tableCompletion = tableStats.map((table) => {
     const capacity = table.capacity;
-    const confirmed = table.seats.filter((seat) => ["CONFIRMED", "CHECKED_IN"].includes(seat.status)).length;
+    // Seat status can outlive a cleared assignment. The linked guest is authoritative.
+    const confirmed = table.seats.filter(({ guest }) => guest && (guest.checkedIn || guest.rsvpStatus === "CONFIRMED")).length;
     return {
       tableId: table.id,
       tableName: table.name,

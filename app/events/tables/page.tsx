@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
+import { tableOccupancy } from "@/app/lib/events/table-occupancy";
+import RenameEventTableModal from "@/app/components/events/RenameEventTableModal";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
@@ -21,6 +23,7 @@ interface Event {
 
 interface Guest {
   id: string;
+  seatId?: string | null;
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -127,6 +130,7 @@ export default function EventTablesPage() {
   const [pendingDeleteTable, setPendingDeleteTable] = useState<Table | null>(null);
   const [deletingTable, setDeletingTable] = useState(false);
   const [tableSearch, setTableSearch] = useState("");
+  const [renamingTable, setRenamingTable] = useState<Table | null>(null);
 
   useEffect(() => {
     if (workspaceEventId) {
@@ -154,7 +158,7 @@ export default function EventTablesPage() {
       interface GuestWithTable extends Guest {
         table?: { id: string; name: string };
       }
-      setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.table));
+      setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.seatId));
     } catch (err) {
       console.error("Failed to load table data:", err);
       setActionError(err instanceof Error ? err.message : "Tables could not be loaded.");
@@ -199,7 +203,7 @@ export default function EventTablesPage() {
         interface GuestWithTable extends Guest {
           table?: { id: string; name: string };
         }
-        setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.table));
+        setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.seatId));
       } catch (err) {
         console.error("Failed to load table data:", err);
       } finally {
@@ -211,9 +215,8 @@ export default function EventTablesPage() {
 
   /** Metrics calculation */
   const totalCapacity = tables.reduce((sum, t) => sum + t.capacity, 0);
-  const totalAssigned = tables.reduce((sum, t) => sum + t._count.guests, 0);
-  const openSeats = Math.max(0, totalCapacity - totalAssigned);
-  const overCapacityTables = tables.filter((t) => t._count.guests > t.capacity).length;
+  const openSeats = tables.reduce((sum, table) => sum + tableOccupancy(table).open, 0);
+  const overCapacityTables = tables.filter((table) => tableOccupancy(table).overCapacity).length;
   const visibleTables = useMemo(() => {
     const query = tableSearch.trim().toLowerCase();
     if (!query) return tables;
@@ -650,7 +653,7 @@ export default function EventTablesPage() {
                   {visibleTables.map((table) => (
                     <div key={table.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                       <p className="font-semibold text-slate-900">{table.name}</p>
-                      <p className="text-slate-600">{table._count.guests}/{table.capacity} seated</p>
+                      <p className="text-slate-600">{tableOccupancy(table).seated}/{table.capacity} seated</p>
                       {table.hostName ? <p className="text-slate-500">Host: {table.hostName}</p> : null}
                     </div>
                   ))}
@@ -726,6 +729,8 @@ export default function EventTablesPage() {
                       <p className="text-sm font-semibold text-slate-900">{tableDetail.status ?? "DRAFT"}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => { setRenamingTable(tableDetail); setDetailTable(null); }} disabled={detailBusyAction !== null}
+                        className="rounded border border-violet-300 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50">Rename Table</button>
                       <button
                         onClick={() => void toggleTableLock()}
                         disabled={detailBusyAction !== null}
@@ -852,6 +857,14 @@ export default function EventTablesPage() {
                 <section className="rounded-lg border border-slate-200 p-3">
                   <h3 className="text-sm font-semibold text-slate-900">Seat Roster Controls</h3>
                   <p className="mt-1 text-xs text-slate-500">Assign and clear seats from a single table workflow.</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-700">
+                    {tableOccupancy(tableDetail).seated}/{tableDetail.capacity} seated · {tableOccupancy(tableDetail).open} open
+                  </p>
+                  {tableOccupancy(tableDetail).awaitingSeat > 0 && (
+                    <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+                      {tableOccupancy(tableDetail).awaitingSeat} linked guests still need a numbered seat: {tableDetail.guests.filter((guest) => !guest.seatId).map((guest) => `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim() || "Unnamed guest").join(", ")}. Select them below to assign a seat.
+                    </p>
+                  )}
                   <div className="mt-3 max-h-72 overflow-auto rounded border border-slate-200">
                     <table className="min-w-full divide-y divide-slate-200 text-xs">
                       <thead className="bg-slate-50 text-slate-600">
@@ -964,6 +977,10 @@ export default function EventTablesPage() {
       )}
 
       {/* Edit Table Modal */}
+      {renamingTable && <RenameEventTableModal key={renamingTable.id} table={renamingTable} onClose={() => setRenamingTable(null)} onSaved={() => {
+        setRenamingTable(null);
+        void loadData();
+      }} />}
       {editingTable && (
         <EditTableModal
           table={editingTable}
@@ -1088,7 +1105,7 @@ function FloorPlanBoard({
     setSavingLayout(false);
   }
 
-  const assigned = tables.reduce((sum, table) => sum + table._count.guests, 0);
+  const assigned = tables.reduce((sum, table) => sum + tableOccupancy(table).seated, 0);
   const capacity = tables.reduce((sum, table) => sum + table.capacity, 0);
 
   return (
@@ -1111,7 +1128,7 @@ function FloorPlanBoard({
           <div className="absolute bottom-4 left-4 rounded border border-slate-300 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">Main entrance</div>
           {tables.map((table, index) => {
             const position = positions[table.id] ?? suggestedFloorPosition(index);
-            const usedSeats = table._count.guests;
+            const usedSeats = tableOccupancy(table).seated;
             const overCapacity = usedSeats > table.capacity;
             const openSeats = Math.max(0, table.capacity - usedSeats);
             return (
@@ -1125,7 +1142,7 @@ function FloorPlanBoard({
                 onDoubleClick={() => onOpenTable(table)}
                 className={`absolute touch-none select-none p-2 text-left shadow-md outline-none transition-shadow focus:ring-2 focus:ring-violet-500 ${table.shape === "round" ? "rounded-[32px]" : table.shape === "square" ? "rounded-md" : "rounded-xl"} ${movingTableId === table.id ? "z-20 cursor-grabbing shadow-xl ring-2 ring-violet-500" : "z-10 cursor-grab hover:shadow-lg"} ${overCapacity ? "border-2 border-rose-500 bg-rose-50" : table.isSponsored ? "border-2 border-violet-400 bg-violet-50" : "border border-slate-300 bg-white"}`}
                 style={{ left: position.xPosition, top: position.yPosition, width: FLOOR_TABLE_WIDTH, height: FLOOR_TABLE_HEIGHT }}
-                aria-label={`${table.name}, ${usedSeats} of ${table.capacity} seats. Drag to move; double click for TableLink.`}
+                aria-label={`${table.name}, ${usedSeats} of ${table.capacity} seats. Drag to move; double click to manage seats or rename table.`}
               >
                 <span className="block truncate text-center text-[10px] font-bold uppercase tracking-wide text-violet-700">{table.tableNumber != null ? `Table ${table.tableNumber}` : "Table"}</span>
                 <strong className="mt-1 block truncate text-center text-sm text-slate-950">{table.name}</strong>
@@ -1136,7 +1153,7 @@ function FloorPlanBoard({
           })}
         </div>
       </div>
-      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500"><span>Tip: double-click a table for seats, host access, invitations, and email history.</span><span>Round, square, and rectangular table shapes are preserved.</span></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500"><span>Tip: double-click a table to rename it, manage seats, host access, invitations, and email history.</span><span>Round, square, and rectangular table shapes are preserved.</span></footer>
     </section>
   );
 }
@@ -1155,8 +1172,9 @@ function TableCard({
   onDelete: () => void;
   onUnassignGuest: (guestId: string) => void;
 }) {
-  const isOverCapacity = table._count.guests > table.capacity;
-  const hasOpenSeats = table._count.guests < table.capacity;
+  const occupancy = tableOccupancy(table);
+  const isOverCapacity = occupancy.overCapacity;
+  const hasOpenSeats = occupancy.open > 0;
 
   return (
     <div className={`bg-white rounded-lg border p-4 ${table.isSponsored ? "border-violet-300 ring-1 ring-violet-200" : "border-gray-200"}`}>
@@ -1172,7 +1190,7 @@ function TableCard({
             )}
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
-            {table._count.guests} / {table.capacity} seats
+            {occupancy.seated} / {table.capacity} seats
             {table.shape !== "round" && <> · <span className="capitalize">{table.shape}</span></>}
           </p>
           {table.hostName && (
@@ -1190,7 +1208,7 @@ function TableCard({
             onClick={onEdit}
             className="text-xs text-violet-600 hover:text-violet-700 font-medium"
           >
-            Edit
+            Edit / Rename
           </button>
           <button
             onClick={onDelete}
@@ -1210,7 +1228,7 @@ function TableCard({
       {hasOpenSeats && (
         <div className="bg-green-50 border border-green-200 rounded px-2 py-1 mb-2">
           <p className="text-xs text-green-700 font-medium">
-            ✓ {table.capacity - table._count.guests} open seat{table.capacity - table._count.guests !== 1 ? "s" : ""}
+            ✓ {occupancy.open} open seat{occupancy.open !== 1 ? "s" : ""}
           </p>
         </div>
       )}
@@ -1283,10 +1301,10 @@ function UnassignedGuestRow({
       >
         <option value="">Assign to table...</option>
         {tables.map((t) => {
-          const isFull = t._count.guests >= t.capacity;
+          const isFull = tableOccupancy(t).open === 0;
           return (
           <option key={t.id} value={t.id} disabled={isFull}>
-            {t.tableNumber != null ? `#${t.tableNumber} · ` : ""}{t.name} ({t._count.guests}/{t.capacity}){isFull ? " — Full" : ""}
+            {t.tableNumber != null ? `#${t.tableNumber} · ` : ""}{t.name} ({tableOccupancy(t).seated}/{t.capacity}){isFull ? " — Full" : ""}
           </option>
           );
         })}

@@ -133,26 +133,26 @@ export async function syncEventTableSeats(tableId: string) {
   if (!table) return null;
 
   const target = Math.max(0, table.capacity);
-  const current = table.seats.length;
+  const existingNumbers = new Set(table.seats.map((seat) => seat.seatNumber));
+  const missingNumbers = Array.from({ length: target }, (_value, index) => index + 1)
+    .filter((seatNumber) => !existingNumbers.has(seatNumber));
 
-  if (target > current) {
+  if (missingNumbers.length > 0) {
     await prisma.eventTableSeat.createMany({
-      data: Array.from({ length: target - current }, (_v, idx) => ({
+      data: missingNumbers.map((seatNumber) => ({
         eventId: table.eventId,
         tableId: table.id,
-        seatNumber: current + idx + 1,
+        seatNumber,
         status: "EMPTY" as const,
       })),
     });
-  } else if (target < current) {
-    const removable = table.seats
-      .slice(target)
-      .filter((seat) => !seat.guest)
-      .map((seat) => seat.id);
+  }
 
-    if (removable.length > 0) {
-      await prisma.eventTableSeat.deleteMany({ where: { id: { in: removable } } });
-    }
+  const removable = table.seats
+    .filter((seat) => seat.seatNumber > target && !seat.guest)
+    .map((seat) => seat.id);
+  if (removable.length > 0) {
+    await prisma.eventTableSeat.deleteMany({ where: { id: { in: removable } } });
   }
 
   return prisma.eventTable.findUnique({

@@ -33,7 +33,7 @@ export default function TriviaScoresPage() {
       <ScorekeepingPanel
         teams={event.teams}
         scoreHistory={state.scoreHistoryByEventId[event.id] ?? []}
-        defaultQuestionPoints={event.scoringRules.defaultQuestionPoints}
+          defaultQuestionPoints={activeQuestion?.points ?? event.scoringRules.defaultQuestionPoints}
         allowPartialCredit={event.scoringRules.allowPartialCredit}
         activeRoundId={live.activeRoundId || null}
         activeQuestionId={activeQuestion?.id ?? null}

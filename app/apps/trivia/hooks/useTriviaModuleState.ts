@@ -852,6 +852,7 @@ export function useTriviaModuleState() {
     const event = stateRef.current.events.find((item) => item.id === eventId);
     const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
+    if (!Number.isFinite(input.delta) || (input.actionType === "partial" && !event.scoringRules.allowPartialCredit)) return;
 
     const teamIndex = event.teams.findIndex((team) => team.id === input.teamId);
     if (teamIndex < 0) return;
@@ -952,6 +953,7 @@ export function useTriviaModuleState() {
     if (!event || !live) return;
 
     const round = event.rounds.find((item) => item.id === roundId);
+    if (!round) return;
     const question = round?.questions[0];
 
     const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
@@ -972,6 +974,7 @@ export function useTriviaModuleState() {
   }
 
   function setQuestionIndex(eventId: string, nextIndex: number) {
+    if (!Number.isInteger(nextIndex)) return;
     const event = stateRef.current.events.find((item) => item.id === eventId);
     const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
@@ -1047,6 +1050,7 @@ export function useTriviaModuleState() {
   function setTimerRunning(eventId: string, running: boolean) {
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
+    if (running && (live.timerDefaultSec <= 0 || live.timerRemainingSec <= 0)) return;
 
     const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
@@ -1060,6 +1064,7 @@ export function useTriviaModuleState() {
   }
 
   function setTimerRemaining(eventId: string, remainingSec: number) {
+    if (!Number.isFinite(remainingSec)) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
@@ -1078,6 +1083,7 @@ export function useTriviaModuleState() {
   }
 
   function resetTimer(eventId: string, nextDefaultSec?: number) {
+    if (nextDefaultSec !== undefined && (!Number.isFinite(nextDefaultSec) || nextDefaultSec < 0)) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 

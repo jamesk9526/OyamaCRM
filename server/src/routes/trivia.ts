@@ -14,6 +14,7 @@ import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { evaluateRecipientEligibility, hashPublicEmailToken } from "../services/email-compliance.js";
 import { prisma } from "../lib/prisma.js";
 import { createEventTable, syncEventTableSeats } from "../services/event-table-service.js";
+import { applyRemoteTriviaHostAction } from "../services/trivia-host-control.js";
 
 const router = express.Router();
 const publicRouter = express.Router();
@@ -55,11 +56,6 @@ interface OrganizationTriviaStore {
 }
 
 type TriviaAccessRole = "host" | "checkin" | "scorekeeper" | "table_manager";
-
-const TRIVIA_DISPLAY_STAGES = new Set([
-  "welcome", "check_in_open", "check_in_closed", "round_intro", "question", "timer_only",
-  "answer", "explanation", "leaderboard", "break", "final_question", "tiebreaker", "winner", "blank",
-]);
 
 interface TriviaAccessPass {
   id: string;
@@ -1247,34 +1243,9 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
     rosterChanged = true;
     pushAudit(access.orgStore, eventId, "manual", `${teams[index].name ?? "Team"} updated from table manager remote`, { teamId: String(payload.teamId) });
   } else if (["set_stage", "set_round", "next_question", "previous_question", "timer_start", "timer_pause", "timer_reset"].includes(action) && access.pass.role === "host") {
-    const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject) : [];
-    const nextLive: JsonObject = { ...live };
-    if (action === "set_stage") {
-      if (typeof payload.stage !== "string" || !TRIVIA_DISPLAY_STAGES.has(payload.stage)) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid projector stage." } }); return; }
-      nextLive.stage = payload.stage;
-    }
-    if (action === "set_round") {
-      if (typeof payload.roundId !== "string" || !rounds.some((round) => round.id === payload.roundId)) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid round." } }); return; }
-      nextLive.activeRoundId = payload.roundId; nextLive.activeQuestionIndex = 0; nextLive.stage = "round_intro"; nextLive.timerRunning = false; nextLive.answerRevealed = false;
-    }
-    if (action === "next_question" || action === "previous_question") {
-      const round = rounds.find((item) => item.id === nextLive.activeRoundId);
-      const questions = Array.isArray(round?.questions) ? round.questions.filter(isObject) : [];
-      if (questions.length === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The active round has no questions." } }); return; }
-      const currentIndex = Number(nextLive.activeQuestionIndex ?? 0);
-      nextLive.activeQuestionIndex = action === "next_question" ? Math.min(questions.length - 1, currentIndex + 1) : Math.max(0, currentIndex - 1);
-      nextLive.stage = round?.roundType === "final_wager" ? "final_question" : round?.roundType === "tiebreaker" ? "tiebreaker" : "question";
-      const question = questions[Number(nextLive.activeQuestionIndex)];
-      const configuredSeconds = Number(question?.timeLimitSec);
-      const seconds = Number.isFinite(configuredSeconds) && configuredSeconds >= 0 ? configuredSeconds : 30;
-      nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; nextLive.answerRevealed = false;
-    }
-    if (action === "timer_start") nextLive.timerRunning = Number(nextLive.timerDefaultSec) > 0;
-    if (action === "timer_pause") nextLive.timerRunning = false;
-    if (action === "timer_reset") { const round = rounds.find((item) => item.id === nextLive.activeRoundId); const question = Array.isArray(round?.questions) ? round.questions[Number(nextLive.activeQuestionIndex ?? 0)] : null; const configuredSeconds = Number(isObject(question) ? question.timeLimitSec : 30); const seconds = Number.isFinite(configuredSeconds) && configuredSeconds >= 0 ? configuredSeconds : 30; nextLive.timerDefaultSec = seconds; nextLive.timerRemainingSec = seconds; nextLive.timerRunning = false; }
-    nextLive.lastHostAction = `Remote ${action.replace(/_/g, " ")}`;
-    nextLive.updatedAt = nowIso();
-    setLive(access.orgStore, eventId, nextLive);
+    const transition = applyRemoteTriviaHostAction(event, live, action, payload, nowIso());
+    if (!transition.ok) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: transition.message } }); return; }
+    setLive(access.orgStore, eventId, transition.live);
     pushAudit(access.orgStore, eventId, "manual", `Remote control: ${action}`, { accessPassId: access.pass.id });
   } else {
     res.status(403).json({ error: { code: "EVENT_ACCESS_DENIED", message: "This temporary sign-in cannot perform that action." } });

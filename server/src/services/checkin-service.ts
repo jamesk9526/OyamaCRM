@@ -23,46 +23,38 @@ export async function createCheckInRecord(input: {
   checkInDeviceId?: string;
   notes?: string;
 }) {
-  const duplicate = await hasActiveCheckIn(input.eventId, input.guestId);
-  if (duplicate) {
-    return prisma.eventCheckInRecord.create({
+  return prisma.$transaction(async (tx) => {
+    const guest = await tx.eventGuest.findFirst({ where: { id: input.guestId, eventId: input.eventId } });
+    if (!guest) throw new Error("Guest not found for event.");
+
+    // The conditional write locks this guest through commit. Concurrent desks
+    // cannot both create an active attendance record, and record failures roll
+    // back the guest and seat changes together.
+    const claimed = await tx.eventGuest.updateMany({
+      where: { id: guest.id, eventId: input.eventId, checkedIn: false },
+      data: { checkedIn: true, checkedInAt: new Date(), rsvpStatus: "CONFIRMED" },
+    });
+    const record = await tx.eventCheckInRecord.create({
       data: {
         eventId: input.eventId,
-        guestId: input.guestId,
+        guestId: guest.id,
+        tableId: guest.tableId,
+        seatId: guest.seatId,
         method: input.method,
-        status: "DUPLICATE_ATTEMPT",
+        status: claimed.count === 0 ? "DUPLICATE_ATTEMPT" : "CHECKED_IN",
         checkedInByUserId: input.checkedInByUserId,
         checkInDeviceId: input.checkInDeviceId,
         notes: input.notes,
       },
     });
-  }
-
-  const guest = await prisma.eventGuest.findFirst({ where: { id: input.guestId, eventId: input.eventId } });
-  if (!guest) throw new Error("Guest not found for event.");
-
-  const record = await prisma.eventCheckInRecord.create({
-    data: {
-      eventId: input.eventId,
-      guestId: input.guestId,
-      tableId: guest.tableId,
-      seatId: guest.seatId,
-      method: input.method,
-      status: "CHECKED_IN",
-      checkedInByUserId: input.checkedInByUserId,
-      checkInDeviceId: input.checkInDeviceId,
-      notes: input.notes,
-    },
-  });
-
-  await prisma.$transaction(async (tx) => {
-    await tx.eventGuest.update({ where: { id: guest.id }, data: { checkedIn: true, checkedInAt: new Date(), rsvpStatus: "CONFIRMED" } });
-    if (guest.seatId) {
-      await tx.eventTableSeat.update({ where: { id: guest.seatId }, data: { status: "CHECKED_IN" } });
+    if (claimed.count > 0 && guest.seatId) {
+      await tx.eventTableSeat.updateMany({
+        where: { id: guest.seatId, eventId: input.eventId, guest: { id: guest.id } },
+        data: { status: "CHECKED_IN" },
+      });
     }
+    return record;
   });
-
-  return record;
 }
 
 export async function reverseCheckIn(input: {
@@ -71,35 +63,47 @@ export async function reverseCheckIn(input: {
   reversedByUserId?: string;
   notes?: string;
 }) {
-  const activeRecord = await prisma.eventCheckInRecord.findFirst({
-    where: { eventId: input.eventId, guestId: input.guestId, status: "CHECKED_IN", reversedAt: null },
-    orderBy: { checkedInAt: "desc" },
-  });
-  if (!activeRecord) return null;
+  return prisma.$transaction(async (tx) => {
+    const guest = await tx.eventGuest.findFirst({ where: { id: input.guestId, eventId: input.eventId } });
+    if (!guest) return null;
+    const claimed = await tx.eventGuest.updateMany({
+      where: { id: guest.id, eventId: input.eventId, checkedIn: true },
+      data: { checkedIn: false, checkedInAt: null },
+    });
+    if (claimed.count === 0) return null;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.eventCheckInRecord.update({
-      where: { id: activeRecord.id },
+    const where = { eventId: input.eventId, guestId: guest.id, status: "CHECKED_IN" as const, reversedAt: null };
+    const activeRecord = await tx.eventCheckInRecord.findFirst({ where, orderBy: { checkedInAt: "desc" } });
+    const reversal = {
+      status: "REVERSED" as const,
+      reversedAt: new Date(),
+      reversedByUserId: input.reversedByUserId,
+      notes: input.notes ?? activeRecord?.notes,
+    };
+    await tx.eventCheckInRecord.updateMany({ where, data: reversal });
+    if (guest.seatId) {
+      await tx.eventTableSeat.updateMany({
+        where: { id: guest.seatId, eventId: input.eventId, guest: { id: guest.id } },
+        data: { status: "CONFIRMED" },
+      });
+    }
+    if (activeRecord) return { ...activeRecord, ...reversal };
+
+    // Imports and older guest editors can set checkedIn without creating a
+    // record. Preserve that attendance history while still allowing reversal.
+    return tx.eventCheckInRecord.create({
       data: {
-        status: "REVERSED",
-        reversedAt: new Date(),
-        reversedByUserId: input.reversedByUserId,
-        notes: input.notes ?? activeRecord.notes,
+        eventId: input.eventId,
+        guestId: guest.id,
+        tableId: guest.tableId,
+        seatId: guest.seatId,
+        method: "MANUAL",
+        checkedInAt: guest.checkedInAt ?? new Date(),
+        ...reversal,
       },
     });
-
-    const guest = await tx.eventGuest.findUnique({ where: { id: input.guestId }, select: { id: true, seatId: true } });
-    if (guest) {
-      await tx.eventGuest.update({ where: { id: guest.id }, data: { checkedIn: false, checkedInAt: null } });
-      if (guest.seatId) {
-        await tx.eventTableSeat.update({ where: { id: guest.seatId }, data: { status: "CONFIRMED" } });
-      }
-    }
   });
-
-  return prisma.eventCheckInRecord.findUnique({ where: { id: activeRecord.id } });
 }
-
 export async function getCheckInLiveCounts(eventId: string) {
   const [expected, checkedIn, walkIns, replacements, openExceptions] = await Promise.all([
     prisma.eventGuest.count({ where: { eventId } }),

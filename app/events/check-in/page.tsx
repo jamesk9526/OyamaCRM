@@ -116,6 +116,8 @@ export default function EventCheckInPage() {
   const [walkInForm, setWalkInForm] = useState({ firstName: "", lastName: "", email: "", phone: "", tableId: "", notes: "" });
   const [replacementForm, setReplacementForm] = useState({ firstName: "", lastName: "", email: "", phone: "", tableId: "", notes: "" });
   const [exceptionForm, setExceptionForm] = useState({ guestName: "", issueType: "OTHER", claimedTable: "", claimedEmail: "", claimedPhone: "", notes: "" });
+  const [savingEntry, setSavingEntry] = useState(false);
+  const entrySubmissionRef = useRef(false);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
 
@@ -152,6 +154,14 @@ export default function EventCheckInPage() {
     setSearchGuests(Array.isArray(data) ? data : []);
   }
 
+  async function searchGuestsNow() {
+    try {
+      await loadSearchGuests();
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : "Unable to search guests. Please try again.");
+    }
+  }
+
   async function loadTables() {
     if (!selectedEventId) return;
     const data = await apiFetch<EventTable[]>(`/api/events/${selectedEventId}/tables`);
@@ -175,6 +185,8 @@ export default function EventCheckInPage() {
     setRefreshing(true);
     try {
       await Promise.all([loadSearchGuests(), loadTables(), loadLiveCounts(), loadExceptions()]);
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : "Unable to refresh check-in data. Please try again.");
     } finally {
       setRefreshing(false);
       setLoading(false);
@@ -193,10 +205,12 @@ export default function EventCheckInPage() {
   useEffect(() => {
     if (!autoRefresh || !selectedEventId) return;
     const timer = setInterval(() => {
-      void Promise.all([loadLiveCounts(), loadExceptions()]);
+      void Promise.all([loadSearchGuests(), loadTables(), loadLiveCounts(), loadExceptions()]).catch(() => {
+        setWarning("Live check-in updates failed. Refresh to load the current guest and table status.");
+      });
     }, 12000);
     return () => clearInterval(timer);
-  }, [autoRefresh, selectedEventId]);
+  }, [autoRefresh, selectedEventId, searchQuery]);
 
   async function checkInGuest(guest: Guest, method: "NAME_SEARCH" | "TABLE_SEARCH" | "QR_SCAN" | "MANUAL") {
     if (!selectedEventId) return;
@@ -288,7 +302,10 @@ export default function EventCheckInPage() {
       );
       const duplicateCount = response.results.filter((result) => result.status === "DUPLICATE_ATTEMPT").length;
       const checkedInCount = response.results.filter((result) => result.status === "CHECKED_IN").length;
-      if (unpaidCount > 0) {
+      const failedCount = response.results.filter((result) => result.status !== "CHECKED_IN" && result.status !== "DUPLICATE_ATTEMPT").length;
+      if (failedCount > 0) {
+        setWarning(`${checkedInCount} guests checked in. ${failedCount} could not be checked in. Refresh and retry those guests individually.`);
+      } else if (unpaidCount > 0) {
         setWarning(`${checkedInCount} guests checked in. ${unpaidCount} ${unpaidCount === 1 ? "guest is" : "guests are"} still marked payment due.`);
       } else if (duplicateCount > 0) {
         setWarning(`${checkedInCount} checked in. ${duplicateCount} duplicate attempts were ignored.`);
@@ -303,10 +320,14 @@ export default function EventCheckInPage() {
   }
 
   async function submitWalkIn() {
+    if (entrySubmissionRef.current) return;
     if (!selectedEventId || !walkInForm.firstName.trim() || !walkInForm.lastName.trim()) {
       setWarning("Walk-in requires first and last name.");
       return;
     }
+    entrySubmissionRef.current = true;
+    setSavingEntry(true);
+    setWarning(null);
     try {
       await apiFetch(`/api/events/${selectedEventId}/checkin/walk-in`, {
         method: "POST",
@@ -324,15 +345,22 @@ export default function EventCheckInPage() {
       await refreshStudio();
     } catch (error) {
       console.error("Failed to create walk-in:", error);
-      setWarning("Unable to complete walk-in check-in.");
+      setWarning(error instanceof Error ? error.message : "Unable to complete walk-in check-in.");
+    } finally {
+      entrySubmissionRef.current = false;
+      setSavingEntry(false);
     }
   }
 
   async function submitReplacement() {
+    if (entrySubmissionRef.current) return;
     if (!selectedEventId || !replacementForm.firstName.trim() || !replacementForm.lastName.trim()) {
       setWarning("Replacement guest requires first and last name.");
       return;
     }
+    entrySubmissionRef.current = true;
+    setSavingEntry(true);
+    setWarning(null);
     try {
       await apiFetch(`/api/events/${selectedEventId}/checkin/replacement`, {
         method: "POST",
@@ -350,7 +378,10 @@ export default function EventCheckInPage() {
       await refreshStudio();
     } catch (error) {
       console.error("Failed to create replacement guest:", error);
-      setWarning("Unable to complete replacement guest check-in.");
+      setWarning(error instanceof Error ? error.message : "Unable to complete replacement guest check-in.");
+    } finally {
+      entrySubmissionRef.current = false;
+      setSavingEntry(false);
     }
   }
 
@@ -382,14 +413,22 @@ export default function EventCheckInPage() {
 
   async function resolveException(exceptionId: string) {
     if (!selectedEventId) return;
-    await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions/${exceptionId}/resolve`, { method: "POST" });
-    await Promise.all([loadExceptions(), loadLiveCounts()]);
+    try {
+      await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions/${exceptionId}/resolve`, { method: "POST" });
+      await Promise.all([loadExceptions(), loadLiveCounts()]);
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : "Unable to resolve this exception.");
+    }
   }
 
   async function dismissException(exceptionId: string) {
     if (!selectedEventId) return;
-    await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions/${exceptionId}/dismiss`, { method: "POST" });
-    await Promise.all([loadExceptions(), loadLiveCounts()]);
+    try {
+      await apiFetch(`/api/events/${selectedEventId}/checkin/exceptions/${exceptionId}/dismiss`, { method: "POST" });
+      await Promise.all([loadExceptions(), loadLiveCounts()]);
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : "Unable to dismiss this exception.");
+    }
   }
 
   const sortedTables = useMemo(() => {
@@ -459,13 +498,13 @@ export default function EventCheckInPage() {
                 id="guest-search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") void loadSearchGuests(searchQuery); }}
+                onKeyDown={(event) => { if (event.key === "Enter") void searchGuestsNow(); }}
                 placeholder="Name, email, phone, table, check-in code"
                 className="min-h-11 w-full border border-[#8a8886] bg-white px-3 text-sm outline-none focus:border-[#0f6cbd] focus:ring-1 focus:ring-[#0f6cbd]"
               />
               <button
                 type="button"
-                onClick={() => void loadSearchGuests(searchQuery)}
+                onClick={() => void searchGuestsNow()}
                 className="min-h-11 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3]"
               >
                 Search
@@ -571,6 +610,7 @@ export default function EventCheckInPage() {
           onChange={setWalkInForm}
           tables={sortedTables}
           actionLabel="Create Walk-In"
+          saving={savingEntry}
           onSubmit={() => void submitWalkIn()}
         />
       ) : activeTab === "replacement" ? (
@@ -581,6 +621,7 @@ export default function EventCheckInPage() {
           onChange={setReplacementForm}
           tables={sortedTables}
           actionLabel="Create Replacement"
+          saving={savingEntry}
           onSubmit={() => void submitReplacement()}
         />
       ) : (
@@ -709,6 +750,7 @@ function EntryForm({
   tables,
   actionLabel,
   onSubmit,
+  saving,
 }: {
   title: string;
   description: string;
@@ -717,6 +759,7 @@ function EntryForm({
   tables: EventTable[];
   actionLabel: string;
   onSubmit: () => void;
+  saving: boolean;
 }) {
   return (
     <section className="max-w-3xl border border-[#d1d1d1] bg-white p-5">
@@ -735,7 +778,7 @@ function EntryForm({
         </select></Field>
         <Field label="Operations notes" className="sm:col-span-2"><textarea value={form.notes} onChange={(event) => onChange({ ...form, notes: event.target.value })} rows={3} className={`${inputClass} py-2`} /></Field>
       </div>
-      <button type="button" onClick={onSubmit} className="mt-4 min-h-11 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3]">{actionLabel}</button>
+      <button type="button" onClick={onSubmit} disabled={saving} className="mt-4 min-h-11 bg-[#0f6cbd] px-5 text-sm font-semibold text-white hover:bg-[#115ea3] disabled:opacity-50">{saving ? "Saving…" : actionLabel}</button>
     </section>
   );
 }

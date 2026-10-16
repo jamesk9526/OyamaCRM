@@ -169,7 +169,8 @@ describe("Trivia event-night controls", () => {
     expect(unifiedBuilder).toContain("apps/trivia/events/[eventId]/builder/page");
     expect(hostControls).toContain("Untimed question");
     expect(projector).toContain("timerEnabled");
-    expect(route).toContain("configuredSeconds >= 0");
+    expect(route).toContain("applyRemoteTriviaHostAction(event, live, action, payload, nowIso())");
+    expect(read("server/src/services/trivia-host-control.ts")).toContain("configuredSeconds >= 0");
     expect(host).toContain("Event-night connection");
     expect(host).toContain('setSyncMode("server")');
     expect(display).toContain('setSyncMode("server")');
@@ -259,7 +260,7 @@ describe("Trivia event-night controls", () => {
     const route = read("server/src/routes/trivia.ts");
 
     expect(builderPage).toContain("TriviaQuestionBulkAddPanel");
-    expect(questionEntry).toContain("Add prepared questions to the game");
+    expect(questionEntry).toContain("Have a prepared question list?");
     expect(questionEntry).toContain("One question per line");
     expect(state).toContain("function addQuestions");
     expect(state).toContain("stateRef.current");

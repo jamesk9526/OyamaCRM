@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import NewGuestModal from "@/app/components/events/NewGuestModal";
+import GuestTicketModal from "@/app/components/events/GuestTicketModal";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
@@ -69,6 +70,9 @@ export default function EventGuestsPage() {
   const [paymentFilter, setPaymentFilter] = useState("");
   /** Filter by EventGuestRsvpStatus: PENDING | CONFIRMED | DECLINED | WAITLIST */
   const [rsvpFilter, setRsvpFilter] = useState("");
+  const [ticketGuest, setTicketGuest] = useState<Guest | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (workspaceEventId) {
@@ -80,6 +84,7 @@ export default function EventGuestsPage() {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      setLoadError(null);
       try {
         const [guestsData, eventsData] = await Promise.all([
           selectedEventId
@@ -95,6 +100,7 @@ export default function EventGuestsPage() {
         }
       } catch (err) {
         console.error("Failed to load guests:", err);
+        setLoadError(err instanceof Error ? err.message : "The guest list could not be loaded.");
       } finally {
         setLoading(false);
       }
@@ -138,6 +144,7 @@ export default function EventGuestsPage() {
   /** Reload data helper for mutations */
   const reloadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [guestsData, eventsData] = await Promise.all([
         selectedEventId
@@ -149,6 +156,7 @@ export default function EventGuestsPage() {
       setEvents((eventsData as Event[]).filter((e) => e.active));
     } catch (err) {
       console.error("Failed to load guests:", err);
+      setLoadError(err instanceof Error ? err.message : "The guest list could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -330,25 +338,29 @@ export default function EventGuestsPage() {
               <option value="WAITLIST">Waitlist</option>
             </select>
           </div>
-          <button
-            onClick={openNewGuestModal}
-            className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 whitespace-nowrap"
-          >
-            + Add Guest
-          </button>
         </div>
       </div>
 
       {/* Guests Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {loading ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Guest List</h2>
+            <p className="text-sm text-gray-500">Add attendees, assign ticket types, and manage check-in.</p>
+          </div>
+          <button type="button" onClick={openNewGuestModal} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">+ Add Guest</button>
+        </div>
+        {notice && <p role="status" className="px-4 py-3 text-sm text-green-800">{notice}</p>}
+        {loadError ? (
+          <div role="alert" className="p-6 text-sm text-red-700">{loadError} <button type="button" onClick={() => void reloadData()} className="font-semibold underline">Retry guest list</button></div>
+        ) : loading ? (
           <div className="p-8 text-center text-gray-500">Loading guests...</div>
         ) : filteredGuests.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            No guests found. {searchQuery || linkedFilter || checkedInFilter || selectedEventId ? "Try adjusting filters." : "Add your first guest."}
+            <p>{searchQuery || linkedFilter || checkedInFilter || paymentFilter || rsvpFilter ? "No guests match these filters." : "No guests registered yet. Use Add Guest above to register an attendee."}</p>
           </div>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Guest Name</th>
@@ -388,6 +400,9 @@ export default function EventGuestsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-sm text-gray-700">{guest.ticketType?.name || "—"}</p>
+                    <button type="button" onClick={() => setTicketGuest(guest)} aria-label={`${guest.ticketType ? "Change" : "Assign"} ticket for ${guest.firstName ?? ""} ${guest.lastName ?? ""}`} className="mt-1 text-xs font-semibold text-amber-700 underline hover:text-amber-900">
+                      {guest.ticketType ? "Change Ticket" : "Assign Ticket"}
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     {guest.order ? (
@@ -457,7 +472,7 @@ export default function EventGuestsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -468,9 +483,22 @@ export default function EventGuestsPage() {
           onClose={() => setShowNewGuestModal(false)}
           onCreated={() => {
             setShowNewGuestModal(false);
+            setSearchQuery("");
+            setCheckedInFilter("");
+            setLinkedFilter("");
+            setPaymentFilter("");
+            setRsvpFilter("");
+            setNotice("Guest added to this event.");
             reloadData();
           }}
         />
+      )}
+      {ticketGuest && (
+        <GuestTicketModal key={ticketGuest.id} eventId={selectedEventId} guest={ticketGuest} onClose={() => setTicketGuest(null)} onSaved={() => {
+          setTicketGuest(null);
+          setNotice("Guest ticket updated.");
+          void reloadData();
+        }} />
       )}
     </div>
   );

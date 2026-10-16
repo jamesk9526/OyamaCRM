@@ -112,7 +112,7 @@ export async function assignGuestToOpenTableSeat(input: { eventId: string; table
       }
 
       const otherGuestsAtTable = await tx.eventGuest.count({
-        where: { tableId: table.id, id: { not: guest.id } },
+        where: { tableId: table.id, seatId: { not: null }, id: { not: guest.id } },
       });
       if (otherGuestsAtTable >= table.capacity) {
         throw new EventSeatServiceError("TABLE_FULL", `${table.name} is full. Increase its capacity or choose another table.`);
@@ -208,7 +208,7 @@ export async function clearSeat(input: { eventId: string; seatId: string }) {
     if (seat.guest?.id) {
       await tx.eventGuest.update({
         where: { id: seat.guest.id },
-        data: { seatId: null, seatNumber: null },
+        data: { tableId: null, seatId: null, seatNumber: null },
       });
     }
     await tx.eventTableSeat.update({ where: { id: seat.id }, data: { status: "EMPTY" } });

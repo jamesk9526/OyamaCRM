@@ -1,7 +1,7 @@
 // Host route for real-time trivia event operations and projector control.
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import TriviaEventHeader from "@/app/components/trivia/TriviaEventHeader";
@@ -10,13 +10,15 @@ import ScorekeepingPanel from "@/app/components/trivia/ScorekeepingPanel";
 import TemporaryEventAccessPanel from "@/app/components/trivia/TemporaryEventAccessPanel";
 import TriviaEventsLinkPanel from "@/app/components/trivia/TriviaEventsLinkPanel";
 import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleState";
-import { findTriviaEventForRoute, getActiveQuestion } from "@/app/apps/trivia/lib/trivia-selectors";
+import { findTriviaEventForRoute, getActiveQuestion, getSortedTeams } from "@/app/apps/trivia/lib/trivia-selectors";
 
 /**
  * TriviaHostPage is the private control center for live host actions.
  */
 export default function TriviaHostPage() {
   const { eventId } = useParams<{ eventId: string }>();
+  const [goingLive, setGoingLive] = useState(false);
+  const [hostError, setHostError] = useState("");
   const {
     state,
     setActiveRound,
@@ -52,14 +54,28 @@ export default function TriviaHostPage() {
   const activeQuestion = getActiveQuestion(event, live);
   const questionCount = activeRound?.questions.length ?? 0;
 
+  async function markLive() {
+    if (!event || goingLive) return;
+    setGoingLive(true);
+    setHostError("");
+    try {
+      await createEventSnapshot(event.id, "Before going live");
+      updateEventStatus(event.id, "live");
+    } catch (error) {
+      setHostError(error instanceof Error ? error.message : "Could not save the safety checkpoint. Try again before going live.");
+    } finally {
+      setGoingLive(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <TriviaEventHeader
         event={event}
         actions={(
           <>
-            <button onClick={() => void createEventSnapshot(event.id, "Before going live").then(() => updateEventStatus(event.id, "live"))} className="min-h-11 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-500">
-              Mark Live
+            <button disabled={goingLive || syncMode !== "server" || connectionStatus !== "connected" || event.status === "live"} onClick={() => void markLive()} className="min-h-11 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-500 disabled:opacity-45">
+              {goingLive ? "Saving checkpoint…" : event.status === "live" ? "Event is live" : "Mark Live"}
             </button>
             <Link href={`/events/${event.id}/trivia/scores`} className="rounded-lg bg-cyan-700 hover:bg-cyan-600 px-3 py-2 text-xs text-white">
               Score Panel
@@ -67,6 +83,7 @@ export default function TriviaHostPage() {
           </>
         )}
       />
+      {hostError ? <p role="alert" className="border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{hostError}</p> : null}
 
       <HostControlPanel
         event={event}
@@ -76,7 +93,8 @@ export default function TriviaHostPage() {
         onNextQuestion={() => setQuestionIndex(event.id, Math.min(Math.max(questionCount - 1, 0), live.activeQuestionIndex + 1))}
         onSetStage={(stage) => setDisplayStage(event.id, stage, `Display ${stage}`)}
         onShowWinner={() => {
-          const sorted = [...event.teams].sort((a, b) => b.score - a.score);
+          const sorted = getSortedTeams(event.teams);
+          if (!sorted[0] || sorted[1]?.score === sorted[0].score) return;
           setWinner(event.id, sorted[0]?.id ?? null);
         }}
         onSetTimerRunning={(running) => setTimerRunning(event.id, running)}
@@ -102,7 +120,7 @@ export default function TriviaHostPage() {
       <ScorekeepingPanel
         teams={event.teams}
         scoreHistory={state.scoreHistoryByEventId[event.id] ?? []}
-        defaultQuestionPoints={event.scoringRules.defaultQuestionPoints}
+        defaultQuestionPoints={activeQuestion?.points ?? event.scoringRules.defaultQuestionPoints}
         allowPartialCredit={event.scoringRules.allowPartialCredit}
         activeRoundId={live.activeRoundId || null}
         activeQuestionId={activeQuestion?.id ?? null}

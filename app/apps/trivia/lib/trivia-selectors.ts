@@ -42,11 +42,12 @@ export function getSortedTeams(teams: TriviaTeam[]): TriviaTeam[] {
 /** Returns a friendly winner value from the event and live state. */
 export function getWinnerTeam(event: TriviaEvent, live: TriviaLiveState): TriviaTeam | null {
   if (live.winnerTeamId) {
-    return event.teams.find((team) => team.id === live.winnerTeamId) ?? null;
+    return event.teams.find((team) => team.id === live.winnerTeamId && team.active) ?? null;
   }
 
   const sorted = getSortedTeams(event.teams);
-  return sorted[0] ?? null;
+  if (!sorted[0] || sorted[1]?.score === sorted[0].score) return null;
+  return sorted[0];
 }
 
 /** Returns count totals for night-of check-in state cards. */

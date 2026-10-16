@@ -71,7 +71,7 @@ describe("Add Guest submission", () => {
   }
   beforeEach(() => {
     vi.clearAllMocks();
-    state.values = [false, null, [], [], "", null, { ...form }];
+    state.values = [false, null, [], "", null, { ...form }];
     state.cursor = 0;
     vi.mocked(apiFetch).mockResolvedValue({ id: "saved-guest" });
   });
@@ -87,7 +87,7 @@ describe("Add Guest submission", () => {
   });
 
   it("supports walk-ins without a constituent or ticket", async () => {
-    state.values[6] = { ...form, email: "", phone: "", ticketTypeId: "" };
+    state.values[5] = { ...form, email: "", phone: "", ticketTypeId: "" };
     await submit();
     const body = JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]?.body as string);
     expect(body.firstName).toBe("Ada");
@@ -97,7 +97,7 @@ describe("Add Guest submission", () => {
   });
 
   it("includes the optional constituent link", async () => {
-    state.values[5] = { id: "constituent-1", firstName: "Ada", lastName: "Lovelace" };
+    state.values[4] = { id: "constituent-1", firstName: "Ada", lastName: "Lovelace" };
     await submit();
     expect(JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]?.body as string).constituentId).toBe("constituent-1");
   });
@@ -116,11 +116,11 @@ describe("Add Guest submission", () => {
     expect(footer).toBeDefined();
     expect(renderModal().find((element) => element.props.role === "alert")?.props.children).toBe("Unable to save guest");
     expect(state.values[0]).toBe(false);
-    expect(state.values[6]).toEqual(form);
+    expect(state.values[5]).toEqual(form);
   });
 
   it("rejects blank names before calling the API", async () => {
-    state.values[6] = { ...form, firstName: " " };
+    state.values[5] = { ...form, firstName: " " };
     await submit();
     expect(apiFetch).not.toHaveBeenCalled();
     expect(state.values[1]).toBe("First and last name are required");

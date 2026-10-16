@@ -30,7 +30,8 @@ import {
 import { syncEventTableSeats, updateEventTable } from "../services/event-table-service.js";
 import { issueTableLinkAccessToken, revokeTableLinkAccessTokens, verifyTableLinkAccessToken } from "../services/tablelink-access-service.js";
 import { completeGuestInvite, createGuestInvite, markGuestInviteOpened } from "../services/guest-invite-service.js";
-import { createWalkInGuest, listEventGuests } from "../services/event-guest-service.js";
+import { createEventGuest, createWalkInGuest, listEventGuests } from "../services/event-guest-service.js";
+import { guestTicketTypeError } from "../services/event-guest-ticket.js";
 import { getEventReportingSnapshot } from "../services/event-reporting-service.js";
 import { evaluateRecipientEligibility } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
@@ -1028,13 +1029,26 @@ function rsvpStatusForOrder(status: "PENDING" | "CONFIRMED" | "CANCELLED" | "REF
 
 function normalizeEventOrderItems(value: unknown): EventOrderItemRequest[] {
   if (!Array.isArray(value)) return [];
-  return value
+  const items = value
     .filter(isRecord)
     .map((item) => ({
       ticketTypeId: normalizeTextInput(item.ticketTypeId, 120),
       quantity: normalizePositiveInt(item.quantity, 1),
     }))
     .filter((item) => item.ticketTypeId);
+  const combined = new Map<string, EventOrderItemRequest>();
+  for (const item of items) {
+    const existing = combined.get(item.ticketTypeId);
+    if (existing) existing.quantity += item.quantity;
+    else combined.set(item.ticketTypeId, { ...item });
+  }
+  return [...combined.values()];
+}
+
+class EventOrderCapacityError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+  }
 }
 
 /** GET /api/events/public/page/:pageSlug — Public event page payload resolved by configured slug. */
@@ -3540,32 +3554,6 @@ router.post("/:eventId/orders", async (req, res) => {
   });
 
   const requestedSeats = normalizedItems.reduce((sum, item) => sum + item.seatCount, 0);
-  const [eventGuestCount, ticketUnitTotals] = await Promise.all([
-    prisma.eventGuest.count({ where: { eventId: req.params.eventId } }),
-    prisma.eventOrderItem.groupBy({
-      by: ["ticketTypeId"],
-      where: { ticketTypeId: { in: normalizedItems.map((item) => item.ticketType.id) } },
-      _sum: { quantity: true },
-    }),
-  ]);
-  const soldUnitsByTicketType = new Map(ticketUnitTotals.map((row) => [row.ticketTypeId, row._sum.quantity ?? 0]));
-
-  if (event.capacity != null && event.capacity > 0 && eventGuestCount + requestedSeats > event.capacity) {
-    res.status(409).json({ error: { code: "EVENT_CAPACITY_REACHED", message: "Not enough event capacity remains for this order." } });
-    return;
-  }
-
-  for (const item of normalizedItems) {
-    const soldUnits = soldUnitsByTicketType.get(item.ticketType.id) ?? 0;
-    if (item.ticketType.capacity != null && item.ticketType.capacity > 0 && soldUnits + item.quantity > item.ticketType.capacity) {
-      res.status(409).json({ error: { code: "TICKET_CAPACITY_REACHED", message: `${item.ticketType.name} does not have enough remaining tickets.` } });
-      return;
-    }
-    if (item.ticketType.available != null && item.ticketType.available < item.quantity) {
-      res.status(409).json({ error: { code: "TICKET_SOLD_OUT", message: `${item.ticketType.name} does not have enough remaining ticket availability.` } });
-      return;
-    }
-  }
 
   // Generate unique order number
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -3578,7 +3566,26 @@ router.post("/:eventId/orders", async (req, res) => {
   const guestPaymentStatus = paymentStatusForOrder(nextStatus, totalAmount);
   const guestRsvpStatus = rsvpStatusForOrder(nextStatus);
 
-  const order = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const persistOrder = () => prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const [eventGuestCount, ticketUnitTotals] = await Promise.all([
+      tx.eventGuest.count({ where: { eventId: req.params.eventId } }),
+      tx.eventOrderItem.groupBy({
+        by: ["ticketTypeId"],
+        where: { ticketTypeId: { in: normalizedItems.map((item) => item.ticketType.id) } },
+        _sum: { quantity: true },
+      }),
+    ]);
+    const soldUnitsByTicketType = new Map(ticketUnitTotals.map((row) => [row.ticketTypeId, row._sum.quantity ?? 0]));
+    if (event.capacity != null && event.capacity > 0 && eventGuestCount + requestedSeats > event.capacity) {
+      throw new EventOrderCapacityError("EVENT_CAPACITY_REACHED", "Not enough event capacity remains for this order.");
+    }
+    for (const item of normalizedItems) {
+      const soldUnits = soldUnitsByTicketType.get(item.ticketType.id) ?? 0;
+      if (item.ticketType.capacity != null && item.ticketType.capacity > 0 && soldUnits + item.quantity > item.ticketType.capacity) {
+        throw new EventOrderCapacityError("TICKET_CAPACITY_REACHED", `${item.ticketType.name} does not have enough remaining tickets.`);
+      }
+    }
+
     const createdOrder = await tx.eventOrder.create({
       data: {
         eventId: req.params.eventId,
@@ -3610,10 +3617,13 @@ router.post("/:eventId/orders", async (req, res) => {
     let guestIndex = 0;
     for (const item of normalizedItems) {
       if (item.ticketType.available != null) {
-        await tx.ticketType.update({
-          where: { id: item.ticketType.id },
+        const reserved = await tx.ticketType.updateMany({
+          where: { id: item.ticketType.id, available: { gte: item.quantity } },
           data: { available: { decrement: item.quantity } },
         });
+        if (reserved.count !== 1) {
+          throw new EventOrderCapacityError("TICKET_SOLD_OUT", `${item.ticketType.name} does not have enough remaining ticket availability.`);
+        }
       }
 
       for (let seatIndex = 0; seatIndex < item.seatCount; seatIndex += 1) {
@@ -3666,9 +3676,22 @@ router.post("/:eventId/orders", async (req, res) => {
         _count: { select: { guests: true } },
       },
     });
-  });
+  }, { isolationLevel: "Serializable" });
 
-  res.status(201).json(order);
+  try {
+    const order = await persistOrder();
+    res.status(201).json(order);
+  } catch (error) {
+    if (error instanceof EventOrderCapacityError) {
+      res.status(409).json({ error: { code: error.code, message: error.message } });
+      return;
+    }
+    if (error && typeof error === "object" && "code" in error && error.code === "P2034") {
+      res.status(409).json({ error: { code: "ORDER_CAPACITY_CONFLICT", message: "Another registration changed ticket availability. Refresh and try again." } });
+      return;
+    }
+    throw error;
+  }
 });
 
 /** PATCH /api/events/orders/:orderId — Update an event order. */
@@ -3947,6 +3970,12 @@ router.post("/:eventId/guests", async (req, res) => {
   } = req.body;
 
   // Generate a unique 6-character alphanumeric check-in code.
+  const ticketError = await guestTicketTypeError(event.id, ticketTypeId);
+  if (ticketError) {
+    res.status(400).json({ error: { code: "INVALID_TICKET_TYPE", message: ticketError } });
+    return;
+  }
+
   async function generateCheckinCode(): Promise<string> {
     for (let attempts = 0; attempts < 10; attempts++) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -4191,6 +4220,11 @@ router.patch("/guests/:guestId", async (req, res) => {
         message: "Seat numbers are managed by the table organizer. Assign the guest to a table or a specific seat instead.",
       },
     });
+    return;
+  }
+  const ticketError = await guestTicketTypeError(guest.eventId, ticketTypeId, guest.ticketTypeId);
+  if (ticketError) {
+    res.status(400).json({ error: { code: "INVALID_TICKET_TYPE", message: ticketError } });
     return;
   }
   if (tableId !== undefined) {
@@ -5020,21 +5054,26 @@ router.post("/:eventId/checkin/exceptions", async (req, res) => {
     return;
   }
 
-  const created = await createCheckInException({
-    eventId: event.id,
-    guestId: req.body.guestId,
-    tableId: req.body.tableId,
-    seatId: req.body.seatId,
-    guestName: req.body.guestName,
-    claimedTable: req.body.claimedTable,
-    claimedEmail: req.body.claimedEmail,
-    claimedPhone: req.body.claimedPhone,
-    issueType: req.body.issueType ?? "OTHER",
-    notes: req.body.notes,
-    createdByUserId: req.user?.sub,
-  });
-
-  res.status(201).json(created);
+  try {
+    const created = await createCheckInException({
+      eventId: event.id,
+      guestId: req.body.guestId,
+      tableId: req.body.tableId,
+      seatId: req.body.seatId,
+      guestName: req.body.guestName,
+      claimedTable: req.body.claimedTable,
+      claimedEmail: req.body.claimedEmail,
+      claimedPhone: req.body.claimedPhone,
+      issueType: req.body.issueType ?? "OTHER",
+      notes: req.body.notes,
+      createdByUserId: req.user?.sub,
+    });
+    res.status(201).json(created);
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (!mapped) throw error;
+    res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+  }
 });
 
 /** GET /api/events/:eventId/checkin/exceptions — List exception queue entries. */
@@ -5068,6 +5107,8 @@ router.post("/:eventId/checkin/exceptions/:exceptionId/resolve", async (req, res
   }
 
   const resolved = await resolveCheckInException({
+    eventId: req.params.eventId,
+    organizationId,
     exceptionId: req.params.exceptionId,
     resolvedByUserId: req.user?.sub,
     notes: req.body.notes,
@@ -5090,6 +5131,8 @@ router.post("/:eventId/checkin/exceptions/:exceptionId/dismiss", async (req, res
   }
 
   const dismissed = await dismissCheckInException({
+    eventId: req.params.eventId,
+    organizationId,
     exceptionId: req.params.exceptionId,
     resolvedByUserId: req.user?.sub,
     notes: req.body.notes,
@@ -5659,16 +5702,24 @@ router.post("/:eventId/checkin/walk-in", async (req, res) => {
     return;
   }
 
-  const guest = await createWalkInGuest({
-    eventId: event.id,
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    email: req.body.email,
-    phone: req.body.phone,
-    tableId: req.body.tableId,
-    seatId: req.body.seatId,
-    notes: req.body.notes,
-  });
+  let guest: Awaited<ReturnType<typeof createWalkInGuest>>;
+  try {
+    guest = await createWalkInGuest({
+      eventId: event.id,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      phone: req.body.phone,
+      tableId: req.body.tableId,
+      seatId: req.body.seatId,
+      notes: req.body.notes,
+    });
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (!mapped) throw error;
+    res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+    return;
+  }
 
   const checkInRecord = await createCheckInRecord({
     eventId: event.id,
@@ -5696,8 +5747,9 @@ router.post("/:eventId/checkin/replacement", async (req, res) => {
     return;
   }
 
-  const guest = await prisma.eventGuest.create({
-    data: {
+  let guest: Awaited<ReturnType<typeof createEventGuest>>;
+  try {
+    guest = await createEventGuest({
       eventId: event.id,
       tableId: req.body.tableId,
       seatId: req.body.seatId,
@@ -5707,9 +5759,14 @@ router.post("/:eventId/checkin/replacement", async (req, res) => {
       phone: req.body.phone,
       source: "REPLACEMENT",
       rsvpStatus: "CONFIRMED",
-      checkinCode: Math.random().toString(36).slice(2, 8).toUpperCase(),
-    },
-  });
+      notes: req.body.notes,
+    });
+  } catch (error) {
+    const mapped = eventSeatErrorResponse(error);
+    if (!mapped) throw error;
+    res.status(mapped.status).json({ error: { code: mapped.code, message: mapped.message } });
+    return;
+  }
 
   const checkInRecord = await createCheckInRecord({
     eventId: event.id,
@@ -5740,7 +5797,16 @@ router.post("/:eventId/checkin/table/:tableId/bulk", async (req, res) => {
     return;
   }
 
-  const requestedGuestIds = Array.isArray(req.body.guestIds) ? (req.body.guestIds as string[]) : table.guests.map((g) => g.id);
+  if (req.body.guestIds !== undefined && (!Array.isArray(req.body.guestIds) || req.body.guestIds.some((id: unknown) => typeof id !== "string"))) {
+    res.status(400).json({ error: { code: "INVALID_GUESTS", message: "guestIds must be a list of guest identifiers from this table." } });
+    return;
+  }
+  const requestedGuestIds: string[] = [...new Set<string>(req.body.guestIds ?? table.guests.map((g) => g.id))];
+  const tableGuestIds = new Set(table.guests.map((guest) => guest.id));
+  if (requestedGuestIds.some((id) => !tableGuestIds.has(id))) {
+    res.status(400).json({ error: { code: "INVALID_GUESTS", message: "Every guest must belong to this table." } });
+    return;
+  }
   const checkIns = [] as Array<{ guestId: string; status: string }>;
   for (const guestId of requestedGuestIds) {
     try {

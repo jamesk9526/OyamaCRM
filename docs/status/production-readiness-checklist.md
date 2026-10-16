@@ -1,12 +1,17 @@
 # Production Readiness Checklist
 
-## 2026-10-16 Event guest registration fix
+## 2026-10-16 Event operations and Trivia audit
 
 | Release gate | Status | Evidence |
 |---|---|---|
-| Selected-event registration and save feedback | Focused regression tests passed | Eight tests cover all Add Guest entry points, manual/linked registration payloads, optional tickets, required names, and visible save failure recovery. |
-| Static checks | Passed | Changed-file ESLint, web TypeScript check (`tsc --noEmit --incremental false`), and `git diff --check`. |
-| Live registration | Pending | Local web/API services are not running; Playwright Chromium is missing and installed Edge cannot launch in the sandbox. Database-backed persistence and browser flow need verification in a running environment. |
+| Combined regression verification | Passed | 116 tests across 18 affected unit/smoke files; both Edge browser fixture scripts passed with zero page errors. |
+| Guest registration, ticket assignment, seating, rename | Unit/isolated route and desktop/mobile browser fixtures passed | Actual React components with local APIs verify ticket choice despite constituent denial, ticket removal/retry, selected-event saves, numbered-seat counts, clear/unassigned/reseat, and name-only rename. [Evidence](audit-artifacts/2026-10-16-event-guest-operations/README.md). |
+| Check-in and exception boundaries | Mocked service and route regressions passed | Atomic attendance/guest/seat updates, duplicate protection, reversal of legacy attendance, validated walk-in/replacement seating, exception event/organization scope, bulk membership and deduplication. [Audit](audit-artifacts/2026-10-16-checkin-guest-audit.md). |
+| Orders, reporting, seat synchronization | Mocked regressions passed | Combined duplicate ticket rows, transactional capacity and guarded inventory decrements, guest-linked completion counts, sparse-seat repair without renumbering assigned guests. [Audit](audit-artifacts/2026-10-16-events-system-audit.md). |
+| Trivia host controls | Focused unit and browser fixtures passed | Local/temporary-host timer and stage invariants, unique active winner selection, question-based scoring, stale confirmation protection, empty-round controls, and clearer host question context. [Audit](audit-artifacts/2026-10-16-trivia-host-audit.md). |
+| Static checks | Passed | Changed-file ESLint (zero errors; two existing check-in hook warnings), web and server typechecks, and diff whitespace checks. |
+| Production integration | Pending | Browser fixtures and mocked transaction tests do not verify actual MySQL locking, live registration persistence, provider/email delivery, or deployment. No production data or deployment changes were made. |
+| Remaining event workflow gaps | Documented for follow-up | Invitation completion atomicity/placement, cancellation/refund inventory and seating release, and staff table-ticket provisioning remain open in the audit artifacts. |
 
 ## 2026-09-26 Donor CRM daily workspace
 

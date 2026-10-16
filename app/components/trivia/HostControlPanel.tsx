@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import type { TriviaConnectionStatus, TriviaDisplayStage, TriviaEvent, TriviaLiveState } from "@/app/apps/trivia/lib/trivia-types";
-import { getActiveQuestion, getActiveRound } from "@/app/apps/trivia/lib/trivia-selectors";
+import { getActiveQuestion, getActiveRound, getSortedTeams } from "@/app/apps/trivia/lib/trivia-selectors";
 
 interface HostControlPanelProps {
   /** Active event record used by host controls. */
@@ -50,6 +50,7 @@ const STAGE_BUTTONS: Array<{ stage: TriviaDisplayStage; label: string; tone: str
 ];
 
 const GUARDED_STAGES = new Set<TriviaDisplayStage>(["answer", "leaderboard", "final_question", "tiebreaker"]);
+const QUESTION_STAGES = new Set<TriviaDisplayStage>(["question", "timer_only", "answer", "final_question", "tiebreaker"]);
 
 function getStageLabel(stage: TriviaDisplayStage): string {
   switch (stage) {
@@ -111,6 +112,12 @@ export default function HostControlPanel({
     setPendingRoundId(live.activeRoundId);
   }, [live.activeRoundId]);
 
+  // A confirmation always belongs to the question and display the host reviewed.
+  useEffect(() => {
+    setConfirmationKey(null);
+    setStatusMessage("");
+  }, [event.id, live.activeRoundId, live.activeQuestionIndex, live.stage]);
+
   useEffect(() => {
     if (!confirmationKey) return;
     const timeoutId = window.setTimeout(() => setConfirmationKey(null), 5_000);
@@ -165,6 +172,10 @@ export default function HostControlPanel({
 
   const questionCount = activeRound?.questions.length ?? 0;
   const nextQuestion = activeRound?.questions[live.activeQuestionIndex + 1] ?? null;
+  const rankedTeams = getSortedTeams(event.teams);
+  const leadingTeam = rankedTeams[0];
+  const tiedLeaders = leadingTeam ? rankedTeams.filter((team) => team.score === leadingTeam.score) : [];
+  const winnerReady = tiedLeaders.length === 1;
   const timerEnabled = (activeQuestion?.timeLimitSec ?? live.timerDefaultSec) > 0;
   const sharedStateSafe = serverSyncEnabled && connectionStatus === "connected";
   const actionClass = "min-h-14 touch-manipulation border px-3 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45";
@@ -199,6 +210,8 @@ export default function HostControlPanel({
             <span className="text-xs text-slate-400">Guarded actions require a second tap</span>
           </div>
           <select
+            aria-label="Active round"
+            disabled={!sharedStateSafe || event.rounds.length === 0}
             value={pendingRoundId}
             onChange={(eventInput) => {
               setPendingRoundId(eventInput.target.value);
@@ -214,7 +227,7 @@ export default function HostControlPanel({
             ))}
           </select>
           {pendingRoundId !== live.activeRoundId ? (
-            <button type="button" onClick={() => runGuarded("change-round", () => onSetRound(pendingRoundId))} className={`${actionClass} w-full border-amber-400/50 bg-amber-500/15 text-amber-100`}>
+            <button type="button" disabled={!sharedStateSafe} onClick={() => runGuarded("change-round", () => onSetRound(pendingRoundId))} className={`${actionClass} w-full border-amber-400/50 bg-amber-500/15 text-amber-100`}>
               {confirmationKey === "change-round" ? "Confirm round change" : "Change round"}
             </button>
           ) : null}
@@ -233,11 +246,23 @@ export default function HostControlPanel({
             <p className="mt-1 line-clamp-2 text-sm text-slate-300">{nextQuestion?.prompt || "End of this round"}</p>
           </div>
 
+          {activeQuestion ? (
+            <details className="border border-slate-700 bg-slate-950/70 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-cyan-100">Host reference · answer and notes</summary>
+              <p className="mt-2 text-xs text-slate-400">Private reference. These notes do not change the projector.</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-white">Scoring answer: {activeQuestion.scoringAnswer || "No scoring answer entered"}</p>
+              {activeQuestion.acceptedAnswers.length ? <p className="mt-2 text-sm text-slate-200">Also accept: {activeQuestion.acceptedAnswers.join("; ")}</p> : null}
+              {activeQuestion.hostNotes ? <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{activeQuestion.hostNotes}</p> : null}
+              <p className="mt-2 text-xs text-slate-300">{activeQuestion.points} points · {timerEnabled ? `${activeQuestion.timeLimitSec}s` : "Untimed"}</p>
+            </details>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {STAGE_BUTTONS.filter((button) => timerEnabled || button.stage !== "timer_only").map((button) => (
               <button
                 key={button.stage}
-                disabled={!sharedStateSafe}
+                disabled={!sharedStateSafe || (QUESTION_STAGES.has(button.stage) && !activeQuestion) || (button.stage === "round_intro" && !activeRound)}
+                aria-pressed={live.stage === button.stage}
                 onClick={() => GUARDED_STAGES.has(button.stage)
                   ? runGuarded(`stage-${button.stage}`, () => onSetStage(button.stage))
                   : onSetStage(button.stage)}
@@ -249,13 +274,14 @@ export default function HostControlPanel({
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <button disabled={!sharedStateSafe || event.teams.length === 0} onClick={() => runGuarded("winner", onShowWinner)} className={`${actionClass} border-fuchsia-400/40 bg-fuchsia-700 text-white hover:bg-fuchsia-600`}>
+            <button disabled={!sharedStateSafe || !winnerReady} onClick={() => runGuarded("winner", onShowWinner)} className={`${actionClass} border-fuchsia-400/40 bg-fuchsia-700 text-white hover:bg-fuchsia-600`}>
               {confirmationKey === "winner" ? "Confirm winner screen" : "Final winner screen"}
             </button>
             <button onClick={() => { onSetTimerRunning(false); onSetStage("blank"); setStatusMessage("Emergency hold active. Projector blanked and timer paused."); }} className={`${actionClass} border-rose-400/60 bg-rose-600 text-white hover:bg-rose-500`}>
               Emergency hold
             </button>
           </div>
+          <p className="text-xs text-slate-300">{winnerReady ? `Winner preview: ${leadingTeam.name} · ${leadingTeam.score} points` : tiedLeaders.length > 1 ? `First place is tied: ${tiedLeaders.map((team) => team.name).join(", ")}. Resolve the tie before announcing a winner.` : "Activate a team before announcing a winner."}</p>
         </article>
 
         <article className="space-y-3 border border-slate-700 bg-slate-900/60 p-3 sm:p-4">

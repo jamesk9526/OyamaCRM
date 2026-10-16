@@ -41,5 +41,43 @@ describe("Trivia actions before the next render", () => {
     expect(saved.liveByEventId[event.id].timerRemainingSec).toBe(12);
     expect(saved.liveByEventId[event.id].stage).toBe("question");
   });
+
+  it("ignores missing rounds and invalid question indexes without losing the current question", () => {
+    const api = useTriviaModuleState();
+    const event = api.createSampleEvent();
+    const before = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    api.setActiveRound(event.id, "missing-round");
+    api.setQuestionIndex(event.id, Number.NaN);
+    const saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.liveByEventId[event.id]).toEqual(before.liveByEventId[event.id]);
+  });
+
+  it("does not restart an expired or untimed question timer", () => {
+    const api = useTriviaModuleState();
+    const event = api.createSampleEvent();
+    api.setTimerRemaining(event.id, 0);
+    api.setTimerRunning(event.id, true);
+    let saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.liveByEventId[event.id].timerRunning).toBe(false);
+    api.resetTimer(event.id, 0);
+    api.setTimerRemaining(event.id, 5);
+    api.setTimerRunning(event.id, true);
+    saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.liveByEventId[event.id].timerRunning).toBe(false);
+  });
+
+  it("rejects non-finite scores and disallowed partial credit", () => {
+    const api = useTriviaModuleState();
+    const event = api.createSampleEvent();
+    api.updateEventSettings(event.id, { ...event.scoringRules, ...event.displaySettings, allowPartialCredit: false });
+    const before = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    for (const delta of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      api.applyScoreAction(event.id, { teamId: event.teams[0].id, delta, actionType: "manual", reason: "Invalid" });
+    }
+    api.applyScoreAction(event.id, { teamId: event.teams[0].id, delta: 5, actionType: "partial", reason: "Partial" });
+    const saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.events).toEqual(before.events);
+    expect(saved.scoreHistoryByEventId).toEqual(before.scoreHistoryByEventId);
+  });
 });
 
