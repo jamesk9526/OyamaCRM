@@ -11,7 +11,7 @@ const { build } = require(createRequire(require.resolve("tsx")).resolve("esbuild
 const postcss = require(createRequire(require.resolve("@tailwindcss/postcss")).resolve("postcss"));
 const tailwind = require("@tailwindcss/postcss");
 const root = process.cwd();
-const output = path.join(root, "docs/status/audit-artifacts/2026-10-16-trivia-host");
+const output = path.join(root, "docs/status/audit-artifacts/2026-10-16-trivia-simplification");
 const css = (await postcss([tailwind({ base: root })]).process(await readFile("app/globals.css", "utf8"), { from: path.join(root, "app/globals.css") })).css;
 const bundle = await build({
   stdin: { resolveDir: root, loader: "tsx", contents: `
@@ -26,28 +26,32 @@ const bundle = await build({
         event.teams.forEach(team => {team.active=true;team.score=0});
         event.rounds[0].questions[0].hostNotes='Read slowly; accept the short name.';
         event.rounds[0].questions.push({...event.rounds[0].questions[0],id:'second-question',prompt:'Second question'});
+        event.rounds[0].questions.push({...event.rounds[0].questions[0],id:'third-question',prompt:'Third question'});
         return event;
       });
       const [live,setLive]=useState(()=>createDefaultLiveState(event));
       const [connected,setConnected]=useState(true);
+      const [saving,setSaving]=useState(false);
+      const [saveError,setSaveError]=useState('');
       const update=patch=>setLive(previous=>({...previous,...patch}));
       return <main className="trivia-admin-content bg-slate-950 p-4 text-white">
         <div className="flex flex-wrap gap-2 mb-4">
           <button onClick={()=>setEvent(previous=>({...previous,teams:previous.teams.map((team,i)=>({...team,score:i===0?10:0}))}))}>Fixture unique leader</button>
-          <button onClick={()=>update({activeQuestionIndex:live.activeQuestionIndex+1})}>Fixture external question</button>
+          <button onClick={()=>update({activeQuestionIndex:live.activeQuestionIndex+1,stage:'question',timerRunning:false,timerRemainingSec:30,timerEndsAt:null})}>Fixture external question</button>
           <button onClick={()=>setConnected(false)}>Fixture disconnect</button>
+          <button onClick={()=>setSaving(previous=>!previous)}>Fixture toggle saving</button>
+          <button onClick={()=>setSaveError('Fixture save unavailable')}>Fixture failed save</button>
           <button onClick={()=>setEvent(previous=>({...previous,rounds:previous.rounds.map(round=>({...round,questions:[]}))}))}>Fixture empty rounds</button>
         </div>
         <output aria-label="Fixture stage">{live.stage}</output>
-        <Host event={event} live={live} connectionStatus={connected?'connected':'offline'} serverSyncEnabled
-          onNextQuestion={()=>update({activeQuestionIndex:live.activeQuestionIndex+1})}
-          onPreviousQuestion={()=>update({activeQuestionIndex:live.activeQuestionIndex-1})}
+        <Host event={event} live={live} connectionStatus={connected?'connected':'offline'} serverSyncEnabled saving={saving} saveError={saveError} onRetrySync={()=>setSaveError('')}
+          onNextQuestion={()=>update({activeQuestionIndex:live.activeQuestionIndex+1,stage:'question',timerRunning:false,timerRemainingSec:30,timerEndsAt:null})}
+          onPreviousQuestion={()=>update({activeQuestionIndex:live.activeQuestionIndex-1,stage:'question',timerRunning:false,timerRemainingSec:30,timerEndsAt:null})}
           onSetRound={id=>update({activeRoundId:id,activeQuestionIndex:0,stage:'round_intro'})}
-          onSetStage={stage=>update({stage,answerRevealed:stage==='answer'})}
+          onSetStage={stage=>update({stage,answerRevealed:stage==='answer',...(!['question','timer_only','final_question','tiebreaker'].includes(stage)?{timerRunning:false,timerEndsAt:null}:{})})}
           onShowWinner={()=>update({stage:'winner'})}
-          onSetTimerRunning={timerRunning=>update({timerRunning})}
-          onResetTimer={()=>update({timerRemainingSec:30,timerRunning:false})}
-          onTickTimer={timerRemainingSec=>update({timerRemainingSec})}
+          onSetTimerRunning={timerRunning=>update({timerRunning,timerRemainingSec:live.timerEndsAt?Math.max(0,Math.ceil((Date.parse(live.timerEndsAt)-Date.now())/1000)):live.timerRemainingSec,timerEndsAt:timerRunning?new Date(Date.now()+live.timerRemainingSec*1000).toISOString():null})}
+          onResetTimer={()=>update({timerRemainingSec:30,timerRunning:false,timerEndsAt:null})}
           onProjectorOpened={()=>{}}
           onCreateCheckpoint={async()=>{throw new Error('Fixture checkpoint unavailable')}} />
       </main>
@@ -68,6 +72,11 @@ try {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.clock.install();
+  await page.getByRole("button", { name: "Show question", exact: true }).waitFor();
+  await page.getByText("Selected question · not on display", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Final winner screen", exact: true }).isVisible(), false);
+  await page.getByText("More display controls", { exact: true }).click();
   const winner = page.getByRole("button", { name: "Final winner screen", exact: true });
   await winner.waitFor();
   assert.equal(await winner.isDisabled(), true);
@@ -76,32 +85,59 @@ try {
   await page.getByText("Read slowly; accept the short name.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Fixture unique leader", exact: true }).click();
   assert.equal(await winner.isEnabled(), true);
+  await page.getByText("More display controls", { exact: true }).click();
   await mkdir(output, { recursive: true });
   await page.screenshot({ path: path.join(output, "desktop.png"), fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 844 });
   await page.screenshot({ path: path.join(output, "mobile.png"), fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1360, height: 1100 });
-  await page.getByRole("button", { name: "Reveal Answer", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm Reveal Answer", exact: true }).waitFor();
+  const showQuestion = page.getByRole("button", { name: "Show question", exact: true });
+  await showQuestion.focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await page.getByLabel("Fixture stage").textContent(), "question");
+  const audiencePreview = page.getByRole("region", { name: "Audience preview" });
+  await audiencePreview.getByText(/Question 1 of/).waitFor();
+  await audiencePreview.getByText("What the audience sees", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Start timer", exact: true }).click();
+  await page.getByRole("heading", { name: "Timer running", exact: true }).waitFor();
+  await page.clock.fastForward(2_100);
+  assert.equal(await page.getByLabel("Timer remaining").textContent(), "28s");
+  await page.getByRole("button", { name: "Pause timer", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Pause timer", exact: true }).isDisabled(), true);
+  await page.getByRole("button", { name: "Resume timer", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm reveal answer", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fixture external question", exact: true }).click();
-  await page.getByRole("button", { name: "Reveal Answer", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Reveal Answer", exact: true }).click();
-  assert.equal(await page.getByLabel("Fixture stage").textContent(), "welcome");
-  await page.getByRole("button", { name: "Confirm Reveal Answer", exact: true }).click();
+  await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).click();
+  assert.equal(await page.getByLabel("Fixture stage").textContent(), "question");
+  await page.getByRole("button", { name: "Confirm reveal answer", exact: true }).click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "answer");
+  await audiencePreview.getByText(/^Correct answer:/).first().waitFor();
+  await page.getByRole("button", { name: "Next question", exact: true }).click();
+  assert.equal(await page.getByLabel("Fixture stage").textContent(), "question");
+  await page.getByRole("button", { name: "Fixture failed save", exact: true }).click();
+  await page.getByText("Fixture save unavailable", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Retry game sync", exact: true }).click();
+  assert.equal(await page.getByText("Fixture save unavailable", { exact: true }).count(), 0);
+  await page.getByText("Round navigation and recovery", { exact: true }).click();
   await page.getByRole("button", { name: "Save safety checkpoint", exact: true }).click();
   await page.getByText("Fixture checkpoint unavailable", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Emergency hold", exact: true }).click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "blank");
+  await page.getByRole("button", { name: "Fixture toggle saving", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Show question", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Emergency hold", exact: true }).isEnabled(), true);
+  await page.getByRole("button", { name: "Fixture toggle saving", exact: true }).click();
   await page.getByRole("button", { name: "Fixture empty rounds", exact: true }).click();
-  assert.equal(await page.getByRole("button", { name: "Question", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Add questions to begin", exact: true }).isDisabled(), true);
   await page.getByRole("button", { name: "Fixture disconnect", exact: true }).click();
   assert.equal(await page.getByRole("combobox", { name: "Active round" }).isDisabled(), true);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
-  console.log("PASS trivia host fixture: tied winner, private notes, stale confirmation, answer reveal, checkpoint error, emergency hold, empty round, disconnected controls, mobile overflow, zero page errors.");
+  console.log("PASS trivia host fixture: guided flow, selected and audience-visible question previews with round/question numbering, answer reveal preview, keyboard show question, timer start/pause, hidden secondary controls, tied winner, private notes, stale confirmation, save/retry and checkpoint errors, emergency hold, saving guard, empty round, offline controls, 320px overflow, zero page errors.");
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));

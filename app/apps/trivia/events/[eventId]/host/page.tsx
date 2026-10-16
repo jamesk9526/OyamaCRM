@@ -26,7 +26,6 @@ export default function TriviaHostPage() {
     setDisplayStage,
     setWinner,
     setTimerRunning,
-    setTimerRemaining,
     resetTimer,
     applyScoreAction,
     undoLastScoreAction,
@@ -37,7 +36,11 @@ export default function TriviaHostPage() {
     connectionStatus,
     refreshFromServer,
     createEventSnapshot,
-  } = useTriviaModuleState();
+    liveSaving,
+    syncError,
+    retryLiveSync,
+    liveClockOffsetMs,
+  } = useTriviaModuleState({ liveEventId: eventId });
 
   const event = useMemo(() => findTriviaEventForRoute(state.events, eventId), [state.events, eventId]);
   const live = event ? state.liveByEventId[event.id] : null;
@@ -45,7 +48,7 @@ export default function TriviaHostPage() {
   if (!event || !live) {
     return (
       <section className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-        Event not found. Open an event from the trivia events list.
+        {connectionStatus === "reconnecting" ? "Loading live game…" : connectionStatus === "offline" ? "The live game could not be loaded. Check your server connection and reload." : "Event not found. Open an event from the trivia events list."}
       </section>
     );
   }
@@ -99,14 +102,20 @@ export default function TriviaHostPage() {
         }}
         onSetTimerRunning={(running) => setTimerRunning(event.id, running)}
         onResetTimer={() => resetTimer(event.id)}
-        onTickTimer={(remaining) => setTimerRemaining(event.id, remaining)}
         onProjectorOpened={() => markProjectorOpened(event.id)}
         onCreateCheckpoint={() => createEventSnapshot(event.id, `Host checkpoint · ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`).then(() => undefined)}
         connectionStatus={connectionStatus}
         serverSyncEnabled={syncMode === "server"}
+        saving={liveSaving}
+        saveError={syncError || undefined}
+        onRetrySync={() => void retryLiveSync(event.id)}
+        clockOffsetMs={liveClockOffsetMs}
       />
 
-      <TriviaEventsLinkPanel event={event} onRefresh={refreshFromServer} compact />
+      <details className="border border-slate-700 bg-slate-900/60 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-white">Event setup, connection, and staff access</summary>
+        <div className="mt-4 space-y-4">
+          <TriviaEventsLinkPanel event={event} onRefresh={refreshFromServer} compact />
 
       <section className={syncMode === "server" ? "border border-emerald-400/40 bg-emerald-500/10 px-4 py-3" : "border border-amber-400/50 bg-amber-500/10 px-4 py-3"}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -116,7 +125,12 @@ export default function TriviaHostPage() {
       </section>
 
       <TemporaryEventAccessPanel eventId={event.id} />
+        </div>
+      </details>
 
+      <details className="border border-slate-700 bg-slate-900/60 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-white">Quick score entry</summary>
+        <div className="mt-4">
       <ScorekeepingPanel
         teams={event.teams}
         scoreHistory={state.scoreHistoryByEventId[event.id] ?? []}
@@ -127,6 +141,8 @@ export default function TriviaHostPage() {
         onApplyScore={(payload) => applyScoreAction(event.id, payload)}
         onUndoLast={() => undoLastScoreAction(event.id)}
       />
+        </div>
+      </details>
     </section>
   );
 }

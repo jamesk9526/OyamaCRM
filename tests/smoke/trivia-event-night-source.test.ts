@@ -154,6 +154,8 @@ describe("Trivia event-night controls", () => {
     const route = read("server/src/routes/trivia.ts");
     const host = read("app/apps/trivia/events/[eventId]/host/page.tsx");
     const display = read("app/apps/trivia/display/[eventId]/page.tsx");
+    const liveProjector = read("app/components/trivia/TriviaLiveProjector.tsx");
+    const audiencePreview = read("app/components/trivia/TriviaHostAudiencePreview.tsx");
 
     expect(builder).toContain("Build rounds, then add questions");
     expect(builder).toContain("QUESTION_TYPE_HELP");
@@ -169,11 +171,14 @@ describe("Trivia event-night controls", () => {
     expect(unifiedBuilder).toContain("apps/trivia/events/[eventId]/builder/page");
     expect(hostControls).toContain("Untimed question");
     expect(projector).toContain("timerEnabled");
-    expect(route).toContain("applyRemoteTriviaHostAction(event, live, action, payload, nowIso())");
+    expect(route).toContain("commandTriviaLive(access.organizationId, eventId, action, payload");
     expect(read("server/src/services/trivia-host-control.ts")).toContain("configuredSeconds >= 0");
     expect(host).toContain("Event-night connection");
     expect(host).toContain('setSyncMode("server")');
-    expect(display).toContain('setSyncMode("server")');
+    expect(display).toContain("TriviaLiveProjector");
+    expect(liveProjector).toContain("useTriviaLiveEvent(eventId)");
+    expect(audiencePreview).toContain("What the audience sees");
+    expect(audiencePreview).toContain("Question {question ? live.activeQuestionIndex + 1 : 0}");
   });
 
   it("keeps visual game planning and supported uploaded question media available", () => {

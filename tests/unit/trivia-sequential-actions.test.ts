@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // Keep one render's callbacks to reproduce actions batched before React rerenders.
 vi.mock("react", () => ({
+  useCallback: (callback: unknown) => callback,
   useEffect: () => {},
   useRef: (current: unknown) => ({ current }),
   useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],

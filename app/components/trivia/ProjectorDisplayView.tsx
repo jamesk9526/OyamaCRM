@@ -3,10 +3,12 @@
 import type { ReactNode } from "react";
 import type { TriviaEvent, TriviaLiveState } from "@/app/apps/trivia/lib/trivia-types";
 import { getActiveQuestion, getActiveRound, getSortedTeams, getWinnerTeam } from "@/app/apps/trivia/lib/trivia-selectors";
+import { useTriviaCountdown } from "@/app/apps/trivia/hooks/useTriviaCountdown";
 
 interface ProjectorDisplayViewProps {
   event: TriviaEvent;
   live: TriviaLiveState;
+  clockOffsetMs?: number;
 }
 
 function ProjectorFrame({ event, live, eyebrow, children, tone = "cyan" }: { event: TriviaEvent; live: TriviaLiveState; eyebrow: string; children: ReactNode; tone?: "cyan" | "violet" | "amber" | "rose" }) {
@@ -17,18 +19,19 @@ function ProjectorFrame({ event, live, eyebrow, children, tone = "cyan" }: { eve
       <div className="trivia-projector-orb trivia-projector-orb-two" aria-hidden="true" />
       <header className="trivia-projector-brand"><div className="trivia-projector-mark">T</div><div><strong>{event.name}</strong><span>{event.venue || "Live trivia event"}</span></div><p>{eyebrow}</p></header>
       <section key={`${live.stage}-${live.activeRoundId}-${live.activeQuestionIndex}`} className="trivia-projector-stage">{children}</section>
-      <footer className="trivia-projector-footer"><span>OYAMA TRIVIA</span><i /><span>{live.projectorConnectionStatus === "connected" ? "LIVE DISPLAY" : "EVENT DISPLAY"}</span></footer>
+      <footer className="trivia-projector-footer"><span>OYAMA TRIVIA</span><i /><span>LIVE GAME DISPLAY</span></footer>
     </main>
   );
 }
 
-function Timer({ live, compact = false }: { live: TriviaLiveState; compact?: boolean }) {
-  const urgent = live.timerRemainingSec <= 10;
-  return <div className={`trivia-projector-timer ${compact ? "is-compact" : ""} ${urgent ? "is-urgent" : ""} ${live.timerRunning ? "is-running" : ""}`}><span>Time</span><strong>{live.timerRemainingSec}</strong><small>seconds</small></div>;
+function Timer({ live, compact = false, clockOffsetMs = 0 }: { live: TriviaLiveState; compact?: boolean; clockOffsetMs?: number }) {
+  const remaining = useTriviaCountdown(live, clockOffsetMs);
+  const urgent = remaining <= 10;
+  return <div className={`trivia-projector-timer ${compact ? "is-compact" : ""} ${urgent ? "is-urgent" : ""} ${live.timerRunning && remaining > 0 ? "is-running" : ""}`}><span>Time</span><strong>{remaining}</strong><small>seconds</small></div>;
 }
 
 /** Excludes scoring answers and host notes while rendering every public stage. */
-export default function ProjectorDisplayView({ event, live }: ProjectorDisplayViewProps) {
+export default function ProjectorDisplayView({ event, live, clockOffsetMs = 0 }: ProjectorDisplayViewProps) {
   const round = getActiveRound(event, live);
   const question = getActiveQuestion(event, live);
   const timerEnabled = (question?.timeLimitSec ?? live.timerDefaultSec) > 0;
@@ -54,7 +57,7 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
   }
 
   if (live.stage === "timer_only" && timerEnabled) {
-    return <ProjectorFrame event={event} live={live} eyebrow="Countdown"><div className="trivia-projector-timer-stage"><p>Answers in</p><Timer live={live} /></div></ProjectorFrame>;
+    return <ProjectorFrame event={event} live={live} eyebrow="Countdown"><div className="trivia-projector-timer-stage"><p>Answers in</p><Timer live={live} clockOffsetMs={clockOffsetMs} /></div></ProjectorFrame>;
   }
 
   if (live.stage === "break") {
@@ -66,7 +69,7 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
   }
 
   if (live.stage === "leaderboard") {
-    return <ProjectorFrame event={event} live={live} eyebrow="Live standings"><div className="trivia-projector-board"><div className="trivia-projector-title"><p>Current rankings</p><h1>Leaderboard</h1></div><div className="trivia-projector-rankings">{teams.length ? teams.slice(0, 10).map((team, index) => <div key={team.id} className={`trivia-projector-ranking ${index < 3 ? "is-podium" : ""}`} style={{ "--rank-delay": `${index * 70}ms`, ...(event.displaySettings.showTeamColors ? { borderColor: team.color } : {}) } as React.CSSProperties}><span>{index + 1}</span><strong>{team.name}</strong><em>{team.score}<small> pts</small></em></div>) : <div className="trivia-projector-empty">Teams will appear here after check-in.</div>}</div></div></ProjectorFrame>;
+    return <ProjectorFrame event={event} live={live} eyebrow="Live standings"><div className="trivia-projector-board"><div className="trivia-projector-title"><p>Current rankings</p><h1>Leaderboard</h1></div><div className="trivia-projector-rankings">{teams.length ? teams.slice(0, 10).map((team, index) => <div key={team.id} className={`trivia-projector-ranking ${index < 3 ? "is-podium" : ""}`} style={{ "--rank-delay": `${index * 20}ms`, ...(event.displaySettings.showTeamColors ? { borderColor: team.color } : {}) } as React.CSSProperties}><span>{index + 1}</span><strong>{team.name}</strong><em>{team.score}<small> pts</small></em></div>) : <div className="trivia-projector-empty">Teams will appear here after check-in.</div>}</div></div></ProjectorFrame>;
   }
 
   if (live.stage === "answer" || live.stage === "explanation") {
@@ -77,5 +80,5 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
   const tieBreaker = live.stage === "tiebreaker";
   const questionLabel = finalQuestion ? "Final question" : tieBreaker ? "Tie breaker" : `Question ${live.activeQuestionIndex + 1}`;
 
-  return <ProjectorFrame event={event} live={live} eyebrow={questionLabel} tone={finalQuestion || tieBreaker ? "amber" : "cyan"}><div className="trivia-projector-question"><header><div><p>{round?.title || "Awaiting round"}</p><h1>{questionLabel}</h1></div>{event.displaySettings.showTimerOnQuestion && timerEnabled ? <Timer live={live} compact /> : null}</header><article className={question?.mediaUrl ? "has-media" : ""}><div><span>{question?.questionType?.replaceAll("_", " ") || "text"}</span><h2>{question?.prompt || "No active question selected."}</h2>{question?.options?.length ? <div className="trivia-projector-options">{question.options.map((option, index) => <div key={`${index}-${option}`}><b>{String.fromCharCode(65 + index)}</b><p>{option}</p></div>)}</div> : null}</div>{question?.mediaUrl ? <div className="trivia-projector-media">{question.questionType === "image" ? <img src={question.mediaUrl} alt="Question visual clue" /> : null}{question.questionType === "audio" ? <div className="trivia-projector-audio"><span>♫</span><p>Listen to the audio clue</p><audio controls autoPlay src={question.mediaUrl} /></div> : null}{question.questionType === "video" ? <video controls autoPlay src={question.mediaUrl} /> : null}</div> : null}</article></div></ProjectorFrame>;
+  return <ProjectorFrame event={event} live={live} eyebrow={questionLabel} tone={finalQuestion || tieBreaker ? "amber" : "cyan"}><div className="trivia-projector-question"><header><div><p>{round?.title || "Awaiting round"}</p><h1>{questionLabel}</h1></div>{event.displaySettings.showTimerOnQuestion && timerEnabled ? <Timer live={live} compact clockOffsetMs={clockOffsetMs} /> : null}</header><article className={question?.mediaUrl ? "has-media" : ""}><div><span>{question?.questionType?.replaceAll("_", " ") || "text"}</span><h2>{question?.prompt || "No active question selected."}</h2>{question?.options?.length ? <div className="trivia-projector-options">{question.options.map((option, index) => <div key={`${index}-${option}`}><b>{String.fromCharCode(65 + index)}</b><p>{option}</p></div>)}</div> : null}</div>{question?.mediaUrl ? <div className="trivia-projector-media">{question.questionType === "image" ? <img src={question.mediaUrl} alt="Question visual clue" /> : null}{question.questionType === "audio" ? <div className="trivia-projector-audio"><span>♫</span><p>Listen to the audio clue</p><audio controls autoPlay src={question.mediaUrl} /></div> : null}{question.questionType === "video" ? <video controls autoPlay src={question.mediaUrl} /> : null}</div> : null}</article></div></ProjectorFrame>;
 }

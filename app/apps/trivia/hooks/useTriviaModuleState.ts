@@ -35,6 +35,9 @@ import {
 } from "@/app/apps/trivia/lib/trivia-store";
 import { createDefaultDisplaySettings, createDefaultLiveState, createDefaultScoringRules } from "@/app/apps/trivia/lib/trivia-demo-data";
 import { createSampleTriviaEvent } from "@/app/apps/trivia/lib/trivia-sample-data";
+import { useTriviaLiveEvent } from "./useTriviaLiveEvent";
+import { remainingTriviaSeconds } from "../lib/trivia-timer";
+import type { TriviaLiveCommand } from "../lib/trivia-live-client";
 import type { TriviaGameImport } from "@/app/apps/trivia/lib/trivia-game-import";
 import {
   createServerTriviaSnapshot,
@@ -157,12 +160,13 @@ function normalizeTeamOrder(teams: TriviaTeam[]): TriviaTeam[] {
  * useTriviaModuleState offers fully working CRUD and live-control actions for the standalone trivia app.
  * Data persists in browser local storage under a dedicated trivia namespace.
  */
-export function useTriviaModuleState() {
+export function useTriviaModuleState({ liveEventId = "" }: { liveEventId?: string } = {}) {
   const [state, setState] = useState<TriviaModuleState>(() => readTriviaState());
   const [syncMode, setSyncModeState] = useState<TriviaSyncMode>(() => readTriviaSyncMode());
   const [connectionStatus, setConnectionStatus] = useState<TriviaConnectionStatus>(() => (readTriviaSyncMode() === "server" ? "reconnecting" : "connected"));
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [pendingServerWrites, setPendingServerWrites] = useState(0);
   const [snapshotsByEventId, setSnapshotsByEventId] = useState<Record<string, TriviaEventSnapshot[]>>({});
   const [auditByEventId, setAuditByEventId] = useState<Record<string, TriviaEventAuditEvent[]>>({});
   const stateRef = useRef(state);
@@ -170,6 +174,32 @@ export function useTriviaModuleState() {
   const pendingServerWritesRef = useRef(0);
   const lastServerUpdatedAtRef = useRef<string | null>(null);
   const syncSourceIdRef = useRef(createTriviaId("trivia-client"));
+  const liveSession = useTriviaLiveEvent(liveEventId, { enabled: syncMode === "server" && Boolean(liveEventId) });
+  const refreshLiveSession = liveSession.refresh;
+  const latestLiveSnapshotRef = useRef(liveSession.snapshot);
+
+  useEffect(() => {
+    latestLiveSnapshotRef.current = liveSession.snapshot;
+  }, [liveSession.snapshot]);
+
+  useEffect(() => {
+    const snapshot = liveSession.snapshot;
+    if (!snapshot || pendingServerWritesRef.current > 0) return;
+    const single = ensureLiveStateCoverage({
+      events: [snapshot.event], liveByEventId: { [snapshot.event.id]: snapshot.live },
+      scoreHistoryByEventId: { [snapshot.event.id]: snapshot.scoreHistory ?? [] },
+    });
+    const current = stateRef.current;
+    const next = {
+      ...current,
+      events: [...current.events.filter((event) => event.id !== snapshot.event.id), single.events[0]],
+      liveByEventId: { ...current.liveByEventId, ...single.liveByEventId },
+      scoreHistoryByEventId: { ...current.scoreHistoryByEventId, ...single.scoreHistoryByEventId },
+    };
+    stateRef.current = next;
+    setState(next);
+    writeTriviaState(next, syncSourceIdRef.current);
+  }, [liveSession.snapshot]);
 
   useEffect(() => {
     stateRef.current = state;
@@ -179,6 +209,14 @@ export function useTriviaModuleState() {
     const unsubscribe = subscribeTriviaState(() => {
       if (pendingServerWritesRef.current > 0) return;
       const next = readTriviaState();
+      const liveSnapshot = latestLiveSnapshotRef.current;
+      if (liveSnapshot) {
+        const currentEvent = next.events.find((event) => event.id === liveSnapshot.event.id);
+        if (!currentEvent) next.events = [...next.events, liveSnapshot.event];
+        // Local storage is still used by setup and scorekeeping screens. Keep its
+        // event content, but never let an older cached live record rewind the game.
+        next.liveByEventId[liveSnapshot.event.id] = liveSnapshot.live;
+      }
       stateRef.current = next;
       setState(next);
     }, syncSourceIdRef.current);
@@ -208,6 +246,12 @@ export function useTriviaModuleState() {
         const serverChanged = payload.updatedAt !== lastServerUpdatedAtRef.current;
         if (options.replaceLocal || serverChanged) {
           const normalized = ensureLiveStateCoverage(payload.state);
+          const currentLive = latestLiveSnapshotRef.current;
+          if (currentLive) {
+            normalized.events = [...normalized.events.filter((event) => event.id !== currentLive.event.id), currentLive.event];
+            normalized.liveByEventId[currentLive.event.id] = currentLive.live;
+            normalized.scoreHistoryByEventId[currentLive.event.id] = currentLive.scoreHistory ?? normalized.scoreHistoryByEventId[currentLive.event.id] ?? [];
+          }
           if (pendingServerWritesRef.current === 0 && JSON.stringify(normalized) !== JSON.stringify(stateRef.current)) {
             stateRef.current = normalized;
             setState(normalized);
@@ -230,11 +274,13 @@ export function useTriviaModuleState() {
 
     void pullServerState({ replaceLocal: true, announceReconnect: true });
 
-    const intervalId = window.setInterval(() => {
+    const intervalId = liveEventId ? null : window.setInterval(() => {
       if (document.visibilityState === "visible") void pullServerState({ replaceLocal: false, announceReconnect: false });
     }, TRIVIA_SERVER_POLL_INTERVAL_MS);
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void pullServerState({ replaceLocal: false, announceReconnect: false });
+      if (document.visibilityState !== "visible") return;
+      if (liveEventId) void refreshLiveSession();
+      else void pullServerState({ replaceLocal: false, announceReconnect: false });
     };
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -242,14 +288,15 @@ export function useTriviaModuleState() {
     return () => {
       active = false;
       abortController.abort();
-      window.clearInterval(intervalId);
+      if (intervalId !== null) window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [syncMode]);
+  }, [syncMode, liveEventId, refreshLiveSession]);
 
   function enqueueServerSync(nextState: TriviaModuleState) {
     pendingServerWritesRef.current += 1;
+    setPendingServerWrites(pendingServerWritesRef.current);
     serverSyncQueueRef.current = serverSyncQueueRef.current.then(async () => {
       setConnectionStatus((current) => current === "offline" ? "reconnecting" : current);
       try {
@@ -263,6 +310,8 @@ export function useTriviaModuleState() {
         setSyncError(error instanceof Error ? error.message : "Unable to push trivia state to server.");
       } finally {
         pendingServerWritesRef.current = Math.max(0, pendingServerWritesRef.current - 1);
+        setPendingServerWrites(pendingServerWritesRef.current);
+        if (liveEventId) void liveSession.refresh();
       }
     });
   }
@@ -289,8 +338,34 @@ export function useTriviaModuleState() {
     }
   }
 
+  function sendLiveAction(eventId: string, action: TriviaLiveCommand, payload?: Record<string, unknown>): boolean {
+    const snapshot = latestLiveSnapshotRef.current;
+    const sameRequestedEvent = liveEventId === eventId || (snapshot?.event.id === eventId && snapshot.event.legacyTriviaId === liveEventId);
+    if (syncMode !== "server" || !sameRequestedEvent) return false;
+    void (async () => {
+      if (pendingServerWritesRef.current > 0) {
+        await serverSyncQueueRef.current;
+        await liveSession.refresh();
+      }
+      await liveSession.sendCommand(action, payload);
+    })();
+    return true;
+  }
+
+  async function retryLiveSync(eventId = liveEventId): Promise<void> {
+    const snapshot = latestLiveSnapshotRef.current;
+    if (eventId !== liveEventId && eventId !== snapshot?.event.id) return;
+    await liveSession.refresh();
+    setSyncError(null);
+  }
+
   async function refreshFromServer(): Promise<void> {
     if (syncMode !== "server") return;
+    if (liveEventId) {
+      await serverSyncQueueRef.current;
+      await liveSession.refresh();
+      return;
+    }
     setConnectionStatus("reconnecting");
     try {
       await serverSyncQueueRef.current;
@@ -376,6 +451,7 @@ export function useTriviaModuleState() {
   }
 
   function updateEventStatus(eventId: string, status: TriviaEventStatus) {
+    if (sendLiveAction(eventId, "set_status", { status })) return;
     const event = stateRef.current.events.find((item) => item.id === eventId);
     const live = stateRef.current.liveByEventId[eventId];
     if (!event) return;
@@ -948,6 +1024,7 @@ export function useTriviaModuleState() {
   }
 
   function setActiveRound(eventId: string, roundId: string) {
+    if (sendLiveAction(eventId, "set_round", { roundId })) return;
     const event = stateRef.current.events.find((item) => item.id === eventId);
     const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
@@ -965,7 +1042,10 @@ export function useTriviaModuleState() {
       timerDefaultSec: question?.timeLimitSec ?? 30,
       timerRemainingSec: question?.timeLimitSec ?? 30,
       timerRunning: false,
+      timerEndsAt: null,
       answerRevealed: false,
+      leaderboardVisible: false,
+      winnerTeamId: null,
       lastHostAction: `Round set to ${round?.title ?? "Round"}`,
       updatedAt: new Date().toISOString(),
     };
@@ -975,6 +1055,7 @@ export function useTriviaModuleState() {
 
   function setQuestionIndex(eventId: string, nextIndex: number) {
     if (!Number.isInteger(nextIndex)) return;
+    if (sendLiveAction(eventId, "set_question", { questionIndex: nextIndex })) return;
     const event = stateRef.current.events.find((item) => item.id === eventId);
     const live = stateRef.current.liveByEventId[eventId];
     if (!event || !live) return;
@@ -999,7 +1080,9 @@ export function useTriviaModuleState() {
       timerDefaultSec: question.timeLimitSec,
       timerRemainingSec: question.timeLimitSec,
       timerRunning: false,
+      timerEndsAt: null,
       answerRevealed: false,
+      leaderboardVisible: false,
       winnerTeamId: null,
       lastHostAction: `Question ${boundedIndex + 1}`,
       updatedAt: new Date().toISOString(),
@@ -1009,6 +1092,7 @@ export function useTriviaModuleState() {
   }
 
   function setDisplayStage(eventId: string, stage: TriviaDisplayStage, actionLabel: string) {
+    if (sendLiveAction(eventId, "set_stage", { stage })) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
@@ -1021,6 +1105,8 @@ export function useTriviaModuleState() {
       timerRunning: stage === "question" || stage === "timer_only" || stage === "final_question" || stage === "tiebreaker"
         ? live.timerRunning
         : false,
+      timerRemainingSec: remainingTriviaSeconds(live),
+      timerEndsAt: ["question", "timer_only", "final_question", "tiebreaker"].includes(stage) ? live.timerEndsAt : null,
       checkInOpenedAt: stage === "check_in_open" ? live.checkInOpenedAt ?? new Date().toISOString() : live.checkInOpenedAt ?? null,
       checkInClosedAt: stage === "check_in_closed" ? live.checkInClosedAt ?? new Date().toISOString() : live.checkInClosedAt ?? null,
       lastHostAction: actionLabel,
@@ -1031,6 +1117,7 @@ export function useTriviaModuleState() {
   }
 
   function setWinner(eventId: string, teamId: string | null) {
+    if (sendLiveAction(eventId, "set_winner", { teamId })) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
@@ -1040,6 +1127,10 @@ export function useTriviaModuleState() {
       stage: "winner",
       winnerTeamId: teamId,
       timerRunning: false,
+      timerRemainingSec: remainingTriviaSeconds(live),
+      timerEndsAt: null,
+      answerRevealed: false,
+      leaderboardVisible: false,
       lastHostAction: "Winner screen",
       updatedAt: new Date().toISOString(),
     };
@@ -1048,14 +1139,18 @@ export function useTriviaModuleState() {
   }
 
   function setTimerRunning(eventId: string, running: boolean) {
+    if (sendLiveAction(eventId, running ? "timer_start" : "timer_pause")) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
-    if (running && (live.timerDefaultSec <= 0 || live.timerRemainingSec <= 0)) return;
+    const remaining = remainingTriviaSeconds(live);
+    if (running && (live.timerDefaultSec <= 0 || remaining <= 0)) return;
 
     const nextState = { ...stateRef.current, liveByEventId: { ...stateRef.current.liveByEventId } };
     nextState.liveByEventId[eventId] = {
       ...live,
       timerRunning: running,
+      timerRemainingSec: remaining,
+      timerEndsAt: running ? new Date(Date.now() + remaining * 1000).toISOString() : null,
       lastHostAction: running ? "Timer started" : "Timer paused",
       updatedAt: new Date().toISOString(),
     };
@@ -1074,6 +1169,7 @@ export function useTriviaModuleState() {
     nextState.liveByEventId[eventId] = {
       ...live,
       timerRemainingSec: bounded,
+      timerEndsAt: live.timerRunning && bounded > 0 ? new Date(Date.now() + bounded * 1000).toISOString() : null,
       timerRunning: bounded > 0 ? live.timerRunning : false,
       lastHostAction: bounded === 0 ? "Timer completed" : live.lastHostAction,
       updatedAt: new Date().toISOString(),
@@ -1084,6 +1180,7 @@ export function useTriviaModuleState() {
 
   function resetTimer(eventId: string, nextDefaultSec?: number) {
     if (nextDefaultSec !== undefined && (!Number.isFinite(nextDefaultSec) || nextDefaultSec < 0)) return;
+    if (sendLiveAction(eventId, "timer_reset", nextDefaultSec === undefined ? undefined : { seconds: nextDefaultSec })) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
@@ -1095,6 +1192,7 @@ export function useTriviaModuleState() {
       timerDefaultSec: defaultSec,
       timerRemainingSec: defaultSec,
       timerRunning: false,
+      timerEndsAt: null,
       lastHostAction: "Timer reset",
       updatedAt: new Date().toISOString(),
     };
@@ -1103,6 +1201,7 @@ export function useTriviaModuleState() {
   }
 
   function markProjectorOpened(eventId: string) {
+    if (sendLiveAction(eventId, "projector_opened")) return;
     const live = stateRef.current.liveByEventId[eventId];
     if (!live) return;
 
@@ -1110,9 +1209,9 @@ export function useTriviaModuleState() {
     nextState.liveByEventId[eventId] = {
       ...live,
       displayOpenedAt: live.displayOpenedAt ?? new Date().toISOString(),
-      projectorConnectionStatus: "connected",
+      projectorConnectionStatus: "offline",
       updatedAt: new Date().toISOString(),
-      lastHostAction: "Projector display opened",
+      lastHostAction: "Projector window requested",
     };
 
     commit(nextState);
@@ -1328,9 +1427,12 @@ export function useTriviaModuleState() {
   return {
     state,
     syncMode,
-    connectionStatus,
-    lastSyncedAt,
-    syncError,
+    connectionStatus: liveEventId && syncMode === "server" ? liveSession.connectionStatus : connectionStatus,
+    lastSyncedAt: liveEventId && syncMode === "server" ? liveSession.snapshot?.serverNow ?? lastSyncedAt : lastSyncedAt,
+    syncError: liveEventId && syncMode === "server" ? liveSession.error ?? syncError : syncError,
+    liveSaving: liveSession.saving || pendingServerWrites > 0,
+    liveClockOffsetMs: liveSession.clockOffsetMs,
+    retryLiveSync,
     snapshotsByEventId,
     auditByEventId,
     setSyncMode,

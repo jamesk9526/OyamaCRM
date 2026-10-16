@@ -14,7 +14,8 @@ import { createOrganizationEmailSender } from "../services/smtp-service.js";
 import { evaluateRecipientEligibility, hashPublicEmailToken } from "../services/email-compliance.js";
 import { prisma } from "../lib/prisma.js";
 import { createEventTable, syncEventTableSeats } from "../services/event-table-service.js";
-import { applyRemoteTriviaHostAction } from "../services/trivia-host-control.js";
+import { commandTriviaLive, readTriviaLive, triviaLiveResponse } from "../services/trivia-live-state.js";
+import { resolveTriviaTimer } from "../services/trivia-host-control.js";
 
 const router = express.Router();
 const publicRouter = express.Router();
@@ -710,6 +711,7 @@ function getAccessPasses(orgStore: OrganizationTriviaStore, eventId: string): Tr
 }
 
 function publicEventSnapshot(event: JsonObject, live: JsonObject, role: TriviaAccessRole): JsonObject {
+  live = resolveTriviaTimer(live, nowIso());
   const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject).map((round) => ({
     id: round.id, title: round.title, description: round.description, roundType: round.roundType,
     questions: Array.isArray(round.questions) ? round.questions.filter(isObject).map((question) => ({
@@ -894,10 +896,16 @@ async function persistStore(store: StoreShape): Promise<void> {
       const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
       const payload = clone(event);
       delete payload.id; delete payload.name; delete payload.venue; delete payload.startAt; delete payload.rounds; delete payload.teams; delete payload.status; delete payload.hostName; delete payload.linkedEventsEventId; delete payload.linkedEventsEventName;
+      const incomingLive = getLive(orgStore, String(event.id ?? eventId));
+      const liveUpdatedAt = new Date(String(incomingLive.updatedAt ?? ""));
+      if (!Number.isNaN(liveUpdatedAt.getTime())) await prisma.triviaConfiguration.updateMany({
+        where: { eventId, updatedAt: { lte: liveUpdatedAt } },
+        data: { liveState: jsonValue(incomingLive) },
+      });
       const configuration = await prisma.triviaConfiguration.upsert({
         where: { eventId },
         create: { eventId, legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || (String(event.id ?? "") !== eventId ? String(event.id) : undefined), status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload), liveState: jsonValue(getLive(orgStore, String(event.id ?? eventId))) },
-        update: { legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || undefined, status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload), liveState: jsonValue(getLive(orgStore, String(event.id ?? eventId))) },
+        update: { legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || undefined, status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload) },
       });
       await prisma.$transaction([
         prisma.triviaRound.deleteMany({ where: { configurationId: configuration.id } }),
@@ -1159,7 +1167,6 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
   }
   const action = String(req.body?.action ?? "");
   const payload = isObject(req.body?.payload) ? req.body.payload : {};
-  const live = getLive(access.orgStore, eventId);
   let rosterChanged = false;
   if (action === "score_adjust" && (access.pass.role === "scorekeeper" || access.pass.role === "host")) {
     const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
@@ -1242,11 +1249,11 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
     event.teams = teams;
     rosterChanged = true;
     pushAudit(access.orgStore, eventId, "manual", `${teams[index].name ?? "Team"} updated from table manager remote`, { teamId: String(payload.teamId) });
-  } else if (["set_stage", "set_round", "next_question", "previous_question", "timer_start", "timer_pause", "timer_reset"].includes(action) && access.pass.role === "host") {
-    const transition = applyRemoteTriviaHostAction(event, live, action, payload, nowIso());
-    if (!transition.ok) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: transition.message } }); return; }
-    setLive(access.orgStore, eventId, transition.live);
-    pushAudit(access.orgStore, eventId, "manual", `Remote control: ${action}`, { accessPassId: access.pass.id });
+  } else if (["set_stage", "set_round", "set_question", "next_question", "previous_question", "timer_start", "timer_pause", "timer_reset", "set_winner"].includes(action) && access.pass.role === "host") {
+    const result = await commandTriviaLive(access.organizationId, eventId, action, payload, typeof req.body?.expectedRevision === "string" ? req.body.expectedRevision : undefined);
+    if (result.status !== 200) { res.status(result.status).json({ error: { code: result.status === 409 ? "LIVE_CONFLICT" : "VALIDATION_ERROR", message: result.message } }); return; }
+    res.json({ event: publicEventSnapshot(result.snapshot.event, triviaLiveResponse(result.snapshot).live, access.pass.role) });
+    return;
   } else {
     res.status(403).json({ error: { code: "EVENT_ACCESS_DENIED", message: "This temporary sign-in cannot perform that action." } });
     return;
@@ -1284,12 +1291,22 @@ router.put("/state", async (req, res) => {
   // roster. Preserve the newer server roster so a stale whole-state sync cannot erase it.
   const incomingEvents = Array.isArray(incomingState.events) ? incomingState.events.filter(isObject) : [];
   const currentEvents = getStateEvents(orgStore);
+  const incomingLive = isObject(incomingState.liveByEventId) ? incomingState.liveByEventId : {};
+  const currentLive = getStateRecord(orgStore, "liveByEventId");
+  // Builder/score saves may have been opened before a host command. Keep the
+  // authoritative live state when a whole-module client snapshot is older.
+  for (const [eventId, live] of Object.entries(currentLive)) {
+    if (!isObject(live)) continue;
+    const candidate = incomingLive[eventId];
+    if (!isObject(candidate) || !Number.isFinite(Date.parse(String(candidate.updatedAt ?? ""))) || Date.parse(String(live.updatedAt ?? "")) > Date.parse(String(candidate.updatedAt ?? ""))) incomingLive[eventId] = clone(live);
+  }
+  incomingState.liveByEventId = incomingLive;
   incomingState.events = incomingEvents.map((incomingEvent: JsonObject) => {
     const currentEvent = currentEvents.find((candidate) => candidate.id === incomingEvent.id);
     if (!currentEvent) return normalizeTriviaEventContent(incomingEvent);
     const currentUpdatedAt = new Date(String(currentEvent.updatedAt ?? 0)).getTime();
     const incomingUpdatedAt = new Date(String(incomingEvent.updatedAt ?? 0)).getTime();
-    const reconciled = currentUpdatedAt > incomingUpdatedAt ? { ...incomingEvent, teams: clone(Array.isArray(currentEvent.teams) ? currentEvent.teams : []), updatedAt: currentEvent.updatedAt } : incomingEvent;
+    const reconciled = currentUpdatedAt > incomingUpdatedAt ? { ...incomingEvent, status: currentEvent.status, teams: clone(Array.isArray(currentEvent.teams) ? currentEvent.teams : []), updatedAt: currentEvent.updatedAt } : incomingEvent;
     const linkedFields = currentEvent.linkedEventsEventId && !incomingEvent.linkedEventsEventId ? {
       linkedEventsEventId: currentEvent.linkedEventsEventId,
       linkedEventsEventName: currentEvent.linkedEventsEventName,
@@ -1708,23 +1725,22 @@ router.patch("/events/:eventId", async (req, res) => {
 });
 
 router.get("/events/:eventId/live", async (req, res) => {
-  const store = await loadStore();
-  const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
-  res.json({ live: getLive(orgStore, String(req.params.eventId ?? "")) });
+  const snapshot = await readTriviaLive(resolveOrganizationId(req), String(req.params.eventId ?? ""));
+  if (!snapshot) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Trivia event not found." } }); return; }
+  const etag = `"${snapshot.revision}"`;
+  res.set({ ETag: etag, "Cache-Control": "private, no-cache" });
+  if (req.get("If-None-Match") === etag) { res.status(304).end(); return; }
+  res.json(triviaLiveResponse(snapshot));
 });
 
 router.patch("/events/:eventId/live", async (req, res) => {
-  const store = await loadStore();
-  const orgStore = ensureOrgStore(store, resolveOrganizationId(req));
-  const eventId = String(req.params.eventId ?? "");
-  const patch = isObject(req.body) ? req.body : {};
-  const current = getLive(orgStore, eventId);
-  const merged = { ...current, ...patch, updatedAt: nowIso() };
-  setLive(orgStore, eventId, merged);
-  orgStore.updatedAt = nowIso();
-  pushAudit(orgStore, eventId, "manual", "Live state updated");
-  await persistStore(store);
-  res.json({ live: merged });
+  const body = isObject(req.body) ? req.body : {};
+  const result = await commandTriviaLive(resolveOrganizationId(req), String(req.params.eventId ?? ""), String(body.action ?? ""), isObject(body.payload) ? body.payload : {}, typeof body.expectedRevision === "string" ? body.expectedRevision : undefined);
+  if (result.status !== 200) {
+    res.status(result.status).json({ ...(result.snapshot ? triviaLiveResponse(result.snapshot) : {}), error: { code: result.status === 409 ? "LIVE_CONFLICT" : result.status === 404 ? "NOT_FOUND" : "VALIDATION_ERROR", message: result.message } });
+    return;
+  }
+  res.set("ETag", `"${result.snapshot.revision}"`).json(triviaLiveResponse(result.snapshot));
 });
 
 router.post("/events/:eventId/score-actions", async (req, res) => {
@@ -1851,7 +1867,7 @@ router.post("/events/:eventId/recover", async (req, res) => {
   if (idx >= 0) events[idx] = clone(snapshot.event as JsonObject);
   else events.unshift(clone(snapshot.event as JsonObject));
   setStateEvents(orgStore, events);
-  setLive(orgStore, eventId, clone(snapshot.live as JsonObject));
+  setLive(orgStore, eventId, { ...clone(snapshot.live as JsonObject), timerRunning: false, timerEndsAt: null, updatedAt: nowIso() });
   setScoreHistory(orgStore, eventId, clone(snapshot.scoreHistory as JsonObject[]));
 
   orgStore.updatedAt = nowIso();

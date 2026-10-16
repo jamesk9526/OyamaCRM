@@ -42,6 +42,7 @@ export function createDefaultLiveState(event: TriviaEvent): TriviaLiveState {
     timerDefaultSec: firstQuestion?.timeLimitSec ?? 30,
     timerRemainingSec: firstQuestion?.timeLimitSec ?? 30,
     timerRunning: false,
+    timerEndsAt: null,
     leaderboardVisible: false,
     answerRevealed: false,
     displayOpenedAt: null,

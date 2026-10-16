@@ -321,6 +321,7 @@ export function ensureLiveStateCoverage(state: TriviaModuleState): TriviaModuleS
         timerDefaultSec: Number.isFinite(live.timerDefaultSec) ? live.timerDefaultSec : 30,
         timerRemainingSec: Number.isFinite(live.timerRemainingSec) ? live.timerRemainingSec : 30,
         timerRunning: Boolean(live.timerRunning),
+        timerEndsAt: live.timerEndsAt && Number.isFinite(Date.parse(live.timerEndsAt)) ? live.timerEndsAt : null,
         updatedAt: live.updatedAt || new Date().toISOString(),
         stage: DISPLAY_STAGES.has(String(live.stage)) ? live.stage : (event.displaySettings.defaultStage || "welcome"),
         leaderboardVisible: Boolean(live.leaderboardVisible),

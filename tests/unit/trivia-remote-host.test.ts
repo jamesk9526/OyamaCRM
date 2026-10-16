@@ -7,7 +7,7 @@ const event = { rounds: [
   { id: "empty", roundType: "normal", questions: [] },
 ] };
 const live = { activeRoundId: "normal", activeQuestionIndex: 0, stage: "question", timerDefaultSec: 15, timerRemainingSec: 10, timerRunning: true, winnerTeamId: "old-winner", answerRevealed: false, leaderboardVisible: false };
-const run = (action: string, payload = {}, state = live) => applyRemoteTriviaHostAction(event, state, action, payload, "2026-10-16T18:00:00.000Z");
+const run = (action: string, payload = {}, state: Record<string, unknown> = live) => applyRemoteTriviaHostAction(event, state, action, payload, "2026-10-16T18:00:00.000Z");
 
 describe("temporary Trivia host commands", () => {
   it("pauses on an answer reveal and keeps answer/leaderboard flags consistent", () => {
@@ -36,5 +36,18 @@ describe("temporary Trivia host commands", () => {
   });
   it("records the check-in stage timestamp", () => {
     expect(run("set_stage", { stage: "check_in_open" })).toMatchObject({ ok: true, live: { checkInOpenedAt: "2026-10-16T18:00:00.000Z", timerRunning: false } });
+  });
+  it("freezes the actual deadline remainder on pause and resumes from that remainder", () => {
+    const paused = run("timer_pause", {}, { ...live, timerEndsAt: "2026-10-16T18:00:06.400Z" });
+    expect(paused).toMatchObject({ ok: true, live: { timerRemainingSec: 7, timerRunning: false, timerEndsAt: null } });
+    if (paused.ok) expect(run("timer_start", {}, paused.live as typeof live)).toMatchObject({ ok: true, live: { timerEndsAt: "2026-10-16T18:00:07.000Z", timerRunning: true } });
+  });
+  it("refuses expired deadlines and starting a timer on an answer screen", () => {
+    expect(run("timer_start", {}, { ...live, timerEndsAt: "2026-10-16T17:59:59Z" }).ok).toBe(false);
+    expect(run("timer_start", {}, { ...live, stage: "answer" }).ok).toBe(false);
+  });
+  it("validates direct question selection and resets its timer", () => {
+    expect(run("set_question", { questionIndex: 1 })).toMatchObject({ ok: true, live: { activeQuestionIndex: 1, timerRemainingSec: 0, timerRunning: false, timerEndsAt: null } });
+    expect(run("set_question", { questionIndex: 0.5 }).ok).toBe(false);
   });
 });

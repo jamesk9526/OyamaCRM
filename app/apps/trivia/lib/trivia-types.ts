@@ -238,6 +238,8 @@ export interface TriviaLiveState {
   timerDefaultSec: number;
   timerRemainingSec: number;
   timerRunning: boolean;
+  /** Server-clock deadline; no per-second persistence is required. */
+  timerEndsAt?: string | null;
   leaderboardVisible: boolean;
   answerRevealed: boolean;
   displayOpenedAt: string | null;
