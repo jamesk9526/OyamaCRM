@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
-import { tableOccupancy } from "@/app/lib/events/table-occupancy";
+import { tableOccupancy, tableDetailGuests } from "@/app/lib/events/table-occupancy";
 import RenameEventTableModal from "@/app/components/events/RenameEventTableModal";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
@@ -362,7 +362,8 @@ export default function EventTablesPage() {
         apiFetch(`/api/events/${selectedEventId}/tablelink/${tableUid}`),
         apiFetch(`/api/events/${selectedEventId}/emails/logs`),
       ]);
-      setTableDetail(detail as TableLinkDetail);
+      const table = detail as Omit<TableLinkDetail, "guests"> & { guests?: Guest[] };
+      setTableDetail({ ...table, guests: tableDetailGuests(table) });
       const filteredLogs = Array.isArray(logs)
         ? (logs as EventEmailLog[]).filter((log) => log.tableId === tableId)
         : [];

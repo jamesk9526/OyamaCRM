@@ -11,6 +11,12 @@
 
 ## Validation
 
+### Table-opening regression follow-up
+
+The initial browser fixture incorrectly supplied a top-level `guests` array in TableLink details, although the actual authenticated endpoint returned only `seats[].guest`. Calling the new occupancy helper on that response crashed with `Cannot read properties of undefined (reading 'filter')`. The authenticated endpoint now includes table-linked guests and their count. The UI also reconstructs the guest list from seat relations when talking to an older backend, retaining correct numbered-seat counts. Public TableLink payloads are unchanged.
+
+The API contract regression failed against the old endpoint and passed after the fix. All 18 focused table occupancy/API tests passed, and the browser fixture now opens, clears, and reseats tables using both complete and older table-detail responses with zero page errors.
+
 The affected unit and isolated route suites use mocked persistence, including real Express request dispatch for ticket assignment, rename validation, and bulk check-in membership. Final combined Events/Trivia verification passed **116 tests across 18 files**. Web and server typechecks passed; changed-file lint reported zero errors and two existing check-in hook warnings.
 
 Browser command (installed Microsoft Edge):

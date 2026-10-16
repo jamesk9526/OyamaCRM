@@ -47,6 +47,7 @@ const tableData = () => ({ ...table, guests: guests.filter((guest) => guest.tabl
   seats: Array.from({ length: 8 }, (_, index) => { const guest = guests.find((row) => row.seatId === `seat-${index + 1}`); return { id: `seat-${index + 1}`, seatNumber: index + 1, status: guest ? "CONFIRMED" : "EMPTY", guest }; }), guestInvites: [] });
 let failTicketLoad = false;
 let failTicketSave = false;
+let legacyTableDetails = false;
 const writes = [];
 await page.route("**/api/**", async (route) => {
   const request = route.request(); const url = new URL(request.url()); const method = request.method();
@@ -57,7 +58,11 @@ await page.route("**/api/**", async (route) => {
   if (url.pathname.endsWith("/ticket-types")) return failTicketLoad ? reply({ error: { message: "Ticket service unavailable" } }, 503) : reply([ticket]);
   if (url.pathname.endsWith("/emails/logs")) return reply([]);
   if (method === "GET" && url.pathname.endsWith("/tables")) return reply([tableData()]);
-  if (method === "GET" && url.pathname.endsWith("/tablelink/tbl_1")) return reply(tableData());
+  if (method === "GET" && url.pathname.endsWith("/tablelink/tbl_1")) {
+    const detail = tableData();
+    if (legacyTableDetails) { delete detail.guests; delete detail._count; }
+    return reply(detail);
+  }
   if (method === "GET" && url.pathname.endsWith("/guests")) return reply(guests.map((guest) => ({ ...guest, table: guest.tableId ? { id: table.id, name: table.name } : null })));
   if (method === "POST" && url.pathname.endsWith("/guests")) {
     assert.equal(url.pathname, "/api/events/selected-event/guests");
@@ -133,6 +138,16 @@ try {
   await dialog.getByRole("button", { name: "Save Name" }).click();
   await page.getByRole("button", { name: /Rebecca’s Team, 1 of 8 seats/ }).waitFor();
   assert.equal(table.capacity, 8); assert.equal(guests[0].seatId, "seat-1");
+  // Exercise the pre-fix API shape: no top-level guests or _count, only seat.guest.
+  legacyTableDetails = true;
+  await page.getByRole("button", { name: /Rebecca’s Team, 1 of 8 seats/ }).dblclick();
+  await page.getByRole("heading", { name: "Seat Roster Controls", exact: true }).waitFor();
+  await page.getByText("1/8 seated · 7 open", { exact: true }).last().waitFor();
+  await seatRow.getByRole("button", { name: "Clear", exact: true }).click();
+  await page.getByText("0/8 seated · 8 open", { exact: true }).last().waitFor();
+  await seatRow.getByRole("combobox").selectOption("guest-1");
+  await seatRow.getByRole("button", { name: "Assign", exact: true }).click();
+  await seatRow.getByRole("cell", { name: "Rebecca Haine", exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/events/selected-event/guests`);
   await page.getByRole("heading", { name: "Guest List", exact: true }).waitFor();
@@ -145,7 +160,7 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "Mobile page should not overflow horizontally");
   await page.screenshot({ path: path.join(out, "guest-list-mobile.png"), fullPage: true });
   assert.deepEqual(errors, []);
-  console.log("PASS: desktop/mobile registration despite constituent denial; ticket assignment/removal/retry; seat counts; clear/unassigned/reseat; rename preserves seating.");
+  console.log("PASS: desktop/mobile registration despite constituent denial; ticket assignment/removal/retry; seat counts; clear/unassigned/reseat with both complete and legacy table-detail responses; rename preserves seating.");
 } catch (error) {
   console.error("Browser errors:", errors);
   console.error("Page:", (await page.locator("body").innerText()).slice(0, 5000));

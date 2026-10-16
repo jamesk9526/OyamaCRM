@@ -1,3 +1,12 @@
+/** Older TableLink responses expose guests only through their seat relations. */
+export function tableDetailGuests<T extends { id: string; seatId?: string | null }>(detail: {
+  guests?: T[];
+  seats: Array<{ id: string; guest?: T | null }>;
+}): Array<T & { seatId?: string | null }> {
+  if (Array.isArray(detail.guests)) return detail.guests;
+  return detail.seats.flatMap((seat) => seat.guest ? [{ ...seat.guest, seatId: seat.id }] : []);
+}
+
 /** Table links can exist without a numbered seat (legacy assignments or cleared seats). */
 export function tableOccupancy(table: {
   capacity: number;

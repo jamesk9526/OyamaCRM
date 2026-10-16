@@ -5395,6 +5395,8 @@ router.get("/:eventId/tablelink/:tableUid", async (req, res) => {
     include: {
       seats: { include: { guest: true }, orderBy: { seatNumber: "asc" } },
       guestInvites: { orderBy: { createdAt: "desc" }, take: 50 },
+      guests: true,
+      _count: { select: { guests: true } },
     },
   });
 

@@ -38,6 +38,15 @@ beforeEach(() => {
 });
 
 describe("table operation boundaries", () => {
+  it("returns table-linked guests with the seat roster in table details", async () => {
+    db.eventTable.findFirst.mockImplementation(async ({ include }) => ({
+      id: "table-1", capacity: 8, seats: [], guestInvites: [],
+      ...(include?.guests ? { guests: [{ id: "guest-1", seatId: null }] } : {}),
+    }));
+    const response = await request(app).get("/api/events/event-1/tablelink/tbl-1");
+    expect(response.status).toBe(200);
+    expect(response.body.guests).toEqual([{ id: "guest-1", seatId: null }]);
+  });
   it("renames a table without writing seating or capacity fields", async () => {
     const response = await request(app).patch("/api/events/tables/table-1").send({ name: " New name " });
     expect(response.status).toBe(200);
