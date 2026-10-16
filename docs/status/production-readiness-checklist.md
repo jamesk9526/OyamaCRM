@@ -1,5 +1,13 @@
 # Production Readiness Checklist
 
+## 2026-10-16 Event guest registration fix
+
+| Release gate | Status | Evidence |
+|---|---|---|
+| Selected-event registration and save feedback | Focused regression tests passed | Eight tests cover all Add Guest entry points, manual/linked registration payloads, optional tickets, required names, and visible save failure recovery. |
+| Static checks | Passed | Changed-file ESLint, web TypeScript check (`tsc --noEmit --incremental false`), and `git diff --check`. |
+| Live registration | Pending | Local web/API services are not running; Playwright Chromium is missing and installed Edge cannot launch in the sandbox. Database-backed persistence and browser flow need verification in a running environment. |
+
 ## 2026-09-26 Donor CRM daily workspace
 
 | Release gate | Status | Evidence |

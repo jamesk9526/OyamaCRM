@@ -167,6 +167,10 @@ export default function EventGuestsPage() {
     }
   }
 
+  function openNewGuestModal() {
+    if (selectedEventId) setShowNewGuestModal(true);
+  }
+
   if (!eventScoped) {
     return <RequireEventSelectionNotice tool="the guest roster" />;
   }
@@ -184,14 +188,7 @@ export default function EventGuestsPage() {
         primaryAction={
           <WorkspaceRibbonButton
             label="Add Guest"
-            onClick={() => {
-              if (events.length > 0) {
-                setSelectedEventId(events[0].id);
-                setShowNewGuestModal(true);
-              } else {
-                alert("Create an event first");
-              }
-            }}
+            onClick={openNewGuestModal}
             variant="primary"
             accentTone="amber"
           />
@@ -202,14 +199,7 @@ export default function EventGuestsPage() {
         <WorkspaceRibbonGroup label="Create">
           <WorkspaceRibbonButton
             label="Add Guest"
-            onClick={() => {
-              if (events.length > 0) {
-                setSelectedEventId(events[0].id);
-                setShowNewGuestModal(true);
-              } else {
-                alert("Create an event first");
-              }
-            }}
+            onClick={openNewGuestModal}
             variant="primary"
             accentTone="amber"
           />
@@ -341,14 +331,7 @@ export default function EventGuestsPage() {
             </select>
           </div>
           <button
-            onClick={() => {
-              if (events.length > 0) {
-                setSelectedEventId(events[0].id);
-                setShowNewGuestModal(true);
-              } else {
-                alert("Create an event first");
-              }
-            }}
+            onClick={openNewGuestModal}
             className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 whitespace-nowrap"
           >
             + Add Guest

@@ -1,5 +1,9 @@
 # OyamaCRM Feature Status Audit
 
+## 2026-10-16 Event guest registration fix
+
+All three Add Guest entry points retain the selected event instead of silently switching registration to the first event in the list. Save errors appear as alerts beside the submit button. Eight focused regression tests cover event selection, manual and linked guest payloads, optional tickets, required names, and failed-save recovery. Live database persistence and browser verification remain unverified in this environment.
+
 ## 2026-09-26 Donor CRM daily workspace
 
 Donor CRM now has seven direct daily links and three expandable specialist groups, with the same permission-aware destinations on desktop and mobile. Its dashboard puts constituent search, recent gifts, follow-up, and a compact performance summary ahead of expandable insights and saved widgets. The constituent directory has quick views, prominent search, labeled filters, current-page selection and sorting, and optional columns; profiles keep relationship actions and key history visible while moving secondary panels and AI briefings into disclosures. Donation browsing has a compact summary, filters, contextual acknowledgment guidance, and a plain Retry state. Existing entry forms, routes, financial calculations, and saved appearance settings remain intact.

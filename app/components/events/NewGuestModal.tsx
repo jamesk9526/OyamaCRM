@@ -292,20 +292,21 @@ export default function NewGuestModal({ eventId, onClose, onCreated }: Props) {
               placeholder="VIP guest, staff comp, seating preference..."
             />
           </div>
-
-          {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-60 transition-colors"
-          >
-            {saving ? "Adding..." : "Add Guest"}
-          </button>
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+          {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-60 transition-colors"
+            >
+              {saving ? "Adding..." : "Add Guest"}
+            </button>
+          </div>
         </div>
       </form>
     </WorkspaceSetupModal>
