@@ -73,6 +73,7 @@ interface TriviaAccessPass {
 const STORE_DIR = path.resolve(process.cwd(), "server", ".data");
 const STORE_FILE = path.join(STORE_DIR, "trivia-store.json");
 let legacyImportChecked = false;
+let legacyImportInFlight: Promise<void> | null = null;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -850,7 +851,14 @@ async function loadRelationalStore(): Promise<StoreShape> {
 /** Imports the retired file store once when no relational Trivia rows exist. */
 async function importLegacyStoreIfNeeded(): Promise<void> {
   if (legacyImportChecked) return;
-  legacyImportChecked = true;
+  if (!legacyImportInFlight) legacyImportInFlight = importLegacyStore().then(() => {
+    legacyImportChecked = true;
+  }).finally(() => { legacyImportInFlight = null; });
+  await legacyImportInFlight;
+}
+
+async function importLegacyStore(): Promise<void> {
+  let imported = false;
   let legacy: StoreShape | null = null;
   try {
     const parsed = JSON.parse(await readFile(STORE_FILE, "utf8")) as unknown;
@@ -871,6 +879,7 @@ async function importLegacyStoreIfNeeded(): Promise<void> {
       event.linkedEventsEventId = eventRecord.id;
       event.linkedEventsEventName = String(event.name ?? eventRecord.id);
       setStateEvents(orgStore, [...getStateEvents(orgStore), event]);
+      imported = true;
       const legacyLive = getStateRecord(legacyOrgStore, "liveByEventId")[legacyId];
       if (isObject(legacyLive)) setLive(orgStore, eventRecord.id, clone(legacyLive));
       const legacyHistory = getStateRecord(legacyOrgStore, "scoreHistoryByEventId")[legacyId];
@@ -887,7 +896,7 @@ async function importLegacyStoreIfNeeded(): Promise<void> {
     const orgStore = ensureOrgStore(merged, event.organizationId);
     setStateEvents(orgStore, [...getStateEvents(orgStore), { id: event.id, name: event.name, venue: event.location ?? "", hostName: "", startAt: event.startDate.toISOString(), status: "draft", rounds: [], teams: [], scoringRules: { defaultQuestionPoints: 10, allowPartialCredit: true, allowNegativeScores: false, finalWagerEnabled: true, tieBreakerMode: "single_question" }, displaySettings: { highContrast: false, showTeamColors: true, largeText: false, showTimer: true, showRoundTitle: true, showQuestionNumber: true, showSponsorRotation: false, sponsorRotationSeconds: 12, blankScreenMessage: "" }, linkedEventsEventId: event.id, linkedEventsEventName: event.name, eventsSyncMode: "automatic", createdAt: nowIso(), updatedAt: nowIso() }]);
   }
-  if (legacy || unconfiguredEvents.length) await persistStore(merged);
+  if (imported || unconfiguredEvents.length) await persistStore(merged);
 }
 
 async function loadStore(): Promise<StoreShape> {
@@ -903,43 +912,45 @@ async function persistStore(store: StoreShape): Promise<void> {
     for (const event of events) {
       const eventId = String(event.linkedEventsEventId ?? event.id ?? "").trim();
       if (!eventId) continue;
-      const ownedEvent = await prisma.event.findFirst({ where: { id: eventId, organizationId }, select: { id: true } });
-      if (!ownedEvent) continue;
-      persistedEventIds.push(eventId);
-      const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject) : [];
-      const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
-      const payload = clone(event);
-      delete payload.id; delete payload.name; delete payload.venue; delete payload.startAt; delete payload.rounds; delete payload.teams; delete payload.status; delete payload.hostName; delete payload.linkedEventsEventId; delete payload.linkedEventsEventName;
-      const incomingLive = getLive(orgStore, String(event.id ?? eventId));
-      const liveUpdatedAt = new Date(String(incomingLive.updatedAt ?? ""));
-      if (!Number.isNaN(liveUpdatedAt.getTime())) await prisma.triviaConfiguration.updateMany({
-        where: { eventId, updatedAt: { lte: liveUpdatedAt } },
-        data: { liveState: jsonValue(incomingLive) },
-      });
-      const configuration = await prisma.triviaConfiguration.upsert({
-        where: { eventId },
-        create: { eventId, legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || (String(event.id ?? "") !== eventId ? String(event.id) : undefined), status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload), liveState: jsonValue(getLive(orgStore, String(event.id ?? eventId))) },
-        update: { legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || undefined, status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload) },
-      });
-      await prisma.$transaction([
-        prisma.triviaRound.deleteMany({ where: { configurationId: configuration.id } }),
-        prisma.triviaTeam.deleteMany({ where: { configurationId: configuration.id } }),
-        prisma.triviaScoreAction.deleteMany({ where: { configurationId: configuration.id } }),
-        prisma.triviaSnapshot.deleteMany({ where: { configurationId: configuration.id } }),
-        prisma.triviaAuditEvent.deleteMany({ where: { configurationId: configuration.id } }),
-        prisma.triviaAccessPass.deleteMany({ where: { configurationId: configuration.id } }),
-      ]);
-      for (const [roundIndex, round] of rounds.entries()) {
-        const questions = Array.isArray(round.questions) ? round.questions.filter(isObject) : [];
-        const roundPayload = clone(round); delete roundPayload.questions;
-        await prisma.triviaRound.create({ data: { id: String(round.id), configurationId: configuration.id, title: String(round.title ?? `Round ${roundIndex + 1}`), description: String(round.description ?? "") || null, roundType: String(round.roundType ?? "standard"), sortOrder: roundIndex, payload: jsonValue(roundPayload), questions: { create: questions.map((question, questionIndex) => ({ id: String(question.id), prompt: String(question.prompt ?? ""), answer: String(question.scoringAnswer ?? question.audienceAnswer ?? ""), points: Number.isFinite(Number(question.points)) ? Math.trunc(Number(question.points)) : 0, timerSeconds: Number.isFinite(Number(question.timeLimitSec)) ? Math.trunc(Number(question.timeLimitSec)) : 30, sortOrder: questionIndex, payload: jsonValue(question) })) } } });
-      }
-      const tableIds = new Set((await prisma.eventTable.findMany({ where: { eventId }, select: { id: true } })).map((table) => table.id));
-      for (const [teamIndex, team] of teams.entries()) await prisma.triviaTeam.create({ data: { id: String(team.id), configurationId: configuration.id, eventTableId: tableIds.has(String(team.eventsTableId ?? "")) ? String(team.eventsTableId) : null, gameName: String(team.name ?? "").trim() || null, score: Math.trunc(Number(team.score) || 0), bonusPoints: Math.trunc(Number(team.bonusPoints) || 0), sortOrder: teamIndex, payload: jsonValue(team) } });
-      for (const action of getScoreHistory(orgStore, String(event.id ?? eventId))) await prisma.triviaScoreAction.create({ data: { id: String(action.id), configurationId: configuration.id, teamId: String(action.teamId ?? "") || null, delta: Math.trunc(Number(action.delta) || 0), createdAt: validDate(action.createdAt), payload: jsonValue(action) } });
-      for (const snapshot of orgStore.snapshotsByEventId[String(event.id ?? eventId)] ?? []) await prisma.triviaSnapshot.create({ data: { id: String(snapshot.id), configurationId: configuration.id, label: String(snapshot.label ?? "Snapshot"), createdAt: validDate(snapshot.createdAt), payload: jsonValue(snapshot) } });
-      for (const audit of orgStore.auditByEventId[String(event.id ?? eventId)] ?? []) await prisma.triviaAuditEvent.create({ data: { id: String(audit.id), configurationId: configuration.id, type: String(audit.type ?? "manual"), message: String(audit.message ?? "Trivia activity"), createdAt: validDate(audit.createdAt), metadata: jsonValue(audit.metadata) } });
-      for (const pass of getAccessPasses(orgStore, String(event.id ?? eventId))) await prisma.triviaAccessPass.create({ data: { id: pass.id, configurationId: configuration.id, label: pass.label, role: pass.role, codeHash: pass.codeHash, expiresAt: validDate(pass.expiresAt), revokedAt: pass.revokedAt ? validDate(pass.revokedAt) : null, createdAt: validDate(pass.createdAt), sessions: { create: pass.sessions.map((session) => ({ tokenHash: session.tokenHash, expiresAt: validDate(session.expiresAt) })) } } });
+      await prisma.$transaction(async (tx) => {
+        const ownedEvent = await tx.event.findFirst({ where: { id: eventId, organizationId }, select: { id: true } });
+        if (!ownedEvent) return;
+        persistedEventIds.push(eventId);
+        const rounds = Array.isArray(event.rounds) ? event.rounds.filter(isObject) : [];
+        const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
+        const payload = clone(event);
+        delete payload.id; delete payload.name; delete payload.venue; delete payload.startAt; delete payload.rounds; delete payload.teams; delete payload.status; delete payload.hostName; delete payload.linkedEventsEventId; delete payload.linkedEventsEventName;
+        const incomingLive = getLive(orgStore, String(event.id ?? eventId));
+        const liveUpdatedAt = new Date(String(incomingLive.updatedAt ?? ""));
+        if (!Number.isNaN(liveUpdatedAt.getTime())) await tx.triviaConfiguration.updateMany({
+          where: { eventId, updatedAt: { lte: liveUpdatedAt } },
+          data: { liveState: jsonValue(incomingLive) },
+        });
+        const configuration = await tx.triviaConfiguration.upsert({
+          where: { eventId },
+          create: { eventId, legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || (String(event.id ?? "") !== eventId ? String(event.id) : undefined), status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload), liveState: jsonValue(getLive(orgStore, String(event.id ?? eventId))) },
+          update: { legacyTriviaId: String(event.legacyTriviaId ?? "").trim() || undefined, status: String(event.status ?? "draft"), hostName: String(event.hostName ?? "").trim() || null, payload: jsonValue(payload) },
+        });
+        await Promise.all([
+          tx.triviaRound.deleteMany({ where: { configurationId: configuration.id } }),
+          tx.triviaTeam.deleteMany({ where: { configurationId: configuration.id } }),
+          tx.triviaScoreAction.deleteMany({ where: { configurationId: configuration.id } }),
+          tx.triviaSnapshot.deleteMany({ where: { configurationId: configuration.id } }),
+          tx.triviaAuditEvent.deleteMany({ where: { configurationId: configuration.id } }),
+          tx.triviaAccessPass.deleteMany({ where: { configurationId: configuration.id } }),
+        ]);
+        for (const [roundIndex, round] of rounds.entries()) {
+          const questions = Array.isArray(round.questions) ? round.questions.filter(isObject) : [];
+          const roundPayload = clone(round); delete roundPayload.questions;
+          await tx.triviaRound.create({ data: { id: String(round.id), configurationId: configuration.id, title: String(round.title ?? `Round ${roundIndex + 1}`), description: String(round.description ?? "") || null, roundType: String(round.roundType ?? "standard"), sortOrder: roundIndex, payload: jsonValue(roundPayload), questions: { create: questions.map((question, questionIndex) => ({ id: String(question.id), prompt: String(question.prompt ?? ""), answer: String(question.scoringAnswer ?? question.audienceAnswer ?? ""), points: Number.isFinite(Number(question.points)) ? Math.trunc(Number(question.points)) : 0, timerSeconds: Number.isFinite(Number(question.timeLimitSec)) ? Math.trunc(Number(question.timeLimitSec)) : 30, sortOrder: questionIndex, payload: jsonValue(question) })) } } });
+        }
+        const tableIds = new Set((await tx.eventTable.findMany({ where: { eventId }, select: { id: true } })).map((table) => table.id));
+        for (const [teamIndex, team] of teams.entries()) await tx.triviaTeam.create({ data: { id: String(team.id), configurationId: configuration.id, eventTableId: tableIds.has(String(team.eventsTableId ?? "")) ? String(team.eventsTableId) : null, gameName: String(team.name ?? "").trim() || null, score: Math.trunc(Number(team.score) || 0), bonusPoints: Math.trunc(Number(team.bonusPoints) || 0), sortOrder: teamIndex, payload: jsonValue(team) } });
+        for (const action of getScoreHistory(orgStore, String(event.id ?? eventId))) await tx.triviaScoreAction.create({ data: { id: String(action.id), configurationId: configuration.id, teamId: String(action.teamId ?? "") || null, delta: Math.trunc(Number(action.delta) || 0), createdAt: validDate(action.createdAt), payload: jsonValue(action) } });
+        for (const snapshot of orgStore.snapshotsByEventId[String(event.id ?? eventId)] ?? []) await tx.triviaSnapshot.create({ data: { id: String(snapshot.id), configurationId: configuration.id, label: String(snapshot.label ?? "Snapshot"), createdAt: validDate(snapshot.createdAt), payload: jsonValue(snapshot) } });
+        for (const audit of orgStore.auditByEventId[String(event.id ?? eventId)] ?? []) await tx.triviaAuditEvent.create({ data: { id: String(audit.id), configurationId: configuration.id, type: String(audit.type ?? "manual"), message: String(audit.message ?? "Trivia activity"), createdAt: validDate(audit.createdAt), metadata: jsonValue(audit.metadata) } });
+        for (const pass of getAccessPasses(orgStore, String(event.id ?? eventId))) await tx.triviaAccessPass.create({ data: { id: pass.id, configurationId: configuration.id, label: pass.label, role: pass.role, codeHash: pass.codeHash, expiresAt: validDate(pass.expiresAt), revokedAt: pass.revokedAt ? validDate(pass.revokedAt) : null, createdAt: validDate(pass.createdAt), sessions: { create: pass.sessions.map((session) => ({ tokenHash: session.tokenHash, expiresAt: validDate(session.expiresAt) })) } } });
+      }, { isolationLevel: "Serializable", maxWait: 10_000, timeout: 30_000 });
     }
     await prisma.triviaConfiguration.deleteMany({ where: { event: { organizationId }, ...(persistedEventIds.length ? { eventId: { notIn: persistedEventIds } } : {}) } });
   }
@@ -1300,7 +1311,8 @@ router.get("/state", async (req, res) => {
   const store = await loadStore();
   const organizationId = resolveOrganizationId(req);
   const orgStore = ensureOrgStore(store, organizationId);
-  if (await refreshAutomaticEventsLinks(organizationId, orgStore)) await persistStore(store);
+  // Reading the roster must not delete and recreate game records.
+  await refreshAutomaticEventsLinks(organizationId, orgStore);
   res.json({ state: orgStore.state, updatedAt: orgStore.updatedAt });
 });
 
@@ -1369,7 +1381,7 @@ router.get("/events", async (req, res) => {
   const store = await loadStore();
   const organizationId = resolveOrganizationId(req);
   const orgStore = ensureOrgStore(store, organizationId);
-  if (await refreshAutomaticEventsLinks(organizationId, orgStore)) await persistStore(store);
+  await refreshAutomaticEventsLinks(organizationId, orgStore);
   res.json({ events: getStateEvents(orgStore) });
 });
 
@@ -1441,7 +1453,7 @@ router.get("/events/:eventId", async (req, res) => {
   const organizationId = resolveOrganizationId(req);
   const orgStore = ensureOrgStore(store, organizationId);
   const eventId = String(req.params.eventId ?? "");
-  if (await refreshAutomaticEventsLinks(organizationId, orgStore, { eventId })) await persistStore(store);
+  await refreshAutomaticEventsLinks(organizationId, orgStore, { eventId });
   const event = getStateEvents(orgStore).find((item) => item.id === eventId);
 
   if (!event) {
