@@ -1,3 +1,7 @@
+## 2026-10-17 Trivia sync duplicate-team repair
+
+Production logs reported repeated TriviaTeam PRIMARY uniqueness errors during state loads. Local regression checks passed concurrent reads without team writes, transaction-scoped replacement, failed-insert propagation, and existing live API behavior (13 tests). These checks use mocked persistence and do not reproduce MySQL concurrency directly. Deployment and live verification remain required; no database reset or migration is part of this fix.
+
 ## 2026-10-17 One-point scoring, custom totals, and projector review
 
 Local validation passed: 12 scoring/sequential-action tests and 19 host flow/winner/remote-host tests; desktop scoring, phone scoring, projector stage, and host-control browser fixtures passed with no page errors. Web TypeScript passed; changed scoring and host lint passed, projector retains its existing raw-image warning. Checks use local fixtures; deployment and venue rehearsal remain outstanding.

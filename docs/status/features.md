@@ -1,3 +1,7 @@
+## 2026-10-17 Trivia sync duplicate-team repair
+
+Normal Trivia state and event GETs refresh linked rosters in memory without rewriting relational game rows. Explicit saves replace each game’s configuration and children in one serializable transaction. Concurrent first requests share legacy initialization; already-imported legacy files no longer trigger a full rewrite on restart.
+
 ## 2026-10-17 One-point scoring, custom totals, and projector review
 
 Scorekeeping now offers +1/-1 controls and an explicit custom total, with desktop audit history and undo. The phone scorekeeper also accepts custom totals; the server computes the adjustment against its current score and validates integer bounds. Projector polish improves stage badges, long-copy sizing, footer spacing, 720p rankings, finite animations, high contrast, and reduced motion. Host confirmations reset when the displayed question, leader, score/tie, or connection changes; the server rejects inactive winners and round introductions without a selected round.
