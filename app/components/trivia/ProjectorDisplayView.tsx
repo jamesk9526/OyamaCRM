@@ -17,7 +17,7 @@ function ProjectorFrame({ event, live, eyebrow, children, tone = "cyan" }: { eve
       <div className="trivia-projector-orb trivia-projector-orb-one" aria-hidden="true" />
       <div className="trivia-projector-orb trivia-projector-orb-two" aria-hidden="true" />
       <header className="trivia-projector-brand"><div className="trivia-projector-mark">T</div><div><strong>{event.name}</strong><span>{event.venue || "Live trivia event"}</span></div><p>{eyebrow}</p></header>
-      <section key={`${live.stage}-${live.activeRoundId}-${live.activeQuestionIndex}`} className="trivia-projector-stage">{children}</section>
+      <section key={`${live.stage}-${live.activeRoundId}-${live.activeQuestionIndex}-${live.stage === "winner" ? live.winnerTeamId ?? "auto" : ""}`} data-stage={live.stage} className="trivia-projector-stage">{children}</section>
       <footer className="trivia-projector-footer"><span>OYAMA TRIVIA</span><i /><span>LIVE GAME DISPLAY</span></footer>
     </main>
   );
@@ -53,15 +53,23 @@ export default function ProjectorDisplayView({ event, live }: ProjectorDisplayVi
   }
 
   if (live.stage === "winner") {
+    if (!winner) {
+      const tied = teams.length > 1 && teams[0].score === teams[1].score;
+      return <ProjectorFrame event={event} live={live} eyebrow="Final results" tone="amber"><div className="trivia-projector-hero"><p>{tied ? "Tied at the top" : "Final scores"}</p><h1>{tied ? "A tie to settle" : "Results coming soon"}</h1><div className="trivia-projector-rule" /><h2>{tied ? "Stay tuned for the deciding result." : "The final standings are being confirmed."}</h2></div></ProjectorFrame>;
+    }
     return <ProjectorFrame event={event} live={live} eyebrow="Final results" tone="rose"><div className="trivia-projector-confetti" aria-hidden="true">{Array.from({ length: 18 }, (_, index) => <i key={index} style={{ "--confetti-index": index } as React.CSSProperties} />)}</div><div className="trivia-projector-winner"><p>Tonight&apos;s champions</p><div className="trivia-projector-crown">♛</div><h1>{winner?.name || "Winner pending"}</h1><h2>{winner ? `${winner.score} points` : "Select the winning team from the host panel"}</h2><span>{event.name}</span></div></ProjectorFrame>;
   }
 
+  if (!question && ["question", "final_question", "tiebreaker", "answer", "explanation"].includes(live.stage)) {
+    return <ProjectorFrame event={event} live={live} eyebrow="Stand by"><div className="trivia-projector-hero"><p>{round?.title || "Live trivia"}</p><h1>Next question coming up</h1><div className="trivia-projector-rule" /><h2>Get your team ready.</h2></div></ProjectorFrame>;
+  }
+
   if (live.stage === "leaderboard") {
-    return <ProjectorFrame event={event} live={live} eyebrow="Live standings"><div className="trivia-projector-board"><div className="trivia-projector-title"><p>Current rankings</p><h1>Leaderboard</h1></div><div className="trivia-projector-rankings">{teams.length ? teams.slice(0, 10).map((team, index) => <div key={team.id} className={`trivia-projector-ranking ${index < 3 ? "is-podium" : ""}`} style={{ "--rank-delay": `${index * 20}ms`, ...(event.displaySettings.showTeamColors ? { borderColor: team.color } : {}) } as React.CSSProperties}><span>{index + 1}</span><strong>{team.name}</strong><em>{team.score}<small> pts</small></em></div>) : <div className="trivia-projector-empty">Teams will appear here after check-in.</div>}</div></div></ProjectorFrame>;
+    return <ProjectorFrame event={event} live={live} eyebrow="Live standings"><div className="trivia-projector-board"><div className="trivia-projector-title"><p>Current rankings</p><h1>Leaderboard</h1></div><div className="trivia-projector-rankings">{teams.length ? teams.slice(0, 10).map((team, index) => <div key={team.id} className={`trivia-projector-ranking ${index < 3 ? "is-podium" : ""}`} style={{ "--rank-delay": `${index * 20}ms`, ...(event.displaySettings.showTeamColors ? { borderColor: team.color } : {}) } as React.CSSProperties}><span>{teams.findIndex((candidate) => candidate.score === team.score) + 1}</span><strong>{team.name}</strong><em>{team.score}<small> pts</small></em></div>) : <div className="trivia-projector-empty">Teams will appear here after check-in.</div>}</div></div></ProjectorFrame>;
   }
 
   if (live.stage === "answer" || live.stage === "explanation") {
-    return <ProjectorFrame event={event} live={live} eyebrow="Answer reveal" tone="violet"><div className="trivia-projector-answer"><p>{round?.title || "Current round"} · Question {live.activeQuestionIndex + 1}</p><h1>{question?.prompt || "No active question"}</h1><div className="trivia-projector-answer-card"><span>Correct answer</span><strong>{question?.audienceAnswer || question?.scoringAnswer || "Answer not available"}</strong>{question?.revealText ? <p>{question.revealText}</p> : null}{question?.explanation ? <small>{question.explanation}</small> : null}</div></div></ProjectorFrame>;
+    return <ProjectorFrame event={event} live={live} eyebrow="Answer reveal" tone="violet"><div className="trivia-projector-answer"><p>{round?.title || "Current round"} · Question {live.activeQuestionIndex + 1}</p><h1>{question?.prompt || "No active question"}</h1><div className="trivia-projector-answer-card"><span>Correct answer</span><strong>{question?.audienceAnswer || question?.scoringAnswer || "Answer not available"}</strong>{question?.revealText ? <p>{question.revealText}</p> : null}{live.stage === "explanation" && question?.explanation ? <small>{question.explanation}</small> : null}</div></div></ProjectorFrame>;
   }
 
   const finalQuestion = live.stage === "final_question";

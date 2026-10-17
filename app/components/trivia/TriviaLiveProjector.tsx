@@ -22,7 +22,7 @@ export default function TriviaLiveProjector({ eventId, stage }: { eventId: strin
 
   return (
     <>
-      {live.connectionStatus === "offline" ? <p role="status" className="fixed left-1/2 top-3 z-50 -translate-x-1/2 border border-amber-300/50 bg-slate-950/95 px-4 py-2 text-sm text-amber-100">Reconnecting · showing the last received screen</p> : null}
+      {live.connectionStatus === "offline" && (stage ?? snapshot.live.stage) !== "blank" ? <p role="status" className="fixed left-1/2 top-3 z-50 -translate-x-1/2 border border-amber-300/50 bg-slate-950/95 px-4 py-2 text-sm text-amber-100">Reconnecting · showing the last received screen</p> : null}
       <ProjectorDisplayView event={snapshot.event} live={stage ? { ...snapshot.live, stage } : snapshot.live} clockOffsetMs={live.clockOffsetMs} />
     </>
   );

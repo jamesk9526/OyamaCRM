@@ -781,7 +781,7 @@ async function loadRelationalStore(): Promise<StoreShape> {
       event: { select: { id: true, organizationId: true, name: true, location: true, startDate: true } },
       rounds: { orderBy: { sortOrder: "asc" }, include: { questions: { orderBy: { sortOrder: "asc" } } } },
       teams: { orderBy: { sortOrder: "asc" } },
-      scoreActions: { orderBy: { createdAt: "desc" } },
+      scoreActions: { orderBy: { createdAt: "asc" } },
       snapshots: { orderBy: { createdAt: "desc" } },
       auditEvents: { orderBy: { createdAt: "desc" } },
       accessPasses: { include: { sessions: true } },

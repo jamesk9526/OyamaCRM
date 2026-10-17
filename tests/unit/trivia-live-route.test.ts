@@ -49,6 +49,8 @@ describe("event-scoped Trivia live transport", () => {
     expect(response.body.event).toMatchObject({ createdAt: "2026-10-01T18:00:00.000Z", updatedAt: "2026-10-16T18:00:00.000Z", scoringRules: { defaultQuestionPoints: 10 }, displaySettings: { showTimerOnQuestion: true, defaultStage: "welcome" } });
     expect(query.include).not.toHaveProperty("auditEvents");
     expect(query.include).not.toHaveProperty("accessPasses");
+    // Undo Last and the history UI both expect oldest-to-newest actions.
+    expect(query.include.scoreActions.orderBy).toEqual({ createdAt: "asc" });
     expect(db.triviaConfiguration.findMany).not.toHaveBeenCalled();
     expect(db.$transaction).not.toHaveBeenCalled();
   });

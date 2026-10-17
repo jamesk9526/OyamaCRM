@@ -1,3 +1,7 @@
+## 2026-10-17 Trivia scoring and projector checks
+
+Local checks: 29 focused scoring/live transport/API tests passed; real Chromium fixture passed the audience stages, answer/explanation separation, pending/tied/winning results, tied rankings, missing-question standby, and reduced motion with no page errors. A 1920×1080 winner screenshot was inspected. Changed TypeScript components passed ESLint with the existing raw-image warning. These changes are local and have not been deployed. The production esbuild shutdown cause remains unconfirmed; these checks do not establish that the server crash is resolved.
+
 ## 2026-10-17 Guest payment status and Stripe recovery
 
 Guest roster and code lookup responses derive payment status from linked database orders, preserving complimentary/sponsored seats and standalone guest status. The guest roster links to Payments, where pending online orders have a **Check Stripe payment** action. This permissioned server action retrieves only the saved checkout session, verifies organization/order metadata, amount, currency, environment, completed payment, and no refunds, then atomically confirms the order and its guests. It does not create a charge. Missing session references, mismatches, refunds, and unavailable credentials remain explicit errors requiring review; payment is never inferred from email or a checkout reference alone.

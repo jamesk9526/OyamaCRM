@@ -67,6 +67,9 @@ export default function ScorekeepingPanel({
   });
 
   function submitScore(teamId: string, amount: number, type: TriviaScoreActionType, actionReason: string) {
+    if (!Number.isFinite(amount)) return;
+    // Keep this team selected even when its score changes the leaderboard order.
+    setSelectedTeamId(teamId);
     onApplyScore({
       teamId,
       delta: amount,
@@ -217,7 +220,7 @@ export default function ScorekeepingPanel({
 
             <button
               type="submit"
-              disabled={!selectedTeam}
+              disabled={!selectedTeam || !Number.isFinite(delta) || (!allowPartialCredit && actionType === "partial")}
               className="w-full rounded-lg bg-emerald-500 hover:bg-emerald-400 px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
             >
               Apply Score Action

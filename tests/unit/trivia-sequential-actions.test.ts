@@ -18,6 +18,30 @@ import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleSta
 import type { TriviaModuleState } from "@/app/apps/trivia/lib/trivia-types";
 
 describe("Trivia actions before the next render", () => {
+  it("undoes the actual deducted points when a penalty reaches the zero floor", () => {
+    const api = useTriviaModuleState();
+    const event = api.createSampleEvent();
+    const team = event.teams[0];
+    api.applyScoreAction(event.id, { teamId: team.id, delta: -team.score + 3, actionType: "manual", reason: "Set score to three" });
+    api.applyScoreAction(event.id, { teamId: team.id, delta: -10, actionType: "penalty", reason: "Penalty" });
+    let saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.events[0].teams[0].score).toBe(0);
+    expect(saved.scoreHistoryByEventId[event.id].at(-1)?.delta).toBe(-3);
+    api.undoLastScoreAction(event.id);
+    saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.events[0].teams[0].score).toBe(3);
+  });
+
+  it("rejects finite adjustments whose sum overflows instead of corrupting the score", () => {
+    const api = useTriviaModuleState();
+    const event = api.createSampleEvent();
+    const teamId = event.teams[0].id;
+    api.applyScoreAction(event.id, { teamId, delta: Number.MAX_VALUE, actionType: "manual", reason: "Large score" });
+    const before = api.exportStatePackage();
+    api.applyScoreAction(event.id, { teamId, delta: Number.MAX_VALUE, actionType: "manual", reason: "Overflow" });
+    expect(api.exportStatePackage()).toBe(before);
+  });
+
   it("preserves both scoring actions and can undo only the last action", () => {
     const api = useTriviaModuleState();
     const event = api.createSampleEvent();

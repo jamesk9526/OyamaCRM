@@ -114,19 +114,50 @@ try {
   await projector.getByText("Which planet is known as the Red Planet?", { exact: true }).waitFor();
   const updateLatencyMs = Date.now() - start;
   assert.equal(await projector.getByRole("heading", { name: "Question 1", exact: true }).count(), 1);
-  await host.getByRole("button", { name: "Start timer", exact: true }).click();
-  try { await projector.locator(".trivia-projector-timer strong").waitFor({ timeout: 5_000 }); }
-  catch (error) { console.error("Projector timer did not load:", await projector.locator("#root").innerText(), requests, fixture.live); throw error; }
+  assert.equal(await projector.getByText("Private note", { exact: true }).count(), 0);
+  assert.equal(await projector.getByText("Mars appears red.", { exact: true }).count(), 0);
   await host.close();
-  await projector.waitForTimeout(1_250);
-  const displayedSeconds = Number(await projector.locator(".trivia-projector-timer strong").textContent());
-  assert.ok(displayedSeconds <= 29, `projector countdown should continue after host closes; got ${displayedSeconds}`);
+  async function showStage(stage) {
+    fixture.live.stage = stage;
+    fixture.live.updatedAt = new Date().toISOString();
+    fixture.revision += 1;
+    if (stage === "blank") await projector.getByRole("main", { name: "Projector intentionally blank" }).waitFor();
+    else await projector.locator(`[data-stage="${stage}"]`).waitFor();
+  }
+  for (const stage of ["check_in_open", "check_in_closed", "round_intro", "break", "final_question", "tiebreaker", "leaderboard", "answer", "explanation", "winner", "blank"]) {
+    await showStage(stage);
+    if (stage === "answer") assert.equal(await projector.getByText("Mars appears red.", { exact: true }).count(), 0);
+    if (stage === "explanation") await projector.getByText("Mars appears red.", { exact: true }).waitFor();
+    if (stage === "winner") {
+      await projector.getByRole("heading", { name: "Results coming soon" }).waitFor();
+      assert.equal(await projector.locator(".trivia-projector-confetti").count(), 0);
+    }
+  }
+  fixture.event.teams = [
+    { id: "team-1", name: "Team One", score: 20, active: true, players: [], sortOrder: 0 },
+    { id: "team-2", name: "Team Two", score: 20, active: true, players: [], sortOrder: 1 },
+  ];
+  await showStage("winner");
+  await projector.getByRole("heading", { name: "A tie to settle" }).waitFor();
+  await showStage("leaderboard");
+  assert.deepEqual(await projector.locator(".trivia-projector-ranking > span").allTextContents(), ["1", "1"]);
+  fixture.event.teams[0].score = 30;
+  await showStage("winner");
+  await projector.getByRole("heading", { name: "Team One", exact: true }).waitFor();
+  assert.equal(await projector.locator(".trivia-projector-confetti i").count(), 18);
+  await projector.emulateMedia({ reducedMotion: "reduce" });
+  assert.equal(await projector.locator(".trivia-projector-confetti").evaluate(el => getComputedStyle(el).display), "none");
+  await projector.setViewportSize({ width: 1920, height: 1080 });
+  await projector.screenshot({ path: "node_modules/.cache/trivia-projector-winner.png" });
+  fixture.live.activeQuestionIndex = 99;
+  await showStage("question");
+  await projector.getByRole("heading", { name: "Next question coming up" }).waitFor();
   assert.ok(updateLatencyMs < 2_000, `projector update should be visible within poll bound; got ${updateLatencyMs}ms`);
   assert.equal(requests.some(({ url }) => url.includes("/state")), false);
-  assert.ok(requests.every(({ url }) => url === "/api/apps/trivia/events/live-fixture/live"));
-  assert.equal(requests.filter(({ method }) => method === "PATCH").length, 2, "show-question and timer-start each save once; countdown ticks never write");
+  assert.equal(requests.filter(({ method }) => method === "PATCH").length, 1, "show-question saves once; projector state reads never write");
   assert.deepEqual(errors, []);
-  console.log(`PASS Trivia live fixture: host acknowledged question reached projector in ${updateLatencyMs}ms; countdown kept running after host closed; ${requests.filter(({ method }) => method === "GET").length} event-only reads, two host writes, no full-state requests or page errors.`);
+  console.log(`PASS Trivia projector: all audience stages, separate explanation reveal, pending and tied results, winner celebration, tied rankings, missing-question fallback, reduced motion; no page errors. Initial update: ${updateLatencyMs}ms.`);
+
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));

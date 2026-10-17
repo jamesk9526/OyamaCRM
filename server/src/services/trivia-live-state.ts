@@ -9,7 +9,7 @@ const include = {
   event: { select: { id: true, organizationId: true, name: true, location: true, startDate: true } },
   rounds: { orderBy: { sortOrder: "asc" as const }, include: { questions: { orderBy: { sortOrder: "asc" as const } } } },
   teams: { orderBy: { sortOrder: "asc" as const } },
-  scoreActions: { orderBy: { createdAt: "desc" as const } },
+  scoreActions: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.TriviaConfigurationInclude;
 
 /** A live read deliberately excludes snapshots, audits, passes, and roster synchronization. */

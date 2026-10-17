@@ -1,3 +1,7 @@
+## 2026-10-17 Trivia scoring and projector polish
+
+Score history now loads oldest first so Undo Last targets the latest action after server reloads. Score entry retains the selected team when standings change and rejects numeric overflow. The projector uses pending/tied-result states before celebrating, gives equal scores equal leaderboard ranks, separates explanation from answer reveal, and shows an audience-safe standby for missing questions. Stage, answer, and option reveals use short eased animations; reduced motion disables them and confetti. Offline banners respect intentional blank mode.
+
 ## 2026-10-17 Guest payment status and Stripe recovery
 
 Guest roster and code lookup responses derive payment status from linked database orders, preserving complimentary/sponsored seats and standalone guest status. The guest roster links to Payments, where pending online orders have a **Check Stripe payment** action. This permissioned server action retrieves only the saved checkout session, verifies organization/order metadata, amount, currency, environment, completed payment, and no refunds, then atomically confirms the order and its guests. It does not create a charge. Missing session references, mismatches, refunds, and unavailable credentials remain explicit errors requiring review; payment is never inferred from email or a checkout reference alone.

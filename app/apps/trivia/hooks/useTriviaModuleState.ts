@@ -936,6 +936,7 @@ export function useTriviaModuleState({ liveEventId = "" }: { liveEventId?: strin
     const currentTeam = event.teams[teamIndex];
     const previousScore = currentTeam.score;
     const rawNextScore = previousScore + input.delta;
+    if (!Number.isFinite(rawNextScore)) return;
     const nextScore = event.scoringRules.allowNegativeScores ? rawNextScore : Math.max(0, rawNextScore);
     const scoreAction: TriviaScoreAction = {
       id: createTriviaId("score-action"),
