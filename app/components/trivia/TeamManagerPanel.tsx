@@ -10,7 +10,7 @@ interface TeamManagerPanelProps {
   /** Callback for creating a team in persisted trivia state. */
   onAddTeam: (name: string, players: string[], color: string, icon: string) => void;
   /** Callback for updating team metadata in persisted trivia state. */
-  onUpdateTeam: (teamId: string, updates: Partial<TriviaTeam>) => void;
+  onUpdateTeam: (teamId: string, updates: Partial<TriviaTeam>) => { ok: boolean; error?: string };
   /** Callback for moving team display order. */
   onReorderTeam: (teamId: string, direction: -1 | 1) => void;
   /** Callback for removing a team from the event. */
@@ -19,6 +19,31 @@ interface TeamManagerPanelProps {
 
 const COLOR_OPTIONS = ["#34d399", "#38bdf8", "#f59e0b", "#f472b6", "#a78bfa", "#fb7185", "#22c55e", "#f97316"];
 const ICON_OPTIONS = ["star", "bolt", "brain", "crown", "rocket", "shield", "spark", "target"];
+
+function TableNumberEditor({ team, onUpdateTeam }: { team: TriviaTeam; onUpdateTeam: TeamManagerPanelProps["onUpdateTeam"] }) {
+  const [number, setNumber] = useState(team.tableNumber ?? "");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
+      event.preventDefault();
+      const result = onUpdateTeam(team.id, { tableNumber: number });
+      setError(result.ok ? null : result.error ?? "Could not change this table number.");
+    }}>
+      <label className="text-xs text-slate-300">
+        Table number for {team.name}
+        <input type="number" min={1} max={9999} step={1} required value={number}
+          onChange={(event) => { setNumber(event.target.value); setError(null); }}
+          aria-invalid={Boolean(error)} aria-describedby={error ? `table-number-error-${team.id}` : undefined}
+          className="mt-1 block w-32 rounded border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-white" />
+      </label>
+      <button type="submit" disabled={number === (team.tableNumber ?? "") || !number}
+        className="rounded border border-emerald-500/60 bg-emerald-500/20 px-3 py-1.5 text-sm text-emerald-100 disabled:opacity-40">
+        Apply table number
+      </button>
+      {error ? <p id={`table-number-error-${team.id}`} role="alert" className="w-full text-sm text-rose-300">{error}</p> : null}
+    </form>
+  );
+}
 
 /**
  * TeamManagerPanel gives hosts full team administration controls for live operations.
@@ -37,7 +62,7 @@ export default function TeamManagerPanel({ teams, onAddTeam, onUpdateTeam, onReo
     if (!query) return true;
     const inName = team.name.toLowerCase().includes(query);
     const inPlayers = team.players.join(" ").toLowerCase().includes(query);
-    return inName || inPlayers;
+    return inName || inPlayers || (team.tableNumber ?? "").includes(query);
   });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -96,7 +121,7 @@ export default function TeamManagerPanel({ teams, onAddTeam, onUpdateTeam, onReo
       <input
         value={searchTerm}
         onChange={(event) => setSearchTerm(event.target.value)}
-        placeholder="Search teams by name or player"
+        placeholder="Search teams by name, player, or table number"
         className="mt-3 w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
       />
 
@@ -148,6 +173,8 @@ export default function TeamManagerPanel({ teams, onAddTeam, onUpdateTeam, onReo
                 </button>
               </div>
             </div>
+
+            <TableNumberEditor key={`${team.id}:${team.tableNumber}`} team={team} onUpdateTeam={onUpdateTeam} />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <input

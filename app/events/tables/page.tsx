@@ -3,7 +3,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import RequireEventSelectionNotice from "@/app/components/events/RequireEventSelectionNotice";
 import { apiFetch } from "@/app/lib/auth-client";
@@ -138,8 +138,11 @@ export default function EventTablesPage() {
     }
   }, [workspaceEventId]);
 
-  /** Load tables and unassigned guests for selected event */
-  async function loadData() {
+  const dataRequestRef = useRef(0);
+
+  /** Only the latest refresh may publish the seating roster. */
+  const loadData = useCallback(async () => {
+    const requestId = ++dataRequestRef.current;
     if (!selectedEventId) {
       setTables([]);
       setUnassignedGuests([]);
@@ -151,21 +154,23 @@ export default function EventTablesPage() {
     setActionError(null);
     try {
       const [tablesData, guestsData] = await Promise.all([
-        apiFetch(`/api/events/${selectedEventId}/tables`),
-        apiFetch(`/api/events/${selectedEventId}/guests`),
+        apiFetch(`/api/events/${selectedEventId}/tables`, { cache: "no-store" }),
+        apiFetch(`/api/events/${selectedEventId}/guests`, { cache: "no-store" }),
       ]);
+      if (requestId !== dataRequestRef.current) return;
       setTables(tablesData as Table[]);
       interface GuestWithTable extends Guest {
         table?: { id: string; name: string };
       }
       setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.seatId));
     } catch (err) {
+      if (requestId !== dataRequestRef.current) return;
       console.error("Failed to load table data:", err);
       setActionError(err instanceof Error ? err.message : "Tables could not be loaded.");
     } finally {
-      setLoading(false);
+      if (requestId === dataRequestRef.current) setLoading(false);
     }
-  }
+  }, [selectedEventId]);
 
   /** Load events on mount */
   useEffect(() => {
@@ -185,33 +190,16 @@ export default function EventTablesPage() {
   }, [workspaceEventId]);
 
   useEffect(() => {
-    async function loadData() {
-      if (!selectedEventId) {
-        setTables([]);
-        setUnassignedGuests([]);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const [tablesData, guestsData] = await Promise.all([
-          apiFetch(`/api/events/${selectedEventId}/tables`),
-          apiFetch(`/api/events/${selectedEventId}/guests`),
-        ]);
-        setTables(tablesData as Table[]);
-        interface GuestWithTable extends Guest {
-          table?: { id: string; name: string };
-        }
-        setUnassignedGuests((guestsData as GuestWithTable[]).filter((g) => !g.seatId));
-      } catch (err) {
-        console.error("Failed to load table data:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [selectedEventId]);
+    void loadData();
+    const refresh = () => { if (document.visibilityState === "visible") void loadData(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      dataRequestRef.current += 1;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadData]);
 
   /** Metrics calculation */
   const totalCapacity = tables.reduce((sum, t) => sum + t.capacity, 0);
@@ -350,7 +338,7 @@ export default function EventTablesPage() {
     setInvitePhone("");
     setInviteSeatId("");
     setSeatAssignmentMap({});
-    await refreshTableDetail(table.tableUid, table.id);
+    await Promise.all([refreshTableDetail(table.tableUid, table.id), loadData()]);
   }
 
   async function refreshTableDetail(tableUid: string, tableId: string) {
@@ -602,6 +590,15 @@ export default function EventTablesPage() {
               <p className="text-xs text-gray-500 uppercase font-medium">Over Capacity</p>
               <p className="text-2xl font-bold text-red-600 mt-1">{overCapacityTables}</p>
             </div>
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => setSeatingView("placement")} className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-900">
+              Unassigned guests ({unassignedGuests.length})
+            </button>
+            <button type="button" onClick={() => void loadData()} disabled={loading} className="rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
+              Refresh seating
+            </button>
           </div>
 
           {loading ? (

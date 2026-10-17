@@ -11,7 +11,7 @@ const { build } = require(createRequire(require.resolve("tsx")).resolve("esbuild
 const postcss = require(createRequire(require.resolve("@tailwindcss/postcss")).resolve("postcss"));
 const tailwind = require("@tailwindcss/postcss");
 const root = process.cwd();
-const out = path.join(root, "docs/status/audit-artifacts/2026-10-16-event-guest-operations");
+const out = path.join(root, "node_modules/.cache/event-guest-operations");
 const css = (await postcss([tailwind({ base: root })]).process(await readFile("app/globals.css", "utf8"), { from: path.join(root, "app/globals.css") })).css;
 const bundle = await build({
   stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client';
@@ -145,6 +145,13 @@ try {
   await page.getByText("1/8 seated · 7 open", { exact: true }).last().waitFor();
   await seatRow.getByRole("button", { name: "Clear", exact: true }).click();
   await page.getByText("0/8 seated · 8 open", { exact: true }).last().waitFor();
+  await seatRow.getByRole("combobox").selectOption("guest-1");
+  await seatRow.getByRole("button", { name: "Assign", exact: true }).click();
+  await seatRow.getByRole("cell", { name: "Rebecca Haine", exact: true }).waitFor();
+  // A guest unassigned by another workspace must reappear when this tab regains focus.
+  guests[0].seatId = null; guests[0].tableId = null;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.getByRole("button", { name: "Refresh seating", exact: true }).waitFor();
   await seatRow.getByRole("combobox").selectOption("guest-1");
   await seatRow.getByRole("button", { name: "Assign", exact: true }).click();
   await seatRow.getByRole("cell", { name: "Rebecca Haine", exact: true }).waitFor();

@@ -10,6 +10,7 @@ const bundle = await build({
     import React, {useState} from 'react';
     import {createRoot} from 'react-dom/client';
     import {TableManagerRemote,TriviaCheckInRemote} from './app/components/trivia/TriviaTableRemote';
+    import TeamManagerPanel from './app/components/trivia/TeamManagerPanel';
     import {createSampleTriviaEvent} from './app/apps/trivia/lib/trivia-sample-data';
     function Fixture(){
       const [teams,setTeams]=useState(()=>{const team=createSampleTriviaEvent('tables').teams[0];return [{...team,id:'team-one',name:'Alpha',tableNumber:'12',players:['Guest Searchable'],tableHostName:'Host Searchable',checkInStatus:'expected'}]});
@@ -19,7 +20,7 @@ const bundle = await build({
         if(name==='add_team')setTeams(previous=>[...previous,{...previous[0],...payload,id:'walkin',tableNumber:payload.tableNumber||'13'}]);
         if(name==='check_in')setTeams(previous=>previous.map(team=>team.id===payload.teamId?{...team,checkInStatus:payload.status||'checked_in'}:team));return true;
       }
-      return <><nav><button onClick={()=>setTeams(previous=>previous.map(team=>({...team})))}>Poll fresh objects</button><button onClick={()=>setFail(!fail)}>Toggle failure</button><button onClick={()=>setMode(mode==='tables'?'checkin':'tables')}>Switch mode</button><button onClick={()=>setTeams(previous=>previous.map(team=>({...team,checkInStatus:'late'})))}>Late arrival</button><button onClick={()=>setTeams([])}>Empty roster</button></nav><output aria-label="Last action">{last}</output>{mode==='tables'?<TableManagerRemote teams={teams} busy={false} onAction={action}/>:<TriviaCheckInRemote teams={teams} busy={false} onAction={action}/>}</>;
+      return <><nav><button onClick={()=>setMode('builder')}>Open team manager</button><button onClick={()=>setTeams(previous=>previous.map(team=>({...team})))}>Poll fresh objects</button><button onClick={()=>setFail(!fail)}>Toggle failure</button><button onClick={()=>setMode(mode==='tables'?'checkin':'tables')}>Switch mode</button><button onClick={()=>setTeams(previous=>previous.map(team=>({...team,checkInStatus:'late'})))}>Late arrival</button><button onClick={()=>setTeams([])}>Empty roster</button></nav><output aria-label="Last action">{last}</output>{mode==='builder'?<TeamManagerPanel teams={teams} onAddTeam={()=>{}} onRemoveTeam={()=>{}} onReorderTeam={()=>{}} onUpdateTeam={(id,updates)=>{if(fail)return {ok:false,error:'Table number already assigned.'};setTeams(previous=>previous.map(team=>team.id===id?{...team,...updates}:team));return {ok:true};}}/>:mode==='tables'?<TableManagerRemote teams={teams} busy={false} onAction={action}/>:<TriviaCheckInRemote teams={teams} busy={false} onAction={action}/>}</>;
     }
     createRoot(document.getElementById('root')).render(<Fixture/>);
   ` },
@@ -49,6 +50,17 @@ try{
  await page.getByRole('button',{name:'Undo accidental check-in'}).click();await page.getByRole('button',{name:'Confirm undo check-in'}).click();await page.getByRole('button',{name:'Check in table',exact:true}).waitFor();assert.match(await page.getByLabel('Last action').innerText(),/"status":"expected"/);
  await page.getByRole('button',{name:'Late arrival'}).click();assert.equal(await page.getByRole('button',{name:'Check in table',exact:true}).count(),0);
  await search.fill('missing');await page.getByText('No matching teams.',{exact:false}).waitFor();
+ await page.getByRole('button',{name:'Open team manager'}).click();
+ const number=page.getByLabel('Table number for Edited Alpha',{exact:true});await number.fill('45');
+ await page.getByRole('button',{name:'Poll fresh objects'}).click();assert.equal(await number.inputValue(),'45');
+ await page.getByRole('button',{name:'Toggle failure'}).click();
+ await number.locator('..').locator('..').getByRole('button',{name:'Apply table number'}).click();
+ await page.getByRole('alert').filter({hasText:'Table number already assigned.'}).waitFor();assert.equal(await number.inputValue(),'45');
+ await page.getByRole('button',{name:'Toggle failure'}).click();
+ await number.locator('..').locator('..').getByRole('button',{name:'Apply table number'}).click();
+ assert.equal(await number.inputValue(),'45');assert.equal(await number.locator('..').locator('..').getByRole('button',{name:'Apply table number'}).isDisabled(),true);
+ await page.getByPlaceholder('Search teams by name, player, or table number').fill('45');assert.equal(await page.locator('article').count(),1);
+ await page.getByRole('button',{name:'Switch mode'}).click();await page.getByRole('button',{name:'Switch mode'}).click();
  await page.getByRole('button',{name:'Empty roster'}).click();await page.getByText('No teams registered yet.',{exact:false}).waitFor();
  assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
  console.log('PASS: phone drafts survive polling/failed saves; failed walk-ins retained; successful walk-ins clear; guest search, check-in/undo, late arrival, empty/search states; no runtime errors or horizontal overflow.');

@@ -1,3 +1,7 @@
+## 2026-10-17 Unassigned guest refresh
+
+Local browser regression passed clearing/reassigning a seat and returning to Tables after an external unassignment; six seat-clearing/occupancy unit tests and page ESLint passed. Production data was not inspected or changed; deployment is still required.
+
 ## 2026-10-17 Trivia scoring and projector checks
 
 Local checks: 29 focused scoring/live transport/API tests passed; real Chromium fixture passed the audience stages, answer/explanation separation, pending/tied/winning results, tied rankings, missing-question standby, and reduced motion with no page errors. A 1920×1080 winner screenshot was inspected. Changed TypeScript components passed ESLint with the existing raw-image warning. These changes are local and have not been deployed. The production esbuild shutdown cause remains unconfirmed; these checks do not establish that the server crash is resolved.

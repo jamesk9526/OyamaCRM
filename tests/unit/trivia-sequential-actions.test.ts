@@ -18,6 +18,23 @@ import { useTriviaModuleState } from "@/app/apps/trivia/hooks/useTriviaModuleSta
 import type { TriviaModuleState } from "@/app/apps/trivia/lib/trivia-types";
 
 describe("Trivia actions before the next render", () => {
+  it("renumbers a table without changing its team, players, or score and rejects duplicates", () => {
+    const api = useTriviaModuleState();
+    const event = api.createSampleEvent();
+    const team = event.teams[0];
+    expect(api.updateTeam(event.id, team.id, { tableNumber: "9999" })).toEqual({ ok: true });
+    const saved = JSON.parse(api.exportStatePackage()) as TriviaModuleState;
+    expect(saved.events[0].teams.find((item) => item.id === team.id)).toMatchObject({
+      id: team.id, name: team.name, players: team.players, score: team.score, tableNumber: "9999",
+    });
+    const before = api.exportStatePackage();
+    expect(api.updateTeam(event.id, event.teams[1].id, { tableNumber: "9999" }).ok).toBe(false);
+    for (const tableNumber of ["", "0", "-1", "1.5", "10000"]) {
+      expect(api.updateTeam(event.id, team.id, { tableNumber }).ok).toBe(false);
+    }
+    expect(api.exportStatePackage()).toBe(before);
+  });
+
   it("undoes the actual deducted points when a penalty reaches the zero floor", () => {
     const api = useTriviaModuleState();
     const event = api.createSampleEvent();

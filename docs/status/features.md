@@ -1,3 +1,11 @@
+## 2026-10-17 Unassigned guest refresh
+
+Tables now refresh uncached seating data on focus, visibility return, and opening table details. A shared request guard prevents older reads from replacing a newer assignable guest list. Visible Unassigned guests and Refresh seating controls expose the placement workflow.
+
+## 2026-10-17 Trivia table number editing
+
+The builder team manager now includes an explicit Table number field and Apply action. Existing whole-number (1–9999) and duplicate-number checks report errors inline. Team search includes table numbers. Check-in and Event Tables retain their existing editors. Local hook and browser fixture checks passed; changes are not deployed.
+
 ## 2026-10-17 Trivia scoring and projector polish
 
 Score history now loads oldest first so Undo Last targets the latest action after server reloads. Score entry retains the selected team when standings change and rejects numeric overflow. The projector uses pending/tied-result states before celebrating, gives equal scores equal leaderboard ranks, separates explanation from answer reveal, and shows an audience-safe standby for missing questions. Stage, answer, and option reveals use short eased animations; reduced motion disables them and confetti. Offline banners respect intentional blank mode.
