@@ -15,6 +15,8 @@ import { requireRole } from "../middleware/requireRole.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { readPaymentGatewayPublicSettings, readPaymentGatewayRuntimeConfig, type PaymentGatewayPublicSettings } from "../services/payment-gateway-settings.js";
 import { createEventStripeCheckout, EventStripeCheckoutError } from "../services/event-stripe-checkout.js";
+import { withOrderPaymentStatus } from "../services/event-guest-payment.js";
+import { reconcileEventStripePayment, EventStripeReconciliationError } from "../services/event-stripe-reconciliation.js";
 import { createEventTable } from "../services/event-table-service.js";
 import { createCheckInRecord, reverseCheckIn, getCheckInLiveCounts } from "../services/checkin-service.js";
 import { createCheckInException, dismissCheckInException, listCheckInExceptions, resolveCheckInException } from "../services/checkin-exception-service.js";
@@ -2991,7 +2993,9 @@ router.get("/", async (req, res) => {
 });
 
 /** GET /api/events/:id — Get event detail with full relations. */
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res, next) => {
+  // Collection routes below must not be interpreted as event IDs.
+  if (req.params.id === "guests" || req.params.id === "orders") { next(); return; }
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
     res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
@@ -3748,6 +3752,23 @@ router.patch("/orders/:orderId", async (req, res) => {
   res.json(updated);
 });
 
+/** Check saved Stripe evidence and recover a missed confirmation. Never charges a card. */
+router.post("/orders/:orderId/check-stripe", rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false }), async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) {
+    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
+    return;
+  }
+  const orderId = String(req.params.orderId);
+  try {
+    const result = await reconcileEventStripePayment(organizationId, orderId);
+    await logAudit({ action: "EVENT_ORDER_STRIPE_CHECKED", entity: "EventOrder", entityId: orderId, organizationId, metadata: { result }, ipAddress: req.ip });
+    res.json({ result, message: result === "paid" ? "Stripe payment verified. The order and linked guests are now paid." : result === "unpaid" ? "Stripe has not confirmed payment. This order remains due." : "The order changed. Refresh to see its current payment status." });
+  } catch (error) {
+    res.status(error instanceof EventStripeReconciliationError ? error.status : 500).json({ error: { code: "STRIPE_CHECK_FAILED", message: error instanceof EventStripeReconciliationError ? error.message : "Payment verification failed. Refresh and try again." } });
+  }
+});
+
 /** POST /api/events/orders/:orderId/record-payment — Settle a manual event payment. */
 router.post("/orders/:orderId/record-payment", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -3848,13 +3869,13 @@ router.get("/guests", async (req, res) => {
       event: { select: { id: true, name: true, startDate: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
       ticketType: { select: { id: true, name: true } },
-      order: { select: { id: true, orderNumber: true, status: true } },
+      order: { select: { id: true, orderNumber: true, status: true, totalAmount: true, paidAt: true } },
       table: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  res.json(guests);
+  res.json(guests.map(withOrderPaymentStatus));
 });
 
 /** GET /api/events/guests/by-code/:code — Look up a guest by their unique checkin code. */
@@ -3888,7 +3909,7 @@ router.get("/guests/by-code/:code", async (req, res) => {
       event: { select: { id: true, name: true, startDate: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
       ticketType: { select: { id: true, name: true } },
-      order: { select: { id: true, orderNumber: true, status: true } },
+      order: { select: { id: true, orderNumber: true, status: true, totalAmount: true, paidAt: true } },
       table: { select: { id: true, name: true } },
     },
   });
@@ -3898,7 +3919,7 @@ router.get("/guests/by-code/:code", async (req, res) => {
     return;
   }
 
-  res.json(guest);
+  res.json(withOrderPaymentStatus(guest));
 });
 
 /** GET /api/events/:eventId/guests — List guests for a specific event. */
@@ -3924,13 +3945,13 @@ router.get("/:eventId/guests", async (req, res) => {
       event: { select: { id: true, name: true, startDate: true } },
       constituent: { select: { id: true, firstName: true, lastName: true, email: true } },
       ticketType: { select: { id: true, name: true } },
-      order: { select: { id: true, orderNumber: true, status: true } },
+      order: { select: { id: true, orderNumber: true, status: true, totalAmount: true, paidAt: true } },
       table: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  res.json(guests);
+  res.json(guests.map(withOrderPaymentStatus));
 });
 
 /** POST /api/events/:eventId/guests — Create a new guest for an event. */

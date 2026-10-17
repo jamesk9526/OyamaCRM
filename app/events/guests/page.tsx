@@ -213,6 +213,11 @@ export default function EventGuestsPage() {
           />
         </WorkspaceRibbonGroup>
 
+        <WorkspaceRibbonGroup label="Payment status">
+          <WorkspaceRibbonButton label="Check Stripe payments" onClick={() => router.push(`/events/${selectedEventId}/payments`)} accentTone="amber" />
+          <WorkspaceRibbonButton label="Refresh payments" onClick={() => void reloadData()} disabled={loading} accentTone="amber" />
+        </WorkspaceRibbonGroup>
+
         <WorkspaceRibbonGroup label="Check-In">
           <WorkspaceRibbonButton label="All" onClick={() => setCheckedInFilter("")} variant={!checkedInFilter ? "primary" : "secondary"} accentTone="amber" />
           <WorkspaceRibbonButton label="Checked In" onClick={() => setCheckedInFilter("true")} variant={checkedInFilter === "true" ? "primary" : "secondary"} accentTone="amber" />

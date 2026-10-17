@@ -35,6 +35,15 @@ try {
  await page.getByRole('button',{name:'Connect to event',exact:true}).click();
  await page.getByRole('button',{name:'Next question',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:/timer/i}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Previous round',exact:true}).isDisabled(),true);
+ await page.getByRole('button',{name:'Next round',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.fixture.actions.length),0);
+ await page.getByRole('button',{name:'Confirm next round',exact:true}).click();
+ await page.waitForFunction(()=>window.fixture.event.live.activeRoundId===window.fixture.event.rounds[1].id);
+ await page.getByRole('button',{name:'Previous round',exact:true}).click();
+ await page.getByRole('button',{name:'Confirm previous round',exact:true}).click();
+ await page.waitForFunction(()=>window.fixture.event.live.activeRoundId===window.fixture.event.rounds[0].id);
+
  await page.getByText('Private answer & host notes',{exact:true}).click();
  await page.getByText('Private host note',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Next question',exact:true}).click();
@@ -54,6 +63,7 @@ try {
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.deepEqual(errors,[]);
+ await page.getByText('Connection & access',{exact:true}).click();
  await page.getByRole('button',{name:'Disconnect / change code',exact:true}).click();
  await page.getByLabel('Four-digit code').waitFor();
  await page.goto(`http://127.0.0.1:${server.address().port}/?code=1234`);

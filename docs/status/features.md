@@ -1,3 +1,13 @@
+## 2026-10-17 Guest payment status and Stripe recovery
+
+Guest roster and code lookup responses derive payment status from linked database orders, preserving complimentary/sponsored seats and standalone guest status. The guest roster links to Payments, where pending online orders have a **Check Stripe payment** action. This permissioned server action retrieves only the saved checkout session, verifies organization/order metadata, amount, currency, environment, completed payment, and no refunds, then atomically confirms the order and its guests. It does not create a charge. Missing session references, mismatches, refunds, and unavailable credentials remain explicit errors requiring review; payment is never inferred from email or a checkout reference alone.
+
+Local mocked API/service tests and a real Edge UI fixture cover paid/unpaid outcomes, failures/retry, stale guest flags, and concurrent settlement. The live event inspected on October 17 still showed eight pending online orders ($1,200 outstanding); these local changes have not been deployed or run against those orders. Existing webhook delivery configuration still needs checking. A historical currency differing from the current gateway currency deliberately fails closed for review.
+
+## 2026-10-17 TV-style event remote
+
+The host remote now has a handset layout with guarded previous/next question and round navigation, a central answer reveal, and projector shortcuts. Additional stages, private notes, and winner selection remain available.
+
 ## 2026-10-17 Direct phone access
 
 Share a role-specific event remote link or locally generated QR from Temporary sign-ins and remote controllers. Opening it connects automatically without CRM login or code typing. Links remain event-scoped, expire, and can be revoked; manual four-digit entry remains a backup. QR generation includes the full event link and does not send temporary access to a third-party QR service.

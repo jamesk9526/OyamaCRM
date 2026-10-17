@@ -7,7 +7,7 @@ import events from "@/server/src/routes/events";
 const db = vi.hoisted(() => ({
   event: { findFirst: vi.fn() }, ticketType: { findFirst: vi.fn() },
   eventTable: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-  eventGuest: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+  eventGuest: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   activity: { create: vi.fn() },
 }));
 const checkIn = vi.hoisted(() => vi.fn());
@@ -108,5 +108,39 @@ describe("manual guest ticket assignment API", () => {
     db.eventGuest.findFirst.mockResolvedValue({ event: { organizationId: "other-org" } });
     expect((await request(app).patch("/api/events/guests/guest-1").send({ ticketTypeId: "ticket-1" })).status).toBe(404);
     expect(db.eventGuest.update).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("guest payment status from saved orders", () => {
+  const paidOrder = { id: "order-1", orderNumber: "EV-1", status: "CONFIRMED", totalAmount: 80, paidAt: new Date(), transactionId: "stripe:pi_verified" };
+  it.each(["/event-1/guests", "/guests?eventId=event-1"])("uses the settled database order at %s despite a stale guest flag", async (url) => {
+    db.eventGuest.findMany.mockResolvedValue([{ id: "guest-1", paymentStatus: "DUE", order: paidOrder }]);
+    const response = await request(app).get(`/api/events${url}`);
+    expect(response.status).toBe(200);
+    expect(response.body[0].paymentStatus).toBe("PAID");
+    expect(db.eventGuest.findMany.mock.calls[0][0].include.order.select.paidAt).toBe(true);
+    expect(db.eventGuest.update).not.toHaveBeenCalled();
+  });
+  it("does not treat a Stripe checkout reference as proof of payment", async () => {
+    db.eventGuest.findMany.mockResolvedValue([{ paymentStatus: "DUE", order: { ...paidOrder, status: "PENDING", paidAt: null, transactionId: "stripe:checkout:cs_unpaid" } }]);
+    const response = await request(app).get("/api/events/event-1/guests");
+    expect(response.body[0].paymentStatus).toBe("DUE");
+  });
+  it("preserves complimentary, sponsored, and standalone guest payments", async () => {
+    db.eventGuest.findMany.mockResolvedValue([{ paymentStatus: "COMP", order: paidOrder }, { paymentStatus: "SPONSORED", order: paidOrder }, { paymentStatus: "PAID", order: null }]);
+    const response = await request(app).get("/api/events/event-1/guests");
+    expect(response.body.map((guest: { paymentStatus: string }) => guest.paymentStatus)).toEqual(["COMP", "SPONSORED", "PAID"]);
+  });
+  it.each(["CANCELLED", "REFUNDED"])("does not show %s orders as paid using a historical paidAt", async (status) => {
+    db.eventGuest.findMany.mockResolvedValue([{ paymentStatus: "PAID", order: { ...paidOrder, status } }]);
+    const response = await request(app).get("/api/events/event-1/guests");
+    expect(response.body[0].paymentStatus).toBe("DUE");
+  });
+  it("resolves payment when scanning a guest code", async () => {
+    db.eventGuest.findFirst.mockResolvedValue({ id: "guest-1", paymentStatus: "DUE", order: paidOrder });
+    const response = await request(app).get("/api/events/guests/by-code/ABC123?eventId=event-1");
+    expect(response.status).toBe(200);
+    expect(response.body.paymentStatus).toBe("PAID");
   });
 });

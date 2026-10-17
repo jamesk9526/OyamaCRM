@@ -201,14 +201,14 @@ export default function TriviaRemoteController({ eventId: initialEventId }: { ev
   const primaryAction = "min-h-14 touch-manipulation rounded-xl bg-[#7654c5] px-3 text-sm font-semibold text-white hover:bg-[#8b6bd3] disabled:opacity-50";
   return (
     <main className="min-h-[100dvh] bg-[#0d0a16] p-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] text-white sm:p-5">
-      <div className={`mx-auto space-y-3 ${session.role === "table_manager" ? "max-w-3xl" : "max-w-xl"}`}>
-        <header className="sticky top-[max(0.5rem,env(safe-area-inset-top))] z-30 rounded-xl border border-[#4b3975] bg-[#161126]/95 p-4 shadow-xl backdrop-blur">
+      <div className={`mx-auto space-y-4 rounded-[2.5rem] border border-[#63517e] bg-gradient-to-b from-[#292137] to-[#161126] p-4 shadow-[0_20px_60px_#00000080,inset_0_1px_0_#ffffff20] [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-cyan-300 ${session.role === "table_manager" ? "max-w-3xl" : "max-w-[420px]"}`}>
+        <header className="rounded-2xl border border-[#4b3975] bg-[#161126]/95 p-4 shadow-xl backdrop-blur">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">{roleLabel(session.role)} remote</p><h1 className="mt-1 truncate text-xl font-semibold">{event.name}</h1></div>
             <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${online ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-100" : "border-rose-400/40 bg-rose-500/15 text-rose-100"}`}>{online ? "● Connected" : "● Offline"}</span>
           </div>
-          <button type="button" onClick={disconnect} disabled={busy} className="mt-2 min-h-11 rounded-lg border border-[#8067b7] px-3 text-xs font-semibold">Disconnect / change code</button>
-          <p className="mt-2 text-xs text-[#d9cffa]">{live.lastHostAction} · expires {new Date(session.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}{lastRefreshAt ? ` · updated ${new Date(lastRefreshAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}</p>
+          <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3 text-xs text-[#d9cffa]">Connection & access</summary><button type="button" onClick={disconnect} disabled={busy} className="mt-2 min-h-11 rounded-lg border border-[#8067b7] px-3 text-xs font-semibold">Disconnect / change code</button>
+          <p className="mt-2 text-xs text-[#d9cffa]">{live.lastHostAction} · expires {new Date(session.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}{lastRefreshAt ? ` · updated ${new Date(lastRefreshAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}</p></details>
         </header>
         <p className={`rounded-lg border px-3 py-2 text-sm ${online ? "border-[#4b3975] text-[#d9cffa]" : "border-rose-400/40 bg-rose-500/10 text-rose-100"}`} aria-live="polite">{message}</p>
         {session.role === "host" ? (
