@@ -45,6 +45,9 @@ const guests = [{ id: "guest-1", firstName: "Rebecca", lastName: "Haine", checke
 const table = { id: "table-1", name: "Rebecca Haine", tableNumber: 6, tableUid: "tbl_1", publicCode: "TBL-TEST", capacity: 8, status: "DRAFT", shape: "round", xPosition: 40, yPosition: 40, isSponsored: false };
 const tableData = () => ({ ...table, guests: guests.filter((guest) => guest.tableId === table.id), _count: { guests: guests.filter((guest) => guest.tableId === table.id).length },
   seats: Array.from({ length: 8 }, (_, index) => { const guest = guests.find((row) => row.seatId === `seat-${index + 1}`); return { id: `seat-${index + 1}`, seatNumber: index + 1, status: guest ? "CONFIRMED" : "EMPTY", guest }; }), guestInvites: [] });
+let tableDeleted = false;
+let failTableDelete = false;
+let deleteRequests = 0;
 let failTicketLoad = false;
 let failTicketSave = false;
 let legacyTableDetails = false;
@@ -57,7 +60,7 @@ await page.route("**/api/**", async (route) => {
   if (url.pathname === "/api/events") return reply([{ ...event, id: "first-event", name: "Other Event" }, event]);
   if (url.pathname.endsWith("/ticket-types")) return failTicketLoad ? reply({ error: { message: "Ticket service unavailable" } }, 503) : reply([ticket]);
   if (url.pathname.endsWith("/emails/logs")) return reply([]);
-  if (method === "GET" && url.pathname.endsWith("/tables")) return reply([tableData()]);
+  if (method === "GET" && url.pathname.endsWith("/tables")) return reply(tableDeleted ? [] : [tableData()]);
   if (method === "GET" && url.pathname.endsWith("/tablelink/tbl_1")) {
     const detail = tableData();
     if (legacyTableDetails) { delete detail.guests; delete detail._count; }
@@ -81,6 +84,12 @@ await page.route("**/api/**", async (route) => {
   if (method === "POST" && url.pathname.endsWith("/assign-guest")) {
     const guest = guests.find((row) => row.id === body.guestId); assert.ok(guest);
     guest.seatId = url.pathname.split("/").at(-2); guest.tableId = table.id; return reply({ guest });
+  }
+  if (method === "DELETE" && url.pathname === "/api/events/tables/table-1") {
+    deleteRequests += 1;
+    if (failTableDelete) return reply({ error: { message: "Delete failed. Try again." } }, 500);
+    for (const guest of guests) { if (guest.tableId === table.id) Object.assign(guest, { tableId: null, seatId: null, seatNumber: null }); }
+    tableDeleted = true; return reply({ message: "Table deleted" });
   }
   if (method === "PATCH" && url.pathname === "/api/events/tables/table-1") {
     if ("xPosition" in body) { Object.assign(table, body); return reply(tableData()); }
@@ -155,6 +164,21 @@ try {
   await seatRow.getByRole("combobox").selectOption("guest-1");
   await seatRow.getByRole("button", { name: "Assign", exact: true }).click();
   await seatRow.getByRole("cell", { name: "Rebecca Haine", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Delete table", exact: true }).click();
+  const deleteDialog = page.getByRole("dialog", { name: "Delete Table 6?" });
+  await deleteDialog.getByRole("button", { name: "Keep table" }).click();
+  assert.equal(deleteRequests, 0);
+  await page.getByRole("button", { name: "Delete table", exact: true }).click();
+  failTableDelete = true;
+  await deleteDialog.getByRole("button", { name: "Delete and unassign guests" }).click();
+  await deleteDialog.getByRole("alert").waitFor();assert.equal(tableDeleted, false);
+  failTableDelete = false;
+  const guestCount = guests.length;
+  await deleteDialog.getByRole("button", { name: "Delete and unassign guests" }).click();
+  await page.getByText("No tables configured yet.", { exact: true }).waitFor();
+  assert.equal(await page.getByText("TableLink Studio", { exact: true }).count(), 0);
+  assert.equal(guests.length, guestCount);
+  assert.ok(guests.every(guest => !guest.tableId && !guest.seatId));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/events/selected-event/guests`);
   await page.getByRole("heading", { name: "Guest List", exact: true }).waitFor();

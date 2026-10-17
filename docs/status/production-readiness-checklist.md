@@ -1,3 +1,11 @@
+## 2026-10-17 Table merge and original-owner preservation
+
+Local merge/owner-preservation checks: 36 focused tests passed; browser fixture passed destination selection, cancellation, conflict/retry, source removal, retained guest/payment links, and no page errors. Server TypeScript passed. Tests use mocked persistence; no production merge or deployment has been performed.
+
+## 2026-10-17 Accessible table deletion
+
+Local deletion checks passed: 22 API tests including table-scoped guest unlinking and foreign-organization rejection; real browser fixture covered cancel, failed delete/retry, closing deleted details, and preserved guest count. Changes are local and require deployment.
+
 ## 2026-10-17 Unassigned guest refresh
 
 Local browser regression passed clearing/reassigning a seat and returning to Tables after an external unassignment; six seat-clearing/occupancy unit tests and page ESLint passed. Production data was not inspected or changed; deployment is still required.

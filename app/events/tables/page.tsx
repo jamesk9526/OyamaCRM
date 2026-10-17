@@ -129,6 +129,11 @@ export default function EventTablesPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingDeleteTable, setPendingDeleteTable] = useState<Table | null>(null);
   const [deletingTable, setDeletingTable] = useState(false);
+  const [deleteTableError, setDeleteTableError] = useState<string | null>(null);
+  const [mergeSource, setMergeSource] = useState<Table | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [mergingTable, setMergingTable] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
   const [tableSearch, setTableSearch] = useState("");
   const [renamingTable, setRenamingTable] = useState<Table | null>(null);
 
@@ -289,16 +294,24 @@ export default function EventTablesPage() {
 
   /** Delete table */
   async function deleteTable() {
-    if (!pendingDeleteTable) return;
+    if (!pendingDeleteTable || deletingTable) return;
     setDeletingTable(true);
     try {
       setActionError(null);
+      setDeleteTableError(null);
       await apiFetch(`/api/events/tables/${pendingDeleteTable.id}`, { method: "DELETE" });
+      if (detailTable?.id === pendingDeleteTable.id) {
+        setDetailTable(null);
+        setTableDetail(null);
+        setTableEmailLogs([]);
+        setSeatAssignmentMap({});
+        setDetailError(null);
+      }
       setPendingDeleteTable(null);
       await loadData();
     } catch (err) {
       console.error("Failed to delete table:", err);
-      setActionError(err instanceof Error ? err.message : "The table could not be deleted.");
+      setDeleteTableError(err instanceof Error ? err.message : "The table could not be deleted.");
     } finally {
       setDeletingTable(false);
     }
@@ -322,6 +335,25 @@ export default function EventTablesPage() {
       setTables(previous);
       setActionError(error instanceof Error ? error.message : "The floor-plan positions could not be saved.");
     }
+  }
+
+  async function mergeTables() {
+    if (!mergeSource || !mergeTargetId || mergingTable) return;
+    setMergingTable(true);
+    setMergeError(null);
+    try {
+      await apiFetch(`/api/events/tables/${mergeSource.id}/merge`, {
+        method: "POST", body: JSON.stringify({ targetTableId: mergeTargetId, confirmed: true }),
+      });
+      setMergeSource(null);
+      setDetailTable(null);
+      setTableDetail(null);
+      setTableEmailLogs([]);
+      setSeatAssignmentMap({});
+      await loadData();
+    } catch (error) {
+      setMergeError(error instanceof Error ? error.message : "The tables could not be merged.");
+    } finally { setMergingTable(false); }
   }
 
   async function openTableDetail(table: Table) {
@@ -637,7 +669,7 @@ export default function EventTablesPage() {
                   table={table}
                   onEdit={() => setEditingTable(table)}
                   onOpenDetails={() => void openTableDetail(table)}
-                  onDelete={() => setPendingDeleteTable(table)}
+                  onDelete={() => { setDeleteTableError(null); setPendingDeleteTable(table); }}
                   onUnassignGuest={(guestId) => assignGuestToTable(guestId, null)}
                 />
               ))}
@@ -699,6 +731,17 @@ export default function EventTablesPage() {
                   UID: {detailTable.tableUid ?? "Unavailable"} · Public Code: {detailTable.publicCode ?? "Unavailable"}
                 </p>
               </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+              <button type="button" disabled={detailBusyAction !== null || tables.length < 2 || deletingTable}
+                onClick={() => { setMergeSource(detailTable); setMergeTargetId(""); setMergeError(null); }}
+                className="rounded border border-violet-200 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50">
+                Merge tables
+              </button>
+              <button type="button" disabled={detailBusyAction !== null || deletingTable}
+                onClick={() => { setDeleteTableError(null); setPendingDeleteTable(tableDetail?.id === detailTable.id ? tableDetail : detailTable); }}
+                className="rounded border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                Delete table
+              </button>
               <button
                 onClick={() => {
                   setDetailTable(null);
@@ -710,6 +753,7 @@ export default function EventTablesPage() {
               >
                 Close
               </button>
+              </div>
             </div>
 
             {detailError ? (
@@ -987,6 +1031,28 @@ export default function EventTablesPage() {
         />
       )}
 
+      {mergeSource && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="merge-table-title">
+          <form className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl" onSubmit={(event) => { event.preventDefault(); void mergeTables(); }}>
+            <h2 id="merge-table-title" className="text-xl font-bold text-slate-950">Merge tables</h2>
+            <p className="mt-2 text-sm text-slate-700">Move everything from <strong>Table {mergeSource.tableNumber} · {mergeSource.name}</strong>, then remove that table.</p>
+            <label className="mt-4 block text-sm font-semibold text-slate-800">Table to keep
+              <select required disabled={mergingTable} value={mergeTargetId} onChange={(event) => { setMergeTargetId(event.target.value); setMergeError(null); }} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2">
+                <option value="">Choose the table number to keep</option>
+                {tables.filter((table) => table.id !== mergeSource.id).map((table) => <option key={table.id} value={table.id}>Table {table.tableNumber} · {table.name}</option>)}
+              </select>
+            </label>
+            {mergeTargetId ? <p className="mt-3 rounded bg-violet-50 p-3 text-sm text-violet-950">Keep Table {tables.find((table) => table.id === mergeTargetId)?.tableNumber}. Remove Table {mergeSource.tableNumber}. Capacity increases to retain both tables’ seats.</p> : null}
+            <p className="mt-3 text-sm leading-6 text-slate-600">Guests, seat records, invitations, and check-in history move to the kept table. Payment records and balances stay with their guests. The removed table’s host access links are revoked.</p>
+            {mergeError ? <p role="alert" className="mt-3 text-sm text-rose-700">{mergeError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={mergingTable} onClick={() => setMergeSource(null)} className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
+              <button type="submit" disabled={!mergeTargetId || mergingTable} className="rounded bg-violet-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{mergingTable ? "Merging…" : "Confirm merge"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {pendingDeleteTable && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-table-title">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
@@ -995,8 +1061,9 @@ export default function EventTablesPage() {
               Delete {pendingDeleteTable.tableNumber != null ? `Table ${pendingDeleteTable.tableNumber}` : pendingDeleteTable.name}?
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              The table and its seat layout will be removed. Its {pendingDeleteTable._count.guests} assigned guest{pendingDeleteTable._count.guests === 1 ? "" : "s"} will stay on the event roster and become unassigned.
+              The table and its seat layout will be removed. Its guests will stay on the event roster and become unassigned. Original owner details are kept in guest notes and the audit history. Guest records, payments, and check-in history are kept. This table’s invitation and access links will stop working.
             </p>
+            {deleteTableError ? <p role="alert" className="mt-3 text-sm text-rose-700">{deleteTableError}</p> : null}
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"

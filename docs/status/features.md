@@ -1,3 +1,11 @@
+## 2026-10-17 Table merge and original-owner preservation
+
+Table details includes Merge tables: choose a destination table number to keep and confirm removal of the source. A serializable transaction moves existing guests, seats, invitations, check-in records/exceptions, and email history. Capacity expands to retain seats; the destination identity stays. Source notes/host/sponsor details are retained in destination notes and transactional audit history. Orders, payments, and guest IDs are preserved; source host access is revoked. Trivia scores remain separate. Table deletion now retains original owner details in guest notes and transactional audit history before unassigning guests.
+
+## 2026-10-17 Accessible table deletion
+
+Table details now exposes Delete table directly, using the existing confirmation and transactional deletion endpoint. Guests become unassigned; guest records, orders/payments, and check-in history remain. Table seats and table-specific invite/access links are removed. Successful deletion closes the details panel; failures remain visible in the confirmation dialog.
+
 ## 2026-10-17 Unassigned guest refresh
 
 Tables now refresh uncached seating data on focus, visibility return, and opening table details. A shared request guard prevents older reads from replacing a newer assignable guest list. Visible Unassigned guests and Refresh seating controls expose the placement workflow.

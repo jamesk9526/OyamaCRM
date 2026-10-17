@@ -18,6 +18,7 @@ import { createEventStripeCheckout, EventStripeCheckoutError } from "../services
 import { withOrderPaymentStatus } from "../services/event-guest-payment.js";
 import { reconcileEventStripePayment, EventStripeReconciliationError } from "../services/event-stripe-reconciliation.js";
 import { createEventTable } from "../services/event-table-service.js";
+import { mergeEventTables, TableMergeError } from "../services/event-table-merge.js";
 import { createCheckInRecord, reverseCheckIn, getCheckInLiveCounts } from "../services/checkin-service.js";
 import { createCheckInException, dismissCheckInException, listCheckInExceptions, resolveCheckInException } from "../services/checkin-exception-service.js";
 import { createEventEmailLog, listEventEmailLogs, setEventEmailLogStatus } from "../services/event-email-service.js";
@@ -4681,6 +4682,26 @@ router.patch("/tables/:tableId", async (req, res) => {
   res.json(updated);
 });
 
+/** POST /api/events/tables/:tableId/merge — move into a chosen surviving table. */
+router.post("/tables/:tableId/merge", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  if (!organizationId) { res.status(403).json({ error: { message: "No organization configured." } }); return; }
+  const targetId = typeof req.body?.targetTableId === "string" ? req.body.targetTableId.trim() : "";
+  if (!targetId || req.body?.confirmed !== true) {
+    res.status(400).json({ error: { message: "Choose the table to keep and confirm the merge." } }); return;
+  }
+  try {
+    res.json(await mergeEventTables({ organizationId, sourceId: String(req.params.tableId), targetId }));
+  } catch (error) {
+    if (error instanceof TableMergeError) { res.status(error.status).json({ error: { message: error.message } }); return; }
+    if (error && typeof error === "object" && "code" in error && ["P2034", "P2002", "P2003"].includes(String(error.code))) {
+      res.status(409).json({ error: { message: "Seating changed during the merge. Refresh and try again; no partial merge was saved." } }); return;
+    }
+    console.error("Table merge failed", error);
+    res.status(500).json({ error: { message: "The tables could not be merged. No partial merge was saved." } });
+  }
+});
+
 /** DELETE /api/events/tables/:tableId — Delete a table (unassigns guests first). */
 router.delete("/tables/:tableId", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
@@ -4701,6 +4722,24 @@ router.delete("/tables/:tableId", async (req, res) => {
 
   // Clear dependents introduced by TableLink schema before deleting table.
   await prisma.$transaction(async (tx) => {
+    // Retain the original host/sponsor and table details durably before removal.
+    const originalTable = Object.fromEntries(Object.entries(table).filter(([key]) => key !== "event"));
+    await tx.auditLog.create({ data: {
+      action: "EVENT_TABLE_REMOVED", entity: "EventTable", entityId: table.id,
+      organizationId, userId: req.user?.sub ?? null,
+      metadata: JSON.parse(JSON.stringify({ originalTable, purpose: "Guest reassignment" })),
+    } });
+    const ownerReference = [
+      `Original table: ${table.tableNumber ?? ""} · ${table.name}`,
+      table.hostName ? `Original host: ${table.hostName}` : null,
+      table.hostEmail ? `Original host email: ${table.hostEmail}` : null,
+      table.hostPhone ? `Original host phone: ${table.hostPhone}` : null,
+      table.sponsorName ? `Original sponsor: ${table.sponsorName}` : null,
+    ].filter(Boolean).join("\n");
+    const tableGuests = await tx.eventGuest.findMany({ where: { tableId: table.id }, select: { id: true, notes: true } });
+    for (const guest of tableGuests) await tx.eventGuest.update({ where: { id: guest.id }, data: {
+      notes: [guest.notes, ownerReference].filter(Boolean).join("\n\n"),
+    } });
     await tx.eventGuest.updateMany({
       where: { tableId: req.params.tableId },
       data: { tableId: null, seatId: null, seatNumber: null },

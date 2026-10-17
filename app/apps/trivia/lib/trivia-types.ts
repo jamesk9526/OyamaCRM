@@ -157,6 +157,8 @@ export interface TriviaTeam {
   notes?: string;
   /** Durable EventSTUDIO table record backing this trivia team. */
   eventsTableId?: string;
+  /** Seating merged separately; keep this game team's history independent. */
+  eventsTableMergedIntoId?: string;
   /** EventSTUDIO guest records represented by the player list. */
   eventsGuestIds?: string[];
 }

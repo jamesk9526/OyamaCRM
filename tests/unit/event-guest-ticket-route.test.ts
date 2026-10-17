@@ -6,8 +6,13 @@ import events from "@/server/src/routes/events";
 
 const db = vi.hoisted(() => ({
   event: { findFirst: vi.fn() }, ticketType: { findFirst: vi.fn() },
-  eventTable: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-  eventGuest: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+  eventTable: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  eventGuest: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  eventGuestInvite: { deleteMany: vi.fn() },
+  eventTableAccessToken: { deleteMany: vi.fn() },
+  eventTableSeat: { deleteMany: vi.fn() },
+  $transaction: vi.fn(),
+  auditLog: { create: vi.fn() },
   activity: { create: vi.fn() },
 }));
 const checkIn = vi.hoisted(() => vi.fn());
@@ -26,6 +31,8 @@ app.use("/api/events", events);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.$transaction.mockImplementation(async (callback) => callback(db));
+  db.eventGuest.findMany.mockResolvedValue([]);
   db.event.findFirst.mockResolvedValue({ id: "event-1", organizationId: "org-1" });
   db.eventGuest.findFirst.mockResolvedValue({ id: "guest-1", eventId: "event-1", ticketTypeId: null, event: { organizationId: "org-1" } });
   db.eventGuest.findUnique.mockResolvedValue(null);
@@ -38,6 +45,28 @@ beforeEach(() => {
 });
 
 describe("table operation boundaries", () => {
+  it("deletes only the chosen table and its layout while retaining guest records", async () => {
+    db.eventTable.findFirst.mockResolvedValue({ id: "table-1", name: "Original table", tableNumber: 2, hostName: "Original Owner", hostEmail: "owner@example.test", event: { organizationId: "org-1" } });
+    db.eventGuest.findMany.mockResolvedValue([{ id: "guest-1", notes: "Existing note" }]);
+    const response = await request(app).delete("/api/events/tables/table-1");
+    expect(response.status).toBe(200);
+    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(db.auditLog.create.mock.calls[0][0].data.metadata.originalTable).toMatchObject({ hostName: "Original Owner", hostEmail: "owner@example.test" });
+    expect(db.eventGuest.update).toHaveBeenCalledWith({ where: { id: "guest-1" }, data: { notes: expect.stringContaining("Existing note\n\nOriginal table: 2 · Original table\nOriginal host: Original Owner") } });
+    expect(db.eventGuest.updateMany).toHaveBeenCalledWith({
+      where: { tableId: "table-1" }, data: { tableId: null, seatId: null, seatNumber: null },
+    });
+    expect(db.eventTable.delete).toHaveBeenCalledWith({ where: { id: "table-1" } });
+    expect(db.eventTableSeat.deleteMany).toHaveBeenCalledWith({ where: { tableId: "table-1" } });
+    expect(db.eventGuestInvite.deleteMany).toHaveBeenCalledWith({ where: { tableId: "table-1" } });
+    expect(db.eventTableAccessToken.deleteMany).toHaveBeenCalledWith({ where: { tableId: "table-1" } });
+  });
+  it("does not delete another organization's table", async () => {
+    db.eventTable.findFirst.mockResolvedValue({ event: { organizationId: "other-org" } });
+    expect((await request(app).delete("/api/events/tables/table-1")).status).toBe(404);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
   it("returns table-linked guests with the seat roster in table details", async () => {
     db.eventTable.findFirst.mockImplementation(async ({ include }) => ({
       id: "table-1", capacity: 8, seats: [], guestInvites: [],

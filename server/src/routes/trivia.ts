@@ -490,7 +490,10 @@ async function syncTriviaEventFromOyamaEvents(
     };
   });
 
-  triviaEvent.teams = normalizeRosterTableNumbers(nextTeams);
+  // Seating-only table merges retain independent game teams and their scores.
+  triviaEvent.teams = normalizeRosterTableNumbers([
+    ...nextTeams, ...currentTeams.filter((team) => team.eventsTableMergedIntoId),
+  ]);
   triviaEvent.linkedEventsEventName = linkedEvent.name;
   triviaEvent.eventsSyncError = null;
   if (!String(triviaEvent.venue ?? "").trim() && linkedEvent.location) triviaEvent.venue = linkedEvent.location;
@@ -515,6 +518,7 @@ async function syncTriviaEventToOyamaEvents(organizationId: string, triviaEvent:
   });
 
   for (const [teamIndex, team] of teams.entries()) {
+    if (team.eventsTableMergedIntoId) continue;
     const tableNumber = Number(normalizeTableNumber(team.tableNumber));
     let table = eventTables.find((candidate) => candidate.id === team.eventsTableId)
       ?? eventTables.find((candidate) => candidate.tableNumber === tableNumber)
@@ -1322,6 +1326,12 @@ router.put("/state", async (req, res) => {
   incomingState.events = incomingEvents.map((incomingEvent: JsonObject) => {
     const currentEvent = currentEvents.find((candidate) => candidate.id === incomingEvent.id);
     if (!currentEvent) return normalizeTriviaEventContent(incomingEvent);
+    // Older browser snapshots cannot reattach a team to a removed seating table.
+    const currentTeams = Array.isArray(currentEvent.teams) ? currentEvent.teams.filter(isObject) : [];
+    if (Array.isArray(incomingEvent.teams)) incomingEvent.teams = incomingEvent.teams.filter(isObject).map((team) => {
+      const current = currentTeams.find((candidate) => candidate.id === team.id);
+      return current?.eventsTableMergedIntoId ? { ...team, eventsTableId: undefined, eventsTableMergedIntoId: current.eventsTableMergedIntoId } : team;
+    });
     const currentUpdatedAt = new Date(String(currentEvent.updatedAt ?? 0)).getTime();
     const incomingUpdatedAt = new Date(String(incomingEvent.updatedAt ?? 0)).getTime();
     const reconciled = currentUpdatedAt > incomingUpdatedAt ? { ...incomingEvent, status: currentEvent.status, teams: clone(Array.isArray(currentEvent.teams) ? currentEvent.teams : []), updatedAt: currentEvent.updatedAt } : incomingEvent;

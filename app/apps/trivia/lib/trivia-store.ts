@@ -158,6 +158,9 @@ function normalizeTeam(input: TriviaTeam, index: number): TriviaTeam {
     payerName: input.payerName ?? "",
     payerEmail: input.payerEmail ?? "",
     notes: input.notes ?? "",
+    eventsTableId: input.eventsTableId,
+    eventsGuestIds: input.eventsGuestIds,
+    eventsTableMergedIntoId: input.eventsTableMergedIntoId,
   };
 }
 
