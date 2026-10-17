@@ -28,6 +28,11 @@ export function getActiveQuestion(event: TriviaEvent, live: TriviaLiveState): Tr
   return round.questions[live.activeQuestionIndex] ?? null;
 }
 
+/** The live timer value is authoritative, so a host can disable a configured timer for this question. */
+export function isTriviaQuestionTimerEnabled(live: TriviaLiveState): boolean {
+  return Number.isFinite(live.timerDefaultSec) && live.timerDefaultSec > 0;
+}
+
 /** Returns leaderboard-sorted team list for display and score panels. */
 export function getSortedTeams(teams: TriviaTeam[]): TriviaTeam[] {
   return [...teams]

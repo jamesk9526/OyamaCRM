@@ -1,11 +1,11 @@
 import type { TriviaEvent, TriviaLiveState } from "@/app/apps/trivia/lib/trivia-types";
-import { getActiveQuestion, getActiveRound, getWinnerTeam } from "@/app/apps/trivia/lib/trivia-selectors";
+import { getActiveQuestion, getActiveRound, getWinnerTeam, isTriviaQuestionTimerEnabled } from "@/app/apps/trivia/lib/trivia-selectors";
 
 /** Text preview follows the selected projector stage; private notes never appear here. */
 export default function TriviaHostAudiencePreview({ event, live }: { event: TriviaEvent; live: TriviaLiveState }) {
   const round = getActiveRound(event, live);
   const question = getActiveQuestion(event, live);
-  const timerEnabled = (question?.timeLimitSec ?? live.timerDefaultSec) > 0;
+  const timerEnabled = isTriviaQuestionTimerEnabled(live);
   const questionVisible = ["question", "final_question", "tiebreaker", "answer", "explanation"].includes(live.stage)
     || (live.stage === "timer_only" && !timerEnabled);
   const answerVisible = live.stage === "answer" || live.stage === "explanation";

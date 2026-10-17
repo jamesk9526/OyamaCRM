@@ -51,7 +51,7 @@ const bundle = await build({
           onSetStage={stage=>update({stage,answerRevealed:stage==='answer',...(!['question','timer_only','final_question','tiebreaker'].includes(stage)?{timerRunning:false,timerEndsAt:null}:{})})}
           onShowWinner={()=>update({stage:'winner'})}
           onSetTimerRunning={timerRunning=>update({timerRunning,timerRemainingSec:live.timerEndsAt?Math.max(0,Math.ceil((Date.parse(live.timerEndsAt)-Date.now())/1000)):live.timerRemainingSec,timerEndsAt:timerRunning?new Date(Date.now()+live.timerRemainingSec*1000).toISOString():null})}
-          onResetTimer={()=>update({timerRemainingSec:30,timerRunning:false,timerEndsAt:null})}
+          onResetTimer={(seconds=30)=>update({timerDefaultSec:seconds,timerRemainingSec:seconds,timerRunning:false,timerEndsAt:null})}
           onProjectorOpened={()=>{}}
           onCreateCheckpoint={async()=>{throw new Error('Fixture checkpoint unavailable')}} />
       </main>
@@ -75,6 +75,9 @@ try {
   await page.clock.install();
   await page.getByRole("button", { name: "Show question", exact: true }).waitFor();
   await page.getByText("Selected question · not on display", { exact: true }).waitFor();
+  const questionNav = page.getByRole("group", { name: "Question navigation" });
+  assert.equal(await questionNav.getByRole("button", { name: "Previous question", exact: true }).isDisabled(), true);
+  assert.equal(await questionNav.getByRole("button", { name: "Next question", exact: true }).isEnabled(), true);
   assert.equal(await page.getByRole("button", { name: "Final winner screen", exact: true }).isVisible(), false);
   await page.getByText("More display controls", { exact: true }).click();
   const winner = page.getByRole("button", { name: "Final winner screen", exact: true });
@@ -106,16 +109,28 @@ try {
   await page.getByRole("button", { name: "Pause timer", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Pause timer", exact: true }).isDisabled(), true);
   await page.getByRole("button", { name: "Resume timer", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Remove timer", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm remove timer", exact: true }).click();
+  await page.getByRole("heading", { name: "Untimed question", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Restore 30s timer", exact: true }).isVisible(), true);
+  await page.getByRole("button", { name: "Restore 30s timer", exact: true }).click();
+  await page.getByRole("button", { name: "Start timer", exact: true }).waitFor();
   await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).click();
   await page.getByRole("button", { name: "Confirm reveal answer", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fixture external question", exact: true }).click();
   await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).waitFor();
+  await questionNav.getByRole("button", { name: "Next question", exact: true }).click();
+  await questionNav.getByRole("button", { name: "Confirm next", exact: true }).click();
+  assert.equal(await page.getByText("3 / 3", { exact: true }).count(), 1);
+  await questionNav.getByRole("button", { name: "Previous question", exact: true }).click();
+  await questionNav.getByRole("button", { name: "Confirm previous", exact: true }).click();
+  assert.equal(await page.getByText("2 / 3", { exact: true }).count(), 1);
   await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "question");
   await page.getByRole("button", { name: "Confirm reveal answer", exact: true }).click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "answer");
   await audiencePreview.getByText(/^Correct answer:/).first().waitFor();
-  await page.getByRole("button", { name: "Next question", exact: true }).click();
+  await page.getByRole("button", { name: "Next question", exact: true }).last().click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "question");
   await page.getByRole("button", { name: "Fixture failed save", exact: true }).click();
   await page.getByText("Fixture save unavailable", { exact: true }).waitFor();

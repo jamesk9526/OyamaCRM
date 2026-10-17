@@ -101,7 +101,7 @@ export default function TriviaHostPage() {
           setWinner(event.id, sorted[0]?.id ?? null);
         }}
         onSetTimerRunning={(running) => setTimerRunning(event.id, running)}
-        onResetTimer={() => resetTimer(event.id)}
+        onResetTimer={(seconds) => resetTimer(event.id, seconds)}
         onProjectorOpened={() => markProjectorOpened(event.id)}
         onCreateCheckpoint={() => createEventSnapshot(event.id, `Host checkpoint · ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`).then(() => undefined)}
         connectionStatus={connectionStatus}

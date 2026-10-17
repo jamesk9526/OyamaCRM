@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { TriviaConnectionStatus, TriviaDisplayStage, TriviaEvent, TriviaLiveState } from "@/app/apps/trivia/lib/trivia-types";
-import { getActiveQuestion, getActiveRound, getSortedTeams } from "@/app/apps/trivia/lib/trivia-selectors";
+import { getActiveQuestion, getActiveRound, getSortedTeams, isTriviaQuestionTimerEnabled } from "@/app/apps/trivia/lib/trivia-selectors";
 import { getTriviaHostFlow } from "@/app/apps/trivia/lib/trivia-host-flow";
 import { useTriviaCountdown } from "@/app/apps/trivia/hooks/useTriviaCountdown";
 import TriviaHostAudiencePreview from "./TriviaHostAudiencePreview";
@@ -16,7 +16,7 @@ interface HostControlPanelProps {
   onSetStage: (stage: TriviaDisplayStage) => void;
   onShowWinner: () => void;
   onSetTimerRunning: (running: boolean) => void;
-  onResetTimer: () => void;
+  onResetTimer: (seconds?: number) => void;
   /** Records a display launch request; it is not a projector acknowledgement. */
   onProjectorOpened: () => void;
   onCreateCheckpoint?: () => Promise<void>;
@@ -102,16 +102,17 @@ export default function HostControlPanel({
   const nextQuestion = nextQuestionRound?.questions[nextQuestionIndex];
   const nextQuestionRoundNumber = nextQuestionRound ? event.rounds.findIndex((round) => round.id === nextQuestionRound.id) + 1 : 0;
   const questionOnDisplay = ["question", "final_question", "tiebreaker", "answer", "explanation"].includes(live.stage)
-    || (live.stage === "timer_only" && (activeQuestion?.timeLimitSec ?? live.timerDefaultSec) <= 0);
+    || (live.stage === "timer_only" && !isTriviaQuestionTimerEnabled(live));
   const rankedTeams = getSortedTeams(event.teams);
   const leadingTeam = rankedTeams[0];
   const tiedLeaders = leadingTeam ? rankedTeams.filter((team) => team.score === leadingTeam.score) : [];
   const winnerReady = tiedLeaders.length === 1;
-  const timerEnabled = (activeQuestion?.timeLimitSec ?? live.timerDefaultSec) > 0;
+  const timerEnabled = isTriviaQuestionTimerEnabled(live);
   const sharedStateSafe = serverSyncEnabled && connectionStatus === "connected";
   const controlsDisabled = !sharedStateSafe || saving;
   const actionClass = "min-h-12 touch-manipulation border px-3 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45";
   const secondaryClass = `${actionClass} border-slate-600 bg-slate-800 text-white hover:bg-slate-700`;
+  const questionNavClass = "min-h-9 touch-manipulation border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-45";
 
   return (
     <section className="space-y-3" aria-label="Live host controls">
@@ -137,6 +138,15 @@ export default function HostControlPanel({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.4fr)]">
         <article className="min-w-0 space-y-4 border border-slate-700 bg-slate-900/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-200">{flow.state}</h2><span className="text-xs text-slate-300">{activeRound?.title || "No round"} · Question {questionCount ? live.activeQuestionIndex + 1 : 0} of {questionCount}</span></div>
+          <div role="group" aria-label="Question navigation" className="flex items-center justify-between gap-2">
+            <button type="button" disabled={controlsDisabled || !activeQuestion || live.activeQuestionIndex <= 0} onClick={() => runGuarded("previous-question", onPreviousQuestion)} className={questionNavClass}>
+              {confirmationKey === "previous-question" ? "Confirm previous" : "Previous question"}
+            </button>
+            <span className="text-xs tabular-nums text-slate-400">{questionCount ? `${live.activeQuestionIndex + 1} / ${questionCount}` : "0 / 0"}</span>
+            <button type="button" disabled={controlsDisabled || !activeQuestion || live.activeQuestionIndex >= questionCount - 1} onClick={() => live.stage === "answer" || live.stage === "explanation" ? onNextQuestion() : runGuarded("skip-question", onNextQuestion)} className={questionNavClass}>
+              {confirmationKey === "skip-question" ? "Confirm next" : "Next question"}
+            </button>
+          </div>
           <TriviaHostAudiencePreview event={event} live={live} />
           {!questionOnDisplay ? (
             <section aria-label="Selected question" className="space-y-1">
@@ -156,13 +166,21 @@ export default function HostControlPanel({
               </>
             ) : <p className="text-sm text-slate-300">{followingRound ? `Next round: ${followingRound.title}. No questions added yet.` : "End of the game · review scores next."}</p>}
           </section>
-          {activeQuestion ? <details className="border border-slate-700 p-3"><summary className="cursor-pointer text-sm font-semibold text-cyan-100">Host reference · answer and notes</summary><p className="mt-2 text-xs text-slate-400">Private reference. Opening this does not reveal the answer.</p><p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">Scoring answer: {activeQuestion.scoringAnswer || "No scoring answer entered"}</p>{activeQuestion.acceptedAnswers.length ? <p className="mt-2 text-sm text-slate-200">Also accept: {activeQuestion.acceptedAnswers.join("; ")}</p> : null}{activeQuestion.hostNotes ? <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{activeQuestion.hostNotes}</p> : null}<p className="mt-2 text-xs text-slate-300">{activeQuestion.points} points · {timerEnabled ? `${activeQuestion.timeLimitSec}s` : "Untimed"}</p></details> : null}
+          {activeQuestion ? <details className="border border-slate-700 p-3"><summary className="cursor-pointer text-sm font-semibold text-cyan-100">Host reference · answer and notes</summary><p className="mt-2 text-xs text-slate-400">Private reference. Opening this does not reveal the answer.</p><p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">Scoring answer: {activeQuestion.scoringAnswer || "No scoring answer entered"}</p>{activeQuestion.acceptedAnswers.length ? <p className="mt-2 text-sm text-slate-200">Also accept: {activeQuestion.acceptedAnswers.join("; ")}</p> : null}{activeQuestion.hostNotes ? <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{activeQuestion.hostNotes}</p> : null}<p className="mt-2 text-xs text-slate-300">{activeQuestion.points} points · {timerEnabled ? `${live.timerDefaultSec}s` : "Untimed"}</p></details> : null}
         </article>
 
         <aside className="space-y-3 border border-slate-700 bg-slate-900/60 p-4" aria-label="Timer and safety">
-          {timerEnabled ? <div className={`border p-4 text-center ${remaining <= 5 && live.timerRunning ? "border-rose-400 bg-rose-500/15" : "border-slate-700 bg-slate-950"}`}><h3 className="text-xs uppercase tracking-wide text-slate-400">Question timer</h3><p className="mt-1 text-5xl font-bold tabular-nums text-emerald-300" aria-label="Timer remaining">{remaining}s</p><p className="mt-2 text-sm text-slate-300">{remaining <= 0 ? "Time up" : live.timerRunning ? "Running" : "Paused"}</p></div> : <div className="border border-cyan-400/35 bg-cyan-500/10 p-4 text-center"><h3 className="text-sm font-semibold text-cyan-100">Untimed question</h3><p className="mt-1 text-xs text-slate-300">Reveal when the room is ready.</p></div>}
-          {timerEnabled ? <button type="button" disabled={!live.timerRunning || remaining <= 0} onClick={() => onSetTimerRunning(false)} className={`${secondaryClass} w-full`}>Pause timer</button> : null}
-          <button type="button" onClick={() => { window.open(`/apps/trivia/display/${event.id}`, "_blank", "noopener,noreferrer,width=1680,height=950"); onProjectorOpened(); }} className={`${secondaryClass} w-full`}>Open projector display</button>
+          {timerEnabled ? <div className={`border p-4 text-center ${remaining <= 5 && live.timerRunning ? "border-rose-400 bg-rose-500/15" : "border-slate-700 bg-slate-950"}`}><h3 className="text-xs uppercase tracking-wide text-slate-400">Question timer</h3><p className="mt-1 text-5xl font-bold tabular-nums text-emerald-300" aria-label="Timer remaining">{remaining}s</p><p className="mt-2 text-sm text-slate-300">{remaining <= 0 ? "Time up" : live.timerRunning ? "Running" : "Paused"}</p></div> : null}
+          {timerEnabled ? <>
+            <button type="button" disabled={controlsDisabled || !live.timerRunning || remaining <= 0} onClick={() => onSetTimerRunning(false)} className={`${secondaryClass} w-full`}>Pause timer</button>
+            <button type="button" disabled={controlsDisabled || !activeQuestion} onClick={() => runGuarded("remove-timer", () => onResetTimer(0))} className={`${secondaryClass} w-full`}>
+              {confirmationKey === "remove-timer" ? "Confirm remove timer" : "Remove timer"}
+            </button>
+          </> : <>
+            {activeQuestion?.timeLimitSec && activeQuestion.timeLimitSec > 0 ? <button type="button" disabled={controlsDisabled} onClick={() => onResetTimer(activeQuestion.timeLimitSec)} className={`${secondaryClass} w-full`}>Restore {activeQuestion.timeLimitSec}s timer</button> : null}
+            <div className="border border-cyan-400/35 bg-cyan-500/10 p-4 text-center"><h3 className="text-sm font-semibold text-cyan-100">Untimed question</h3><p className="mt-1 text-xs text-slate-300">{activeQuestion?.timeLimitSec && activeQuestion.timeLimitSec > 0 ? "Timer removed for this question. It returns when you switch away." : "Reveal when the room is ready."}</p></div>
+          </>}
+          <button type="button" disabled={controlsDisabled} onClick={() => { window.open(`/apps/trivia/display/${event.id}`, "_blank", "noopener,noreferrer,width=1680,height=950"); onProjectorOpened(); }} className={`${secondaryClass} w-full`}>Open projector display</button>
           <p className="text-xs text-slate-400">{live.displayOpenedAt ? "Display launch requested. Check the display window." : "Open the display on the projector before starting."}</p>
         </aside>
       </div>
@@ -195,7 +213,7 @@ export default function HostControlPanel({
 
       <details className="border border-slate-700 bg-slate-900/60 p-4">
         <summary className="cursor-pointer text-sm font-semibold text-white">Round navigation and recovery</summary>
-        <p className="mt-2 text-xs text-slate-300">Round changes reset the question and clock. Previous/skip and timer reset require confirmation.</p>
+        <p className="mt-2 text-xs text-slate-300">Round changes reset the question and clock. Timer reset requires confirmation.</p>
         <div className="mt-3 space-y-3">
           <label className="block text-sm text-slate-200">
             Jump to round
@@ -213,19 +231,11 @@ export default function HostControlPanel({
               {confirmationKey === "change-round" ? "Confirm round change" : "Change round"}
             </button>
           ) : null}
-          <div className="grid gap-2 sm:grid-cols-3">
-            <button type="button" disabled={controlsDisabled || live.activeQuestionIndex <= 0} onClick={() => runGuarded("previous-question", onPreviousQuestion)} className={secondaryClass}>
-              {confirmationKey === "previous-question" ? "Confirm previous" : "Previous question"}
+          {timerEnabled ? (
+            <button type="button" disabled={controlsDisabled || !activeQuestion} onClick={() => runGuarded("reset-timer", onResetTimer)} className={secondaryClass}>
+              {confirmationKey === "reset-timer" ? "Confirm timer reset" : "Reset timer"}
             </button>
-            <button type="button" disabled={controlsDisabled || live.activeQuestionIndex >= questionCount - 1} onClick={() => runGuarded("skip-question", onNextQuestion)} className={secondaryClass}>
-              {confirmationKey === "skip-question" ? "Confirm skip" : "Skip question"}
-            </button>
-            {timerEnabled ? (
-              <button type="button" disabled={controlsDisabled || !activeQuestion} onClick={() => runGuarded("reset-timer", onResetTimer)} className={secondaryClass}>
-                {confirmationKey === "reset-timer" ? "Confirm timer reset" : "Reset timer"}
-              </button>
-            ) : null}
-          </div>
+          ) : null}
           {onCreateCheckpoint ? (
             <button type="button" disabled={checkpointBusy || controlsDisabled} onClick={() => void createCheckpoint()} className={secondaryClass}>
               {checkpointBusy ? "Saving checkpoint…" : "Save safety checkpoint"}

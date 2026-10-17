@@ -28,6 +28,14 @@ describe("temporary Trivia host commands", () => {
     if (next.ok) expect(applyRemoteTriviaHostAction(event, next.live, "timer_start", {}, "now").ok).toBe(false);
     expect(run("timer_start", {}, { ...live, timerRemainingSec: 0 }).ok).toBe(false);
   });
+  it("removes the active question timer and restores the configured timer on question change", () => {
+    const untimed = run("timer_reset", { seconds: 0 }, { ...live, timerEndsAt: "2026-10-16T18:00:10.000Z" });
+    expect(untimed).toMatchObject({ ok: true, live: { timerDefaultSec: 0, timerRemainingSec: 0, timerRunning: false, timerEndsAt: null } });
+    if (untimed.ok) {
+      expect(run("set_question", { questionIndex: 1 }, untimed.live)).toMatchObject({ ok: true, live: { timerDefaultSec: 0, timerRemainingSec: 0 } });
+      expect(run("set_question", { questionIndex: 0 }, untimed.live)).toMatchObject({ ok: true, live: { timerDefaultSec: 15, timerRemainingSec: 15 } });
+    }
+  });
   it("validates round, projector stage, action, and missing question", () => {
     expect(run("set_round", { roundId: "missing" }).ok).toBe(false);
     expect(run("set_stage", { stage: "invalid" }).ok).toBe(false);

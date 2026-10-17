@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { TriviaEvent, TriviaLiveState } from "@/app/apps/trivia/lib/trivia-types";
-import { getActiveQuestion, getActiveRound, getSortedTeams, getWinnerTeam } from "@/app/apps/trivia/lib/trivia-selectors";
+import { getActiveQuestion, getActiveRound, getSortedTeams, getWinnerTeam, isTriviaQuestionTimerEnabled } from "@/app/apps/trivia/lib/trivia-selectors";
 import { useTriviaCountdown } from "@/app/apps/trivia/hooks/useTriviaCountdown";
 
 interface ProjectorDisplayViewProps {
@@ -34,7 +34,7 @@ function Timer({ live, compact = false, clockOffsetMs = 0 }: { live: TriviaLiveS
 export default function ProjectorDisplayView({ event, live, clockOffsetMs = 0 }: ProjectorDisplayViewProps) {
   const round = getActiveRound(event, live);
   const question = getActiveQuestion(event, live);
-  const timerEnabled = (question?.timeLimitSec ?? live.timerDefaultSec) > 0;
+  const timerEnabled = isTriviaQuestionTimerEnabled(live);
   const teams = getSortedTeams(event.teams);
   const winner = getWinnerTeam(event, live);
 

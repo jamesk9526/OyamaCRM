@@ -24,9 +24,9 @@ export function getTriviaHostFlow(event: TriviaEvent, live: TriviaLiveState, rem
       : { state: "Round complete", action: "leaderboard", label: "Show leaderboard", hint: "Review scores before announcing the winner in More display controls." };
   }
   if (!["question", "timer_only", "final_question", "tiebreaker"].includes(live.stage)) return { state: "Ready", action: "show_question", label: "Show question", hint: "Show the selected question. The timer stays paused until you start it." };
-  if (question.timeLimitSec <= 0) return { state: "Untimed question", action: "reveal", label: "Reveal answer", hint: "Reveal when the room is ready. A second tap confirms the reveal." };
+  if (live.timerDefaultSec <= 0) return { state: "Untimed question", action: "reveal", label: "Reveal answer", hint: "Reveal when the room is ready. A second tap confirms the reveal." };
   if (remaining <= 0) return { state: "Time up", action: "reveal", label: "Reveal answer", hint: "The countdown has ended. Confirm when you are ready to reveal." };
   if (live.timerRunning) return { state: "Timer running", action: "reveal", label: "Reveal answer", hint: "Pause the clock if needed, or confirm the answer reveal to stop it." };
-  const paused = remaining < question.timeLimitSec;
+  const paused = remaining < live.timerDefaultSec;
   return { state: paused ? "Timer paused" : "Question ready", action: "start_timer", label: paused ? "Resume timer" : "Start timer", hint: "The question is on the audience display. Start the clock when you finish reading." };
 }

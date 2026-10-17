@@ -21,8 +21,15 @@ describe("guided trivia host flow", () => {
   it("resumes a paused clock and skips timer controls for untimed questions", () => {
     const event = createSampleTriviaEvent("host-flow");
     const live = { ...createDefaultLiveState(event), stage: "question" as const };
-    expect(getTriviaHostFlow(event, live, 12)).toMatchObject({ state: "Timer paused", label: "Resume timer" });
+    expect(getTriviaHostFlow(event, { ...live, timerDefaultSec: 30 }, 12)).toMatchObject({ state: "Timer paused", label: "Resume timer" });
     event.rounds[0].questions[0].timeLimitSec = 0;
+    expect(getTriviaHostFlow(event, { ...live, timerDefaultSec: 0 }, 0)).toMatchObject({ state: "Untimed question", action: "reveal" });
+  });
+
+  it("treats the live timer setting as authoritative when the host removes a question timer", () => {
+    const event = createSampleTriviaEvent("host-flow");
+    const live = { ...createDefaultLiveState(event), stage: "question" as const, timerDefaultSec: 0, timerRemainingSec: 0 };
+    expect(event.rounds[0].questions[0].timeLimitSec).toBeGreaterThan(0);
     expect(getTriviaHostFlow(event, live, 0)).toMatchObject({ state: "Untimed question", action: "reveal" });
   });
 
