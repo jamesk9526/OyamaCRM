@@ -10,27 +10,27 @@ describe("guided trivia host flow", () => {
     expect(flow).toMatchObject({ state: "Ready", action: "show_question", label: "Show question" });
   });
 
-  it("starts a displayed timed question, then offers reveal while the timer runs", () => {
+  it("offers reveal for legacy timed questions without starting a timer", () => {
     const event = createSampleTriviaEvent("host-flow");
     const live = { ...createDefaultLiveState(event), stage: "question" as const };
-    expect(getTriviaHostFlow(event, live, 30).action).toBe("start_timer");
-    expect(getTriviaHostFlow(event, { ...live, timerRunning: true }, 12)).toMatchObject({ state: "Timer running", action: "reveal" });
-    expect(getTriviaHostFlow(event, { ...live, timerRunning: true }, 0)).toMatchObject({ state: "Time up", action: "reveal" });
+    expect(getTriviaHostFlow(event, live, 30).action).toBe("reveal");
+    expect(getTriviaHostFlow(event, { ...live, timerRunning: true }, 12)).toMatchObject({ state: "Question ready", action: "reveal" });
+    expect(getTriviaHostFlow(event, { ...live, timerRunning: true }, 0)).toMatchObject({ state: "Question ready", action: "reveal" });
   });
 
-  it("resumes a paused clock and skips timer controls for untimed questions", () => {
+  it("offers manual reveal regardless of legacy clock values", () => {
     const event = createSampleTriviaEvent("host-flow");
     const live = { ...createDefaultLiveState(event), stage: "question" as const };
-    expect(getTriviaHostFlow(event, { ...live, timerDefaultSec: 30 }, 12)).toMatchObject({ state: "Timer paused", label: "Resume timer" });
+    expect(getTriviaHostFlow(event, { ...live, timerDefaultSec: 30 }, 12)).toMatchObject({ state: "Question ready", label: "Reveal answer" });
     event.rounds[0].questions[0].timeLimitSec = 0;
-    expect(getTriviaHostFlow(event, { ...live, timerDefaultSec: 0 }, 0)).toMatchObject({ state: "Untimed question", action: "reveal" });
+    expect(getTriviaHostFlow(event, { ...live, timerDefaultSec: 0 }, 0)).toMatchObject({ state: "Question ready", action: "reveal" });
   });
 
-  it("treats the live timer setting as authoritative when the host removes a question timer", () => {
+  it("keeps legacy questions manually controlled", () => {
     const event = createSampleTriviaEvent("host-flow");
     const live = { ...createDefaultLiveState(event), stage: "question" as const, timerDefaultSec: 0, timerRemainingSec: 0 };
     expect(event.rounds[0].questions[0].timeLimitSec).toBeGreaterThan(0);
-    expect(getTriviaHostFlow(event, live, 0)).toMatchObject({ state: "Untimed question", action: "reveal" });
+    expect(getTriviaHostFlow(event, live, 0)).toMatchObject({ state: "Question ready", action: "reveal" });
   });
 
   it("advances one question after reveal, then the next round, and ends at leaderboard", () => {

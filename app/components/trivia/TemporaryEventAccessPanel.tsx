@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type Role = "host" | "checkin" | "scorekeeper" | "table_manager";
@@ -23,8 +23,18 @@ export default function TemporaryEventAccessPanel({ eventId }: { eventId: string
 
   useEffect(() => setOrigin(window.location.origin), []);
   const easyUrl = origin ? `${origin}/apps/trivia/remote` : "/apps/trivia/remote";
-  const directUrl = latestCode ? `${easyUrl}?code=${latestCode}` : "";
-  const qrUrl = useMemo(() => latestCode && easyUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=12&data=${encodeURIComponent(easyUrl)}` : "", [easyUrl, latestCode]);
+  const directUrl = latestCode ? `${easyUrl}/${encodeURIComponent(eventId)}?code=${latestCode}` : "";
+  const [qrUrl, setQrUrl] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    setQrUrl("");
+    if (directUrl && origin) {
+      void import("qrcode").then(({ toDataURL }) => toDataURL(directUrl, { width: 240, margin: 3 }))
+        .then((url) => { if (!cancelled) setQrUrl(url); })
+        .catch(() => { if (!cancelled) setMessage("QR could not be generated. Use Copy full link instead."); });
+    }
+    return () => { cancelled = true; };
+  }, [directUrl, origin]);
 
   const load = useCallback(async () => {
     try {
@@ -75,7 +85,7 @@ export default function TemporaryEventAccessPanel({ eventId }: { eventId: string
       <div>
         <p className="text-[11px] uppercase tracking-[0.14em] text-cyan-200">Event staff access</p>
         <h2 className="mt-1 text-lg font-semibold text-white">Temporary sign-ins and remote controllers</h2>
-        <p className="mt-1 text-sm text-slate-300">Each remote receives a unique four-digit code, a complete share link, and a QR code. Access expires after 12 hours and never grants CRM permissions.</p>
+        <p className="mt-1 text-sm text-slate-300">Scan the event QR or tap the complete share link to connect automatically. No CRM login or code typing is required. Each remote also has a four-digit backup code. Access expires after 12 hours and never grants CRM permissions.</p>
       </div>
 
       <div className="grid gap-2 lg:grid-cols-[220px_1fr_auto]">
@@ -103,7 +113,7 @@ export default function TemporaryEventAccessPanel({ eventId }: { eventId: string
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-100">New {roleName(role)} remote</p>
             <p className="mt-3 font-mono text-5xl font-bold tracking-[0.28em] text-white">{latestCode}</p>
-            <p className="mt-3 text-xs text-amber-100">The direct link includes the code and connects automatically. The code is hidden after this panel is closed.</p>
+            <p className="mt-3 text-xs text-amber-100">Share this link or QR for instant phone access—no login and no typing. Access expires automatically and can be revoked.</p>
             <label className="mt-4 block text-xs font-semibold text-slate-200">Complete remote URL<input readOnly value={directUrl} className="mt-1 w-full border border-amber-400/30 bg-slate-950 px-3 py-2 text-xs text-white" /></label>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" onClick={() => void copy(directUrl, "Complete remote link copied.")} className="bg-amber-400 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-300">Copy full link</button>
@@ -112,10 +122,10 @@ export default function TemporaryEventAccessPanel({ eventId }: { eventId: string
             </div>
           </div>
           <div className="bg-white p-2 text-center">
-            {/* The QR contains only the public entry address; the temporary code is never sent to the QR image service. */}
+            {/* Generate the complete event link locally so access is never sent to a QR service. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrUrl} alt={`QR code for ${roleName(role)} remote`} width={204} height={204} className="mx-auto h-[204px] w-[204px]" />
-            <p className="mt-1 text-xs font-semibold text-slate-800">Scan, then enter {latestCode}</p>
+            {qrUrl ? <img src={qrUrl} alt={`QR code for ${roleName(role)} remote`} width={204} height={204} className="mx-auto h-[204px] w-[204px]" /> : <p className="flex h-[204px] items-center justify-center text-sm text-slate-800">Preparing QR… use the full link if unavailable.</p>}
+            <p className="mt-1 text-xs font-semibold text-slate-800">Scan to open · no login or typing</p>
           </div>
         </div>
       ) : null}

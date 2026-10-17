@@ -28,9 +28,10 @@ export function getActiveQuestion(event: TriviaEvent, live: TriviaLiveState): Tr
   return round.questions[live.activeQuestionIndex] ?? null;
 }
 
-/** The live timer value is authoritative, so a host can disable a configured timer for this question. */
+/** Legacy compatibility selector. Question timing has been retired. */
 export function isTriviaQuestionTimerEnabled(live: TriviaLiveState): boolean {
-  return Number.isFinite(live.timerDefaultSec) && live.timerDefaultSec > 0;
+  void live;
+  return false;
 }
 
 /** Returns leaderboard-sorted team list for display and score panels. */

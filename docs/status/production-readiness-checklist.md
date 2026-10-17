@@ -1,3 +1,16 @@
+## 2026-10-17 Direct phone access
+
+Share a role-specific event remote link or locally generated QR from Temporary sign-ins and remote controllers. Opening it connects automatically without CRM login or code typing. Links remain event-scoped, expire, and can be revoked; manual four-digit entry remains a backup. QR generation includes the full event link and does not send temporary access to a third-party QR service.
+
+## 2026-10-17 Phone remote verification
+
+- [x] Phone presentation controls use labeled icon buttons and round/question selection dialogs.
+- [x] Questions use manual reveal; question timers and timer authoring controls are removed, including legacy timer screen fallback.
+- [x] Host remote has private answers/notes and winner controls; other temporary roles do not receive private question fields.
+- [x] Commands submit shared revision checks; stale confirmations and stale polls are discarded.
+- [x] Local phone browser fixture passes at 320px/390px; 69 focused regression checks pass.
+- [ ] Rehearse the real event with two phones, projector, sound/media playback, actual database, and venue Wi-Fi. Local fixtures do not verify these dependencies.
+
 # Production Readiness Checklist
 
 ## 2026-10-16 Event operations and Trivia audit
@@ -1048,3 +1061,10 @@ The [2026-09-22 public registration and payment review](audit-artifacts/2026-09-
 - [ ] Verify production proxy hops and rate limiting from separate external client networks.
 - [ ] Complete two-browser event-night, physical-device, 200% zoom, keyboard, projector, and degraded-network rehearsal.
 - [ ] Approve an abandoned paid-reservation expiry/release policy before high-volume limited-capacity sales.
+
+
+### Phone table/check-in verification (2026-10-17)
+
+- [x] Local 390px browser fixture verifies preserved drafts during polling and failed saves, retained failed walk-ins, successful walk-in reset, guest search, check-in and confirmed undo, late arrivals, empty/search states, and absence of runtime errors or horizontal overflow. Reproduce with `node tests/e2e/trivia-table-remote-fixture.e2e.mjs`.
+- [x] Focused ESLint and server TypeScript validation passed for table/check-in changes. Host-only answer redaction was exercised across all four temporary access roles.
+- [ ] Rehearse check-in/undo and roster synchronization against staging Events data on physical volunteer phones; local fixture uses simulated action responses and does not prove database/provider integration.

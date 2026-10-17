@@ -436,12 +436,16 @@ async function syncTriviaEventFromOyamaEvents(
       const fullName = `${guest.firstName ?? ""} ${guest.lastName ?? ""}`.trim();
       return fullName || guest.email || `Guest ${table.guests.indexOf(guest) + 1}`;
     });
-    const allCheckedIn = table.guests.length > 0 && table.guests.every((guest) => guest.checkedIn);
+    // A table can arrive before its guest names are entered. With no guest rows,
+    // retain the explicit table check-in instead of undoing it on the next sync.
+    const allCheckedIn = table.guests.length > 0
+      ? table.guests.every((guest) => guest.checkedIn)
+      : current?.checkInStatus === "checked_in" || current?.checkInStatus === "late";
     const checkedInAt = table.guests
       .map((guest) => guest.checkedInAt?.toISOString() ?? null)
       .filter((value): value is string => Boolean(value))
       .sort()
-      .at(-1) ?? null;
+      .at(-1) ?? (allCheckedIn && typeof current?.checkedInAt === "string" ? current.checkedInAt : null);
     const paymentStatuses = new Set(table.guests.map((guest) => guest.paymentStatus));
     const paymentStatus = paymentStatuses.size === 0 || [...paymentStatuses].every((status) => status === "COMP" || status === "SPONSORED")
       ? "not_required"
@@ -465,7 +469,7 @@ async function syncTriviaEventFromOyamaEvents(
       color: String(current?.color ?? EVENTS_SYNC_COLORS[index % EVENTS_SYNC_COLORS.length]),
       icon: String(current?.icon ?? EVENTS_SYNC_ICONS[index % EVENTS_SYNC_ICONS.length]),
       sortOrder: index,
-      checkInStatus: allCheckedIn ? "checked_in" : current?.checkInStatus === "late" ? "late" : "expected",
+      checkInStatus: allCheckedIn ? current?.checkInStatus === "late" ? "late" : "checked_in" : "expected",
       checkedInAt: allCheckedIn ? checkedInAt : null,
       tableNumber,
       captainName: table.hostName ?? undefined,
@@ -572,8 +576,8 @@ async function syncTriviaEventToOyamaEvents(organizationId: string, triviaEvent:
             lastName: name.lastName || null,
             partyName: tableData.name,
             rsvpStatus: "CONFIRMED",
-            checkedIn: team.checkInStatus === "checked_in",
-            checkedInAt: team.checkInStatus === "checked_in" ? new Date(String(team.checkedInAt ?? nowIso())) : null,
+            checkedIn: team.checkInStatus === "checked_in" || team.checkInStatus === "late",
+            checkedInAt: team.checkInStatus === "checked_in" || team.checkInStatus === "late" ? new Date(String(team.checkedInAt ?? nowIso())) : null,
           },
         });
         mappedGuestIds.push(existingGuest.id);
@@ -591,8 +595,8 @@ async function syncTriviaEventToOyamaEvents(organizationId: string, triviaEvent:
             rsvpStatus: "CONFIRMED",
             partyName: tableData.name,
             source: "WALK_IN",
-            checkedIn: team.checkInStatus === "checked_in",
-            checkedInAt: team.checkInStatus === "checked_in" ? new Date(String(team.checkedInAt ?? nowIso())) : undefined,
+            checkedIn: team.checkInStatus === "checked_in" || team.checkInStatus === "late",
+            checkedInAt: team.checkInStatus === "checked_in" || team.checkInStatus === "late" ? new Date(String(team.checkedInAt ?? nowIso())) : undefined,
             notes: "Synchronized from Oyama Trivia.",
           },
           select: { id: true },
@@ -717,16 +721,21 @@ function publicEventSnapshot(event: JsonObject, live: JsonObject, role: TriviaAc
     questions: Array.isArray(round.questions) ? round.questions.filter(isObject).map((question) => ({
       id: question.id, prompt: question.prompt, options: Array.isArray(question.options) ? question.options : [],
       questionType: question.questionType, mediaUrl: question.mediaUrl, timeLimitSec: question.timeLimitSec,
+      ...(role === "host" ? {
+        scoringAnswer: question.scoringAnswer, audienceAnswer: question.audienceAnswer,
+        hostNotes: question.hostNotes, explanation: question.explanation,
+        acceptedAnswers: question.acceptedAnswers, points: question.points,
+      } : {}),
     })) : [],
   })) : [];
   const teams = Array.isArray(event.teams) ? event.teams.filter(isObject).map((team) => ({
-    id: team.id, name: team.name, players: role === "table_manager" || role === "host" ? team.players : [], playerCount: team.playerCount, active: team.active,
+    id: team.id, name: team.name, players: role === "checkin" || role === "table_manager" || role === "host" ? team.players : [], playerCount: team.playerCount, active: team.active,
     color: team.color, icon: team.icon, sortOrder: team.sortOrder, checkInStatus: team.checkInStatus, checkedInAt: team.checkedInAt,
-    tableNumber: team.tableNumber, captainName: role === "table_manager" || role === "host" ? team.captainName : undefined,
+    tableNumber: team.tableNumber, captainName: role === "checkin" || role === "table_manager" || role === "host" ? team.captainName : undefined,
     contactName: role === "table_manager" || role === "host" ? team.contactName : undefined,
     contactPhone: role === "table_manager" || role === "host" ? team.contactPhone : undefined,
     contactEmail: role === "table_manager" || role === "host" ? team.contactEmail : undefined,
-    tableHostName: role === "table_manager" || role === "host" ? team.tableHostName : undefined,
+    tableHostName: role === "checkin" || role === "table_manager" || role === "host" ? team.tableHostName : undefined,
     registrationSource: role === "table_manager" || role === "host" ? team.registrationSource : undefined,
     registrationCode: role === "checkin" || role === "table_manager" || role === "host" ? team.registrationCode : undefined,
     paymentChoice: role === "table_manager" || role === "host" ? team.paymentChoice : undefined,
@@ -1145,12 +1154,12 @@ publicRouter.get("/events/:eventId/session", async (req, res) => {
   }
   const eventsRosterChanged = await refreshAutomaticEventsLinks(access.organizationId, access.orgStore, { eventId });
   if (eventsRosterChanged) await persistStore(access.store);
-  const event = getStateEvents(access.orgStore).find((item) => item.id === eventId);
-  if (!event) {
+  const snapshot = await readTriviaLive(access.organizationId, eventId);
+  if (!snapshot) {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Trivia event not found." } });
     return;
   }
-  res.json({ role: access.pass.role, label: access.pass.label, expiresAt: access.pass.expiresAt, event: publicEventSnapshot(event, getLive(access.orgStore, eventId), access.pass.role) });
+  res.json({ role: access.pass.role, label: access.pass.label, expiresAt: access.pass.expiresAt, revision: snapshot.revision, event: publicEventSnapshot(snapshot.event, triviaLiveResponse(snapshot).live, access.pass.role) });
 });
 
 publicRouter.post("/events/:eventId/actions", async (req, res) => {
@@ -1185,12 +1194,18 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
     const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
     const index = teams.findIndex((team) => team.id === payload.teamId);
     if (index < 0) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Team not found." } }); return; }
-    const status = payload.status === "late" ? "late" : "checked_in";
-    teams[index] = { ...teams[index], checkInStatus: status, active: true, checkedInAt: nowIso() };
+    if (payload.status !== undefined && !["expected", "late", "checked_in"].includes(String(payload.status))) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid check-in status." } }); return;
+    }
+    const status = payload.status === "expected" ? "expected" : payload.status === "late" ? "late" : "checked_in";
+    teams[index] = { ...teams[index], checkInStatus: status, ...(status !== "expected" ? { active: true } : {}), checkedInAt: status === "expected" ? null : teams[index].checkedInAt ?? nowIso() };
     event.teams = teams;
     rosterChanged = true;
-    pushAudit(access.orgStore, eventId, "check_in", `${teams[index].name ?? "Team"} checked in`, { teamId: String(payload.teamId), status });
+    pushAudit(access.orgStore, eventId, "check_in", `${teams[index].name ?? "Team"} ${status === "expected" ? "check-in undone" : "checked in"}`, { teamId: String(payload.teamId), status });
   } else if (action === "add_team" && (access.pass.role === "table_manager" || access.pass.role === "host")) {
+    if (Array.isArray(payload.players) && payload.players.filter((item: unknown) => String(item).trim()).length > 30) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Enter at most 30 guest names per team." } }); return;
+    }
     const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
     const name = String(payload.name ?? "").trim().slice(0, 100);
     const memberNames = Array.isArray(payload.players)
@@ -1219,6 +1234,9 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
     rosterChanged = true;
     pushAudit(access.orgStore, eventId, "check_in", `${name} added from table manager remote`, { teamId: String(teams.at(-1)?.id ?? "") });
   } else if (action === "update_team" && (access.pass.role === "table_manager" || access.pass.role === "host")) {
+    if (Array.isArray(payload.players) && payload.players.filter((item: unknown) => String(item).trim()).length > 30) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Enter at most 30 guest names per team." } }); return;
+    }
     const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
     const index = teams.findIndex((team) => team.id === payload.teamId);
     if (index < 0) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Team not found." } }); return; }
@@ -1252,7 +1270,7 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
   } else if (["set_stage", "set_round", "set_question", "next_question", "previous_question", "timer_start", "timer_pause", "timer_reset", "set_winner"].includes(action) && access.pass.role === "host") {
     const result = await commandTriviaLive(access.organizationId, eventId, action, payload, typeof req.body?.expectedRevision === "string" ? req.body.expectedRevision : undefined);
     if (result.status !== 200) { res.status(result.status).json({ error: { code: result.status === 409 ? "LIVE_CONFLICT" : "VALIDATION_ERROR", message: result.message } }); return; }
-    res.json({ event: publicEventSnapshot(result.snapshot.event, triviaLiveResponse(result.snapshot).live, access.pass.role) });
+    res.json({ revision: result.snapshot.revision, event: publicEventSnapshot(result.snapshot.event, triviaLiveResponse(result.snapshot).live, access.pass.role) });
     return;
   } else {
     res.status(403).json({ error: { code: "EVENT_ACCESS_DENIED", message: "This temporary sign-in cannot perform that action." } });

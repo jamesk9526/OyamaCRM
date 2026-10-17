@@ -68,7 +68,7 @@ const QUESTION_TYPE_HELP: Record<TriviaQuestionType, string> = {
  * RoundQuestionBuilderPanel handles core content authoring for trivia events.
  * It writes directly to persisted state so host and display routes are immediately usable.
  */
-export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQuestion, defaultPoints = 10, defaultTimeLimitSec = 30, openQuestionForRoundId = null, onQuestionRequestHandled, openRoundCreator = false, onRoundRequestHandled }: RoundQuestionBuilderPanelProps) {
+export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQuestion, defaultPoints = 10, openQuestionForRoundId = null, onQuestionRequestHandled, openRoundCreator = false, onRoundRequestHandled }: RoundQuestionBuilderPanelProps) {
   const [roundTitle, setRoundTitle] = useState("");
   const [roundDescription, setRoundDescription] = useState("");
   const [roundType, setRoundType] = useState<TriviaRoundType>("normal");
@@ -86,7 +86,7 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
   const [revealText, setRevealText] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [points, setPoints] = useState(defaultPoints);
-  const [timeLimitSec, setTimeLimitSec] = useState(defaultTimeLimitSec);
+
   const [hostNotes, setHostNotes] = useState("");
   const [mediaStatus, setMediaStatus] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -145,7 +145,7 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
       revealText: revealText.trim(),
       mediaUrl: mediaUrl.trim(),
       points,
-      timeLimitSec,
+      timeLimitSec: 0,
       hostNotes: hostNotes.trim(),
     });
 
@@ -279,19 +279,7 @@ export default function RoundQuestionBuilderPanel({ rounds, onAddRound, onAddQue
             className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
             placeholder="Points"
           />
-          <input
-            value={timeLimitSec}
-            onChange={(event) => setTimeLimitSec(Number(event.target.value) || 0)}
-            type="number"
-            min={0}
-            className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white"
-            placeholder="Seconds (0 = no timer)"
-          />
         </div>
-        <label className="flex min-h-11 items-center gap-3 border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200">
-          <input type="checkbox" checked={timeLimitSec === 0} onChange={(event) => setTimeLimitSec(event.target.checked ? 0 : Math.max(30, defaultTimeLimitSec))} />
-          No timer for this question
-        </label>
         {questionType === "multiple_choice" ? <textarea
           value={questionOptions}
           onChange={(event) => setQuestionOptions(event.target.value)}

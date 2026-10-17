@@ -19,22 +19,11 @@ describe("temporary Trivia host commands", () => {
     expect(blank).toMatchObject({ ok: true, live: { answerRevealed: false, leaderboardVisible: false, timerRunning: false } });
     expect(live.timerRunning).toBe(true);
   });
-  it("loads a new round's first-question timer and clears a previous winner", () => {
-    expect(run("set_round", { roundId: "final" })).toMatchObject({ ok: true, live: { activeRoundId: "final", activeQuestionIndex: 0, stage: "round_intro", timerDefaultSec: 45, timerRemainingSec: 45, timerRunning: false, winnerTeamId: null } });
-  });
-  it("resets an untimed next question and refuses to start its timer", () => {
-    const next = run("next_question");
-    expect(next).toMatchObject({ ok: true, live: { timerDefaultSec: 0, timerRemainingSec: 0, timerRunning: false, winnerTeamId: null } });
-    if (next.ok) expect(applyRemoteTriviaHostAction(event, next.live, "timer_start", {}, "now").ok).toBe(false);
-    expect(run("timer_start", {}, { ...live, timerRemainingSec: 0 }).ok).toBe(false);
-  });
-  it("removes the active question timer and restores the configured timer on question change", () => {
-    const untimed = run("timer_reset", { seconds: 0 }, { ...live, timerEndsAt: "2026-10-16T18:00:10.000Z" });
-    expect(untimed).toMatchObject({ ok: true, live: { timerDefaultSec: 0, timerRemainingSec: 0, timerRunning: false, timerEndsAt: null } });
-    if (untimed.ok) {
-      expect(run("set_question", { questionIndex: 1 }, untimed.live)).toMatchObject({ ok: true, live: { timerDefaultSec: 0, timerRemainingSec: 0 } });
-      expect(run("set_question", { questionIndex: 0 }, untimed.live)).toMatchObject({ ok: true, live: { timerDefaultSec: 15, timerRemainingSec: 15 } });
-    }
+  it("keeps legacy timed questions and round changes untimed", () => {
+    expect(run("set_round", { roundId: "final" })).toMatchObject({ ok: true, live: { activeRoundId: "final", timerDefaultSec: 0, timerRemainingSec: 0, timerRunning: false, timerEndsAt: null } });
+    expect(run("next_question")).toMatchObject({ ok: true, live: { timerDefaultSec: 0, timerRemainingSec: 0, timerRunning: false } });
+    expect(run("timer_start").ok).toBe(false);
+    expect(run("timer_reset", { seconds: 30 }).ok).toBe(false);
   });
   it("validates round, projector stage, action, and missing question", () => {
     expect(run("set_round", { roundId: "missing" }).ok).toBe(false);
@@ -45,14 +34,9 @@ describe("temporary Trivia host commands", () => {
   it("records the check-in stage timestamp", () => {
     expect(run("set_stage", { stage: "check_in_open" })).toMatchObject({ ok: true, live: { checkInOpenedAt: "2026-10-16T18:00:00.000Z", timerRunning: false } });
   });
-  it("freezes the actual deadline remainder on pause and resumes from that remainder", () => {
-    const paused = run("timer_pause", {}, { ...live, timerEndsAt: "2026-10-16T18:00:06.400Z" });
-    expect(paused).toMatchObject({ ok: true, live: { timerRemainingSec: 7, timerRunning: false, timerEndsAt: null } });
-    if (paused.ok) expect(run("timer_start", {}, paused.live as typeof live)).toMatchObject({ ok: true, live: { timerEndsAt: "2026-10-16T18:00:07.000Z", timerRunning: true } });
-  });
-  it("refuses expired deadlines and starting a timer on an answer screen", () => {
-    expect(run("timer_start", {}, { ...live, timerEndsAt: "2026-10-16T17:59:59Z" }).ok).toBe(false);
-    expect(run("timer_start", {}, { ...live, stage: "answer" }).ok).toBe(false);
+  it("clears old running deadlines and maps the retired timer screen to the question", () => {
+    expect(run("timer_pause", {}, { ...live, timerEndsAt: "2026-10-16T18:00:06.400Z" })).toMatchObject({ ok: true, live: { timerRemainingSec: 0, timerDefaultSec: 0, timerRunning: false, timerEndsAt: null } });
+    expect(run("set_stage", { stage: "timer_only" })).toMatchObject({ ok: true, live: { stage: "question", timerRunning: false } });
   });
   it("validates direct question selection and resets its timer", () => {
     expect(run("set_question", { questionIndex: 1 })).toMatchObject({ ok: true, live: { activeQuestionIndex: 1, timerRemainingSec: 0, timerRunning: false, timerEndsAt: null } });

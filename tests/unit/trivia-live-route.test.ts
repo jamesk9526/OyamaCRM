@@ -72,21 +72,20 @@ describe("event-scoped Trivia live transport", () => {
     expect(db.triviaConfiguration.findFirst.mock.lastCall?.[0].where.OR[0]).toEqual({ eventId: "event-1" });
     expect((await request(app).get("/api/trivia/events/foreign-alias/live")).status).toBe(404);
   });
-  it("does not extend a running timer or write on repeated start", async () => {
+  it("rejects retired timer commands without writes", async () => {
     const deadline = new Date(Date.now() + 10_400).toISOString();
     Object.assign(configuration.liveState, { timerRunning: true, timerEndsAt: deadline });
     const response = await request(app).patch("/api/trivia/events/event-1/live").send({ action: "timer_start" });
-    expect(response.status).toBe(200);
-    expect(response.body.live.timerEndsAt).toBe(deadline);
+    expect(response.status).toBe(400);
+    expect(response.body.error.message).toContain("no longer supported");
     expect(db.triviaConfiguration.updateMany).not.toHaveBeenCalled();
     expect(db.triviaAuditEvent.create).not.toHaveBeenCalled();
   });
-  it("persists one timer command and one audit without rebuilding game records", async () => {
+  it("persists one display command and audit without rebuilding game records", async () => {
     const initial = await request(app).get("/api/trivia/events/event-1/live");
-    const response = await request(app).patch("/api/trivia/events/event-1/live").send({ action: "timer_start", expectedRevision: initial.body.revision });
+    const response = await request(app).patch("/api/trivia/events/event-1/live").send({ action: "set_stage", payload: { stage: "answer" }, expectedRevision: initial.body.revision });
     expect(response.status).toBe(200);
-    expect(response.body.live.timerRunning).toBe(true);
-    expect(Date.parse(response.body.live.timerEndsAt)).toBeGreaterThan(Date.now());
+    expect(response.body.live).toMatchObject({ stage: "answer", timerRunning: false, timerEndsAt: null });
     expect(db.triviaConfiguration.updateMany).toHaveBeenCalledOnce();
     expect(db.triviaAuditEvent.create).toHaveBeenCalledOnce();
     expect(db.triviaRound.deleteMany).not.toHaveBeenCalled();

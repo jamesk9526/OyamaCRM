@@ -19,9 +19,11 @@ describe("Trivia event-night controls", () => {
     expect(route).toContain('value === "table_manager"');
     expect(accessPanel).toContain("Temporary sign-ins and remote controllers");
     expect(accessPanel).toContain("Complete remote URL");
-    expect(accessPanel).toContain("create-qr-code");
+    expect(accessPanel).toContain('import("qrcode")');
+    expect(accessPanel).toContain("toDataURL(directUrl");
+    expect(accessPanel).not.toContain("api.qrserver.com");
     expect(remote).toContain("Event-night remote");
-    expect(remote).toContain("Tables, guests, and check-in");
+    expect(read("app/components/trivia/TriviaTableRemote.tsx")).toContain("Tables, guests, and check-in");
     expect(remote).toContain('"x-trivia-access"');
   });
 
@@ -77,7 +79,7 @@ describe("Trivia event-night controls", () => {
     expect(remote).toContain("safe-area-inset-bottom");
     expect(remote).toContain("This phone is offline");
     expect(remote).toContain("guardedAction");
-    expect(remote).toContain("Check in table");
+    expect(read("app/components/trivia/TriviaTableRemote.tsx")).toContain("Check in table");
   });
 
   it("links Trivia rosters to durable Oyama Events tables and public registrations", () => {
@@ -160,7 +162,8 @@ describe("Trivia event-night controls", () => {
     expect(builder).toContain("Build rounds, then add questions");
     expect(builder).toContain("QUESTION_TYPE_HELP");
     expect(builder).toContain("Save Question to");
-    expect(builder).toContain("No timer for this question");
+    expect(builder).not.toContain("No timer for this question");
+    expect(builder).toContain("timeLimitSec: 0");
     expect(gameMap).toContain("Primary workspace");
     expect(gameMap).toContain("+ Add question");
     expect(gameMap).toContain("Save &amp; next");
@@ -169,10 +172,11 @@ describe("Trivia event-night controls", () => {
     expect(gameMap).toContain("/events/${event.id}/trivia/host");
     expect(gameMap).toContain("/events/${event.id}/trivia/projector");
     expect(unifiedBuilder).toContain("apps/trivia/events/[eventId]/builder/page");
-    expect(hostControls).toContain("Untimed question");
-    expect(projector).toContain("timerEnabled");
+    expect(hostControls).not.toContain(">Start timer<");
+    expect(hostControls).not.toContain(">Pause timer<");
+    expect(projector).not.toContain("<Timer");
     expect(route).toContain("commandTriviaLive(access.organizationId, eventId, action, payload");
-    expect(read("server/src/services/trivia-host-control.ts")).toContain("configuredSeconds >= 0");
+    expect(read("server/src/services/trivia-host-control.ts")).toContain("Question timers are no longer supported.");
     expect(host).toContain("Event-night connection");
     expect(host).toContain('setSyncMode("server")');
     expect(display).toContain("TriviaLiveProjector");

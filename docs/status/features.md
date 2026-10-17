@@ -1,3 +1,15 @@
+## 2026-10-17 Direct phone access
+
+Share a role-specific event remote link or locally generated QR from Temporary sign-ins and remote controllers. Opening it connects automatically without CRM login or code typing. Links remain event-scoped, expire, and can be revoked; manual four-digit entry remains a backup. QR generation includes the full event link and does not send temporary access to a third-party QR service.
+
+## 2026-10-17 Phone presentation remote and manual question flow
+
+Trivia questions are now manually paced: question countdowns, timer controls, builder time limits, and projector timers are removed. Old saved timer fields remain for storage compatibility; server reads clear running deadlines, reject timer start/reset commands, and map the retired timer screen to the question screen.
+
+The host phone remote uses large labeled icon buttons, a rounded round/question selector with keyboard focus containment, private answer/notes, check-in screens, winner selection, and emergency projector blanking. Shared revisions reject stale commands; confirmations clear after shared question/stage changes; earlier polling responses cannot overwrite a completed command. Expired/revoked access returns to code entry, and the remote supports disconnect/change code.
+
+Validation: 69 focused host, live-route, question-entry, winner, and source regressions passed. A real local browser fixture passed at 320px/390px with access-code sign-in, question navigation, manual reveal, selector dismissal, revision submission, emergency hold, and reconnect. Fixtures use local data and do not establish production database or projector/network readiness.
+
 # OyamaCRM Feature Status Audit
 
 ## 2026-10-16 Event operations and Trivia audit
@@ -1266,3 +1278,10 @@ Source-of-truth organization map:
 - New-event state now keys live and score history by the canonical integrated Event id, preventing orphaned state when the temporary client id differs from the Event record id.
 - Audit detail and remaining release gates are recorded in `docs/status/audit-artifacts/2026-08-25-events-trivia-production-audit.md`.
 - Theme-coherence follow-up: every unified Trivia administration route now receives the Event Studio light/indigo theme boundary. Legacy navy panels, near-black inputs, neon fuchsia actions, low-contrast pastel labels, and the dark visual builder frame are translated to accessible light surfaces and one indigo action language. Projector and temporary phone-remote surfaces remain intentionally dark for distance and event-floor use.
+
+
+### Phone table and check-in hardening (2026-10-17)
+
+- Temporary table remotes preserve unsaved guest edits across polling and keep failed walk-in submissions for retry. Table editing is collapsed behind an explicit action, with labelled phone-size fields and server-validated table numbers and guest limits.
+- Check-in remotes search team, host, guest, table number, and registration code; show arrival totals and waiting filters; and support confirmed undo of accidental check-in. Guest names and host names are available to the check-in role, while contact details and private question answers remain restricted.
+- Late arrivals synchronize as checked in to Events. Explicit table check-in survives synchronization when guest names have not yet been entered. Payment status is read-only in the phone remote; payment management remains in Events.
