@@ -26,6 +26,7 @@ export default function TriviaRemoteController({ eventId: initialEventId }: { ev
   const [eventId, setEventId] = useState(initialEventId ?? "");
   const [code, setCode] = useState(linkCode);
   const [token, setToken] = useState("");
+  const [scoreTotals, setScoreTotals] = useState<Record<string, string>>({});
   const [session, setSession] = useState<RemoteSession | null>(null);
   const [message, setMessage] = useState(linkCode ? "Connecting from your secure event link…" : "Enter the four-digit code supplied by the producer.");
   const [busy, setBusy] = useState(false);
@@ -216,7 +217,12 @@ export default function TriviaRemoteController({ eventId: initialEventId }: { ev
         ) : session.role === "scorekeeper" ? (
           <section className="rounded-xl border border-[#4b3975] bg-[#161126] p-3 sm:p-4">
             <p className="text-sm font-semibold">Score teams</p><p className="mt-1 text-xs text-[#d9cffa]">Adjustments save immediately and are included in the event audit trail.</p>
-            <div className="mt-3 space-y-2">{[...event.teams].sort((a, b) => b.score - a.score).map((team) => <div key={team.id} className="grid gap-3 rounded-xl border border-[#4b3975] bg-[#211833] p-3 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-semibold">{team.name}</p><p className="text-sm text-[#d9cffa]">{team.score} points</p></div><div className="grid grid-cols-3 gap-2"><button disabled={busy || !online} onClick={() => void action("score_adjust", { teamId: team.id, delta: -1 })} className={mutedAction}>−1</button><button disabled={busy || !online} onClick={() => void action("score_adjust", { teamId: team.id, delta: 1 })} className={primaryAction}>+1</button><button disabled={busy || !online} onClick={() => void action("score_adjust", { teamId: team.id, delta: 5 })} className={mutedAction}>+5</button></div></div>)}</div>
+            <div className="mt-3 space-y-2">{[...event.teams].sort((a, b) => b.score - a.score).map((team) => <div key={team.id} className="grid gap-3 rounded-xl border border-[#4b3975] bg-[#211833] p-3 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-semibold">{team.name}</p><p className="text-sm text-[#d9cffa]">{team.score} points</p></div><div className="grid grid-cols-3 gap-2"><button disabled={busy || !online} onClick={() => void action("score_adjust", { teamId: team.id, delta: -1 })} className={mutedAction}>−1</button><button disabled={busy || !online} onClick={() => void action("score_adjust", { teamId: team.id, delta: 1 })} className={primaryAction}>+1</button><button disabled={busy || !online} onClick={() => void action("score_adjust", { teamId: team.id, delta: 5 })} className={mutedAction}>+5</button></div><form className="grid gap-2 sm:col-span-2 sm:grid-cols-[1fr_auto]" onSubmit={(input) => {
+              input.preventDefault();
+              const value = scoreTotals[team.id] ?? "";
+              if (!value.trim() || !Number.isInteger(Number(value)) || Number(value) < 0 || Number(value) > 2_147_483_647) return;
+              void action("score_adjust", { teamId: team.id, total: Number(value) });
+            }}><label className="text-xs text-[#d9cffa]">Custom total for {team.name}<input type="number" min={0} max={2_147_483_647} step={1} required value={scoreTotals[team.id] ?? ""} onChange={(input) => setScoreTotals((current) => ({ ...current, [team.id]: input.target.value }))} className="mt-1 min-h-11 w-full rounded border border-[#4b3975] bg-[#100b1b] px-3 text-base text-white" /></label><button type="submit" disabled={busy || !online || !(scoreTotals[team.id] ?? "").trim() || !Number.isInteger(Number(scoreTotals[team.id])) || Number(scoreTotals[team.id]) < 0 || Number(scoreTotals[team.id]) > 2_147_483_647} className={primaryAction}>Set total</button></form></div>)}</div>
           </section>
         ) : session.role === "checkin" ? (
           <TriviaCheckInRemote teams={event.teams} busy={busy || !online} onAction={action} />

@@ -15,6 +15,7 @@ import { evaluateRecipientEligibility, hashPublicEmailToken } from "../services/
 import { prisma } from "../lib/prisma.js";
 import { createEventTable, syncEventTableSeats } from "../services/event-table-service.js";
 import { commandTriviaLive, readTriviaLive, triviaLiveResponse } from "../services/trivia-live-state.js";
+import { resolveRemoteScore } from "../services/trivia-score-control.js";
 import { resolveTriviaTimer } from "../services/trivia-host-control.js";
 
 const router = express.Router();
@@ -1184,13 +1185,12 @@ publicRouter.post("/events/:eventId/actions", async (req, res) => {
   if (action === "score_adjust" && (access.pass.role === "scorekeeper" || access.pass.role === "host")) {
     const teams = Array.isArray(event.teams) ? event.teams.filter(isObject) : [];
     const index = teams.findIndex((team) => team.id === payload.teamId);
-    const delta = Math.max(-100, Math.min(100, Number(payload.delta) || 0));
-    if (index < 0 || delta === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a team and a non-zero score adjustment." } }); return; }
+    if (index < 0) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Team not found." } }); return; }
     const previousScore = Number(teams[index].score) || 0;
     const scoringRules = isObject(event.scoringRules) ? event.scoringRules : {};
-    const nextScore = scoringRules.allowNegativeScores === true ? previousScore + delta : Math.max(0, previousScore + delta);
-    const appliedDelta = nextScore - previousScore;
-    if (appliedDelta === 0) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "That adjustment would not change the score." } }); return; }
+    const result = resolveRemoteScore(previousScore, payload, scoringRules.allowNegativeScores === true);
+    if (!result.ok) { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: result.message } }); return; }
+    const { nextScore, appliedDelta } = result;
     teams[index] = { ...teams[index], score: nextScore };
     event.teams = teams;
     pushAudit(access.orgStore, eventId, "score", `Remote score adjustment ${appliedDelta >= 0 ? "+" : ""}${appliedDelta}`, { teamId: String(payload.teamId), delta: appliedDelta, previousScore, nextScore });

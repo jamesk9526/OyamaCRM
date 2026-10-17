@@ -1,3 +1,7 @@
+## 2026-10-17 One-point scoring, custom totals, and projector review
+
+Local validation passed: 12 scoring/sequential-action tests and 19 host flow/winner/remote-host tests; desktop scoring, phone scoring, projector stage, and host-control browser fixtures passed with no page errors. Web TypeScript passed; changed scoring and host lint passed, projector retains its existing raw-image warning. Checks use local fixtures; deployment and venue rehearsal remain outstanding.
+
 ## 2026-10-17 Table merge and original-owner preservation
 
 Local merge/owner-preservation checks: 36 focused tests passed; browser fixture passed destination selection, cancellation, conflict/retry, source removal, retained guest/payment links, and no page errors. Server TypeScript passed. Tests use mocked persistence; no production merge or deployment has been performed.

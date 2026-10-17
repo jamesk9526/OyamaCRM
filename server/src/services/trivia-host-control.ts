@@ -28,6 +28,7 @@ export function applyRemoteTriviaHostAction(event: JsonObject, live: JsonObject,
   if (action === "set_stage") {
     if (typeof payload.stage !== "string" || !STAGES.has(payload.stage)) return { ok: false, message: "Choose a valid projector stage." };
     if (QUESTION_STAGES.has(payload.stage) && !currentQuestion()) return { ok: false, message: "Choose a question before changing the projector stage." };
+    if (payload.stage === "round_intro" && !currentRound()) return { ok: false, message: "Choose a round before showing its introduction." };
     next.stage = payload.stage === "timer_only" ? "question" : payload.stage;
     if (payload.stage === "check_in_open") next.checkInOpenedAt = next.checkInOpenedAt ?? now;
     if (payload.stage === "check_in_closed") next.checkInClosedAt = next.checkInClosedAt ?? now;
@@ -54,7 +55,7 @@ export function applyRemoteTriviaHostAction(event: JsonObject, live: JsonObject,
   } else if (action === "timer_pause") {
     resetTimer();
   } else if (action === "set_winner") {
-    if (typeof payload.teamId !== "string" || !objects(event.teams).some(team => team.id === payload.teamId)) return { ok: false, message: "Choose a valid winning team." };
+    if (typeof payload.teamId !== "string" || !objects(event.teams).some(team => team.id === payload.teamId && team.active === true)) return { ok: false, message: "Choose an active winning team." };
     next.winnerTeamId = payload.teamId;
     next.stage = "winner";
     next.timerRunning = false;

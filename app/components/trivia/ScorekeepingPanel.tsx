@@ -54,6 +54,8 @@ export default function ScorekeepingPanel({
   const [actionType, setActionType] = useState<TriviaScoreActionType>("standard");
   const [delta, setDelta] = useState(defaultQuestionPoints);
   const [reason, setReason] = useState("Manual adjustment");
+  const [customTotal, setCustomTotal] = useState("");
+  const validTotal = customTotal.trim() !== "" && Number.isInteger(Number(customTotal)) && Number(customTotal) >= 0 && Number(customTotal) <= 2_147_483_647;
 
   const selectedTeam = useMemo(
     () => sorted.find((team) => team.id === selectedTeamId) ?? sorted[0] ?? null,
@@ -140,6 +142,8 @@ export default function ScorekeepingPanel({
 
           {selectedTeam ? (
             <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => submitScore(selectedTeam.id, 1, "manual", `Added one point for ${selectedTeam.name}`)} className="min-h-11 rounded-lg bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-600">+1 Point</button>
+              <button type="button" onClick={() => submitScore(selectedTeam.id, -1, "manual", `Removed one point for ${selectedTeam.name}`)} className="min-h-11 rounded-lg bg-rose-700 px-3 text-sm font-semibold text-white hover:bg-rose-600">-1 Point</button>
               <button
                 type="button"
                 onClick={() => submitScore(selectedTeam.id, defaultQuestionPoints, "standard", `Standard points for ${selectedTeam.name}`)}
@@ -171,6 +175,19 @@ export default function ScorekeepingPanel({
               </button>
             </div>
           ) : null}
+          <form className="space-y-2 border-t border-slate-700 pt-3" onSubmit={(event) => {
+            event.preventDefault();
+            if (!selectedTeam || !validTotal) return;
+            const total = Number(customTotal);
+            submitScore(selectedTeam.id, total - selectedTeam.score, "manual", `Set ${selectedTeam.name} total to ${total}`);
+            setCustomTotal("");
+          }}>
+            <label className="block text-sm font-semibold text-slate-200">Custom total
+              <input type="number" min={0} max={2_147_483_647} step={1} required value={customTotal} onChange={(event) => setCustomTotal(event.target.value)} placeholder="Enter final score" className="mt-1 min-h-11 w-full rounded border border-slate-600 bg-slate-900 px-3 text-sm text-white" />
+            </label>
+            <p className="text-xs text-slate-400">{selectedTeam ? `${selectedTeam.name}: currently ${selectedTeam.score} points. This replaces their total.` : "Select a team first."}</p>
+            <button type="submit" disabled={!selectedTeam || !validTotal} className="min-h-11 w-full rounded-lg border border-cyan-400/60 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-40">Set total</button>
+          </form>
         </article>
 
         <article className="rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 space-y-3">

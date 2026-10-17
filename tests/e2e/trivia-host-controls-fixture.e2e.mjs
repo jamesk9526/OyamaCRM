@@ -11,7 +11,7 @@ const { build } = require(createRequire(require.resolve("tsx")).resolve("esbuild
 const postcss = require(createRequire(require.resolve("@tailwindcss/postcss")).resolve("postcss"));
 const tailwind = require("@tailwindcss/postcss");
 const root = process.cwd();
-const output = path.join(root, "docs/status/audit-artifacts/2026-10-16-trivia-simplification");
+const output = process.env.TRIVIA_HOST_ARTIFACT_DIR || path.join(root, "docs/status/audit-artifacts/2026-10-16-trivia-simplification");
 const css = (await postcss([tailwind({ base: root })]).process(await readFile("app/globals.css", "utf8"), { from: path.join(root, "app/globals.css") })).css;
 const bundle = await build({
   stdin: { resolveDir: root, loader: "tsx", contents: `
@@ -37,6 +37,7 @@ const bundle = await build({
       return <main className="trivia-admin-content bg-slate-950 p-4 text-white">
         <div className="flex flex-wrap gap-2 mb-4">
           <button onClick={()=>setEvent(previous=>({...previous,teams:previous.teams.map((team,i)=>({...team,score:i===0?10:0}))}))}>Fixture unique leader</button>
+          <button onClick={()=>setEvent(previous=>({...previous,teams:previous.teams.map((team,i)=>({...team,score:i===1?20:0}))}))}>Fixture change leader</button>
           <button onClick={()=>update({activeQuestionIndex:live.activeQuestionIndex+1,stage:'question',timerRunning:false,timerRemainingSec:30,timerEndsAt:null})}>Fixture external question</button>
           <button onClick={()=>setConnected(false)}>Fixture disconnect</button>
           <button onClick={()=>setSaving(previous=>!previous)}>Fixture toggle saving</button>
@@ -88,6 +89,11 @@ try {
   await page.getByText("Read slowly; accept the short name.", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Fixture unique leader", exact: true }).click();
   assert.equal(await winner.isEnabled(), true);
+  await winner.click();
+  await page.getByRole("button", { name: "Confirm winner screen", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Fixture change leader", exact: true }).click();
+  await page.getByRole("button", { name: "Final winner screen", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Fixture stage").textContent(), "welcome");
   await page.getByText("More display controls", { exact: true }).click();
   await mkdir(output, { recursive: true });
   await page.screenshot({ path: path.join(output, "desktop.png"), fullPage: true });
@@ -102,30 +108,18 @@ try {
   const audiencePreview = page.getByRole("region", { name: "Audience preview" });
   await audiencePreview.getByText(/Question 1 of/).waitFor();
   await audiencePreview.getByText("What the audience sees", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Start timer", exact: true }).click();
-  await page.getByRole("heading", { name: "Timer running", exact: true }).waitFor();
-  await page.clock.fastForward(2_100);
-  assert.equal(await page.getByLabel("Timer remaining").textContent(), "28s");
-  await page.getByRole("button", { name: "Pause timer", exact: true }).click();
-  assert.equal(await page.getByRole("button", { name: "Pause timer", exact: true }).isDisabled(), true);
-  await page.getByRole("button", { name: "Resume timer", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Remove timer", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm remove timer", exact: true }).click();
-  await page.getByRole("heading", { name: "Untimed question", exact: true }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Restore 30s timer", exact: true }).isVisible(), true);
-  await page.getByRole("button", { name: "Restore 30s timer", exact: true }).click();
-  await page.getByRole("button", { name: "Start timer", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: /timer/i }).count(), 0);
+  await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
   await page.getByRole("button", { name: "Confirm reveal answer", exact: true }).waitFor();
   await page.getByRole("button", { name: "Fixture external question", exact: true }).click();
-  await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Reveal answer", exact: true }).waitFor();
   await questionNav.getByRole("button", { name: "Next question", exact: true }).click();
   await questionNav.getByRole("button", { name: "Confirm next", exact: true }).click();
   assert.equal(await page.getByText("3 / 3", { exact: true }).count(), 1);
   await questionNav.getByRole("button", { name: "Previous question", exact: true }).click();
   await questionNav.getByRole("button", { name: "Confirm previous", exact: true }).click();
   assert.equal(await page.getByText("2 / 3", { exact: true }).count(), 1);
-  await page.getByRole("button", { name: "Reveal answer without timer", exact: true }).click();
+  await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "question");
   await page.getByRole("button", { name: "Confirm reveal answer", exact: true }).click();
   assert.equal(await page.getByLabel("Fixture stage").textContent(), "answer");
@@ -152,7 +146,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
-  console.log("PASS trivia host fixture: guided flow, selected and audience-visible question previews with round/question numbering, answer reveal preview, keyboard show question, timer start/pause, hidden secondary controls, tied winner, private notes, stale confirmation, save/retry and checkpoint errors, emergency hold, saving guard, empty round, offline controls, 320px overflow, zero page errors.");
+  console.log("PASS trivia host fixture: guided flow, selected and audience-visible question previews with round/question numbering, answer reveal preview, keyboard show question, retired timer absence, hidden secondary controls, tied winner and changed-leader confirmation, private notes, stale confirmation, save/retry and checkpoint errors, emergency hold, saving guard, empty round, offline controls, 320px overflow, zero page errors.");
 } finally {
   await browser.close();
   await new Promise(resolve => server.close(resolve));

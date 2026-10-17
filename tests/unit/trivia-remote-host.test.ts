@@ -34,6 +34,16 @@ describe("temporary Trivia host commands", () => {
   it("records the check-in stage timestamp", () => {
     expect(run("set_stage", { stage: "check_in_open" })).toMatchObject({ ok: true, live: { checkInOpenedAt: "2026-10-16T18:00:00.000Z", timerRunning: false } });
   });
+  it("rejects a round introduction when its round has been removed", () => {
+    expect(run("set_stage", { stage: "round_intro" }, { ...live, activeRoundId: "removed" })).toMatchObject({ ok: false });
+  });
+  it("only announces an active winning team", () => {
+    const withTeams = { ...event, teams: [{ id: "active", active: true }, { id: "inactive", active: false }] };
+    const announce = (teamId: string) => applyRemoteTriviaHostAction(withTeams, live, "set_winner", { teamId }, "2026-10-17T18:00:00.000Z");
+    expect(announce("inactive")).toMatchObject({ ok: false });
+    expect(announce("missing")).toMatchObject({ ok: false });
+    expect(announce("active")).toMatchObject({ ok: true, live: { stage: "winner", winnerTeamId: "active" } });
+  });
   it("clears old running deadlines and maps the retired timer screen to the question", () => {
     expect(run("timer_pause", {}, { ...live, timerEndsAt: "2026-10-16T18:00:06.400Z" })).toMatchObject({ ok: true, live: { timerRemainingSec: 0, timerDefaultSec: 0, timerRunning: false, timerEndsAt: null } });
     expect(run("set_stage", { stage: "timer_only" })).toMatchObject({ ok: true, live: { stage: "question", timerRunning: false } });

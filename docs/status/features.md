@@ -1,3 +1,7 @@
+## 2026-10-17 One-point scoring, custom totals, and projector review
+
+Scorekeeping now offers +1/-1 controls and an explicit custom total, with desktop audit history and undo. The phone scorekeeper also accepts custom totals; the server computes the adjustment against its current score and validates integer bounds. Projector polish improves stage badges, long-copy sizing, footer spacing, 720p rankings, finite animations, high contrast, and reduced motion. Host confirmations reset when the displayed question, leader, score/tie, or connection changes; the server rejects inactive winners and round introductions without a selected round.
+
 ## 2026-10-17 Table merge and original-owner preservation
 
 Table details includes Merge tables: choose a destination table number to keep and confirm removal of the source. A serializable transaction moves existing guests, seats, invitations, check-in records/exceptions, and email history. Capacity expands to retain seats; the destination identity stays. Source notes/host/sponsor details are retained in destination notes and transactional audit history. Orders, payments, and guest IDs are preserved; source host access is revoked. Trivia scores remain separate. Table deletion now retains original owner details in guest notes and transactional audit history before unassigning guests.

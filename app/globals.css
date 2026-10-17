@@ -1036,6 +1036,52 @@ body {
 .trivia-projector-hero h1, .trivia-projector-winner h1, .trivia-projector-question h2, .trivia-projector-answer-card > strong { overflow-wrap: anywhere; }
 .trivia-projector-brand > div:nth-child(2) { min-width: 0; }
 .trivia-projector-brand strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Keep stage content clear of the footer, including on smaller venue displays. */
+.trivia-projector { display: grid; grid-template-rows: auto 1fr auto; }
+.trivia-projector-stage { min-width: 0; min-height: 0; padding-block: clamp(1.5rem, 4vh, 3.5rem); }
+.trivia-projector-footer { position: relative; min-width: 0; }
+.trivia-projector-brand > p { display: flex; flex: none; align-items: center; gap: .65rem; border: 1px solid rgba(var(--projector-accent-rgb), .25); border-radius: 999px; background: rgba(var(--projector-accent-rgb), .07); padding: .55rem .85rem; }
+.trivia-projector-brand > p::before { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--projector-accent); content: ""; }
+.trivia-projector-brand > div:nth-child(2) { flex: 1; }
+.trivia-projector-hero h1, .trivia-projector-winner h1 { line-height: 1.04; }
+.trivia-projector-hero > p, .trivia-projector-winner > p { animation: trivia-projector-rank-in .5s ease-out .06s both; }
+.trivia-projector-rule { transform-origin: center; animation: trivia-projector-rule-in .65s cubic-bezier(.22, 1, .36, 1) .12s both; }
+.trivia-projector-question > article, .trivia-projector-answer-card { border-top-color: rgba(var(--projector-accent-rgb), .65); }
+.trivia-projector-answer > h1, .trivia-projector-answer-card > p, .trivia-projector-answer-card > small, .trivia-projector-options p, .trivia-projector-hero h2, .trivia-projector-hero > span, .trivia-projector-brand span { overflow-wrap: anywhere; }
+.trivia-projector-answer-card > strong { font-weight: 750; letter-spacing: -.035em; }
+.trivia-projector-question.is-long-copy article h2 { font-size: clamp(1.5rem, 3vw, 3.2rem); line-height: 1.22; }
+.trivia-projector-answer-card.is-long-copy > strong { font-size: clamp(1.8rem, 3.8vw, 4rem); line-height: 1.14; }
+.trivia-projector-ranking { column-gap: .65rem; }
+.trivia-projector-ranking em { white-space: nowrap; }
+.trivia-projector-winner { width: min(1100px, 100%); }
+.trivia-projector-winner.is-long-copy h1 { font-size: clamp(2.8rem, 6vw, 6.2rem); }
+.trivia-projector-crown { animation-iteration-count: 3; }
+.trivia-projector-confetti i { animation-iteration-count: 2; animation-fill-mode: forwards; }
+.trivia-projector-grid { animation: none; }
+.trivia-projector-orb { animation-iteration-count: 2; }
+.trivia-projector.is-high-contrast .trivia-projector-grid, .trivia-projector.is-high-contrast .trivia-projector-orb { display: none; }
+.trivia-projector.is-high-contrast .trivia-projector-ranking, .trivia-projector.is-high-contrast .trivia-projector-question > article, .trivia-projector.is-high-contrast .trivia-projector-answer-card { background: #080c13; }
+@keyframes trivia-projector-rule-in { from { opacity: 0; transform: scaleX(.25); } to { opacity: 1; transform: scaleX(1); } }
+@media (min-width: 901px) and (max-height: 800px) {
+  .trivia-projector-brand { min-height: 64px; padding-block: .55rem; }
+  .trivia-projector-stage { padding-block: 1.4rem; }
+  .trivia-projector-title h1 { font-size: 2.8rem; }
+  .trivia-projector-rankings { gap: .35rem; margin-top: .8rem; }
+  .trivia-projector-ranking { padding-block: .4rem; }
+  .trivia-projector-ranking strong { font-size: 1.2rem; }
+  .trivia-projector-ranking em { font-size: 1.4rem; }
+  .trivia-projector-ranking > span { width: 28px; height: 28px; }
+  .trivia-projector-question article h2 { font-size: clamp(1.8rem, 3.7vw, 3.6rem); }
+}
+@media (max-width: 600px) {
+  .trivia-projector-brand { gap: .6rem; padding-inline: 1rem; }
+  .trivia-projector-brand > p { max-width: 38%; font-size: .6rem; letter-spacing: .08em; }
+  .trivia-projector-brand strong { font-size: .85rem; }
+  .trivia-projector-mark { width: 32px; height: 32px; flex: none; }
+  .trivia-projector-stage { padding-inline: 1rem; }
+  .trivia-projector-count { flex-wrap: wrap; justify-content: center; gap: .3rem .75rem; }
+  .trivia-projector-footer { gap: .5rem; font-size: .5rem; letter-spacing: .1em; }
+}
 @media (prefers-reduced-motion: reduce) { .trivia-projector * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } .trivia-projector-confetti { display: none; } }
 
 @media (pointer: coarse), (max-width: 640px) {

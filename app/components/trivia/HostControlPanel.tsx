@@ -45,6 +45,9 @@ export default function HostControlPanel({
 }: HostControlPanelProps) {
   const activeRound = getActiveRound(event, live);
   const activeQuestion = getActiveQuestion(event, live);
+  const rankedTeams = getSortedTeams(event.teams);
+  const leadingTeam = rankedTeams[0];
+  const tiedLeaders = leadingTeam ? rankedTeams.filter((team) => team.score === leadingTeam.score) : [];
   const flow = getTriviaHostFlow(event, live);
   const [confirmationKey, setConfirmationKey] = useState<string | null>(null);
   const [pendingRoundId, setPendingRoundId] = useState(live.activeRoundId);
@@ -55,7 +58,7 @@ export default function HostControlPanel({
   useEffect(() => {
     setConfirmationKey(null);
     setStatusMessage("");
-  }, [event.id, live.activeRoundId, live.activeQuestionIndex, live.stage]);
+  }, [event.id, live.activeRoundId, live.activeQuestionIndex, live.stage, activeQuestion?.id, activeQuestion?.prompt, activeQuestion?.audienceAnswer, activeQuestion?.scoringAnswer, leadingTeam?.id, leadingTeam?.score, tiedLeaders.length, connectionStatus, serverSyncEnabled]);
   useEffect(() => {
     if (!confirmationKey) return;
     const timeoutId = window.setTimeout(() => setConfirmationKey(null), 5_000);
@@ -100,9 +103,6 @@ export default function HostControlPanel({
   const nextQuestionRoundNumber = nextQuestionRound ? event.rounds.findIndex((round) => round.id === nextQuestionRound.id) + 1 : 0;
   const questionOnDisplay = ["question", "final_question", "tiebreaker", "answer", "explanation"].includes(live.stage)
     || live.stage === "timer_only";
-  const rankedTeams = getSortedTeams(event.teams);
-  const leadingTeam = rankedTeams[0];
-  const tiedLeaders = leadingTeam ? rankedTeams.filter((team) => team.score === leadingTeam.score) : [];
   const winnerReady = tiedLeaders.length === 1;
   const sharedStateSafe = serverSyncEnabled && connectionStatus === "connected";
   const controlsDisabled = !sharedStateSafe || saving;
