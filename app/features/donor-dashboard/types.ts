@@ -47,8 +47,11 @@ export interface DonationPreview {
 }
 
 export interface TrendPoint {
+  month?: string;
   label: string;
   amount: number;
+  previousAmount?: number | null;
+  isPartial?: boolean;
   count?: number;
   giftCount?: number;
   donationCount?: number;
@@ -84,6 +87,11 @@ export interface DonorDashboardSummary {
   activeDonors: number;
   ytdAmount: number;
   ytdCount: number;
+  ytdAverageGift?: number;
+  ytdAveragePerDonor?: number;
+  previousPeriodAmount?: number | null;
+  previousPeriodCount?: number | null;
+  revenueChangePercent?: number | null;
   ytdGrantAmount: number;
   activeCampaignRaisedAmount: number;
   weekAmount: number;
@@ -113,6 +121,8 @@ export interface DonorDashboardSummary {
     monthThrough: string;
     comparisonFrom: string;
     comparisonThrough: string;
+    yearComparisonFrom?: string | null;
+    yearComparisonThrough?: string | null;
   };
 }
 
@@ -130,6 +140,7 @@ export interface DashboardData {
   trendPoints: TrendPoint[];
   trendTotal: number;
   trendGiftCount: number;
+  trendComparisonTotal: number | null;
   trendPercent: number | null;
   designationSlices: DesignationSlice[];
   designationTotal: number;

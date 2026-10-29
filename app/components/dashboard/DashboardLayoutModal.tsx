@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import type { DashboardWidgetSize } from "@/app/components/dashboard/DashboardWidget";
 import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
 import type { AutoArrangePreset, DashboardLayoutMode } from "./dashboardPageConfig";
+import { DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_SIZES, DEFAULT_HIDDEN_WIDGETS } from "./dashboardPageConfig";
 
 export interface WidgetMeta {
   id: string;
@@ -17,6 +18,7 @@ export type RevenueProgressSource = "YTD_DONATIONS" | "ACTIVE_CAMPAIGNS";
 export type RevenueGoalMode = "AUTO" | "MANUAL";
 
 interface DashboardWidgetSettings {
+  locked: boolean;
   revenueProgressSource: RevenueProgressSource;
   includeGrants: boolean;
   revenueGoalMode: RevenueGoalMode;
@@ -40,6 +42,8 @@ interface Props {
   initialWidgetSizes: Record<string, DashboardWidgetSize>;
   initialLayoutMode: DashboardLayoutMode;
   initialAutoArrangePreset: AutoArrangePreset;
+  initialLocked?: boolean;
+  onArrangeWidgets?: () => void;
 }
 
 const WIDGET_SIZE_OPTIONS: Array<{ value: DashboardWidgetSize; label: string }> = [
@@ -63,7 +67,10 @@ export default function DashboardLayoutModal({
   initialWidgetSizes,
   initialLayoutMode,
   initialAutoArrangePreset,
+  initialLocked = true,
+  onArrangeWidgets,
 }: Props) {
+  const [localLocked, setLocalLocked] = useState(initialLocked);
   const [localOrder, setLocalOrder] = useState<string[]>(order);
   const [localHiddenWidgets, setLocalHiddenWidgets] = useState<Set<string>>(
     new Set(initialHiddenWidgetIds)
@@ -147,6 +154,7 @@ export default function DashboardLayoutModal({
 
   function handleApply() {
     onApply(localOrder, {
+      locked: localLocked,
       revenueProgressSource: localRevenueProgressSource,
       includeGrants: localIncludeGrants,
       revenueGoalMode: localRevenueGoalMode,
@@ -537,6 +545,7 @@ export default function DashboardLayoutModal({
               </div>
               <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
                 <legend className="px-1 text-sm font-semibold text-slate-800">Layout behavior</legend>
+                <label className="mb-4 flex items-center gap-3 text-sm text-slate-700"><input type="checkbox" checked={localLocked} onChange={(event) => setLocalLocked(event.target.checked)} />Lock layout after applying changes</label>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className={`cursor-pointer rounded-lg border p-3 ${localLayoutMode === "MASONRY" ? "border-[#0f6cbd] bg-[#eff6fc]" : "border-slate-200 hover:border-slate-300"}`}>
                     <input className="sr-only" type="radio" name="dashboard-layout" checked={localLayoutMode === "MASONRY"} onChange={() => setLocalLayoutMode("MASONRY")} />
@@ -564,6 +573,10 @@ export default function DashboardLayoutModal({
                   ))}
                 </div>
               </fieldset>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" className="donor-button" onClick={() => { setLocalOrder([...DEFAULT_WIDGET_ORDER]); setLocalHiddenWidgets(new Set(DEFAULT_HIDDEN_WIDGETS)); setLocalWidgetSizes({ ...DEFAULT_WIDGET_SIZES }); setLocalLayoutMode("MASONRY"); setLocalAutoArrangePreset("BALANCED"); }}>Restore default widget layout</button>
+                {onArrangeWidgets && <button type="button" className="donor-button" onClick={() => { handleApply(); onArrangeWidgets(); }}>Apply and arrange on dashboard</button>}
+              </div>
             </div>
           )}
 

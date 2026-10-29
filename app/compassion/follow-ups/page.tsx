@@ -4,14 +4,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import Link from "next/link";
+import { CareEmpty, CareHeading } from "@/app/components/compassion/care-ui";
 
 /** Follow-up as returned from GET /api/compassion/follow-ups */
 interface CompassionFollowUp {
   id: string;
+  title: string;
   status: string;
   priority: string;
   dueDate: string;
@@ -201,6 +200,7 @@ export default function CompassionFollowUpsPage() {
   const [priorityFilter, setPriorityFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -232,14 +232,15 @@ export default function CompassionFollowUpsPage() {
   /** Mark a follow-up as completed via PATCH */
   async function markComplete(id: string) {
     setCompleting(id);
+    setActionError(null);
     try {
       await apiFetch(`/api/compassion/follow-ups/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ status: "COMPLETED" }),
       });
       load();
-    } catch {
-      // silently ignore; list will not change
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Unable to complete this follow-up. Please try again.");
     } finally {
       setCompleting(null);
     }
@@ -249,34 +250,7 @@ export default function CompassionFollowUpsPage() {
 
   return (
     <div className="space-y-6">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Compassion CRM", href: "/compassion/dashboard" },
-          { label: "Follow-ups" },
-        ]}
-        statusLabel={loading ? "Loading" : overdueCount > 0 ? "Needs Attention" : "Working"}
-        metadata={`${followUps.length.toLocaleString()} follow-up${followUps.length === 1 ? "" : "s"} · ${overdueCount.toLocaleString()} overdue`}
-        accentTone="blue"
-        primaryAction={<WorkspaceRibbonButton label="Add Follow-up" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />}
-      />
-
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="Add Follow-up" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Status">
-          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} active={statusFilter === "PENDING"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Completed" onClick={() => setStatusFilter("COMPLETED")} active={statusFilter === "COMPLETED"} accentTone="blue" />
-          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} active={!statusFilter} accentTone="blue" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Priority">
-          <WorkspaceRibbonButton label="Urgent" onClick={() => setPriorityFilter("URGENT")} active={priorityFilter === "URGENT"} accentTone="blue" />
-          <WorkspaceRibbonButton label="High" onClick={() => setPriorityFilter("HIGH")} active={priorityFilter === "HIGH"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Clear" onClick={() => { setStatusFilter("PENDING"); setPriorityFilter(""); }} disabled={statusFilter === "PENDING" && !priorityFilter} accentTone="blue" />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+      <CareHeading title="Follow-ups" description="Keep every care commitment visible and close the loop when it is done." eyebrow="NEXT STEPS"><button className="care-button" onClick={() => setShowModal(true)}>Add follow-up</button><button className="care-button secondary" onClick={() => void load()} disabled={loading}>Refresh</button></CareHeading>
 
       {/* Overdue banner */}
       {overdueCount > 0 && (
@@ -287,9 +261,10 @@ export default function CompassionFollowUpsPage() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="care-filter-bar">
         <select
           value={statusFilter}
+          aria-label="Follow-up status"
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         >
@@ -301,6 +276,7 @@ export default function CompassionFollowUpsPage() {
         </select>
         <select
           value={priorityFilter}
+          aria-label="Follow-up priority"
           onChange={(e) => setPriorityFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         >
@@ -310,16 +286,19 @@ export default function CompassionFollowUpsPage() {
           <option value="MEDIUM">Medium</option>
           <option value="LOW">Low</option>
         </select>
+        {(statusFilter !== "PENDING" || priorityFilter) && <button className="care-button secondary" onClick={() => { setStatusFilter("PENDING"); setPriorityFilter(""); }}>Reset filters</button>}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>
+      {(error || actionError) && (
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error || actionError}</div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
         {loading ? (
           <div className="p-10 text-center text-sm text-gray-400 animate-pulse">Loading follow-ups…</div>
+        ) : error ? (
+          <CareEmpty title="Follow-ups are unavailable"><button className="care-button secondary" onClick={() => void load()}>Try again</button></CareEmpty>
         ) : followUps.length === 0 ? (
           <div className="p-10 text-center">
             <p className="text-gray-400 text-sm">No follow-ups found.</p>
@@ -330,7 +309,7 @@ export default function CompassionFollowUpsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Follow-up / client</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Priority</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Due Date</th>
@@ -345,7 +324,8 @@ export default function CompassionFollowUpsPage() {
                 return (
                   <tr key={fu.id} className={`hover:bg-gray-50 transition-colors ${overdue ? "bg-red-50/40" : ""}`}>
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {fu.client ? `${fu.client.firstName} ${fu.client.lastName}` : "—"}
+                      <strong className="block text-sm font-semibold">{fu.title}</strong>
+                      {fu.client ? <Link className="text-xs text-teal-700" href={`/compassion/clients/${fu.client.id}`}>{fu.client.firstName} {fu.client.lastName}</Link> : <span className="text-xs text-gray-400">Client unavailable</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadge(fu.status)}`}>
@@ -391,7 +371,7 @@ export default function CompassionFollowUpsPage() {
       </div>
 
       {!loading && followUps.length > 0 && (
-        <p className="text-xs text-gray-400">{followUps.length} follow-up{followUps.length !== 1 ? "s" : ""} shown</p>
+        <p className="text-xs text-gray-500">{followUps.length} follow-up{followUps.length !== 1 ? "s" : ""} shown · earliest due first · up to 50 per view</p>
       )}
 
       {showModal && (

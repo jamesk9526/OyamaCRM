@@ -4,6 +4,8 @@ The redesigned dashboard now presents actionable acknowledgment, first-time dono
 
 ## Compassion client-care application — 2026-10-29
 
+The care workspace now groups daily work, care coordination, and supporting tools. Settings is the canonical home for staff, care access, scheduling resources, website booking, hours, migration, and audit. Migration moved to `/compassion/settings/migration`; the former import and data-tools routes redirect there. Today supports client search, direct appointment creation, and follow-up completion. Clients, Cases, Follow-ups, and Schedule have clearer controls and explicit failure recovery. The calm teal design remains isolated from DonorCRM. See `docs/plans/compassion-workspace-refresh.md` and `docs/status/audit-artifacts/2026-10-29-compassion-refresh/verification.md`.
+
 Separate API process and clinical UI implemented with recovered client/case/scheduling workflows, explicit memberships, encrypted charts and documents, physician sign-off, intake review, client portal, education/points, staff hours, letters, reviewed migration, and duplicate consolidation. Clinical cutover is unapproved. CenterPiece export-specific mappings, provider integrations, national report packs, and PowerPoint export remain unverified or incomplete. See `docs/plans/compassion-client-care-implementation.md` and the dated audit evidence. Earlier Compassion rows below describe historical implementations and are superseded by this entry.
 
 ## 2026-10-17 Trivia sync duplicate-team repair
@@ -1331,3 +1333,7 @@ Source-of-truth organization map:
 - Temporary table remotes preserve unsaved guest edits across polling and keep failed walk-in submissions for retry. Table editing is collapsed behind an explicit action, with labelled phone-size fields and server-validated table numbers and guest limits.
 - Check-in remotes search team, host, guest, table number, and registration code; show arrival totals and waiting filters; and support confirmed undo of accidental check-in. Guest names and host names are available to the check-in role, while contact details and private question answers remain restricted.
 - Late arrivals synchronize as checked in to Events. Explicit table check-in survives synchronization when guest names have not yet been entered. Payment status is read-only in the phone remote; payment management remains in Events.
+
+## Donor analytics and canonical controls — 2026-10-29
+
+The donor dashboard now leads with visible monthly current/prior-year revenue and complete fund-mix charts, completed gift counts, average gift, unique active donors, and cohort-based retention. Comparisons match elapsed calendar/fiscal periods; zero baselines remain explicit, historical years have twelve months, and date-only gift boundaries and cent arithmetic are covered by focused tests. Dashboard layout controls share Customize dashboard; reporting has one control per device layout; imports remain in Data Tools; Custom Fields lives in Settings with a compatible redirect. Saved custom-field rendering, errors, retry, and mobile actions were repaired. Donor visual changes are scoped to the donor shell. See `audit-artifacts/2026-10-29-donor-modernization/verification.md` for evidence, current limitations, and the local-only verification boundary.

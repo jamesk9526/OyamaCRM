@@ -37,6 +37,21 @@ describe("daily donor dashboard data", () => {
     expect(data.errors).toEqual(["Pending acknowledgments: Temporarily unavailable"]);
   });
 
+  it("preserves monthly comparison, gift counts, and partial-period metadata", async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url) => url.startsWith("/api/reports/giving-trend") ? {
+      points: [{ month: "2026-10", label: "Oct", amount: "125.25", previousAmount: "100.10", giftCount: 3, isPartial: true }],
+      total: "125.25", comparisonTotal: "100.10", trendPercent: 25, giftCount: 3,
+    } : {});
+    const data = await loadDonorDashboardData({ reportingYearMode: "calendar" });
+    expect(data.trendComparisonTotal).toBe(100.1);
+    expect(data.trendPoints[0]).toMatchObject({ month: "2026-10", amount: 125.25, previousAmount: 100.1, giftCount: 3, isPartial: true });
+  });
+
+  it("keeps an absent prior-year baseline unknown instead of treating it as zero", async () => {
+    const data = await loadDonorDashboardData({ reportingYearMode: "calendar" });
+    expect(data.trendComparisonTotal).toBeNull();
+  });
+
   it("does not classify a partial-year retention rate against an invented target", () => {
     const suggestions = buildStewardshipSuggestions(summary, { total: 100, retained: 90, rate: 90 });
     expect(suggestions).toHaveLength(1);

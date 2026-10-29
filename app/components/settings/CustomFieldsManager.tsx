@@ -398,6 +398,8 @@ export default function CustomFieldsManager() {
   const [deleteTarget, setDeleteTarget] = useState<CustomField | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [builtInOpen, setBuiltInOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   /** Determine if the user can write (manager or admin role). */
   const canWrite = user?.role === "admin" || user?.role === "manager";
@@ -406,13 +408,16 @@ export default function CustomFieldsManager() {
   /** Fetch custom fields for the active entity tab. */
   const fetchFields = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
-      const res = await apiFetch(
+      const res = await apiFetch<CustomField[]>(
         `/api/custom-fields?entityType=${activeTab}${showInactive ? "&includeInactive=true" : ""}`
       );
-      setFields((res as { data: CustomField[] }).data ?? []);
-    } catch {
+      if (!Array.isArray(res)) throw new Error("The custom field response could not be read. Please retry.");
+      setFields(res);
+    } catch (reason) {
       setFields([]);
+      setError(reason instanceof Error ? reason.message : "Unable to load custom fields.");
     } finally {
       setLoading(false);
     }
@@ -425,12 +430,13 @@ export default function CustomFieldsManager() {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
+    setError("");
     try {
       await apiFetch(`/api/custom-fields/${deleteTarget.id}`, { method: "DELETE" });
       setDeleteTarget(null);
       fetchFields();
-    } catch {
-      // Keep modal open on error
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to delete this field.");
     } finally {
       setDeleting(false);
     }
@@ -438,22 +444,27 @@ export default function CustomFieldsManager() {
 
   /** Toggle field active/inactive without full delete. */
   async function handleToggleActive(field: CustomField) {
+    setUpdatingId(field.id);
+    setError("");
     try {
       await apiFetch(`/api/custom-fields/${field.id}`, {
         method: "PUT",
         body: JSON.stringify({ active: !field.active }),
       });
-      fetchFields();
-    } catch { /* ignore */ }
+      await fetchFields();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update this field.");
+    } finally { setUpdatingId(null); }
   }
 
   // Built-in fields for the active entity type (constituent only for now)
   const builtInFields = activeTab === "constituent" ? CRM_CONSTITUENT_FIELDS.filter((f) => f.group !== "Skip") : [];
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="min-w-0 max-w-5xl mx-auto py-4 sm:p-5">
+      {error && !deleteTarget && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button type="button" onClick={() => void fetchFields()} className="ml-3 font-semibold underline">Retry</button></div>}
       {/* Page header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Custom Fields</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -463,7 +474,7 @@ export default function CustomFieldsManager() {
         {canWrite && (
           <button
             onClick={() => { setEditTarget(null); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+            className="inline-flex shrink-0 self-start items-center gap-2 whitespace-nowrap px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
           >
             <span className="text-lg leading-none">+</span>
             Add Custom Field
@@ -472,12 +483,12 @@ export default function CustomFieldsManager() {
       </div>
 
       {/* Entity type tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
+      <div className="flex gap-1 mb-6 overflow-x-auto border-b border-gray-200" aria-label="Custom field entity types">
         {ENTITY_TABS.map((tab) => (
           <button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${
+            className={`shrink-0 px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${
               activeTab === tab.value
                 ? "bg-white border border-b-white border-gray-200 text-green-700 -mb-px"
                 : "text-gray-500 hover:text-gray-800"
@@ -511,9 +522,9 @@ export default function CustomFieldsManager() {
                     {group}
                   </p>
                   {groupFields.map((f) => (
-                    <div key={f.key} className="flex items-center gap-3 px-5 py-2.5">
+                    <div key={f.key} className="flex flex-wrap items-center gap-3 px-5 py-2.5">
                       <span className="text-sm text-gray-800 font-medium w-48">{f.label}</span>
-                      <code className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-1">{f.key}</code>
+                      <code className="break-all text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-1">{f.key}</code>
                       {f.required && (
                         <span className="text-xs text-red-600 font-medium">Required</span>
                       )}
@@ -553,6 +564,8 @@ export default function CustomFieldsManager() {
 
         {loading ? (
           <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
+        ) : error && fields.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-600">Custom fields could not be loaded. Retry to view your saved fields.</div>
         ) : fields.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-gray-400 text-sm mb-3">No custom fields yet for this entity type.</p>
@@ -566,7 +579,8 @@ export default function CustomFieldsManager() {
             )}
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div role="region" aria-label="Custom field definitions" tabIndex={0} className="overflow-x-auto">
+          <table className="min-w-[720px] w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-200">
                 <th className="px-5 py-3 text-left font-medium">Name</th>
@@ -612,10 +626,11 @@ export default function CustomFieldsManager() {
                         {/* Toggle active */}
                         <button
                           onClick={() => handleToggleActive(field)}
+                          disabled={updatingId !== null}
                           className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-1"
                           title={field.active ? "Deactivate field" : "Activate field"}
                         >
-                          {field.active ? "Disable" : "Enable"}
+                          {updatingId === field.id ? "Saving…" : field.active ? "Disable" : "Enable"}
                         </button>
                         {/* Edit */}
                         <button
@@ -627,7 +642,7 @@ export default function CustomFieldsManager() {
                         {/* Delete (admin only) */}
                         {canDelete && (
                           <button
-                            onClick={() => setDeleteTarget(field)}
+                            onClick={() => { setError(""); setDeleteTarget(field); }}
                             className="text-xs text-red-500 hover:text-red-700 border border-red-200 rounded px-2 py-1"
                           >
                             Delete
@@ -640,6 +655,7 @@ export default function CustomFieldsManager() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -658,6 +674,7 @@ export default function CustomFieldsManager() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Custom Field?</h3>
+            {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
             <p className="text-sm text-gray-600 mb-1">
               This will permanently delete <strong>{deleteTarget.name}</strong> ({deleteTarget.key}) and ALL stored values for this field across every {deleteTarget.entityType} record.
             </p>

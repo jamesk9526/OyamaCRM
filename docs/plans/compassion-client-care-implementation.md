@@ -5,6 +5,7 @@ Approved direction: recover and refactor the former Compassion app as a client-c
 ## Architecture
 
 - `/compassion` is the canonical entry point; `/compassion/login` provides the clinical sign-in screen.
+- Workspace configuration lives under `/compassion/settings`, including the canonical migration route `/compassion/settings/migration`. `/compassion/import/clients` and `/compassion/data-tools` redirect to Migration in Settings. Staff, access roles, and scheduling resources each have a dedicated settings page.
 - The API runs independently on `127.0.0.1:4100`. Next proxies `/api/compassion/*` and `/api/compassion-public/*` to it. The donor API entry point and routes are unchanged.
 - Platform authentication supplies identity only. Explicit Compassion memberships authorize records, scheduling, casework, clinical access, physician sign-off, migration, exports, messages, and administration.
 - New data, booking configuration, and audit evidence use dedicated `Compassion*` tables. Client records never create donors, donations, donor activities, audiences, or AI context.

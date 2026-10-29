@@ -7,6 +7,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppLauncherIcon from "@/app/components/layout/AppLauncherIcon";
+import DonorAccountMenu from "@/app/components/layout/DonorAccountMenu";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
 import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
 import ContextualTutorialModal from "@/app/components/help/ContextualTutorialModal";
@@ -1781,23 +1782,21 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               </button>
             </div>
 
-            <div className={`shrink-0 ${isDonorEnterpriseChrome ? "ml-auto" : ""}`}>
-              <UserMenu
+            <div className={`flex shrink-0 items-center gap-2 ${isDonorEnterpriseChrome ? "ml-auto" : ""}`}>
+              {isDonorEnterpriseChrome ? <>
+                <button type="button" onClick={handleReportingWindowToggle} title={donorReportingModeDescription}
+                  aria-label={`Reporting period: ${donorReportingModeLabel}. Switch calendar or fiscal year`}
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${reportingModeJustChanged ? "ring-2 ring-emerald-300/70" : ""}`}>
+                  <span className="text-slate-400">Period</span>{donorReportingModeLabel}
+                </button>
+                <DonorAccountMenu helpHref={helpHref} onSupport={() => openFeedbackFromUserMenu(topBarPanelSetters)} />
+              </> : <UserMenu
                 moduleKey={moduleKey}
                 showApps={showTopBarAppLauncher}
                 onOpenApps={() => router.push("/apps")}
                 onOpenFeedback={() => openFeedbackFromUserMenu(topBarPanelSetters)}
                 helpHref={helpHref}
-                reportingWindow={isDonorEnterpriseChrome
-                  ? {
-                    label: donorReportingModeLabel,
-                    description: donorReportingModeDescription,
-                    mode: reportingYearMode,
-                    justChanged: reportingModeJustChanged,
-                    onToggle: handleReportingWindowToggle,
-                  }
-                  : undefined}
-              />
+              />}
             </div>
           </div>
           </div>
@@ -2078,13 +2077,6 @@ interface UserMenuProps {
   onOpenApps: () => void;
   onOpenFeedback: () => void;
   helpHref: string;
-  reportingWindow?: {
-    label: string;
-    description: string;
-    mode: ReportingYearMode;
-    justChanged: boolean;
-    onToggle: () => void;
-  };
 }
 
 /** UserMenu: avatar with account, workspace tools, and role-aware admin controls. */
@@ -2094,7 +2086,6 @@ function UserMenu({
   onOpenApps,
   onOpenFeedback,
   helpHref,
-  reportingWindow,
 }: UserMenuProps) {
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -2249,21 +2240,6 @@ function UserMenu({
                   <HelpCircleIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="min-w-0 truncate">Help</span>
                 </Link>
-                {reportingWindow ? (
-                  <button
-                    type="button"
-                    onClick={() => runProfileAction(reportingWindow.onToggle)}
-                    title={reportingWindow.description}
-                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold shadow-sm transition-colors xl:min-h-10 xl:px-2.5 ${
-                      reportingWindow.mode === "fiscal"
-                        ? "border-emerald-200 bg-emerald-50/90 text-emerald-800 hover:bg-emerald-100"
-                        : "border-sky-200 bg-sky-50/90 text-sky-800 hover:bg-sky-100"
-                    } ${reportingWindow.justChanged ? "ring-2 ring-emerald-300/70" : ""}`}
-                  >
-                    <span className="min-w-0 truncate">Reporting</span>
-                    <span className="shrink-0 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px]">{reportingWindow.label}</span>
-                  </button>
-                ) : null}
               </div>
             </div>
 

@@ -17,17 +17,23 @@ describe("reporting period consistency", () => {
   });
 
   it("compares MTD with the same point in the prior month", () => {
-    const now = new Date(2026, 6, 29, 14, 15, 10);
+    const now = new Date("2026-07-29T14:15:10Z");
     const prior = getPriorMonthComparableRange(now);
 
-    expect(prior.gte).toEqual(new Date(2026, 5, 1));
-    expect(prior.lte).toEqual(new Date(2026, 5, 29, 14, 15, 10));
+    expect(prior.gte).toEqual(new Date("2026-06-01T00:00:00Z"));
+    expect(prior.lte).toEqual(new Date("2026-06-29T14:15:10Z"));
   });
 
   it("clamps a 31st-day comparison to the prior month end", () => {
-    const prior = getPriorMonthComparableRange(new Date(2026, 2, 31, 12));
-    expect(prior.lte.getMonth()).toBe(1);
-    expect(prior.lte.getDate()).toBe(28);
+    const prior = getPriorMonthComparableRange(new Date("2026-03-31T12:00:00Z"));
+    expect(prior.lte.getUTCMonth()).toBe(1);
+    expect(prior.lte.getUTCDate()).toBe(28);
+  });
+
+  it("keeps MTD and prior-MTD on the same UTC calendar basis at a local month boundary", () => {
+    const prior = getPriorMonthComparableRange(new Date("2026-08-01T02:30:00Z"));
+    expect(prior.gte.toISOString()).toBe("2026-07-01T00:00:00.000Z");
+    expect(prior.lte.toISOString()).toBe("2026-07-01T02:30:00.000Z");
   });
 });
 

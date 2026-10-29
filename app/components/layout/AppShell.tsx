@@ -81,6 +81,7 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "oyama-email",
   "login",
   "meetings",
+  "notifications",
   "modules",
   "offline",
   "ogentic",

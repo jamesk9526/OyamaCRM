@@ -1,2 +1,2 @@
-import MigrationWorkspace from "@/app/components/compassion/MigrationWorkspace";
-export default function ClientMigrationPage() { return <MigrationWorkspace />; }
+import { redirect } from "next/navigation";
+export default function ClientMigrationPage() { redirect("/compassion/settings/migration"); }

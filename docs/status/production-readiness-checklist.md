@@ -4,6 +4,8 @@ Focused dashboard, task scoping, financial calculation tests, GET-only local API
 
 ## Compassion clinical cutover — 2026-10-29
 
+The workspace refresh moves migration into Settings, separates staff/access/resource administration, and modernizes daily-care tools. This UI work does not change clinical cutover approval. Verification and deployment limits are recorded in `audit-artifacts/2026-10-29-compassion-refresh/verification.md`.
+
 The new client-care app is available for development/pilot verification with a separate API. Do not interpret restored workflows or passing engineering checks as clinical launch approval. Before clinical cutover: verify source export coverage and reconciliation; review clinical/consent templates; assign least-privilege memberships and physician accounts; prove encrypted backup/restore and key recovery; validate hosting and retention; verify safe-contact/provider delivery; rehearse cutover and rollback. PlusLink, national reporting contracts, and presentation exports remain outstanding. Detailed operations and limits: `docs/plans/compassion-client-care-implementation.md`.
 
 ## 2026-10-17 Trivia sync duplicate-team repair
@@ -1110,3 +1112,9 @@ The [2026-09-22 public registration and payment review](audit-artifacts/2026-09-
 - [x] Local 390px browser fixture verifies preserved drafts during polling and failed saves, retained failed walk-ins, successful walk-in reset, guest search, check-in and confirmed undo, late arrivals, empty/search states, and absence of runtime errors or horizontal overflow. Reproduce with `node tests/e2e/trivia-table-remote-fixture.e2e.mjs`.
 - [x] Focused ESLint and server TypeScript validation passed for table/check-in changes. Host-only answer redaction was exercised across all four temporary access roles.
 - [ ] Rehearse check-in/undo and roster synchronization against staging Events data on physical volunteer phones; local fixture uses simulated action responses and does not prove database/provider integration.
+
+### Donor modernization verification (2026-10-29)
+
+- [x] Current-source desktop/tablet/mobile browser fixtures verify visible revenue/fund charts, accurate gift averages, accessible monthly values, isolated chart failures and retry, dashboard customization, account/reporting controls, notification authentication, canonical Custom Fields routing, and existing donor actions. All 33 browser checks passed with zero runtime errors or business writes.
+- [x] Whole-web typecheck, focused donor ESLint, and 44 directly repeated unit/API tests passed. Additional metric-worker coverage passed 63 checks including an America/Chicago timezone run and server typecheck. Storage is mocked in the new metric API tests.
+- [ ] Reconcile calculation results against approved production-data samples and verify the deployed build. No deployment, live donor edit, import, payment, or outbound communication occurred in this work. Five legacy visual-source assertions remain stale, as documented in the preceding donor audit; behavioral checks are the evidence for this redesign. Detailed evidence: `audit-artifacts/2026-10-29-donor-modernization/verification.md`.

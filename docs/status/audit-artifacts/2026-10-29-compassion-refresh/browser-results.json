@@ -1,0 +1,16 @@
+{
+  "checks": [
+    "Grouped daily/care/tool navigation; follow-ups and letters discoverable; migration absent from primary navigation",
+    "Today completes a follow-up through PATCH and refreshes the queue",
+    "Global client search hands the query to the directory and API",
+    "Migration lives in Settings with compatible redirects from both previous routes",
+    "Access management has a dedicated home and preserves explicit reviewed grants",
+    "Resources can be created and filtered from their dedicated settings page",
+    "Today's scheduling shortcut opens the appointment editor directly",
+    "390px layouts have no page overflow; mobile navigation supports Escape",
+    "Failed requests display unavailable states; retry restores the real queue",
+    "Restricted roles do not mount settings controls or request protected membership data"
+  ],
+  "runtimeErrors": [],
+  "fixture": "Isolated synthetic API responses; UI requests and reviewed mutations exercised without database writes."
+}

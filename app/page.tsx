@@ -8,7 +8,6 @@ import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
-import CRMSecondaryMenu from "@/app/components/ui/crm/CRMSecondaryMenu";
 import NaturalisticDonorDashboard from "./components/dashboard/NaturalisticDonorDashboard";
 import DashboardLayoutModal from "./components/dashboard/DashboardLayoutModal";
 import DashboardWidgetRenderer from "./components/dashboard/DashboardWidgetRenderer";
@@ -100,13 +99,7 @@ export default function DashboardPage() {
         reportingYearMode={dashboardState.reportingYearMode}
         onRefresh={dashboardState.load}
         headerActions={(
-          <CRMSecondaryMenu label="Dashboard options">
-            <button type="button" className="donor-button" onClick={dashboardState.openCustomizeModal}>Customize dashboard</button>
-            <button type="button" className="donor-button" onClick={dashboardState.toggleLayoutLock}>{dashboardState.locked ? "Unlock layout" : "Lock layout"}</button>
-            <button type="button" className="donor-button" disabled={dashboardState.locked} onClick={() => { setInsightsExpanded(true); dashboardState.toggleEditMode(); }}>{dashboardState.editMode ? "Done arranging" : "Reorder widgets"}</button>
-            <button type="button" className="donor-button" onClick={() => dashboardState.applySmartLayout("FEATURE_FIRST")}>Smart layout</button>
-            <button type="button" className="donor-button" onClick={dashboardState.resetLayout}>Reset widget layout</button>
-          </CRMSecondaryMenu>
+          <button type="button" className="donor-button" onClick={dashboardState.openCustomizeModal}><SlidersHorizontal className="h-4 w-4" aria-hidden="true" />Customize dashboard</button>
         )}
         extraSections={<div id="dashboard-insights">{widgetArea}</div>}
       />
@@ -125,6 +118,8 @@ export default function DashboardPage() {
           initialWidgetSizes={dashboardState.widgetSizes}
           initialLayoutMode={dashboardState.layoutMode}
           initialAutoArrangePreset={dashboardState.autoArrangePreset}
+          initialLocked={dashboardState.locked}
+          onArrangeWidgets={() => { setInsightsExpanded(true); dashboardState.beginEditMode(); }}
         />
       ) : null}
     </EnterprisePageShell>

@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { installDonorWorkspaceFixtures } from "./fixtures/donor-daily-workspace.mjs";
 
 const base = process.env.QA_BASE_URL || "http://127.0.0.1:3651";
-const evidence = "docs/status/audit-artifacts/2026-10-29-donor-dashboard";
+const evidence = process.env.QA_EVIDENCE_DIR || "docs/status/audit-artifacts/2026-10-29-donor-dashboard";
 const user = { id: "qa-donor-admin", firstName: "Taylor", lastName: "Reed", email: "qa@example.invalid", role: "admin", organizationId: "qa-donor-org" };
 const campaign = { id: "qa-campaign", name: "QA Community Fund", goal: "1000.00", totalRaised: "250.00", active: true, category: "ANNUAL_FUND", startDate: "2026-01-01", donations: [], _count: { donations: 1, pledges: 0 } };
 const browser = await chromium.launch({ headless: true });
@@ -50,14 +50,13 @@ try {
     checks.push(`Dashboard at ${width}px has one heading and no horizontal overflow`);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole("button", { name: "Find a constituent", exact: true }).click();
+  await page.getByRole("button", { name: "Search CRM", exact: true }).click();
   assert.equal(await page.locator("input:focus").count(), 1); await page.keyboard.press("Escape");
   checks.push("Find constituent focuses working global search");
   await page.locator("main").getByRole("link", { name: "Record gift", exact: true }).click();
   await page.getByRole("dialog").waitFor(); await page.keyboard.press("Escape");
   checks.push("Record gift opens the real gift-entry modal without saving");
   await dashboard();
-  await page.getByText("Dashboard options", { exact: true }).click();
   await page.getByRole("button", { name: "Customize dashboard", exact: true }).click();
   await page.getByRole("dialog").waitFor(); await page.keyboard.press("Escape");
   checks.push("Dashboard customization remains available");
@@ -111,8 +110,8 @@ try {
   checks.push("Campaign progress opens its campaign workspace");
 
   await dashboard();
-  await page.locator("summary").filter({ hasText: "Giving breakdown and Steward insights" }).click();
-  await page.getByRole("heading", { name: "Steward Recommendations", exact: true }).waitFor();
+  await page.locator("summary").filter({ hasText: "Steward recommendations" }).click();
+  await page.getByRole("region", { name: "Steward recommendations", exact: true }).waitFor();
   await page.getByRole("link", { name: "Open Segment", exact: false }).click();
   await page.getByRole("heading", { name: "First Time Donors", exact: true }).waitFor();
   await page.waitForURL((url) => url.searchParams.has("from"));

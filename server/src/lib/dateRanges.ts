@@ -178,19 +178,20 @@ export function getReportingPeriod(options: {
  * window. This avoids comparing a partial month with a full prior month.
  */
 export function getPriorMonthComparableRange(now = new Date()): { gte: Date; lte: Date; fullMonthEnd: Date } {
-  const gte = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const fullMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
-  const daysInPriorMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
-  const comparableDay = Math.min(now.getDate(), daysInPriorMonth);
-  const lte = new Date(
-    gte.getFullYear(),
-    gte.getMonth(),
+  // Match getMTDRange's UTC calendar date contract, including on non-UTC hosts.
+  const gte = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const fullMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const daysInPriorMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).getUTCDate();
+  const comparableDay = Math.min(now.getUTCDate(), daysInPriorMonth);
+  const lte = new Date(Date.UTC(
+    gte.getUTCFullYear(),
+    gte.getUTCMonth(),
     comparableDay,
-    now.getHours(),
-    now.getMinutes(),
-    now.getSeconds(),
-    now.getMilliseconds(),
-  );
+    now.getUTCHours(),
+    now.getUTCMinutes(),
+    now.getUTCSeconds(),
+    now.getUTCMilliseconds(),
+  ));
   return { gte, lte: lte < fullMonthEnd ? lte : new Date(fullMonthEnd.getTime() - 1), fullMonthEnd };
 }
 

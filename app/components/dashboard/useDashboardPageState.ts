@@ -73,6 +73,7 @@ export interface DashboardWidgetFrameProps {
 }
 
 export interface DashboardLayoutApplySettings {
+  locked?: boolean;
   revenueProgressSource: RevenueProgressSource;
   includeGrants: boolean;
   revenueGoalMode: RevenueGoalMode;
@@ -318,6 +319,10 @@ export function useDashboardPageState() {
     setWidgetSizes({ ...DEFAULT_WIDGET_SIZES, ...(settings.widgetSizes as Partial<Record<WidgetId, DashboardWidgetSize>>) });
     setLayoutMode(settings.layoutMode);
     setAutoArrangePreset(settings.autoArrangePreset);
+    if (settings.locked !== undefined) {
+      setLocked(settings.locked);
+      if (settings.locked) setEditMode(false);
+    }
   }
 
   function resetLayout() {
@@ -388,6 +393,7 @@ export function useDashboardPageState() {
     resetLayout,
     showAllWidgets,
     toggleEditMode,
+    beginEditMode: () => { setLocked(false); setEditMode(true); },
     applySmartLayout,
     toggleLayoutLock,
     getWidgetFrameProps,

@@ -3,8 +3,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
-import { CareHeading } from "../care-ui";
+import { CareEmpty, CareHeading } from "../care-ui";
 import { useCareAccess } from "../CompassionShell";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
@@ -262,6 +263,7 @@ function AddClientModal({ onClose, onCreated, staffList }: {
  */
 export default function ClientsWorkspace() {
   const access = useCareAccess();
+  const searchParams = useSearchParams();
   const [clients, setClients] = useState<CompassionClient[]>([]);
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -270,8 +272,8 @@ export default function ClientsWorkspace() {
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<ClientPageSize>(50);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "");
   const [assignedFilter, setAssignedFilter] = useState<"" | "true" | "false">("");
   const [staffIdFilter, setStaffIdFilter] = useState("");
   const [missingContact, setMissingContact] = useState(false);
@@ -411,9 +413,7 @@ export default function ClientsWorkspace() {
     <div className="space-y-6">
       <CareHeading title="Clients" description="Your client directory, intake details, and care assignments." eyebrow="PEOPLE IN YOUR CARE">
         {access?.capabilities.includes("casework") && <button className="care-button" onClick={() => setShowModal(true)}>Add client</button>}
-        {access?.capabilities.includes("export") && <button className="care-button secondary" onClick={() => void exportVisibleRows()}>Export client directory</button>}
-        {access?.capabilities.includes("manage") && <Link className="care-button secondary" href="/compassion/clients/merge">Review duplicates</Link>}
-        <button className="care-button secondary" onClick={() => setDensity((current) => current === "compact" ? "comfortable" : "compact")}>{density === "compact" ? "Comfortable rows" : "Compact rows"}</button>
+        <details className="care-tools-menu"><summary>Directory tools</summary><div>{access?.capabilities.includes("export") && <button type="button" onClick={() => void exportVisibleRows()}>Export client directory</button>}{access?.capabilities.includes("manage") && <Link href="/compassion/clients/merge">Review duplicates</Link>}<button type="button" onClick={() => setDensity((current) => current === "compact" ? "comfortable" : "compact")}>{density === "compact" ? "Comfortable rows" : "Compact rows"}</button></div></details>
       </CareHeading>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
@@ -439,16 +439,18 @@ export default function ClientsWorkspace() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="care-filter-bar">
         <input
           type="text"
           placeholder="Search name, preferred name, email, phone, referral source…"
+          aria-label="Search client directory"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-72"
         />
         <select
           value={statusFilter}
+          aria-label="Client status"
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         >
@@ -537,11 +539,12 @@ export default function ClientsWorkspace() {
         </div>
         {loading ? (
           <div className="p-10 text-center text-sm text-gray-400 animate-pulse">Loading clients…</div>
+        ) : error ? (
+          <CareEmpty title="Client directory is unavailable"><button className="care-button secondary" onClick={() => void load()}>Try again</button></CareEmpty>
         ) : clients.length === 0 ? (
           <div className="p-10 text-center">
             <p className="text-gray-400 text-sm">No clients found.</p>
-            <button onClick={() => setShowModal(true)}
-              className="mt-3 text-sm text-blue-600 hover:underline">Add your first client</button>
+            {hasActiveFilters ? <button onClick={clearFilters} className="care-button secondary mt-3">Clear filters</button> : access?.capabilities.includes("casework") && <button onClick={() => setShowModal(true)} className="care-button secondary mt-3">Add your first client</button>}
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -4,10 +4,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
+import Link from "next/link";
+import { CareEmpty, CareHeading } from "../care-ui";
 
 /** Case as returned from GET /api/compassion/cases */
 interface CompassionCase {
@@ -344,6 +342,7 @@ export default function CasesWorkspace() {
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingCase, setEditingCase] = useState<CompassionCase | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   /** Load cases from API */
   const load = useCallback(async () => {
@@ -387,7 +386,7 @@ export default function CasesWorkspace() {
 
   /** Quick case status transitions keep high-volume queues spreadsheet-friendly. */
   async function updateCaseStatus(caseRecord: CompassionCase, nextStatus: string) {
-    setError(null);
+    setActionError(null);
     try {
       await apiFetch(`/api/compassion/cases/${caseRecord.id}`, {
         method: "PUT",
@@ -398,40 +397,13 @@ export default function CasesWorkspace() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update case status");
+      setActionError(err instanceof Error ? err.message : "Failed to update case status");
     }
   }
 
   return (
     <div className="space-y-6">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Compassion CRM", href: "/compassion/dashboard" },
-          { label: "Cases" },
-        ]}
-        statusLabel={loading ? "Loading" : "Working"}
-        metadata={`${filteredCases.length.toLocaleString()} case${filteredCases.length === 1 ? "" : "s"} · ${statusFilter || "all statuses"}`}
-        accentTone="blue"
-        primaryAction={<WorkspaceRibbonButton label="New Case" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />}
-      />
-
-      <WorkspaceRibbon>
-        <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="New Case" onClick={() => setShowModal(true)} variant="primary" accentTone="blue" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Status">
-          <WorkspaceRibbonButton label="All" onClick={() => setStatusFilter("")} active={!statusFilter} accentTone="blue" />
-          <WorkspaceRibbonButton label="Open" onClick={() => setStatusFilter("OPEN")} active={statusFilter === "OPEN"} accentTone="blue" />
-          <WorkspaceRibbonButton label="In Progress" onClick={() => setStatusFilter("IN_PROGRESS")} active={statusFilter === "IN_PROGRESS"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Pending" onClick={() => setStatusFilter("PENDING")} active={statusFilter === "PENDING"} accentTone="blue" />
-          <WorkspaceRibbonButton label="Closed" onClick={() => setStatusFilter("CLOSED")} active={statusFilter === "CLOSED"} accentTone="blue" />
-        </WorkspaceRibbonGroup>
-
-        <WorkspaceRibbonGroup label="Filters">
-          <WorkspaceRibbonButton label="Clear" onClick={() => { setSearch(""); setStatusFilter(""); }} disabled={!search && !statusFilter} accentTone="blue" />
-        </WorkspaceRibbonGroup>
-      </WorkspaceRibbon>
+      <CareHeading title="Cases" description="Coordinate client support, assignments, and next steps." eyebrow="CARE COORDINATION"><button className="care-button" onClick={() => setShowModal(true)}>New case</button><Link className="care-button secondary" href="/compassion/follow-ups">Follow-ups</Link></CareHeading>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
@@ -449,15 +421,17 @@ export default function CasesWorkspace() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="care-filter-bar">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by case #, client, or type..."
+          aria-label="Search cases"
           className="flex-1 min-w-[220px] border border-gray-200 rounded-lg px-3 py-2 text-sm"
         />
         <select
           value={statusFilter}
+          aria-label="Case status"
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         >
@@ -468,16 +442,19 @@ export default function CasesWorkspace() {
           <option value="CLOSED">Closed</option>
           <option value="ARCHIVED">Archived</option>
         </select>
+        {(search || statusFilter) && <button className="care-button secondary" onClick={() => { setSearch(""); setStatusFilter(""); }}>Clear filters</button>}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>
+      {(error || actionError) && (
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error || actionError}</div>
       )}
 
       {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-10 text-center text-sm text-gray-400 animate-pulse">Loading cases…</div>
+        ) : error ? (
+          <CareEmpty title="Cases are unavailable"><button className="care-button secondary" onClick={() => void load()}>Try again</button></CareEmpty>
         ) : filteredCases.length === 0 ? (
           <div className="p-10 text-center">
             <p className="text-gray-400 text-sm">No cases found.</p>

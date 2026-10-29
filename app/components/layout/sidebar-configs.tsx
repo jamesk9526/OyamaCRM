@@ -53,14 +53,6 @@ const DONOR_ICONS = {
 export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): CrmSidebarGroup[] {
   const systemItems: CrmSidebarGroup["items"] = [
     {
-      id: "notifications",
-      label: "Notifications",
-      href: "/notifications",
-      icon: DONOR_ICONS.tasks,
-      kind: "daily_tool" as const,
-      description: "Review live task, communication, and CRM work alerts in one stream.",
-    },
-    {
       id: "settings",
       label: "Settings",
       href: "/settings",
@@ -75,14 +67,6 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       icon: DONOR_ICONS.dataTools,
       kind: "system" as const,
       description: "Clean, dedupe, and maintain donor data quality.",
-    },
-    {
-      id: "custom-fields",
-      label: "Custom Fields",
-      href: "/custom-fields",
-      icon: DONOR_ICONS.customFields,
-      kind: "system" as const,
-      description: "Manage configurable donor and donation fields.",
     },
     {
       id: "help",
@@ -366,8 +350,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
     {
       id: "administration", label: "Administration", collapsible: true, defaultOpen: false,
       items: [
-        ...take(["notifications", "settings", "data-tools", "custom-fields", "help"]),
-        { id: "imports", label: "Imports", href: "/data-tools/import", icon: DONOR_ICONS.dataTools },
+        ...take(["data-tools", "settings", "help"]),
       ],
     },
   ];

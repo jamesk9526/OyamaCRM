@@ -50,6 +50,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
       { label: "Integrations", href: "/settings/integrations", description: "Connected services", iconSlug: "integrations" },
       { label: "Giving Payments", href: "/integrations/stripe", description: "Stripe and PayPal", iconSlug: "quickbooks-queue" },
       { label: "Site Embeds", href: "/settings/site-embeds", description: "Website forms and widgets", iconSlug: "communications" },
+      { label: "Custom Fields", href: "/settings/custom-fields", description: "Constituent and donation fields", iconSlug: "field-mapping" },
       { label: "Import & Export", href: "/settings/import-export", description: "Move and back up data", iconSlug: "documentation" },
     ],
   },

@@ -27,10 +27,17 @@ describe("Daily Donor navigation", () => {
   it("selects the most specific route and respects segment boundaries", () => {
     const groups = buildDonorDailyNavigation({ qbEnabled: false });
     expect(resolveDonorNavigationActiveItem(groups, "/constituents/person/edit")).toBe("constituents");
-    expect(resolveDonorNavigationActiveItem(groups, "/data-tools/import")).toBe("imports");
+    expect(resolveDonorNavigationActiveItem(groups, "/data-tools/import")).toBe("data-tools");
     expect(resolveDonorNavigationActiveItem(groups, "/data-tools")).toBe("data-tools");
     expect(resolveDonorNavigationActiveItem(groups, "/donations-other")).toBeUndefined();
     expect(groups.flatMap((group) => group.items).some((item) => item.id === "qb-sync")).toBe(false);
+  });
+
+  it("keeps configuration and data subtools in their owning workspaces", () => {
+    const items = buildDonorDailyNavigation({ qbEnabled: false }).flatMap((group) => group.items);
+    expect(items.filter((item) => item.href === "/settings")).toHaveLength(1);
+    expect(items.filter((item) => item.href === "/data-tools")).toHaveLength(1);
+    expect(items.some((item) => ["imports", "custom-fields", "notifications"].includes(item.id))).toBe(false);
   });
 
   it("honors effective permissions and role restrictions on both navigation surfaces", () => {

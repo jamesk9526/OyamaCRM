@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Saved custom fields render from the canonical unwrapped API response",
+    "Custom field failures show an error and retry restores saved fields",
+    "Donor rail has canonical Settings and Data Tools entries without duplicated subtools",
+    "Reporting period changes directly in the desktop header",
+    "Account dialog links to canonical settings and restores keyboard focus on Escape",
+    "Legacy custom-field bookmarks redirect to the Settings workspace",
+    "Mobile navigation fits 390px and custom field actions remain reachable in the scrolling table"
+  ],
+  "errors": [],
+  "writes": [],
+  "fixture": "Synthetic browser responses; no database or provider writes"
+}

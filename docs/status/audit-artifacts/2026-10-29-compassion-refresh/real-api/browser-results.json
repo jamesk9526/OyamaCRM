@@ -1,0 +1,16 @@
+{
+  "checks": [
+    "Today uses real client-care API data",
+    "No donor chrome or donor API requests inside client-care workspace",
+    "Recovered client directory renders in the refactored shell",
+    "Interactive scheduling calendar renders",
+    "Clinical draft persists through the real API",
+    "Intake request workflow renders",
+    "CSV mapping and server import preview work end to end",
+    "Mobile drawer navigation and viewport containment work",
+    "Donor-only accounts see access denial",
+    "Dedicated Compassion login and protected-route redirect work"
+  ],
+  "runtimeErrors": [],
+  "fixture": "Disposable synthetic organization; client-care APIs and MySQL exercised, shared identity transport stubbed."
+}

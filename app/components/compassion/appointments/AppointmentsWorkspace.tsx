@@ -118,7 +118,7 @@ export default function AppointmentsWorkspace() {
     appointment: CompassionAppointmentRecord | null;
     initialStartTime: string | null;
   }>({
-    open: false,
+    open: searchParams.get("new") === "1",
     mode: "create",
     appointment: null,
     initialStartTime: null,
@@ -442,11 +442,10 @@ export default function AppointmentsWorkspace() {
         <button className="care-button secondary" onClick={() => void loadAppointments()}>Refresh</button>
       </CareHeading>
       <div className="care-actions">
-        {(["calendar", "list", "split"] as const).map((value) => <button className={`care-button ${view === value ? "" : "secondary"}`} key={value} onClick={() => setView(value)}>{value === "calendar" ? "Calendar" : value === "list" ? "List" : "Split view"}</button>)}
-        <button className="care-button secondary" onClick={() => setFullscreenCalendar(true)}>Full screen</button>
-        <button className="care-button secondary" onClick={openCalendarPopoutTab}>Open in new tab</button>
+        <div className="care-segmented" role="group" aria-label="Schedule view">{(["calendar", "list", "split"] as const).map((value) => <button aria-pressed={view === value} key={value} onClick={() => setView(value)}>{value === "calendar" ? "Calendar" : value === "list" ? "List" : "Split view"}</button>)}</div>
         <button className="care-button secondary" onClick={() => applyDateRangePreset("today")}>Today</button>
         <button className="care-button secondary" onClick={() => applyDateRangePreset("next7")}>Next 7 days</button>
+        <details className="care-tools-menu"><summary>Calendar options</summary><div><button onClick={() => setFullscreenCalendar(true)}>Full screen</button><button onClick={openCalendarPopoutTab}>Open in new tab</button></div></details>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-gray-200 p-3">
@@ -470,8 +469,8 @@ export default function AppointmentsWorkspace() {
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Scheduling Workspace</h1>
-            <p className="text-sm leading-6 text-gray-500">Calendar and spreadsheet list share the same live appointment filters.</p>
+            <h2 className="text-lg font-semibold text-gray-900">Find appointments</h2>
+            <p className="text-sm leading-6 text-gray-500">Filter the calendar and appointment list together.</p>
           </div>
           {refreshing && <span className="text-xs font-medium text-gray-500">Refreshing...</span>}
         </div>
@@ -481,15 +480,16 @@ export default function AppointmentsWorkspace() {
             value={filters.search}
             onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
             placeholder="Search client, notes, staff, location"
+            aria-label="Search appointments"
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
           />
 
-          <select value={filters.appointmentType} onChange={(event) => setFilters((current) => ({ ...current, appointmentType: event.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+          <select aria-label="Appointment type" value={filters.appointmentType} onChange={(event) => setFilters((current) => ({ ...current, appointmentType: event.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="">All appointment types</option>
             {APPOINTMENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{humanizeEnum(type)}</option>)}
           </select>
 
-          <select value={filters.assignedStaffId} onChange={(event) => setFilters((current) => ({ ...current, assignedStaffId: event.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+          <select aria-label="Assigned appointment staff" value={filters.assignedStaffId} onChange={(event) => setFilters((current) => ({ ...current, assignedStaffId: event.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="">All staff</option>
             {staffOptions.map((staff) => (
               <option key={staff.id} value={staff.id}>
@@ -498,7 +498,7 @@ export default function AppointmentsWorkspace() {
             ))}
           </select>
 
-          <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+          <select aria-label="Appointment status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="">All statuses</option>
             {APPOINTMENT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{humanizeEnum(status)}</option>)}
           </select>

@@ -48,23 +48,24 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
     const itemLink = (item: CrmSidebarItem) => (
       <Link key={item.id} href={item.href} aria-current={activeItem === item.id ? "page" : undefined}
         onClick={() => setMobileOpen(false)}
-        className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${activeItem === item.id ? "bg-white/15 font-semibold text-white ring-1 ring-white/20" : "text-slate-200 hover:bg-white/10 hover:text-white"}`}>
+        title={item.description}
+        className={`relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${activeItem === item.id ? "bg-white/12 font-semibold text-white ring-1 ring-white/15 before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-[var(--crm-accent-light,#9be1b7)]" : "text-slate-300 hover:bg-white/7 hover:text-white"}`}>
         <span className="h-[18px] w-[18px] shrink-0" aria-hidden="true">{item.icon}</span>
         <span>{item.label}</span>
       </Link>
     );
     return (
-      <nav aria-label={mobile ? "Mobile Donor CRM" : "Donor CRM"} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+      <nav aria-label={mobile ? "Mobile Donor CRM" : "Donor CRM"} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         {groups.map((group) => group.collapsible ? (
           <details key={`${group.id}-${pathname}`} open={group.items.some((item) => item.id === activeItem)} className="group border-t border-white/10 pt-2">
-            <summary tabIndex={0} className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 text-xs font-semibold text-slate-300 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 [&::-webkit-details-marker]:hidden">
+            <summary tabIndex={0} className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 [&::-webkit-details-marker]:hidden">
               {group.label}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
             </summary>
             <div className="mt-1 space-y-1">{group.items.map(itemLink)}</div>
           </details>
         ) : (
           <div key={group.id} className="space-y-1">
-            <p className="px-3 pb-2 pt-1 text-xs font-semibold text-slate-300">{group.label}</p>
+            <p className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Your workspace</p>
             {group.items.map(itemLink)}
           </div>
         ))}

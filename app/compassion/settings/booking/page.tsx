@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { CareHeading } from "@/app/components/compassion/care-ui";
 import { apiFetch } from "@/app/lib/auth-client";
 
 type WidgetFieldKey = "email" | "phone" | "appointmentType" | "location" | "notes";
@@ -463,26 +463,7 @@ export default function CompassionSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-xl">⚙️</div>
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Build, publish, and embed your public appointment request form.</p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <p className="text-sm font-semibold text-blue-800">Need to add Compassion staff or accounts?</p>
-          <p className="text-sm text-blue-700 mt-1">Use the staff directory to add names for scheduling and optionally create linked Compassion accounts.</p>
-        </div>
-        <Link
-          href="/compassion/settings/staff"
-          className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-        >
-          Open Staff Directory
-        </Link>
-      </div>
+      <CareHeading title="Website booking" description="Configure your public appointment request form and its embed options." eyebrow="SCHEDULING SETTINGS" />
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         Public booking is in active development. Use this builder to configure and deploy a beta appointment intake flow.
