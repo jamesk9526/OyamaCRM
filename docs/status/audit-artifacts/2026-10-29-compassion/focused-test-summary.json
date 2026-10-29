@@ -1,0 +1,73 @@
+{
+  "passed": 102,
+  "failed": 0,
+  "pending": 0,
+  "success": true,
+  "suites": [
+    {
+      "name": "compassion-client-care.test.ts",
+      "status": "passed",
+      "tests": 16
+    },
+    {
+      "name": "tasks-overdue-queue.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "name": "donor-appearance.test.ts",
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "name": "annual-statement-print.test.ts",
+      "status": "passed",
+      "tests": 2
+    },
+    {
+      "name": "compassion-appointment-widget-slots.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "name": "compassion-appointments-utils.test.ts",
+      "status": "passed",
+      "tests": 5
+    },
+    {
+      "name": "compassion-client-import-validator.test.ts",
+      "status": "passed",
+      "tests": 40
+    },
+    {
+      "name": "compassion-security.test.ts",
+      "status": "passed",
+      "tests": 6
+    },
+    {
+      "name": "donation-tax.test.ts",
+      "status": "passed",
+      "tests": 8
+    },
+    {
+      "name": "donor-dashboard-data.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "name": "feedback-context.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "name": "navigation-boundaries.test.ts",
+      "status": "passed",
+      "tests": 7
+    },
+    {
+      "name": "tax-deductible-report.test.ts",
+      "status": "passed",
+      "tests": 5
+    }
+  ]
+}

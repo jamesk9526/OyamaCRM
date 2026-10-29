@@ -149,7 +149,7 @@ router.get("/", async (req, res) => {
         }
       : queue === "overdue"
         ? {
-            assigneeId: userId,
+            ...(personalScope ? { assigneeId: userId } : {}),
             status: { in: activeTaskStatuses },
             dueDate: { lt: now },
           }
@@ -164,17 +164,15 @@ router.get("/", async (req, res) => {
                 : {};
 
   const where: Prisma.TaskWhereInput = {
-    ...taskOrganizationWhere(organizationId),
+    AND: [
+      taskOrganizationWhere(organizationId),
+      ...(personalScope ? [{ OR: [{ createdById: userId }, { assigneeId: userId }] }] : []),
+      ...(status ? [{ status: status as TaskStatus }] : []),
+    ],
     ...(assigneeId && { assigneeId }),
-    ...(status && { status: status as never }),
     ...(constituentId && { constituentId }),
     ...(includeArchived !== "true" && { archivedAt: null }),
     ...queueWhere,
-    ...(personalScope
-      ? {
-          OR: [{ createdById: userId }, { assigneeId: userId }],
-        }
-      : {}),
   };
 
   const [items, total] = await Promise.all([

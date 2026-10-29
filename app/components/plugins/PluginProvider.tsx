@@ -7,6 +7,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
@@ -76,6 +77,8 @@ export function usePlugins(): PluginState {
  */
 export function PluginProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const pathname = usePathname();
+  const isCompassion = pathname === "/compassion" || pathname.startsWith("/compassion/");
   const [state, setState] = useState<Omit<PluginState, "refresh">>({ ...defaultState });
   const [tick, setTick] = useState(0);
 
@@ -85,7 +88,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    if (authLoading) return () => { cancelled = true; };
+    if (authLoading || isCompassion) return () => { cancelled = true; };
     if (!user) {
       setState({ ...defaultState, loading: false });
       return () => { cancelled = true; };
@@ -139,7 +142,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
 
     fetchStatus();
     return () => { cancelled = true; };
-  }, [authLoading, tick, user]);
+  }, [authLoading, tick, user, isCompassion]);
 
   return (
     <PluginContext.Provider value={{ ...state, refresh }}>

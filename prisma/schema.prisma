@@ -495,6 +495,14 @@ model Organization {
   aiContextChunks       AiContextChunk[]
   paymentWebhookEvents  PaymentWebhookEvent[]
   donorResearchFindings DonorResearchFinding[]
+
+  compassionStaff        CompassionStaff[]
+  compassionCases        CompassionCase[]
+  compassionAppointments CompassionAppointment[]
+  compassionServices     CompassionService[]
+  compassionFollowUps    CompassionFollowUp[]
+  compassionActivities   CompassionActivity[]
+  compassionClients      CompassionClient[]
 }
 
 model OrganizationSettings {
@@ -579,6 +587,14 @@ model User {
   donorResearchFindingsCreated  DonorResearchFinding[] @relation("DonorResearchFindingCreatedBy")
   donorResearchFindingsReviewed DonorResearchFinding[] @relation("DonorResearchFindingReviewedBy")
   qrCodeLinksCreated            QrCodeLink[]            @relation("QrCodeLinkCreatedBy")
+
+  compassionCasesAssigned       CompassionCase[]         @relation("CompassionCaseStaff")
+  compassionApptsAssigned       CompassionAppointment[]  @relation("CompassionApptStaff")
+  compassionServicesProvided    CompassionService[]      @relation("CompassionServiceProvider")
+  compassionFollowUpsAssigned   CompassionFollowUp[]     @relation("CompassionFollowUpStaff")
+  compassionActivitiesPerformed CompassionActivity[]     @relation("CompassionActivityUser")
+  linkedCompassionStaff         CompassionStaff?         @relation("CompassionStaffLinkedUser")
+  compassionClientsAssigned     CompassionClient[]       @relation("CompassionClientStaff")
 }
 
 // ─── Steward AI Memory & Context ─────────────────────────────────────────────
@@ -767,6 +783,7 @@ model Constituent {
   emailSendRecipients EmailSendRecipient[]
 
   @@index([organizationId, closedAt])
+
 }
 
 /// Reviewable, sourced public-record evidence linked to a constituent.
@@ -2959,4 +2976,513 @@ model QBSyncQueueItem {
   @@unique([organizationId, donationId])
   @@index([organizationId, status])
   @@index([donationId])
+}
+
+
+// Recovered client-care models. Kept separate from donor records.
+enum CompassionClientStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  ARCHIVED
+  PENDING
+}
+
+enum CompassionCaseStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING
+  CLOSED
+  ARCHIVED
+}
+
+enum CompassionCaseType {
+  PREGNANCY_SUPPORT
+  PARENTING
+  MATERIAL_ASSISTANCE
+  HOUSING
+  EDUCATION
+  EMPLOYMENT
+  COUNSELING
+  RESOURCE_REFERRAL
+  FOLLOW_UP
+  OTHER
+}
+
+enum CompassionAppointmentType {
+  INTAKE
+  PREGNANCY_TEST
+  ULTRASOUND
+  PARENTING_CLASS
+  MATERIAL_ASSISTANCE
+  RESOURCE_REFERRAL
+  FOLLOW_UP
+  MENTORING
+  CASE_REVIEW
+  HOME_VISIT
+  OTHER
+}
+
+enum CompassionAppointmentStatus {
+  CHECKED_IN
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum CompassionServiceType {
+  PREGNANCY_TEST
+  ULTRASOUND
+  DIAPERS
+  CLOTHING
+  FORMULA
+  PARENTING_CLASS
+  HOUSING_REFERRAL
+  EDUCATION_REFERRAL
+  JOB_REFERRAL
+  NUTRITION_SUPPORT
+  COUNSELING
+  TRANSPORTATION_RESOURCE
+  OTHER
+}
+
+enum CompassionFollowUpStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum CompassionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model CompassionStaff {
+  id             String  @id @default(cuid())
+  organizationId String
+  linkedUserId   String? @unique
+
+  firstName          String
+  lastName           String
+  displayName        String?
+  title              String?
+  email              String?
+  phone              String?
+  isActive           Boolean @default(true)
+  supportsScheduling Boolean @default(true)
+  notes              String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  linkedUser   User?        @relation("CompassionStaffLinkedUser", fields: [linkedUserId], references: [id])
+
+  assignedClients      CompassionClient[]      @relation("CompassionClientCompassionStaff")
+  assignedCases        CompassionCase[]        @relation("CompassionCaseCompassionStaff")
+  assignedAppointments CompassionAppointment[] @relation("CompassionApptCompassionStaff")
+  providedServices     CompassionService[]     @relation("CompassionServiceCompassionStaff")
+  assignedFollowUps    CompassionFollowUp[]    @relation("CompassionFollowUpCompassionStaff")
+  performedActivities  CompassionActivity[]    @relation("CompassionActivityCompassionStaff")
+
+  @@unique([organizationId, email])
+  @@index([organizationId, isActive])
+}
+
+model CompassionClient {
+  id             String  @id @default(cuid())
+  organizationId String
+  /// Legacy identifier retained for recovery compatibility; never used to link donor data.
+  constituentId  String?
+
+  firstName     String
+  lastName      String
+  preferredName String?
+  email         String?
+  phone         String?
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  zip           String?
+  dateOfBirth   DateTime?
+
+  sourceSystem              String? @db.VarChar(60)
+  externalSourceId          String? @db.VarChar(191)
+  safeContact               Json?
+  @@unique([organizationId, sourceSystem, externalSourceId], map: "CompassionClient_source_key")
+  clientStatus              CompassionClientStatus @default(ACTIVE)
+  assignedStaffId           String?
+  assignedCompassionStaffId String?
+  intakeDate                DateTime               @default(now())
+  referralSource            String?
+  /// Private notes â€” must NOT appear in shared timelines or public-facing endpoints
+  privateNotes              String?                @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization            Organization            @relation(fields: [organizationId], references: [id])
+  assignedStaff           User?                   @relation("CompassionClientStaff", fields: [assignedStaffId], references: [id])
+  assignedCompassionStaff CompassionStaff?        @relation("CompassionClientCompassionStaff", fields: [assignedCompassionStaffId], references: [id])
+  cases                   CompassionCase[]
+  appointments            CompassionAppointment[]
+  services                CompassionService[]
+  followUps               CompassionFollowUp[]
+  activities              CompassionActivity[]
+  @@index([organizationId])
+}
+
+model CompassionCase {
+  id             String @id @default(cuid())
+  organizationId String
+  clientId       String
+
+  caseNumber                String               @unique
+  caseStatus                CompassionCaseStatus @default(OPEN)
+  caseType                  CompassionCaseType   @default(OTHER)
+  openedAt                  DateTime             @default(now())
+  closedAt                  DateTime?
+  assignedStaffId           String?
+  assignedCompassionStaffId String?
+  priority                  CompassionPriority   @default(MEDIUM)
+  summary                   String?              @db.Text
+  /// Private notes â€” must NOT appear in shared timelines
+  privateNotes              String?              @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization            Organization            @relation(fields: [organizationId], references: [id])
+  client                  CompassionClient        @relation(fields: [clientId], references: [id])
+  assignedStaff           User?                   @relation("CompassionCaseStaff", fields: [assignedStaffId], references: [id])
+  assignedCompassionStaff CompassionStaff?        @relation("CompassionCaseCompassionStaff", fields: [assignedCompassionStaffId], references: [id])
+  appointments            CompassionAppointment[]
+  services                CompassionService[]
+  followUps               CompassionFollowUp[]
+  activities              CompassionActivity[]
+}
+
+model CompassionAppointment {
+  id             String  @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+
+  appointmentType           CompassionAppointmentType   @default(OTHER)
+  status                    CompassionAppointmentStatus @default(SCHEDULED)
+  startTime                 DateTime
+  endTime                   DateTime?
+  timezone                  String                      @default("America/Chicago")
+  location                  String?
+  assignedStaffId           String?
+  assignedCompassionStaffId String?
+  notes                     String?                     @db.Text
+  outcome                   String?                     @db.Text
+  followUpNeeded            Boolean                     @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization            Organization         @relation(fields: [organizationId], references: [id])
+  client                  CompassionClient     @relation(fields: [clientId], references: [id])
+  case                    CompassionCase?      @relation(fields: [caseId], references: [id])
+  assignedStaff           User?                @relation("CompassionApptStaff", fields: [assignedStaffId], references: [id])
+  assignedCompassionStaff CompassionStaff?     @relation("CompassionApptCompassionStaff", fields: [assignedCompassionStaffId], references: [id])
+  followUps               CompassionFollowUp[]
+  activities              CompassionActivity[]
+}
+
+model CompassionService {
+  id             String  @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+
+  serviceType                 CompassionServiceType @default(OTHER)
+  serviceDate                 DateTime              @default(now())
+  quantity                    Int?
+  notes                       String?               @db.Text
+  providedById                String?
+  providedByCompassionStaffId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization              Organization     @relation(fields: [organizationId], references: [id])
+  client                    CompassionClient @relation(fields: [clientId], references: [id])
+  case                      CompassionCase?  @relation(fields: [caseId], references: [id])
+  providedBy                User?            @relation("CompassionServiceProvider", fields: [providedById], references: [id])
+  providedByCompassionStaff CompassionStaff? @relation("CompassionServiceCompassionStaff", fields: [providedByCompassionStaffId], references: [id])
+}
+
+model CompassionFollowUp {
+  id             String  @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+  appointmentId  String?
+
+  title                     String
+  dueDate                   DateTime
+  status                    CompassionFollowUpStatus @default(PENDING)
+  priority                  CompassionPriority       @default(MEDIUM)
+  assignedStaffId           String?
+  assignedCompassionStaffId String?
+  notes                     String?                  @db.Text
+  completedAt               DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization            Organization           @relation(fields: [organizationId], references: [id])
+  client                  CompassionClient       @relation(fields: [clientId], references: [id])
+  case                    CompassionCase?        @relation(fields: [caseId], references: [id])
+  appointment             CompassionAppointment? @relation(fields: [appointmentId], references: [id])
+  assignedStaff           User?                  @relation("CompassionFollowUpStaff", fields: [assignedStaffId], references: [id])
+  assignedCompassionStaff CompassionStaff?       @relation("CompassionFollowUpCompassionStaff", fields: [assignedCompassionStaffId], references: [id])
+}
+
+model CompassionActivity {
+  id             String  @id @default(cuid())
+  organizationId String
+  clientId       String
+  caseId         String?
+  appointmentId  String?
+
+  /// Activity type string: CLIENT_CREATED, CASE_OPENED, APPOINTMENT_SCHEDULED, etc.
+  activityType                 String
+  description                  String  @db.Text
+  performedById                String?
+  performedByCompassionStaffId String?
+  metadata                     Json?
+
+  createdAt DateTime @default(now())
+
+  organization               Organization           @relation(fields: [organizationId], references: [id])
+  client                     CompassionClient       @relation(fields: [clientId], references: [id])
+  case                       CompassionCase?        @relation(fields: [caseId], references: [id])
+  appointment                CompassionAppointment? @relation(fields: [appointmentId], references: [id])
+  performedBy                User?                  @relation("CompassionActivityUser", fields: [performedById], references: [id])
+  performedByCompassionStaff CompassionStaff?       @relation("CompassionActivityCompassionStaff", fields: [performedByCompassionStaffId], references: [id])
+}
+
+
+model CompassionMembership {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  role String @db.VarChar(30)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, userId])
+}
+
+model CompassionAudit {
+  id String @id @default(cuid())
+  organizationId String
+  actorId String?
+  action String @db.VarChar(100)
+  entityId String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
+}
+
+model CompassionScheduleLock {
+  organizationId String @id
+  updatedAt DateTime @updatedAt
+}
+
+model CompassionResource {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  kind String @db.VarChar(30)
+  staffId String?
+  location String?
+  timezone String @default("America/Chicago")
+  availability Json?
+  active Boolean @default(true)
+  @@index([organizationId, active])
+}
+
+model CompassionReservation {
+  id String @id @default(cuid())
+  organizationId String
+  appointmentId String
+  resourceId String
+  startTime DateTime
+  endTime DateTime
+  @@unique([appointmentId, resourceId])
+  @@index([organizationId, resourceId, startTime])
+}
+
+model CompassionChart {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  caseId String?
+  kind String @db.VarChar(50)
+  version Int @default(1)
+  templateVersion Int @default(1)
+  status String @default("DRAFT") @db.VarChar(20)
+  encryptedContent String @db.LongText
+  authorId String
+  previousId String?
+  signedById String?
+  signedAt DateTime?
+  signatureDigest String? @db.VarChar(64)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([organizationId, clientId, createdAt])
+  @@index([organizationId, status])
+}
+
+model CompassionDocument {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  chartId String?
+  name String
+  mimeType String @db.VarChar(100)
+  checksum String @db.VarChar(64)
+  encryptedContent String @db.LongText
+  size Int
+  uploadedById String
+  historical Boolean @default(false)
+  shared Boolean @default(false)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId, clientId])
+}
+
+model CompassionImportBatch {
+  id String @id @default(cuid())
+  organizationId String
+  actorId String
+  sourceSystem String @default("centerpiece")
+  checksum String @db.VarChar(64)
+  status String @default("PREVIEW") @db.VarChar(20)
+  encryptedPayload String @db.LongText
+  result Json?
+  createdAt DateTime @default(now())
+  committedAt DateTime?
+  @@index([organizationId, createdAt])
+}
+
+model CompassionIntake {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  appointmentId String?
+  tokenHash String @unique @db.VarChar(64)
+  language String @default("en") @db.VarChar(5)
+  status String @default("REQUESTED") @db.VarChar(20)
+  template Json
+  encryptedSubmission String? @db.LongText
+  consentVersion String
+  signedName String?
+  signedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  processedAt DateTime?
+  @@index([organizationId, clientId])
+}
+
+model CompassionPortalAccess {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  tokenHash String @unique @db.VarChar(64)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId, clientId])
+}
+
+model CompassionMessage {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  direction String @db.VarChar(15)
+  encryptedContent String @db.LongText
+  authorId String?
+  createdAt DateTime @default(now())
+  @@index([organizationId, clientId, createdAt])
+}
+
+model CompassionClass {
+  id String @id @default(cuid())
+  organizationId String
+  title String
+  startTime DateTime
+  capacity Int @default(20)
+  points Int @default(0)
+  location String?
+  staffId String?
+  createdAt DateTime @default(now())
+  @@index([organizationId, startTime])
+}
+
+model CompassionEnrollment {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  classId String
+  status String @default("ENROLLED") @db.VarChar(20)
+  createdAt DateTime @default(now())
+  @@unique([classId, clientId])
+  @@index([organizationId, clientId])
+}
+
+model CompassionPointEntry {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  amount Int
+  reason String
+  sourceKey String? @unique @db.VarChar(191)
+  actorId String
+  createdAt DateTime @default(now())
+  @@index([organizationId, clientId])
+}
+
+model CompassionStaffHours {
+  id String @id @default(cuid())
+  organizationId String
+  staffId String
+  serviceArea String
+  date DateTime
+  minutes Int
+  createdAt DateTime @default(now())
+  @@index([organizationId, staffId])
+}
+
+model CompassionConfiguration {
+  id String @id @default(cuid())
+  organizationId String
+  pluginKey String
+  enabled Boolean @default(false)
+  config Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, pluginKey])
+}
+
+model CompassionClientRedirect {
+  id String @id @default(cuid())
+  organizationId String
+  sourceId String @unique
+  targetId String
+  actorId String
+  createdAt DateTime @default(now())
+  @@index([organizationId, targetId])
 }

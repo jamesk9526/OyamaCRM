@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUpRight, RefreshCcw, Search, UserPlus } from "lucide-react";
+import { Gift, RefreshCcw, Search, UserPlus } from "lucide-react";
 import { DonorDashboardOverviewSections } from "./DonorDashboardOverviewSections";
-import { formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
+import { buildStewardshipSuggestions, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/dashboard-client-service";
 import type { DashboardData, DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 import { formatDonationDate } from "@/app/components/donations/donation-utils";
+import DonorActionCenter from "./DonorActionCenter";
+import DonorDashboardTools from "./DonorDashboardTools";
 import CRMCard from "@/app/components/ui/crm/CRMCard";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
 import CRMPageHeader from "@/app/components/ui/crm/CRMPageHeader";
@@ -41,14 +43,14 @@ export default function NaturalisticDonorDashboard({
     setRichLoading(true);
     setRequestError(null);
     try {
-      const result = await loadDonorDashboardData({ reportingYearMode, summary, retention });
+      const result = await loadDonorDashboardData({ reportingYearMode });
       if (id === loadId.current) setData(result);
     } catch (error) {
       if (id === loadId.current) setRequestError(error instanceof Error ? error.message : "Could not load dashboard details.");
     } finally {
       if (id === loadId.current) setRichLoading(false);
     }
-  }, [reportingYearMode, retention, summary]);
+  }, [reportingYearMode]);
   useEffect(() => {
     void loadRichData();
     return () => { loadId.current += 1; };
@@ -56,26 +58,21 @@ export default function NaturalisticDonorDashboard({
   const refresh = () => { void loadRichData(); void onRefresh?.(); };
   const busy = summaryLoading || richLoading;
   const errors = [loadError, requestError, ...(data?.errors ?? [])].filter(Boolean);
-  const followUpUnavailable = Boolean(loadError || requestError || !summary || !data
-    || data.errors.some((error) => error.startsWith("Pending acknowledgments")));
+  const suggestions = buildStewardshipSuggestions(loadError ? null : summary, loadError ? null : retention);
   const giftsUnavailable = Boolean(requestError || !data
     || data.errors.some((error) => error.startsWith("Recent donor movement")));
-  const followUps = [
-    { id: "overdue", label: "Overdue constituent tasks", count: summary?.overdueTasks ?? 0, href: "/tasks" },
-    { id: "thanks", label: "Gifts awaiting acknowledgment", count: data?.pendingAcknowledgmentCount ?? 0, href: "/donations?acknowledgment=pending" },
-    { id: "signals", label: "High-priority Steward signals", count: data?.stewardshipAlerts.filter((item) => item.urgency === "high").length ?? 0, href: "/steward-signals" },
-  ].filter((item) => item.count > 0);
   const gifts = data?.recentDonations.slice(0, 6) ?? [];
   const firstName = name.split(" ")[0] || "there";
 
   return (
     <div className="donor-daily-workspace space-y-5 pb-8">
       <CRMPageHeader breadcrumb="Donor CRM" title={`${greeting}, ${firstName}`}
-        description="Find a constituent and pick up the relationship."
-        primaryAction={<button type="button" className="donor-button donor-button-primary" onClick={() => window.dispatchEvent(new Event("crm:focus-topbar-search"))}><Search className="h-4 w-4" aria-hidden="true" />Find a constituent</button>}
+        description="Care for your donors, follow through on promises, and grow lasting support."
+        primaryAction={<Link href="/donations?recordGift=1" className="donor-button donor-button-primary"><Gift className="h-4 w-4" aria-hidden="true" />Record gift</Link>}
         secondaryActions={<>{headerActions}<button type="button" className="donor-button" onClick={refresh} disabled={busy}><RefreshCcw className="h-4 w-4" aria-hidden="true" />{busy ? "Refreshing" : "Refresh"}</button></>}
       />
       <div className="flex flex-wrap items-center gap-3 text-sm">
+        <button type="button" className="donor-button" onClick={() => window.dispatchEvent(new Event("crm:focus-topbar-search"))}><Search className="h-4 w-4" aria-hidden="true" />Find a constituent</button>
         <Link href="/constituents" className="donor-button">Browse constituents</Link>
         <Link href="/constituents/new" className="donor-button"><UserPlus className="h-4 w-4" aria-hidden="true" />Add constituent</Link>
         <span className="text-xs text-slate-500">{summary ? dataThroughLabel : busy ? "Loading data…" : "Dashboard data unavailable"}</span>
@@ -85,6 +82,20 @@ export default function NaturalisticDonorDashboard({
         <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">View details</summary><ul className="mt-2 space-y-1 text-xs">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></details>
         <button type="button" onClick={refresh} disabled={busy} className="donor-button mt-3">Retry</button>
       </div> : null}
+
+      <section aria-label="Performance summary">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-slate-900">Performance summary</h2>
+          <Link href="/reports" className="text-sm font-semibold text-[var(--crm-accent)] hover:underline">View reports</Link>
+        </div>
+        <div className="donor-performance-metrics grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <CRMMetricCard label="Giving this year" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.ytdAmount)) : "—"} helper={summary?.period?.label ?? "Year to date"} loading={summaryLoading} tone="slate" />
+          <CRMMetricCard label="Giving this month" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.monthAmount)) : "—"} loading={summaryLoading} tone="slate" />
+          <CRMMetricCard label="Constituents" value={summary?.totalConstituents.toLocaleString() ?? "—"} helper={summary ? `${summary.activeDonors.toLocaleString()} active donors this year` : undefined} loading={summaryLoading} tone="slate" />
+          <CRMMetricCard label="Retention" value={retention && retention.total > 0 ? `${Math.round(retention.rate)}%` : "—"} helper={retention?.total === 0 ? "No prior-year donor cohort" : reportingYearMode.toLowerCase() === "fiscal" ? "Fiscal-year view" : "Calendar-year view"} loading={summaryLoading} tone="slate" />
+        </div>
+      </section>
+      <DonorActionCenter data={data} summary={summary} retention={retention} loading={busy} summaryUnavailable={Boolean(loadError || !summary)} detailsUnavailable={Boolean(requestError)} />
 
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" aria-label="Constituent relationships">
         <CRMCard padding="md" className="min-w-0">
@@ -107,40 +118,26 @@ export default function NaturalisticDonorDashboard({
               ))}</ul>}
           </div>
         </CRMCard>
-        <CRMCard padding="md" className="min-w-0">
-          <h2 className="text-lg font-semibold text-slate-900">Follow-up</h2>
-          <div className="mt-3" aria-live="polite" aria-busy={busy}>
-            {busy ? <p className="py-6 text-sm text-slate-500">Loading follow-up…</p>
-              : followUpUnavailable ? <p className="py-6 text-sm text-slate-600">Follow-up data is incomplete. Retry before treating this queue as clear.</p>
-              : followUps.length === 0 ? <p className="py-6 text-sm text-slate-500">No current follow-up items in these queues.</p>
-              : <ul className="divide-y divide-slate-100">{followUps.map((item) => (
-                <li key={item.id}><Link href={item.href} className="flex min-h-12 items-center justify-between gap-3 py-3 text-sm hover:underline">
-                  <span className="text-slate-700">{item.label}</span><span className="flex shrink-0 items-center gap-2 font-semibold text-slate-900">{item.count}<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></span>
-                </Link></li>
-              ))}</ul>}
-          </div>
-          <Link href="/tasks" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--crm-accent)] hover:underline">View all tasks</Link>
+        <CRMCard padding="md" className="min-w-0 donor-relationship-summary">
+          <p className="donor-eyebrow">Relationship health</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Keep donors connected</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">A gift is the start of the next conversation. Review donor history and communication preferences before reaching out.</p>
+          <dl className="mt-5 grid grid-cols-2 gap-4">
+            <div><dt className="text-xs text-slate-500">Active donors this year</dt><dd className="mt-1 text-2xl font-semibold text-slate-900">{summaryLoading ? "…" : summary?.activeDonors.toLocaleString() ?? "—"}</dd></div>
+            <div><dt className="text-xs text-slate-500">Donors retained</dt><dd className="mt-1 text-2xl font-semibold text-slate-900">{summaryLoading ? "…" : retention ? `${retention.retained.toLocaleString()} / ${retention.total.toLocaleString()}` : "—"}</dd></div>
+          </dl>
+          <p className="mt-3 text-xs leading-5 text-slate-500">Retained = prior-year donors who gave again this reporting year. This is a year-to-date measure.</p>
+          <Link href="/reports?report=comprehensive-donor-analysis" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--crm-accent)] hover:underline">Explore donor retention →</Link>
         </CRMCard>
       </section>
 
-      <section aria-label="Performance summary">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Performance summary</h2>
-          <Link href="/reports" className="text-sm font-semibold text-[var(--crm-accent)] hover:underline">View reports</Link>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <CRMMetricCard label="Constituents" value={summary?.totalConstituents.toLocaleString() ?? "—"} loading={summaryLoading} tone="slate" />
-          <CRMMetricCard label="Giving this month" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.monthAmount)) : "—"} loading={summaryLoading} tone="slate" />
-          <CRMMetricCard label="Active campaigns" value={summary?.activeCampaigns.toLocaleString() ?? "—"} loading={summaryLoading} tone="slate" />
-          <CRMMetricCard label="Retention" value={retention ? `${Math.round(retention.rate)}%` : "—"} helper={reportingYearMode.toLowerCase() === "fiscal" ? "Fiscal-year view" : "Calendar-year view"} loading={summaryLoading} tone="slate" />
-        </div>
-      </section>
+      <DonorDashboardTools data={data} loading={richLoading} unavailable={Boolean(requestError)} />
       <details className="crm-card-surface rounded-xl border p-4" onToggle={(event) => setInsightsOpen(event.currentTarget.open)}>
         <summary className="min-h-11 cursor-pointer text-sm font-semibold text-slate-800">Giving breakdown and Steward insights</summary>
         <div className="mt-4">
           {richLoading ? <p className="text-sm text-slate-500">Loading insights…</p>
             : errors.length > 0 ? <p className="text-sm text-slate-600">Some insights are unavailable. Retry the dashboard to load a complete breakdown.</p>
-            : data && insightsOpen ? <DonorDashboardOverviewSections designationSlices={data.designationSlices} designationTotal={data.designationTotal} suggestions={data.stewardshipAlerts} /> : null}
+            : data && insightsOpen ? <DonorDashboardOverviewSections designationSlices={data.designationSlices} designationTotal={data.designationTotal} suggestions={suggestions} /> : null}
         </div>
       </details>
       {extraSections}

@@ -51,7 +51,7 @@ const DONOR_APPEARANCE_CHROME: Record<DonorAppearanceTheme, {
 // Module routes render their own shells — bypass AppShell wrapper. Steward Copilot
 // intentionally remains inside this shell so CRM navigation and context stay visible.
 const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/give/", "/event-reservations", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
-const SHELL_BYPASS_PATHS = ["/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
+const SHELL_BYPASS_PATHS = ["/compassion", "/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",
   "apps",
@@ -141,6 +141,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || isRootPublicEventSlugPath(pathname);
+  const isCompassion = pathname === "/compassion" || pathname.startsWith("/compassion/");
   const isShellBypass = SHELL_BYPASS_PATHS.some((p) => pathname.startsWith(p));
   const isBoard = BOARD_PATHS.some((p) => pathname.startsWith(p));
   // Reports now live inside the normal Donor CRM workspace. The limited
@@ -187,7 +188,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (loading || !user) return;
+    if (loading || !user || isCompassion) return;
     let active = true;
 
     async function loadWorkspaceSettings() {
@@ -201,7 +202,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [loading, user]);
+  }, [loading, user, isCompassion]);
 
   useEffect(() => {
     if (loading) return;
@@ -240,6 +241,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
+    if (isCompassion) return;
+    if (user?.role === "compassion_user" && !isPublic) { router.replace("/compassion"); return; }
+
     // Redirect unauthenticated visitors to login
     if (!user && !isPublic) {
       router.replace("/login");
@@ -264,7 +268,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-  }, [loading, user, isPublic, isBoard, isShareviewReports, router, workspaceSettings]);
+  }, [loading, user, isPublic, isBoard, isShareviewReports, isCompassion, router, workspaceSettings]);
 
   useEffect(() => {
     function handleLayoutSwitch(event: Event) {
@@ -319,6 +323,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Public pages — no shell
+  if (isCompassion) return <>{children}</>;
   if (isPublic) return <>{children}</>;
 
   // Loading splash — prevent flash of unauthenticated content

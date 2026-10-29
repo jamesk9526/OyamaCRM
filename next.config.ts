@@ -7,6 +7,8 @@ const apiProxyTarget = String(process.env.NEXT_PUBLIC_API_URL || "http://localho
   .replace(/(?:\/api)+\/?$/i, "")
   .replace(/\/+$/, "");
 
+const compassionApiTarget = (process.env.COMPASSION_API_URL || "http://127.0.0.1:4100").replace(/\/+$/, "");
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["www.crm.partnertpcc.com"],
   turbopack: {
@@ -48,6 +50,8 @@ const nextConfig: NextConfig = {
         },
       ],
       fallback: [
+        { source: "/api/compassion/:path*", destination: `${compassionApiTarget}/api/compassion/:path*` },
+        { source: "/api/compassion-public/:path*", destination: `${compassionApiTarget}/api/compassion-public/:path*` },
         {
           source: "/api/:path*",
           destination: `${apiProxyTarget}/api/:path*`,

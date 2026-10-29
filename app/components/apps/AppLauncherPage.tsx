@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   Activity,
   BriefcaseBusiness,
-  Building2,
   CalendarDays,
   FileText,
   Globe2,
@@ -28,6 +27,7 @@ type LauncherApp = {
 };
 
 const APPS: LauncherApp[] = [
+  { id: "compassion", name: "Compassion CRM", description: "Client care, appointments, confidential records, and clinical workflows.", href: "/compassion", category: "Workspaces", icon: Activity, tone: "bg-teal-50 text-teal-800" },
   { id: "donor", name: "Donor CRM", description: "Constituents, giving, campaigns, and stewardship work.", href: "/", category: "Workspaces", icon: LayoutDashboard, tone: "bg-[#eaf4fd] text-[#0f6cbd]" },
   { id: "events", name: "EventSTUDIO", description: "Event planning, registration, guests, and public experiences.", href: "/events/events", category: "Workspaces", icon: CalendarDays, tone: "bg-amber-50 text-amber-700" },
   { id: "email", name: "OyamaEmail", description: "Build, review, schedule, and monitor donor email delivery.", href: "/oyama-email", category: "Studios", icon: Mail, tone: "bg-cyan-50 text-cyan-700" },
@@ -46,7 +46,7 @@ const CATEGORIES: LauncherApp["category"][] = ["Workspaces", "Studios", "Operati
 export default function AppLauncherPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
-  const visibleApps = APPS.filter((app) => !app.adminOnly || isAdmin);
+  const visibleApps = APPS.filter((app) => user?.role === "compassion_user" ? app.id === "compassion" : !app.adminOnly || isAdmin);
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-7">

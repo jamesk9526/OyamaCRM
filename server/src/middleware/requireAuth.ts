@@ -6,7 +6,7 @@
  * @module middleware/requireAuth
  */
 import { Request, Response, NextFunction } from "express";
-import { verifyAccessToken, JwtPayload } from "../lib/auth.js";
+import { verifyAccessToken } from "../lib/auth.js";
 
 /**
  * Express middleware that enforces JWT authentication on a route.
@@ -32,6 +32,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   const token = authHeader.slice(7);
   try {
     req.user = verifyAccessToken(token);
+    // New client-care-only identities never inherit donor access from endpoints
+    // that historically required authentication without a finer permission gate.
+    if (req.user.role === "compassion_user" && !/^\/api\/(?:auth(?:\/|$)|compassion(?:-public)?(?:\/|$))/.test(req.originalUrl)) {
+      res.status(403).json({ error: { code: "CLIENT_CARE_ONLY", message: "This account is limited to Compassion client care." } });
+      return;
+    }
     next();
   } catch {
     res.status(401).json({ error: { code: "TOKEN_EXPIRED", message: "Access token is expired or invalid" } });

@@ -1,0 +1,57 @@
+{
+  "mode": "GET-only probes against existing local donor data. No workers, mutations, migrations, or donor data captured.",
+  "results": [
+    {
+      "path": "/api/reports/summary",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/donor-retention",
+      "status": 200
+    },
+    {
+      "path": "/api/donations?limit=1&status=COMPLETED",
+      "status": 200
+    },
+    {
+      "path": "/api/donations?limit=1&status=COMPLETED&acknowledgment=pending",
+      "status": 200
+    },
+    {
+      "path": "/api/settings/dashboard-appearance",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/giving-trend",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/designations-summary",
+      "status": 200
+    },
+    {
+      "path": "/api/campaigns?active=true&limit=6&scope=ALL_YEARS",
+      "status": 200
+    },
+    {
+      "path": "/api/tasks?queue=overdue&scope=all&status=PENDING",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/library/first-time-donors",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/library/lapsed-donors",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/library/recurring-giving",
+      "status": 200
+    },
+    {
+      "path": "/api/reports/library/tax-deductible-giving?year=2026",
+      "status": 200
+    }
+  ]
+}

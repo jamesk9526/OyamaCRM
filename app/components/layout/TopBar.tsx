@@ -1954,6 +1954,7 @@ function ModuleSwitcher({
   const [open, setOpen] = useState(false);
 
   const modules = useMemo(() => [
+    { key: "compassion", label: "Compassion CRM", helper: "Client care", href: "/compassion", icon: <WorkspaceSwitcherIcon moduleKey="compassion" />, active: moduleKey === "compassion" },
     {
       key: "donor",
       label: "DonorCRM",

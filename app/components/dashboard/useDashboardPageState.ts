@@ -93,6 +93,7 @@ export function useDashboardPageState() {
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const metricsRequestId = useRef(0);
 
   // Layout state.
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
@@ -122,22 +123,26 @@ export function useDashboardPageState() {
   const sectionLayoutClassName = getSectionLayoutClass(effectiveLayoutMode);
 
   const load = useCallback(async () => {
+    const requestId = ++metricsRequestId.current;
     setLoading(true);
     setLoadError(null);
     try {
       const metrics = await loadDonorDashboardCoreMetrics(reportingYearMode);
+      if (requestId !== metricsRequestId.current) return;
       setSummary(metrics.summary);
       setRetention(metrics.retention);
       setLastRefreshed(new Date());
     } catch (requestError) {
+      if (requestId !== metricsRequestId.current) return;
       setLoadError(requestError instanceof Error ? requestError.message : "Failed to load dashboard metrics.");
     } finally {
-      setLoading(false);
+      if (requestId === metricsRequestId.current) setLoading(false);
     }
   }, [reportingYearMode]);
 
   useEffect(() => {
     load();
+    return () => { metricsRequestId.current += 1; };
   }, [load]);
 
   useEffect(() => {

@@ -5,7 +5,7 @@
 
 import { apiFetch } from "@/app/lib/auth-client";
 import { normalizeDashboardAppearanceSettings } from "../dashboard-config";
-import { buildStewardshipSuggestions, toDashboardNumber } from "../calculations/dashboard-calculations";
+import { toDashboardNumber } from "../calculations/dashboard-calculations";
 import type {
   CampaignImpact,
   DashboardAppearanceSettings,
@@ -83,8 +83,6 @@ function rejectedMessage(label: string, result: PromiseSettledResult<unknown>): 
 
 export async function loadDonorDashboardData(input: {
   reportingYearMode: string;
-  summary: DonorDashboardSummary | null;
-  retention: RetentionData | null;
 }): Promise<DashboardData> {
   const [appearanceResult, donationsResult, pendingAcknowledgmentsResult, trendResult, designationResult, campaignsResult] = await Promise.allSettled([
     apiFetch<Partial<DashboardAppearanceSettings>>("/api/settings/dashboard-appearance"),
@@ -92,7 +90,7 @@ export async function loadDonorDashboardData(input: {
     apiFetch<DonationListResponse>("/api/donations?limit=1&status=COMPLETED&acknowledgment=pending"),
     apiFetch<TrendResponse>(`/api/reports/giving-trend?dateBasis=${encodeURIComponent(input.reportingYearMode.toLowerCase())}`),
     apiFetch<DesignationResponse>(`/api/reports/designations-summary?dateBasis=${encodeURIComponent(input.reportingYearMode.toLowerCase())}`),
-    apiFetch<CampaignImpact[] | { campaigns?: CampaignImpact[]; items?: CampaignImpact[] }>("/api/campaigns?active=true&limit=6"),
+    apiFetch<CampaignImpact[] | { campaigns?: CampaignImpact[]; items?: CampaignImpact[] }>("/api/campaigns?active=true&limit=6&scope=ALL_YEARS"),
   ]);
 
   const appearance = appearanceResult.status === "fulfilled"
@@ -116,7 +114,6 @@ export async function loadDonorDashboardData(input: {
     designationSlices: designations?.slices ?? [],
     designationTotal: toDashboardNumber(designations?.total),
     campaigns: campaignsResult.status === "fulfilled" ? normalizeCampaignList(campaignsResult.value) : [],
-    stewardshipAlerts: buildStewardshipSuggestions(input.summary, input.retention),
     errors: [
       rejectedMessage("Dashboard appearance", appearanceResult),
       rejectedMessage("Recent donor movement", donationsResult),

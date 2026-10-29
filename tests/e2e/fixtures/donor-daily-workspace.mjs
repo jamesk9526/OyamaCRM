@@ -19,7 +19,7 @@ export async function installDonorWorkspaceFixtures(page) {
   rows[2].headOf = household;
   const summary = { totalConstituents: 4, activeDonors: 3, ytdAmount: 250, ytdCount: 1, ytdGrantAmount: 0, activeCampaignRaisedAmount: 0, weekAmount: 250, weekCount: 1, weekAvg: 250, monthAmount: 250, monthCount: 1, momTrend: null, pendingTasks: 1, overdueTasks: 1, activeCampaigns: 0, activeGoalTotal: 0, newDonorsThisMonth: 1 };
   await page.route("**/api/**", async (route) => {
-    if (route.request().method() !== "GET") return route.continue();
+    if (route.request().method() !== "GET") return route.fallback();
     const url = new URL(route.request().url());
     const name = url.pathname;
     let body;
@@ -44,7 +44,7 @@ export async function installDonorWorkspaceFixtures(page) {
     else if (name === "/api/steward-paths/templates" || name === "/api/steward-paths/enrollments") body = [];
     else if (name.startsWith("/api/steward-signals/donors/")) body = { constituentId: "qa-person", donorName: "QA Individual", generosityScore: 50, opportunityScore: 50, lapseRisk: "LOW", bestNextStep: "Review relationship", bestChannel: "EMAIL", confidence: 50, explanation: "QA fixture", lastGiftDate: "2026-09-20", lastGiftAmount: 250, totalLifetimeGiving: 250, giftCount: 1, inDevelopmentNote: "" };
     else if (name === "/api/households/qa-household-members") body = { ...household, head: undefined };
-    if (body === undefined) return route.continue();
+    if (body === undefined) return route.fallback();
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   });
 }

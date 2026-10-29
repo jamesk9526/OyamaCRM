@@ -1,3 +1,11 @@
+## Donor daily workspace — 2026-10-29
+
+The redesigned dashboard now presents actionable acknowledgment, first-time donor, renewal, and overdue-task queues; campaign progress; and working links to recurring giving, annual statements, donor research, and data quality. The detailed giving and Steward panels and dashboard customization remain available. Report links preserve the selected fiscal/calendar period; overdue tasks respect organization and personal/team scope. Each source has an explicit unavailable state and retry. This donor work was separately authorized alongside Compassion; client-care records and styling remain isolated. See `docs/status/audit-artifacts/2026-10-29-donor-dashboard/verification.md` for evidence and limits.
+
+## Compassion client-care application — 2026-10-29
+
+Separate API process and clinical UI implemented with recovered client/case/scheduling workflows, explicit memberships, encrypted charts and documents, physician sign-off, intake review, client portal, education/points, staff hours, letters, reviewed migration, and duplicate consolidation. Clinical cutover is unapproved. CenterPiece export-specific mappings, provider integrations, national report packs, and PowerPoint export remain unverified or incomplete. See `docs/plans/compassion-client-care-implementation.md` and the dated audit evidence. Earlier Compassion rows below describe historical implementations and are superseded by this entry.
+
 ## 2026-10-17 Trivia sync duplicate-team repair
 
 Normal Trivia state and event GETs refresh linked rosters in memory without rewriting relational game rows. Explicit saves replace each game’s configuration and children in one serializable transaction. Concurrent first requests share legacy initialization; already-imported legacy files no longer trigger a full rewrite on restart.

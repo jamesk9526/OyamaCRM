@@ -224,22 +224,35 @@ export default function DonorReportsSpreadsheet() {
       .catch(() => setDesignations([]));
   }, []);
 
-  const loadReport = useCallback(async (definition: ReportDefinition, mode: "open" | "refresh" = "open") => {
+  const loadReport = useCallback(async (definition: ReportDefinition, mode: "open" | "refresh" = "open", scope?: URLSearchParams) => {
     if (mode === "open") setSelected(definition);
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.set("dateBasis", reportingMode);
+      const basis = scope?.get("dateBasis");
+      const effectiveMode = basis === "calendar" || basis === "fiscal" ? basis : reportingMode;
+      params.set("dateBasis", effectiveMode);
+      if (scope) setReportingMode(effectiveMode);
       if (definition.scope === "date") {
-        const effectiveFrom = mode === "open" && definition.defaultRange === "month-to-date"
+        const monthToDate = mode === "open" && (definition.defaultRange === "month-to-date" || scope?.get("range") === "month-to-date");
+        const linkedFrom = scope?.get("from");
+        const linkedThrough = scope?.get("through");
+        const effectiveFrom = linkedFrom && /^\d{4}-\d{2}-\d{2}$/.test(linkedFrom) ? linkedFrom : monthToDate
           ? localDateInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
           : from;
+        const effectiveThrough = linkedThrough && /^\d{4}-\d{2}-\d{2}$/.test(linkedThrough) ? linkedThrough : through;
         if (effectiveFrom !== from) setFrom(effectiveFrom);
+        if (effectiveThrough !== through) setThrough(effectiveThrough);
         params.set("from", effectiveFrom);
-        params.set("through", through);
+        params.set("through", effectiveThrough);
       }
-      if (definition.scope === "year" || definition.scope === "calendar-year") params.set("year", year);
+      if (definition.scope === "year" || definition.scope === "calendar-year") {
+        const linkedYear = scope?.get("year");
+        const effectiveYear = linkedYear && /^\d{4}$/.test(linkedYear) ? linkedYear : year;
+        if (effectiveYear !== year) setYear(effectiveYear);
+        params.set("year", effectiveYear);
+      }
       if (definition.scope === "lapse") {
         params.set("lapseMode", lapseMode);
         params.set("lapseFromYear", lapseFromYear);
@@ -255,7 +268,12 @@ export default function DonorReportsSpreadsheet() {
       setReportQuery(params.toString());
       setShowInsights(definition.key === "crm-performance-scorecard");
       if (typeof window !== "undefined") {
-        window.history.replaceState({}, "", `/reports?report=${encodeURIComponent(definition.key)}`);
+        const locationScope = new URLSearchParams({ report: definition.key, dateBasis: effectiveMode });
+        for (const field of ["from", "through", "year"]) {
+          const value = params.get(field);
+          if (value) locationScope.set(field, value);
+        }
+        window.history.replaceState({}, "", `/reports?${locationScope}`);
       }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to run this report right now.");
@@ -266,9 +284,11 @@ export default function DonorReportsSpreadsheet() {
 
   useEffect(() => {
     if (typeof window === "undefined" || selected) return;
-    const reportKey = new URLSearchParams(window.location.search).get("report") as ReportKey | null;
+    const scope = new URLSearchParams(window.location.search);
+    if (!scope.has("dateBasis")) scope.set("dateBasis", getStoredReportingYearMode());
+    const reportKey = scope.get("report") as ReportKey | null;
     const definition = REPORTS.find((item) => item.key === reportKey);
-    if (definition) void loadReport(definition);
+    if (definition) void loadReport(definition, "open", scope);
   }, [loadReport, selected]);
 
   const backToLibrary = () => {

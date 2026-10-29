@@ -32,6 +32,23 @@
 .donor-daily-workspace button:disabled { cursor: not-allowed; opacity: .5; }
 .donor-daily-workspace .crm-page-header-surface { box-shadow: none; background: var(--crm-surface); }
 .donor-daily-workspace .crm-card-surface { box-shadow: none; }
+.donor-daily-workspace .donor-eyebrow { color: var(--crm-accent); font-size: .625rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.donor-daily-workspace .donor-priority-card {
+  display: flex; min-width: 0; flex-direction: column; border: 1px solid var(--crm-border); border-radius: .75rem;
+  padding: 1.125rem; background: var(--crm-surface); transition: border-color .15s, background .15s;
+}
+.donor-daily-workspace .donor-priority-card:hover { border-color: var(--crm-accent); background: var(--crm-accent-soft); }
+.donor-daily-workspace .donor-priority-card > p { flex: 1; }
+.donor-daily-workspace .donor-tool-link { display: flex; gap: .75rem; border: 1px solid var(--crm-border); border-radius: .5rem; padding: .875rem; }
+.donor-daily-workspace .donor-tool-link:hover { background: var(--crm-accent-soft); border-color: var(--crm-accent); }
+.donor-daily-workspace .donor-relationship-summary { background: linear-gradient(145deg, var(--crm-surface), var(--crm-accent-soft)); }
+.donor-daily-workspace .donor-campaign-progress { display: block; width: 100%; height: .375rem; overflow: hidden; border: 0; border-radius: 1rem; background: #e2e8f0; accent-color: var(--crm-accent); }
+.donor-daily-workspace .donor-campaign-progress::-webkit-progress-bar { background: #e2e8f0; }
+.donor-daily-workspace .donor-campaign-progress::-webkit-progress-value { background: var(--crm-accent); }
+.donor-daily-workspace .donor-campaign-progress::-moz-progress-bar { background: var(--crm-accent); }
+@media (max-width: 639px) {
+  .donor-daily-workspace .donor-performance-metrics .text-xl { font-size: 1rem; }
+}
 @media (prefers-reduced-motion: reduce) {
   .donor-daily-workspace *, .donor-daily-workspace *::before, .donor-daily-workspace *::after {
     animation: none !important;

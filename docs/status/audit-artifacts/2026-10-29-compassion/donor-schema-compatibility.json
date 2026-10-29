@@ -1,0 +1,8 @@
+{
+  "migration": "20260922140000_add_donation_tax_credit_tracking",
+  "originalGiftFieldsUnchanged": true,
+  "derivedDeductibleTotalUnchanged": true,
+  "rowCount": 45847,
+  "originalFieldsDigest": "2315d0b9e70d9351d328903c1331d22e5790ad74dc1344860d43fc50d274d35d",
+  "scope": "Local Laragon database; only the existing tax tracking migration was applied."
+}

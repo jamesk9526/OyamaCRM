@@ -1,0 +1,25 @@
+{
+  "fixture": "Explicit browser-only synthetic API responses; no stored donor data or writes.",
+  "checks": [
+    "Dashboard at 1440px has one heading and no horizontal overflow",
+    "Dashboard at 768px has one heading and no horizontal overflow",
+    "Dashboard at 390px has one heading and no horizontal overflow",
+    "Find constituent focuses working global search",
+    "Record gift opens the real gift-entry modal without saving",
+    "Dashboard customization remains available",
+    "Acknowledgment priority opens pending-gift queue",
+    "Welcome priority runs the first-gift report for the current month",
+    "Renewal report retains fiscal reporting year across reload",
+    "Overdue priority uses the administrator team overdue queue",
+    "Recurring giving toolkit action opens its reporting tool",
+    "Annual statements toolkit action opens its reporting tool",
+    "Donor research toolkit action opens its workspace",
+    "Data quality toolkit action opens its workspace",
+    "Campaign progress opens its campaign workspace",
+    "Detailed Steward recommendations have working scoped actions",
+    "Failed acknowledgment data stays unavailable while gifts and other tools remain usable",
+    "Dashboard retry recovers the failed acknowledgment queue"
+  ],
+  "runtimeErrors": [],
+  "businessWrites": []
+}

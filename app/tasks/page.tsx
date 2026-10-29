@@ -77,7 +77,8 @@ export default function TasksPage() {
   const isAdmin = user?.role === "admin";
   const queryFocus = searchParams.get("focus");
   const queryTaskId = searchParams.get("taskId");
-  const initialFocusMode: FocusMode = queryFocus === "team"
+  const queryQueue = searchParams.get("queue");
+  const initialFocusMode: FocusMode = queryFocus === "team" || queryQueue === "overdue"
     ? (isAdmin ? "team" : "my")
     : queryFocus === "followups"
       ? "followups"
@@ -87,7 +88,8 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState<FocusMode>(initialFocusMode);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [overdueOnly, setOverdueOnly] = useState(queryQueue === "overdue");
+  const [statusFilter, setStatusFilter] = useState(queryQueue === "overdue" ? "PENDING" : "");
   const [typeFilter, setTypeFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [total, setTotal] = useState(0);
@@ -101,6 +103,13 @@ export default function TasksPage() {
 
   const highlightTaskId = useMemo(() => (queryTaskId ? String(queryTaskId) : null), [queryTaskId]);
 
+  useEffect(() => {
+    if (queryQueue !== "overdue") return;
+    setOverdueOnly(true);
+    setFocusMode(isAdmin ? "team" : "my");
+    setStatusFilter("PENDING");
+  }, [queryQueue, isAdmin]);
+
   /** Load tasks from API with optional filters */
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -110,7 +119,7 @@ export default function TasksPage() {
         page: "1",
         limit: "100",
         scope: focusMode === "team" && isAdmin ? "all" : "personal",
-        queue: focusMode === "team" ? "team" : focusMode === "followups" ? "assigned-to-me" : "my-today",
+        queue: overdueOnly ? "overdue" : focusMode === "team" ? "team" : focusMode === "followups" ? "assigned-to-me" : "my-today",
       });
       if (statusFilter) params.set("status", statusFilter);
       const data = await apiFetch<{ items?: Task[]; total?: number }>(`/api/tasks?${params}`);
@@ -131,7 +140,7 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, focusMode, isAdmin, user]);
+  }, [statusFilter, typeFilter, focusMode, overdueOnly, isAdmin, user]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -243,7 +252,6 @@ export default function TasksPage() {
   const assignedToMe = user?.id
     ? tasks.filter((task) => task.assignee?.id === user.id && task.status !== "COMPLETED").length
     : 0;
-  const followUpCount = tasks.filter((task) => FOLLOW_UP_TYPES.has(task.type) && task.status !== "COMPLETED").length;
   const focusLabel = focusMode === "team" ? "Team Queue" : focusMode === "followups" ? "Follow-Ups" : "My Work";
 
   return (
@@ -272,12 +280,15 @@ export default function TasksPage() {
         }}
         commandHandlers={{
           "task-queue-my": () => {
+            setOverdueOnly(false);
             setFocusMode("my");
           },
           "task-queue-team": () => {
+            setOverdueOnly(false);
             setFocusMode(isAdmin ? "team" : "my");
           },
           "task-queue-followups": () => {
+            setOverdueOnly(false);
             setFocusMode("followups");
           },
           "task-new": () => {
@@ -290,6 +301,7 @@ export default function TasksPage() {
             void loadNotifications();
           },
           "task-reset-filters": () => {
+            setOverdueOnly(false);
             setStatusFilter("");
             setTypeFilter("");
           },
@@ -352,7 +364,9 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
+        {overdueOnly ? <button type="button" onClick={() => setOverdueOnly(false)} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800" aria-label="Clear overdue task filter">Overdue tasks ×</button> : null}
         <select
+          aria-label="Task status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -363,6 +377,7 @@ export default function TasksPage() {
           ))}
         </select>
         <select
+          aria-label="Task type"
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"

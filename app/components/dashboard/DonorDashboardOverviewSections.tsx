@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DashboardPanel, DASHBOARD_PANEL_CLASS } from "./shared/DashboardPrimitives";
 import { formatDashboardCompactCurrency, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
-import type { DashboardData } from "@/app/features/donor-dashboard/types";
+import type { DashboardData, StewardSuggestion } from "@/app/features/donor-dashboard/types";
 
 const CHART_COLORS = ["#0f6cbd", "#115ea3", "#616161", "#d97706", "#8764b8"];
 
@@ -15,7 +16,7 @@ export function DonorDashboardOverviewSections({
 }: {
   designationSlices: DashboardData["designationSlices"];
   designationTotal: number;
-  suggestions: DashboardData["stewardshipAlerts"];
+  suggestions: StewardSuggestion[];
 }) {
   const topDesignations = useMemo(() => {
     const total = designationSlices.reduce((sum, slice) => sum + slice.amount, 0);
@@ -72,7 +73,7 @@ export function DonorDashboardOverviewSections({
             {recommendations.length === 0 ? <p className="text-sm text-slate-500">No recommendations yet.</p> : recommendations.map((item) => (
               <div key={item.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-[2px] border border-[#e5e5e5] bg-white px-3 py-3 transition-colors hover:border-[#0f6cbd] hover:bg-[#fafafa] sm:grid-cols-[auto_minmax(0,1fr)_auto]">
                 <span className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-[2px] ${item.urgency === "high" ? "bg-[#deecf9] text-[#115ea3]" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-[#eff6fc] text-[#0f6cbd]"}`}>•</span>
-                <div><p className="text-sm font-semibold text-slate-800">{item.title}</p><p className="text-xs text-slate-500">{item.description}</p></div>
+                <div><p className="text-sm font-semibold text-slate-800">{item.title}</p><p className="text-xs text-slate-500">{item.description}</p><Link href={item.action.href} className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-[var(--crm-accent)] hover:underline">{item.action.label} →</Link></div>
                 <span className={`col-start-2 justify-self-start rounded-[2px] px-2 py-0.5 text-[10px] font-semibold sm:col-auto ${item.urgency === "high" ? "bg-[#deecf9] text-[#115ea3]" : item.urgency === "medium" ? "bg-amber-100 text-amber-700" : "bg-[#eff6fc] text-[#0f6cbd]"}`}>{item.urgency === "high" ? "High Priority" : item.urgency === "medium" ? "Medium Priority" : "Low Priority"}</span>
               </div>
             ))}

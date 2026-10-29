@@ -6,6 +6,16 @@ const LETTERS_PORT = Number(process.env.LETTERS_PORT || 3001);
 module.exports = {
   apps: [
     {
+      name: 'oyama-compassion-api',
+      script: 'dist/server/compassion/index.js',
+      interpreter: 'node',
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      max_memory_restart: '512M',
+      env: { NODE_ENV: 'production', COMPASSION_API_PORT: Number(process.env.COMPASSION_API_PORT || 4100) },
+    },
+    {
       name: 'oyama-crm-web',
       script: './node_modules/next/dist/bin/next',
       interpreter: 'node',

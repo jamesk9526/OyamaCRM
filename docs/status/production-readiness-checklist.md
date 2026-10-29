@@ -1,3 +1,11 @@
+## Donor dashboard verification — 2026-10-29
+
+Focused dashboard, task scoping, financial calculation tests, GET-only local API probes, and synthetic browser workflows are recorded in the dated donor audit evidence. Live donor messages, gift creation, tax advice, production deployment, and external research connector delivery were not exercised. A previously pending local Donation tax-tracking migration was applied and reconciled to restore local reporting compatibility; existing gift amounts and tax-deductible flags were verified unchanged. Other unrelated pending migrations remain untouched. These checks do not replace the wider production-readiness requirements below.
+
+## Compassion clinical cutover — 2026-10-29
+
+The new client-care app is available for development/pilot verification with a separate API. Do not interpret restored workflows or passing engineering checks as clinical launch approval. Before clinical cutover: verify source export coverage and reconciliation; review clinical/consent templates; assign least-privilege memberships and physician accounts; prove encrypted backup/restore and key recovery; validate hosting and retention; verify safe-contact/provider delivery; rehearse cutover and rollback. PlusLink, national reporting contracts, and presentation exports remain outstanding. Detailed operations and limits: `docs/plans/compassion-client-care-implementation.md`.
+
 ## 2026-10-17 Trivia sync duplicate-team repair
 
 Production logs reported repeated TriviaTeam PRIMARY uniqueness errors during state loads. Local regression checks passed concurrent reads without team writes, transaction-scoped replacement, failed-insert propagation, and existing live API behavior (13 tests). These checks use mocked persistence and do not reproduce MySQL concurrency directly. Deployment and live verification remain required; no database reset or migration is part of this fix.

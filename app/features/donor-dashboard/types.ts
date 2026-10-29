@@ -134,6 +134,5 @@ export interface DashboardData {
   designationSlices: DesignationSlice[];
   designationTotal: number;
   campaigns: CampaignImpact[];
-  stewardshipAlerts: StewardSuggestion[];
   errors: string[];
 }

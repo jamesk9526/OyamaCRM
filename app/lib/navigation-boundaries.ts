@@ -1,9 +1,10 @@
 /** Shared navigation boundary helpers for module routing and role-aware app launch visibility. */
 
-export type TopBarModuleKey = "donor" | "letters" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
+export type TopBarModuleKey = "donor" | "compassion" | "letters" | "events" | "watchdog" | "webmaster" | "oshareview" | "password";
 
 /** Maps pathname values to the owning CRM module key used by TopBar and scoped search. */
 export function resolveTopBarModuleKey(pathname: string): TopBarModuleKey {
+  if (pathname === "/compassion" || pathname.startsWith("/compassion/")) return "compassion";
   if (pathname.startsWith("/oyama-letters")) return "letters";
   if (pathname.startsWith("/events")) return "events";
   if (pathname.startsWith("/watchdog")) return "watchdog";

@@ -34,6 +34,7 @@ export function buildStewardshipSuggestions(
 ): StewardSuggestion[] {
   const suggestions: StewardSuggestion[] = [];
   if (!summary) return suggestions;
+  const renewalScope = summary.period ? `&dateBasis=${summary.period.basis}&year=${summary.period.year}` : "";
 
   if ((summary.overdueTasks ?? 0) > 0) {
     suggestions.push({
@@ -47,15 +48,15 @@ export function buildStewardshipSuggestions(
     });
   }
 
-  if (retention && retention.total > 0 && retention.rate < 60) {
+  if (retention && retention.total > retention.retained) {
     suggestions.push({
       id: "retention_low",
       type: "retention",
-      title: "Retention Needs Attention",
-      description: `${Math.max(0, retention.total - retention.retained).toLocaleString()} prior-period donors have not given again in the current period.`,
-      action: { label: "Open Lapsed Report", href: "/reports?report=lapsed-donors" },
+      title: "Renew donor relationships",
+      description: `${Math.max(0, retention.total - retention.retained).toLocaleString()} prior-year donors have not given again this reporting year. Giving may be seasonal; review their history before outreach.`,
+      action: { label: "Open Lapsed Report", href: `/reports?report=lapsed-donors${renewalScope}` },
       count: Math.max(0, retention.total - retention.retained),
-      urgency: "high",
+      urgency: "medium",
     });
   }
 
@@ -65,7 +66,7 @@ export function buildStewardshipSuggestions(
       type: "welcome",
       title: `${summary.newDonorsThisMonth} First-Time Donor${summary.newDonorsThisMonth === 1 ? "" : "s"}`,
       description: "New donors should receive a welcome or thank-you follow-up.",
-      action: { label: "Open Segment", href: "/reports?report=first-time-donors" },
+      action: { label: "Open Segment", href: "/reports?report=first-time-donors&range=month-to-date" },
       count: summary.newDonorsThisMonth,
       urgency: "medium",
     });
