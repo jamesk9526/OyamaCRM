@@ -27,7 +27,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
     items: [
       { label: "Overview", href: "/settings", description: "Settings home", iconSlug: "donor-dashboard" },
       { label: "Notification email", href: "/settings/notification-email", description: "Administrator personal email alerts and subject lines", iconSlug: "communications" },
-      { label: "My Profile", href: "/settings/profile", description: "Personal details and activity", iconSlug: "users" },
+      { label: "My Profile", href: "/settings/profile", description: "Professional profile, introduction and activity", iconSlug: "users" },
       { label: "My Appearance", href: "/settings/appearance", description: "Personal workspace display", iconSlug: "fund-designation" },
     ],
   },

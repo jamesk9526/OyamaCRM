@@ -1,0 +1,15 @@
+import express, { type Request, type Response, type NextFunction } from "express";
+import request from "supertest";
+import { beforeEach, expect, it, vi } from "vitest";
+const db = vi.hoisted(() => ({ update: vi.fn(), findFirst: vi.fn(), logs: vi.fn(), count: vi.fn() }));
+vi.mock("@/server/src/lib/prisma", () => ({ prisma: { user: { update: db.update, findFirst: db.findFirst }, auditLog: { findMany: db.logs, count: db.count }, refreshToken: { count: db.count } } }));
+vi.mock("@/server/src/lib/audit", () => ({ logAudit: vi.fn() }));
+vi.mock("@/server/src/middleware/requireAuth", () => ({ requireAuth: (req: Request, _res: Response, next: NextFunction) => { req.user = { sub: "admin1", role: "admin", email: "test@example.invalid", orgId: "org1" }; next(); } }));
+import router from "@/server/src/routes/users";
+const app = express(); app.use(express.json()); app.use("/api/users", router);
+const body = { firstName: "Jordan", lastName: "Lee", jobTitle: "Director", bio: "Team introduction", timezone: "America/Chicago" };
+beforeEach(() => { vi.resetAllMocks(); db.update.mockResolvedValue({ id: "admin1", ...body }); db.findFirst.mockResolvedValue({ id: "admin1" }); db.logs.mockResolvedValue([]); db.count.mockResolvedValue(0); });
+it("profile lookup checks tenant and active membership", async () => { expect((await request(app).get("/api/users/me/profile")).status).toBe(200); expect(db.findFirst.mock.calls[0][0].where).toEqual({ id: "admin1", organizationId: "org1", active: true }); });
+it("saves professional details without allowing role, email or tenant changes", async () => { expect((await request(app).put("/api/users/me/profile").send({ ...body, role: "staff", organizationId: "foreign", email: "other@example.invalid" })).status).toBe(200); const query = db.update.mock.calls[0][0]; expect(query.where).toEqual({ id: "admin1", organizationId: "org1", active: true }); expect(query.data).not.toHaveProperty("role"); expect(query.data).not.toHaveProperty("organizationId"); expect(query.data).not.toHaveProperty("email"); });
+it.each(["javascript:alert(1)", "http://example.invalid/photo.png", "https://user:password@example.invalid/photo.png"])("rejects unsafe photo URL %s", async avatarUrl => { expect((await request(app).put("/api/users/me/profile").send({ ...body, avatarUrl })).status).toBe(400); expect(db.update).not.toHaveBeenCalled(); });
+it.each([{ jobTitle: { title: "Director" } }, { bio: "a".repeat(1001) }, { timezone: "not-a-timezone" }])("rejects malformed professional details", async fields => { expect((await request(app).put("/api/users/me/profile").send({ ...body, ...fields })).status).toBe(400); expect(db.update).not.toHaveBeenCalled(); });

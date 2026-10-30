@@ -79,7 +79,7 @@ router.get("/me/profile", async (req: Request, res: Response) => {
   since.setDate(since.getDate() - 30);
 
   const [user, recentActivity, actionCount, loginCount, sessions] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT }),
+    prisma.user.findFirst({ where: { id: userId, organizationId: req.user!.orgId, active: true }, select: USER_SELECT }),
     prisma.auditLog.findMany({
       where: { userId, organizationId: req.user!.orgId },
       select: { id: true, action: true, entity: true, entityId: true, createdAt: true },
@@ -123,6 +123,18 @@ router.get("/me/profile", async (req: Request, res: Response) => {
 
 /** PUT /api/users/me/profile — Safely update personal, non-authorization profile fields. */
 router.put("/me/profile", async (req: Request, res: Response) => {
+  for (const [field, max] of Object.entries({ firstName: 100, lastName: 100, preferredName: 100, phone: 40, jobTitle: 120, timezone: 100, bio: 1000, avatarUrl: 1000 })) {
+    const value = req.body?.[field];
+    if (value != null && (typeof value !== "string" || value.length > max)) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `${field} must be text with at most ${max} characters.` } }); return;
+    }
+  }
+  const avatar = req.body?.avatarUrl?.trim();
+  if (avatar) {
+    try { const url = new URL(avatar); if (url.protocol !== "https:" || url.username || url.password) throw new Error("Invalid photo URL"); }
+    catch { res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Use an HTTPS profile photo URL without credentials." } }); return; }
+  }
+
   const firstName = optionalProfileText(req.body?.firstName, 100);
   const lastName = optionalProfileText(req.body?.lastName, 100);
   if (!firstName || !lastName) {
@@ -141,7 +153,7 @@ router.put("/me/profile", async (req: Request, res: Response) => {
   }
 
   const user = await prisma.user.update({
-    where: { id: req.user!.sub },
+    where: { id: req.user!.sub, organizationId: req.user!.orgId, active: true },
     data: {
       firstName,
       lastName,

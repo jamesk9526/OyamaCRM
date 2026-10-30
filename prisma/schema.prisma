@@ -443,6 +443,7 @@ enum MeetingLocationType {
 // ─── Core Models ─────────────────────────────────────────────────────────────
 
 model Organization {
+  communityPosts CommunityPost[]
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
@@ -529,6 +530,9 @@ model OrganizationSettings {
 }
 
 model User {
+  communityPosts CommunityPost[]
+  communityReplies CommunityReply[]
+  communityReactions CommunityReaction[]
   id             String    @id @default(cuid())
   organizationId String
   email          String    @unique
@@ -3511,4 +3515,41 @@ model NotificationEmailDelivery {
   subscription NotificationEmailSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
   @@unique([subscriptionId, notificationId])
+}
+
+// Private organization administrator community. Plain text only.
+model CommunityPost {
+  id String @id @default(cuid())
+  organizationId String
+  authorId String
+  requestId String @unique
+  body String @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+  replies CommunityReply[]
+  reactions CommunityReaction[]
+  @@index([organizationId, deletedAt, createdAt])
+}
+model CommunityReply {
+  id String @id @default(cuid())
+  postId String
+  authorId String
+  requestId String @unique
+  body String @db.Text
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+  @@index([postId, deletedAt, createdAt])
+}
+model CommunityReaction {
+  postId String
+  userId String
+  createdAt DateTime @default(now())
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([postId, userId])
 }

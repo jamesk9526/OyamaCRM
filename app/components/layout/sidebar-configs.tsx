@@ -350,6 +350,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
     {
       id: "administration", label: "Administration", collapsible: true, defaultOpen: false,
       items: [
+        { id: "admin-community", label: "Admin community", href: "/community", icon: DONOR_ICONS.communications, allowedRoles: ["admin"], description: "Private administrator feed, team profiles, replies and conversations." },
         ...take(["data-tools", "settings", "help"]),
       ],
     },
