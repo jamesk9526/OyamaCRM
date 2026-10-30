@@ -1,0 +1,17 @@
+{
+  "checks": [
+    "My work includes future/undated tasks and paginates using server totals",
+    "Create link opens editor; assignment, local end-of-day due date and reminder save",
+    "Edit, complete, completed filter and reopen run the real task actions",
+    "Task action errors are visible and retry reloads unchanged task",
+    "Bulk assignment changes only explicitly selected tasks after confirmation",
+    "Notification deep link loads exact completed task outside current page",
+    "Delete requires confirmation and updates list after confirmed success",
+    "Failed list is an error state, not an empty success, and retry recovers",
+    "Mobile390px fits and settings describes live workflows without fake saves"
+  ],
+  "errors": [],
+  "fixtureMutations": 7,
+  "persistentWrites": 0,
+  "fixture": "Synthetic API responses only"
+}

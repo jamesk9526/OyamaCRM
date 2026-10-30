@@ -28,6 +28,9 @@ import { enrollConstituentInTriggeredStewardPaths } from "../services/steward-pa
 import { sendCampaignNow } from "./email-campaigns.js";
 import { ensureDonationQueuedForQuickBooks } from "./quickbooks.js";
 import { resolveDonationTaxDetails } from "../services/donation-tax.js";
+import { averageGiftAmount, donationCalendarRange } from "../services/donor-dashboard-metrics.js";
+import { createDonationFollowUp, DonationFollowUpError } from "../services/donation-follow-up.js";
+import { TaskValidationError } from "../services/task-policy.js";
 
 const router = Router();
 
@@ -389,10 +392,11 @@ async function buildDonationWhere(
         where: { organizationId },
         select: { fiscalYearStart: true },
       });
-      dateFilter = getFiscalYTDRange(normalizeFiscalYearStart(settings?.fiscalYearStart));
+      const range = getFiscalYTDRange(normalizeFiscalYearStart(settings?.fiscalYearStart));
+      dateFilter = { gte: donationCalendarRange({ gte: range.gte, lt: range.lte }).gte, lte: range.lte };
     } else {
       const now = new Date();
-      dateFilter = { gte: new Date(now.getFullYear(), 0, 1), lte: now };
+      dateFilter = { gte: new Date(Date.UTC(now.getFullYear(), 0, 1)), lte: now };
     }
   }
 
@@ -403,7 +407,7 @@ async function buildDonationWhere(
       ...(query.campaignId ? [{ campaignId: query.campaignId }] : []),
       ...(query.designationId ? [{ designationId: query.designationId }] : []),
       ...(query.status ? [{ status: query.status as DonationStatus }] : []),
-      ...(acknowledgment === "pending" ? [{ acknowledgmentSentAt: null }] : []),
+      ...(acknowledgment === "pending" ? [{ acknowledgmentSentAt: null, status: "COMPLETED" as DonationStatus }] : []),
       ...(acknowledgment === "sent" ? [{ acknowledgmentSentAt: { not: null } }] : []),
       ...(dateFilter ? [{ date: dateFilter }] : []),
       ...(keyword
@@ -495,7 +499,7 @@ router.get("/", async (req, res) => {
 router.get("/stats", async (req, res) => {
   const organizationId = await resolveOrganizationId({ req });
   if (!organizationId) {
-    res.json({ totalRaised: 0, totalGifts: 0, completed: 0, recurring: 0 });
+    res.json({ totalRaised: 0, totalGifts: 0, completed: 0, recurring: 0, averageGift: 0, pendingAcknowledgments: 0 });
     return;
   }
 
@@ -513,7 +517,7 @@ router.get("/stats", async (req, res) => {
     acknowledgment,
   });
 
-  const [raisedSum, totalGifts, completed, recurring] = await Promise.all([
+  const [raisedSum, totalGifts, completed, recurring, pendingAcknowledgments] = await Promise.all([
     prisma.donation.aggregate({
       where: { AND: [where, { status: "COMPLETED" satisfies DonationStatus }] },
       _sum: { amount: true },
@@ -521,6 +525,7 @@ router.get("/stats", async (req, res) => {
     prisma.donation.count({ where }),
     prisma.donation.count({ where: { AND: [where, { status: "COMPLETED" satisfies DonationStatus }] } }),
     prisma.donation.count({ where: { AND: [where, { isRecurring: true }] } }),
+    prisma.donation.count({ where: { AND: [where, { status: "COMPLETED" satisfies DonationStatus, acknowledgmentSentAt: null }] } }),
   ]);
 
   res.json({
@@ -528,7 +533,24 @@ router.get("/stats", async (req, res) => {
     totalGifts,
     completed,
     recurring,
+    averageGift: averageGiftAmount(raisedSum._sum.amount, completed),
+    pendingAcknowledgments,
   });
+});
+
+/** Reviewed follow-up creation stays linked to the authorized gift and its donor. */
+router.post("/:id/follow-up", requirePermission("edit:tasks"), async (req, res, next) => {
+  try {
+    const organizationId = await resolveOrganizationId({ req });
+    if (!organizationId) { res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } }); return; }
+    const result = await createDonationFollowUp(organizationId, req.user!.sub, String(req.params.id), req.body);
+    res.status(result.reused ? 200 : 201).json(result);
+  } catch (error) {
+    if (error instanceof DonationFollowUpError || error instanceof TaskValidationError) {
+      res.status(error instanceof DonationFollowUpError ? error.status : 400).json({ error: { code: "INVALID_FOLLOW_UP", message: error.message } }); return;
+    }
+    next(error);
+  }
 });
 
 /** GET /api/donations/:id — Fetch a single donation including its linked pledge if present. */

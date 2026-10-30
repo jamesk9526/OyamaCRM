@@ -357,7 +357,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="crm-fonts flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface"
+      className="crm-fonts oyama-reference-shell flex h-[100dvh] min-h-[100svh] flex-col crm-page-surface"
+      data-oyama-internal="true"
+      data-oyama-sidebar={donorShellVisible ? "true" : "false"}
       style={shellStyle}
       data-donor-appearance={donorAppearance.theme}
       data-donor-density={donorAppearance.density}

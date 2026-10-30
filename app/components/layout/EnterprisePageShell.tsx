@@ -21,7 +21,7 @@ export default function EnterprisePageShell({
   maxWidthClassName = "max-w-none",
 }: EnterprisePageShellProps) {
   return (
-    <div className={`mx-auto flex w-full ${maxWidthClassName} flex-col gap-3 p-0 min-[1360px]:gap-4 ${className}`}>
+    <div className={`oyama-workspace mx-auto flex w-full ${maxWidthClassName} flex-col gap-3 p-0 min-[1360px]:gap-4 ${className}`}>
       {ribbon ? <div className="hidden" aria-hidden="true">{ribbon}</div> : null}
       <div className={`min-w-0 ${contentClassName}`}>{children}</div>
     </div>

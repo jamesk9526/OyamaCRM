@@ -461,7 +461,7 @@ router.post("/", requirePermission("grants.create"), requireRole("manager"), asy
   });
 
   if (grant.assigneeId) {
-    notifyGrantAssignee({
+    await notifyGrantAssignee({
       organizationId,
       assigneeId: grant.assigneeId,
       grantId: grant.id,
@@ -892,7 +892,7 @@ router.patch("/:id", requirePermission("grants.edit"), async (req, res) => {
   }
 
   if (organizationId && updated.assigneeId && updated.assigneeId !== existing.assigneeId) {
-    notifyGrantAssignee({
+    await notifyGrantAssignee({
       organizationId,
       assigneeId: updated.assigneeId,
       grantId: updated.id,

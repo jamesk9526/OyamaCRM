@@ -1,0 +1,8 @@
+{
+  "checks": [
+    "Snooze hides an active notice; Snoozed inbox exposes it and Unsnooze returns it unread",
+    "Workspace filters keep every workspace option and read/unread transitions are reversible"
+  ],
+  "errors": [],
+  "error": "Expected values to be strictly equal:\n\n'read' !== 'unread'\n"
+}

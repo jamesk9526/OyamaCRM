@@ -34,6 +34,7 @@ await page.route("**/api/reports/summary*", (route) => route.fulfill({ json: { t
 async function dashboard() {
   await page.goto(`${base}/`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Make the next connection" }).waitFor();
+  await page.getByRole("button", { name: "Supporter relationships", exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('[aria-labelledby="donor-action-center-title"] [aria-busy="true"]'));
 }
 try {

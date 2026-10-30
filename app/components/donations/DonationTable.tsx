@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import DonorRecordActions from "@/app/components/donor-workspace/DonorRecordActions";
 import Link from "next/link";
 import { DonationRow, formatCurrency, formatDate, formatDonationDate, methodLabel, statusColor } from "./donation-utils";
 import { getConstituentDisplayName, getConstituentSortName } from "@/app/components/constituents/constituent-utils";
@@ -25,6 +26,7 @@ interface Props {
 
 function RowQuickActionsMenu({
   donation,
+  onDelete,
   onMarkThanked,
   onCreateEmailDraft,
   onEmailFromTemplate,
@@ -36,6 +38,7 @@ function RowQuickActionsMenu({
   actionBusyDonationId,
 }: {
   donation: DonationRow;
+  onDelete?: (id: string) => void;
   onMarkThanked?: (id: string) => void;
   onCreateEmailDraft?: (id: string) => void;
   onEmailFromTemplate?: (id: string) => void;
@@ -46,144 +49,24 @@ function RowQuickActionsMenu({
   acknowledgingDonationId?: string | null;
   actionBusyDonationId?: string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const actionBusy = actionBusyDonationId === donation.id;
   const acknowledging = acknowledgingDonationId === donation.id;
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onDocumentClick(event: MouseEvent) {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function onDocumentKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", onDocumentClick);
-    document.addEventListener("keydown", onDocumentKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocumentClick);
-      document.removeEventListener("keydown", onDocumentKeyDown);
-    };
-  }, [open]);
-
-  function runAction(handler?: (id: string) => void) {
-    if (!handler || actionBusy) return;
-    setOpen(false);
-    handler(donation.id);
-  }
-
-  function runMarkThanked() {
-    if (!onMarkThanked || donation.acknowledgmentSentAt || acknowledging) return;
-    setOpen(false);
-    onMarkThanked(donation.id);
-  }
-
-  const itemClass = "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11px] font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50";
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Open donation quick actions"
-      >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5h.01M12 12h.01M12 19h.01" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-200/70">
-          <button
-            type="button"
-            onClick={() => runAction(onCompleteStewardshipLoop)}
-            disabled={!onCompleteStewardshipLoop || actionBusy}
-            className={itemClass}
-          >
-            <span>{actionBusy ? "Running..." : "Complete Loop"}</span>
-          </button>
-
-          <Link
-            href={`/oyama-letters/generate?constituentId=${donation.constituent.id}&donationId=${donation.id}`}
-            onClick={() => setOpen(false)}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
-          >
-            <span>Letter</span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => runAction(onCreateEmailDraft)}
-            disabled={!onCreateEmailDraft || actionBusy}
-            className={itemClass}
-          >
-            <span>Email Draft</span>
-          </button>
-
-          {onEmailFromTemplate && (
-            <button
-              type="button"
-              onClick={() => runAction(onEmailFromTemplate)}
-              disabled={actionBusy}
-              className={itemClass}
-            >
-              <span>Email Template</span>
-            </button>
-          )}
-
-          {onLetterFromTemplate && (
-            <button
-              type="button"
-              onClick={() => runAction(onLetterFromTemplate)}
-              disabled={actionBusy}
-              className={itemClass}
-            >
-              <span>Letter Template</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => runAction(onCreateCallTask)}
-            disabled={!onCreateCallTask || actionBusy}
-            className={itemClass}
-          >
-            <span>Call Task</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => runAction(onStartPath)}
-            disabled={!onStartPath || actionBusy}
-            className={itemClass}
-          >
-            <span>Start Path</span>
-          </button>
-
-          {onMarkThanked && !donation.acknowledgmentSentAt && (
-            <button
-              type="button"
-              onClick={runMarkThanked}
-              disabled={acknowledging}
-              className={itemClass}
-            >
-              <span>{acknowledging ? "Saving..." : "Mark Thanked"}</span>
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return <DonorRecordActions label={`Actions for gift from ${getConstituentDisplayName(donation.constituent)}`}>
+    <p>Gift record</p>
+    <Link href={`/donations/${donation.id}`}>View gift</Link>
+    <Link href={`/donations/${donation.id}/edit`}>Edit gift</Link>
+    <Link href={`/constituents/${donation.constituent.id}`}>View constituent</Link>
+    {onMarkThanked && donation.status === "COMPLETED" && !donation.acknowledgmentSentAt && <button type="button" disabled={acknowledging || actionBusy} onClick={() => onMarkThanked(donation.id)}>{acknowledging ? "Saving…" : "Mark thanked"}</button>}
+    <p>Prepare outreach</p>
+    {onCreateEmailDraft && <button type="button" disabled={actionBusy} onClick={() => onCreateEmailDraft(donation.id)}>Create email draft</button>}
+    {onEmailFromTemplate && <button type="button" disabled={actionBusy} onClick={() => onEmailFromTemplate(donation.id)}>Email from template</button>}
+    <Link href={`/oyama-letters/generate?constituentId=${donation.constituent.id}&donationId=${donation.id}`}>Open letter workspace</Link>
+    {onLetterFromTemplate && <button type="button" disabled={actionBusy} onClick={() => onLetterFromTemplate(donation.id)}>Letter from template</button>}
+    {onCreateCallTask && <button type="button" disabled={actionBusy} onClick={() => onCreateCallTask(donation.id)}>Set up follow-up task</button>}
+    {onStartPath && <button type="button" disabled={actionBusy} onClick={() => onStartPath(donation.id)}>Start stewardship path</button>}
+    {onCompleteStewardshipLoop && <button type="button" disabled={actionBusy} onClick={() => onCompleteStewardshipLoop(donation.id)}>Complete stewardship loop</button>}
+    {onDelete && <button type="button" className="text-red-700" onClick={() => onDelete(donation.id)}>Delete gift</button>}
+  </DonorRecordActions>;
 }
 
 function SortHeader({
@@ -203,9 +86,9 @@ function SortHeader({
   return (
     <th
       className="cursor-pointer select-none px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.11em] text-slate-500 hover:text-emerald-700"
-      onClick={() => onToggle(col)}
+      aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
     >
-      {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+      <button type="button" onClick={() => onToggle(col)} className="min-h-9 text-left">{label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</button>
     </th>
   );
 }
@@ -278,7 +161,7 @@ export default function DonationTable({
                 <p className={`mt-1 text-[11px] ${d.acknowledgmentSentAt ? "text-green-700" : "text-amber-700"}`}>
                   {d.acknowledgmentSentAt
                     ? `Thanked ${formatDate(d.acknowledgmentSentAt)}`
-                    : "Needs acknowledgment"}
+                    : d.status === "COMPLETED" ? "Needs acknowledgment" : "Acknowledgment after completion"}
                 </p>
               </div>
               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor(d.status)}`}>
@@ -310,26 +193,11 @@ export default function DonationTable({
             )}
 
             <div className="mt-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Link href={`/donations/${d.id}`} className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-[#0f6cbd] bg-white border border-blue-200 rounded-md hover:bg-blue-50">Details</Link>
-                <Link
-                  href={`/donations/${d.id}/edit`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
-                >
-                  Edit
-                </Link>
-                {onDelete && (
-                  <button
-                    onClick={() => onDelete(d.id)}
-                    className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
+              <Link href={`/donations/${d.id}`} className="donor-button">View gift</Link>
 
               <RowQuickActionsMenu
                 donation={d}
+                    onDelete={onDelete}
                 onMarkThanked={onMarkThanked}
                 onCreateEmailDraft={onCreateEmailDraft}
                 onEmailFromTemplate={onEmailFromTemplate}
@@ -398,7 +266,7 @@ export default function DonationTable({
                     </span>
                   ) : (
                     <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
-                      Needs acknowledgment
+                      {d.status === "COMPLETED" ? "Needs acknowledgment" : "Not completed"}
                     </span>
                   )}
                 </div>
@@ -422,29 +290,9 @@ export default function DonationTable({
               </td>
               <td className="px-4 py-2.5 text-right">
                 <div className="flex items-center gap-1 justify-end flex-wrap">
-                  <Link href={`/donations/${d.id}`} className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-[#0f6cbd] bg-white border border-blue-200 rounded-md hover:bg-blue-50">Details</Link>
-                  <Link
-                    href={`/donations/${d.id}/edit`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                  </Link>
-                  {onDelete && (
-                    <button
-                      onClick={() => onDelete(d.id)}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
-                      title="Delete donation"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
                   <RowQuickActionsMenu
                     donation={d}
+                    onDelete={onDelete}
                     onMarkThanked={onMarkThanked}
                     onCreateEmailDraft={onCreateEmailDraft}
                     onEmailFromTemplate={onEmailFromTemplate}

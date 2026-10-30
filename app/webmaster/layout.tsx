@@ -72,7 +72,7 @@ export default function WebmasterLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-[100dvh] min-h-[100svh] flex-col bg-white">
+    <div data-oyama-module="webmaster" className="flex h-[100dvh] min-h-[100svh] flex-col bg-white">
       <TopBar scrolled={shellScrolled} />
       <div className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
         <div className="hidden h-full lg:block">

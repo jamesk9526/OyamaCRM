@@ -1,0 +1,7 @@
+{
+  "url": "http://localhost:4780/tasks?taskId=linked-outside-queue",
+  "text": "",
+  "errors": [
+    "Invalid or unexpected token"
+  ]
+}

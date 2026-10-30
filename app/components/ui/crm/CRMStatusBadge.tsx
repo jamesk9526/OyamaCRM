@@ -19,5 +19,5 @@ const toneClassName = {
 
 /** CRMStatusBadge uses calm color treatment for statuses, tags, and readiness labels. */
 export default function CRMStatusBadge({ children, tone = "gray", className = "" }: CRMStatusBadgeProps) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${toneClassName[tone]} ${className}`}>{children}</span>;
+  return <span className={`oyama-status-badge inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${toneClassName[tone]} ${className}`}>{children}</span>;
 }

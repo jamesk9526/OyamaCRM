@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Gift, HeartHandshake, RefreshCw, Search, Wallet } from "lucide-react";
+import DonorWorkspaceNav from "@/app/components/donor-workspace/DonorWorkspaceNav";
+import { DonorQuickViews, DonorFilterPanel, DonorFilterChip, DonorSelectionBar, DonorPagination } from "@/app/components/donor-workspace/BrowsePrimitives";
+import { updateBrowseQuery, positivePage } from "@/app/features/donor-workspace/browse-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import DonationTable from "@/app/components/donations/DonationTable";
 import { DonationRow, formatCurrency } from "@/app/components/donations/donation-utils";
 import EmailFromTemplateModal from "@/app/components/donations/EmailFromTemplateModal";
 import LetterFromTemplateModal from "@/app/components/donations/LetterFromTemplateModal";
 import RecordGiftModal from "@/app/components/donations/RecordGiftModal";
+import DonationFollowUpModal from "@/app/components/donations/DonationFollowUpModal";
 import EnterprisePageShell from "@/app/components/layout/EnterprisePageShell";
 import CRMPageHeader from "@/app/components/ui/crm/CRMPageHeader";
 import CRMSecondaryMenu from "@/app/components/ui/crm/CRMSecondaryMenu";
@@ -32,6 +37,8 @@ interface DonationStats {
   totalGifts: number;
   completed: number;
   recurring: number;
+  averageGift?: number;
+  pendingAcknowledgments?: number;
 }
 
 interface BulkAcknowledgmentResponse {
@@ -68,9 +75,19 @@ function getCurrentYearDateInputs(): { from: string; to: string } {
   };
 }
 
-export default function DonationsPage() {
+function DonationsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const constituentIdFilter = searchParams.get("constituentId") ?? "";
+  const page = positivePage(searchParams.get("page"));
+  const allYears = searchParams.get("allYears") === "1";
+  const search = searchParams.get("search") || "";
+  const status = searchParams.get("status") || "";
+  function changeFilters(updates: Record<string, string | null>, resetPage = true) {
+    const query = updateBrowseQuery(searchParams.toString(), updates, resetPage);
+    // Same-page filters drive client API reads; keep their URL updates immediate.
+    window.history.replaceState(null, "", `/donations${query ? `?${query}` : ""}`);
+  }
   const campaignIdFilter = searchParams.get("campaignId") ?? "";
   const campaignNameFilter = searchParams.get("campaignName") ?? "";
   const acknowledgmentFilter = searchParams.get("acknowledgment") === "pending" ? "pending" : "";
@@ -87,6 +104,8 @@ export default function DonationsPage() {
   const [stats, setStats] = useState<DonationStats>({ totalRaised: 0, totalGifts: 0, completed: 0, recurring: 0 });
   const [loading, setLoading] = useState(true);
   const [apiDown, setApiDown] = useState(false);
+  const [followUpDonationId, setFollowUpDonationId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [acknowledgingDonationId, setAcknowledgingDonationId] = useState<string | null>(null);
   const [bulkAcknowledgmentOpen, setBulkAcknowledgmentOpen] = useState(false);
@@ -97,14 +116,17 @@ export default function DonationsPage() {
   const [letterTemplateDonation, setLetterTemplateDonation] = useState<DonationRow | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const [page, setPage] = useState(1);
-  const [allYears, setAllYears] = useState(false);
   const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
 
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [from,   setFrom]   = useState(defaultRange.from);
-  const [to,     setTo]     = useState(defaultRange.to);
+  const from = searchParams.get("from") ?? defaultRange.from;
+  const to = searchParams.get("to") ?? defaultRange.to;
+  const [constituentContext, setConstituentContext] = useState<{ id: string; firstName: string; lastName: string; organizationName?: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setConstituentContext(null);
+    if (constituentIdFilter) apiFetch<{ id: string; firstName: string; lastName: string; organizationName?: string }>(`/api/constituents/${encodeURIComponent(constituentIdFilter)}`).then((person) => { if (active) setConstituentContext(person); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [constituentIdFilter]);
   const latestLoadId = useRef(0);
 
   const recordGiftParams = new URLSearchParams(searchParams.toString());
@@ -120,8 +142,12 @@ export default function DonationsPage() {
     const loadId = ++latestLoadId.current;
     setLoading(true);
     setSelectedIds([]);
+    if (!allYears && from && to && from > to) {
+      setApiDown(true); setApiError("Start date must be on or before end date."); setLoading(false); return;
+    }
     try {
       const filterParams = new URLSearchParams();
+      if (constituentIdFilter) filterParams.set("constituentId", constituentIdFilter);
       if (campaignIdFilter) filterParams.set("campaignId", campaignIdFilter);
       if (search) filterParams.set("search", search);
       if (status) filterParams.set("status", status);
@@ -149,12 +175,17 @@ export default function DonationsPage() {
 
       if (loadId !== latestLoadId.current) return;
       setDonations(listData.items ?? []);
-      setTotal(listData.total ?? (listData.items ?? []).length);
+      const resultTotal = listData.total ?? (listData.items ?? []).length;
+      setTotal(resultTotal);
+      const lastPage = Math.max(1, Math.ceil(resultTotal / PAGE_SIZE));
+      if (page > lastPage) window.history.replaceState(null, "", `/donations?${updateBrowseQuery(window.location.search, { page: String(lastPage) }, false)}`);
       setStats({
         totalRaised: Number(statsData.totalRaised ?? 0),
         totalGifts: Number(statsData.totalGifts ?? 0),
         completed: Number(statsData.completed ?? 0),
         recurring: Number(statsData.recurring ?? 0),
+        averageGift: statsData.averageGift,
+        pendingAcknowledgments: statsData.pendingAcknowledgments,
       });
       setApiDown(false);
       setApiError(null);
@@ -165,7 +196,7 @@ export default function DonationsPage() {
     } finally {
       if (loadId === latestLoadId.current) setLoading(false);
     }
-  }, [acknowledgmentFilter, allYears, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setSelectedIds, setStats, setTotal, status, to]);
+  }, [acknowledgmentFilter, allYears, constituentIdFilter, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setSelectedIds, setStats, setTotal, status, to, router]);
 
   useEffect(() => {
     void load();
@@ -183,11 +214,6 @@ export default function DonationsPage() {
     };
   }, []);
 
-  // Filters always jump back to page 1 to avoid empty pages after narrowing.
-  useEffect(() => {
-    setPage(1);
-  }, [search, status, from, to, allYears, campaignIdFilter, acknowledgmentFilter]);
-
   useEffect(() => {
     setSelectedIds((current) => current.filter((id) => donations.some((row) => row.id === id)));
   }, [donations]);
@@ -199,8 +225,6 @@ export default function DonationsPage() {
   }, [recordGiftOpen]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * PAGE_SIZE, total);
   const selectedDonationRows = useMemo(
     () => donations.filter((donation) => selectedIds.includes(donation.id)),
     [donations, selectedIds],
@@ -215,24 +239,21 @@ export default function DonationsPage() {
     () => Array.from(new Set(selectedDonationRows.map((donation) => donation.constituent.id).filter(Boolean))),
     [selectedDonationRows],
   );
-  const hasActiveFilters = Boolean(search || status || allYears || from !== defaultRange.from || to !== defaultRange.to || campaignIdFilter || acknowledgmentFilter);
+  const hasActiveFilters = Boolean(search || status || allYears || from !== defaultRange.from || to !== defaultRange.to || campaignIdFilter || acknowledgmentFilter || constituentIdFilter);
+  const bulkScopeRestricted = Boolean(constituentIdFilter || campaignIdFilter || search || (status && status !== "COMPLETED"));
 
-  function clearFilters() {
-    setSearch("");
-    setStatus("");
-    setAllYears(false);
-    setFrom(defaultRange.from);
-    setTo(defaultRange.to);
-    router.replace("/donations");
-  }
+  function clearFilters() { changeFilters({ search: null, status: null, allYears: null, from: null, to: null, campaignId: null, campaignName: null, acknowledgment: null, constituentId: null }); }
+  const dateError = !allYears && from && to && from > to ? "Start date must be on or before end date." : "";
+  const averageGift = stats.averageGift ?? (stats.completed > 0 ? Math.round(stats.totalRaised * 100 / stats.completed) / 100 : 0);
+  const periodLabel = allYears ? "All years" : reportingYearMode === "fiscal" && from === defaultRange.from && to === defaultRange.to ? "Current fiscal year" : `${from || "Any start"} → ${to || "Any end"}`;
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this donation record? This cannot be undone.")) return;
     try {
       await apiFetch(`/api/donations/${id}`, { method: "DELETE" });
       await load();
-    } catch {
-      alert("Failed to delete donation. Please try again.");
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Failed to delete donation. Please try again.");
     }
   }
 
@@ -245,15 +266,15 @@ export default function DonationsPage() {
         body: JSON.stringify({ acknowledged: true }),
       });
       await load();
-    } catch {
-      alert("Failed to mark this donation as thanked. Please try again.");
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Failed to mark this donation as thanked. Please try again.");
     } finally {
       setAcknowledgingDonationId(null);
     }
   }
 
   async function handleBulkMarkThanked() {
-    if (!from || !to || allYears) return;
+    if (!from || !to || allYears || from > to || bulkScopeRestricted) return;
     setBulkAcknowledging(true);
     try {
       const result = await apiFetch<BulkAcknowledgmentResponse>("/api/donations/acknowledgments/bulk", {
@@ -285,28 +306,14 @@ export default function DonationsPage() {
         router.push(payload.redirectTo);
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to create email draft.");
+      setActionError(error instanceof Error ? error.message : "Failed to create email draft.");
     } finally {
       setActionBusyDonationId(null);
     }
   }
 
   /** Creates one donation follow-up call task with auto title and navigates to Tasks workspace. */
-  async function handleCreateCallTask(id: string) {
-    setActionBusyDonationId(id);
-    try {
-      const payload = await apiFetch<{ redirectTo: string }>(`/api/donations/${id}/quick-actions/call-task`, {
-        method: "POST",
-      });
-      if (payload.redirectTo) {
-        router.push(payload.redirectTo);
-      }
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to create call task.");
-    } finally {
-      setActionBusyDonationId(null);
-    }
-  }
+  function handleCreateCallTask(id: string) { setFollowUpDonationId(id); }
 
   /** Enrolls donor in default steward path and opens automations view for follow-up. */
   async function handleStartPath(id: string) {
@@ -319,7 +326,7 @@ export default function DonationsPage() {
         router.push(payload.redirectTo);
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to start path.");
+      setActionError(error instanceof Error ? error.message : "Failed to start path.");
     } finally {
       setActionBusyDonationId(null);
     }
@@ -349,7 +356,7 @@ export default function DonationsPage() {
         router.push(payload.redirectTo);
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to complete stewardship loop.");
+      setActionError(error instanceof Error ? error.message : "Failed to complete stewardship loop.");
     } finally {
       setActionBusyDonationId(null);
     }
@@ -413,35 +420,26 @@ export default function DonationsPage() {
     <>
     <EnterprisePageShell className="donor-daily-workspace">
     <div className="space-y-4">
+      <DonorWorkspaceNav />
       <CRMPageHeader breadcrumb="Donor CRM" title="Donations" description="Review giving history and manage acknowledgments."
         primaryAction={<Link href={recordGiftHref} className="donor-button donor-button-primary">Record Gift</Link>}
-        secondaryActions={<CRMSecondaryMenu>
-          <button type="button" className="donor-button" onClick={() => void load()} disabled={loading}>Refresh donations</button>
+        secondaryActions={<><button type="button" className="donor-button" onClick={() => void load()} disabled={loading} aria-label="Refresh donations"><RefreshCw size={15} />Refresh</button><CRMSecondaryMenu>
           {donations.some((donation) => donation.isRecurring && String(donation.frequency ?? "MONTHLY").toUpperCase() === "MONTHLY") ? <button type="button" className="donor-button" onClick={() => setSelectedIds(Array.from(new Set([...selectedIds, ...donations.filter((donation) => donation.isRecurring && String(donation.frequency ?? "MONTHLY").toUpperCase() === "MONTHLY").map((donation) => donation.id)])))}>Select monthly gifts on this page</button> : null}
-        </CRMSecondaryMenu>}
+        </CRMSecondaryMenu></>}
       />
-      {campaignIdFilter && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
-          <p>
-            Campaign filter active: <span className="font-semibold">{campaignNameFilter || campaignIdFilter}</span>
-          </p>
-          <Link href="/donations" className="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
-            Clear campaign filter
-          </Link>
-        </div>
-      )}
-
+      {constituentIdFilter && <div className="donor-context-banner"><div><span className="donor-eyebrow">SUPPORTER GIVING HISTORY</span><strong>{constituentContext ? constituentContext.organizationName || `${constituentContext.firstName} ${constituentContext.lastName}` : "Selected constituent"}</strong><p>Gift totals and actions below apply to this supporter.</p></div><div className="flex flex-wrap gap-2"><Link href={`/constituents/${encodeURIComponent(constituentIdFilter)}`} className="donor-button">View constituent</Link><button type="button" className="donor-button" onClick={() => changeFilters({ constituentId: null })}>View all supporters</button></div></div>}
       {acknowledgmentFilter ? (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950">
           <div>
             <p><span className="font-semibold">Acknowledgment queue:</span> showing completed gifts that still need a receipt or thank-you.</p>
-            <p className="mt-1 text-xs text-amber-800">For historic imports, mark an entire completed-gift date range as thanked without creating or sending communications.</p>
+            <p className="mt-1 text-xs text-amber-800">{bulkScopeRestricted ? "Range acknowledgment is unavailable while supporter, campaign, or search filters are applied. Individual gift actions remain available." : "For historic imports, review an entire completed-gift date range before marking it thanked. No communication is sent."}</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setBulkAcknowledgmentOpen(true)}
-              disabled={allYears || !from || !to}
+              disabled={allYears || !from || !to || from > to || bulkScopeRestricted}
+              title={bulkScopeRestricted ? "Range acknowledgment applies across the organization. Clear supporter, campaign, and search filters before using it." : "Review the entire completed-gift date range before updating"}
               className="rounded-[2px] border border-amber-700 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Mark date range thanked
@@ -460,83 +458,36 @@ export default function DonationsPage() {
         </div>
       ) : null}
 
+      {actionError && <div className="donor-inline-error" role="alert">{actionError}<button type="button" onClick={() => setActionError(null)}>Dismiss</button></div>}
       {apiDown ? <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <p>Could not load donations. {apiError}</p><button type="button" className="donor-button mt-3" onClick={() => void load()} disabled={loading}>Retry</button>
       </div> : null}
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <CRMMetricCard label="Total Raised" value={apiDown ? "—" : formatCurrency(stats.totalRaised)} tone="slate" helper={allYears ? "All years" : "Selected reporting period"} loading={loading} />
-        <CRMMetricCard label="Total Gifts" value={apiDown ? "—" : stats.totalGifts.toLocaleString()} tone="slate" helper="Matching gifts" loading={loading} />
-        <CRMMetricCard label="Completed" value={apiDown ? "—" : stats.completed.toLocaleString()} tone="slate" helper="Completed gifts" loading={loading} />
-        <CRMMetricCard label="Recurring" value={apiDown ? "—" : stats.recurring.toLocaleString()} tone="slate" helper="Recurring gifts" loading={loading} />
-      </div>
-
-      <CRMFilterBar>
-        <div className="w-full min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-slate-800">Filter donations</h2>
-            {hasActiveFilters ? <button type="button" onClick={clearFilters} className="donor-button">Clear filters</button> : null}
-          </div>
-          <div className="grid min-w-0 gap-2.5 xl:grid-cols-[minmax(0,1.2fr)_180px_260px_auto]">
-            <input aria-label="Search donations by donor name or email" type="search" placeholder="Search donor name or email…" value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="min-w-0 min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm" />
-            <select aria-label="Donation status" value={status} onChange={e => setStatus(e.target.value)}
-              className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
-              <option value="">All Statuses</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="PENDING">Pending</option>
-              <option value="FAILED">Failed</option>
-              <option value="REFUNDED">Refunded</option>
-            </select>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)} aria-label="From date"
-                disabled={allYears}
-                className="min-h-11 min-w-0 w-full rounded-lg border border-slate-300 px-2.5 py-2.5 text-sm" />
-              <input type="date" value={to} onChange={e => setTo(e.target.value)} aria-label="To date"
-                disabled={allYears}
-                className="min-h-11 min-w-0 w-full rounded-lg border border-slate-300 px-2.5 py-2.5 text-sm" />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={allYears}
-                  onChange={(e) => setAllYears(e.target.checked)}
-                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                Include all years
-              </label>
-              {!allYears ? (
-                <span className="text-xs text-slate-500">{reportingYearMode === "fiscal" && from === defaultRange.from && to === defaultRange.to ? "Current fiscal year" : "Selected date range"}</span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </CRMFilterBar>
-
-      {selectedIds.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">Selected on this page</p>
-            <p className="mt-1 text-sm font-semibold text-emerald-950">{selectedIds.length} donation{selectedIds.length === 1 ? "" : "s"} selected</p>
-            <p className="text-xs text-emerald-800">
-              Prepare outreach for this selection. Email-ready recipients: {selectedDonationEmailRecipients.length}.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Clear Selection</button>
-            <button
-              type="button"
-              onClick={handleSendSelectedDonationsToEmail}
-              disabled={selectedDonationEmailRecipients.length === 0}
-              className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Send To Email Workspace
-            </button>
-            <button type="button" onClick={handleSendSelectedDonationsToLetters} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800">Send To Letters Workspace</button>
-          </div>
-        </div>
-      ) : null}
+      <section className="donor-browse-metrics" aria-label="Filtered donation summary">
+        <CRMMetricCard label="Completed giving" value={apiDown ? "—" : formatCurrency(stats.totalRaised)} icon={<Wallet size={17} />} helper="Completed gifts across all matching pages" loading={loading} />
+        <CRMMetricCard label="Matching gifts" value={apiDown ? "—" : stats.totalGifts.toLocaleString()} icon={<Gift size={17} />} helper={`${stats.completed.toLocaleString()} completed · ${stats.recurring.toLocaleString()} recurring`} loading={loading} />
+        <CRMMetricCard label="Average completed gift" value={apiDown ? "—" : formatCurrency(averageGift)} icon={<Wallet size={17} />} helper="Completed giving ÷ completed gift count" loading={loading} />
+        <CRMMetricCard label="Awaiting acknowledgment" value={apiDown ? "—" : stats.pendingAcknowledgments?.toLocaleString() ?? "—"} icon={<HeartHandshake size={17} />} helper="Completed gifts not yet marked thanked" loading={loading} />
+      </section>
+      <CRMFilterBar><div className="donor-browse-filters">
+        <div className="donor-browse-filter-heading"><DonorQuickViews label="Donation quick views" items={[
+          { label: "All gifts", active: !status && !acknowledgmentFilter, onClick: () => changeFilters({ status: null, acknowledgment: null }) },
+          { label: "Needs thanks", active: acknowledgmentFilter === "pending", onClick: () => changeFilters({ acknowledgment: "pending", status: null }) },
+          { label: "Completed", active: status === "COMPLETED" && !acknowledgmentFilter, onClick: () => changeFilters({ status: "COMPLETED", acknowledgment: null }) },
+          { label: "Pending", active: status === "PENDING" && !acknowledgmentFilter, onClick: () => changeFilters({ status: "PENDING", acknowledgment: null }) },
+        ]} /><span className="donor-scope-note">{periodLabel}</span></div>
+        <label className="donor-browse-search"><Search size={18} aria-hidden="true" /><span className="sr-only">Search donations by donor name or email</span><input type="search" placeholder="Find gifts by supporter name or email" value={search} onChange={(event) => changeFilters({ search: event.target.value })} /></label>
+        <DonorFilterPanel count={[status, allYears || from !== defaultRange.from || to !== defaultRange.to, campaignIdFilter, constituentIdFilter].filter(Boolean).length}>
+          <label>Donation status<select value={status} onChange={(event) => changeFilters({ status: event.target.value, acknowledgment: null })}><option value="">All statuses</option><option value="COMPLETED">Completed</option><option value="PENDING">Pending</option><option value="FAILED">Failed</option><option value="REFUNDED">Refunded</option></select></label>
+          <label>From date<input type="date" disabled={allYears} value={from} onChange={(event) => changeFilters({ from: event.target.value })} /></label>
+          <label>To date<input type="date" disabled={allYears} value={to} onChange={(event) => changeFilters({ to: event.target.value })} /></label>
+          <label className="donor-checkbox-label"><input type="checkbox" checked={allYears} onChange={(event) => changeFilters({ allYears: event.target.checked ? "1" : null })} />Include all years</label>
+        </DonorFilterPanel>
+        {dateError && <p role="alert" className="text-sm text-red-700">{dateError}</p>}
+        {hasActiveFilters && <div className="donor-active-filters" aria-label="Applied donation filters">{search && <DonorFilterChip label={`Search: ${search}`} onRemove={() => changeFilters({ search: null })} />}{status && <DonorFilterChip label={status.toLowerCase()} onRemove={() => changeFilters({ status: null })} />}{acknowledgmentFilter && <DonorFilterChip label="Needs thanks" onRemove={() => changeFilters({ acknowledgment: null })} />}{campaignIdFilter && <DonorFilterChip label={`Campaign: ${campaignNameFilter || campaignIdFilter}`} onRemove={() => changeFilters({ campaignId: null, campaignName: null })} />}{allYears && <DonorFilterChip label="All years" onRemove={() => changeFilters({ allYears: null })} />}<button type="button" className="donor-text-link" onClick={clearFilters}>Clear filters</button></div>}
+      </div></CRMFilterBar>
+      {selectedIds.length > 0 && <DonorSelectionBar count={selectedIds.length} noun="gift" description={`${selectedDonationConstituentIds.length} supporters · ${selectedDonationEmailRecipients.length} unique email addresses. Outreach opens for review.`} onClear={() => setSelectedIds([])}>
+        <button type="button" className="donor-button" onClick={handleSendSelectedDonationsToEmail} disabled={selectedDonationEmailRecipients.length === 0}>Prepare email</button><button type="button" className="donor-button" onClick={handleSendSelectedDonationsToLetters}>Prepare letters</button>
+      </DonorSelectionBar>}
 
       {!apiDown ? <CRMDataTable>
         {loading ? (
@@ -560,32 +511,8 @@ export default function DonationsPage() {
         )}
       </CRMDataTable> : null}
 
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.035)] sm:flex-row sm:items-center sm:justify-between">
-        <p>
-          {loading ? "Loading donations…" : apiDown ? "Donation totals unavailable" : `Showing ${rangeStart.toLocaleString()}-${rangeEnd.toLocaleString()} of ${total.toLocaleString()} donations`}
-        </p>
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || loading || apiDown}
-            className="rounded-md border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || loading || apiDown}
-            className="rounded-md border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      {!apiDown && <DonorPagination page={page} pageSize={PAGE_SIZE} total={total} totalPages={totalPages} loading={loading} onPage={(next) => changeFilters({ page: String(next) }, false)} />}
+
     </div>
     </EnterprisePageShell>
 
@@ -618,6 +545,7 @@ export default function DonationsPage() {
 
     {recordGiftOpen && !recordGiftDismissed ? (
       <RecordGiftModal
+        constituentId={constituentIdFilter}
         source={recordGiftSource}
         campaignId={campaignIdFilter}
         campaignName={campaignNameFilter}
@@ -629,6 +557,7 @@ export default function DonationsPage() {
         onSaved={load}
       />
     ) : null}
+    {followUpDonationId && <DonationFollowUpModal donationId={followUpDonationId} onClose={() => setFollowUpDonationId(null)} />}
     {bulkAcknowledgmentOpen ? (
       <BulkAcknowledgmentDialog
         from={from}
@@ -689,3 +618,5 @@ function BulkAcknowledgmentDialog({
     </div>
   );
 }
+
+export default function DonationsPage() { return <Suspense fallback={<p role="status">Opening donations…</p>}><DonationsWorkspace /></Suspense>; }

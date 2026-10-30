@@ -1,0 +1,15 @@
+{
+  "fixture": "Synthetic browser responses only; no stored donor records or business writes",
+  "checks": [
+    "Primary revenue chart exposes all seven monthly values and matching prior-year comparison; average gift is $197.50",
+    "Donor dashboard renders at 1440px with one page title and no horizontal overflow",
+    "Donor dashboard renders at 768px with one page title and no horizontal overflow",
+    "Donor dashboard renders at 390px with one page title and no horizontal overflow",
+    "One customization dialog owns layout lock, restore, smart layout and direct widget arrangement",
+    "A failed trend stays visibly unavailable while fund chart, recent gifts and action queues remain usable",
+    "Retry recovers a failed chart without navigating away",
+    "Signed-out notification navigation remains inside donor authentication, not public-event routing"
+  ],
+  "errors": [],
+  "writes": []
+}

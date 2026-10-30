@@ -88,8 +88,8 @@ export default function EventsSidebar({ forceExpanded = false }: EventsSidebarPr
       storageKey="oyamacrm.sidebar.events.collapsed"
       userRole={user?.role}
       forceExpanded={forceExpanded}
-      brandHeader={<CrmBrandLockup moduleLabel="Events CRM" className="w-full" />}
-      brandHeaderCollapsed={<CrmBrandLockup moduleLabel="Events CRM" compact />}
+      brandHeader={<CrmBrandLockup moduleLabel="Events CRM" tone="light" className="w-full" />}
+      brandHeaderCollapsed={<CrmBrandLockup moduleLabel="Events CRM" tone="light" compact />}
       expandedWidthClass="w-64"
       collapsedWidthClass="w-20"
       organizationLabel="EventSTUDIO"

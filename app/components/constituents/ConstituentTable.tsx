@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import DonorRecordActions from "@/app/components/donor-workspace/DonorRecordActions";
 import {
   ConstituentRow,
   engagementColor,
   formatCurrency,
-  formatDate,
   getConstituentDisplayName,
   getConstituentSortName,
   statusLabel,
@@ -16,6 +16,7 @@ import StewardContextButton from "@/app/components/ai/StewardContextButton";
 import ActionButton from "@/app/components/ui/ActionButton";
 import EmptyStateCard from "@/app/components/ui/EmptyStateCard";
 import CRMStatusBadge from "@/app/components/ui/crm/CRMStatusBadge";
+import { formatDonationDate } from "@/app/components/donations/donation-utils";
 
 interface Props {
   constituents: ConstituentRow[];
@@ -55,95 +56,17 @@ function ConstituentRowMoreMenu({
   onEmailTemplate?: (id: string) => void;
   onLetterTemplate?: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onDocumentClick(event: MouseEvent) {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(event.target as Node)) setOpen(false);
-    }
-
-    function onDocumentKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", onDocumentClick);
-    document.addEventListener("keydown", onDocumentKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocumentClick);
-      document.removeEventListener("keydown", onDocumentKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Open constituent actions"
-      >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5h.01M12 12h.01M12 19h.01" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-slate-100 bg-white p-1.5 text-xs shadow-xl shadow-slate-200/70">
-          <Link href={`/constituents/${constituent.id}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
-            View Details
-          </Link>
-          <Link href={`/constituents/${constituent.id}/edit`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
-            Edit
-          </Link>
-          <Link href={`/donor-profile?constituentId=${encodeURIComponent(constituent.id)}`} onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800">
-            Open OYAMADonorPROFILE
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              if (onEmailTemplate) {
-                onEmailTemplate(constituent.id);
-              }
-            }}
-            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
-          >
-            Email from Template
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              if (onLetterTemplate) {
-                onLetterTemplate(constituent.id);
-              }
-            }}
-            className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
-          >
-            Letter from Template
-          </button>
-          {onCloseAccount ? (
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onCloseAccount(constituent.id);
-              }}
-              className="block w-full rounded-lg px-2.5 py-1.5 text-left font-semibold text-red-600 hover:bg-red-50"
-            >
-              Close account
-            </button>
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
+  return <DonorRecordActions label={`Actions for ${getConstituentDisplayName(constituent)}`}>
+    <p>Supporter record</p>
+    <Link href={`/constituents/${constituent.id}`}>View constituent</Link>
+    <Link href={`/constituents/${constituent.id}/edit`}>Edit constituent</Link>
+    <Link href={`/donations?constituentId=${encodeURIComponent(constituent.id)}&allYears=1`}>View giving history</Link>
+    <p>Relationship tools</p>
+    <Link href={`/donor-profile?constituentId=${encodeURIComponent(constituent.id)}`}>Donor research profile</Link>
+    {onEmailTemplate && <button type="button" onClick={() => onEmailTemplate(constituent.id)}>Prepare email from template</button>}
+    {onLetterTemplate && <button type="button" onClick={() => onLetterTemplate(constituent.id)}>Prepare letter from template</button>}
+    {onCloseAccount && <button type="button" className="text-red-700" onClick={() => onCloseAccount(constituent.id)}>Close account</button>}
+  </DonorRecordActions>;
 }
 
 export default function ConstituentTable({
@@ -264,8 +187,8 @@ export default function ConstituentTable({
 
   return (
     <div className="bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3"><p className="hidden text-xs text-slate-500 lg:block">Select records for outreach · column sorting applies to this page</p>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 lg:hidden">
           <label htmlFor="constituent-page-sort">Sort this page</label>
           <select id="constituent-page-sort" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm">
             {COLUMNS.filter((column) => column.sortable).map((column) => <option key={column.key} value={column.key}>{column.label}</option>)}
@@ -298,7 +221,7 @@ export default function ConstituentTable({
               <div className="rounded-xl bg-slate-50 px-2.5 py-1.5">
                 <p className="text-slate-500">Last gift</p>
                 <p className="font-semibold text-slate-950">{c.lastGiftAmount ? formatCurrency(c.lastGiftAmount) : "No gifts"}</p>
-                {c.lastGiftDate ? <p className="text-slate-500">{formatDate(c.lastGiftDate)}</p> : null}
+                {c.lastGiftDate ? <p className="text-slate-500">{formatDonationDate(c.lastGiftDate || "")}</p> : null}
               </div>
             </div>
 
@@ -310,8 +233,8 @@ export default function ConstituentTable({
 
             <div className="mt-3 flex items-center justify-between gap-2">
               <div className="flex flex-wrap gap-2">
-                <Link href={`/constituents/${c.id}/edit`} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-                  Edit
+                <Link href={`/donations?recordGift=1&constituentId=${encodeURIComponent(c.id)}`} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                  Record gift
                 </Link>
                 <Link href={`/donor-profile?constituentId=${encodeURIComponent(c.id)}`} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
                   OYAMADonorPROFILE
@@ -358,12 +281,12 @@ export default function ConstituentTable({
                 <td className="px-4 py-2.5 align-top"><ConstituentStatusBadge status={c.donorStatus} /></td>
                 {moreColumns ? <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 whitespace-nowrap align-top">{formatCurrency(c.totalYtdGiving)}</td> : null}
                 <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{formatCurrency(c.totalLifetimeGiving)}{c.giftCount > 0 ? <span className="ml-1 text-xs text-gray-400">({c.giftCount} gifts)</span> : null}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{c.lastGiftAmount ? <><span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span><p className="text-xs text-gray-400">{formatDate(c.lastGiftDate)}</p></> : <span className="text-gray-400">No gifts</span>}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-600 whitespace-nowrap align-top">{c.lastGiftAmount ? <><span className="font-medium text-gray-800">{formatCurrency(c.lastGiftAmount)}</span><p className="text-xs text-gray-400">{formatDonationDate(c.lastGiftDate || "")}</p></> : <span className="text-gray-400">No gifts</span>}</td>
                 {moreColumns ? <td className="px-4 py-2.5 align-top"><div className="flex items-center justify-end gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-green-500" style={{ width: `${c.engagementScore}%` }} /></div><span className={`text-xs font-medium ${engagementColor(c.engagementScore)}`}>{c.engagementScore}</span></div></td> : null}
                 {moreColumns ? <td className="px-4 py-2.5 align-top"><ConstituentTags tags={c.tags} align="end" /></td> : null}
                 <td className="px-4 py-2.5 align-top">
                   <div className="flex items-center justify-end gap-1">
-                    <Link href={`/constituents/${c.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50">Edit</Link>
+                    <Link href={`/donations?recordGift=1&constituentId=${encodeURIComponent(c.id)}`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50">Record gift</Link>
                     <ConstituentRowMoreMenu constituent={c} onCloseAccount={onCloseAccount} onEmailTemplate={onEmailTemplate} onLetterTemplate={onLetterTemplate} />
                   </div>
                 </td>

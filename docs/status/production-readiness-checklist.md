@@ -1,3 +1,7 @@
+## Shared design, task notifications, and gift follow-up — 2026-10-30
+
+Focused verification covers the shared reference design, donor browse handoffs, task lifecycle, in-app notifications, and donation follow-up. Production web/server builds and 76 focused unit/API checks passed; synthetic browser workflows and responsive evidence are recorded in `audit-artifacts/2026-10-30-reference-modernization/verification.md`. MySQL was unavailable locally, so database integration/concurrency and deployed worker delivery remain unverified. No production deployment, migration, or outbound communication was performed. Common components and representative routes were checked; this does not certify every custom page or external integration.
+
 ## Donor dashboard verification — 2026-10-29
 
 Focused dashboard, task scoping, financial calculation tests, GET-only local API probes, and synthetic browser workflows are recorded in the dated donor audit evidence. Live donor messages, gift creation, tax advice, production deployment, and external research connector delivery were not exercised. A previously pending local Donation tax-tracking migration was applied and reconciled to restore local reporting compatibility; existing gift amounts and tax-deductible flags were verified unchanged. Other unrelated pending migrations remain untouched. These checks do not replace the wider production-readiness requirements below.

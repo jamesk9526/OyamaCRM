@@ -14,6 +14,8 @@ import DonorPerformanceCharts from "./DonorPerformanceCharts";
 import CRMCard from "@/app/components/ui/crm/CRMCard";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
 import CRMPageHeader from "@/app/components/ui/crm/CRMPageHeader";
+import DonorWorkspaceNav from "@/app/components/donor-workspace/DonorWorkspaceNav";
+import { DonorQuickViews } from "@/app/components/donor-workspace/BrowsePrimitives";
 
 interface NaturalisticDonorDashboardProps {
   greeting: string;
@@ -34,6 +36,7 @@ export default function NaturalisticDonorDashboard({
   greeting, name, loading: summaryLoading, summary, retention,
   dataThroughLabel, reportingYearMode, headerActions, extraSections, onRefresh, loadError,
 }: NaturalisticDonorDashboardProps) {
+  const [focus, setFocus] = useState("overview");
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [richLoading, setRichLoading] = useState(true);
@@ -69,8 +72,14 @@ export default function NaturalisticDonorDashboard({
   const periodLabel = summary?.period?.label ?? "Year to date";
   const comparisonHelper = summary?.previousPeriodAmount === 0 ? "No prior-year giving to compare" : "Prior-year comparison unavailable";
 
+  const giftsQuery = new URLSearchParams({ status: "COMPLETED" });
+  if (summary?.period?.from) giftsQuery.set("from", summary.period.from.slice(0, 10));
+  if (summary?.period?.through) giftsQuery.set("to", summary.period.through.slice(0, 10));
+  const matchingGiftsHref = `/donations?${giftsQuery}`;
+
   return (
     <div className="donor-daily-workspace space-y-5 pb-8">
+      <DonorWorkspaceNav />
       <CRMPageHeader breadcrumb="Donor CRM" title={`${greeting}, ${firstName}`}
         description="See your fundraising momentum and turn insights into stronger donor relationships."
         primaryAction={<Link href="/donations?recordGift=1" className="donor-button donor-button-primary"><Gift className="h-4 w-4" aria-hidden="true" />Record gift</Link>}
@@ -80,6 +89,7 @@ export default function NaturalisticDonorDashboard({
         <span className="donor-period-label">{periodLabel} <span aria-hidden="true">·</span> Completed gifts</span>
         <span>{summary ? dataThroughLabel : busy ? "Loading data…" : "Dashboard data unavailable"}</span>
       </div>
+      <div className="donor-browse-filter-heading"><DonorQuickViews label="Dashboard focus" items={[{ label: "Fundraising overview", active: focus === "overview", onClick: () => setFocus("overview") }, { label: "Supporter relationships", active: focus === "relationships", onClick: () => setFocus("relationships") }]} /><p className="donor-scope-note">{focus === "overview" ? "Giving trends and the next actions to take" : "Recent gifts, retention, campaigns, and relationship tools"}</p></div>
       {errors.length > 0 ? <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <p>Some dashboard data is unavailable. Values from the last successful refresh may still be shown.</p>
         <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">View details</summary><ul className="mt-2 space-y-1 text-xs">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></details>
@@ -92,20 +102,20 @@ export default function NaturalisticDonorDashboard({
           <Link href="/reports" className="text-sm font-semibold text-[var(--crm-accent)] hover:underline">View reports</Link>
         </div>
         <div className="donor-performance-metrics grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <CRMMetricCard label="Giving this year" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.ytdAmount)) : "—"} icon={<TrendingUp className="h-4 w-4" />} helper={revenueChange != null ? <span className={revenueChange < 0 ? "text-amber-700" : "text-emerald-700"}>{revenueChange > 0 ? "+" : ""}{revenueChange.toFixed(1)}% vs. same elapsed prior year</span> : comparisonHelper} loading={summaryLoading} tone="green" />
-          <CRMMetricCard label="Completed gifts" value={summary?.ytdCount?.toLocaleString() ?? "—"} icon={<Gift className="h-4 w-4" />} helper={periodLabel} loading={summaryLoading} tone="blue" />
-          <CRMMetricCard label="Average gift" value={averageGift === null ? "—" : formatDashboardCurrency(averageGift)} icon={<Wallet className="h-4 w-4" />} helper="Giving ÷ completed gifts this period" loading={summaryLoading} tone="purple" />
-          <CRMMetricCard label="Active donors" value={summary?.activeDonors.toLocaleString() ?? "—"} icon={<Users className="h-4 w-4" />} helper={summary ? `${summary.totalConstituents.toLocaleString()} total constituent records` : undefined} loading={summaryLoading} tone="orange" />
+          <CRMMetricCard href={matchingGiftsHref} label="Giving this year" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.ytdAmount)) : "—"} icon={<TrendingUp className="h-4 w-4" />} helper={revenueChange != null ? <span className={revenueChange < 0 ? "text-amber-700" : "text-emerald-700"}>{revenueChange > 0 ? "+" : ""}{revenueChange.toFixed(1)}% vs. same elapsed prior year</span> : comparisonHelper} loading={summaryLoading} tone="green" />
+          <CRMMetricCard href={matchingGiftsHref} label="Completed gifts" value={summary?.ytdCount?.toLocaleString() ?? "—"} icon={<Gift className="h-4 w-4" />} helper={periodLabel} loading={summaryLoading} tone="blue" />
+          <CRMMetricCard href={matchingGiftsHref} label="Average gift" value={averageGift === null ? "—" : formatDashboardCurrency(averageGift)} icon={<Wallet className="h-4 w-4" />} helper="Giving ÷ completed gifts this period" loading={summaryLoading} tone="purple" />
+          <CRMMetricCard href="/reports?report=comprehensive-donor-analysis" label="Active donors" value={summary?.activeDonors.toLocaleString() ?? "—"} icon={<Users className="h-4 w-4" />} helper={summary ? `${summary.totalConstituents.toLocaleString()} total constituent records` : undefined} loading={summaryLoading} tone="orange" />
         </div>
       </section>
-      <DonorPerformanceCharts data={data} summary={summary} loading={richLoading} unavailable={Boolean(requestError)} />
+      {focus === "overview" && <DonorPerformanceCharts data={data} summary={summary} loading={richLoading} unavailable={Boolean(requestError)} />}
       <DonorActionCenter data={data} summary={summary} retention={retention} loading={busy} summaryUnavailable={Boolean(loadError || !summary)} detailsUnavailable={Boolean(requestError)} />
 
-      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" aria-label="Constituent relationships">
+      {focus === "relationships" && <><section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" aria-label="Constituent relationships">
         <CRMCard padding="md" className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-slate-900">Recent gifts</h2>
-            <Link href="/donations" className="text-sm font-semibold text-[var(--crm-accent)] hover:underline">View donations</Link>
+            <Link href="/donations?allYears=1&status=COMPLETED" className="text-sm font-semibold text-[var(--crm-accent)] hover:underline">View donations</Link>
           </div>
           <div aria-live="polite" aria-busy={richLoading}>
             {richLoading ? <p className="py-6 text-sm text-slate-500">Loading recent gifts…</p>
@@ -146,6 +156,7 @@ export default function NaturalisticDonorDashboard({
             : insightsOpen ? <DonorDashboardOverviewSections suggestions={suggestions} /> : null}
         </div>
       </details>
+      </>}
       {extraSections}
     </div>
   );

@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { installDonorWorkspaceFixtures } from "./fixtures/donor-daily-workspace.mjs";
 
 const base = process.env.QA_BASE_URL || "http://localhost:3652";
-const evidence = "docs/status/audit-artifacts/2026-10-29-donor-modernization";
+const evidence = process.env.QA_EVIDENCE_DIR || "docs/status/audit-artifacts/2026-10-29-donor-modernization";
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
 const page = await context.newPage();
@@ -68,7 +68,9 @@ try {
   await home();
   await page.getByText("Giving trend unavailable.", { exact: false }).waitFor();
   await page.getByText("Other funds", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Supporter relationships", exact: true }).click();
   await page.getByText("QA Individual", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Fundraising overview", exact: true }).click();
   checks.push("A failed trend stays visibly unavailable while fund chart, recent gifts and action queues remain usable");
   await page.unroute("**/api/reports/giving-trend*", outage);
   await page.getByRole("button", { name: "Retry", exact: true }).click();

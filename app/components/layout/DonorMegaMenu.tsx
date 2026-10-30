@@ -8,6 +8,7 @@ import { ChevronDown, Search, X } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import type { CrmSidebarItem } from "./CrmSidebar";
+import CrmBrandLockup from "./CrmBrandLockup";
 import { buildDonorDailyNavigation, isDonorNavigationItemVisible, resolveDonorNavigationActiveItem } from "./sidebar-configs";
 import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
 import type { DonorAccentTone } from "@/app/lib/workspace-settings";
@@ -49,13 +50,13 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
       <Link key={item.id} href={item.href} aria-current={activeItem === item.id ? "page" : undefined}
         onClick={() => setMobileOpen(false)}
         title={item.description}
-        className={`relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${activeItem === item.id ? "bg-white/12 font-semibold text-white ring-1 ring-white/15 before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-[var(--crm-accent-light,#9be1b7)]" : "text-slate-300 hover:bg-white/7 hover:text-white"}`}>
+        className={`oyama-reference-nav-item relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${activeItem === item.id ? "bg-white/12 font-semibold text-white ring-1 ring-white/15 before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-[var(--crm-accent-light,#9be1b7)]" : "text-slate-300 hover:bg-white/7 hover:text-white"}`}>
         <span className="h-[18px] w-[18px] shrink-0" aria-hidden="true">{item.icon}</span>
         <span>{item.label}</span>
       </Link>
     );
     return (
-      <nav aria-label={mobile ? "Mobile Donor CRM" : "Donor CRM"} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <nav aria-label={mobile ? "Mobile Donor CRM" : "Donor CRM"} className="oyama-reference-nav min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         {groups.map((group) => group.collapsible ? (
           <details key={`${group.id}-${pathname}`} open={group.items.some((item) => item.id === activeItem)} className="group border-t border-white/10 pt-2">
             <summary tabIndex={0} className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 [&::-webkit-details-marker]:hidden">
@@ -76,7 +77,10 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
   const railStyle = { backgroundColor: chromeTint?.dark ?? "#242424", borderColor: chromeTint?.border ?? "#424242" };
   return (
     <>
-      <aside style={railStyle} className="fixed bottom-0 left-0 top-14 z-[19] hidden w-64 flex-col border-r md:flex">
+      <aside style={railStyle} className="oyama-reference-rail fixed bottom-0 left-0 top-0 z-[19] hidden w-64 flex-col border-r md:flex">
+        <Link href="/" aria-label="Oyama CRM workspace home" className="oyama-reference-rail-brand">
+          <CrmBrandLockup moduleLabel="Donor CRM" tone="light" className="w-full" />
+        </Link>
         {navigation(false)}
         <button type="button" onClick={() => window.dispatchEvent(new Event("crm:focus-topbar-search"))}
           className="m-3 flex min-h-11 items-center gap-3 rounded-lg border border-white/20 px-3 text-sm text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
@@ -87,7 +91,7 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
         <div className="fixed inset-0 z-[65] md:hidden">
           <div className="absolute inset-0 bg-slate-950/45" onClick={() => setMobileOpen(false)} />
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Donor CRM navigation" tabIndex={-1}
-            style={railStyle} className="relative flex h-full w-[min(320px,90vw)] flex-col border-r pb-[env(safe-area-inset-bottom)] text-white">
+            style={railStyle} className="oyama-reference-rail relative flex h-full w-[min(320px,90vw)] flex-col border-r pb-[env(safe-area-inset-bottom)] text-white">
             <div className="flex min-h-14 items-center justify-between border-b border-white/15 px-4">
               <span className="text-sm font-semibold">Donor CRM</span>
               <button type="button" data-modal-autofocus onClick={() => setMobileOpen(false)} aria-label="Close navigation"

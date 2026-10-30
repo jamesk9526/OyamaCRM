@@ -77,7 +77,7 @@ export default function SettingsSidebar({ onNavigate }: { onNavigate?: () => voi
   }, [query]);
 
   return (
-    <aside className="flex max-h-[calc(100vh-7rem)] w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Settings navigation">
+    <aside className="oyama-settings-sidebar flex max-h-[calc(100vh-7rem)] w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Settings navigation">
       <div className="border-b border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-4">
         <div className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm"><Settings2 size={20} aria-hidden="true" /></span>

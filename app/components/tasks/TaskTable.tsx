@@ -1,261 +1,273 @@
-/**
- * TaskTable component.
- * Renders a task workspace table with quick-complete and delete actions.
- * Highlights overdue and notification-targeted tasks for faster triage.
- */
 "use client";
-
 import Link from "next/link";
-import { Task } from "@/app/tasks/page";
-import CRMDataTable from "@/app/components/ui/crm/CRMDataTable";
-import CRMEmptyState from "@/app/components/ui/crm/CRMEmptyState";
-import { getConstituentDisplayName } from "@/app/components/constituents/constituent-utils";
-
-/** Format a date string as a short locale date */
-function fmt(d?: string) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-/** Return Tailwind classes for a task status badge */
-function statusColor(status: string) {
-  switch (status) {
-    case "COMPLETED": return "bg-green-50 text-green-700";
-    case "IN_PROGRESS": return "bg-blue-50 text-blue-700";
-    case "CANCELLED": return "bg-gray-100 text-gray-500";
-    default: return "bg-amber-50 text-amber-700";
-  }
-}
-
-/** Return human-readable label for task type */
-function typeLabel(type: string) {
-  return type.replace("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
-}
-
-/** Return Tailwind classes for task priority badges. */
-function priorityColor(priority: string) {
-  switch (priority) {
-    case "URGENT": return "bg-red-100 text-red-700";
-    case "HIGH": return "bg-orange-100 text-orange-700";
-    case "LOW": return "bg-gray-100 text-gray-600";
-    default: return "bg-blue-100 text-blue-700";
-  }
-}
-
+import { taskLabel, taskLocalDate, taskOverdue, type Task } from "./task-types";
 interface Props {
   tasks: Task[];
   loading?: boolean;
   highlightTaskId?: string | null;
+  busyId?: string | null;
+  canEdit?: boolean;
+  selectedIds?: string[];
+  onSelect?: (id: string, checked: boolean) => void;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit?: (task: Task) => void;
+  onReopen?: (id: string) => void;
 }
-
-/** Skeleton row for loading state */
-function SkeletonRow() {
-  return (
-    <tr className="border-b border-gray-100">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <td key={i} className="px-4 py-3">
-          <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
-        </td>
-      ))}
-    </tr>
-  );
-}
-
-/** TaskTable: displays tasks in a table with complete/delete actions */
-export default function TaskTable({ tasks, loading, highlightTaskId, onComplete, onDelete }: Props) {
-  if (loading) {
+const badge = (s: string) =>
+  s === "COMPLETED"
+    ? "bg-emerald-50 text-emerald-800"
+    : s === "IN_PROGRESS"
+      ? "bg-sky-50 text-sky-800"
+      : s === "CANCELLED"
+        ? "bg-slate-100 text-slate-600"
+        : "bg-amber-50 text-amber-800";
+export default function TaskTable({
+  tasks,
+  loading,
+  highlightTaskId,
+  busyId,
+  canEdit = true,
+  selectedIds = [],
+  onSelect,
+  onComplete,
+  onDelete,
+  onEdit,
+  onReopen,
+}: Props) {
+  if (loading)
     return (
-      <CRMDataTable>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              {["Title", "Type", "Assignee", "Constituent", "Due Date", "Priority", "Status", "Actions"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+      <p
+        role="status"
+        className="rounded-xl border bg-white p-10 text-center text-sm text-slate-500"
+      >
+        Loading tasks...
+      </p>
+    );
+  if (!tasks.length)
+    return (
+      <div className="rounded-xl border border-dashed bg-white p-10 text-center">
+        <h2 className="font-semibold">No tasks in this view</h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Adjust filters or create the next follow-up.
+        </p>
+      </div>
+    );
+  const actions = (task: Task) =>
+    canEdit && (
+      <div className="flex flex-wrap gap-1.5">
+        {onEdit && (
+          <button
+            className="donor-button"
+            disabled={Boolean(busyId)}
+            onClick={() => onEdit(task)}
+          >
+            Edit
+          </button>
+        )}
+        {["PENDING", "IN_PROGRESS"].includes(task.status) ? (
+          <button
+            className="donor-button"
+            disabled={Boolean(busyId)}
+            onClick={() => onComplete(task.id)}
+          >
+            {busyId === task.id ? "Saving..." : "Done"}
+          </button>
+        ) : (
+          onReopen && (
+            <button
+              className="donor-button"
+              disabled={Boolean(busyId)}
+              onClick={() => onReopen(task.id)}
+            >
+              Reopen
+            </button>
+          )
+        )}
+        <button
+          className="donor-button text-red-700"
+          disabled={Boolean(busyId)}
+          onClick={() => onDelete(task.id)}
+          aria-label={`Delete task: ${task.title}`}
+        >
+          Delete
+        </button>
+      </div>
+    );
+  const title = (task: Task) => (
+    <>
+      <p className="font-semibold text-slate-900">{task.title}</p>
+      {task.description && (
+        <p className="mt-1 max-w-md text-xs leading-5 text-slate-500 line-clamp-2">
+          {task.description}
+        </p>
+      )}
+      {task.sourceType === "donation-follow-up" && task.sourceId && <Link className="mt-1 inline-block text-xs text-emerald-800 hover:underline" href={`/donations/${encodeURIComponent(task.sourceId)}`}>Linked donation</Link>}
+      {highlightTaskId === task.id && (
+        <p className="text-xs text-emerald-800">Linked task</p>
+      )}
+      {task.generatedLetterId && (
+        <Link
+          className="text-xs text-emerald-800 hover:underline"
+          href={`/oyama-letters?sourceTaskId=${encodeURIComponent(task.id)}`}
+        >
+          Linked letter
+        </Link>
+      )}
+      {task.stewardPathEnrollmentId && (
+        <Link
+          className="ml-2 text-xs text-emerald-800 hover:underline"
+          href={`/steward-paths?enrollmentId=${encodeURIComponent(task.stewardPathEnrollmentId)}`}
+        >
+          Steward path
+        </Link>
+      )}
+    </>
+  );
+  const due = (task: Task) => (
+    <span
+      className={
+        taskOverdue(task) ? "font-semibold text-red-700" : "text-slate-600"
+      }
+    >
+      {task.dueDate
+        ? new Date(
+            `${taskLocalDate(task.dueDate)}T12:00:00`,
+          ).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : "No due date"}
+      {taskOverdue(task) && <span className="block text-[11px]">Overdue</span>}
+    </span>
+  );
+  const owner = (task: Task) =>
+    task.assignee
+      ? `${task.assignee.firstName} ${task.assignee.lastName}`
+      : "Unassigned";
+  const checkbox = (task: Task) =>
+    canEdit &&
+    onSelect && (
+      <input
+        type="checkbox"
+        aria-label={`Select task: ${task.title}`}
+        checked={selectedIds.includes(task.id)}
+        onChange={(e) => onSelect(task.id, e.target.checked)}
+      />
+    );
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="divide-y md:hidden">
+        {tasks.map((task) => (
+          <article
+            key={task.id}
+            className={`space-y-3 p-4 ${highlightTaskId === task.id ? "bg-emerald-50/50" : ""}`}
+          >
+            <div className="flex items-start gap-3">
+              {checkbox(task)}
+              <div className="min-w-0 flex-1">{title(task)}</div>
+              <span
+                className={`rounded-full px-2 py-1 text-[11px] ${badge(task.status)}`}
+              >
+                {taskLabel(task.status)}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs">
+              {due(task)}
+              <span>{taskLabel(task.priority)} priority</span>
+              <span>{owner(task)}</span>
+            </div>
+            {task.constituent && (
+              <Link
+                className="block text-xs text-emerald-800"
+                href={`/constituents/${encodeURIComponent(task.constituent.id)}`}
+              >
+                {task.constituent.firstName} {task.constituent.lastName}
+              </Link>
+            )}
+            {actions(task)}
+          </article>
+        ))}
+      </div>
+      <div
+        className="hidden overflow-x-auto md:block"
+        role="region"
+        aria-label="Task list"
+        tabIndex={0}
+      >
+        <table className="w-full min-w-[950px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs text-slate-500">
+            <tr>
+              {[
+                ...(canEdit && onSelect ? ["Select"] : []),
+                "Task",
+                "Assigned to",
+                "Due",
+                "Priority",
+                "Status",
+                "Actions",
+              ].map((label) => (
+                <th key={label} className="px-4 py-3 font-medium">
+                  {label}
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody>{Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}</tbody>
-        </table>
-      </CRMDataTable>
-    );
-  }
-
-  if (tasks.length === 0) {
-    return (
-      <CRMEmptyState
-        title="No tasks found"
-        description="Try adjusting your filters or create a new task."
-      />
-    );
-  }
-
-  return (
-    <CRMDataTable>
-      <div className="md:hidden divide-y divide-gray-100">
-        {tasks.map((task) => {
-          const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
-          const isHighlighted = Boolean(highlightTaskId && task.id === highlightTaskId);
-          return (
-            <article
-              id={`task-row-${task.id}`}
-              key={task.id}
-              className={`p-3 ${isOverdue ? "bg-red-50" : ""} ${isHighlighted ? "bg-green-50 ring-1 ring-inset ring-green-300" : ""}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className={`font-medium ${isOverdue ? "text-red-700" : "text-gray-900"}`}>{task.title}</p>
-                  {task.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{task.description}</p>}
-                  {task.constituent ? (
-                    <Link href={`/constituents/${task.constituent.id}`} className="text-xs text-green-700 hover:underline">
-                      {getConstituentDisplayName(task.constituent)}
-                    </Link>
-                  ) : null}
-                </div>
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(task.status)}`}>
-                  {task.status.replace("_", " ")}
-                </span>
-              </div>
-
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                  <p className="text-gray-500">Due</p>
-                  <p className={`font-medium ${isOverdue ? "text-red-600" : "text-gray-800"}`}>{fmt(task.dueDate)}</p>
-                </div>
-                <div className="rounded-md bg-gray-50 px-2 py-1.5">
-                  <p className="text-gray-500">Priority</p>
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(task.priority)}`}>
-                    {task.priority}
-                  </span>
-                </div>
-                <div className="rounded-md bg-gray-50 px-2 py-1.5 col-span-2">
-                  <p className="text-gray-500">Type</p>
-                  <p className="font-medium text-gray-800">{typeLabel(task.type)}</p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2">
-                {(task.status === "PENDING" || task.status === "IN_PROGRESS") ? (
-                  <button
-                    onClick={() => onComplete(task.id)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-700 bg-white border border-green-200 rounded-md hover:bg-green-50 transition-colors"
-                  >
-                    Done
-                  </button>
-                ) : null}
-                <button
-                  onClick={() => onDelete(task.id)}
-                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
-                  title="Delete task"
-                >
-                  Delete
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="hidden md:block overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
-            {["Title", "Type", "Assignee", "Constituent", "Due Date", "Priority", "Status", "Actions"].map((h) => (
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {tasks.map((task) => {
-            const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
-            const isHighlighted = Boolean(highlightTaskId && task.id === highlightTaskId);
-            return (
+          <tbody className="divide-y divide-slate-100">
+            {tasks.map((task) => (
               <tr
-                id={`task-row-${task.id}`}
                 key={task.id}
-                className={`hover:bg-gray-50 transition-colors ${isOverdue ? "bg-red-50" : ""} ${isHighlighted ? "bg-green-50 ring-1 ring-inset ring-green-300" : ""}`}
+                className={
+                  highlightTaskId === task.id
+                    ? "bg-emerald-50/60"
+                    : "hover:bg-slate-50"
+                }
               >
+                {canEdit && onSelect && (
+                  <td className="px-4 py-3">{checkbox(task)}</td>
+                )}
+                <td className="min-w-56 px-4 py-4">
+                  {title(task)}
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {taskLabel(task.type)}
+                    {task.constituent && (
+                      <>
+                        {" "}
+                        -{" "}
+                        <Link
+                          className="text-emerald-800 hover:underline"
+                          href={`/constituents/${encodeURIComponent(task.constituent.id)}`}
+                        >
+                          {task.constituent.firstName}{" "}
+                          {task.constituent.lastName}
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-600">
+                  {owner(task)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-xs">
+                  {due(task)}
+                </td>
+                <td className="px-4 py-3 text-xs">
+                  {taskLabel(task.priority)}
+                </td>
                 <td className="px-4 py-3">
-                  <p className={`font-medium ${isOverdue ? "text-red-700" : "text-gray-900"}`}>{task.title}</p>
-                  {task.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{task.description}</p>}
-                  {isOverdue && <span className="text-xs text-red-500 font-medium">Overdue</span>}
-                  {isHighlighted && <span className="text-xs text-green-700 font-medium">From notification</span>}
-                  {(task.generatedLetterId || task.stewardPathEnrollmentId) && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {task.generatedLetterId && (
-                        <Link
-                          href={`/oyama-letters?sourceTaskId=${task.id}`}
-                          className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700 hover:bg-blue-100"
-                        >
-                          Linked Letter
-                        </Link>
-                      )}
-                      {task.stewardPathEnrollmentId && (
-                        <Link
-                          href={`/oyama-letters?stewardPathEnrollmentId=${task.stewardPathEnrollmentId}`}
-                          className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 hover:bg-indigo-100"
-                        >
-                          Steward Step
-                        </Link>
-                      )}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{typeLabel(task.type)}</td>
-                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                  {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : <span className="text-gray-400">—</span>}
-                </td>
-                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                  {task.constituent ? (
-                    <Link href={`/constituents/${task.constituent.id}`} className="text-green-700 hover:underline">
-                      {getConstituentDisplayName(task.constituent)}
-                    </Link>
-                  ) : <span className="text-gray-400">—</span>}
-                </td>
-                <td className={`px-4 py-3 whitespace-nowrap ${isOverdue ? "text-red-600 font-medium" : "text-gray-600"}`}>
-                  {fmt(task.dueDate)}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${priorityColor(task.priority)}`}>
-                    {task.priority}
+                  <span
+                    className={`whitespace-nowrap rounded-full px-2 py-1 text-[11px] ${badge(task.status)}`}
+                  >
+                    {taskLabel(task.status)}
                   </span>
                 </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(task.status)}`}>
-                    {task.status.replace("_", " ")}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    {(task.status === "PENDING" || task.status === "IN_PROGRESS") ? (
-                      <button
-                        onClick={() => onComplete(task.id)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-green-700 bg-white border border-green-200 rounded-md hover:bg-green-50 transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Done
-                      </button>
-                    ) : null}
-                    <button
-                      onClick={() => onDelete(task.id)}
-                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
-                      title="Delete task"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
+                <td className="px-4 py-3">{actions(task)}</td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
       </div>
-    </CRMDataTable>
+    </div>
   );
 }

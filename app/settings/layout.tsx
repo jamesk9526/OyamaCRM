@@ -29,7 +29,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   }, [mobileNavOpen]);
 
   return (
-    <div className="relative flex items-start gap-5">
+    <div className="oyama-settings-workspace relative flex items-start gap-5">
       <div className="sticky top-4 hidden lg:block">
         <SettingsSidebar />
       </div>

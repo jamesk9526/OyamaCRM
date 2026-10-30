@@ -1,0 +1,159 @@
+/* Shared application chrome. Feature content and behavior stay with their owners. */
+.oyama-reference-rail,
+.oyama-reference-shared-sidebar {
+  background: var(--oyama-sidebar, #10283f) !important;
+  border-color: #ffffff14 !important;
+  color: #e8f0f5;
+  box-shadow: none !important;
+  font-family: var(--oyama-font, Inter, sans-serif);
+}
+
+.oyama-reference-rail-brand {
+  display: flex;
+  min-height: 112px;
+  align-items: center;
+  padding: 20px 18px 12px;
+}
+
+.oyama-reference-rail-brand > div > div {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.oyama-reference-rail-brand img { height: 42px; }
+.oyama-reference-rail-brand p { color: #aac3d1; letter-spacing: .12em; }
+.oyama-reference-nav { padding: 8px 12px 16px; scrollbar-color: #406073 transparent; }
+.oyama-reference-nav-item { border-radius: 8px; min-height: 44px; color: #e4edf3; }
+.oyama-reference-nav-item:hover { background: #ffffff0c; color: #fff; }
+.oyama-reference-nav-item[aria-current="page"] {
+  background: #007f8047;
+  color: #fff;
+  box-shadow: none;
+}
+.oyama-reference-nav-item[aria-current="page"]::before { background: #4cc9bd; }
+.oyama-reference-nav summary,
+.oyama-reference-nav p { color: #a4bac9; }
+.oyama-reference-nav-item svg { width: 19px; height: 19px; stroke-width: 1.7; }
+.oyama-reference-rail > button { border-color: #ffffff24; color: #d7e6ed; }
+.oyama-reference-rail :focus-visible,
+.oyama-reference-shared-sidebar :focus-visible { outline: 2px solid #71d9ce; outline-offset: 2px; }
+
+.oyama-reference-sidebar-brand { background: transparent !important; border-color: #ffffff18 !important; }
+.oyama-reference-shared-sidebar > div:last-child { background: transparent !important; border-color: #ffffff18 !important; }
+.oyama-reference-shared-sidebar > div:last-child > div { color: #b3c8d5 !important; }
+.oyama-reference-shared-sidebar nav a {
+  background: transparent !important;
+  color: #e4edf3 !important;
+  border-color: transparent !important;
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+.oyama-reference-shared-sidebar nav a:hover { background: #ffffff0d !important; }
+.oyama-reference-shared-sidebar nav a[aria-current="page"] {
+  background: #007f8047 !important;
+  color: white !important;
+  border-color: transparent !important;
+}
+.oyama-reference-shared-sidebar nav a > span:first-child {
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+.oyama-reference-shared-sidebar nav a > span:not([role="tooltip"]) { color: inherit !important; }
+.oyama-reference-sidebar-group { background: transparent !important; border-color: #ffffff14 !important; }
+.oyama-reference-sidebar-heading,
+.oyama-reference-sidebar-group > div > p { color: #a4bac9 !important; }
+.oyama-reference-shared-sidebar button[aria-label="Expand sidebar"],
+.oyama-reference-shared-sidebar button[aria-label="Collapse sidebar"] {
+  color: #dce8ef;
+  background: #ffffff08;
+  border-color: #ffffff20;
+  box-shadow: none;
+}
+
+.oyama-reference-topbar[data-topbar-root="true"][data-donor-topbar],
+.oyama-reference-topbar {
+  background: #fff !important;
+  border-color: #e4e9ef !important;
+  border-top: 0 !important;
+  color: var(--oyama-heading, #101f43);
+  box-shadow: none !important;
+}
+.oyama-reference-brand-decoration { display: none !important; }
+.oyama-reference-topbar > [aria-hidden="true"] { opacity: 0; }
+.oyama-reference-topbar-brand a,
+.oyama-reference-topbar-brand a > span,
+.oyama-reference-mobile-brand > a,
+.oyama-reference-mobile-brand > a > span { color: var(--oyama-heading, #101f43); }
+.oyama-reference-mobile-brand {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.oyama-reference-mobile-brand > button { color: var(--oyama-heading, #101f43) !important; }
+.oyama-reference-search-tools {
+  background: #f8fafb !important;
+  border-color: #dfe6ed !important;
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+.oyama-reference-header-control {
+  color: #52647a !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.oyama-reference-header-control:hover { background: #e8f4f3 !important; color: #007f80 !important; }
+.oyama-reference-quick-add {
+  background: var(--oyama-teal, #007f80) !important;
+  border-color: var(--oyama-teal, #007f80) !important;
+  border-radius: 6px;
+}
+.oyama-reference-quick-add:hover { background: #006869 !important; }
+.oyama-reference-workspace-switcher {
+  background: #fff !important;
+  border-color: #e0e6ec !important;
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+.oyama-reference-workspace-switcher > span[aria-hidden="true"] { opacity: 0; }
+.oyama-reference-workspace-switcher > span:not([aria-hidden="true"]) { background: #e6f4f2 !important; color: #007f80 !important; border-color: transparent !important; }
+.oyama-reference-workspace-switcher p { color: #52647a !important; }
+.oyama-reference-workspace-switcher p:last-child { color: #101f43 !important; }
+.oyama-reference-workspace-switcher > svg { color: #52647a !important; }
+.oyama-reference-current-page { display: none; color: #30455f; font-size: 12px; white-space: nowrap; }
+.oyama-reference-current-page > span { margin-right: 10px; color: #99a7b6; }
+.oyama-reference-desktop-toolbar button[aria-label^="Reporting period:"],
+.oyama-reference-desktop-toolbar button[aria-label^="Open profile menu"] {
+  background: #fff;
+  border-color: #dfe6ed;
+  color: #263c56;
+}
+.oyama-reference-desktop-toolbar button[aria-label^="Open profile menu"] > span:first-child {
+  background: #0d5362;
+  color: #fff;
+  box-shadow: none;
+}
+.oyama-reference-desktop-toolbar button[aria-label="Open app launcher"] { color: #52647a; background: #f8fafb; border-color: #dfe6ed; }
+.oyama-reference-desktop-toolbar button[aria-label^="Reporting period:"]:hover,
+.oyama-reference-desktop-toolbar button[aria-label^="Open profile menu"]:hover { background: #eef7f6; }
+
+@media (min-width: 768px) {
+  .oyama-reference-shell[data-oyama-sidebar="true"] .oyama-reference-topbar {
+    left: 256px;
+    width: calc(100% - 256px);
+  }
+  .oyama-reference-shell[data-oyama-sidebar="true"] .oyama-reference-topbar-brand { display: none; }
+  .oyama-reference-shell[data-oyama-sidebar="true"] .oyama-reference-desktop-toolbar { padding-left: 16px; padding-right: 16px; }
+  .oyama-reference-shell[data-oyama-sidebar="true"] .oyama-reference-mobile-brand { display: none; }
+}
+
+@media (min-width: 1680px) {
+  .oyama-reference-current-page { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oyama-reference-topbar,
+  .oyama-reference-shared-sidebar,
+  .oyama-reference-nav-item { transition: none !important; }
+}

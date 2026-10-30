@@ -110,7 +110,7 @@ export default function StewardPathsAppShell({ children }: StewardPathsAppShellP
   }, [desktopNavCollapsed, desktopNavHydrated]);
 
   return (
-    <div className="flex h-[100dvh] min-h-[100svh] flex-col overflow-hidden bg-[#f3f2f1]">
+    <div data-oyama-module="steward-paths" className="flex h-[100dvh] min-h-[100svh] flex-col overflow-hidden bg-[#f3f2f1]">
       <WorkspaceProductBar
         productName="Steward Paths"
         homeHref="/steward-paths/library"

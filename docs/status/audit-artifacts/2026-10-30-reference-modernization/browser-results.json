@@ -1,0 +1,13 @@
+{
+  "fixture": "Synthetic browser responses; no stored data or business writes",
+  "checks": [
+    "/campaigns: desktop and mobile presentation without page overflow",
+    "/reports: desktop and mobile presentation without page overflow",
+    "/reports?report=recurring-giving: desktop and mobile presentation without page overflow",
+    "/settings: desktop and mobile presentation without page overflow",
+    "/constituents/qa-person: desktop and mobile presentation without page overflow",
+    "Authored content retains its heading and action colors inside the internal workspace"
+  ],
+  "errors": [],
+  "writes": []
+}

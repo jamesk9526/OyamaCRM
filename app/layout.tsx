@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./design-system.css";
+import "./components/layout/reference-shell.css";
+import "./module-design-adapters.css";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
 import { PluginProvider } from "./components/plugins/PluginProvider";

@@ -729,20 +729,17 @@ router.get("/", async (req, res) => {
       prisma.constituent.count({ where }),
       prisma.constituent.count({
         where: {
-          ...where,
-          donorStatus: { in: ["ACTIVE", "MAJOR_DONOR"] },
+          AND: [where, { donorStatus: { in: ["ACTIVE", "MAJOR_DONOR"] } }],
         },
       }),
       prisma.constituent.count({
         where: {
-          ...where,
-          donorStatus: "LAPSED",
+          AND: [where, { donorStatus: "LAPSED" }],
         },
       }),
       prisma.constituent.count({
         where: {
-          ...where,
-          type: "PROSPECT",
+          AND: [where, { type: "PROSPECT" }],
         },
       }),
     ]);

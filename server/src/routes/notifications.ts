@@ -1,475 +1,120 @@
-/**
- * Durable notification routes for TopBar and work-engine deep links.
- * Supports read/dismiss/snooze actions and unread badge counts.
- */
-import { Router } from "express";
-import type { NotificationSeverity, NotificationStatus } from "@prisma/client";
+/** Durable user/tenant-scoped inbox, reversible read/snooze actions, and a live change stream. */
+import { Router, type Request, type Response } from "express";
+import type { Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
 import { isSchemaDriftError, migrationRequiredMessage } from "../lib/prisma-runtime-errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
-
 router.use(requireAuth);
-
-interface NotificationApiItem {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  href: string;
-  createdAt: string;
-  priority: "low" | "medium" | "high";
-  status: "unread" | "read" | "dismissed";
-  module: string;
-  actionLabel: string | null;
-  snoozedUntil: string | null;
+router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+const select = { id: true, sourceType: true, title: true, message: true, href: true, createdAt: true, severity: true, status: true, module: true, actionLabel: true, snoozedUntil: true, expiresAt: true } as const;
+type Notice = Prisma.NotificationGetPayload<{ select: typeof select }>;
+const apiItem = (item: Notice) => ({ id: item.id, type: item.sourceType, title: item.title, message: item.message, href: item.href,
+  createdAt: item.createdAt.toISOString(), priority: ["HIGH", "CRITICAL"].includes(item.severity) ? "high" : item.severity === "MEDIUM" ? "medium" : "low",
+  status: item.status === "READ" ? "read" : ["DISMISSED", "ARCHIVED"].includes(item.status) ? "dismissed" : "unread", module: item.module,
+  actionLabel: item.actionLabel, snoozedUntil: item.snoozedUntil?.toISOString() ?? null, expiresAt: item.expiresAt?.toISOString() ?? null });
+const unexpired = (now: Date): Prisma.NotificationWhereInput => ({ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
+const awake = (now: Date): Prisma.NotificationWhereInput => ({ OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }] });
+function moduleScope(value: unknown) {
+  const workspace = String(value ?? "all").toLowerCase();
+  if (!/^[a-z][a-z0-9-]{0,39}$/.test(workspace)) throw Object.assign(new Error("Invalid workspace filter."), { status: 400 });
+  return workspace === "all" ? {} : { module: workspace };
 }
-
-function normalizePriority(severity: NotificationSeverity): NotificationApiItem["priority"] {
-  if (severity === "CRITICAL" || severity === "HIGH") return "high";
-  if (severity === "MEDIUM") return "medium";
-  return "low";
-}
-
-function normalizeStatus(status: NotificationStatus): NotificationApiItem["status"] {
-  if (status === "READ") return "read";
-  if (status === "DISMISSED" || status === "ARCHIVED") return "dismissed";
-  return "unread";
-}
-
-function toApiItem(item: {
-  id: string;
-  sourceType: string;
-  title: string;
-  message: string;
-  href: string;
-  createdAt: Date;
-  severity: NotificationSeverity;
-  status: NotificationStatus;
-  module: string;
-  actionLabel: string | null;
-  snoozedUntil: Date | null;
-}): NotificationApiItem {
-  return {
-    id: item.id,
-    type: item.sourceType,
-    title: item.title,
-    message: item.message,
-    href: item.href,
-    createdAt: item.createdAt.toISOString(),
-    priority: normalizePriority(item.severity),
-    status: normalizeStatus(item.status),
-    module: item.module,
-    actionLabel: item.actionLabel,
-    snoozedUntil: item.snoozedUntil ? item.snoozedUntil.toISOString() : null,
-  };
-}
-
-async function buildNotificationStreamSignature(args: { organizationId: string; userId: string }) {
-  const now = new Date();
-  const [latestActive, unreadCount, activeCount] = await Promise.all([
-    prisma.notification.findFirst({
-      where: {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        archivedAt: null,
-        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, createdAt: true, status: true },
-    }),
-    prisma.notification.count({
-      where: {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        status: "UNREAD",
-        archivedAt: null,
-        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
-      },
-    }),
-    prisma.notification.count({
-      where: {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        archivedAt: null,
-        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
-      },
-    }),
-  ]);
-
-  return JSON.stringify({
-    latestId: latestActive?.id ?? null,
-    latestCreatedAt: latestActive?.createdAt.toISOString() ?? null,
-    latestStatus: latestActive?.status ?? null,
-    unreadCount,
-    activeCount,
-  });
-}
-
-/** GET /api/notifications?module=donor&status=active|all|unread */
-router.get("/", async (req, res) => {
-  try {
-    const userId = req.user?.sub;
-    const organizationId = await resolveOrganizationId({ req });
-    if (!userId) {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-      return;
-    }
-    if (!organizationId) {
-      res.json({ items: [], unreadCount: 0 });
-      return;
-    }
-
-    const moduleFilter = String(req.query.module ?? "donor").toLowerCase();
-    const statusFilter = String(req.query.status ?? "active").toLowerCase();
-    const now = new Date();
-
-    const where = {
-      organizationId,
-      userId,
-      ...(moduleFilter === "all" ? {} : { module: moduleFilter }),
-      ...(statusFilter === "all" ? {} : statusFilter === "unread" ? { status: "UNREAD" as NotificationStatus } : { status: { in: ["UNREAD", "READ"] as NotificationStatus[] } }),
-      OR: [
-        { snoozedUntil: null },
-        { snoozedUntil: { lte: now } },
-      ],
-      archivedAt: null,
-    };
-
-    const [items, unreadCount] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-        take: 40,
-        select: {
-          id: true,
-          sourceType: true,
-          title: true,
-          message: true,
-          href: true,
-          createdAt: true,
-          severity: true,
-          status: true,
-          module: true,
-          actionLabel: true,
-          snoozedUntil: true,
-        },
-      }),
-      prisma.notification.count({
-        where: {
-          organizationId,
-          userId,
-          status: "UNREAD",
-          OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
-          archivedAt: null,
-          ...(moduleFilter === "all" ? {} : { module: moduleFilter }),
-        },
-      }),
-    ]);
-
-    res.json({
-      items: items.map(toApiItem),
-      unreadCount,
-    });
-  } catch (err) {
-    if (isSchemaDriftError(err)) {
-      res.status(503).json({
-        error: {
-          code: "MIGRATION_REQUIRED",
-          message: migrationRequiredMessage("Notifications"),
-        },
-      });
-      return;
-    }
-
-    console.error("[notifications] GET / error:", err);
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load notifications" } });
-  }
-});
-
-/** GET /api/notifications/unread-count?module=donor */
-router.get("/unread-count", async (req, res) => {
-  try {
-    const userId = req.user?.sub;
-    const organizationId = await resolveOrganizationId({ req });
-    if (!userId) {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-      return;
-    }
-    if (!organizationId) {
-      res.json({ unreadCount: 0 });
-      return;
-    }
-
-    const moduleFilter = String(req.query.module ?? "donor").toLowerCase();
-    const now = new Date();
-
-    const unreadCount = await prisma.notification.count({
-      where: {
-        organizationId,
-        userId,
-        status: "UNREAD",
-        archivedAt: null,
-        OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }],
-        ...(moduleFilter === "all" ? {} : { module: moduleFilter }),
-      },
-    });
-
-    res.json({ unreadCount });
-  } catch (err) {
-    if (isSchemaDriftError(err)) {
-      res.status(503).json({
-        error: {
-          code: "MIGRATION_REQUIRED",
-          message: migrationRequiredMessage("Notifications"),
-        },
-      });
-      return;
-    }
-
-    console.error("[notifications] GET /unread-count error:", err);
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to load unread count" } });
-  }
-});
-
-/** GET /api/notifications/sse — lightweight change stream for TopBar notification refreshes. */
-router.get("/sse", async (req, res) => {
-  const userId = req.user?.sub;
+async function identity(req: Request) {
   const organizationId = await resolveOrganizationId({ req });
-  if (!userId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-  if (!organizationId) {
-    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-    return;
-  }
+  if (!organizationId || !req.user?.sub) throw Object.assign(new Error("An authenticated organization is required."), { status: 403 });
+  return { organizationId, userId: req.user.sub, archivedAt: null };
+}
+function fail(res: Response, error: unknown, fallback = "Notifications could not be updated.") {
+  if (isSchemaDriftError(error) || ["P2021", "P2022"].includes(String((error as { code?: unknown })?.code))) return res.status(503).json({ error: { code: "MIGRATION_REQUIRED", message: migrationRequiredMessage("Notifications") } });
+  const known = error as { status?: number; message?: string };
+  return res.status(known.status ?? 500).json({ error: { code: known.status === 400 ? "BAD_REQUEST" : "NOTIFICATION_ERROR", message: known.status ? known.message : fallback } });
+}
+function route(work: (req: Request, res: Response) => Promise<unknown>) {
+  return (req: Request, res: Response) => { void work(req, res).catch((error) => { if (!res.headersSent) fail(res, error); }); };
+}
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders?.();
+router.get("/", route(async (req, res) => {
+  const scope = await identity(req); const now = new Date(); const workspace = moduleScope(req.query.module ?? "donor");
+  const status = String(req.query.status ?? "active").toLowerCase();
+  if (!["active", "unread", "snoozed", "all"].includes(status)) throw Object.assign(new Error("Choose active, unread, snoozed, or all notifications."), { status: 400 });
+  const page = Number(req.query.page ?? 1); const pageSize = Number(req.query.pageSize ?? 40);
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) throw Object.assign(new Error("Invalid notification page."), { status: 400 });
+  const where: Prisma.NotificationWhereInput = { ...scope, ...workspace,
+    ...(status === "all" ? {} : { status: status === "unread" ? "UNREAD" : { in: ["UNREAD", "READ"] }, AND: [unexpired(now), status === "snoozed" ? { snoozedUntil: { gt: now } } : awake(now)] }) };
+  const [items, total, unreadCount, modules] = await Promise.all([
+    prisma.notification.findMany({ where, select, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.notification.count({ where }),
+    prisma.notification.count({ where: { ...scope, ...workspace, status: "UNREAD", AND: [unexpired(now), awake(now)] } }),
+    prisma.notification.findMany({ where: scope, select: { module: true }, distinct: ["module"], orderBy: { module: "asc" } }),
+  ]);
+  res.json({ items: items.map(apiItem), unreadCount, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), modules: modules.map((row) => row.module) });
+}));
 
-  let closed = false;
-  let lastSignature = await buildNotificationStreamSignature({ organizationId, userId });
-  res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`);
+router.get("/unread-count", route(async (req, res) => {
+  const scope = await identity(req); const now = new Date();
+  const unreadCount = await prisma.notification.count({ where: { ...scope, ...moduleScope(req.query.module ?? "donor"), status: "UNREAD", AND: [unexpired(now), awake(now)] } });
+  res.json({ unreadCount });
+}));
 
-  const poll = async () => {
-    if (closed) return;
-    try {
-      const nextSignature = await buildNotificationStreamSignature({ organizationId, userId });
-      if (nextSignature !== lastSignature) {
-        lastSignature = nextSignature;
-        res.write(`event: changed\ndata: ${nextSignature}\n\n`);
-      } else {
-        res.write(`event: ping\ndata: {}\n\n`);
-      }
-    } catch (err) {
-      res.write(`event: error\ndata: ${JSON.stringify({ message: err instanceof Error ? err.message : "Notification stream failed" })}\n\n`);
-    }
-  };
+router.post("/mark-all-read", route(async (req, res) => {
+  const scope = await identity(req); const now = new Date();
+  const result = await prisma.notification.updateMany({ where: { ...scope, ...moduleScope(req.body?.module ?? req.query.module), status: "UNREAD", AND: [unexpired(now), awake(now)] }, data: { status: "READ", readAt: now } });
+  res.json({ updated: result.count });
+}));
 
-  const interval = setInterval(() => {
-    void poll();
-  }, 15000);
+router.patch("/:id/:action", route(async (req, res) => {
+  const scope = await identity(req); const now = new Date(); const action = String(req.params.action);
+  if (!["read", "unread", "dismiss", "snooze", "unsnooze"].includes(action)) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Notification action not found." } });
+  let data: Prisma.NotificationUpdateManyMutationInput;
+  if (action === "snooze") {
+    const until = new Date(req.body?.until ?? now.getTime() + 3600000);
+    if (!Number.isFinite(until.getTime()) || until <= now || until.getTime() - now.getTime() > 30 * 86400000) throw Object.assign(new Error("Choose a future snooze time within 30 days."), { status: 400 });
+    // Keep UNREAD while asleep so the badge returns when the snooze ends.
+    data = { snoozedUntil: until, status: "UNREAD", readAt: null };
+  } else if (action === "dismiss") data = { status: "DISMISSED", dismissedAt: now, snoozedUntil: null };
+  else if (action === "read") data = { status: "READ", readAt: now };
+  else data = { status: "UNREAD", readAt: null, ...(action === "unsnooze" ? { snoozedUntil: null } : {}) };
+  const result = await prisma.notification.updateMany({ where: { ...scope, id: String(req.params.id), status: { in: ["UNREAD", "READ"] }, AND: [unexpired(now)] }, data });
+  if (!result.count) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Notification is unavailable or already dismissed." } });
+  res.json({ ok: true, ...(action === "snooze" ? { snoozedUntil: data.snoozedUntil } : {}) });
+}));
 
-  req.on("close", () => {
-    closed = true;
-    clearInterval(interval);
-    res.end();
-  });
-});
-
-/** POST /api/notifications/mark-all-read */
-router.post("/mark-all-read", async (req, res) => {
+/** Stream only change metadata; no notification content leaves a user's scoped list. */
+router.get("/sse", async (req, res) => {
+  let closed = false; let polling = false; let timer: NodeJS.Timeout | undefined;
   try {
-    const userId = req.user?.sub;
-    const organizationId = await resolveOrganizationId({ req });
-    if (!userId) {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-      return;
-    }
-    if (!organizationId) {
-      res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-      return;
-    }
-
-    const moduleFilter = String(req.body?.module ?? req.query.module ?? "all").toLowerCase();
-
-    const result = await prisma.notification.updateMany({
-      where: {
-        organizationId,
-        userId,
-        status: "UNREAD",
-        archivedAt: null,
-        ...(moduleFilter === "all" ? {} : { module: moduleFilter }),
-      },
-      data: {
-        status: "READ",
-        readAt: new Date(),
-      },
-    });
-
-    res.json({ updated: result.count });
-  } catch (err) {
-    if (isSchemaDriftError(err)) {
-      res.status(503).json({
-        error: {
-          code: "MIGRATION_REQUIRED",
-          message: migrationRequiredMessage("Notifications"),
-        },
-      });
-      return;
-    }
-
-    console.error("[notifications] POST /mark-all-read error:", err);
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to mark notifications read" } });
-  }
-});
-
-/** PATCH /api/notifications/:id/read */
-router.patch("/:id/read", async (req, res) => {
-  try {
-    const userId = req.user?.sub;
-    const organizationId = await resolveOrganizationId({ req });
-    if (!userId) {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-      return;
-    }
-    if (!organizationId) {
-      res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-      return;
-    }
-
-    const id = req.params.id;
-    const updated = await prisma.notification.updateMany({
-      where: { id, organizationId, userId, archivedAt: null },
-      data: { status: "READ", readAt: new Date() },
-    });
-
-    if (updated.count === 0) {
-      res.status(404).json({ error: { code: "NOT_FOUND", message: "Notification not found" } });
-      return;
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    if (isSchemaDriftError(err)) {
-      res.status(503).json({
-        error: {
-          code: "MIGRATION_REQUIRED",
-          message: migrationRequiredMessage("Notifications"),
-        },
-      });
-      return;
-    }
-
-    console.error("[notifications] PATCH /:id/read error:", err);
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to update notification" } });
-  }
-});
-
-/** PATCH /api/notifications/:id/dismiss */
-router.patch("/:id/dismiss", async (req, res) => {
-  try {
-    const userId = req.user?.sub;
-    const organizationId = await resolveOrganizationId({ req });
-    if (!userId) {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-      return;
-    }
-    if (!organizationId) {
-      res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-      return;
-    }
-
-    const id = req.params.id;
-    const updated = await prisma.notification.updateMany({
-      where: { id, organizationId, userId, archivedAt: null },
-      data: {
-        status: "DISMISSED",
-        dismissedAt: new Date(),
-      },
-    });
-
-    if (updated.count === 0) {
-      res.status(404).json({ error: { code: "NOT_FOUND", message: "Notification not found" } });
-      return;
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    if (isSchemaDriftError(err)) {
-      res.status(503).json({
-        error: {
-          code: "MIGRATION_REQUIRED",
-          message: migrationRequiredMessage("Notifications"),
-        },
-      });
-      return;
-    }
-
-    console.error("[notifications] PATCH /:id/dismiss error:", err);
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to dismiss notification" } });
-  }
-});
-
-/** PATCH /api/notifications/:id/snooze */
-router.patch("/:id/snooze", async (req, res) => {
-  try {
-    const userId = req.user?.sub;
-    const organizationId = await resolveOrganizationId({ req });
-    if (!userId) {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-      return;
-    }
-    if (!organizationId) {
-      res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-      return;
-    }
-
-    const id = req.params.id;
-    const untilRaw = req.body?.until;
-    const until = typeof untilRaw === "string" || untilRaw instanceof Date
-      ? new Date(untilRaw)
-      : new Date(Date.now() + 60 * 60 * 1000);
-
-    if (Number.isNaN(until.getTime())) {
-      res.status(400).json({ error: { code: "BAD_REQUEST", message: "Invalid snooze date" } });
-      return;
-    }
-
-    const updated = await prisma.notification.updateMany({
-      where: { id, organizationId, userId, archivedAt: null },
-      data: {
-        snoozedUntil: until,
-        status: "READ",
-        readAt: new Date(),
-      },
-    });
-
-    if (updated.count === 0) {
-      res.status(404).json({ error: { code: "NOT_FOUND", message: "Notification not found" } });
-      return;
-    }
-
-    res.json({ ok: true, snoozedUntil: until.toISOString() });
-  } catch (err) {
-    if (isSchemaDriftError(err)) {
-      res.status(503).json({
-        error: {
-          code: "MIGRATION_REQUIRED",
-          message: migrationRequiredMessage("Notifications"),
-        },
-      });
-      return;
-    }
-
-    console.error("[notifications] PATCH /:id/snooze error:", err);
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to snooze notification" } });
-  }
+    const scope = await identity(req); const workspace = moduleScope(req.query.module);
+    const signature = async () => {
+      const now = new Date(); const where: Prisma.NotificationWhereInput = { ...scope, ...workspace, status: { in: ["UNREAD", "READ"] }, AND: [unexpired(now), awake(now)] };
+      const [items, count, unread] = await Promise.all([
+        prisma.notification.findMany({ where, select: { id: true, status: true, snoozedUntil: true, readAt: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 40 }),
+        prisma.notification.count({ where }), prisma.notification.count({ where: { ...where, status: "UNREAD" } }),
+      ]);
+      return JSON.stringify({ items, count, unread });
+    };
+    let previous = await signature();
+    res.setHeader("Content-Type", "text/event-stream"); res.setHeader("Cache-Control", "no-cache, no-transform"); res.setHeader("Connection", "keep-alive"); res.setHeader("X-Accel-Buffering", "no"); res.flushHeaders?.();
+    res.write("event: ready\ndata: {}\n\n");
+    const close = () => { closed = true; if (timer) clearInterval(timer); if (!res.writableEnded) res.end(); };
+    res.on("close", close);
+    timer = setInterval(() => {
+      if (closed || polling) return; polling = true;
+      void (async () => {
+        try {
+          const account = await prisma.user.findFirst({ where: { id: scope.userId, organizationId: scope.organizationId, active: true }, select: { id: true } });
+          const expiresAt = (req.user as { exp?: unknown } | undefined)?.exp;
+          if (!account || (typeof expiresAt === "number" && expiresAt * 1000 <= Date.now())) { close(); return; }
+          const next = await signature(); if (closed) return;
+          res.write(next !== previous ? "event: changed\ndata: {}\n\n" : ": keepalive\n\n"); previous = next;
+        } catch { if (!closed) res.write("event: unavailable\ndata: {}\n\n"); }
+        finally { polling = false; }
+      })();
+    }, 15000);
+    timer.unref?.();
+  } catch (error) { if (!res.headersSent) fail(res, error, "Notification stream unavailable."); else if (!res.writableEnded) res.end(); }
 });
 
 export default router;

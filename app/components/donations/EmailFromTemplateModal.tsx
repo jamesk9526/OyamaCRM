@@ -712,6 +712,7 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
 
                       <div
                         ref={richEditorRef}
+                        data-oyama-authored
                         contentEditable
                         suppressContentEditableWarning
                         onInput={(e) => setBodyHtml((e.target as HTMLDivElement).innerHTML)}
@@ -783,6 +784,7 @@ export default function EmailFromTemplateModal({ donation, onClose }: Props) {
                   ) : (
                     /* Fallback preview for raw-HTML templates */
                     <div
+                      data-oyama-authored
                       className="flex-1 overflow-y-auto p-5 prose prose-sm max-w-none text-gray-800 text-[13px]"
                       // eslint-disable-next-line react/no-danger
                       dangerouslySetInnerHTML={{ __html: bodyHtml }}

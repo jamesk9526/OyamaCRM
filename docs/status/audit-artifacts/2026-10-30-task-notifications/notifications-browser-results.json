@@ -1,0 +1,24 @@
+{
+  "checks": [
+    "Snooze hides an active notice; Snoozed inbox exposes it and Unsnooze returns it unread",
+    "Workspace filters keep every workspace option and read/unread transitions are reversible",
+    "Mark all read is workspace scoped and preserves other-workspace unread notices",
+    "Failed updates remain explicit and retryable; dismiss retains history without active actions",
+    "Opening a notification records read state and opens the exact task outside the current list",
+    "Inbox failures are visible and Retry recovers without a fake empty state",
+    "Shared notification panel provides View all/Mark all read at 1440px without horizontal overflow",
+    "Shared notification panel provides View all/Mark all read at 390px without horizontal overflow"
+  ],
+  "errors": [],
+  "fixtureMutations": [
+    "PATCH /api/notifications/linked-task/snooze",
+    "PATCH /api/notifications/linked-task/unsnooze",
+    "PATCH /api/notifications/old-task/read",
+    "PATCH /api/notifications/old-task/unread",
+    "POST /api/notifications/mark-all-read",
+    "PATCH /api/notifications/linked-task/unread",
+    "PATCH /api/notifications/linked-task/dismiss",
+    "PATCH /api/notifications/linked-task-two/read"
+  ],
+  "fixture": "Stateful synthetic browser-only responses; no stored data or external messages"
+}

@@ -1,3 +1,9 @@
+## Shared reference design and donor workflows — 2026-10-30
+
+Oyama now has centralized Inter/navy/teal design tokens, reusable component styling, responsive navy navigation, a white shared top bar, and module adapters for Events, Compassion, Settings, Webmaster, Watchdog, Steward Paths, and standalone workspace shells. Authored website/event/email previews retain their presentation. Existing routes, navigation destinations, permissions, and actions are preserved. Donor dashboard, Constituents, and Donations share browse controls and scoped record handoffs.
+
+The separately requested task and notification work adds complete task editing/assignment/reminder/status workflows, persistent in-app notification actions and shared SSE/polling delivery, and background reconciliation. Recording a donation can optionally create a configurable follow-up linked to both the donor and exact gift; retries do not re-record the donation. Legacy task creation routes remain available. See `audit-artifacts/2026-10-30-reference-modernization/verification.md` for evidence and limits.
+
 ## Donor daily workspace — 2026-10-29
 
 The redesigned dashboard now presents actionable acknowledgment, first-time donor, renewal, and overdue-task queues; campaign progress; and working links to recurring giving, annual statements, donor research, and data quality. The detailed giving and Steward panels and dashboard customization remain available. Report links preserve the selected fiscal/calendar period; overdue tasks respect organization and personal/team scope. Each source has an explicit unavailable state and retry. This donor work was separately authorized alongside Compassion; client-care records and styling remain isolated. See `docs/status/audit-artifacts/2026-10-29-donor-dashboard/verification.md` for evidence and limits.

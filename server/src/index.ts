@@ -74,6 +74,7 @@ import { getAppInfo } from "./lib/app-info.js";
 import { getEmailQueueWorkerStatus, startEmailQueueWorker } from "./services/email-queue-worker.js";
 import { getStewardPathsWorkerStatus, startStewardPathsWorker } from "./services/steward-paths-worker.js";
 import { getQuickBooksSyncWorkerStatus, startQuickBooksSyncWorker } from "./services/quickbooks-sync-worker.js";
+import { getTaskNotificationWorkerStatus, startTaskNotificationWorker, stopTaskNotificationWorker } from "./services/task-notification-worker.js";
 
 const stewardAiRoutes =
   (((stewardAiRoutesModule as { default?: express.Router }).default ?? stewardAiRoutesModule) as unknown as express.Router);
@@ -235,6 +236,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
     queue,
     stewardPaths,
     quickBooks,
+    taskNotifications: getTaskNotificationWorkerStatus(),
   });
 }
 
@@ -327,6 +329,11 @@ if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
   startStewardPathsWorker();
   startQuickBooksSyncWorker();
+  startTaskNotificationWorker();
+  // Stop creating in-app reminders during the process manager's shutdown window.
+  for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
+    void stopTaskNotificationWorker().finally(() => process.exit(0));
+  });
   app.listen(PORT, () => {
     console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);
   });

@@ -41,7 +41,7 @@ export default function ActionButton({
   className = "",
 }: ActionButtonProps) {
   const classes = [
-    "inline-flex max-w-full shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-md border text-center font-medium leading-tight transition-colors",
+    "oyama-button inline-flex max-w-full shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-md border text-center font-medium leading-tight transition-colors",
     SIZE_CLASS[size],
     VARIANT_CLASS[variant],
     disabled ? "cursor-not-allowed opacity-50" : "",
@@ -59,14 +59,14 @@ export default function ActionButton({
 
   if (href && !disabled) {
     return (
-      <Link href={href} title={title ?? label} className={classes} data-mobile-touch="true">
+      <Link href={href} title={title ?? label} className={classes} data-variant={variant} data-mobile-touch="true">
         {content}
       </Link>
     );
   }
 
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title ?? label} className={classes} data-mobile-touch="true">
+    <button type="button" onClick={onClick} disabled={disabled} title={title ?? label} className={classes} data-variant={variant} data-mobile-touch="true">
       {content}
     </button>
   );

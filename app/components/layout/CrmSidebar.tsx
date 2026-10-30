@@ -474,12 +474,13 @@ export default function CrmSidebar({
 
   return (
     <aside
-      className={`${styles.aside} group/sidebar relative isolate ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-300 ease-out motion-reduce:transition-none`}
+      className={`oyama-reference-shared-sidebar ${styles.aside} group/sidebar relative isolate ${isCollapsed ? collapsedWidthClass : expandedWidthClass} shrink-0 flex flex-col h-full select-none transition-[width] duration-300 ease-out motion-reduce:transition-none`}
       data-sidebar-collapsed={isCollapsed ? "true" : "false"}
+      data-sidebar-variant={variant}
       style={donorTintStyle}
     >
       {hasBrandHeader ? (
-        <div className={`shrink-0 border-b ${variant === "donor" ? "border-emerald-800/45 bg-white/[0.035] backdrop-blur-xl" : "border-slate-200 bg-white"} ${donorCompact ? "px-3 py-2.5" : "px-2.5 py-2.5"}`}>
+        <div className={`oyama-reference-sidebar-brand shrink-0 border-b ${variant === "donor" ? "border-emerald-800/45 bg-white/[0.035] backdrop-blur-xl" : "border-slate-200 bg-white"} ${donorCompact ? "px-3 py-2.5" : "px-2.5 py-2.5"}`}>
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
               {isCollapsed ? brandHeaderCollapsed : brandHeader}
@@ -578,7 +579,7 @@ export default function CrmSidebar({
           return (
             <div
               key={group.id}
-              className={`${isDonorChrome ? "mb-2.5" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
+              className={`oyama-reference-sidebar-group ${isDonorChrome ? "mb-2.5" : "mb-1.5"} rounded-xl ${isDonorChrome ? "px-0 py-0" : "border px-0.5 py-0.5"} transition-colors ${isDonorChrome ? "bg-transparent" : "bg-white/75"} ${groupActive && !isCollapsed ? (isDonorChrome ? "" : "border-emerald-200") : `${styles.sectionBorder} ${styles.sectionHover}`}`}
             >
               {isCollapsed ? (
                 <div className="group/section relative px-2 py-1.5" aria-hidden="true">
@@ -598,7 +599,7 @@ export default function CrmSidebar({
                           [group.id]: !(current[group.id] ?? true),
                         }));
                       }}
-                      className={`flex w-full items-center justify-between rounded-lg px-1.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.17em] transition-colors hover:bg-white/[0.035] ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
+                      className={`oyama-reference-sidebar-heading flex w-full items-center justify-between rounded-lg px-1.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.17em] transition-colors hover:bg-white/[0.035] ${groupActive ? (isDonorChrome ? "text-emerald-100" : "text-slate-600") : styles.heading} ${styles.headingMuted}`}
                     >
                       <span>{group.label}</span>
                       <svg

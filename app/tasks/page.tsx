@@ -1,451 +1,532 @@
-/**
- * Tasks workspace page.
- * Full task management UI wired to /api/tasks plus donor notification context.
- * Features: focus modes (my/team/follow-ups), notification deep-links, list filters,
- * complete action, and an integrated task creation modal for assignments.
- */
 "use client";
-
 import Link from "next/link";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Bell, Plus, RefreshCw } from "lucide-react";
 import TaskTable from "@/app/components/tasks/TaskTable";
 import NewTaskModal from "@/app/components/tasks/NewTaskModal";
+import {
+  TASK_STATUSES,
+  TASK_TYPES,
+  taskLabel,
+  taskOverdue,
+  type Task,
+  type TaskUser,
+} from "@/app/components/tasks/task-types";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
-import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
-import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
-import CRMActionBar from "@/app/components/ui/crm/CRMActionBar";
-
-/** Task as returned from the API */
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  type: string;
-  status: string;
-  priority: string;
-  dueDate?: string;
-  generatedLetterId?: string | null;
-  stewardPathEnrollmentId?: string | null;
-  stewardPathStepRunId?: string | null;
-  assignee?: { id: string; firstName: string; lastName: string };
-  createdBy?: { id: string; firstName: string; lastName: string };
-  constituent?: { id: string; firstName: string; lastName: string };
+import CRMPageHeader from "@/app/components/ui/crm/CRMPageHeader";
+export type { Task } from "@/app/components/tasks/task-types";
+interface ListResponse {
+  items: Task[];
+  total: number;
+  totalPages: number;
 }
-
-interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  href: string;
-  createdAt: string;
-  priority: "low" | "medium" | "high";
-  status?: "unread" | "read" | "dismissed";
-}
-
-interface UserOption {
-  id: string;
-  firstName: string;
-  lastName: string;
-}
-
-type FocusMode = "my" | "team" | "followups";
-
-const TASK_TYPES = ["CALL", "EMAIL", "MAIL", "MEETING", "THANK_YOU", "FOLLOW_UP", "OTHER"];
-const TASK_STATUSES = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
-const FOLLOW_UP_TYPES = new Set(["FOLLOW_UP", "THANK_YOU", "CALL", "EMAIL"]);
-
-/** Converts notification API errors into actionable operator guidance. */
-function normalizeNotificationsError(error: unknown): string {
-  const fallback = "Failed to load notifications.";
-  if (!(error instanceof Error)) return fallback;
-
-  if (error.message.includes("database migrations are pending")) {
-    return "Notifications are temporarily unavailable because a database migration is pending. Run pnpm db:migrate, pnpm db:generate, then restart the API.";
-  }
-
-  return error.message || fallback;
-}
-
-/** Tasks page — list, filter, complete, and create tasks */
 export default function TasksPage() {
+  return (
+    <Suspense fallback={<p role="status">Loading tasks...</p>}>
+      <TasksWorkspace />
+    </Suspense>
+  );
+}
+function TasksWorkspace() {
   const { user } = useAuth();
-  const searchParams = useSearchParams();
-
-  const isAdmin = user?.role === "admin";
-  const queryFocus = searchParams.get("focus");
-  const queryTaskId = searchParams.get("taskId");
-  const queryQueue = searchParams.get("queue");
-  const initialFocusMode: FocusMode = queryFocus === "team" || queryQueue === "overdue"
-    ? (isAdmin ? "team" : "my")
-    : queryFocus === "followups"
-      ? "followups"
-      : "my";
-
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [focusMode, setFocusMode] = useState<FocusMode>(initialFocusMode);
-  const [overdueOnly, setOverdueOnly] = useState(queryQueue === "overdue");
-  const [statusFilter, setStatusFilter] = useState(queryQueue === "overdue" ? "PENDING" : "");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(true);
-  const [notificationsError, setNotificationsError] = useState<string | null>(null);
-  const [users, setUsers] = useState<UserOption[]>([]);
-  const [bulkAssigneeId, setBulkAssigneeId] = useState("");
-  const [bulkAssigning, setBulkAssigning] = useState(false);
-  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
-
-  const highlightTaskId = useMemo(() => (queryTaskId ? String(queryTaskId) : null), [queryTaskId]);
-
+  const params = useSearchParams();
+  const teamAllowed = user?.role === "admin" || user?.role === "super_admin";
+  const canEdit = user?.permissions
+    ? user.permissions.includes("edit:tasks")
+    : teamAllowed || user?.role === "manager" || user?.role === "staff";
+  const [scope, setScope] = useState("personal"),
+    [queue, setQueue] = useState("all"),
+    [status, setStatus] = useState(""),
+    [type, setType] = useState(""),
+    [search, setSearch] = useState("");
+  const [page, setPage] = useState(1),
+    [data, setData] = useState<ListResponse>({
+      items: [],
+      total: 0,
+      totalPages: 1,
+    });
+  const [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState<string | null>(null),
+    [editing, setEditing] = useState<Task | null>(null),
+    [showNew, setShowNew] = useState(false);
+  const [target, setTarget] = useState<Task | null>(null),
+    [targetError, setTargetError] = useState("");
+  const [selected, setSelected] = useState<string[]>([]),
+    [assignee, setAssignee] = useState(""),
+    [users, setUsers] = useState<TaskUser[]>([]);
+  const requestId = useRef(0);
+  const queryTaskId = params.get("taskId"),
+    queryKey = params.toString();
   useEffect(() => {
-    if (queryQueue !== "overdue") return;
-    setOverdueOnly(true);
-    setFocusMode(isAdmin ? "team" : "my");
-    setStatusFilter("PENDING");
-  }, [queryQueue, isAdmin]);
-
-  /** Load tasks from API with optional filters */
-  const loadTasks = useCallback(async () => {
+    const q = new URLSearchParams(queryKey);
+    setScope(
+      teamAllowed &&
+        (q.get("focus") === "team" ||
+          q.get("scope") === "all" ||
+          q.get("queue") === "overdue")
+        ? "all"
+        : "personal",
+    );
+    setQueue(
+      q.get("queue") === "overdue"
+        ? "overdue"
+        : q.get("focus") === "followups"
+          ? "followups"
+          : "all",
+    );
+    setStatus("");
+    setType("");
+    setPage(1);
+    setShowNew(q.get("create") === "1" || q.get("new") === "1");
+  }, [queryKey, teamAllowed]);
+  const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
-    setError(null);
+    setError("");
     try {
-      const params = new URLSearchParams({
-        page: "1",
-        limit: "100",
-        scope: focusMode === "team" && isAdmin ? "all" : "personal",
-        queue: overdueOnly ? "overdue" : focusMode === "team" ? "team" : focusMode === "followups" ? "assigned-to-me" : "my-today",
+      const q = new URLSearchParams({
+        scope: teamAllowed ? scope : "personal",
+        queue,
+        page: String(page),
+        limit: "25",
       });
-      if (statusFilter) params.set("status", statusFilter);
-      const data = await apiFetch<{ items?: Task[]; total?: number }>(`/api/tasks?${params}`);
-
-      let items: Task[] = data.items ?? [];
-      if (focusMode === "my" && user?.id) {
-        items = items.filter((task) => task.assignee?.id === user.id || task.createdBy?.id === user.id);
+      if (status) q.set("status", status);
+      if (type) q.set("type", type);
+      if (search.trim()) q.set("search", search.trim());
+      const r = await apiFetch<ListResponse>(`/api/tasks?${q}`);
+      if (id === requestId.current) {
+        setData(r);
+        setSelected([]);
       }
-      if (focusMode === "followups") {
-        items = items.filter((task) => FOLLOW_UP_TYPES.has(task.type));
-      }
-      if (typeFilter) items = items.filter((t) => t.type === typeFilter);
-
-      setTasks(items);
-      setTotal(items.length);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+    } catch (reason) {
+      if (id === requestId.current)
+        setError(
+          reason instanceof Error ? reason.message : "Unable to load tasks.",
+        );
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [statusFilter, typeFilter, focusMode, overdueOnly, isAdmin, user]);
-
+  }, [scope, queue, status, type, search, page, teamAllowed]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadTasks();
-    }, 0);
-
+    const timer = window.setTimeout(() => void load(), search ? 250 : 0);
     return () => {
-      window.clearTimeout(timer);
+      clearTimeout(timer);
+      requestId.current += 1;
     };
-  }, [loadTasks]);
-
-  /** Loads top bar-equivalent donor notifications to integrate assignment and follow-up context. */
-  const loadNotifications = useCallback(async () => {
-    setNotificationsLoading(true);
-    setNotificationsError(null);
-    try {
-      const data = await apiFetch<{ items?: NotificationItem[] }>("/api/notifications?module=donor");
-      const relevant = (data.items ?? []).filter((item) => item.type === "task" || item.type === "follow_up").slice(0, 6);
-      setNotifications(relevant);
-    } catch (requestError) {
-      setNotificationsError(normalizeNotificationsError(requestError));
-      setNotifications([]);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  }, []);
-
+  }, [load, search]);
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadNotifications();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [loadNotifications]);
-
-  /** Load assignable users for bulk reassignment workflows. */
+    const refresh = () => void load();
+    window.addEventListener("tasks:updated", refresh);
+    return () => window.removeEventListener("tasks:updated", refresh);
+  }, [load]);
   useEffect(() => {
+    if (!canEdit) return;
     let active = true;
-    void apiFetch<{ items?: UserOption[] }>("/api/users")
-      .then((data) => {
-        if (!active) return;
-        const userItems = data.items ?? [];
-        setUsers(userItems);
-        if (!bulkAssigneeId && user?.id) {
-          setBulkAssigneeId(user.id);
-        }
-      })
-      .catch(() => {
-        if (!active) return;
-        setUsers([]);
-      });
-
+    void apiFetch<{ items: TaskUser[] }>("/api/tasks/assignees").then(
+      (r) => {
+        if (active) setUsers(r.items);
+      },
+      () => {
+        if (active) setUsers([]);
+      },
+    );
     return () => {
       active = false;
     };
-  }, [user?.id, bulkAssigneeId]);
-
-  /** Mark a task as COMPLETED via PATCH */
-  async function handleComplete(id: string) {
-    await apiFetch(`/api/tasks/${id}/complete`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-    window.dispatchEvent(new CustomEvent("tasks:updated"));
-    void loadTasks();
-  }
-
-  /** Delete a task */
-  async function handleDelete(id: string) {
-    await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
-    window.dispatchEvent(new CustomEvent("tasks:updated"));
-    void loadTasks();
-  }
-
-  /** Bulk-assign visible pending/in-progress tasks to one assignee. */
-  async function handleBulkAssignVisible() {
-    const reassignableTaskIds = tasks
-      .filter((task) => task.status === "PENDING" || task.status === "IN_PROGRESS")
-      .map((task) => task.id);
-
-    if (!bulkAssigneeId || reassignableTaskIds.length === 0) return;
-
-    setBulkAssigning(true);
-    setBulkMessage(null);
+  }, [canEdit]);
+  useEffect(() => {
+    setTarget(null);
+    setTargetError("");
+    if (!queryTaskId) return;
+    let active = true;
+    void apiFetch<Task>(`/api/tasks/${encodeURIComponent(queryTaskId)}`).then(
+      (task) => {
+        if (active) setTarget(task);
+      },
+      (reason) => {
+        if (active)
+          setTargetError(reason.message || "Linked task unavailable.");
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [queryTaskId]);
+  async function mutate(id: string, action: "complete" | "reopen" | "delete") {
+    if (action === "delete" && !window.confirm("Delete this task permanently?"))
+      return;
+    setBusy(id);
+    setError("");
+    setNotice("");
     try {
-      const response = await apiFetch<{ updatedCount: number; assignee?: { name?: string } }>("/api/tasks/bulk-assign", {
-        method: "POST",
-        body: JSON.stringify({
-          assigneeId: bulkAssigneeId,
-          taskIds: reassignableTaskIds,
-        }),
-      });
-      const assigneeName = response.assignee?.name ?? "selected assignee";
-      setBulkMessage(`Reassigned ${response.updatedCount} tasks to ${assigneeName}.`);
+      const saved = await apiFetch<Task>(
+        `/api/tasks/${encodeURIComponent(id)}${action === "delete" ? "" : `/${action}`}`,
+        {
+          method: action === "delete" ? "DELETE" : "POST",
+          body: action === "delete" ? undefined : "{}",
+        },
+      );
+      setNotice(
+        saved?.notificationWarning ||
+          (action === "complete"
+            ? "Task completed."
+            : action === "reopen"
+              ? "Task reopened."
+              : "Task deleted."),
+      );
+      if (target?.id === id) setTarget(action === "delete" ? null : saved);
       window.dispatchEvent(new CustomEvent("tasks:updated"));
-      await loadTasks();
-    } catch (err) {
-      setBulkMessage(err instanceof Error ? err.message : "Bulk assignment failed.");
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Task could not be changed.",
+      );
     } finally {
-      setBulkAssigning(false);
+      setBusy(null);
     }
   }
-
-  const pending = tasks.filter((t) => t.status === "PENDING").length;
-  const overdue = tasks.filter((t) => t.status === "PENDING" && t.dueDate && new Date(t.dueDate) < new Date()).length;
-  const completed = tasks.filter((t) => t.status === "COMPLETED").length;
-  const assignedToMe = user?.id
-    ? tasks.filter((task) => task.assignee?.id === user.id && task.status !== "COMPLETED").length
-    : 0;
-  const focusLabel = focusMode === "team" ? "Team Queue" : focusMode === "followups" ? "Follow-Ups" : "My Work";
-
+  async function assignSelected() {
+    if (
+      !selected.length ||
+      !assignee ||
+      !window.confirm(`Reassign ${selected.length} selected active task(s)?`)
+    )
+      return;
+    setBusy("bulk");
+    setError("");
+    try {
+      const r = await apiFetch<{
+        updatedCount: number;
+        notificationWarning?: string;
+      }>("/api/tasks/bulk-assign", {
+        method: "POST",
+        body: JSON.stringify({ taskIds: selected, assigneeId: assignee }),
+      });
+      setNotice(r.notificationWarning || `${r.updatedCount} tasks reassigned.`);
+      window.dispatchEvent(new CustomEvent("tasks:updated"));
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Reassignment failed.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+  const filter = (work: () => void) => {
+    work();
+    setPage(1);
+  };
+  const tableProps = {
+    busyId: busy,
+    canEdit,
+    onEdit: setEditing,
+    onComplete: (id: string) => void mutate(id, "complete"),
+    onReopen: (id: string) => void mutate(id, "reopen"),
+    onDelete: (id: string) => void mutate(id, "delete"),
+  };
   return (
-    <div className="space-y-5">
-      <WorkspaceBreadcrumbBar
-        items={[
-          { label: "Donor CRM", href: "/" },
-          { label: "Tasks", href: "/tasks" },
-          { label: focusLabel },
-        ]}
-        metadata={`${total} total · ${assignedToMe} assigned to me · ${overdue} overdue`}
-        primaryAction={<WorkspaceRibbonButton label="New Task" onClick={() => setShowModal(true)} variant="primary" />}
-        overflowActions={
-          highlightTaskId
-            ? <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">Notification context active</span>
-            : undefined
+    <div className="donor-daily-workspace space-y-5 pb-8">
+      <CRMPageHeader
+        breadcrumb="Donor CRM / Tasks"
+        title="Make the next step happen"
+        description="Plan follow-ups, share ownership, and keep commitments moving."
+        primaryAction={
+          canEdit && (
+            <button
+              className="donor-button donor-button-primary"
+              onClick={() => setShowNew(true)}
+            >
+              <Plus size={16} />
+              New Task
+            </button>
+          )
+        }
+        secondaryActions={
+          <>
+            <Link className="donor-button" href="/notifications">
+              <Bell size={16} />
+              Notifications
+            </Link>
+            <button
+              className="donor-button"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </button>
+          </>
         }
       />
-
-      <CRMActionBar
-        context={{
-          selectionCount: 0,
-          flags: {
-            focusMode,
-          },
-        }}
-        commandHandlers={{
-          "task-queue-my": () => {
-            setOverdueOnly(false);
-            setFocusMode("my");
-          },
-          "task-queue-team": () => {
-            setOverdueOnly(false);
-            setFocusMode(isAdmin ? "team" : "my");
-          },
-          "task-queue-followups": () => {
-            setOverdueOnly(false);
-            setFocusMode("followups");
-          },
-          "task-new": () => {
-            setShowModal(true);
-          },
-          "task-refresh": () => {
-            void loadTasks();
-          },
-          "task-refresh-notifications": () => {
-            void loadNotifications();
-          },
-          "task-reset-filters": () => {
-            setOverdueOnly(false);
-            setStatusFilter("");
-            setTypeFilter("");
-          },
-        }}
-      />
-
-      {/* Notification-integrated task feed */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Task Notifications</h2>
-            <p className="text-xs text-gray-500">Assignments and due items linked directly into this workspace.</p>
-          </div>
-          <button onClick={loadNotifications} className="text-xs text-gray-500 hover:text-gray-700">Refresh</button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-2" aria-label="Task scope">
+          {[
+            { label: "My work", value: "personal" },
+            ...(teamAllowed ? [{ label: "Team queue", value: "all" }] : []),
+          ].map((item) => (
+            <button
+              key={item.value}
+              className={`donor-button ${scope === item.value ? "donor-button-primary" : ""}`}
+              aria-pressed={scope === item.value}
+              onClick={() => filter(() => setScope(item.value))}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
-
-        {notificationsError && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 mb-2">
-            {notificationsError}
-          </div>
-        )}
-
-        {notificationsLoading ? (
-          <p className="text-sm text-gray-400">Loading notifications…</p>
-        ) : notifications.length === 0 ? (
-          <p className="text-sm text-gray-500">No pending task notifications.</p>
-        ) : (
-          <div className="space-y-2">
-            {notifications.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 hover:border-green-300 hover:bg-green-50/40 transition-colors"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{item.message}</p>
-                </div>
-                <span className={`mt-1 h-2.5 w-2.5 rounded-full ${item.priority === "high" ? "bg-red-500" : item.priority === "medium" ? "bg-amber-500" : "bg-green-500"}`} />
-              </Link>
-            ))}
-          </div>
-        )}
+        <Link
+          className="text-xs font-semibold text-emerald-800 hover:underline"
+          href="/settings/tasks"
+        >
+          Task workflow & templates
+        </Link>
       </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: "Total", value: total, color: "text-gray-900" },
-          { label: "Pending", value: pending, color: "text-blue-700" },
-          { label: "Overdue", value: overdue, color: "text-red-600" },
-          { label: "Completed", value: completed, color: "text-green-600" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color}`}>{loading ? "—" : s.value}</p>
+          {
+            label: "Matching tasks",
+            value: data.total,
+            helper: "Across all matching pages",
+          },
+          {
+            label: "Active on this page",
+            value: data.items.filter((t) =>
+              ["PENDING", "IN_PROGRESS"].includes(t.status),
+            ).length,
+            helper: "Pending and in progress",
+          },
+          {
+            label: "Overdue on this page",
+            value: data.items.filter(taskOverdue).length,
+            helper: "Includes in-progress tasks",
+          },
+          {
+            label: "Completed on this page",
+            value: data.items.filter((t) => t.status === "COMPLETED").length,
+            helper: "Completed work in this view",
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="rounded-xl border border-slate-200 bg-white p-4"
+          >
+            <p className="text-xs text-slate-500">{item.label}</p>
+            <p className="mt-2 text-2xl font-semibold">
+              {loading ? "..." : error ? "-" : item.value}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">{item.helper}</p>
           </div>
         ))}
       </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        {overdueOnly ? <button type="button" onClick={() => setOverdueOnly(false)} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800" aria-label="Clear overdue task filter">Overdue tasks ×</button> : null}
+      <section
+        aria-label="Task filters"
+        className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"
+      >
+        <input
+          aria-label="Search tasks"
+          type="search"
+          value={search}
+          onChange={(e) => filter(() => setSearch(e.target.value))}
+          className="min-w-48 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          placeholder="Search task or constituent"
+        />
+        <select
+          aria-label="Task queue"
+          className="rounded-lg border px-3 py-2 text-sm"
+          value={queue}
+          onChange={(e) => filter(() => setQueue(e.target.value))}
+        >
+          <option value="all">All dates</option>
+          <option value="my-today">My due today & overdue</option>
+          <option value="overdue">Overdue</option>
+          <option value="followups">Follow-ups</option>
+          <option value="assigned-by-me">Assigned by me</option>
+          <option value="assigned-to-me">Assigned to me</option>
+        </select>
         <select
           aria-label="Task status"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-lg border px-3 py-2 text-sm"
+          value={status}
+          onChange={(e) => filter(() => setStatus(e.target.value))}
         >
-          <option value="">All Statuses</option>
-          {TASK_STATUSES.map((s) => (
-            <option key={s} value={s}>{s.replace("_", " ")}</option>
+          <option value="">All statuses</option>
+          {TASK_STATUSES.map((item) => (
+            <option key={item} value={item}>
+              {taskLabel(item)}
+            </option>
           ))}
         </select>
         <select
           aria-label="Task type"
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="rounded-lg border px-3 py-2 text-sm"
+          value={type}
+          onChange={(e) => filter(() => setType(e.target.value))}
         >
-          <option value="">All Types</option>
-          {TASK_TYPES.map((t) => (
-            <option key={t} value={t}>{t.replace("_", " ")}</option>
+          <option value="">All types</option>
+          {TASK_TYPES.map((item) => (
+            <option key={item} value={item}>
+              {taskLabel(item)}
+            </option>
           ))}
         </select>
-        {(statusFilter || typeFilter) && (
-          <button onClick={() => { setStatusFilter(""); setTypeFilter(""); }} className="text-sm text-gray-500 hover:text-gray-700 px-2">
+        {(search || status || type || queue !== "all") && (
+          <button
+            className="donor-button"
+            aria-label={
+              queue === "overdue"
+                ? "Clear overdue task filter"
+                : "Clear task filters"
+            }
+            onClick={() =>
+              filter(() => {
+                setSearch("");
+                setStatus("");
+                setType("");
+                setQueue("all");
+              })
+            }
+          >
             Clear filters
           </button>
         )}
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Bulk Assignment</p>
-            <select
-              value={bulkAssigneeId}
-              onChange={(e) => setBulkAssigneeId(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">Select assignee</option>
-              {users.map((userItem) => (
-                <option key={userItem.id} value={userItem.id}>{userItem.firstName} {userItem.lastName}</option>
-              ))}
-            </select>
-          </div>
-          <button
-            onClick={handleBulkAssignVisible}
-            disabled={bulkAssigning || !bulkAssigneeId || tasks.filter((task) => task.status === "PENDING" || task.status === "IN_PROGRESS").length === 0}
-            className="px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
-          >
-            {bulkAssigning ? "Assigning..." : "Assign Visible Pending"}
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-gray-500">
-          Reassigns all visible tasks that are still pending or in progress.
+      </section>
+      {notice && (
+        <p
+          role="status"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
+        >
+          {notice}
         </p>
-        {bulkMessage && <p className="mt-2 text-xs text-gray-700">{bulkMessage}</p>}
-      </div>
-
+      )}
       {error && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Could not connect to API — start it with <code className="bg-amber-100 px-1 rounded">pnpm start:server</code>
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        >
+          {error}
+          <button
+            className="ml-3 font-semibold underline"
+            onClick={() => void load()}
+          >
+            Retry
+          </button>
+        </p>
+      )}
+      {targetError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          {targetError}
+        </p>
+      )}
+      {target && (
+        <section
+          className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/30 p-4"
+          aria-label="Linked task"
+        >
+          <div className="flex justify-between gap-3">
+            <h2 className="text-sm font-semibold">Linked task</h2>
+            <button
+              className="text-xs text-slate-600"
+              onClick={() => setTarget(null)}
+            >
+              Dismiss linked task
+            </button>
+          </div>
+          <TaskTable
+            tasks={[target]}
+            highlightTaskId={target.id}
+            {...tableProps}
+          />
+        </section>
+      )}
+      {canEdit && selected.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-white p-4">
+          <span className="text-sm font-semibold">
+            {selected.length} selected
+          </span>
+          <select
+            aria-label="Reassign selected tasks to"
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            className="rounded-lg border px-3 py-2 text-sm"
+          >
+            <option value="">Select staff member</option>
+            {users.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.firstName} {person.lastName}
+              </option>
+            ))}
+          </select>
+          <button
+            className="donor-button"
+            disabled={Boolean(busy) || !assignee}
+            onClick={() => void assignSelected()}
+          >
+            Reassign selected
+          </button>
+          <button className="donor-button" onClick={() => setSelected([])}>
+            Clear selection
+          </button>
+          <p className="w-full text-xs text-slate-500">
+            Only active tasks can be reassigned. Reopen completed tasks first.
+          </p>
         </div>
       )}
-
-      <TaskTable
-        tasks={tasks}
-        loading={loading && !error}
-        highlightTaskId={highlightTaskId}
-        onComplete={handleComplete}
-        onDelete={handleDelete}
-      />
-
-      {showModal && (
+      {!error && (
+        <TaskTable
+          tasks={data.items}
+          loading={loading}
+          selectedIds={selected}
+          onSelect={(id, checked) =>
+            setSelected((current) =>
+              checked
+                ? [...current, id]
+                : current.filter((value) => value !== id),
+            )
+          }
+          {...tableProps}
+        />
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+        <p>
+          {data.total} matching tasks - Page {page} of {data.totalPages || 1}
+        </p>
+        <div className="flex gap-2">
+          <button
+            className="donor-button"
+            disabled={loading || page <= 1}
+            onClick={() => setPage((v) => v - 1)}
+          >
+            Previous
+          </button>
+          <button
+            className="donor-button"
+            disabled={loading || page >= data.totalPages}
+            onClick={() => setPage((v) => v + 1)}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+      {(showNew || editing) && (
         <NewTaskModal
+          task={editing ?? undefined}
           defaultAssigneeId={user?.id}
-          defaultType="FOLLOW_UP"
-          onClose={() => setShowModal(false)}
-          onCreated={() => {
-            setShowModal(false);
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onCreated={(task) => {
+            setShowNew(false);
+            setEditing(null);
+            if (task && target?.id === task.id) setTarget(task);
+            setNotice(task?.notificationWarning || "Task saved.");
             window.dispatchEvent(new CustomEvent("tasks:updated"));
-            void loadTasks();
           }}
         />
       )}

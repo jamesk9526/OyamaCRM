@@ -22,9 +22,9 @@ export default function WebmasterSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 shrink-0 bg-white border-r border-indigo-100 flex flex-col h-full select-none">
+    <aside data-oyama-navigation="webmaster" className="w-60 shrink-0 bg-white border-r border-indigo-100 flex flex-col h-full select-none">
       <div className="px-4 py-4 border-b border-indigo-100">
-        <CrmBrandLockup moduleLabel="Webmaster CRM" className="w-full" />
+        <CrmBrandLockup moduleLabel="Webmaster CRM" tone="light" className="w-full" />
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2">

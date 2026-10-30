@@ -14,7 +14,9 @@ import ContextualTutorialModal from "@/app/components/help/ContextualTutorialMod
 import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { SupportTicketModal } from "@/app/components/support/SupportTicketModal";
-import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
+import { apiFetch } from "@/app/lib/auth-client";
+import NotificationPanel from "@/app/components/notifications/NotificationPanel";
+import { changeNotification, markNotificationsRead, safeNotificationHref, subscribeToNotifications, type NotificationItem, type NotificationAction } from "@/app/components/notifications/notification-client";
 import { OYAMA_PRODUCT_LOGO } from "@/app/lib/product-branding";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -63,19 +65,7 @@ interface FiscalSettings {
   fiscalYearEnd: number;
 }
 
-interface TopBarNotification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  href: string;
-  createdAt: string;
-  priority: "low" | "medium" | "high";
-  status?: "unread" | "read" | "dismissed";
-  module?: string;
-  actionLabel?: string | null;
-  snoozedUntil?: string | null;
-}
+type TopBarNotification = NotificationItem;
 
 interface StewardSignalsRebuildResult {
   rebuilt: boolean;
@@ -219,7 +209,7 @@ function DonorQuickAddButton() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Quick Add"
-        className="inline-flex h-8 items-center gap-1.5 rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-[#115ea3] hover:bg-[#115ea3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60cdff]"
+        className="oyama-reference-quick-add inline-flex h-8 items-center gap-1.5 rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-[#115ea3] hover:bg-[#115ea3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60cdff]"
       >
         <svg className="h-4 w-4 shrink-0 text-white/95" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
@@ -838,6 +828,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TopBarNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationBusy, setNotificationBusy] = useState<string | null>(null);
+  const notificationRequest = useRef(0);
+  const unreadRequest = useRef(0);
   const [analyzingSignals, setAnalyzingSignals] = useState(false);
   const [signalsAnalyzeError, setSignalsAnalyzeError] = useState<string | null>(null);
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
@@ -858,7 +851,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
   const isDonorEnterpriseChrome = moduleKey === "donor";
   const chromeButtonBase = isDonorEnterpriseChrome
-    ? "flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-100 shadow-none transition-all duration-200 hover:bg-white/[0.12] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95 max-[380px]:h-8 max-[380px]:w-8"
+    ? "oyama-reference-header-control flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-100 shadow-none transition-all duration-200 hover:bg-white/[0.12] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95 max-[380px]:h-8 max-[380px]:w-8"
     : "flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/96 text-slate-600 shadow-[0_4px_10px_rgba(15,23,42,0.045)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-8 max-[380px]:w-8";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
@@ -869,7 +862,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       : "xl:pl-[284px]"
     : "";
   const darkIconButtonBase = isDonorEnterpriseChrome
-    ? "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-300 transition-all duration-200 hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95"
+    ? "oyama-reference-header-control flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-300 transition-all duration-200 hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95"
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const donorResearchMobileButtonBase = chromeButtonBase.replace("rounded-xl", "rounded-full");
   const donorResearchDesktopButtonBase = darkIconButtonBase.replace("rounded-lg", "rounded-full");
@@ -879,6 +872,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const showModuleSwitcher = workspaceSettings.showModuleSwitcher || isDonorEnterpriseChrome;
   const moduleChromePalette = resolveTopBarModuleChromePalette(moduleKey, donorChromeTint);
   const homeHref = resolveTopBarHomeHref(moduleKey);
+  const breadcrumbLabel = pathname === "/" ? "Overview" : (pathname.split("/").filter(Boolean)[0] ?? "Workspace").replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const helpHref = buildHelpHref({
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
@@ -1025,6 +1019,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }
 
   const loadNotifications = useCallback(async () => {
+    const request = ++notificationRequest.current;
     setNotificationsLoading(true);
     setNotificationsError(null);
     try {
@@ -1032,51 +1027,56 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       const data = await apiFetch<{ items: TopBarNotification[]; unreadCount: number }>(
         `/api/notifications?module=${notificationModule}`
       );
+      if (request !== notificationRequest.current) return;
       setNotifications(Array.isArray(data.items) ? data.items : []);
       setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
     } catch (err) {
+      if (request !== notificationRequest.current) return;
       setNotificationsError(err instanceof Error ? err.message : "Failed to load notifications");
-      setNotifications([]);
-      setUnreadCount(0);
     } finally {
-      setNotificationsLoading(false);
+      if (request === notificationRequest.current) setNotificationsLoading(false);
     }
   }, [moduleKey, setNotificationsLoading, setNotificationsError, setNotifications, setUnreadCount]);
 
   const loadUnreadCount = useCallback(async () => {
+    const request = ++unreadRequest.current;
     try {
       const notificationModule = moduleKey === "oshareview" ? "donor" : moduleKey;
       const data = await apiFetch<{ unreadCount: number }>(`/api/notifications/unread-count?module=${notificationModule}`);
+      if (request !== unreadRequest.current) return;
       setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
     } catch {
       // Keep existing badge state if lightweight polling fails.
     }
   }, [moduleKey, setUnreadCount]);
 
-  const runNotificationAction = useCallback(async (
+  const runNotificationAction = async (
     id: string,
-    action: "read" | "dismiss" | "snooze",
+    action: NotificationAction,
     options?: { until?: string }
   ) => {
-    await apiFetch(`/api/notifications/${id}/${action}`, {
-      method: "PATCH",
-      body: JSON.stringify(options ?? {}),
-    });
-    await loadNotifications();
-  }, [loadNotifications]);
+    setNotificationBusy(id); setNotificationsError(null);
+    try { await changeNotification(id, action, options?.until); await loadNotifications(); }
+    catch (reason) { setNotificationsError(reason instanceof Error ? reason.message : "Notification could not be updated."); }
+    finally { setNotificationBusy(null); }
+  };
 
-  const openNotification = useCallback(async (item: TopBarNotification) => {
+  const openNotification = async (item: TopBarNotification) => {
+    setNotificationBusy(item.id); setNotificationsError(null);
     try {
-      if (item.status !== "read") {
-        await apiFetch(`/api/notifications/${item.id}/read`, { method: "PATCH" });
-      }
-    } catch {
-      // Navigation should continue even if the read receipt fails.
-    }
+      if (item.status === "unread") await changeNotification(item.id, "read");
+      setNotificationsOpen(false);
+      router.push(safeNotificationHref(item.href));
+    } catch (reason) { setNotificationsError(reason instanceof Error ? reason.message : "Notification could not be opened. Try again."); }
+    finally { setNotificationBusy(null); }
+  };
 
-    setNotificationsOpen(false);
-    router.push(item.href);
-  }, [router, setNotificationsOpen]);
+  const readAllNotifications = async () => {
+    setNotificationBusy("all"); setNotificationsError(null);
+    try { await markNotificationsRead(moduleKey === "oshareview" ? "donor" : moduleKey); await loadNotifications(); }
+    catch (reason) { setNotificationsError(reason instanceof Error ? reason.message : "Notifications could not be marked read."); }
+    finally { setNotificationBusy(null); }
+  };
 
   useEffect(() => {
     if (!notificationsOpen) return;
@@ -1093,7 +1093,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   // Desktop notifications should close on outside click without using a full-screen overlay.
   useEffect(() => {
     if (!notificationsOpen) return;
-    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+    if (!window.matchMedia("(min-width: 1280px)").matches) return;
 
     const handlePointerDown = (event: PointerEvent) => {
       const container = desktopNotificationsRef.current;
@@ -1112,73 +1112,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   }, [notificationsOpen]);
 
   useEffect(() => {
-    void loadUnreadCount();
-    const interval = window.setInterval(() => {
-      void loadUnreadCount();
-    }, 45000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [loadUnreadCount]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let closed = false;
-    let reconnectTimer: number | null = null;
-
-    const refresh = () => {
-      void loadUnreadCount();
-      if (notificationsOpen) void loadNotifications();
-    };
-
-    const connect = async () => {
-      try {
-        const response = await apiFetchResponse("/api/notifications/sse", {
-          headers: { Accept: "text/event-stream" },
-          signal: controller.signal,
-        });
-        if (!response.ok || !response.body) return;
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffered = "";
-        while (!closed) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffered += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
-          const messages = buffered.split("\n\n");
-          buffered = messages.pop() ?? "";
-          for (const message of messages) {
-            const eventName = message.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim();
-            if (eventName === "ready" || eventName === "changed") refresh();
-          }
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      } finally {
-        if (!closed) reconnectTimer = window.setTimeout(() => { void connect(); }, 5_000);
-      }
-    };
-
-    void connect();
-
-    return () => {
-      closed = true;
-      controller.abort();
-      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
-    };
-  }, [loadNotifications, loadUnreadCount, notificationsOpen]);
-
-  useEffect(() => {
-    const refresh = () => {
-      void loadUnreadCount();
-      if (notificationsOpen) void loadNotifications();
-    };
-    window.addEventListener("tasks:updated", refresh);
-    return () => {
-      window.removeEventListener("tasks:updated", refresh);
-    };
+    const refresh = () => { void loadUnreadCount(); if (notificationsOpen) void loadNotifications(); };
+    refresh();
+    return subscribeToNotifications(refresh);
   }, [loadUnreadCount, loadNotifications, notificationsOpen]);
 
   useEffect(() => {
@@ -1309,7 +1245,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
         </>
       )}
-      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[box-shadow,background-color,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome
+      <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`oyama-reference-topbar fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[box-shadow,background-color,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome
         ? "border-b border-white/10 bg-[#061a36] shadow-[0_10px_26px_rgba(2,10,28,0.22)] xl:h-14"
         : (scrolled
           ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px]"
@@ -1324,7 +1260,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
             : {}),
         }}>
         {!isDonorEnterpriseChrome ? (
-          <div aria-hidden="true" className={`pointer-events-none absolute left-0 top-0 z-10 hidden h-full transition-[width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "w-[372px]" : "w-[472px]"}`}>
+          <div aria-hidden="true" className={`oyama-reference-brand-decoration pointer-events-none absolute left-0 top-0 z-10 hidden h-full transition-[width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "w-[372px]" : "w-[472px]"}`}>
           <svg className="h-full w-full" viewBox="0 0 590 156" preserveAspectRatio="none">
             <defs>
               <radialGradient id="oyama-brand-glow" cx="16%" cy="20%" r="48%">
@@ -1359,7 +1295,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           className={`absolute bottom-0 ${isDonorEnterpriseChrome ? "left-0" : "left-[280px]"} right-0 h-px pointer-events-none hidden transition-opacity ${shellMotionClass} xl:block ${moduleAccentClass} ${topBarReactiveGlow ? "opacity-70" : "opacity-0"}`}
         />
 
-        <div className={`relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-64" : "w-[520px]"} xl:block`}>
+        <div className={`oyama-reference-topbar-brand relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-64" : "w-[520px]"} xl:block`}>
           {isDonorEnterpriseChrome ? (
             <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-[2px] px-1 py-1 text-white transition-colors hover:bg-white/[0.07]" aria-label="Go to OyamaCRM v1.45b home">
               <span className="text-[15px] font-bold tracking-[-0.035em]">OyamaCRM</span>
@@ -1379,10 +1315,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           )}
         </div>
 
-        <div className="relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-2 px-2 max-[380px]:gap-1.5 sm:px-3 xl:hidden">
+        <div className="oyama-reference-mobile-toolbar relative z-20 flex h-full w-full min-w-0 shrink-0 items-center justify-between gap-2 px-2 max-[380px]:gap-1.5 sm:px-3 xl:hidden">
           <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2">
             <div
-              className={`flex h-11 min-w-0 shrink items-center gap-1 rounded-2xl border px-1.5 max-[380px]:h-10 max-[380px]:rounded-xl max-[380px]:px-1 ${isDonorEnterpriseChrome ? "border-transparent bg-transparent px-0 shadow-none" : ""}`}
+              className={`oyama-reference-mobile-brand flex h-11 min-w-0 shrink items-center gap-1 rounded-2xl border px-1.5 max-[380px]:h-10 max-[380px]:rounded-xl max-[380px]:px-1 ${isDonorEnterpriseChrome ? "border-transparent bg-transparent px-0 shadow-none" : ""}`}
               style={{
                 background: isDonorEnterpriseChrome ? "transparent" : moduleChromePalette.mobileGradient,
                 borderColor: isDonorEnterpriseChrome ? "transparent" : moduleChromePalette.mobileBorderColor,
@@ -1426,7 +1362,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
           {/* Mobile top-right priority controls */}
           <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
-            <div className={isDonorEnterpriseChrome ? "hidden sm:block" : ""}><WorkspaceStatusControl dark={isDonorEnterpriseChrome} /></div>
+            <div className={isDonorEnterpriseChrome ? "hidden sm:block" : ""}><WorkspaceStatusControl dark={false} /></div>
             <Link
               href="/donor-profile"
               title="Open OYAMADonorPROFILE"
@@ -1490,62 +1426,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               {notificationsOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setNotificationsOpen(false)} />
-                  <div className={`${mobileSheetBase} max-h-[72vh] flex flex-col`}>
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
-                      <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => { setNotificationsOpen(false); router.push("/notifications"); }} className="text-xs font-semibold text-[#0f6cbd]">View all</button>
-                        <button onClick={() => void loadNotifications()} className="text-xs text-gray-500 hover:text-gray-700">Refresh</button>
-                      </div>
-                    </div>
-
-                    {notificationsLoading ? (
-                      <div className="px-4 py-6 text-sm text-gray-400">Loading notifications...</div>
-                    ) : notificationsError ? (
-                      <div className="px-4 py-6 text-sm text-red-600">{notificationsError}</div>
-                    ) : notifications.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-gray-500">No new notifications.</div>
-                    ) : (
-                      <div className="overflow-y-auto">
-                        {notifications.map((item) => (
-                          <div key={item.id} className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50">
-                            <button onClick={() => void openNotification(item)} className="w-full text-left">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
-                                <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                                  {item.priority}
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
-                              <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
-                            </button>
-                            <div className="mt-2 flex items-center gap-2">
-                              {item.status !== "read" ? (
-                                <button
-                                  onClick={() => void runNotificationAction(item.id, "read")}
-                                  className="text-[11px] font-medium text-slate-600 hover:text-slate-900"
-                                >
-                                  Mark read
-                                </button>
-                              ) : null}
-                              <button
-                                onClick={() => void runNotificationAction(item.id, "snooze", { until: new Date(Date.now() + 60 * 60 * 1000).toISOString() })}
-                                className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
-                              >
-                                Snooze 1h
-                              </button>
-                              <button
-                                onClick={() => void runNotificationAction(item.id, "dismiss")}
-                                className="text-[11px] font-medium text-red-600 hover:text-red-700"
-                              >
-                                Dismiss
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <div className={`${mobileSheetBase} max-h-[72vh] flex flex-col`}><NotificationPanel items={notifications} loading={notificationsLoading} error={notificationsError} busy={notificationBusy} unreadCount={unreadCount} onRefresh={() => void loadNotifications()} onReadAll={() => void readAllNotifications()} onOpen={(item) => void openNotification(item)} onAction={(item, action) => void runNotificationAction(item.id, action, action === "snooze" ? { until: new Date(Date.now() + 3600000).toISOString() } : undefined)} onNavigate={() => setNotificationsOpen(false)} /></div>
                 </>
               )}
             </div>
@@ -1570,16 +1451,17 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
         </div>
 
-        <div className={`absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? `pl-[230px] pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? `pl-[230px] pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
+        <div className={`oyama-reference-desktop-toolbar absolute inset-y-0 left-0 right-0 z-10 hidden min-w-0 items-center transition-[padding] ${shellMotionClass} xl:flex ${scrolled ? (isDonorEnterpriseChrome ? `pl-[230px] pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[304px] pr-5 2xl:pl-[332px] 2xl:pr-8") : (isDonorEnterpriseChrome ? `pl-[230px] pr-3 2xl:pr-4 ${donorDesktopInsetClass}` : "pl-[362px] pr-5 2xl:pl-[400px] 2xl:pr-8")}`}>
           <div className={`mx-auto flex min-w-0 w-full items-center ${isDonorEnterpriseChrome ? "max-w-[1480px] gap-2" : "gap-3"}`}>
           <div className={`flex min-w-0 flex-1 items-center ${isDonorEnterpriseChrome ? "gap-2 justify-start" : "gap-3 justify-end"}`}>
             {showModuleSwitcher && (
-              <div className="shrink-0">
+              <nav aria-label="Workspace breadcrumb" className="oyama-reference-breadcrumb flex shrink-0 items-center gap-3">
                 <ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled={scrolled} />
-              </div>
+                <span className="oyama-reference-current-page" aria-current="page"><span aria-hidden="true">/</span> {breadcrumbLabel}</span>
+              </nav>
             )}
 
-            <WorkspaceStatusControl dark={isDonorEnterpriseChrome} />
+            <WorkspaceStatusControl dark={false} />
 
             {showTopBarAppLauncher ? (
               <button
@@ -1595,9 +1477,9 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               </button>
             ) : null}
 
-            <div className={`flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-9 border-white/10 bg-white/[0.06] px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
+            <div className={`oyama-reference-search-tools flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-9 border-white/10 bg-white/[0.06] px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
               <div className={`min-w-0 flex-1 ${isDonorEnterpriseChrome ? "px-1" : "px-1.5"}`}>
-                <GlobalSearch moduleKey={moduleKey} pathname={pathname} darkChrome={isDonorEnterpriseChrome} onNavigate={() => setNotificationsOpen(false)} />
+                <GlobalSearch moduleKey={moduleKey} pathname={pathname} darkChrome={false} onNavigate={() => setNotificationsOpen(false)} />
               </div>
 
               {isDonorEnterpriseChrome && (
@@ -1664,72 +1546,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
                 {notificationsOpen && (
                   <>
-                    <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
-                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-900">Notifications</p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => void apiFetch("/api/notifications/mark-all-read", { method: "POST", body: JSON.stringify({ module: moduleKey === "oshareview" ? "donor" : moduleKey }) }).then(() => loadNotifications())}
-                            className="text-xs text-slate-600 hover:text-slate-800"
-                          >
-                            Mark all read
-                          </button>
-                          <button
-                            onClick={() => void loadNotifications()}
-                            className="text-xs text-gray-500 hover:text-gray-700"
-                          >
-                            Refresh
-                          </button>
-                        </div>
-                      </div>
-
-                      {notificationsLoading ? (
-                        <div className="px-4 py-6 text-sm text-gray-400">Loading notifications...</div>
-                      ) : notificationsError ? (
-                        <div className="px-4 py-6 text-sm text-red-600">{notificationsError}</div>
-                      ) : notifications.length === 0 ? (
-                        <div className="px-4 py-6 text-sm text-gray-500">No new notifications.</div>
-                      ) : (
-                        <div className="max-h-[360px] overflow-y-auto">
-                          {notifications.map((item) => (
-                            <div key={item.id} className="w-full px-4 py-3 border-b border-gray-100 text-left hover:bg-gray-50">
-                              <button onClick={() => void openNotification(item)} className="w-full text-left">
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</p>
-                                  <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${item.priority === "high" ? "bg-red-100 text-red-700" : item.priority === "medium" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                                    {item.priority}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.message}</p>
-                                <p className="text-[11px] text-gray-400 mt-1">{new Date(item.createdAt).toLocaleString()}</p>
-                              </button>
-                              <div className="mt-2 flex items-center gap-2">
-                                {item.status !== "read" ? (
-                                  <button
-                                    onClick={() => void runNotificationAction(item.id, "read")}
-                                    className="text-[11px] font-medium text-slate-600 hover:text-slate-900"
-                                  >
-                                    Mark read
-                                  </button>
-                                ) : null}
-                                <button
-                                  onClick={() => void runNotificationAction(item.id, "snooze", { until: new Date(Date.now() + 60 * 60 * 1000).toISOString() })}
-                                  className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
-                                >
-                                  Snooze 1h
-                                </button>
-                                <button
-                                  onClick={() => void runNotificationAction(item.id, "dismiss")}
-                                  className="text-[11px] font-medium text-red-600 hover:text-red-700"
-                                >
-                                  Dismiss
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <div className="absolute right-0 top-full z-50 mt-2 w-[390px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"><NotificationPanel items={notifications} loading={notificationsLoading} error={notificationsError} busy={notificationBusy} unreadCount={unreadCount} onRefresh={() => void loadNotifications()} onReadAll={() => void readAllNotifications()} onOpen={(item) => void openNotification(item)} onAction={(item, action) => void runNotificationAction(item.id, action, action === "snooze" ? { until: new Date(Date.now() + 3600000).toISOString() } : undefined)} onNavigate={() => setNotificationsOpen(false)} /></div>
                   </>
                 )}
               </div>
@@ -2005,7 +1822,7 @@ function ModuleSwitcher({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`group relative flex items-center overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-200 ease-out ${isDonorWorkspace ? "border-white/10 bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]" : `hover:border-slate-400 ${switcherTone.button}`} ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[150px] xl:gap-1.5 xl:px-2.5 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[182px] xl:gap-2 xl:px-3.5 xl:py-1"}`}
+        className={`oyama-reference-workspace-switcher group relative flex items-center overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-200 ease-out ${isDonorWorkspace ? "border-white/10 bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]" : `hover:border-slate-400 ${switcherTone.button}`} ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[150px] xl:gap-1.5 xl:px-2.5 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[182px] xl:gap-2 xl:px-3.5 xl:py-1"}`}
       >
         <span
           aria-hidden="true"

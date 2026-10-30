@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DonationForm from "@/app/components/donations/DonationForm";
+import DonationFollowUpModal from "./DonationFollowUpModal";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface Constituent { id: string; firstName: string; lastName: string; email?: string }
@@ -20,6 +21,7 @@ interface SelectData {
 }
 
 interface RecordGiftModalProps {
+  constituentId?: string;
   source?: string;
   campaignId?: string;
   campaignName?: string;
@@ -40,6 +42,7 @@ function buildGrantNotes(grantTitle?: string, funderName?: string): string {
 }
 
 export default function RecordGiftModal({
+  constituentId = "",
   source = "",
   campaignId = "",
   campaignName = "",
@@ -58,12 +61,11 @@ export default function RecordGiftModal({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [savedDonationId, setSavedDonationId] = useState<string | null>(null);
 
-  const handleSaved = useCallback(() => {
-    // A saved donation must never be held hostage by a follow-up ledger refresh.
-    // Close first, then refresh the background list without making the successful
-    // create flow appear to have failed.
-    onClose();
+  const handleSaved = useCallback((donationId?: string) => {
+    if (donationId) setSavedDonationId(donationId); else onClose();
+    // Gift success is independent of refreshing the ledger or optionally creating a task.
     void Promise.resolve().then(onSaved).catch(() => undefined);
   }, [onClose, onSaved]);
 
@@ -72,13 +74,16 @@ export default function RecordGiftModal({
       setLoading(true);
       setLoadError(null);
       try {
-        const [constData, campData, desigData] = await Promise.all([
+        const [constData, campData, desigData, selectedConstituent] = await Promise.all([
           apiFetch<Constituent[] | { items?: Constituent[] }>("/api/constituents?limit=40"),
           apiFetch<Campaign[] | { items?: Campaign[] }>("/api/campaigns?limit=100"),
           apiFetch<Designation[] | { items?: Designation[] }>("/api/designations?limit=100"),
+          constituentId ? apiFetch<Constituent>(`/api/constituents/${encodeURIComponent(constituentId)}`) : Promise.resolve(null),
         ]);
+        const options = Array.isArray(constData) ? constData : (constData.items ?? []);
+        if (selectedConstituent && !options.some((person) => person.id === selectedConstituent.id)) options.unshift(selectedConstituent);
         setSelectData({
-          constituents: Array.isArray(constData) ? constData : (constData.items ?? []),
+          constituents: options,
           campaigns: Array.isArray(campData) ? campData : (campData.items ?? []),
           designations: Array.isArray(desigData) ? desigData : (desigData.items ?? []),
         });
@@ -90,7 +95,7 @@ export default function RecordGiftModal({
     }
 
     void load();
-  }, []);
+  }, [constituentId]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -111,6 +116,7 @@ export default function RecordGiftModal({
   const defaultDonationValues = useMemo(() => {
     const amount = suggestedAmount && !Number.isNaN(Number(suggestedAmount)) ? String(Number(suggestedAmount)) : "";
     return {
+      ...(constituentId ? { constituentId } : {}),
       ...(eventId ? { eventId } : {}),
       ...(campaignId ? { campaignId } : {}),
       ...(source === "grant-award"
@@ -120,7 +126,7 @@ export default function RecordGiftModal({
           }
         : {}),
     };
-  }, [campaignId, eventId, funderName, grantTitle, source, suggestedAmount]);
+  }, [constituentId, campaignId, eventId, funderName, grantTitle, source, suggestedAmount]);
 
   const statusLabel = source === "grant-award"
     ? "Grant Handoff"
@@ -135,6 +141,7 @@ export default function RecordGiftModal({
         ? "Recording a donation directly against this event"
         : "Enter donation details and stewardship data";
 
+  if (savedDonationId) return <DonationFollowUpModal donationId={savedDonationId} newlyRecorded onClose={onClose} />;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#201f1e]/45 p-2 backdrop-blur-[2px] sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Close record gift" onClick={onClose} />

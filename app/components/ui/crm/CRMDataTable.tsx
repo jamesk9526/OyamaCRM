@@ -10,7 +10,7 @@ interface CRMDataTableProps {
 /** CRMDataTable provides a softer scroll container while preserving native table markup inside. */
 export default function CRMDataTable({ children, className = "" }: CRMDataTableProps) {
   return (
-    <CRMCard padding="none" className={`overflow-hidden ${className}`}>
+    <CRMCard padding="none" className={`oyama-table-shell overflow-hidden ${className}`}>
       <div className="max-w-full overflow-x-auto border-t border-slate-100">
         {children}
       </div>

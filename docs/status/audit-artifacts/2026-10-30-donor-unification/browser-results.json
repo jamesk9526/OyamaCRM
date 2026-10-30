@@ -1,0 +1,16 @@
+{
+  "checks": [
+    "Constituent search, type, page, and page size survive URL handoff; full filtered summaries display",
+    "Quick views preserve search, reset pagination, and survive reload",
+    "Supporter actions open the scoped giving ledger and show the completed-gift average",
+    "Record gift retains the selected supporter even outside the first 40 form options",
+    "Gift action menu preserves all advanced features and escapes table clipping; range acknowledgment cannot broaden supporter scope",
+    "Dashboard focus reveals relationships progressively; metric drilldown preserves exact reporting dates",
+    "Ledger failures are explicit and retry restores matching records",
+    "Invalid date ranges show a recoverable error instead of fetching misleading results",
+    "Dashboard, Constituents, Donations, and record actions fit the 390px viewport"
+  ],
+  "errors": [],
+  "writes": [],
+  "fixture": "Synthetic browser responses only; no business writes or outbound communications"
+}

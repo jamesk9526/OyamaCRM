@@ -7,7 +7,7 @@ import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireRole } from "../middleware/requireRole.js";
-import { createNotification } from "../services/notifications.js";
+import { notifyLiveComStaff } from "../services/livecom-notifications.js";
 import { enrollConstituentInTriggeredStewardPaths } from "../services/steward-path-enrollment-service.js";
 import {
   SITE_EMBEDS_PLUGIN_KEY,
@@ -1288,49 +1288,6 @@ async function findExistingLiveComConstituent(args: {
 /** Safely reads JSON metadata objects from activity rows. */
 function readActivityMetadata(value: Prisma.JsonValue | null): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-/** Creates durable staff notifications for new public LiveCom visitor messages. */
-async function notifyLiveComStaff(args: {
-  organizationId: string;
-  conversationId: string;
-  interactionId: string;
-  visitorName: string;
-  message: string;
-  siteName: string;
-}) {
-  try {
-    const users = await prisma.user.findMany({
-      where: {
-        organizationId: args.organizationId,
-        active: true,
-        role: { not: "readonly" },
-      },
-      select: { id: true },
-      take: 100,
-    });
-
-    await Promise.all(users.map((user) => createNotification({
-      organizationId: args.organizationId,
-      userId: user.id,
-      module: "donor",
-      sourceType: "livecom-message",
-      sourceId: args.interactionId,
-      title: `LiveCom message from ${args.visitorName || "Website Visitor"}`,
-      message: `${args.siteName || "Website"}: ${args.message.slice(0, 180)}`,
-      href: `/livecom/inbox?conversationId=${encodeURIComponent(args.conversationId)}`,
-      severity: "HIGH",
-      actionLabel: "Open LiveCom",
-      metadata: {
-        conversationId: args.conversationId,
-        visitorName: args.visitorName,
-        source: "site_embeds",
-      },
-    })));
-  } catch (notificationError) {
-    // Public chat delivery must not fail just because durable staff notifications are unavailable.
-    console.warn("[SiteEmbeds] LiveCom staff notification failed:", notificationError);
-  }
 }
 
 /** Reads a public LiveCom conversation thread that belongs to one site/session pair. */

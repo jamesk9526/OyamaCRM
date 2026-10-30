@@ -13,7 +13,7 @@ export default function Card({ children, className = "", padding = "medium" }: C
   };
 
   return (
-    <div className={`bg-white rounded-lg border border-gray-200 shadow-sm ${paddingClasses[padding]} ${className}`}>
+    <div className={`oyama-card bg-white rounded-lg border border-gray-200 shadow-sm ${paddingClasses[padding]} ${className}`}>
       {children}
     </div>
   );

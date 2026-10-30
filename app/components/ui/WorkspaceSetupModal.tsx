@@ -148,7 +148,7 @@ export default function WorkspaceSetupModal({
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div ref={dialogRef} tabIndex={-1} className={`w-full ${maxWidthClassName} max-h-[calc(100dvh-0.5rem)] overflow-hidden rounded-t-3xl border outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl ${shellClass} ${isDark ? "dark" : ""}`}>
+      <div ref={dialogRef} tabIndex={-1} data-appearance={appearance} className={`oyama-modal-surface w-full ${maxWidthClassName} max-h-[calc(100dvh-0.5rem)] overflow-hidden rounded-t-3xl border outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl ${shellClass} ${isDark ? "dark" : ""}`}>
         <div className={`sticky top-0 z-10 flex items-start justify-between gap-4 border-b ${isDark ? "border-slate-800 bg-[#020617]" : "border-slate-200 bg-white"} px-4 py-4 sm:px-6 sm:py-5`}>
           <div className="flex min-w-0 items-start gap-3">
             <div className={`mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${iconBadgeClass} ring-4 ${isDark ? "ring-slate-800" : theme.focusRing}`}>

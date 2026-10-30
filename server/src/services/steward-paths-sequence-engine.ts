@@ -14,6 +14,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { generateLetterFromTemplate } from "./letters-execution.js";
+import { createNotification } from "./notifications.js";
 
 /**
  * Local mirror of the BranchOperator type from `app/lib/engagement-orchestration.ts`.
@@ -1028,8 +1029,27 @@ async function processManualActionStep(ctx: EnrollmentContext, now: Date, userId
       throw new Error("safety.notify_staff requires assignee context");
     }
 
+    // Save the actual alert before advancing the step. Its step-run identity is
+    // stable across retries, so retrying failed work cannot flood the inbox.
+    const notification = await createNotification({
+      organizationId: enrollment.organizationId,
+      userId: assigneeId,
+      module: "donor",
+      sourceType: "steward-path-notification",
+      sourceId: run.id,
+      title: step.name || "Steward notification",
+      message: config.instruction || step.description || "Review this stewardship notification.",
+      href: `/steward-paths/enrollments?pathId=${encodeURIComponent(enrollment.path.id)}`,
+      actionLabel: "Review enrollment",
+      severity: "MEDIUM",
+      persistent: true,
+      metadata: { enrollmentId: enrollment.id, stepId: step.id, pathId: enrollment.path.id },
+    });
+    if (!notification) throw new Error("Steward notification requires an active assignee in this organization.");
+
     const notifyTask = await prisma.task.create({
       data: {
+        organizationId: enrollment.organizationId,
         constituentId: enrollment.constituentId ?? undefined,
         createdById: userId ?? assigneeId,
         assigneeId,
@@ -1037,6 +1057,9 @@ async function processManualActionStep(ctx: EnrollmentContext, now: Date, userId
         description: config.instruction || step.description || "Review this stewardship notification.",
         type: "FOLLOW_UP",
         priority: "MEDIUM",
+        sourceModule: "donor",
+        sourceType: "steward-path-notification",
+        sourceId: run.id,
       },
     });
 

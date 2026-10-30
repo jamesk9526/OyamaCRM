@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
+import DonationFollowUpModal from "@/app/components/donations/DonationFollowUpModal";
 
 interface Campaign {
   id: string;
@@ -60,6 +61,7 @@ function today(): string {
  * Provides amount, date, payment method, campaign, fund, check number, and notes.
  */
 export default function QuickGiftModal({ constituentId, constituentName, onClose, onSaved }: Props) {
+  const [savedGift, setSavedGift] = useState<Donation | null>(null);
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today());
   const [paymentMethod, setPaymentMethod] = useState("CHECK");
@@ -110,7 +112,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
           status: "COMPLETED",
         }),
       });
-      onSaved(donation);
+      setSavedGift(donation);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save donation");
     } finally {
@@ -118,6 +120,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
     }
   }
 
+  if (savedGift) return <DonationFollowUpModal donationId={savedGift.id} newlyRecorded onClose={() => onSaved(savedGift)} />;
   return (
     <WorkspaceSetupModal
       title="Record Gift"

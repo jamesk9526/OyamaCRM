@@ -5,20 +5,24 @@
  * Supports filtering by assignee, status, and constituent, with pagination.
  *
  * Routes:
- *   GET    /api/tasks      — paginated task list with optional filters
- *   POST   /api/tasks      — create a new task
- *   PATCH  /api/tasks/:id  — update a task (status, due date, notes, etc.)
- *   DELETE /api/tasks/:id  — delete a task
+ *   GET    /api/tasks      â€” paginated task list with optional filters
+ *   POST   /api/tasks      â€” create a new task
+ *   PATCH  /api/tasks/:id  â€” update a task (status, due date, notes, etc.)
+ *   DELETE /api/tasks/:id  â€” delete a task
  *
  * @module routes/tasks
  */
 import { Router } from "express";
-import type { Prisma, TaskStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import type { Request, Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma.js";
-import { resolveOrganizationId } from "../lib/organization.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
-import { createTaskAssignmentNotification, createTaskOverdueNotification } from "../services/notifications.js";
+import {
+  createTaskAssignmentNotification,
+  createTaskOverdueNotification,
+  resolveTaskNotifications,
+} from "../services/notifications.js";
 
 const router = Router();
 
@@ -39,8 +43,9 @@ const STEWARDSHIP_TASK_TEMPLATES: StewardshipTaskTemplate[] = [
     title: "Call donor to thank them for their recent gift",
     type: "CALL",
     priority: "HIGH",
-    description: "Thank the donor personally, confirm designation intent, and capture any follow-up commitments.",
-    dueInDays: 1,
+    description:
+      "Thank the donor personally, confirm designation intent, and capture any follow-up commitments.",
+    dueInDays: 0,
   },
   {
     id: "impact-follow-up",
@@ -48,7 +53,8 @@ const STEWARDSHIP_TASK_TEMPLATES: StewardshipTaskTemplate[] = [
     title: "Share 30-day impact update with donor",
     type: "FOLLOW_UP",
     priority: "MEDIUM",
-    description: "Send a concise impact note highlighting outcomes and invite continued engagement.",
+    description:
+      "Send a concise impact note highlighting outcomes and invite continued engagement.",
     dueInDays: 30,
   },
   {
@@ -57,7 +63,8 @@ const STEWARDSHIP_TASK_TEMPLATES: StewardshipTaskTemplate[] = [
     title: "Schedule stewardship check-in with major donor",
     type: "MEETING",
     priority: "URGENT",
-    description: "Coordinate a personal stewardship meeting with leadership and prepare tailored talking points.",
+    description:
+      "Coordinate a personal stewardship meeting with leadership and prepare tailored talking points.",
     dueInDays: 7,
   },
   {
@@ -66,630 +73,608 @@ const STEWARDSHIP_TASK_TEMPLATES: StewardshipTaskTemplate[] = [
     title: "Email lapsed donor with re-engagement message",
     type: "EMAIL",
     priority: "MEDIUM",
-    description: "Acknowledge past support and share one concrete reason to re-engage this quarter.",
+    description:
+      "Acknowledge past support and share one concrete reason to re-engage this quarter.",
     dueInDays: 3,
   },
 ];
 
-// All task routes require authentication.
+import {
+  TaskValidationError,
+  activeTaskStatuses,
+  canAccessTask,
+  canManageTeamTasks,
+  taskOrganizationWhere,
+  validateTaskInput,
+} from "../services/task-policy.js";
+
 router.use(requireAuth);
-
-// Task endpoints use view/edit fine-grained permissions.
-router.use((req, res, next) => {
-  if (req.method === "GET") {
-    return requirePermission("view:tasks")(req, res, next);
-  }
-  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE") {
-    return requirePermission("edit:tasks")(req, res, next);
-  }
-  return next();
-});
-
-/** True when a task should be visible/editable to the current user. */
-function canAccessTask(task: { createdById: string | null; assigneeId: string | null }, userId: string, role: string | undefined): boolean {
-  if (role === "admin") return true;
-  return task.createdById === userId || task.assigneeId === userId;
-}
-
-/** OR-scoped task visibility for records linked to the authenticated organization. */
-function taskOrganizationWhere(organizationId: string) {
-  return {
-    OR: [
-      { organizationId },
-      { constituent: { organizationId } },
-      { assignee: { organizationId } },
-      { createdBy: { organizationId } },
-      { meeting: { organizationId } },
-    ],
-  };
-}
-
-/** GET /api/tasks/templates — Return built-in stewardship task templates for task creation workflows. */
-router.get("/templates", async (_req, res) => {
-  res.json(STEWARDSHIP_TASK_TEMPLATES);
-});
-
-/** GET /api/tasks — Paginated task list. Filterable by assigneeId, status, and constituentId. */
-router.get("/", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-  if (!organizationId) {
-    res.json({ items: [], total: 0, page: 1, limit: 25 });
-    return;
-  }
-
-  const {
-    assigneeId,
-    status,
-    constituentId,
-    queue = "all",
-    includeArchived = "false",
-    scope = "personal",
-    page = "1",
-    limit = "25",
-  } = req.query as Record<string, string>;
-  const parsedPage = Math.max(parseInt(page) || 1, 1);
-  const parsedLimit = Math.min(Math.max(parseInt(limit) || 25, 1), 100);
-  const skip = (parsedPage - 1) * parsedLimit;
-  const personalScope = !(scope === "all" && role === "admin");
-  const now = new Date();
-  const activeTaskStatuses: TaskStatus[] = ["PENDING", "IN_PROGRESS"];
-
-  const queueWhere: Prisma.TaskWhereInput =
-    queue === "my-today"
-      ? {
-          assigneeId: userId,
-          status: { in: activeTaskStatuses },
-          dueDate: { lte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999) },
-        }
-      : queue === "overdue"
-        ? {
-            ...(personalScope ? { assigneeId: userId } : {}),
-            status: { in: activeTaskStatuses },
-            dueDate: { lt: now },
-          }
-        : queue === "completed"
-          ? { status: "COMPLETED" as const }
-          : queue === "assigned-by-me"
-            ? { createdById: userId }
-            : queue === "assigned-to-me"
-              ? { assigneeId: userId }
-              : queue === "team"
-                ? { status: { in: activeTaskStatuses } }
-                : {};
-
-  const where: Prisma.TaskWhereInput = {
-    AND: [
-      taskOrganizationWhere(organizationId),
-      ...(personalScope ? [{ OR: [{ createdById: userId }, { assigneeId: userId }] }] : []),
-      ...(status ? [{ status: status as TaskStatus }] : []),
-    ],
-    ...(assigneeId && { assigneeId }),
-    ...(constituentId && { constituentId }),
-    ...(includeArchived !== "true" && { archivedAt: null }),
-    ...queueWhere,
-  };
-
-  const [items, total] = await Promise.all([
-    prisma.task.findMany({
-      where,
-      skip,
-      take: parsedLimit,
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      include: {
-        constituent: { select: { id: true, firstName: true, lastName: true } },
-        assignee: { select: { id: true, firstName: true, lastName: true } },
-        createdBy: { select: { id: true, firstName: true, lastName: true } },
-        completedBy: { select: { id: true, firstName: true, lastName: true } },
-      },
-    }),
-    prisma.task.count({ where }),
-  ]);
-
-  res.json({ items, total, page: parsedPage, limit: parsedLimit });
-});
-
-/** POST /api/tasks — Create a new task. Body is passed directly to Prisma; include constituentId and assigneeId. */
-router.post("/", async (req, res) => {
-  const userId = req.user?.sub;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId || !organizationId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-
-  const {
-    title,
-    description,
-    type,
-    status,
-    priority,
-    dueDate,
-    reminderAt,
-    sourceModule,
-    sourceType,
-    sourceId,
-    checklistJson,
-    metadata,
-    constituentId,
-    assigneeId,
-    meetingId,
-  } = req.body as Record<string, string>;
-
-  if (assigneeId) {
-    const assignee = await prisma.user.findFirst({
-      where: { id: assigneeId, organizationId },
-      select: { id: true },
-    });
-    if (!assignee) {
-      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid assigneeId for your organization" } });
-      return;
+router.use((req, res, next) =>
+  requirePermission(req.method === "GET" ? "view:tasks" : "edit:tasks")(
+    req,
+    res,
+    next,
+  ),
+);
+const related = {
+  constituent: { select: { id: true, firstName: true, lastName: true } },
+  assignee: { select: { id: true, firstName: true, lastName: true } },
+  createdBy: { select: { id: true, firstName: true, lastName: true } },
+  completedBy: { select: { id: true, firstName: true, lastName: true } },
+} as const;
+const route =
+  (work: (req: Request, res: Response) => Promise<unknown>) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await work(req, res);
+    } catch (error) {
+      if (error instanceof TaskValidationError) {
+        res
+          .status(400)
+          .json({
+            error: { code: "VALIDATION_ERROR", message: error.message },
+          });
+        return;
+      }
+      next(error);
     }
-  }
-
-  if (!title || !String(title).trim()) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "title is required" } });
-    return;
-  }
-
-  if (constituentId) {
-    const constituent = await prisma.constituent.findFirst({
-      where: { id: constituentId, organizationId },
-      select: { id: true },
-    });
-    if (!constituent) {
-      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid constituentId for your organization" } });
-      return;
-    }
-  }
-
-  const task = await prisma.task.create({
-    data: {
-      organizationId,
-      title: String(title).trim(),
-      description: description ? String(description) : null,
-      type: (type as never) || "FOLLOW_UP",
-      status: (status as never) || "PENDING",
-      priority: (priority as never) || "MEDIUM",
-      dueDate: dueDate ? new Date(dueDate) : null,
-      reminderAt: reminderAt ? new Date(reminderAt) : null,
-      sourceModule: sourceModule ? String(sourceModule) : "donor",
-      sourceType: sourceType ? String(sourceType) : "manual",
-      sourceId: sourceId ? String(sourceId) : null,
-      checklistJson: checklistJson ?? null,
-      metadata: metadata ?? null,
-      constituentId: constituentId || null,
-      meetingId: meetingId || null,
-      createdById: userId,
-      assigneeId: assigneeId || userId,
-    },
-    include: {
-      constituent: { select: { id: true, firstName: true, lastName: true } },
-      assignee: { select: { id: true, firstName: true, lastName: true } },
-      createdBy: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
-
-  if (task.constituentId) {
-    await prisma.activity.create({
-      data: {
-        constituentId: task.constituentId,
-        taskId: task.id,
-        userId: task.createdById ?? undefined,
-        type: "NOTE",
-        description: `Task created: ${task.title}`,
-        metadata: { source: "api/tasks:create", status: task.status, priority: task.priority },
-      },
-    });
-  }
-
-  if (task.assigneeId && task.assigneeId !== userId) {
-    const assignedBy = task.createdBy ? `${task.createdBy.firstName} ${task.createdBy.lastName}`.trim() : null;
-    await createTaskAssignmentNotification({
-      organizationId,
-      assigneeId: task.assigneeId,
-      taskId: task.id,
-      taskTitle: task.title,
-      dueDate: task.dueDate,
-      assignedByName: assignedBy,
-    });
-  }
-
-  if (task.assigneeId && task.dueDate && task.dueDate < new Date()) {
-    await createTaskOverdueNotification({
-      organizationId,
-      assigneeId: task.assigneeId,
-      taskId: task.id,
-      taskTitle: task.title,
-    });
-  }
-
-  res.status(201).json(task);
-});
-
-/** PATCH /api/tasks/:id — Partially update a task (e.g., mark complete, change assignee, update due date). */
-router.patch("/:id", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-  if (!organizationId) {
-    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-    return;
-  }
-
-  const existing = await prisma.task.findFirst({
-    where: { id: req.params.id, ...taskOrganizationWhere(organizationId) },
-    select: { id: true, createdById: true, assigneeId: true, constituentId: true, title: true },
-  });
-  if (!existing) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
-    return;
-  }
-  if (!canAccessTask(existing, userId, role)) {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
-    return;
-  }
-
-  const task = await prisma.task.update({
-    where: { id: req.params.id },
-    data: {
-      ...req.body,
-      ...(req.body?.dueDate !== undefined && {
-        dueDate: req.body?.dueDate ? new Date(req.body.dueDate) : null,
-      }),
-      ...(req.body?.reminderAt !== undefined && {
-        reminderAt: req.body?.reminderAt ? new Date(req.body.reminderAt) : null,
-      }),
-      ...(req.body?.snoozedUntil !== undefined && {
-        snoozedUntil: req.body?.snoozedUntil ? new Date(req.body.snoozedUntil) : null,
-      }),
-      ...(req.body?.archivedAt !== undefined && {
-        archivedAt: req.body?.archivedAt ? new Date(req.body.archivedAt) : null,
-      }),
-      ...(req.body?.status === "COMPLETED"
-        ? {
-            completedAt: new Date(),
-            completedById: userId,
-          }
-        : {}),
-    },
-  });
-
-  if (task.constituentId) {
-    await prisma.activity.create({
-      data: {
-        constituentId: task.constituentId,
-        taskId: task.id,
-        userId: task.assigneeId ?? undefined,
-        type: task.status === "COMPLETED" ? "TASK_COMPLETED" : "NOTE",
-        description: task.status === "COMPLETED" ? `Task completed: ${task.title}` : `Task updated: ${task.title}`,
-        metadata: { source: "api/tasks:update", status: task.status },
-      },
-    });
-  }
-
-  res.json(task);
-});
-
-/** POST /api/tasks/:id/start — Mark task as in progress. */
-router.post("/:id/start", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId || !organizationId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-
-  const existing = await prisma.task.findFirst({
-    where: { id: req.params.id, ...taskOrganizationWhere(organizationId), archivedAt: null },
-    select: { id: true, createdById: true, assigneeId: true },
-  });
-  if (!existing) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
-    return;
-  }
-  if (!canAccessTask(existing, userId, role)) {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
-    return;
-  }
-
-  const task = await prisma.task.update({
-    where: { id: req.params.id },
-    data: {
-      status: "IN_PROGRESS",
-      snoozedUntil: null,
-    },
-  });
-
-  res.json(task);
-});
-
-/** POST /api/tasks/:id/complete — Complete a task with optional outcome. */
-router.post("/:id/complete", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId || !organizationId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-
-  const existing = await prisma.task.findFirst({
-    where: { id: req.params.id, ...taskOrganizationWhere(organizationId) },
-    select: { id: true, title: true, createdById: true, assigneeId: true, constituentId: true },
-  });
-  if (!existing) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
-    return;
-  }
-  if (!canAccessTask(existing, userId, role)) {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
-    return;
-  }
-
-  const outcome = typeof req.body?.outcome === "string" ? req.body.outcome.trim() : "";
-  const task = await prisma.task.update({
-    where: { id: req.params.id },
-    data: {
-      status: "COMPLETED",
-      completedAt: new Date(),
-      completedById: userId,
-      snoozedUntil: null,
-      archivedAt: null,
-      outcome: outcome || null,
-    },
-  });
-
-  if (existing.constituentId) {
-    await prisma.activity.create({
-      data: {
-        constituentId: existing.constituentId,
-        taskId: existing.id,
-        userId,
-        type: "TASK_COMPLETED",
-        description: `Task completed: ${existing.title}`,
-        metadata: { source: "api/tasks:complete", outcome: outcome || null },
-      },
-    });
-  }
-
-  res.json(task);
-});
-
-/** POST /api/tasks/:id/snooze — Snooze a task by date and set status back to pending. */
-router.post("/:id/snooze", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId || !organizationId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-
-  const existing = await prisma.task.findFirst({
-    where: { id: req.params.id, ...taskOrganizationWhere(organizationId), archivedAt: null },
-    select: { id: true, createdById: true, assigneeId: true },
-  });
-  if (!existing) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
-    return;
-  }
-  if (!canAccessTask(existing, userId, role)) {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
-    return;
-  }
-
-  const untilRaw = req.body?.until;
-  const until = typeof untilRaw === "string" || untilRaw instanceof Date
-    ? new Date(untilRaw)
-    : new Date(Date.now() + 60 * 60 * 1000);
-  if (Number.isNaN(until.getTime())) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid snooze date" } });
-    return;
-  }
-
-  const task = await prisma.task.update({
-    where: { id: req.params.id },
-    data: {
-      status: "PENDING",
-      snoozedUntil: until,
-    },
-  });
-
-  res.json(task);
-});
-
-/** POST /api/tasks/:id/archive — Archive a completed/canceled task for historical views. */
-router.post("/:id/archive", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId || !organizationId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-
-  const existing = await prisma.task.findFirst({
-    where: { id: req.params.id, ...taskOrganizationWhere(organizationId) },
-    select: { id: true, createdById: true, assigneeId: true, status: true },
-  });
-  if (!existing) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
-    return;
-  }
-  if (!canAccessTask(existing, userId, role)) {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
-    return;
-  }
-  if (existing.status !== "COMPLETED" && existing.status !== "CANCELLED") {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Only completed or canceled tasks can be archived" } });
-    return;
-  }
-
-  const task = await prisma.task.update({
-    where: { id: req.params.id },
-    data: { archivedAt: new Date() },
-  });
-
-  res.json(task);
-});
-
-/**
- * POST /api/tasks/bulk-assign
- * Reassigns many tasks to one assignee in one action and writes timeline notes for linked constituents.
- */
-router.post("/bulk-assign", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-  if (!organizationId) {
-    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-    return;
-  }
-
-  const assigneeId = typeof req.body?.assigneeId === "string" ? req.body.assigneeId : "";
-  const taskIdsRaw: unknown[] = Array.isArray(req.body?.taskIds) ? req.body.taskIds : [];
-  const taskIds = Array.from(new Set(taskIdsRaw.filter((value): value is string => typeof value === "string" && value.trim().length > 0)));
-
-  if (!assigneeId) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "assigneeId is required" } });
-    return;
-  }
-  if (taskIds.length === 0) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "taskIds must contain at least one task id" } });
-    return;
-  }
-
-  const assignee = await prisma.user.findFirst({ where: { id: assigneeId, organizationId }, select: { id: true, firstName: true, lastName: true } });
-  if (!assignee) {
-    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid assigneeId for your organization" } });
-    return;
-  }
-
-  const tasks = await prisma.task.findMany({
-    where: {
-      id: { in: taskIds },
-      ...taskOrganizationWhere(organizationId),
-    },
-    select: {
-      id: true,
-      title: true,
-      createdById: true,
-      assigneeId: true,
-      constituentId: true,
-    },
-  });
-
-  if (tasks.length === 0) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "No matching tasks found" } });
-    return;
-  }
-
-  const unauthorized = tasks.filter((task) => !canAccessTask(task, userId, role));
-  if (unauthorized.length > 0) {
-    res.status(403).json({
-      error: {
-        code: "FORBIDDEN",
-        message: "One or more tasks are outside your access scope",
-      },
-    });
-    return;
-  }
-
-  const idsToUpdate = tasks.map((task) => task.id);
-  const reassignedByName = `user:${userId}`;
-  const assigneeName = `${assignee.firstName} ${assignee.lastName}`.trim();
-
-  await prisma.task.updateMany({
-    where: { id: { in: idsToUpdate } },
-    data: {
-      assigneeId: assignee.id,
-      snoozedUntil: null,
-    },
-  });
-
-  const activityRows = tasks
-    .filter((task) => Boolean(task.constituentId))
-    .map((task) => ({
-      constituentId: task.constituentId as string,
-      taskId: task.id,
-      userId,
-      type: "NOTE" as const,
-      description: `Task reassigned: ${task.title} -> ${assigneeName}`,
-      metadata: {
-        source: "api/tasks:bulk-assign",
-        reassignedBy: reassignedByName,
-        assigneeId: assignee.id,
-        assigneeName,
-      },
-    }));
-
-  if (activityRows.length > 0) {
-    await prisma.activity.createMany({ data: activityRows });
-  }
-
-  await Promise.all(
-    tasks.map((task) =>
-      createTaskAssignmentNotification({
-        organizationId,
-        assigneeId: assignee.id,
-        taskId: task.id,
-        taskTitle: task.title,
-        assignedByName: reassignedByName,
-      })
-    )
-  );
-
-  res.json({
-    updatedCount: idsToUpdate.length,
-    assignee: { id: assignee.id, name: assigneeName },
-  });
-});
-
-/** DELETE /api/tasks/:id — Delete a task permanently (owner/assignee/admin). */
-router.delete("/:id", async (req, res) => {
-  const userId = req.user?.sub;
-  const role = req.user?.role;
-  const organizationId = await resolveOrganizationId({ req });
-  if (!userId) {
-    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
-    return;
-  }
-  if (!organizationId) {
-    res.status(403).json({ error: { code: "ORG_REQUIRED", message: "No organization configured." } });
-    return;
-  }
-
-  const id = req.params.id as string;
+  };
+function organization(req: Request): string {
+  if (!req.user?.orgId)
+    throw new TaskValidationError(
+      "Your account needs an organization before managing tasks.",
+    );
+  return req.user.orgId;
+}
+async function accessibleTask(req: Request, res: Response) {
   const task = await prisma.task.findFirst({
-    where: { id, ...taskOrganizationWhere(organizationId) },
-    select: { id: true, createdById: true, assigneeId: true },
+    where: {
+      id: String(req.params.id),
+      ...taskOrganizationWhere(organization(req)),
+    },
+    include: related,
   });
   if (!task) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Task not found" } });
-    return;
+    res
+      .status(404)
+      .json({
+        error: {
+          code: "NOT_FOUND",
+          message: "Task not found in your organization.",
+        },
+      });
+    return null;
   }
-  if (!canAccessTask(task, userId, role)) {
-    res.status(403).json({ error: { code: "FORBIDDEN", message: "You do not have access to this task" } });
-    return;
+  if (!canAccessTask(task, req.user!.sub, req.user!.role)) {
+    res
+      .status(403)
+      .json({
+        error: {
+          code: "FORBIDDEN",
+          message: "You do not have access to this task.",
+        },
+      });
+    return null;
   }
-
-  await prisma.task.delete({ where: { id } });
-  res.status(204).send();
-});
-
+  return task;
+}
+async function validateRelations(
+  values: Record<string, unknown>,
+  organizationId: string,
+) {
+  for (const field of ["assigneeId", "constituentId", "meetingId"] as const) {
+    const id = values[field];
+    if (!id) continue;
+    const where = { id: String(id), organizationId };
+    const row =
+      field === "assigneeId"
+        ? await prisma.user.findFirst({
+            where: { ...where, active: true, role: { not: "compassion_user" } },
+            select: { id: true },
+          })
+        : field === "constituentId"
+          ? await prisma.constituent.findFirst({ where, select: { id: true } })
+          : await prisma.meeting.findFirst({ where, select: { id: true } });
+    if (!row)
+      throw new TaskValidationError(
+        `Choose an active ${field === "assigneeId" ? "staff account" : field === "constituentId" ? "constituent" : "meeting"} in your organization.`,
+      );
+  }
+}
+interface NoticeTask {
+  id: string;
+  assigneeId: string | null;
+  title: string;
+  dueDate: Date | null;
+  reminderAt: Date | null;
+  status: string;
+  archivedAt: Date | null;
+  snoozedUntil: Date | null;
+}
+async function notifyTask(
+  task: NoticeTask,
+  organizationId: string,
+  previous?: NoticeTask | null,
+) {
+  try {
+    const active =
+      activeTaskStatuses.includes(task.status as never) && !task.archivedAt;
+    const reassigned = task.assigneeId !== previous?.assigneeId;
+    const reopened = Boolean(
+      previous &&
+        !activeTaskStatuses.includes(previous.status as never) &&
+        active,
+    );
+    const rescheduled =
+      task.dueDate?.getTime() !== previous?.dueDate?.getTime();
+    const reminderChanged =
+      task.reminderAt?.getTime() !== previous?.reminderAt?.getTime();
+    if (!active || reassigned || reopened || !task.assigneeId)
+      await resolveTaskNotifications({ organizationId, taskId: task.id });
+    else {
+      const sourceTypes: Array<"task-overdue" | "task-reminder"> = [];
+      if (rescheduled) sourceTypes.push("task-overdue");
+      if (reminderChanged) sourceTypes.push("task-reminder");
+      if (sourceTypes.length)
+        await resolveTaskNotifications({
+          organizationId,
+          taskId: task.id,
+          sourceTypes,
+        });
+    }
+    if (active && task.assigneeId) {
+      if (reassigned || reopened || !previous)
+        await createTaskAssignmentNotification({
+          organizationId,
+          assigneeId: task.assigneeId,
+          taskId: task.id,
+          taskTitle: task.title,
+          dueDate: task.dueDate,
+        });
+      if (
+        (rescheduled || reassigned || reopened || !previous) &&
+        task.dueDate &&
+        task.dueDate < new Date() &&
+        (!task.snoozedUntil || task.snoozedUntil <= new Date())
+      )
+        await createTaskOverdueNotification({
+          organizationId,
+          assigneeId: task.assigneeId,
+          taskId: task.id,
+          taskTitle: task.title,
+          dueDate: task.dueDate,
+        });
+    }
+    return undefined;
+  } catch {
+    console.error(
+      "[tasks] Notification delivery failed after saved task",
+      task.id,
+    );
+    return "Task saved. Its notification could not be refreshed; check Notifications before assigning it again.";
+  }
+}
+router.get("/templates", (_req, res) => res.json(STEWARDSHIP_TASK_TEMPLATES));
+router.get(
+  "/assignees",
+  route(async (req, res) => {
+    const items = await prisma.user.findMany({
+      where: {
+        organizationId: organization(req),
+        active: true,
+        role: { not: "compassion_user" },
+      },
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      take: 500,
+    });
+    res.json({ items });
+  }),
+);
+router.get(
+  "/",
+  route(async (req, res) => {
+    const userId = req.user!.sub;
+    const organizationId = organization(req);
+    if (!organizationId) {
+      res.json({ items: [], total: 0, page: 1, limit: 25, totalPages: 1 });
+      return;
+    }
+    const q = req.query as Record<string, string>;
+    const page = Math.max(1, Math.min(100000, parseInt(q.page) || 1));
+    const limit = Math.max(1, Math.min(100, parseInt(q.limit) || 25));
+    if (q.status) validateTaskInput({ status: q.status });
+    if (q.type) validateTaskInput({ type: q.type });
+    if (q.priority) validateTaskInput({ priority: q.priority });
+    const queues = [
+      "all",
+      "my-today",
+      "overdue",
+      "completed",
+      "assigned-by-me",
+      "assigned-to-me",
+      "team",
+      "followups",
+    ];
+    if (q.queue && !queues.includes(q.queue))
+      throw new TaskValidationError("Choose a valid task queue.");
+    const personal = !(q.scope === "all" && canManageTeamTasks(req.user!.role));
+    const now = new Date();
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+    const queueWhere: Prisma.TaskWhereInput =
+      q.queue === "my-today"
+        ? {
+            assigneeId: userId,
+            status: { in: activeTaskStatuses },
+            dueDate: { lte: todayEnd },
+          }
+        : q.queue === "overdue"
+          ? {
+              ...(personal ? { assigneeId: userId } : {}),
+              status: { in: activeTaskStatuses },
+              dueDate: { lt: now },
+            }
+          : q.queue === "completed"
+            ? { status: "COMPLETED" }
+            : q.queue === "assigned-by-me"
+              ? { createdById: userId }
+              : q.queue === "assigned-to-me"
+                ? { assigneeId: userId }
+                : q.queue === "followups"
+                  ? {
+                      type: { in: ["FOLLOW_UP", "THANK_YOU", "CALL", "EMAIL"] },
+                    }
+                  : {};
+    const where: Prisma.TaskWhereInput = {
+      AND: [
+        taskOrganizationWhere(organizationId),
+        ...(personal
+          ? [{ OR: [{ createdById: userId }, { assigneeId: userId }] }]
+          : []),
+        ...(q.status ? [{ status: q.status as never }] : []),
+        ...(q.type ? [{ type: q.type as never }] : []),
+        ...(q.priority ? [{ priority: q.priority as never }] : []),
+        ...(q.search?.trim()
+          ? [
+              {
+                OR: [
+                  { title: { contains: q.search.trim().slice(0, 500) } },
+                  { description: { contains: q.search.trim().slice(0, 500) } },
+                  { constituent: { firstName: { contains: q.search.trim() } } },
+                  { constituent: { lastName: { contains: q.search.trim() } } },
+                ],
+              },
+            ]
+          : []),
+      ],
+      ...(q.assigneeId ? { assigneeId: q.assigneeId } : {}),
+      ...(q.constituentId ? { constituentId: q.constituentId } : {}),
+      ...(q.includeArchived !== "true" ? { archivedAt: null } : {}),
+      ...queueWhere,
+    };
+    const [items, total] = await Promise.all([
+      prisma.task.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        include: related,
+      }),
+      prisma.task.count({ where }),
+    ]);
+    res.json({
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    });
+  }),
+);
+router.get(
+  "/:id",
+  route(async (req, res) => {
+    const task = await accessibleTask(req, res);
+    if (task) res.json(task);
+  }),
+);
+router.post(
+  "/",
+  route(async (req, res) => {
+    const organizationId = organization(req),
+      userId = req.user!.sub;
+    const values = validateTaskInput(req.body, true);
+    if (!("assigneeId" in values)) values.assigneeId = userId;
+    await validateRelations(values, organizationId);
+    if (
+      values.archivedAt &&
+      !["COMPLETED", "CANCELLED"].includes(String(values.status))
+    )
+      throw new TaskValidationError(
+        "Only completed or cancelled tasks can be archived.",
+      );
+    const task = await prisma.$transaction(async (tx) => {
+      const saved = await tx.task.create({
+        data: {
+          ...values,
+          organizationId,
+          createdById: userId,
+          sourceModule: values.sourceModule || "donor",
+          sourceType: values.sourceType || "manual",
+          ...(values.status === "COMPLETED"
+            ? { completedAt: new Date(), completedById: userId }
+            : {}),
+        } as Prisma.TaskUncheckedCreateInput,
+        include: related,
+      });
+      if (saved.constituentId)
+        await tx.activity.create({
+          data: {
+            constituentId: saved.constituentId,
+            taskId: saved.id,
+            userId,
+            type: "NOTE",
+            description: `Task created: ${saved.title}`,
+            metadata: { source: "api/tasks:create" },
+          },
+        });
+      return saved;
+    });
+    res
+      .status(201)
+      .json({
+        ...task,
+        notificationWarning: await notifyTask(task, organizationId, null),
+      });
+  }),
+);
+router.patch(
+  "/:id",
+  route(async (req, res) => {
+    const existing = await accessibleTask(req, res);
+    if (!existing) return;
+    const organizationId = organization(req),
+      userId = req.user!.sub;
+    const values = validateTaskInput(req.body);
+    if (existing.sourceType === "donation-follow-up" && "constituentId" in values && values.constituentId !== existing.constituentId) throw new TaskValidationError("A donation follow-up must stay linked to the gift's donor.");
+    await validateRelations(values, organizationId);
+    const nextStatus = String(values.status ?? existing.status);
+    if (values.archivedAt && !["COMPLETED", "CANCELLED"].includes(nextStatus))
+      throw new TaskValidationError(
+        "Only completed or cancelled tasks can be archived.",
+      );
+    if (values.status !== undefined) {
+      if (nextStatus === "COMPLETED") {
+        values.completedAt = existing.completedAt ?? new Date();
+        values.completedById = existing.completedById ?? userId;
+        values.snoozedUntil = null;
+      } else {
+        values.completedAt = null;
+        values.completedById = null;
+        values.outcome = null;
+        if (activeTaskStatuses.includes(nextStatus as never))
+          values.archivedAt = null;
+      }
+    }
+    const task = await prisma.$transaction(async (tx) => {
+      const saved = await tx.task.update({
+        where: { id: existing.id },
+        data: values as Prisma.TaskUncheckedUpdateInput,
+        include: related,
+      });
+      if (saved.constituentId)
+        await tx.activity.create({
+          data: {
+            constituentId: saved.constituentId,
+            taskId: saved.id,
+            userId,
+            type:
+              saved.status === "COMPLETED" && existing.status !== "COMPLETED"
+                ? "TASK_COMPLETED"
+                : "NOTE",
+            description: `Task ${saved.status === "COMPLETED" ? "completed" : "updated"}: ${saved.title}`,
+            metadata: { source: "api/tasks:update", status: saved.status },
+          },
+        });
+      return saved;
+    });
+    res.json({
+      ...task,
+      notificationWarning: await notifyTask(task, organizationId, existing),
+    });
+  }),
+);
+// Transition commands apply the same validation and server-owned completion metadata.
+for (const action of [
+  "start",
+  "complete",
+  "reopen",
+  "snooze",
+  "archive",
+] as const) {
+  router.post(
+    `/:id/${action}`,
+    route(async (req, res) => {
+      const existing = await accessibleTask(req, res);
+      if (!existing) return;
+      if (
+        action === "snooze" &&
+        (!activeTaskStatuses.includes(existing.status) || existing.archivedAt)
+      )
+        throw new TaskValidationError("Only active tasks can be snoozed.");
+      if (
+        action === "archive" &&
+        !["COMPLETED", "CANCELLED"].includes(existing.status)
+      )
+        throw new TaskValidationError(
+          "Only completed or cancelled tasks can be archived.",
+        );
+      let values: Record<string, unknown> =
+        action === "start"
+          ? { status: "IN_PROGRESS", snoozedUntil: null }
+          : action === "complete"
+            ? { status: "COMPLETED", outcome: req.body?.outcome ?? null }
+            : action === "reopen"
+              ? { status: "PENDING", snoozedUntil: null }
+              : action === "archive"
+                ? { archivedAt: new Date().toISOString() }
+                : {
+                    status: "PENDING",
+                    snoozedUntil:
+                      req.body?.until ??
+                      new Date(Date.now() + 3600000).toISOString(),
+                  };
+      values = validateTaskInput(values);
+      if (action === "snooze" && (values.snoozedUntil as Date) <= new Date())
+        throw new TaskValidationError("Choose a future snooze time.");
+      if (values.status === "COMPLETED") {
+        values.completedAt = existing.completedAt ?? new Date();
+        values.completedById = existing.completedById ?? req.user!.sub;
+        values.snoozedUntil = null;
+      } else if (values.status) {
+        values.completedAt = null;
+        values.completedById = null;
+        values.outcome = null;
+        values.archivedAt = null;
+      }
+      const task = await prisma.$transaction(async (tx) => {
+        const saved = await tx.task.update({
+          where: { id: existing.id },
+          data: values as Prisma.TaskUncheckedUpdateInput,
+          include: related,
+        });
+        if (
+          saved.constituentId &&
+          action === "complete" &&
+          existing.status !== "COMPLETED"
+        )
+          await tx.activity.create({
+            data: {
+              constituentId: saved.constituentId,
+              taskId: saved.id,
+              userId: req.user!.sub,
+              type: "TASK_COMPLETED",
+              description: `Task completed: ${saved.title}`,
+              metadata: {
+                source: "api/tasks:complete",
+                outcome: saved.outcome,
+              },
+            },
+          });
+        return saved;
+      });
+      res.json({
+        ...task,
+        notificationWarning: await notifyTask(
+          task,
+          organization(req),
+          existing,
+        ),
+      });
+    }),
+  );
+}
+router.post(
+  "/bulk-assign",
+  route(async (req, res) => {
+    const organizationId = organization(req),
+      userId = req.user!.sub;
+    const assigneeId = req.body?.assigneeId;
+    const taskIds = Array.isArray(req.body?.taskIds)
+      ? Array.from(new Set(req.body.taskIds))
+      : [];
+    if (
+      typeof assigneeId !== "string" ||
+      !assigneeId ||
+      !taskIds.length ||
+      taskIds.length > 100 ||
+      taskIds.some((id) => typeof id !== "string" || !id)
+    )
+      throw new TaskValidationError("Select an assignee and 1–100 task IDs.");
+    await validateRelations({ assigneeId }, organizationId);
+    const tasks = await prisma.task.findMany({
+      where: {
+        id: { in: taskIds as string[] },
+        ...taskOrganizationWhere(organizationId),
+      },
+    });
+    if (tasks.length !== taskIds.length) {
+      res
+        .status(404)
+        .json({
+          error: {
+            code: "NOT_FOUND",
+            message:
+              "One or more tasks were not found in your organization. No tasks were changed.",
+          },
+        });
+      return;
+    }
+    if (tasks.some((task) => !canAccessTask(task, userId, req.user!.role))) {
+      res
+        .status(403)
+        .json({
+          error: {
+            code: "FORBIDDEN",
+            message: "One or more tasks are outside your access scope.",
+          },
+        });
+      return;
+    }
+    if (
+      tasks.some(
+        (task) => !activeTaskStatuses.includes(task.status) || task.archivedAt,
+      )
+    )
+      throw new TaskValidationError("Reassign only active, unarchived tasks.");
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.task.updateMany({
+        where: { id: { in: taskIds as string[] }, status: { in: activeTaskStatuses }, archivedAt: null },
+        data: { assigneeId, snoozedUntil: null },
+      });
+      if (updated.count !== tasks.length) throw new TaskValidationError("Selected tasks changed during reassignment. Refresh the queue and review the selection again.");
+      const activity = tasks
+        .filter((task) => task.constituentId)
+        .map((task) => ({
+          constituentId: task.constituentId!,
+          taskId: task.id,
+          userId,
+          type: "NOTE" as const,
+          description: `Task reassigned: ${task.title}`,
+          metadata: { assigneeId, source: "api/tasks:bulk-assign" },
+        }));
+      if (activity.length) await tx.activity.createMany({ data: activity });
+    });
+    const notices = await Promise.all(
+      tasks.map((task) =>
+        notifyTask({ ...task, assigneeId }, organizationId, task),
+      ),
+    );
+    res.json({
+      updatedCount: tasks.length,
+      notificationWarning: notices.find(Boolean),
+    });
+  }),
+);
+router.delete(
+  "/:id",
+  route(async (req, res) => {
+    const task = await accessibleTask(req, res);
+    if (!task) return;
+    await prisma.task.delete({ where: { id: task.id } });
+    try {
+      await resolveTaskNotifications({
+        organizationId: organization(req),
+        taskId: task.id,
+      });
+    } catch {
+      console.error(
+        "[tasks] Notification cleanup failed after deleted task",
+        task.id,
+      );
+    }
+    res.status(204).send();
+  }),
+);
 export default router;

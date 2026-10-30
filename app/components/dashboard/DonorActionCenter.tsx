@@ -16,8 +16,9 @@ export default function DonorActionCenter({ data, summary, retention, loading, s
     renewalQuery.set("dateBasis", summary.period.basis);
     renewalQuery.set("year", String(summary.period.year));
   }
+  const acknowledgments = new URLSearchParams({ acknowledgment: "pending", allYears: "1" });
   const queues = [
-    { label: "Thank your donors", count: detailsUnavailable || !data || data.errors.some((error) => error.startsWith("Pending acknowledgments")) ? null : data.pendingAcknowledgmentCount, description: "Completed gifts without a recorded acknowledgment.", href: "/donations?acknowledgment=pending", action: "Review acknowledgments", Icon: MailCheck },
+    { label: "Thank your donors", count: detailsUnavailable || !data || data.errors.some((error) => error.startsWith("Pending acknowledgments")) ? null : data.pendingAcknowledgmentCount, description: "Completed gifts without a recorded acknowledgment across all years.", href: `/donations?${acknowledgments}`, action: "Review acknowledgments", Icon: MailCheck },
     { label: "Welcome first-time donors", count: summaryUnavailable ? null : summary?.newDonorsThisMonth ?? null, description: "Donors who made their first completed gift this month.", href: "/reports?report=first-time-donors&range=month-to-date", action: "Review new donors", Icon: UserRoundPlus },
     { label: "Renew relationships", count: summaryUnavailable || !retention ? null : Math.max(0, retention.total - retention.retained), description: "Prior-year donors yet to give this reporting year. Review seasonal giving before outreach.", href: `/reports?${renewalQuery}`, action: "Review donor renewals", Icon: HeartHandshake },
     { label: "Keep follow-ups moving", count: summaryUnavailable ? null : summary?.overdueTasks ?? null, description: "Pending constituent tasks past their due date. Your task permissions apply.", href: "/tasks?queue=overdue", action: "Review overdue tasks", Icon: CalendarCheck },

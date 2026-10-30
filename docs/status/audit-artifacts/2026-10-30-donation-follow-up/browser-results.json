@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "Saving a gift shows an optional follow-up step and creates no task automatically",
+    "Follow-up title, assignment, local due date, and reminder are submitted against the saved gift",
+    "Failed task save preserves the form and retries the same request ID without creating another donation",
+    "Success links to the exact task and remains contained at 390px"
+  ],
+  "errors": [],
+  "giftRequests": 1,
+  "taskAttempts": 2,
+  "fixture": "Synthetic API responses; no database writes or outbound notifications"
+}

@@ -1,0 +1,8 @@
+{
+  "checks": [
+    "Events: white header, teal primary actions, working existing search",
+    "Compassion: navy navigation, shared care token mapping and real workflow controls visible",
+    "Compassion mobile: no horizontal overflow and existing navigation drawer opens"
+  ],
+  "errors": []
+}

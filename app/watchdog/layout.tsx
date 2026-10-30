@@ -99,7 +99,7 @@ export default function WatchdogLayout({ children }: { children: React.ReactNode
   }
 
   return (
-    <div className="flex h-[100dvh] min-h-[100svh] flex-col bg-slate-100">
+    <div data-oyama-module="watchdog" className="flex h-[100dvh] min-h-[100svh] flex-col bg-slate-100">
       <TopBar scrolled={shellScrolled} />
       <div className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden ${contentTopPaddingClass}`}>
         <div className="hidden h-full lg:block">

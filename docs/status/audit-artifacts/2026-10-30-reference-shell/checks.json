@@ -1,0 +1,81 @@
+{
+  "fixture": "Synthetic responses only; no stored records or external writes",
+  "checks": [
+    [
+      "account",
+      true
+    ],
+    [
+      "notifications",
+      true
+    ],
+    [
+      1280,
+      {
+        "viewport": 1280,
+        "scroll": 1265,
+        "header": {
+          "x": 256,
+          "y": 0,
+          "width": 1009,
+          "height": 56,
+          "top": 0,
+          "right": 1265,
+          "bottom": 56,
+          "left": 256
+        }
+      }
+    ],
+    [
+      1024,
+      {
+        "viewport": 1024,
+        "scroll": 1009,
+        "header": {
+          "x": 256,
+          "y": 0,
+          "width": 753,
+          "height": 56,
+          "top": 0,
+          "right": 1009,
+          "bottom": 56,
+          "left": 256
+        }
+      }
+    ],
+    [
+      768,
+      {
+        "viewport": 768,
+        "scroll": 753,
+        "header": {
+          "x": 256,
+          "y": 0,
+          "width": 497,
+          "height": 56,
+          "top": 0,
+          "right": 753,
+          "bottom": 56,
+          "left": 256
+        }
+      }
+    ],
+    [
+      390,
+      {
+        "viewport": 390,
+        "scroll": 375,
+        "header": {
+          "x": 0,
+          "y": 0,
+          "width": 375,
+          "height": 56,
+          "top": 0,
+          "right": 375,
+          "bottom": 56,
+          "left": 0
+        }
+      }
+    ]
+  ]
+}
