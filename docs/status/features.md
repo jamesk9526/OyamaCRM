@@ -1,3 +1,9 @@
+## Sign-in and personal administrator notification email — 2026-10-30
+
+Implemented an accessible sign-in refresh (stronger secondary-text contrast, explicit MFA errors, pending submission guards) and Settings > Notification email. Administrators can opt into their own future alerts across workspaces, choose all or high/critical priorities, and customize subject templates using `{title}`, `{module}`, and `{severity}`. Server scope always comes from the signed-in user and organization. The background worker checks active administrator membership, excludes unavailable alerts, and uses durable unique claims to prevent duplicate sends across workers. Recent delivery attempts are visible; failed or ambiguous attempts are deliberately not automatically retried. Re-enrollment starts with future alerts; disabling cannot recall a send already in progress.
+
+Deployment requires migration `20261031000000_notification_email_subscriptions` and an API process restart. Organization mail configuration must be working. The migration has not been applied here, and live provider delivery has not been tested. No users were enrolled and no email was sent. See [verification](audit-artifacts/2026-10-30-notification-email/verification.md).
+
 ## Donor UI comfort and search feedback — 2026-10-30
 
 Donor browse pages have more space around headers, filters, metrics and tools, stable list loading skeletons, and reduced-motion-aware feedback. Constituent/donation searches debounce typed input before changing URL/API scope; Enter and clear remain immediate. Workflow donor selection rejects stale results and requires an explicit selected donor. Dashboard Refresh now reloads new donors and staff reminders while retaining month choice. Focused lint, web type checking and synthetic responsive browser checks passed; the broader gift action-menu smoke scenario remains unverified. See [verification](audit-artifacts/2026-10-30-ui-comfort/verification.md).

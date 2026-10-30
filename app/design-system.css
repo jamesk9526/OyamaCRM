@@ -234,3 +234,33 @@
  .crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface { padding:18px; }
  .crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface .crm-page-actions { align-self:stretch; padding:0; background:transparent; }
 }
+
+/* Dark surfaces own semantic foreground tokens, including headings styled by the global cascade. */
+.crm-fonts .donor-spotlight,
+.crm-fonts .crm-release-hero {
+ --oyama-heading:#ffffff;
+ --oyama-text:#e2eef3;
+ --oyama-muted:#c5dce5;
+ --foreground:#e2eef3;
+ color:#e2eef3;
+}
+.crm-fonts.crm-fonts .donor-spotlight { padding:clamp(22px,2.5vw,32px); background:linear-gradient(115deg,#102237 5%,#104f50 100%); border:1px solid #285c68; }
+.crm-fonts.crm-fonts .donor-spotlight-header h2 { max-width:35ch; font-size:clamp(22px,2.2vw,30px); line-height:1.25; }
+.crm-fonts.crm-fonts .donor-spotlight-slide { grid-template-columns:minmax(0,.85fr) minmax(0,1.5fr); gap:28px; margin:20px 0; min-height:200px; }
+.crm-fonts.crm-fonts .donor-spotlight-visual { background:#081b292b; border-color:#659ca24d; box-shadow:inset 0 1px 0 #ffffff08; }
+.crm-fonts.crm-fonts .donor-spotlight-tabs { padding-top:16px; border-top:1px solid #ffffff26; }
+.crm-fonts.crm-fonts .donor-spotlight-tabs button[aria-pressed=true] { background:#d5fbf4; color:#123f40; border-color:#d5fbf4; font-weight:600; }
+@media(max-width:767px) { .crm-fonts.crm-fonts .donor-spotlight-slide { grid-template-columns:1fr; } }
+
+/* Notification center and administration: consistent readable command surfaces. */
+.crm-notification-list > li { border-left:3px solid transparent; }
+.crm-notification-list > li[data-unread=true] { border-left-color:var(--crm-accent,#007f80); background:linear-gradient(100deg,#edf7f8,#fff); }
+.crm-notification-list > li[aria-busy=true] { box-shadow:inset 0 0 0 1px #93bac6; }
+.crm-notification-list button:focus-visible { outline:2px solid #007f80; outline-offset:3px; }
+.crm-notification-list .mt-3 button { padding:5px 10px; border:1px solid #dce5eb; border-radius:6px; background:#fff; min-height:36px; }
+.crm-notification-list .mt-3 button:hover:not(:disabled) { background:#edf5f8; border-color:#a5becb; }
+.crm-notification-list p { line-height:1.65; }
+.oyama-settings-sidebar { border-radius:10px; }
+.oyama-settings-sidebar nav a { min-height:48px; }
+.oyama-settings-sidebar nav a[aria-current=page] { border-left:3px solid #007f80; background:#e7f3f5; }
+@media(prefers-reduced-motion:no-preference) { .crm-notification-list > li { transition:background-color 180ms ease,border-color 180ms ease; } }

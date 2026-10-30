@@ -1235,6 +1235,7 @@ model TaskTemplatePreset {
 }
 
 model Notification {
+  emailDeliveries NotificationEmailDelivery[]
   id             String               @id @default(cuid())
   organizationId String
   userId         String
@@ -3485,4 +3486,29 @@ model CompassionClientRedirect {
   actorId String
   createdAt DateTime @default(now())
   @@index([organizationId, targetId])
+}
+
+model NotificationEmailSubscription {
+  id String @id @default(cuid())
+  organizationId String
+  userId String @unique
+  enabled Boolean @default(false)
+  subjectTemplate String @default("[OyamaCRM] {title}")
+  minimumSeverity String @default("ALL")
+  enabledAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deliveries NotificationEmailDelivery[]
+  @@index([organizationId, enabled])
+}
+
+model NotificationEmailDelivery {
+  id String @id @default(cuid())
+  subscriptionId String
+  notificationId String
+  status String @default("SENDING")
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  subscription NotificationEmailSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  @@unique([subscriptionId, notificationId])
 }

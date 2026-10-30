@@ -6,6 +6,9 @@ import { prisma } from "../lib/prisma.js";
 import { isSchemaDriftError, migrationRequiredMessage } from "../lib/prisma-runtime-errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
+import { requireRole } from "../middleware/requireRole.js";
+import { validNotificationSubject } from "../services/notification-email.js";
+
 const router = Router();
 router.use(requireAuth);
 router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
@@ -35,6 +38,27 @@ function fail(res: Response, error: unknown, fallback = "Notifications could not
 function route(work: (req: Request, res: Response) => Promise<unknown>) {
   return (req: Request, res: Response) => { void work(req, res).catch((error) => { if (!res.headersSent) fail(res, error); }); };
 }
+
+router.get("/email-settings", requireRole("admin"), route(async (req, res) => {
+  const scope = await identity(req);
+  const user = await prisma.user.findFirst({ where: { id: scope.userId, organizationId: scope.organizationId, active: true, role: "admin" } });
+  if (!user) throw Object.assign(new Error("An active administrator account is required."), { status: 403 });
+  const subscription = await prisma.notificationEmailSubscription.findFirst({ where: { userId: scope.userId, organizationId: scope.organizationId } });
+  const deliveries = subscription ? await prisma.notificationEmailDelivery.findMany({ where: { subscriptionId: subscription.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, status: true, createdAt: true, completedAt: true, notification: { select: { title: true } } } }) : [];
+  res.json({ enabled: subscription?.enabled ?? false, subjectTemplate: subscription?.subjectTemplate ?? "[OyamaCRM] {title}", minimumSeverity: subscription?.minimumSeverity ?? "ALL", deliveries });
+}));
+router.put("/email-settings", requireRole("admin"), route(async (req, res) => {
+  const scope = await identity(req);
+  const { enabled, subjectTemplate, minimumSeverity } = req.body ?? {};
+  if (typeof enabled !== "boolean" || !validNotificationSubject(subjectTemplate) || !["ALL", "HIGH"].includes(minimumSeverity)) throw Object.assign(new Error("Choose a valid subject (up to 180 characters) and severity. Supported tokens: {title}, {module}, {severity}."), { status: 400 });
+  const user = await prisma.user.findFirst({ where: { id: scope.userId, organizationId: scope.organizationId, active: true, role: "admin" } });
+  if (!user) throw Object.assign(new Error("An active administrator account is required."), { status: 403 });
+  const existing = await prisma.notificationEmailSubscription.findUnique({ where: { userId: scope.userId } });
+  if (existing && existing.organizationId !== scope.organizationId) throw Object.assign(new Error("Subscription organization mismatch."), { status: 403 });
+  const data = { enabled, subjectTemplate: subjectTemplate.trim(), minimumSeverity, ...(!existing?.enabled && enabled ? { enabledAt: new Date() } : {}) };
+  await prisma.notificationEmailSubscription.upsert({ where: { userId: scope.userId }, create: { organizationId: scope.organizationId, userId: scope.userId, ...data }, update: data });
+  res.json({ saved: true });
+}));
 
 router.get("/", route(async (req, res) => {
   const scope = await identity(req); const now = new Date(); const workspace = moduleScope(req.query.module ?? "donor");

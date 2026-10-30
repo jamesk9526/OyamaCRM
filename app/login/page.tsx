@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import LoginBrandPanel, { LoginMobileBrand } from "@/app/components/auth/LoginBrandPanel";
@@ -12,9 +12,10 @@ import { fetchWorkspaceSettings, resolveWorkspaceLandingPath } from "@/app/lib/w
 
 /** LoginPage renders the authentication form and redirects to /setup when first-run is incomplete. */
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, refreshUser } = useAuth();
   const router = useRouter();
 
+  const submitting = useRef(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +55,12 @@ export default function LoginPage() {
   /** Submits credentials and navigates to the workspace landing page on success. */
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setError(null);
     setLoading(true);
     try {
-      const loginResult = await signIn(email, password);
+      const loginResult = await signIn(email.trim(), password);
       if (loginResult.mfaRequired) {
         setMfaChallenge(loginResult);
         return;
@@ -68,6 +71,7 @@ export default function LoginPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
@@ -75,16 +79,19 @@ export default function LoginPage() {
   /** Verifies one email MFA code and completes sign-in. */
   async function handleMfaSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!mfaChallenge) return;
+    if (!mfaChallenge || submitting.current) return;
+    submitting.current = true;
     setError(null);
     setLoading(true);
     try {
       await verifyEmailMfa(mfaChallenge.mfaTicket, mfaCode);
+      await refreshUser();
       const workspaceSettings = await fetchWorkspaceSettings();
       router.replace(resolveWorkspaceLandingPath(workspaceSettings));
     } catch (err) {
       setError(err instanceof Error ? err.message : "MFA verification failed");
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
@@ -93,7 +100,7 @@ export default function LoginPage() {
   if (checkingSetup) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#f5f5f5]">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0f6cbd] border-t-transparent" />
+        <div className="h-6 w-6 motion-safe:animate-spin rounded-full border-2 border-[#0f6cbd] border-t-transparent" />
       </div>
     );
   }
@@ -114,17 +121,17 @@ export default function LoginPage() {
             <LoginMobileBrand />
 
             {/* Form card */}
-            <div className="border border-[#d1d1d1] bg-white px-6 py-7 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:px-8 sm:py-8">
+            <div className="rounded-2xl border border-slate-200 border-t-4 border-t-teal-700 bg-white px-6 py-7 shadow-[0_8px_24px_rgba(15,23,42,0.10)] sm:px-8 sm:py-8">
               <div className="mb-6">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0f548c]">Secure organization workspace</p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Welcome back</h2>
-                <p className="mt-1.5 text-sm text-slate-500">Sign in to continue to OyamaCRM.</p>
+                <p className="mt-1.5 text-sm text-slate-500">Sign in to your organization’s OyamaCRM v2 workspace.</p>
               </div>
 
             {!mfaChallenge ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Email address</label>
+                  <label htmlFor="email" className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Email address</label>
                   <input
                     id="email"
                     name="email"
@@ -134,7 +141,7 @@ export default function LoginPage() {
                     required
                     autoComplete="email"
                     placeholder="you@organization.org"
-                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-400"
+                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-600"
                   />
                 </div>
 
@@ -166,7 +173,7 @@ export default function LoginPage() {
                 >
                   {loading ? (
                     <>
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span className="h-3.5 w-3.5 motion-safe:animate-spin rounded-full border-2 border-white border-t-transparent" />
                       Signing in...
                     </>
                   ) : (
@@ -178,21 +185,25 @@ export default function LoginPage() {
                 </button>
 
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-slate-400">Need help signing in?</span>
+                  <span className="text-[11px] text-slate-600">Need help signing in?</span>
                   <Link href="/login/forgot-password" className="text-xs font-semibold text-[#0f548c] transition-colors hover:text-[#0f6cbd]">
                     Forgot password?
                   </Link>
                 </div>
               </form>
             ) : (
-              <form onSubmit={handleMfaSubmit} className="space-y-4">
+              <form onSubmit={handleMfaSubmit} aria-busy={loading} className="space-y-4">
+                {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
                 <p className="text-sm text-slate-600">
                   Enter the 6-digit code sent to <span className="font-semibold text-slate-900">{mfaChallenge.destinationHint}</span>.
                 </p>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Verification code</label>
+                  <label htmlFor="mfa-code" className="mb-1.5 block text-xs font-semibold tracking-wide text-slate-600">Verification code</label>
                   <input
                     type="text"
+                    id="mfa-code"
+                    autoComplete="one-time-code"
+                    autoFocus
                     inputMode="numeric"
                     pattern="[0-9]{6}"
                     maxLength={6}
@@ -200,7 +211,7 @@ export default function LoginPage() {
                     onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     required
                     placeholder="123456"
-                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-400"
+                    className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] placeholder:text-slate-600"
                   />
                 </div>
                 <button
@@ -212,6 +223,7 @@ export default function LoginPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => { setMfaChallenge(null); setMfaCode(""); setError(null); }}
                   className="w-full border border-[#8a8886] bg-white px-3.5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-[#f3f2f1]"
                 >
@@ -220,12 +232,12 @@ export default function LoginPage() {
               </form>
             )}
 
-              <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-5 text-[11px] text-slate-400">
+              <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-5 text-[11px] text-slate-600">
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="#94a3b8" strokeWidth="1.5" />
                   <path d="M5 7V5a3 3 0 016 0v2" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
-                Protected with AES-256 encryption
+                Use your organization-issued account
               </div>
 
               {process.env.NODE_ENV !== "production" && (
@@ -237,8 +249,8 @@ export default function LoginPage() {
               )}
             </div>
 
-            <p className="mt-6 text-center text-[11px] text-slate-400">
-              © {new Date().getFullYear()} OyamaCRM v1.3 · All rights reserved
+            <p className="mt-6 text-center text-[11px] text-slate-600">
+              © {new Date().getFullYear()} OyamaCRM v2.0 · All rights reserved
             </p>
           </div>
         </section>

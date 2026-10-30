@@ -765,7 +765,7 @@ export default function UserManagement() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Team Members</h2>
           <p className="text-sm text-gray-500 mt-0.5">Manage access, roles, and passwords for your organization.</p>
@@ -774,10 +774,15 @@ export default function UserManagement() {
           onClick={() => setAddOpen(true)}
           className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 font-medium"
         >
-          + Add User
+          + Add user
         </button>
       </div>
 
+      <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <h3 className="text-sm font-semibold text-slate-900">Add a staff member in three steps</h3>
+        <ol className="mt-3 grid gap-3 text-sm text-slate-700 sm:grid-cols-3"><li><strong>1. Create the account</strong><p className="mt-1">Choose Add user and enter their name and email.</p></li><li><strong>2. Choose access</strong><p className="mt-1">Select the role needed for their work. Review permissions before granting admin access.</p></li><li><strong>3. Arrange sign-in</strong><p className="mt-1">Set the account password and share sign-in details through your organization’s secure process.</p></li></ol>
+        <p className="mt-3 text-xs text-slate-600">This creates an account directly; it does not send an email invitation.</p>
+      </div>
       {/* Success banner */}
       {successMsg && (
         <div className="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-800 text-sm rounded">

@@ -26,6 +26,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
     label: "Account",
     items: [
       { label: "Overview", href: "/settings", description: "Settings home", iconSlug: "donor-dashboard" },
+      { label: "Notification email", href: "/settings/notification-email", description: "Administrator personal email alerts and subject lines", iconSlug: "communications" },
       { label: "My Profile", href: "/settings/profile", description: "Personal details and activity", iconSlug: "users" },
       { label: "My Appearance", href: "/settings/appearance", description: "Personal workspace display", iconSlug: "fund-designation" },
     ],
@@ -35,7 +36,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
     items: [
       { label: "Organization", href: "/settings/organization", description: "Identity, region, and email", iconSlug: "constituents" },
       { label: "Branding", href: "/settings/branding", description: "Logos and public colors", iconSlug: "fund-designation" },
-      { label: "Users", href: "/settings/users", description: "Team accounts and access", iconSlug: "users" },
+      { label: "Team users & access", href: "/settings/users", description: "Add users, staff accounts, passwords and roles", iconSlug: "users" },
       { label: "Roles & Scopes", href: "/settings/roles", description: "Permission reference", iconSlug: "system-status" },
       { label: "Security & Audit", href: "/settings/security", description: "Authentication and recovery", iconSlug: "system-status" },
     ],
@@ -72,7 +73,7 @@ export default function SettingsSidebar({ onNavigate }: { onNavigate?: () => voi
     if (!normalized) return SETTINGS_NAV;
     return SETTINGS_NAV.map((group) => ({
       ...group,
-      items: group.items.filter((item) => `${item.label} ${item.description}`.toLowerCase().includes(normalized)),
+      items: group.items.filter((item) => normalized.split(/\s+/).every(term => `${group.label} ${item.label} ${item.description}`.toLowerCase().includes(term))),
     })).filter((group) => group.items.length > 0);
   }, [query]);
 
@@ -85,21 +86,21 @@ export default function SettingsSidebar({ onNavigate }: { onNavigate?: () => voi
         </div>
         <label className="relative mt-4 block">
           <span className="sr-only">Search settings</span>
-          <Search className="pointer-events-none absolute left-3 top-2.5 text-slate-400" size={16} aria-hidden="true" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search settings" className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-8 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
-          {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear settings search" className="absolute right-2 top-2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={16} /></button> : null}
+          <Search className="pointer-events-none absolute left-3 top-2.5 text-slate-600" size={16} aria-hidden="true" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search settings" className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-8 text-sm text-slate-900 outline-none placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+          {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear settings search" className="absolute right-2 top-2 rounded p-0.5 text-slate-600 hover:bg-slate-100 hover:text-slate-700"><X size={16} /></button> : null}
         </label>
       </div>
       <nav className="overflow-y-auto p-3">
         {groups.length ? groups.map((group) => (
           <div key={group.label} className="mb-4 last:mb-0">
-            <h2 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400">{group.label}</h2>
+            <h2 className="mb-1 px-2 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-600">{group.label}</h2>
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const active = item.href === "/settings" ? pathname === item.href : pathname.startsWith(item.href);
                 return <Link key={item.href} href={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={`group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${active ? "bg-emerald-50 font-semibold text-emerald-800" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>
                   <OyamaDonorPackIcon slug={item.iconSlug} size={17} alt="" />
-                  <span className="min-w-0"><span className="block truncate">{item.label}</span><span className={`block truncate text-[11px] font-normal ${active ? "text-emerald-600" : "text-slate-400"}`}>{item.description}</span></span>
+                  <span className="min-w-0"><span className="block truncate">{item.label}</span><span className={`block truncate text-[11px] font-normal ${active ? "text-emerald-600" : "text-slate-600"}`}>{item.description}</span></span>
                 </Link>;
               })}
             </div>

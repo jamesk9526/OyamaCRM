@@ -14,6 +14,7 @@
  *
  * @module index
  */
+import { startNotificationEmailWorker, stopNotificationEmailWorker } from "./services/notification-email.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -330,9 +331,10 @@ if (process.env.NODE_ENV !== "test") {
   startStewardPathsWorker();
   startQuickBooksSyncWorker();
   startTaskNotificationWorker();
+  startNotificationEmailWorker();
   // Stop creating in-app reminders during the process manager's shutdown window.
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
-    void stopTaskNotificationWorker().finally(() => process.exit(0));
+    void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker()]).finally(() => process.exit(0));
   });
   app.listen(PORT, () => {
     console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);

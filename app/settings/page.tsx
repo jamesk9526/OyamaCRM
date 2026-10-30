@@ -6,7 +6,7 @@ import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbB
 const PRIMARY_ACTIONS = [
   { title: "My profile", description: "Update your contact details, job information, and timezone.", href: "/settings/profile", icon: CircleUserRound, tone: "blue" },
   { title: "Organization", description: "Manage nonprofit identity, fiscal year, regional, and email defaults.", href: "/settings/organization", icon: Building2, tone: "emerald" },
-  { title: "Team access", description: "Invite staff, manage accounts, and review role permissions.", href: "/settings/users", icon: UsersRound, tone: "violet" },
+  { title: "Team access", description: "Add user accounts, manage staff access, and review role permissions.", href: "/settings/users", icon: UsersRound, tone: "violet" },
   { title: "Integrations", description: "Review connected services, payments, email, and website tools.", href: "/settings/integrations", icon: PlugZap, tone: "amber" },
 ] as const;
 
@@ -28,6 +28,7 @@ export default function SettingsOverviewPage() {
       <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Update your own preferences or manage organization-wide configuration. Changes that affect other staff are clearly identified on their settings page.</p>
     </header>
 
+    <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-teal-200 bg-teal-50 p-5" aria-label="Add team members"><div><h2 className="font-semibold text-slate-900">Bring your team into OyamaCRM</h2><p className="mt-1 text-sm text-slate-700">Administrators: open Team users & access, choose Add user, then assign the appropriate role.</p></div><Link href="/settings/users" className="inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900">Manage team users →</Link></section>
     <section aria-labelledby="common-settings-heading">
       <div className="mb-3 flex items-end justify-between gap-4"><div><h2 id="common-settings-heading" className="text-base font-semibold text-slate-950">Common settings</h2><p className="mt-0.5 text-sm text-slate-500">The places administrators and staff use most often.</p></div></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

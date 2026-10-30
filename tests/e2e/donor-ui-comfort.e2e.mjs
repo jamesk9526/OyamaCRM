@@ -77,6 +77,19 @@ try {
   assert.ok(dashboardReads.includes('/api/notifications'));
   assert.equal(await page.getByRole('button', { name: 'Previous month', exact: true }).getAttribute('aria-pressed'), 'true');
   checks.push('Dashboard refresh reloads new donors and staff reminders while preserving selected month');
+  const spotlight = page.locator('.donor-spotlight');
+  for (const label of ['Giving momentum', 'Donor relationships', 'Your next steps']) {
+    await spotlight.getByRole('button', { name: label, exact: true }).click();
+    const colors = await spotlight.locator('h2,h3').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).color));
+    assert.ok(colors.every(color => color === 'rgb(255, 255, 255)'), `Dark panel headings must be white: ${colors}`);
+  }
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await spotlight.scrollIntoViewIfNeeded();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await spotlight.screenshot({ path: `${evidence}/spotlight-contrast-${width}.png` });
+  }
+  checks.push('All three spotlight slides use white headings; desktop and mobile spotlight fit the viewport');
   assert.deepEqual(errors, []);
   await writeFile(`${evidence}/browser-results.json`, JSON.stringify({ checks, errors, fixture: 'Synthetic API reads; no business writes' }, null, 2));
   console.log(JSON.stringify({ checks, errors }, null, 2));
