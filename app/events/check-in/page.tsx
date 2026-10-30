@@ -473,7 +473,8 @@ export default function EventCheckInPage() {
 
       <nav className="mt-4 overflow-x-auto border-b border-[#d1d1d1]" aria-label="Check-in modes"><div className="flex min-w-max" role="tablist">{tabs.filter((tab) => !volunteerMode || !tab.secondary).map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => { setActiveTab(tab.id); if (tab.id === "scan") setTimeout(() => scanInputRef.current?.focus(), 40); }} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${activeTab === tab.id ? "border-[#0f6cbd] bg-white text-[#0f6cbd]" : "border-transparent text-[#424242] hover:bg-white"}`}>{tab.label}</button>)}</div></nav>
 
-      <div aria-live="polite" className="mt-4 space-y-2">
+      {/* Keep feedback outside document flow so check-in never moves the guest list. */}
+      <div aria-live="polite" aria-atomic="true" className="pointer-events-none fixed bottom-5 right-5 z-50 max-w-md space-y-2">
         {toast ? <div className="border-l-4 border-emerald-600 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">{toast}</div> : null}
         {warning ? <div className="border-l-4 border-amber-600 bg-amber-50 px-4 py-3 text-sm text-amber-950">{warning}</div> : null}
       </div>

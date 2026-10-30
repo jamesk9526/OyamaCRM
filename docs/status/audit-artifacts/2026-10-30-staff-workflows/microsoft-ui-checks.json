@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "name": "Desktop controls preserved and month selection/focus works",
+      "controlsBefore": {
+        "buttons": 18,
+        "links": 29,
+        "inputs": 1
+      },
+      "styles": {
+        "radius": "0px",
+        "background": "none",
+        "font": "\"Segoe UI Variable\", \"Segoe UI\", Arial, sans-serif"
+      }
+    },
+    "No dashboard horizontal overflow at 1440, 768, 390px",
+    {
+      "name": "Reduced motion",
+      "motion": {
+        "animation": "none",
+        "transition": "0s"
+      }
+    },
+    "Directory search filters correctly; desktop/mobile have no viewport overflow"
+  ],
+  "errors": []
+}

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   donation: { findMany: vi.fn(), aggregate: vi.fn(), groupBy: vi.fn() },
-  constituent: { count: vi.fn() }, campaign: { count: vi.fn(), aggregate: vi.fn() },
+  constituent: { count: vi.fn(), findMany: vi.fn() }, campaign: { count: vi.fn(), aggregate: vi.fn() },
   task: { count: vi.fn() }, grant: { aggregate: vi.fn() }, organizationSettings: { findUnique: vi.fn() },
 }));
 vi.mock("@/server/src/lib/prisma", () => ({ prisma: db }));
@@ -82,5 +82,30 @@ describe("donor dashboard reporting contracts", () => {
     const summary = await request(app).get("/api/reports/summary?scope=ALL_YEARS");
     expect(summary.body.previousPeriodAmount).toBeNull(); expect(summary.body.revenueChangePercent).toBeNull();
     expect(summary.body.period.label).toBe("All years");
+  });
+});
+
+
+describe("new donor cohorts", () => {
+  it("uses the entire previous UTC month and stable pagination", async () => {
+    vi.setSystemTime(new Date("2026-01-15T12:30:00Z"));
+    db.constituent.findMany.mockResolvedValue([{ id: "donor-1", firstName: "New", lastName: "Donor", firstGiftDate: "2025-12-31T00:00:00Z" }]);
+    db.constituent.count.mockResolvedValue(21);
+    const response = await request(app).get("/api/reports/new-donors?month=previous&page=2");
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ total: 21, page: 2, totalPages: 3 });
+    expect(db.constituent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { organizationId: "metrics-org", firstGiftDate: { gte: new Date("2025-12-01T00:00:00Z"), lt: new Date("2026-01-01T00:00:00Z") } },
+      skip: 10, take: 10, orderBy: [{ firstGiftDate: "desc" }, { id: "asc" }],
+    }));
+    expect(db.constituent.count.mock.lastCall?.[0].where).toEqual(db.constituent.findMany.mock.lastCall?.[0].where);
+  });
+  it("excludes future first gifts and rejects unsupported months", async () => {
+    db.constituent.findMany.mockResolvedValue([]);
+    const response = await request(app).get("/api/reports/new-donors");
+    expect(response.status).toBe(200);
+    expect(db.constituent.findMany.mock.lastCall?.[0].where.firstGiftDate).toEqual({ gte: new Date("2026-10-01T00:00:00Z"), lte: new Date("2026-10-15T12:30:00Z") });
+    const bad = await request(app).get("/api/reports/new-donors?month=arbitrary");
+    expect(bad.status).toBe(400);
   });
 });

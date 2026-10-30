@@ -1,3 +1,7 @@
+## Staff dashboard and workflow follow-ups — 2026-10-30
+
+Implemented check-in feedback layout stability, monthly/constituent/period-donor record links, current/previous-month new donors, dashboard persistent reminder actions, donor workflow history/task handoff, bounded backlog scans, exact letter-part/label downloads, and visible contact mailing dates. The donor UI follows the preferred Microsoft-style letters/email design and honors reduced motion. Remaining requests and explicit limits: [staff workflow checklist](../plans/staff-workflows.md). Verification: [audit evidence](audit-artifacts/2026-10-30-staff-workflows/verification.md). No deployment, migration, live backfill, or staff email was performed; mailing automation/envelopes/report-request search are unfinished.
+
 ## Shared design, task notifications, and gift follow-up — 2026-10-30
 
 Focused verification covers the shared reference design, donor browse handoffs, task lifecycle, in-app notifications, and donation follow-up. Production web/server builds and 76 focused unit/API checks passed; synthetic browser workflows and responsive evidence are recorded in `audit-artifacts/2026-10-30-reference-modernization/verification.md`. MySQL was unavailable locally, so database integration/concurrency and deployed worker delivery remain unverified. No production deployment, migration, or outbound communication was performed. Common components and representative routes were checked; this does not certify every custom page or external integration.

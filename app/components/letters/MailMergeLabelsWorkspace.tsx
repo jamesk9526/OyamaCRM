@@ -1,5 +1,8 @@
 "use client";
 
+// Ordered selections are retained here. For labels matched to a letter PDF, use Labels in letter order in the generation workspace; it resolves exact generated letter IDs server-side.
+
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
@@ -94,7 +97,10 @@ export default function MailMergeLabelsWorkspace() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const visibleRows = useMemo(() => constituents.filter((row) => !normalizedSearch || [displayName(row), row.email, ...formattedAddress(row)].some((value) => value?.toLowerCase().includes(normalizedSearch))), [constituents, normalizedSearch]);
-  const selectedRows = useMemo(() => constituents.filter((row) => selectedIds.has(row.id)), [constituents, selectedIds]);
+  const selectedRows = useMemo(() => {
+    const byId = new Map(constituents.map((row) => [row.id, row]));
+    return [...selectedIds].flatMap((id) => byId.has(id) ? [byId.get(id)!] : []);
+  }, [constituents, selectedIds]);
   const suppressedSelectedRows = useMemo(() => selectedRows.filter(isLabelSuppressed), [selectedRows]);
   const printableSelectedRows = useMemo(() => selectedRows.filter((row) => getLabelEligibility(row, ignoreSuppressions).ready), [ignoreSuppressions, selectedRows]);
   const unavailableSummary = useMemo(() => unavailableLabelReasonSummary(selectedRows, ignoreSuppressions), [ignoreSuppressions, selectedRows]);
@@ -149,7 +155,7 @@ export default function MailMergeLabelsWorkspace() {
       const matches = constituents.filter((row) => resolvedIds.has(row.id));
       const ready = matches.filter((row) => getLabelEligibility(row).ready);
       setIgnoreSuppressions(false);
-      setSelectedIds(new Set(matches.map((row) => row.id)));
+      setSelectedIds(new Set(resolved.constituentIds));
       const skipped = matches.length - ready.length;
       const unmatched = resolved.unmatchedMemberCount;
       const skippedReasons = unavailableLabelReasonSummary(matches);

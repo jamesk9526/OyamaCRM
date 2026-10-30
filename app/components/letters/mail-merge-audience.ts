@@ -1,3 +1,4 @@
+// TODO(staff-workflows #10): Add previewed list merge/rename/dedup with linked task/automation reassignment; preserve contacts and memberships. See docs/plans/staff-workflows.md.
 export interface AudienceListMemberReference {
   constituentId?: string | null;
   email?: string | null;

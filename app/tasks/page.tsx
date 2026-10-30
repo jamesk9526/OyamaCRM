@@ -59,6 +59,7 @@ function TasksWorkspace() {
     [assignee, setAssignee] = useState(""),
     [users, setUsers] = useState<TaskUser[]>([]);
   const requestId = useRef(0);
+  const constituentId = params.get("constituentId");
   const queryTaskId = params.get("taskId"),
     queryKey = params.toString();
   useEffect(() => {
@@ -94,6 +95,7 @@ function TasksWorkspace() {
         page: String(page),
         limit: "25",
       });
+      if (constituentId) q.set("constituentId", constituentId);
       if (status) q.set("status", status);
       if (type) q.set("type", type);
       if (search.trim()) q.set("search", search.trim());
@@ -110,7 +112,7 @@ function TasksWorkspace() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [scope, queue, status, type, search, page, teamAllowed]);
+  }, [scope, queue, status, type, search, page, teamAllowed, constituentId]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), search ? 250 : 0);
     return () => {

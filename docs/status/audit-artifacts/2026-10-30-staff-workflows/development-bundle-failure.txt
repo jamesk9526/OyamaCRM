@@ -1,0 +1,44 @@
+{
+  "error": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('tab', { name: 'Tables', exact: true })\u001b[22m\n",
+  "pageErrors": [
+    "Invalid or unexpected token"
+  ],
+  "diagnostics": [
+    {
+      "exceptionId": 1,
+      "text": "Uncaught",
+      "lineNumber": 193,
+      "columnNumber": 28,
+      "scriptId": "874",
+      "url": "http://127.0.0.1:43652/_next/static/chunks/app/layout.js",
+      "exception": {
+        "type": "object",
+        "subtype": "error",
+        "className": "SyntaxError",
+        "description": "SyntaxError: Invalid or unexpected token",
+        "objectId": "-8847426730066220583.5.1",
+        "preview": {
+          "type": "object",
+          "subtype": "error",
+          "description": "SyntaxError: Invalid or unexpected token",
+          "overflow": false,
+          "properties": [
+            {
+              "name": "stack",
+              "type": "string",
+              "value": "SyntaxError: Invalid or unexpected token"
+            },
+            {
+              "name": "message",
+              "type": "string",
+              "value": "Invalid or unexpected token"
+            }
+          ]
+        }
+      },
+      "executionContextId": 5
+    }
+  ],
+  "url": "http://127.0.0.1:43652/events/qa-event/check-in",
+  "text": ""
+}

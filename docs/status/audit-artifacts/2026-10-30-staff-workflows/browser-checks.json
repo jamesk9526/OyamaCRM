@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "New donors switch between current/previous month and link to profiles; monthly and active-donor metrics carry matching record filters.",
+    "One-week snooze persists through the shared notification endpoint and removes the active alert without completing a task.",
+    "Contact history displays recorded generation, print and mailing dates separately.",
+    "Completed donor enrollment remains visible and loads its recorded completed-step timeline on demand.",
+    "Sequential team guest check-ins preserve row position and every scrolled ancestor when feedback appears and expires."
+  ],
+  "pageErrors": []
+}

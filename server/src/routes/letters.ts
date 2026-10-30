@@ -1,3 +1,4 @@
+// TODO(staff-workflows #9,#11-15): Extend current-run exact letter/label ordering with durable batch/address snapshots, campaign mailing history, calendar batches and reviewed recurring preparation. Envelope output requires confirmed printer/media/margins. See docs/plans/staff-workflows.md.
 /**
  * Donor CRM Letters & Printables API routes.
  * Provides template management, merge preview, generated letters, and email-draft integration.
@@ -5462,7 +5463,31 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
   const requestedIds = Array.isArray(req.body?.constituentIds)
     ? (req.body.constituentIds as unknown[]).map((value) => String(value).trim()).filter(Boolean)
     : [];
-  const constituentIds = [...new Set(requestedIds)];
+  const letterIds = Array.isArray(req.body?.letterIds)
+    ? [...new Set((req.body.letterIds as unknown[]).map((value) => String(value).trim()).filter(Boolean))]
+    : [];
+  if (letterIds.length && requestedIds.length) {
+    res.status(400).json({ error: { code: "AMBIGUOUS_RECIPIENTS", message: "Choose letter IDs or recipient IDs, not both." } });
+    return;
+  }
+  if (letterIds.length > 3000) {
+    res.status(400).json({ error: { code: "TOO_MANY_RECIPIENTS", message: "A label merge supports up to 3,000 letters at a time." } });
+    return;
+  }
+  let constituentIds = [...new Set(requestedIds)];
+  const requireAllRecipients = letterIds.length > 0 || req.body?.requireAllRecipients === true;
+  if (letterIds.length) {
+    const letters = await prisma.generatedLetter.findMany({
+      where: { organizationId, id: { in: letterIds } }, select: { id: true, constituentId: true },
+    });
+    const byLetterId = new Map(letters.map((letter) => [letter.id, letter]));
+    if (letterIds.some((id) => !byLetterId.get(id)?.constituentId)) {
+      res.status(409).json({ error: { code: "LETTER_RECIPIENTS_CHANGED", message: "One or more letters or linked recipients are unavailable. Refresh and review the letter batch before printing labels." } });
+      return;
+    }
+    // Distinct letters for one contact still require one label for each letter.
+    constituentIds = letterIds.map((id) => byLetterId.get(id)!.constituentId!);
+  }
   const startPosition = Number.parseInt(String(req.body?.startPosition ?? "1"), 10);
   const showGuides = req.body?.showGuides === true;
   const ignoreSuppressions = req.body?.ignoreSuppressions === true;
@@ -5498,6 +5523,16 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
     },
   });
   const byId = new Map(constituents.map((constituent) => [constituent.id, constituent]));
+  if (requireAllRecipients) {
+    const unavailable = constituentIds.filter((id) => {
+      const recipient = byId.get(id);
+      return !recipient || recipient.doNotMail || recipient.doNotContact || !recipient.addressLine1?.trim();
+    });
+    if (unavailable.length) {
+      res.status(409).json({ error: { code: "MATCHED_LABELS_UNAVAILABLE", message: `${unavailable.length} matching label(s) are unavailable because a recipient is missing, suppressed, or has no street address. Review the recipients and regenerate the letter batch; no partial labels were created.` } });
+      return;
+    }
+  }
   let suppressionsOverridden = 0;
   const labels: Avery5160Label[] = constituentIds.flatMap((id) => {
     const constituent = byId.get(id);
@@ -5539,7 +5574,7 @@ router.post("/labels/avery-5160.pdf", requirePermission("letters.generate"), asy
     entityId: organizationId,
     organizationId,
     userId,
-    metadata: { labelsRendered: labels.length, recipientsSkipped: constituentIds.length - labels.length, suppressionsOverridden, ignoreSuppressions, startPosition, showGuides },
+    metadata: { labelsRendered: labels.length, recipientsSkipped: constituentIds.length - labels.length, suppressionsOverridden, ignoreSuppressions, startPosition, showGuides, requireAllRecipients, letterIds },
   }).catch(() => undefined);
   res.status(200).send(pdf);
 });
@@ -6863,8 +6898,8 @@ router.post("/generated/export-pdf-batch", requirePermission("letters.export_pdf
     },
   });
 
-  if (rows.length === 0) {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "No generated letters found for the requested IDs." } });
+  if (rows.length !== letterIds.length) {
+    res.status(404).json({ error: { code: "NOT_FOUND", message: "One or more requested letters are unavailable. Refresh and review the batch before exporting." } });
     return;
   }
 
@@ -7059,8 +7094,17 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
     : Number.parseInt(String(req.body?.year ?? ""), 10);
 
   const requestedIds = Array.isArray(req.body?.constituentIds)
-    ? req.body.constituentIds.map((value: unknown) => String(value)).filter(Boolean)
+    ? [...new Set<string>(req.body.constituentIds.map((value: unknown) => String(value).trim()).filter(Boolean))]
     : [];
+
+  if (Array.isArray(req.body?.constituentIds) && requestedIds.length === 0) {
+    res.status(400).json({ error: { code: "RECIPIENTS_REQUIRED", message: "Select at least one recipient for the letter batch." } });
+    return;
+  }
+  if (requestedIds.length > 4000) {
+    res.status(400).json({ error: { code: "TOO_MANY_RECIPIENTS", message: "Generate no more than 4,000 recipients per batch." } });
+    return;
+  }
 
   const filterType = parseEnum(req.body?.filterType, ["ALL", "ACTIVE", "LAPSED", "NEW", "MAJOR_DONOR", "MONTHLY_DONOR"] as const) ?? "ALL";
   const donorStatusFilter = filterType === "ALL" || filterType === "MONTHLY_DONOR" ? undefined : filterType;
@@ -7133,7 +7177,13 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   let validationOverrideCount = 0;
   const validationOverrideReasons: Record<string, number> = {};
 
-  for (const candidate of candidates) {
+  const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const orderedCandidates = requestedIds.length
+    ? requestedIds.flatMap((id) => candidateById.has(id) ? [candidateById.get(id)!] : [])
+    : [...candidates].sort((left, right) => left.lastName.localeCompare(right.lastName) || left.firstName.localeCompare(right.firstName) || left.id.localeCompare(right.id));
+  for (const id of requestedIds) if (!candidateById.has(id)) skipped.push({ constituentId: id, reason: "RECIPIENT_UNAVAILABLE" });
+
+  for (const candidate of orderedCandidates) {
     if (dedupeHousehold && candidate.householdId) {
       if (seenHouseholds.has(candidate.householdId)) {
         skipped.push({ constituentId: candidate.id, reason: "DUPLICATE_HOUSEHOLD" });
@@ -7275,7 +7325,7 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
       eventId,
       dateFrom: dateFrom && !Number.isNaN(dateFrom.getTime()) ? dateFrom.toISOString() : null,
       dateTo: dateTo && !Number.isNaN(dateTo.getTime()) ? dateTo.toISOString() : null,
-      selectedCount: candidates.length,
+      selectedCount: requestedIds.length || candidates.length,
       generatedCount: generatedIds.length,
       skippedCount: skipped.length,
       skippedByReason,
@@ -7288,8 +7338,8 @@ router.post("/generated/batch", requirePermission("letters.generate_batch"), asy
   res.json({
     dryRun,
     templateId,
-    totalSelected: candidates.length,
-    eligible: candidates.length - skipped.length,
+    totalSelected: requestedIds.length || candidates.length,
+    eligible: (requestedIds.length || candidates.length) - skipped.length,
     generatedCount: generatedIds.length,
     generatedIds,
     skippedCount: skipped.length,

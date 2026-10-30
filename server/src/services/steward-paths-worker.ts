@@ -1,3 +1,4 @@
+// TODO(staff-workflows #5,#7): Verify receipt -> 2-day wait -> staff alert and legacy backlog ownership against persisted data. Bounded trigger scans now advance past already-fired work; multi-process claiming remains unverified. See docs/plans/staff-workflows.md.
 /**
  * In-process Steward Paths worker.
  * Polls scheduled triggers like TASK_DUE and pledge timeline milestones.
@@ -62,6 +63,10 @@ const state: WorkerState = {
 };
 
 let timer: NodeJS.Timeout | null = null;
+// Keyset scans visit the entire backlog, even when the first batch already fired.
+// Advance only after a successful batch so failed work is retried after backoff.
+let dueTaskAfterId: string | undefined;
+let pledgeAfterId: string | undefined;
 
 /** Computes exponential backoff delay capped by configured max. */
 function computeBackoffDelayMs(consecutiveFailures: number): number {
@@ -100,6 +105,8 @@ async function pledgeTimelineAlreadyFired(pledgeId: string): Promise<boolean> {
 async function processDueTasks(now: Date): Promise<void> {
   const dueTasks = await prisma.task.findMany({
     where: {
+      ...(dueTaskAfterId ? { id: { gt: dueTaskAfterId } } : {}),
+      archivedAt: null,
       dueDate: { not: null, lte: now },
       status: { in: ["PENDING", "IN_PROGRESS"] },
       constituentId: { not: null },
@@ -107,7 +114,7 @@ async function processDueTasks(now: Date): Promise<void> {
     include: {
       constituent: { select: { id: true, organizationId: true } },
     },
-    orderBy: { dueDate: "asc" },
+    orderBy: { id: "asc" },
     take: 100,
   });
 
@@ -139,6 +146,7 @@ async function processDueTasks(now: Date): Promise<void> {
       },
     });
   }
+  dueTaskAfterId = dueTasks.length === 100 ? dueTasks[dueTasks.length - 1].id : undefined;
 }
 
 /**
@@ -149,13 +157,14 @@ async function processPledgeTimeline(now: Date): Promise<void> {
   const pledges = await prisma.pledge.findMany({
     where: {
       active: true,
+      ...(pledgeAfterId ? { id: { gt: pledgeAfterId } } : {}),
       startDate: { lte: now },
       constituentId: { not: "" },
     },
     include: {
       constituent: { select: { id: true, organizationId: true } },
     },
-    orderBy: { startDate: "asc" },
+    orderBy: { id: "asc" },
     take: 100,
   });
 
@@ -187,6 +196,7 @@ async function processPledgeTimeline(now: Date): Promise<void> {
       },
     });
   }
+  pledgeAfterId = pledges.length === 100 ? pledges[pledges.length - 1].id : undefined;
 }
 
 /** Runs one poll pass for scheduled Steward Paths triggers. */

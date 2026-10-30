@@ -1,3 +1,7 @@
+## Staff dashboard and workflow follow-ups — 2026-10-30
+
+Implemented check-in feedback layout stability, monthly/constituent/period-donor record links, current/previous-month new donors, dashboard persistent reminder actions, donor workflow history/task handoff, bounded backlog scans, exact letter-part/label downloads, and visible contact mailing dates. The donor UI follows the preferred Microsoft-style letters/email design and honors reduced motion. Remaining requests and explicit limits: [staff workflow checklist](../plans/staff-workflows.md). Verification: [audit evidence](audit-artifacts/2026-10-30-staff-workflows/verification.md). No deployment, migration, live backfill, or staff email was performed; mailing automation/envelopes/report-request search are unfinished.
+
 ## Shared reference design and donor workflows — 2026-10-30
 
 Oyama now has centralized Inter/navy/teal design tokens, reusable component styling, responsive navy navigation, a white shared top bar, and module adapters for Events, Compassion, Settings, Webmaster, Watchdog, Steward Paths, and standalone workspace shells. Authored website/event/email previews retain their presentation. Existing routes, navigation destinations, permissions, and actions are preserved. Donor dashboard, Constituents, and Donations share browse controls and scoped record handoffs.

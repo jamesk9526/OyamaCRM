@@ -12,7 +12,7 @@
   justify-content: center;
   gap: .5rem;
   border: 1px solid var(--crm-border);
-  border-radius: .5rem;
+  border-radius: 4px;
   padding: .5rem .875rem;
   background: var(--crm-surface);
   color: var(--foreground);
@@ -35,14 +35,14 @@
 .donor-daily-workspace .crm-card-surface { box-shadow: none; }
 .donor-daily-workspace .donor-eyebrow { color: var(--crm-accent); font-size: .625rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .donor-daily-workspace .donor-priority-card {
-  display: flex; min-width: 0; flex-direction: column; border: 1px solid var(--crm-border); border-radius: .75rem;
-  padding: 1.125rem; background: var(--crm-surface); transition: border-color .15s, background .15s;
+  display: flex; min-width: 0; flex-direction: column; border: 1px solid var(--crm-border); border-radius: 4px;
+  padding: 1rem; background: var(--crm-surface); transition: border-color .15s, background .15s;
 }
 .donor-daily-workspace .donor-priority-card:hover { border-color: var(--crm-accent); background: var(--crm-accent-soft); }
 .donor-daily-workspace .donor-priority-card > p { flex: 1; }
-.donor-daily-workspace .donor-tool-link { display: flex; gap: .75rem; border: 1px solid var(--crm-border); border-radius: .5rem; padding: .875rem; }
+.donor-daily-workspace .donor-tool-link { display: flex; gap: .75rem; border: 1px solid var(--crm-border); border-radius: 4px; padding: .875rem; }
 .donor-daily-workspace .donor-tool-link:hover { background: var(--crm-accent-soft); border-color: var(--crm-accent); }
-.donor-daily-workspace .donor-relationship-summary { background: linear-gradient(145deg, var(--crm-surface), var(--crm-accent-soft)); }
+.donor-daily-workspace .donor-relationship-summary { background: var(--crm-surface); }
 .donor-daily-workspace .donor-campaign-progress { display: block; width: 100%; height: .375rem; overflow: hidden; border: 0; border-radius: 1rem; background: #e2e8f0; accent-color: var(--crm-accent); }
 .donor-daily-workspace .donor-campaign-progress::-webkit-progress-bar { background: #e2e8f0; }
 .donor-daily-workspace .donor-campaign-progress::-webkit-progress-value { background: var(--crm-accent); }
@@ -60,14 +60,10 @@
 
 }
 
-/* Modern donor workspace tokens and shared surfaces. Other products retain their own design. */
-.crm-fonts[data-donor-appearance] {
-  --crm-border: #dce5e8;
-  --crm-border-strong: #bdcdd2;
-  --crm-muted-text: #617387;
-}
+/* Donor command workspace: match Letters/Email neutral surfaces and compact controls.
+   Keep accent variables user-owned; visual changes do not alter component behavior. */
 [data-donor-appearance="light-green"] {
-  --background: #f3f7f5;
+  --background: #f5f5f5;
   --crm-accent: #176b57;
   --crm-accent-soft: #eaf5ef;
   --crm-focus-ring: #176b5733;
@@ -76,28 +72,28 @@
 [data-donor-appearance="violet"] { --crm-accent: #7450ad; --crm-accent-soft: #f1ebfa; }
 [data-donor-appearance="slate"] { --crm-accent: #475d73; --crm-accent-soft: #ecf1f6; }
 .crm-fonts[data-donor-appearance] :is(.crm-card-surface, .crm-shell-surface, .crm-page-header-surface, .crm-filter-surface) {
-  border-radius: 14px;
+  border-radius: 4px;
   border-color: var(--crm-border);
-  box-shadow: 0 2px 4px #152b3b03, 0 8px 24px #152b3b03;
+  box-shadow: none;
 }
 .crm-fonts[data-donor-appearance] .crm-page-header-surface {
-  background: linear-gradient(115deg, #fff 35%, var(--crm-accent-soft));
-  padding: 1.5rem;
+  background: var(--crm-surface, #fff);
+  padding: 1.125rem 1.25rem;
 }
-.crm-fonts[data-donor-appearance] .crm-page-header-surface h1 { font-size: clamp(1.4rem, 2vw, 1.9rem); letter-spacing: -.035em; }
+.crm-fonts[data-donor-appearance] .crm-page-header-surface h1 { font-size: clamp(1.375rem, 2vw, 1.625rem); letter-spacing: -.025em; }
 .crm-fonts[data-donor-appearance] .crm-page-header-surface .donor-button { font-size: .8125rem; padding-inline: .75rem; }
-.crm-fonts[data-donor-appearance] :is(button, a, input, select, textarea):is(.rounded-lg, .rounded-md, .rounded-xl, .donor-button) { border-radius: 8px; }
-.crm-fonts[data-donor-appearance] :is(input, select, textarea, .report-input):not([type="checkbox"]):not([type="radio"]) { border-radius: 8px; }
-.crm-fonts[data-donor-appearance] :is(section, article, div):is(.rounded-2xl, .rounded-xl) { border-radius: 14px; }
-.crm-fonts[data-donor-appearance] .donor-daily-workspace { padding-top: 1.5rem; }
-.crm-fonts[data-donor-appearance] .donor-daily-workspace .crm-card-surface { box-shadow: 0 2px 4px #152b3b03, 0 8px 24px #152b3b03; }
-.crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface { min-height: 8rem; padding: 1.25rem; }
+.crm-fonts[data-donor-appearance] :is(button, a, input, select, textarea):is(.rounded-lg, .rounded-md, .rounded-xl, .donor-button) { border-radius: 4px; }
+.crm-fonts[data-donor-appearance] :is(input, select, textarea, .report-input):not([type="checkbox"]):not([type="radio"]) { border-radius: 4px; }
+.crm-fonts[data-donor-appearance] :is(section, article, div):is(.rounded-2xl, .rounded-xl) { border-radius: 4px; }
+.crm-fonts[data-donor-appearance] .donor-daily-workspace { padding-top: 1rem; }
+.crm-fonts[data-donor-appearance] .donor-daily-workspace .crm-card-surface { box-shadow: none; }
+.crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface { min-height: 6.75rem; padding: 1rem; }
 .crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface > div > p:first-child { font-size: .6875rem; letter-spacing: .06em; }
-.crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface > div > p:nth-child(2) { font-size: 1.8rem; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-.crm-fonts[data-donor-appearance] .donor-priority-card { border-radius: 14px; background: #fff; box-shadow: 0 4px 14px #152b3b03; }
-.crm-fonts[data-donor-appearance] .donor-priority-card:hover { box-shadow: 0 6px 20px #152b3b09; }
-.crm-fonts[data-donor-appearance] .donor-tool-link { border-radius: 10px; }
-.donor-chart-grid { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(285px, 1fr); gap: 1.25rem; }
+.crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface > div > p:nth-child(2) { font-size: 1.625rem; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.crm-fonts[data-donor-appearance] .donor-priority-card { border-radius: 4px; background: #fff; box-shadow: none; }
+.crm-fonts[data-donor-appearance] .donor-priority-card:hover { box-shadow: none; }
+.crm-fonts[data-donor-appearance] .donor-tool-link { border-radius: 4px; }
+.donor-chart-grid { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(285px, 1fr); gap: 1rem; }
 .donor-chart-canvas { height: 260px; min-width: 0; }
 .donor-chart-state { display: grid; min-height: 220px; align-content: center; text-align: center; padding: 1.5rem; font-size: .875rem; color: #64748b; }
 .donor-chart-legend { display: inline-flex; align-items: center; gap: .5rem; }
@@ -109,68 +105,68 @@
 .donor-chart-table th:first-child { text-align: left; }
 .donor-text-link { font-size: .75rem; font-weight: 650; color: var(--crm-accent); }
 .donor-text-link:hover { text-decoration: underline; }
-.donor-period-label { display: inline-flex; align-items: center; gap: .6rem; border: 1px solid var(--crm-border); border-radius: 50px; padding: .4rem .8rem; background: #ffffff90; }
+.donor-period-label { display: inline-flex; align-items: center; gap: .6rem; border: 1px solid var(--crm-border); border-radius: 4px; padding: .35rem .625rem; background: var(--crm-surface,#fff); }
 @media (max-width: 1100px) { .donor-chart-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 639px) {
   .crm-fonts[data-donor-appearance] .crm-page-header-surface { padding: 1.125rem; }
-  .crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface { padding: .9rem; min-height: 8rem; }
+  .crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface { padding: .9rem; min-height: 6.75rem; }
   .crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface > span { display: none; }
   .crm-fonts[data-donor-appearance] .donor-performance-metrics .crm-card-surface > div > p:nth-child(2) { font-size: 1.5rem; }
 }
 
 /* Shared donor browse language: one search, progressive filters, contextual record actions. */
-.donor-workspace-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; padding: 6px; border: 1px solid var(--crm-border); border-radius: 14px; background: var(--crm-surface,#fff); }
-.donor-workspace-nav a { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 16px; border-radius: 9px; color: #617387; }
-.donor-workspace-nav a:hover { background: #f5f8f8; }
-.donor-workspace-nav a[aria-current=page] { background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); }
-.donor-workspace-nav strong { display: block; font-size: 13px; font-weight: 650; }
+.donor-workspace-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; padding: 0; border: 1px solid var(--crm-border); border-radius: 4px; background: var(--crm-surface,#fff); }
+.donor-workspace-nav a { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 16px; border-radius: 0; border-bottom: 3px solid transparent; color: #424242; }
+.donor-workspace-nav a:hover { background: #f5f5f5; }
+.donor-workspace-nav a[aria-current=page] { border-bottom-color: var(--crm-accent,#176b57); background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); }
+.donor-workspace-nav strong { display: block; font-size: 13px; font-weight: 600; }
 .donor-workspace-nav small { display: block; margin-top: 2px; font-size: 11px; color: #65798a; }
 .donor-workspace-nav svg { flex-shrink: 0; }
 .donor-browse-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
-.donor-browse-metrics .crm-card-surface { height: 100%; min-height: 112px; padding: 19px; }
-.donor-browse-filters { width: 100%; display: grid; gap: 15px; padding: 8px; min-width: 0; }
+.donor-browse-metrics .crm-card-surface { height: 100%; min-height: 100px; padding: 16px; }
+.donor-browse-filters { width: 100%; display: grid; gap: 12px; padding: 4px; min-width: 0; }
 .donor-browse-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.donor-quick-views { display: flex; gap: 4px; border: 1px solid #e3eaed; border-radius: 9px; background: #f6f8f9; padding: 4px; max-width: 100%; flex-wrap: wrap; }
-.donor-quick-views button { min-height: 36px; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #617387; }
-.donor-quick-views button[aria-pressed=true] { background: #fff; color: var(--crm-accent,#176b57); box-shadow: 0 1px 4px #19384714; }
+.donor-quick-views { display: flex; gap: 4px; border: 1px solid var(--crm-border,#d1d1d1); border-radius: 4px; background: #f5f5f5; padding: 3px; max-width: 100%; flex-wrap: wrap; }
+.donor-quick-views button { min-height: 36px; padding: 8px 13px; border-radius: 2px; font-size: 12px; font-weight: 600; color: #616161; }
+.donor-quick-views button[aria-pressed=true] { background: #fff; color: var(--crm-accent,#176b57); box-shadow: inset 0 -2px var(--crm-accent,#176b57); }
 .donor-quick-views button:hover { color: var(--crm-accent,#176b57); }
 .donor-scope-note { font-size: 11px; color: #64748b; }
-.donor-browse-search { display: flex; align-items: center; gap: 11px; background: #fff; border: 1px solid #cddce0; border-radius: 9px; padding: 0 14px; color: #7a8e9a; }
+.donor-browse-search { display: flex; align-items: center; gap: 11px; background: #fff; border: 1px solid #8a8886; border-radius: 4px; padding: 0 14px; color: #7a8e9a; }
 .donor-browse-search:focus-within { outline: 2px solid var(--crm-accent,#176b57); outline-offset: 2px; }
-.donor-browse-search input { width: 100%; min-width: 0; min-height: 46px; border: 0; outline: 0 !important; background: transparent; color: #233c4e; font-size: 13px; }
+.donor-browse-search input { width: 100%; min-width: 0; min-height: 42px; border: 0; outline: 0 !important; background: transparent; color: #233c4e; font-size: 13px; }
 .donor-filter-panel { border-top: 1px solid #edf1f3; }
 .donor-filter-panel summary { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; font-size: 12px; font-weight: 600; color: #516c7b; }
-.donor-filter-panel summary span { border-radius: 8px; background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); font-size: 10px; padding: 2px 7px; }
+.donor-filter-panel summary span { border-radius: 4px; background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); font-size: 10px; padding: 2px 7px; }
 .donor-filter-panel summary:after { content: '+'; margin-left: auto; font-size: 17px; font-weight: 400; }
 .donor-filter-panel[open] summary:after { content: '−'; }
 .donor-filter-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 14px; padding: 12px 0 5px; }
 .donor-filter-fields label { display: grid; gap: 6px; color: #52697b; font-size: 11px; font-weight: 600; }
-.donor-filter-fields :is(input:not([type=checkbox]),select) { width: 100%; min-width: 0; min-height: 42px; padding: 8px 11px; border: 1px solid #d6e1e5; background: #fff; border-radius: 7px; font-size: 12px; color: #233c4e; }
+.donor-filter-fields :is(input:not([type=checkbox]),select) { width: 100%; min-width: 0; min-height: 42px; padding: 8px 11px; border: 1px solid #8a8886; background: #fff; border-radius: 4px; font-size: 12px; color: #233c4e; }
 .donor-filter-fields label.donor-checkbox-label { display: flex; align-items: center; gap: 8px; padding-top: 20px; }
-.donor-filter-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--crm-accent-soft,#eaf5ef); border: 1px solid #dbe8e3; color: var(--crm-accent,#176b57); padding: 6px 9px; border-radius: 6px; font-size: 11px; min-height: 32px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.donor-filter-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--crm-accent-soft,#eaf5ef); border: 1px solid #dbe8e3; color: var(--crm-accent,#176b57); padding: 6px 9px; border-radius: 3px; font-size: 11px; min-height: 32px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 .donor-filter-chip svg { flex-shrink: 0; }
 .donor-active-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.donor-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; padding: 18px 20px; border: 1px solid #bcdbcf; border-radius: 11px; background: var(--crm-accent-soft,#eaf5ef); }
+.donor-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; padding: 18px 20px; border: 1px solid #bcdbcf; border-radius: 4px; background: var(--crm-accent-soft,#eaf5ef); }
 .donor-selection-bar strong { font-size: 13px; color: #264d42; }
 .donor-selection-bar p { font-size: 11px; color: #526d65; margin-top: 4px; }
 .donor-selection-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.donor-pagination { display: flex; align-items: center; justify-content: space-between; gap: 13px; flex-wrap: wrap; background: #fff; border: 1px solid var(--crm-border,#dce5e8); border-radius: 11px; padding: 14px 18px; color: #617387; font-size: 12px; }
+.donor-pagination { display: flex; align-items: center; justify-content: space-between; gap: 13px; flex-wrap: wrap; background: #fff; border: 1px solid var(--crm-border,#dce5e8); border-radius: 4px; padding: 14px 18px; color: #617387; font-size: 12px; }
 .donor-pagination > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .donor-pagination label { display: flex; align-items: center; gap: 8px; font-size: 11px; }
 .donor-pagination select { padding: 8px; min-height: 38px; border: 1px solid #d6e1e5; background: #fff; color: #425e6e; }
 .donor-pagination .donor-button { min-height: 38px; font-size: 11px; }
-.donor-context-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border: 1px solid #c8ded6; background: var(--crm-accent-soft,#eaf5ef); padding: 20px; border-radius: 12px; }
+.donor-context-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; border: 1px solid #c8ded6; background: var(--crm-accent-soft,#eaf5ef); padding: 20px; border-radius: 4px; }
 .donor-context-banner strong { color: #254d40; font-size: 17px; }
 .donor-context-banner p { color: #647e70; font-size: 12px; margin-top: 5px; }
-.donor-inline-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border: 1px solid #edc5be; background: #fff3f0; color: #943f31; border-radius: 9px; font-size: 13px; }
-.donor-record-actions-button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; border: 1px solid #d8e2e6; color: #647b88; background: #fff; }
-.donor-record-actions-button:hover, .donor-record-actions-button[aria-expanded=true] { background: #eef5f1; color: #176b57; border-color: #adcbbb; }
-.donor-record-actions-panel { position: fixed; z-index: 80; width: 260px; overflow-y: auto; padding: 7px; border: 1px solid #d6e3df; border-radius: 11px; background: #fff; box-shadow: 0 10px 35px #173c2e22; color: #365649; font-family: Inter,'Segoe UI',sans-serif; }
+.donor-inline-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border: 1px solid #edc5be; background: #fff3f0; color: #943f31; border-radius: 4px; font-size: 13px; }
+.donor-record-actions-button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 4px; border: 1px solid #d8e2e6; color: #647b88; background: #fff; }
+.donor-record-actions-button:hover, .donor-record-actions-button[aria-expanded=true] { background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); border-color: var(--crm-accent,#176b57); }
+.donor-record-actions-panel { position: fixed; z-index: 80; width: 260px; overflow-y: auto; padding: 7px; border: 1px solid #d6e3df; border-radius: 4px; background: #fff; box-shadow: 0 4px 16px #0000001f; color: #323130; font-family: "Segoe UI",Arial,sans-serif; }
 .donor-record-actions-panel p { margin: 7px 10px 5px; font-size: 9px; color: #71877e; text-transform: uppercase; font-weight: 650; letter-spacing: 1px; }
-.donor-record-actions-panel :is(a,button) { display: block; width: 100%; padding: 10px 11px; font-size: 12px; text-align: left; border-radius: 6px; }
-.donor-record-actions-panel :is(a,button):hover { background: #eef6f0; }
+.donor-record-actions-panel :is(a,button) { display: block; width: 100%; padding: 10px 11px; font-size: 12px; text-align: left; border-radius: 3px; }
+.donor-record-actions-panel :is(a,button):hover { background: var(--crm-accent-soft,#eaf5ef); }
 .donor-record-actions-panel button:disabled { opacity: .5; cursor: not-allowed; }
-:is(.donor-record-actions-panel, .donor-workspace-nav, .donor-browse-filters, .donor-pagination) :is(a,button,summary,input,select):focus-visible { outline: 2px solid #176b57; outline-offset: 2px; }
+:is(.donor-record-actions-panel, .donor-workspace-nav, .donor-browse-filters, .donor-pagination) :is(a,button,summary,input,select):focus-visible { outline: 2px solid var(--crm-accent,#176b57); outline-offset: 2px; }
 @media(max-width:1000px) { .donor-workspace-nav small { display: none; } .donor-browse-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media(max-width:639px) {
   .donor-workspace-nav { gap: 3px; padding: 4px; }
@@ -191,4 +187,108 @@
   .donor-pagination { padding: 13px; gap: 10px; }
   .donor-pagination > div { width: 100%; justify-content: space-between; gap: 8px; }
   .donor-pagination label { width: 100%; }
+}
+
+
+/* Staff dashboard polish: scoped so event check-in and clinical workflows stay still. */
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] > .crm-card-surface {
+  min-width: 0;
+  border-top: 1px solid var(--crm-border, #d1d1d1);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] > .crm-card-surface > h2,
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] h2 {
+  letter-spacing: -.02em;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] [aria-label="New donor month"] {
+  flex-wrap: wrap;
+  gap: .375rem;
+  padding: .25rem;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--crm-border, #dce5e8);
+  border-radius: 4px;
+  background: #f5f5f5;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] [aria-label="New donor month"] button {
+  min-height: 2.5rem;
+  border-color: transparent;
+  background: transparent;
+  font-size: .75rem;
+  color: var(--crm-muted-text, #617387);
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] [aria-label="New donor month"] button[aria-pressed="true"] {
+  border-color: var(--crm-border-strong, #bdcdd2);
+  background: var(--crm-surface, #fff);
+  color: var(--crm-accent, #176b57);
+  box-shadow: inset 0 -2px var(--crm-accent, #176b57);
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] .crm-card-surface > [aria-live="polite"] {
+  min-block-size: 12rem;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] ul {
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: contain;
+  padding-inline-end: .375rem;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] li > a {
+  min-width: 0;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] li > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] li .donor-button {
+  min-height: 2.25rem;
+  padding: .375rem .625rem;
+  font-size: .6875rem;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] :is(button,a):focus-visible {
+  outline: 2px solid var(--crm-accent, #176b57);
+  outline-offset: 3px;
+  border-radius: .375rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] > .crm-card-surface {
+    animation: donor-staff-card-enter 240ms cubic-bezier(.2,.7,.2,1) both;
+  }
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] > .crm-card-surface:nth-child(2) {
+    animation-delay: 35ms;
+  }
+  .donor-daily-workspace :is(.donor-button,.donor-tool-link,.donor-priority-card,.donor-record-actions-button) {
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+  .donor-daily-workspace .donor-button:not(:disabled):active {
+    transform: translateY(1px);
+  }
+}
+@keyframes donor-staff-card-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] > .crm-card-surface:hover {
+    border-color: var(--crm-border-strong, #bdcdd2);
+    border-top-color: var(--crm-border-strong, #b3b3b3);
+    box-shadow: none;
+  }
+}
+@media (max-width: 639px) {
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] .crm-card-surface > [aria-live="polite"] {
+    min-block-size: 9rem;
+  }
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] [aria-label="New donor month"] {
+    width: 100%;
+  }
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] [aria-label="New donor month"] button {
+    flex: 1;
+  }
+  .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] li .donor-button {
+    min-height: 2.75rem;
+  }
 }

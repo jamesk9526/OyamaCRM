@@ -1,0 +1,7 @@
+{
+  "checks": [
+    "501 generated letters expose all 500+1 PDF parts; matching labels use the exact complete first-part letter IDs, not the capped 200 sample or current audience.",
+    "Unavailable matched recipients show the server error without a partial download."
+  ],
+  "pageErrors": []
+}

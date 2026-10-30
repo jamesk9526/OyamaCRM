@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import EnrollmentHistory from "./EnrollmentHistory";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface PathTemplate {
@@ -101,7 +102,7 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Steward Paths</p>
-          <p className="mt-1 text-xs text-slate-600">Active relationship workflows for this constituent.</p>
+          <p className="mt-1 text-xs text-slate-600">Current and past relationship workflows for this constituent.</p>
         </div>
         <button type="button" onClick={() => void load()} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">Refresh</button>
       </div>
@@ -111,9 +112,10 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
 
       {loading ? <p className="mt-3 text-xs text-slate-500">Loading paths...</p> : (
         <>
+          <Link href={`/tasks?constituentId=${encodeURIComponent(constituentId)}`} className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-[var(--crm-accent)] hover:underline">Review this donor’s outstanding and completed tasks →</Link>
           <div className="mt-3 space-y-2">
             {currentEnrollments.length === 0 ? <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">No active Steward Path enrollment.</p> : null}
-            {currentEnrollments.map((enrollment) => (
+            {enrollments.map((enrollment) => (
               <div key={enrollment.id} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <Link href={`/steward-paths/${encodeURIComponent(enrollment.path.id)}/history`} className="min-w-0 truncate text-xs font-semibold text-slate-900 hover:text-[#0f6cbd]">{enrollment.path.name}</Link>
@@ -121,6 +123,7 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
                 </div>
                 <p className="mt-1 truncate text-[11px] text-slate-600">{enrollment.currentStep ? `Current: ${enrollment.currentStep.name}` : "No remaining step"}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{formatDueAt(enrollment.nextStepDueAt)}</p>
+                <EnrollmentHistory enrollmentId={enrollment.id} />
               </div>
             ))}
           </div>

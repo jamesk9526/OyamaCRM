@@ -42,6 +42,7 @@ type DirectoryView = "all" | "active" | "lapsed" | "prospects";
 function ConstituentsWorkspace() {
   const params = useSearchParams();
   const search = params.get("search") || ""; const typeFilter = params.get("type") || ""; const statusFilter = params.get("status") || "";
+  const givingFrom = params.get("givingFrom") || ""; const givingThrough = params.get("givingThrough") || "";
   const page = positivePage(params.get("page"));
   const requestedSize = positivePage(params.get("pageSize"), 50);
   const pageSize = [25, 50, 100, 250, 500].includes(requestedSize) ? requestedSize : 50;
@@ -51,7 +52,7 @@ function ConstituentsWorkspace() {
     // with useSearchParams without waiting for a server navigation per keystroke.
     window.history.replaceState(null, "", `/constituents${query ? `?${query}` : ""}`);
   }
-  function clearFilters() { changeFilters({ search: null, type: null, status: null }); }
+  function clearFilters() { changeFilters({ search: null, type: null, status: null, givingFrom: null, givingThrough: null }); }
   const [constituents, setConstituents] = useState<ConstituentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,8 @@ function ConstituentsWorkspace() {
     async function load() {
       try {
         const params = new URLSearchParams();
+        if (givingFrom) params.set("givingFrom", givingFrom);
+        if (givingThrough) params.set("givingThrough", givingThrough);
         if (search) params.set("search", search);
         if (typeFilter) params.set("type", typeFilter);
         if (statusFilter) params.set("status", statusFilter);
@@ -107,7 +110,7 @@ function ConstituentsWorkspace() {
     }
     const timer = setTimeout(load, search ? 300 : 0);
     return () => { clearTimeout(timer); latestLoadId.current += 1; };
-  }, [search, typeFilter, statusFilter, page, pageSize, retry]);
+  }, [search, typeFilter, statusFilter, givingFrom, givingThrough, page, pageSize, retry]);
 
   useEffect(() => {
     setSelectedIds((current) => current.filter((id) => constituents.some((row) => row.id === id)));
@@ -200,7 +203,7 @@ function ConstituentsWorkspace() {
     }
   }
 
-  const hasFilters = Boolean(search || typeFilter || statusFilter);
+  const hasFilters = Boolean(search || typeFilter || statusFilter || givingFrom || givingThrough);
   const activeDirectoryView: DirectoryView | null = !typeFilter && !statusFilter ? "all"
     : typeFilter === "PROSPECT" && !statusFilter ? "prospects"
     : !typeFilter && statusFilter === "ACTIVE" ? "active"
@@ -237,7 +240,7 @@ function ConstituentsWorkspace() {
           <label>Constituent type<select value={typeFilter} onChange={(event) => changeFilters({ type: event.target.value })}><option value="">All types</option>{CONSTITUENT_TYPES.map((type) => <option key={type} value={type}>{typeLabel(type)}</option>)}</select></label>
           <label>Donor status<select value={statusFilter} onChange={(event) => changeFilters({ status: event.target.value })}><option value="">All statuses</option>{DONOR_STATUSES.map((status) => <option key={status} value={status}>{status === "MAJOR_DONOR" ? "Major donor" : status.charAt(0) + status.slice(1).toLowerCase()}</option>)}</select></label>
         </DonorFilterPanel>
-        {hasFilters && <div className="donor-active-filters" aria-label="Applied constituent filters">{search && <DonorFilterChip label={`Search: ${search}`} onRemove={() => changeFilters({ search: null })} />}{typeFilter && <DonorFilterChip label={typeLabel(typeFilter)} onRemove={() => changeFilters({ type: null })} />}{statusFilter && <DonorFilterChip label={statusFilter.replaceAll("_", " ").toLowerCase()} onRemove={() => changeFilters({ status: null })} />}<button type="button" className="donor-text-link" onClick={clearFilters}>Clear filters</button></div>}
+        {hasFilters && <div className="donor-active-filters" aria-label="Applied constituent filters">{(givingFrom || givingThrough) && <DonorFilterChip label="Completed gifts in dashboard period" onRemove={() => changeFilters({ givingFrom: null, givingThrough: null })} />}{search && <DonorFilterChip label={`Search: ${search}`} onRemove={() => changeFilters({ search: null })} />}{typeFilter && <DonorFilterChip label={typeLabel(typeFilter)} onRemove={() => changeFilters({ type: null })} />}{statusFilter && <DonorFilterChip label={statusFilter.replaceAll("_", " ").toLowerCase()} onRemove={() => changeFilters({ status: null })} />}<button type="button" className="donor-text-link" onClick={clearFilters}>Clear filters</button></div>}
       </div></CRMFilterBar>
       {actionError && <div role="alert" className="donor-inline-error">{actionError}<button type="button" onClick={() => setActionError(null)}>Dismiss</button></div>}
       {error ? <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

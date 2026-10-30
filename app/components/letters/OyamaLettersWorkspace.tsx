@@ -12,6 +12,7 @@ import { formatDonationDate } from "@/app/components/donations/donation-utils";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 import LetterPage from "@/app/components/letters/LetterPage";
 import { openPdfPrintView } from "@/app/components/letters/pdf-print";
+import MatchingLabelsDownload from "@/app/components/letters/MatchingLabelsDownload";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
 import QRCode from "qrcode";
 import {
@@ -65,6 +66,7 @@ type PreparedBulkDownload = {
   part: number;
   totalParts: number;
   recipientCount: number;
+  constituentIds: string[];
 };
 
 type PreparedMasterPdf = {
@@ -4750,6 +4752,7 @@ function GenerateWorkspace() {
           part,
           totalParts: recipientParts.length,
           recipientCount: recipientIds.length,
+          constituentIds: [...recipientIds],
         } satisfies PreparedBulkDownload;
         setPreparedBulkDownloads((current) => [...current, prepared]);
         // A single file can be downloaded immediately. Large exports retain
@@ -4874,6 +4877,7 @@ function GenerateWorkspace() {
       return setError("Only ACTIVE templates can be generated. Publish this template first.");
     }
     const runtimeRecipientIds = includedRecipientIds;
+    if (!runtimeRecipientIds.length) return setError("Select at least one recipient before generating letters.");
     setWorking(true);
     setError(null);
     try {
@@ -4993,7 +4997,8 @@ function GenerateWorkspace() {
     ?? batch?.generated?.map((sample) => sample.id)
     ?? batch?.generatedSample?.map((sample) => sample.id)
     ?? generatedForAudience.map((row) => row.id)
-  ).filter(Boolean).slice(0, 100);
+  ).filter(Boolean);
+  const batchPdfParts = Array.from({ length: Math.ceil(batchPdfIds.length / 500) }, (_, index) => batchPdfIds.slice(index * 500, (index + 1) * 500));
   const focusedGenerated = generatedForTemplate.find((row) => row.id === sourceGeneratedLetterId)
     ?? generatedForAudience.find((row) => row.constituentId === (constituentId || activeRecipientIds[0]))
     ?? generatedForAudience[0]
@@ -5783,6 +5788,7 @@ function GenerateWorkspace() {
                     </a>
                   ))}
                 </div>
+                <div className="mt-3 space-y-2">{preparedBulkDownloads.filter((download) => download.output === "batch").map((download) => <MatchingLabelsDownload key={download.objectUrl} constituentIds={download.constituentIds} title={download.totalParts > 1 ? `Labels for preview part ${download.part}` : "Labels for prepared preview"} />)}</div>
               </div>
             ) : null}
           </aside>
@@ -5830,10 +5836,16 @@ function GenerateWorkspace() {
                 >
                   {generateMode === "single" ? "Generate One Letter" : "Generate Batch"}
                 </Button>
-                <Button onClick={() => generateMode === "batch" ? void openBatchPdf(batchPdfIds) : focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined} disabled={pdfLoading || (generateMode === "batch" ? batchPdfIds.length === 0 : !focusedGenerated)}>
-                  {generateMode === "batch" ? "Open Batch PDF" : "Open Latest PDF"}
+                <Button onClick={() => generateMode === "batch" ? void openBatchPdf(batchPdfIds) : focusedGenerated ? void openIndividualPdf(focusedGenerated.id) : undefined} disabled={pdfLoading || (generateMode === "batch" ? batchPdfIds.length === 0 || batchPdfIds.length > 500 : !focusedGenerated)}>
+                  {generateMode === "batch" ? batchPdfIds.length > 500 ? "Choose a batch part below" : "Open Batch PDF" : "Open Latest PDF"}
                 </Button>
               </div>
+              {generateMode === "batch" && batchPdfParts.length > 0 ? <div className="mt-3 space-y-3">
+                {batchPdfParts.map((ids, index) => <div key={index} className="space-y-2">
+                  {batchPdfParts.length > 1 ? <Button onClick={() => void openBatchPdf(ids)} disabled={pdfLoading}>Open letter PDF part {index + 1} of {batchPdfParts.length} ({ids.length})</Button> : null}
+                  <MatchingLabelsDownload key={ids.join(",")} letterIds={ids} title={batchPdfParts.length > 1 ? `Labels for PDF part ${index + 1}` : "Labels in letter order"} />
+                </div>)}
+              </div> : null}
               <details className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <summary className="cursor-pointer text-xs font-semibold text-slate-700">Advanced generation tools</summary>
                 <div className="mt-2 flex flex-wrap gap-2">

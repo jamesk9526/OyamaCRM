@@ -818,6 +818,33 @@ router.delete("/tools/donation-audiences/:id", requirePermission("edit:communica
   res.json({ audiences });
 });
 
+/** First-gift cohorts use UTC calendar months, independent of the reporting year. */
+router.get("/new-donors", async (req, res) => {
+  const organizationId = await resolveOrganizationId({ req });
+  const month = req.query.month ?? "current";
+  if (month !== "current" && month !== "previous") {
+    res.status(400).json({ error: { code: "INVALID_MONTH", message: "Choose current or previous month." } });
+    return;
+  }
+  const page = Math.max(1, Math.min(100000, Number.parseInt(String(req.query.page ?? "1"), 10) || 1));
+  const limit = 10;
+  const now = new Date();
+  const offset = month === "previous" ? -1 : 0;
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+  const to = month === "previous" ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) : now;
+  if (!organizationId) {
+    res.json({ items: [], total: 0, page, totalPages: 1, from, to });
+    return;
+  }
+  const where = { organizationId, firstGiftDate: { gte: from, ...(month === "previous" ? { lt: to } : { lte: to }) } };
+  const [items, total] = await Promise.all([
+    prisma.constituent.findMany({ where, select: { id: true, firstName: true, lastName: true, firstGiftDate: true },
+      orderBy: [{ firstGiftDate: "desc" }, { id: "asc" }], skip: (page - 1) * limit, take: limit }),
+    prisma.constituent.count({ where }),
+  ]);
+  res.json({ items, total, page, totalPages: Math.max(1, Math.ceil(total / limit)), from, to });
+});
+
 /**
  * GET /api/reports/summary — Return high-level org-wide KPIs for the dashboard header cards.
  * Runs all aggregation queries concurrently to minimise response latency.

@@ -10,6 +10,9 @@ interface ConstituentLetterItem {
   category: string;
   status: string;
   generatedAt: string;
+  printedAt?: string | null;
+  mailedAt?: string | null;
+  emailSentAt?: string | null;
   template?: {
     id: string;
     name: string;
@@ -29,6 +32,7 @@ interface ConstituentLettersPanelProps {
 export default function ConstituentLettersPanel({ constituentId, canGenerate = true, disabledReason = "Letter generation is unavailable for this constituent." }: ConstituentLettersPanelProps) {
   const [letters, setLetters] = useState<ConstituentLetterItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -53,7 +57,7 @@ export default function ConstituentLettersPanel({ constituentId, canGenerate = t
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Letters & Printables</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Generated communication history for this constituent.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Mailing and generation history for this contact. Creating a PDF does not record a mailing.</p>
         </div>
         <div className="flex items-center gap-2">
           {canGenerate ? (
@@ -67,13 +71,14 @@ export default function ConstituentLettersPanel({ constituentId, canGenerate = t
 
       {error && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{error}</div>}
 
-      <div className="mt-3 space-y-2">
+      {!loading && letters.length > 0 ? <p className="mt-3 text-xs text-slate-600">Review prior mailings before repeating outreach. Showing up to 100 recent letter records.</p> : null}
+      <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto">
         {loading ? (
           <p className="text-sm text-gray-500">Loading letter history...</p>
         ) : letters.length === 0 ? (
           <p className="text-sm text-gray-500">No letters generated yet for this constituent.</p>
         ) : (
-          letters.slice(0, 8).map((letter) => (
+          (showAll ? letters : letters.slice(0, 8)).map((letter) => (
             <div key={letter.id} className="rounded-lg border border-gray-200 px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-gray-900">{letter.template?.name || "Template"}</p>
@@ -82,6 +87,12 @@ export default function ConstituentLettersPanel({ constituentId, canGenerate = t
               <p className="text-xs text-gray-500 mt-0.5">
                 {letter.category.replaceAll("_", " ")} · {new Date(letter.generatedAt).toLocaleDateString()}
               </p>
+              <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                <div><dt className="inline font-medium">Generated: </dt><dd className="inline">{new Date(letter.generatedAt).toLocaleDateString()}</dd></div>
+                <div><dt className="inline font-medium">Printed: </dt><dd className="inline">{letter.printedAt ? new Date(letter.printedAt).toLocaleDateString() : "Not recorded"}</dd></div>
+                <div><dt className="inline font-medium">Mailed: </dt><dd className="inline">{letter.mailedAt ? new Date(letter.mailedAt).toLocaleDateString() : "Not recorded"}</dd></div>
+                {letter.emailSentAt ? <div><dt className="inline font-medium">Email sent: </dt><dd className="inline">{new Date(letter.emailSentAt).toLocaleDateString()}</dd></div> : null}
+              </dl>
               {letter.emailCampaign?.id && (
                 <Link href={`/communications/${letter.emailCampaign.id}`} className="text-xs text-blue-700 underline mt-1 inline-block">
                   Open email draft
@@ -91,6 +102,7 @@ export default function ConstituentLettersPanel({ constituentId, canGenerate = t
           ))
         )}
       </div>
+      {!loading && letters.length > 8 ? <button type="button" onClick={() => setShowAll((value) => !value)} className="mt-2 min-h-10 text-xs font-semibold text-[var(--crm-accent)] hover:underline">{showAll ? "Show recent eight" : `Show all ${letters.length} loaded letters`}</button> : null}
     </section>
   );
 }

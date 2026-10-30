@@ -670,6 +670,8 @@ router.get("/", async (req, res) => {
     limit = "50",
     page,
     pageSize,
+    givingFrom,
+    givingThrough,
   } = req.query as Record<string, string | undefined>;
   const organizationId = await resolveOrganizationId({ req });
   const hasPagination = Boolean(page || pageSize);
@@ -700,8 +702,19 @@ router.get("/", async (req, res) => {
       ]
     : [];
 
+  let givingRange: { gte: Date; lte: Date } | undefined;
+  if (givingFrom || givingThrough) {
+    const gte = new Date(givingFrom ?? "");
+    const lte = new Date(givingThrough ?? "");
+    if (!Number.isFinite(gte.getTime()) || !Number.isFinite(lte.getTime()) || gte > lte) {
+      res.status(400).json({ error: { code: "INVALID_GIVING_RANGE", message: "Provide a valid giving start and end date." } });
+      return;
+    }
+    givingRange = { gte, lte };
+  }
   const where: Prisma.ConstituentWhereInput = {
     organizationId,
+    ...(givingRange ? { donations: { some: { status: "COMPLETED", date: givingRange } } } : {}),
     ...(searchFilters.length > 0 && { OR: searchFilters }),
     ...(type && { type: type as never }),
     ...(status && { donorStatus: status as never }),
