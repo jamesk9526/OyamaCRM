@@ -9,6 +9,7 @@ import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/
 import type { DashboardData, DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 import { formatDonationDate } from "@/app/components/donations/donation-utils";
 import DashboardReportFinder from "./DashboardReportFinder";
+import DonorSpotlight from "./DonorSpotlight";
 import NewDonorsWidget from "./NewDonorsWidget";
 import DashboardReminders from "./DashboardReminders";
 import DonorActionCenter from "./DonorActionCenter";
@@ -107,6 +108,7 @@ export default function NaturalisticDonorDashboard({
         <button type="button" onClick={refresh} disabled={busy} className="donor-button mt-3">Retry</button>
       </div> : null}
 
+      <DonorSpotlight onRefresh={refresh} data={data} summary={summary} loading={busy} unavailable={Boolean(loadError || requestError)} />
       <section aria-label="Performance summary">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-900">Fundraising at a glance</h2>

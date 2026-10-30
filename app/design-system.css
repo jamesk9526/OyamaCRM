@@ -157,7 +157,7 @@
   font-size: 13px;
   line-height: 1.4;
 }
-:is(.crm-fonts.crm-fonts,.event-studio-shell,[data-oyama-module]) :is(input,textarea):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *)::placeholder { color: #8b97a7; opacity: 1; }
+:is(.crm-fonts.crm-fonts,.event-studio-shell,[data-oyama-module]) :is(input,textarea):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *)::placeholder { color: #596579; opacity: 1; }
 :is(.crm-fonts.crm-fonts,.event-studio-shell,[data-oyama-module]) :is(input,select,textarea):focus-visible:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { outline: 2px solid var(--crm-accent); outline-offset: 2px; box-shadow: var(--oyama-focus); }
 :is(.crm-fonts.crm-fonts,.event-studio-shell,[data-oyama-module]) :is(input[type=checkbox],input[type=radio]):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { accent-color: var(--crm-accent); }
 :is(.crm-fonts.crm-fonts,.event-studio-shell,[data-oyama-module]) :is(button,a,summary):focus-visible:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { outline: 2px solid var(--crm-accent); outline-offset: 3px; }
@@ -194,3 +194,43 @@
   .crm-fonts.crm-fonts .crm-route-content:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { padding: 0; }
 }
 
+
+/* Explicit foreground/background pairs protect dark chrome from generic form and heading rules. */
+.crm-fonts.crm-fonts .crm-release-hero #release-v2-title { color: #fff; }
+.crm-fonts.crm-fonts .crm-release-hero p { color: #dceef0; }
+.crm-fonts.crm-fonts .crm-release-hero button { color: #fff; }
+.crm-fonts.crm-fonts .donor-tool-search input { background: #fff; color: #172b42; border: 1px solid #cbd5e1; border-radius: 5px; padding: 6px 8px; }
+.crm-fonts.crm-fonts .donor-tool-search input::placeholder { color: #526176; opacity: 1; }
+.crm-fonts.crm-fonts .donor-daily-workspace :is(.text-slate-400,.text-gray-400) { color: #596579; }
+.crm-fonts.crm-fonts .donor-browse-search input::placeholder { color: #596579; opacity: 1; }
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-metric-card :is(.text-slate-500,.text-gray-500),
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-scope-note { color: #526176; }
+
+/* Donor command pages: a clear header, quiet canvas and grouped actions. */
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface {
+ border:1px solid #dce5eb; border-left:4px solid var(--crm-accent); border-radius:10px;
+ background:linear-gradient(110deg,#fff,#f4f8fb); padding:24px; box-shadow:0 2px 5px #10283f05;
+}
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface .crm-page-actions { align-self:center; padding:6px; border-radius:8px; background:#ffffffc9; gap:8px; }
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-filter-surface { background:#fff; box-shadow:0 2px 5px #10283f05; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-workspace-nav { border-radius:8px; overflow:hidden; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-workspace-nav a[aria-current=page] { background:var(--crm-accent-soft); }
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-metric-card { border-top:3px solid #b9d9df; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-button { border-radius:6px; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-button:active:not(:disabled) { filter:brightness(.96); }
+.donor-spotlight-loading { min-height:190px; }
+.donor-spotlight-loading .donor-loading-indicator { color:#dceef0; }
+.donor-spotlight-loading-bars { display:flex; align-items:flex-end; gap:12px; height:140px; margin-top:16px; border-bottom:1px solid #ffffff30; }
+.donor-spotlight-loading-bars i { flex:1; border-radius:5px 5px 0 0; background:linear-gradient(0deg,#2dd4bf22,#5eead455); }
+.donor-spotlight-controls button:disabled { opacity:.6; cursor:wait; }
+@media(prefers-reduced-motion:no-preference) {
+ .donor-spotlight-loading-bars i { animation:donor-loading-breathe 1400ms ease-in-out infinite alternate; }
+ .donor-spotlight-loading-bars i:nth-child(even) { animation-delay:250ms; }
+ .donor-daily-workspace .donor-button { transition:background-color 140ms ease,border-color 140ms ease,box-shadow 140ms ease; }
+ .donor-daily-workspace .donor-button:hover:not(:disabled) { box-shadow:0 2px 6px #10283f12; }
+}
+@keyframes donor-loading-breathe { from { opacity:.35; } to { opacity:1; } }
+@media(max-width:639px) {
+ .crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface { padding:18px; }
+ .crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface .crm-page-actions { align-self:stretch; padding:0; background:transparent; }
+}

@@ -409,3 +409,27 @@
  .donor-animated-dashboard a:hover .crm-metric-card { transform: translateY(-3px); box-shadow: 0 8px 24px #10283f12; }
 }
 @keyframes donor-dashboard-reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Permanent dashboard spotlight, distinct from the first-use release announcement. */
+.crm-fonts.crm-fonts .donor-spotlight { padding:clamp(20px,3vw,36px); border-radius:12px; background:linear-gradient(115deg,#102237,#104f50); color:#dceef0; box-shadow:0 8px 24px #10283f14; }
+.crm-fonts.crm-fonts .donor-spotlight :is(h2,h3) { color:#fff; }
+.donor-spotlight-header { display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+.donor-spotlight-header h2 { font-size:clamp(20px,2vw,28px); font-weight:600; margin:8px 0; }
+.donor-spotlight p { font-size:14px; line-height:1.7; }
+.donor-spotlight-eyebrow { color:#99f6e4; text-transform:uppercase; letter-spacing:.12em; font-size:11px !important; font-weight:600; }
+.donor-spotlight-controls { display:flex; align-items:center; gap:14px; }
+.donor-spotlight button { min-height:44px; border:1px solid #ffffff45; border-radius:6px; padding:8px 14px; color:#fff; }
+.donor-spotlight button:hover,.donor-spotlight button[aria-pressed=true] { background:#ffffff18; border-color:#5eead4; }
+.donor-spotlight :is(button,a,summary):focus-visible { outline:2px solid #99f6e4; outline-offset:4px; }
+.donor-spotlight-slide { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:32px; align-items:center; margin:24px 0; min-height:220px; }
+.donor-spotlight-slide h3 { font-size:20px; font-weight:600; margin-bottom:10px; }
+.donor-spotlight-slide a { display:inline-flex; padding:12px 0; color:#99f6e4; font-weight:600; }
+.donor-spotlight-visual { min-width:0; border:1px solid #ffffff20; background:#ffffff06; padding:18px; border-radius:8px; }
+.donor-spotlight-stats { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.donor-spotlight-stats strong { display:block; font-size:36px; color:white; font-variant-numeric:tabular-nums; }
+.donor-spotlight-tabs { display:flex; gap:10px; flex-wrap:wrap; }
+.donor-spotlight details { font-size:12px; margin-top:12px; }
+.donor-spotlight summary { cursor:pointer; }
+@media(max-width:767px) { .donor-spotlight-slide { grid-template-columns:1fr; gap:20px; } }
+@media(prefers-reduced-motion:no-preference) { .donor-spotlight-slide { animation:donor-content-arrive 220ms ease-out; } }
+.crm-fonts.crm-fonts .donor-daily-workspace :is(.crm-card-surface,.crm-filter-surface,.oyama-table-shell) { border-radius:8px; border-color:#dce5eb; }

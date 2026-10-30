@@ -28,7 +28,7 @@ export default function ReleaseBanner() {
   if (!key || readyKey !== key) return null;
   if (dismissed) return <div className="mb-4 flex justify-end"><button type="button" className="text-xs font-semibold text-[var(--crm-accent)] hover:underline" onClick={() => setDismissed(false)}>What’s new in OyamaCRM v2</button></div>;
   return <section aria-labelledby="release-v2-title" className="mb-6 overflow-hidden rounded-xl border border-teal-200 bg-white shadow-sm">
-    <div className="flex flex-wrap items-start justify-between gap-4 bg-gradient-to-r from-slate-900 to-teal-900 p-6 text-white">
+    <div className="crm-release-hero flex flex-wrap items-start justify-between gap-4 bg-gradient-to-r from-slate-900 to-teal-900 p-6 text-white">
       <div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-widest text-teal-200">Your workspace, refreshed · Version 2.0</p><h2 id="release-v2-title" className="mt-2 text-2xl font-semibold">Welcome to OyamaCRM v2</h2><p className="mt-2 text-sm leading-6 text-slate-200">More room to work. Clearer next steps. Better tools for caring for your donors. Here’s what has changed since 1.45b.</p></div>
       <button type="button" className="min-h-11 rounded-md border border-white/40 px-4 text-sm font-semibold hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4" onClick={() => { try { localStorage.setItem(key, "seen"); } catch { /* Dismiss for this session when storage is unavailable. */ } setDismissed(true); }}>Got it, let’s get started</button>
     </div>
