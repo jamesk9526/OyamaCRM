@@ -11,9 +11,9 @@ import { useNotificationFeed } from "@/app/components/notifications/useNotificat
 import { changeNotification, safeNotificationHref } from "@/app/components/notifications/notification-client";
 
 /** Use durable inbox actions: dismissing an alert never completes its underlying task. */
-export default function DashboardReminders() {
+export default function DashboardReminders({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const router = useRouter();
-  const feed = useNotificationFeed({ module: "donor", pageSize: 10 });
+  const feed = useNotificationFeed({ module: "donor", pageSize: 10, refreshVersion });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function act(id: string, days?: number) {
@@ -30,8 +30,8 @@ export default function DashboardReminders() {
     <p className="mt-1 text-xs text-slate-500">Workflow and task alerts, including missed follow-ups. Snooze or dismiss the alert without closing the task.</p>
     <Link href="/tasks" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--crm-accent)] hover:underline">Upcoming and overdue tasks →</Link>
     {(error || feed.error) && <p role="alert" className="my-2 text-sm text-amber-800">{error || feed.error} <button onClick={() => { setError(null); void feed.refresh(); }} className="underline">Refresh</button></p>}
-    <div aria-live="polite" aria-busy={feed.loading}>
-      {feed.loading && !feed.items.length ? <p className="py-4 text-sm text-slate-500">Loading reminders…</p> : !feed.items.length ? <p className="py-4 text-sm text-slate-500">{feed.error ? "Reminders unavailable." : "No active reminders."}</p> : <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto">{feed.items.map((item) => <li key={item.id} className="py-3">
+    <div className="donor-widget-content" aria-live="polite" aria-busy={feed.loading}>
+      {feed.loading && !feed.items.length ? <p className="donor-loading-indicator py-4">Loading reminders…</p> : !feed.items.length ? <p className="py-4 text-sm text-slate-500">{feed.error ? "Reminders unavailable." : "No active reminders."}</p> : <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto">{feed.items.map((item) => <li key={item.id} className="py-3">
         <button className="text-left text-sm font-semibold text-[var(--crm-accent)] hover:underline" onClick={() => router.push(safeNotificationHref(item.href))}>{item.title}</button>
         <p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p>
         <p className="mt-1 text-xs text-slate-500">Alert created {new Date(item.createdAt).toLocaleDateString()}</p>

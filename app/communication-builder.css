@@ -1,0 +1,16 @@
+/* Builder chrome only: authored letter/email content retains its own layout. */
+.communication-builder { --builder-control-radius: 6px; }
+.communication-builder > .sticky { box-shadow: 0 4px 14px #10283f0a; }
+.letter-builder > .sticky > div { padding-block: .5rem; }
+.communication-builder > .sticky button { border-radius: var(--builder-control-radius); }
+.communication-builder > .sticky button:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 3px; }
+.communication-builder aside { scrollbar-gutter: stable; }
+.communication-builder aside > div { line-height: 1.55; }
+.communication-builder aside :is(input:not([type=checkbox]):not([type=radio]),select) { min-height: 2.5rem; }
+.communication-builder aside details > summary { padding-block: .75rem; cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) {
+ .communication-builder > .sticky button { transition: background-color 150ms ease, border-color 150ms ease; }
+}
+@media (max-width: 639px) {
+ .letter-builder > .sticky { position: relative; top: auto; }
+}

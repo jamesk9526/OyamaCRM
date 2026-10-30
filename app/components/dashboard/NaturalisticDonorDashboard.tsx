@@ -8,6 +8,7 @@ import { buildStewardshipSuggestions, formatDashboardCurrency, toDashboardNumber
 import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/dashboard-client-service";
 import type { DashboardData, DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
 import { formatDonationDate } from "@/app/components/donations/donation-utils";
+import DashboardReportFinder from "./DashboardReportFinder";
 import NewDonorsWidget from "./NewDonorsWidget";
 import DashboardReminders from "./DashboardReminders";
 import DonorActionCenter from "./DonorActionCenter";
@@ -39,6 +40,7 @@ export default function NaturalisticDonorDashboard({
   dataThroughLabel, reportingYearMode, headerActions, extraSections, onRefresh, loadError,
 }: NaturalisticDonorDashboardProps) {
   const [focus, setFocus] = useState("overview");
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [richLoading, setRichLoading] = useState(true);
@@ -61,7 +63,7 @@ export default function NaturalisticDonorDashboard({
     void loadRichData();
     return () => { loadId.current += 1; };
   }, [loadRichData]);
-  const refresh = () => { void loadRichData(); void onRefresh?.(); };
+  const refresh = () => { setRefreshVersion((value) => value + 1); void loadRichData(); void onRefresh?.(); };
   const busy = summaryLoading || richLoading;
   const errors = [loadError, requestError, ...(data?.errors ?? [])].filter(Boolean);
   const suggestions = buildStewardshipSuggestions(loadError ? null : summary, loadError ? null : retention);
@@ -87,12 +89,12 @@ export default function NaturalisticDonorDashboard({
   if (summary?.period?.through) donorQuery.set("givingThrough", summary.period.through);
 
   return (
-    <div className="donor-daily-workspace space-y-5 pb-8">
+    <div className="donor-daily-workspace donor-animated-dashboard space-y-5 pb-8">
       <DonorWorkspaceNav />
       <CRMPageHeader breadcrumb="Donor CRM" title={`${greeting}, ${firstName}`}
         description="See your fundraising momentum and turn insights into stronger donor relationships."
         primaryAction={<Link href="/donations?recordGift=1" className="donor-button donor-button-primary"><Gift className="h-4 w-4" aria-hidden="true" />Record gift</Link>}
-        secondaryActions={<>{headerActions}<button type="button" className="donor-button" onClick={refresh} disabled={busy}><RefreshCcw className="h-4 w-4" aria-hidden="true" />{busy ? "Refreshing" : "Refresh"}</button></>}
+        secondaryActions={<>{headerActions}<button type="button" className="donor-button" onClick={refresh} disabled={busy}><RefreshCcw className={`h-4 w-4 ${busy ? "motion-safe:animate-spin" : ""}`} aria-hidden="true" />{busy ? "Refreshing" : "Refresh"}</button></>}
       />
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
         <span className="donor-period-label">{periodLabel} <span aria-hidden="true">·</span> Completed gifts</span>
@@ -119,7 +121,8 @@ export default function NaturalisticDonorDashboard({
           <CRMMetricCard href={`/constituents?${donorQuery}`} label="Active donors" value={summary?.activeDonors.toLocaleString() ?? "—"} icon={<Users className="h-4 w-4" />} helper="Donors with completed gifts this period" loading={summaryLoading} tone="orange" />
         </div>
       </section>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-2" aria-label="Donors and staff reminders"><NewDonorsWidget /><DashboardReminders /></section>
+      <section className="grid min-w-0 gap-4 xl:grid-cols-2" aria-label="Donors and staff reminders"><NewDonorsWidget refreshVersion={refreshVersion} /><DashboardReminders refreshVersion={refreshVersion} /></section>
+      <DashboardReportFinder period={summary?.period} />
       {focus === "overview" && <DonorPerformanceCharts data={data} summary={summary} loading={richLoading} unavailable={Boolean(requestError)} />}
       <DonorActionCenter data={data} summary={summary} retention={retention} loading={busy} summaryUnavailable={Boolean(loadError || !summary)} detailsUnavailable={Boolean(requestError)} />
 

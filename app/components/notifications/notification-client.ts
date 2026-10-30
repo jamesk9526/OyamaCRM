@@ -25,6 +25,7 @@ let controller: AbortController | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let polling: ReturnType<typeof setInterval> | undefined;
 const broadcast = () => { for (const listener of listeners) listener(); };
+const refreshWhenVisible = () => { if (document.visibilityState === "visible") broadcast(); };
 export function subscribeToNotifications(listener: () => void) {
   listeners.add(listener);
   if (!controller) {
@@ -52,12 +53,16 @@ export function subscribeToNotifications(listener: () => void) {
     window.addEventListener("notifications:updated", broadcast);
     window.addEventListener("tasks:updated", broadcast);
     window.addEventListener("focus", broadcast);
+    window.addEventListener("online", broadcast);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
   }
   return () => {
     listeners.delete(listener);
     if (!listeners.size) {
       controller?.abort(); controller = null; clearTimeout(retry); clearInterval(polling);
       window.removeEventListener("notifications:updated", broadcast); window.removeEventListener("tasks:updated", broadcast); window.removeEventListener("focus", broadcast);
+      window.removeEventListener("online", broadcast);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     }
   };
 }

@@ -1325,6 +1325,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [savedDraft, setSavedDraft] = useState<TemplateDraft>(EMPTY_DRAFT);
   const [loading, setLoading] = useState(Boolean(templateId));
   const [saving, setSaving] = useState(false);
+  const saveInFlight = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
@@ -1614,7 +1615,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setNotice("Server-rendered PDF preview refreshed.");
     } catch (requestError) {
       setEditorPdfError(isRequestAbort(requestError)
-        ? "The server PDF preview timed out after 45 seconds. Your draft is still saved; try again or continue to Publish Review and use the request reference shown there."
+        ? "The server PDF preview timed out after 45 seconds. Your edits remain in the editor; save your draft before leaving, then try again or continue to Publish Review and use the request reference shown there."
         : errorMessage(requestError, "Failed to render server PDF preview."));
     } finally {
       window.clearTimeout(timeout);
@@ -1631,7 +1632,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }
 
   async function save(nextStatus?: TemplateStatus) {
-    const payload: TemplateDraft = { ...draft, status: nextStatus ?? draft.status };
+    if (saveInFlight.current) return null;
+    saveInFlight.current = true;
+    const payload: TemplateDraft = { ...currentDraftSnapshot(), status: nextStatus ?? draft.status };
     setSaving(true);
     setError(null);
     setSaveFailure(null);
@@ -1657,6 +1660,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       setError(`${message} Local recovery was saved; your edits are still available.`);
       return null;
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
     }
   }
@@ -1667,7 +1671,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   }
 
   async function createOyamaEmailCompanion() {
-    const id = templateId || await save();
+    const id = await save();
     if (!id) return;
     setError(null);
     try {
@@ -2681,7 +2685,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   if (loading) return <LoadingPage label="Loading canvas builder..." />;
 
   return (
-    <main className="flex min-h-[calc(100dvh-88px)] flex-col bg-[#f5f5f5]">
+    <main className="communication-builder letter-builder flex min-h-[calc(100dvh-88px)] flex-col bg-[#f5f5f5]">
       <input
         ref={imageInputRef}
         type="file"
@@ -2718,15 +2722,15 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <Button onClick={addPage}>Add Page</Button>
             <Button onClick={() => void openServerPdfPreview()} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering..." : editorPdfStale ? "Refresh PDF" : "Preview"}</Button>
             <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-            <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Publish</Button>
+            <Button onClick={() => void saveAndPublish()} tone="primary" disabled={saving}>Review & publish</Button>
           </div>
         </div>
       </div>
       {toolDrawerOpen ? <div className="flex max-h-56 items-stretch gap-2 overflow-x-auto border-b border-[#d1d1d1] bg-[#f3f2f1] px-3 py-2 sm:px-4 xl:px-7">
         {activeRibbon === "File" ? (
           <>
-            <RibbonButton onClick={() => void save()}>Save Draft</RibbonButton>
-            <RibbonButton onClick={() => void saveAndPublish()}>Continue to Publish</RibbonButton>
+            <RibbonButton disabled={saving} onClick={() => void save()}>Save Draft</RibbonButton>
+            <RibbonButton disabled={saving} onClick={() => void saveAndPublish()}>Review & publish</RibbonButton>
             <RibbonButton onClick={() => void openServerPdfPreview()}>Production Preview</RibbonButton>
             <RibbonButton onClick={() => setDraft(EMPTY_DRAFT)}>New Blank Template</RibbonButton>
           </>
@@ -2874,7 +2878,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {editorPdfError && !editorPdfOpen ? <Alert tone="amber">{editorPdfError}</Alert> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-[208px_minmax(0,1fr)] xl:grid-cols-[224px_minmax(0,1fr)_280px] lg:gap-4 lg:overflow-hidden lg:p-4 xl:p-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 p-4 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:overflow-hidden lg:p-5 xl:p-6">
         <aside className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
           <div className="space-y-2.5">
             <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-3 shadow-sm">
@@ -7472,8 +7476,8 @@ function PanelTitle({ children }: { children: ReactNode }) {
   return <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</p>;
 }
 
-function RibbonButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="h-10 shrink-0 border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#eff6fc] hover:text-[#0f548c]">{children}</button>;
+function RibbonButton({ children, onClick, disabled = false }: { children: ReactNode; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className="disabled:cursor-not-allowed disabled:opacity-50 h-10 shrink-0 border border-[#c8c6c4] bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-[#eff6fc] hover:text-[#0f548c]">{children}</button>;
 }
 
 function RibbonGroup({ label, children }: { label: string; children: ReactNode }) {

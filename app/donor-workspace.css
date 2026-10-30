@@ -36,11 +36,11 @@
 .donor-daily-workspace .donor-eyebrow { color: var(--crm-accent); font-size: .625rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .donor-daily-workspace .donor-priority-card {
   display: flex; min-width: 0; flex-direction: column; border: 1px solid var(--crm-border); border-radius: 4px;
-  padding: 1rem; background: var(--crm-surface); transition: border-color .15s, background .15s;
+  padding: 1.25rem; background: var(--crm-surface); transition: border-color .15s, background .15s;
 }
 .donor-daily-workspace .donor-priority-card:hover { border-color: var(--crm-accent); background: var(--crm-accent-soft); }
 .donor-daily-workspace .donor-priority-card > p { flex: 1; }
-.donor-daily-workspace .donor-tool-link { display: flex; gap: .75rem; border: 1px solid var(--crm-border); border-radius: 4px; padding: .875rem; }
+.donor-daily-workspace .donor-tool-link { display: flex; gap: .75rem; border: 1px solid var(--crm-border); border-radius: 4px; padding: 1rem; }
 .donor-daily-workspace .donor-tool-link:hover { background: var(--crm-accent-soft); border-color: var(--crm-accent); }
 .donor-daily-workspace .donor-relationship-summary { background: var(--crm-surface); }
 .donor-daily-workspace .donor-campaign-progress { display: block; width: 100%; height: .375rem; overflow: hidden; border: 0; border-radius: 1rem; background: #e2e8f0; accent-color: var(--crm-accent); }
@@ -116,32 +116,32 @@
 
 /* Shared donor browse language: one search, progressive filters, contextual record actions. */
 .donor-workspace-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; padding: 0; border: 1px solid var(--crm-border); border-radius: 4px; background: var(--crm-surface,#fff); }
-.donor-workspace-nav a { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 16px; border-radius: 0; border-bottom: 3px solid transparent; color: #424242; }
+.donor-workspace-nav a { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 14px 18px; border-radius: 0; border-bottom: 3px solid transparent; color: #424242; }
 .donor-workspace-nav a:hover { background: #f5f5f5; }
 .donor-workspace-nav a[aria-current=page] { border-bottom-color: var(--crm-accent,#176b57); background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); }
 .donor-workspace-nav strong { display: block; font-size: 13px; font-weight: 600; }
 .donor-workspace-nav small { display: block; margin-top: 2px; font-size: 11px; color: #65798a; }
 .donor-workspace-nav svg { flex-shrink: 0; }
-.donor-browse-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
-.donor-browse-metrics .crm-card-surface { height: 100%; min-height: 100px; padding: 16px; }
-.donor-browse-filters { width: 100%; display: grid; gap: 12px; padding: 4px; min-width: 0; }
+.donor-browse-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px; }
+.donor-browse-metrics .crm-card-surface { height: 100%; min-height: 112px; padding: 20px; }
+.donor-browse-filters { width: 100%; display: grid; gap: 16px; padding: 6px; min-width: 0; }
 .donor-browse-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .donor-quick-views { display: flex; gap: 4px; border: 1px solid var(--crm-border,#d1d1d1); border-radius: 4px; background: #f5f5f5; padding: 3px; max-width: 100%; flex-wrap: wrap; }
-.donor-quick-views button { min-height: 36px; padding: 8px 13px; border-radius: 2px; font-size: 12px; font-weight: 600; color: #616161; }
+.donor-quick-views button { min-height: 42px; padding: 10px 15px; border-radius: 2px; font-size: 12px; font-weight: 600; color: #616161; }
 .donor-quick-views button[aria-pressed=true] { background: #fff; color: var(--crm-accent,#176b57); box-shadow: inset 0 -2px var(--crm-accent,#176b57); }
 .donor-quick-views button:hover { color: var(--crm-accent,#176b57); }
 .donor-scope-note { font-size: 11px; color: #64748b; }
-.donor-browse-search { display: flex; align-items: center; gap: 11px; background: #fff; border: 1px solid #8a8886; border-radius: 4px; padding: 0 14px; color: #7a8e9a; }
+.donor-browse-search { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid #8a8886; border-radius: 4px; padding: 0 14px; color: #7a8e9a; }
 .donor-browse-search:focus-within { outline: 2px solid var(--crm-accent,#176b57); outline-offset: 2px; }
-.donor-browse-search input { width: 100%; min-width: 0; min-height: 42px; border: 0; outline: 0 !important; background: transparent; color: #233c4e; font-size: 13px; }
+.donor-browse-search input { width: 100%; min-width: 0; min-height: 46px; border: 0; outline: 0 !important; background: transparent; color: #233c4e; font-size: 13px; }
 .donor-filter-panel { border-top: 1px solid #edf1f3; }
 .donor-filter-panel summary { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; font-size: 12px; font-weight: 600; color: #516c7b; }
 .donor-filter-panel summary span { border-radius: 4px; background: var(--crm-accent-soft,#eaf5ef); color: var(--crm-accent,#176b57); font-size: 10px; padding: 2px 7px; }
 .donor-filter-panel summary:after { content: '+'; margin-left: auto; font-size: 17px; font-weight: 400; }
 .donor-filter-panel[open] summary:after { content: '−'; }
-.donor-filter-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 14px; padding: 12px 0 5px; }
+.donor-filter-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 16px; padding: 16px 0 8px; }
 .donor-filter-fields label { display: grid; gap: 6px; color: #52697b; font-size: 11px; font-weight: 600; }
-.donor-filter-fields :is(input:not([type=checkbox]),select) { width: 100%; min-width: 0; min-height: 42px; padding: 8px 11px; border: 1px solid #8a8886; background: #fff; border-radius: 4px; font-size: 12px; color: #233c4e; }
+.donor-filter-fields :is(input:not([type=checkbox]),select) { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #8a8886; background: #fff; border-radius: 4px; font-size: 12px; color: #233c4e; }
 .donor-filter-fields label.donor-checkbox-label { display: flex; align-items: center; gap: 8px; padding-top: 20px; }
 .donor-filter-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--crm-accent-soft,#eaf5ef); border: 1px solid #dbe8e3; color: var(--crm-accent,#176b57); padding: 6px 9px; border-radius: 3px; font-size: 11px; min-height: 32px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 .donor-filter-chip svg { flex-shrink: 0; }
@@ -173,13 +173,13 @@
   .donor-workspace-nav a { padding: 11px 6px; gap: 5px; justify-content: center; }
   .donor-workspace-nav strong { font-size: 11px; }
   .donor-workspace-nav svg { width: 15px; }
-  .donor-browse-metrics { gap: 9px; }
+  .donor-browse-metrics { gap: 12px; }
   .donor-browse-metrics .crm-card-surface { padding: 13px; gap: 5px; }
   .donor-browse-metrics .crm-card-surface > span { display: none; }
   .donor-browse-metrics .crm-card-surface > div > p:first-child { letter-spacing: .04em; font-size: 9px; }
-  .donor-browse-filters { padding: 3px; }
+  .donor-browse-filters { padding: 4px; }
   .donor-quick-views { width: 100%; gap: 2px; }
-  .donor-quick-views button { flex: 1; padding-inline: 8px; font-size: 11px; }
+  .donor-quick-views button { flex: 1; min-height: 44px; padding-inline: 9px; font-size: 11px; }
   .donor-filter-fields { grid-template-columns: 1fr; }
   .donor-filter-fields label.donor-checkbox-label { padding-top: 3px; }
   .donor-selection-bar { padding: 15px; }
@@ -224,7 +224,7 @@
   box-shadow: inset 0 -2px var(--crm-accent, #176b57);
 }
 .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] .crm-card-surface > [aria-live="polite"] {
-  min-block-size: 12rem;
+  min-block-size: 9rem;
 }
 .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] ul {
   scrollbar-gutter: stable;
@@ -280,7 +280,7 @@
 }
 @media (max-width: 639px) {
   .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] .crm-card-surface > [aria-live="polite"] {
-    min-block-size: 9rem;
+    min-block-size: 7rem;
   }
   .crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] [aria-label="New donor month"] {
     width: 100%;
@@ -292,3 +292,120 @@
     min-height: 2.75rem;
   }
 }
+
+/* Preserve whitespace between commands and content without enlarging empty widgets. */
+.crm-fonts .donor-daily-workspace.space-y-5 > :not(:last-child),
+.crm-fonts .oyama-workspace.donor-daily-workspace > .min-w-0 > .space-y-4 > :not(:last-child) {
+  margin-block-end: 1.5rem;
+}
+.crm-fonts .donor-daily-workspace > section[aria-label="Donors and staff reminders"] {
+  gap: 1.25rem;
+}
+.crm-fonts .donor-daily-workspace section[aria-label="Task filters"] {
+  gap: 1rem;
+  padding: 1.25rem;
+}
+.donor-widget-content {
+  position: relative;
+  min-block-size: 9rem;
+  height: auto;
+}
+.donor-loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: .625rem;
+  min-height: 1.5rem;
+  color: var(--crm-muted-text, #616161);
+  font-size: .75rem;
+  line-height: 1.5;
+}
+.donor-loading-indicator::before {
+  content: "";
+  width: .875rem;
+  height: .875rem;
+  flex-shrink: 0;
+  border: 2px solid var(--crm-border, #d1d1d1);
+  border-top-color: var(--crm-accent, #007f80);
+  border-radius: 50%;
+}
+.donor-loading-skeleton {
+  border-radius: var(--oyama-radius-sm, 3px);
+  background: #eef0f2;
+  background-image: linear-gradient(100deg, transparent 20%, #ffffffb3 48%, transparent 76%);
+  background-size: 220% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .donor-loading-indicator::before { animation: donor-loading-spin 900ms linear infinite; }
+  .donor-loading-skeleton { animation: donor-loading-shimmer 1.6s ease-in-out infinite; }
+  .donor-content-enter { animation: donor-content-arrive 180ms ease-out; }
+}
+@keyframes donor-loading-spin { to { transform: rotate(360deg); } }
+@keyframes donor-loading-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes donor-content-arrive { from { opacity: .55; } to { opacity: 1; } }
+/* Comfortable browse rhythm without changing authored content or other products. */
+.crm-fonts.crm-fonts .oyama-workspace.donor-daily-workspace { gap: 1.5rem; padding-bottom: 2rem; }
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface { padding: 1.5rem; }
+.crm-fonts.crm-fonts .donor-daily-workspace .crm-filter-surface { padding: 1.25rem; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-browse-filters { padding: 0; gap: 1.25rem; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-browse-metrics { gap: 1.25rem; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-priority-card { padding: 1.5rem; }
+.crm-fonts.crm-fonts .donor-daily-workspace .donor-tool-link { padding: 1.25rem; }
+.crm-table-loading { min-height: 22rem; padding: 1.5rem; }
+.crm-table-loading-rows { margin-top: 1.5rem; }
+.crm-table-loading-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 2rem; padding-block: 1.25rem; border-top: 1px solid var(--crm-border, #d1d1d1); }
+.crm-table-loading-row span { display: block; height: 1rem; }
+.crm-table-loading-row span:first-child { width: 75%; }
+@media (prefers-reduced-motion: no-preference) {
+  .donor-workspace-nav a, .donor-quick-views button, .donor-filter-chip, .donor-record-actions-panel :is(a,button) { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+  .donor-record-actions-panel { animation: donor-content-arrive 140ms ease-out; }
+}
+@media (max-width: 639px) {
+  .crm-fonts.crm-fonts .donor-daily-workspace .crm-page-header-surface,
+  .crm-fonts.crm-fonts .donor-daily-workspace .crm-filter-surface { padding: 1rem; }
+  .crm-fonts.crm-fonts .donor-daily-workspace .donor-browse-metrics { gap: .875rem; }
+  .crm-table-loading { padding: 1rem; }
+  .crm-table-loading-row { gap: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .donor-loading-indicator::before, .donor-loading-skeleton, .donor-content-enter { animation: none !important; }
+  .donor-loading-skeleton { background-image: none; }
+}
+@media (max-width: 639px) {
+  .crm-fonts .donor-daily-workspace.space-y-5 > :not(:last-child),
+  .crm-fonts .oyama-workspace.donor-daily-workspace > .min-w-0 > .space-y-4 > :not(:last-child) { margin-block-end: 1.25rem; }
+  .crm-fonts .donor-daily-workspace section[aria-label="Task filters"] { padding: 1rem; }
+  .donor-widget-content { min-block-size: 7rem; }
+}
+
+/* Record workspaces: readable rows, keyboard scrolling and optional density. */
+.crm-table-toolbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.25rem; color:var(--crm-muted-text,#616161); font-size:.8125rem; }
+.crm-table-toolbar button { min-height:2.5rem; padding:.5rem .875rem; border:1px solid var(--crm-border,#d1d1d1); border-radius:6px; background:var(--crm-surface,#fff); }
+.crm-table-toolbar button[aria-pressed=true] { background:var(--crm-accent-soft); color:var(--crm-accent); }
+.crm-table-scroll:focus-visible { outline:2px solid var(--crm-accent); outline-offset:-2px; }
+.crm-fonts.crm-fonts main .crm-table-scroll[data-density=compact] table tbody :is(td,th) { padding-top:8px; padding-bottom:8px; }
+.crm-fonts.crm-fonts main .crm-table-scroll table tbody tr:focus-within { background:var(--crm-accent-soft); }
+@media (prefers-reduced-motion:no-preference) {
+ .crm-table-scroll tbody tr { transition:background-color 140ms ease; }
+ .crm-table-toolbar button { transition:background-color 140ms ease,color 140ms ease; }
+}
+
+/* Spreadsheet-style grid: real cell focus, stable headers and clear row selection. */
+.crm-table-scroll { max-height: min(72vh, 900px); scrollbar-gutter: stable; }
+.crm-fonts.crm-fonts main .crm-table-scroll table { border-collapse: separate; border-spacing: 0; }
+.crm-fonts.crm-fonts main .crm-table-scroll table :is(td,th) { border-right: 1px solid #e5eaf0; border-bottom: 1px solid #e5eaf0; }
+.crm-table-scroll thead th { position: sticky; top: 0; z-index: 2; background: #f1f5f9; box-shadow: 0 1px 0 #cbd5e1; }
+.crm-table-scroll tbody tr:nth-child(even) { background: #f8fafc; }
+.crm-table-scroll :is(td,th):focus { outline: 2px solid var(--crm-accent); outline-offset: -2px; background: var(--crm-accent-soft); }
+.crm-table-scroll tbody tr:has(input[type=checkbox]:checked) { background: var(--crm-accent-soft); }
+@media (prefers-reduced-motion: no-preference) {
+ .donor-animated-dashboard > section, .donor-animated-dashboard .donor-chart-grid { animation: donor-dashboard-reveal 360ms ease-out both; }
+ .donor-animated-dashboard .donor-performance-metrics > * { animation: donor-dashboard-reveal 400ms ease-out both; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(2) { animation-delay: 45ms; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(3) { animation-delay: 90ms; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(4) { animation-delay: 135ms; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(5) { animation-delay: 180ms; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(6) { animation-delay: 225ms; }
+ .donor-animated-dashboard .crm-metric-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+ .donor-animated-dashboard a:hover .crm-metric-card { transform: translateY(-3px); box-shadow: 0 8px 24px #10283f12; }
+}
+@keyframes donor-dashboard-reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

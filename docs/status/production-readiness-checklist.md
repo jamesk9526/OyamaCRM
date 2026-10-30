@@ -1,3 +1,7 @@
+## Donor UI interaction verification — 2026-10-30
+
+Comfortable donor browse spacing, debounced searches, accessible loading placeholders, safer workflow donor selection and dashboard widget refresh are implemented locally. Web type checking, targeted lint and focused synthetic browser checks passed, including 1440/768/390px overflow and reduced motion. The broader gift action-menu browser test timed out; this is not a full donor regression sign-off. Evidence and limits: [verification](audit-artifacts/2026-10-30-ui-comfort/verification.md). No deployment or live data writes.
+
 ## Staff dashboard and workflow follow-ups — 2026-10-30
 
 Implemented check-in feedback layout stability, monthly/constituent/period-donor record links, current/previous-month new donors, dashboard persistent reminder actions, donor workflow history/task handoff, bounded backlog scans, exact letter-part/label downloads, and visible contact mailing dates. The donor UI follows the preferred Microsoft-style letters/email design and honors reduced motion. Remaining requests and explicit limits: [staff workflow checklist](../plans/staff-workflows.md). Verification: [audit evidence](audit-artifacts/2026-10-30-staff-workflows/verification.md). No deployment, migration, live backfill, or staff email was performed; mailing automation/envelopes/report-request search are unfinished.

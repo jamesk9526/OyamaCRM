@@ -1,8 +1,10 @@
 "use client";
 
+import CRMTableLoading from "@/app/components/ui/crm/CRMTableLoading";
 import Link from "next/link";
 import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Gift, HeartHandshake, RefreshCw, Search, Wallet } from "lucide-react";
+import DebouncedSearchInput from "@/app/components/donor-workspace/DebouncedSearchInput";
 import DonorWorkspaceNav from "@/app/components/donor-workspace/DonorWorkspaceNav";
 import { DonorQuickViews, DonorFilterPanel, DonorFilterChip, DonorSelectionBar, DonorPagination } from "@/app/components/donor-workspace/BrowsePrimitives";
 import { updateBrowseQuery, positivePage } from "@/app/features/donor-workspace/browse-query";
@@ -196,7 +198,7 @@ function DonationsWorkspace() {
     } finally {
       if (loadId === latestLoadId.current) setLoading(false);
     }
-  }, [acknowledgmentFilter, allYears, constituentIdFilter, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setSelectedIds, setStats, setTotal, status, to, router]);
+  }, [acknowledgmentFilter, allYears, constituentIdFilter, campaignIdFilter, defaultRange.from, defaultRange.to, from, page, reportingYearMode, search, setApiDown, setApiError, setDonations, setLoading, setSelectedIds, setStats, setTotal, status, to]);
 
   useEffect(() => {
     void load();
@@ -475,7 +477,7 @@ function DonationsWorkspace() {
           { label: "Completed", active: status === "COMPLETED" && !acknowledgmentFilter, onClick: () => changeFilters({ status: "COMPLETED", acknowledgment: null }) },
           { label: "Pending", active: status === "PENDING" && !acknowledgmentFilter, onClick: () => changeFilters({ status: "PENDING", acknowledgment: null }) },
         ]} /><span className="donor-scope-note">{periodLabel}</span></div>
-        <label className="donor-browse-search"><Search size={18} aria-hidden="true" /><span className="sr-only">Search donations by donor name or email</span><input type="search" placeholder="Find gifts by supporter name or email" value={search} onChange={(event) => changeFilters({ search: event.target.value })} /></label>
+        <label className="donor-browse-search"><Search size={18} aria-hidden="true" /><span className="sr-only">Search donations by donor name or email</span><DebouncedSearchInput placeholder="Find gifts by supporter name or email" value={search} onSearch={(value) => changeFilters({ search: value })} /></label>
         <DonorFilterPanel count={[status, allYears || from !== defaultRange.from || to !== defaultRange.to, campaignIdFilter, constituentIdFilter].filter(Boolean).length}>
           <label>Donation status<select value={status} onChange={(event) => changeFilters({ status: event.target.value, acknowledgment: null })}><option value="">All statuses</option><option value="COMPLETED">Completed</option><option value="PENDING">Pending</option><option value="FAILED">Failed</option><option value="REFUNDED">Refunded</option></select></label>
           <label>From date<input type="date" disabled={allYears} value={from} onChange={(event) => changeFilters({ from: event.target.value })} /></label>
@@ -491,7 +493,7 @@ function DonationsWorkspace() {
 
       {!apiDown ? <CRMDataTable>
         {loading ? (
-          <div className="py-16 text-center text-gray-400 text-sm animate-pulse">Loading donations…</div>
+          <CRMTableLoading label="Loading donations…" />
         ) : (
           <DonationTable
             donations={donations}

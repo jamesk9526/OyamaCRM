@@ -70,6 +70,7 @@
   --oyama-radius-sm: 3px;
   --oyama-font: "Segoe UI Variable", "Segoe UI", Arial, sans-serif;
   --oyama-shadow: none;
+  --oyama-control-height: 44px;
 }
 /* Existing personal appearance options remain usable; the default is the reference teal. */
 .crm-fonts.crm-fonts[data-donor-appearance=blue]:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { --crm-accent: #176bad; --crm-accent-soft: #eaf3fb; }
@@ -95,16 +96,16 @@
   background: transparent;
   box-shadow: none;
   border-radius: 0;
-  padding: 0 0 7px;
+  padding: 0 0 14px;
 }
 .crm-fonts.crm-fonts .crm-page-header-surface h1:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--oyama-heading); font-size: clamp(23px,2vw,28px); font-weight: 600; line-height: 1.25; letter-spacing: -.025em; }
 .crm-fonts.crm-fonts .crm-page-header-surface p:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--oyama-muted); font-size: 14px; line-height: 1.65; }
 .crm-fonts.crm-fonts .crm-page-header-surface > div:first-child > div:first-child:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; }
 .crm-fonts.crm-fonts .crm-card-surface:hover:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: var(--oyama-border); }
-.crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 108px; height: 100%; padding: 16px; }
+.crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 120px; height: 100%; padding: 20px; }
 .crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface > div > p:first-child:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; letter-spacing: .025em; text-transform: none; font-weight: 500; }
 .crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface > div > p:nth-child(2):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--oyama-heading); font-size: clamp(21px,1.6vw,29px); font-weight: 700; letter-spacing: -.035em; }
-.crm-fonts.crm-fonts .donor-browse-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 100px; padding: 16px; }
+.crm-fonts.crm-fonts .donor-browse-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 112px; padding: 20px; }
 .crm-fonts.crm-fonts .crm-metric-card > span:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { width: 44px; height: 44px; border-radius: 50%; box-shadow: none; }
 .crm-fonts.crm-fonts .crm-metric-card > div > p:first-child:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; }
 .crm-fonts.crm-fonts .crm-metric-card > div > p:nth-child(2):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--oyama-heading); font-weight: 700; font-size: 26px; }
@@ -168,7 +169,7 @@
 .crm-fonts.crm-fonts main table th:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: #52637a; font-size: 11px; font-weight: 600; letter-spacing: .015em; }
 .crm-fonts.crm-fonts main table :is(th,td):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: #edf0f4; }
 .crm-fonts.crm-fonts main table tbody tr:hover:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { background-color: var(--crm-accent-soft); }
-.crm-fonts.crm-fonts main table tbody :is(td,th):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { padding-top: 13px; padding-bottom: 13px; }
+.crm-fonts.crm-fonts main table tbody :is(td,th):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { padding-top: 15px; padding-bottom: 15px; }
 .crm-fonts.crm-fonts main table a:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--crm-accent); }
 .crm-fonts.crm-fonts .oyama-status-badge:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; line-height: 1.45; padding: 4px 9px; font-weight: 500; }
 .crm-fonts.crm-fonts .donor-pagination:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: var(--oyama-border); box-shadow: none; }

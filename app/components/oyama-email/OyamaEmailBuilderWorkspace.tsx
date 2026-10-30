@@ -1249,6 +1249,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   // status
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const saveInFlight = useRef(false);
   const [autosaving, setAutosaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1480,7 +1481,9 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const publishHref = activeTemplateId ? `/oyama-email/templates/${activeTemplateId}/publish` : "";
 
   const saveTemplate = useCallback(async (auto = false) => {
-    if (saving) return;
+    if (saveInFlight.current) return null;
+    saveInFlight.current = true;
+    const submittedDraft = draftRef.current;
 
     const payload = {
       name: draftRef.current.name,
@@ -1522,7 +1525,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       }
 
       setActiveTemplateId(saved.id);
-      setDraft({
+      const unchanged = draftRef.current === submittedDraft;
+      if (unchanged) setDraft({
         name: saved.name,
         subject: saved.subject,
         previewText: saved.previewText,
@@ -1538,7 +1542,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       setLastSavedAt(saved.updatedAt || null);
       setServerPreviewHtml(saved.renderedHtml || "");
       setServerPreviewText(saved.renderedText || "");
-      setDirty(false);
+      setDirty(!unchanged);
 
       if (!templateId || templateId !== saved.id) {
         router.replace(`/oyama-email/templates/${saved.id}/builder`);
@@ -1566,10 +1570,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       }
       return null;
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
       setAutosaving(false);
     }
-  }, [activeTemplateId, lastSavedAt, router, saveConflictModal, saving, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
+  }, [activeTemplateId, lastSavedAt, router, saveConflictModal, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
 
   const createLetterCompanion = useCallback(async () => {
     const id = activeTemplateId ?? await saveTemplate(false);
@@ -2737,7 +2742,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(129,140,248,0.13),transparent_28%),radial-gradient(circle_at_94%_8%,rgba(96,165,250,0.13),transparent_25%),linear-gradient(180deg,#fafbff_0%,#eef3fb_100%)]">
+    <div className="communication-builder email-builder flex min-h-[100dvh] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(129,140,248,0.13),transparent_28%),radial-gradient(circle_at_94%_8%,rgba(96,165,250,0.13),transparent_25%),linear-gradient(180deg,#fafbff_0%,#eef3fb_100%)]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-white/80 bg-white/90 shadow-[0_10px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl">
         {/* Row 1: back + name + status + actions */}

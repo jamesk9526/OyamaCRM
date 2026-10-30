@@ -722,6 +722,9 @@ async function processCreateTaskStep(ctx: EnrollmentContext, now: Date, userId?:
 
     const task = await prisma.task.create({
       data: {
+        organizationId: enrollment.organizationId,
+        stewardPathEnrollmentId: enrollment.id,
+        stewardPathStepRunId: run.id,
         constituentId: enrollment.constituentId ?? undefined,
         createdById: userId,
         assigneeId: enrollment.ownerUserId ?? enrollment.path.defaultOwnerId ?? undefined,
@@ -1060,6 +1063,8 @@ async function processManualActionStep(ctx: EnrollmentContext, now: Date, userId
         sourceModule: "donor",
         sourceType: "steward-path-notification",
         sourceId: run.id,
+        stewardPathEnrollmentId: enrollment.id,
+        stewardPathStepRunId: run.id,
       },
     });
 

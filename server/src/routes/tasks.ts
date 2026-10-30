@@ -332,6 +332,8 @@ router.get(
         ...(personal
           ? [{ OR: [{ createdById: userId }, { assigneeId: userId }] }]
           : []),
+        ...(q.activeOnly === "true" ? [{ status: { in: activeTaskStatuses } }] : []),
+        ...(q.enrollmentId ? [{ stewardPathEnrollmentId: q.enrollmentId }] : []),
         ...(q.status ? [{ status: q.status as never }] : []),
         ...(q.type ? [{ type: q.type as never }] : []),
         ...(q.priority ? [{ priority: q.priority as never }] : []),

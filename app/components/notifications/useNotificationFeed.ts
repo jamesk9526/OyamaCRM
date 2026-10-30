@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { subscribeToNotifications, type NotificationFeed } from "./notification-client";
 
-export function useNotificationFeed({ module = "all", status = "active", page = 1, pageSize = 40, enabled = true }: { module?: string; status?: string; page?: number; pageSize?: number; enabled?: boolean } = {}) {
+export function useNotificationFeed({ module = "all", status = "active", page = 1, pageSize = 40, enabled = true, refreshVersion = 0 }: { module?: string; status?: string; page?: number; pageSize?: number; enabled?: boolean; refreshVersion?: number } = {}) {
   const [data, setData] = useState<NotificationFeed>({ items: [], unreadCount: 0 });
   const [loading, setLoading] = useState(enabled); const [error, setError] = useState<string | null>(null); const request = useRef(0);
   const refresh = useCallback(async () => {
@@ -16,7 +16,7 @@ export function useNotificationFeed({ module = "all", status = "active", page = 
     finally { if (id === request.current) setLoading(false); }
   }, [enabled, module, status, page, pageSize]);
   const invalidate = useCallback(() => { request.current++; }, []);
-  useEffect(() => { void refresh(); return invalidate; }, [refresh, invalidate]);
+  useEffect(() => { void refresh(); return invalidate; }, [refresh, invalidate, refreshVersion]);
   useEffect(() => enabled ? subscribeToNotifications(() => void refresh()) : undefined, [enabled, refresh]);
   return { ...data, loading, error, refresh };
 }

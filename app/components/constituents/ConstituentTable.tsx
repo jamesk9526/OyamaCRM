@@ -1,5 +1,6 @@
 "use client";
 
+import CRMTableLoading from "@/app/components/ui/crm/CRMTableLoading";
 import Link from "next/link";
 import { useState } from "react";
 import DonorRecordActions from "@/app/components/donor-workspace/DonorRecordActions";
@@ -151,7 +152,7 @@ export default function ConstituentTable({
   }
 
   if (loading) {
-    return <div className="rounded-2xl border border-slate-100 bg-white p-7 text-center text-sm font-medium text-slate-400">Loading constituents...</div>;
+    return <CRMTableLoading label="Loading constituents…" />;
   }
 
   if (sorted.length === 0) {

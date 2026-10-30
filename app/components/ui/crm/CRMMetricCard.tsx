@@ -33,7 +33,7 @@ export default function CRMMetricCard({ label, value, icon, helper, tone = "gree
       ) : null}
       <div className="min-w-0 flex-1">
         <p className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
-        {loading ? <div className="mt-1.5 h-6 w-24 animate-pulse rounded bg-slate-100" /> : <p className="mt-1 break-words tabular-nums text-xl font-semibold tracking-tight text-slate-900">{value}</p>}
+        {loading ? <div role="status" className="mt-1.5 h-6 w-24 donor-loading-skeleton rounded bg-slate-100"><span className="sr-only">Loading {label}</span></div> : <p className="mt-1 break-words tabular-nums text-xl font-semibold tracking-tight text-slate-900">{value}</p>}
         {helper ? <div className="mt-1 text-[11px] font-medium leading-4 text-slate-500">{helper}</div> : null}
       </div>
     </CRMCard>

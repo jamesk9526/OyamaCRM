@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw, Search, Users, Heart, UserRoundSearch, UserRoundPlus } from "lucide-react";
+import DebouncedSearchInput from "@/app/components/donor-workspace/DebouncedSearchInput";
 import DonorWorkspaceNav from "@/app/components/donor-workspace/DonorWorkspaceNav";
 import { DonorQuickViews, DonorFilterPanel, DonorFilterChip, DonorSelectionBar, DonorPagination } from "@/app/components/donor-workspace/BrowsePrimitives";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
@@ -108,8 +109,8 @@ function ConstituentsWorkspace() {
         if (loadId === latestLoadId.current) setLoading(false);
       }
     }
-    const timer = setTimeout(load, search ? 300 : 0);
-    return () => { clearTimeout(timer); latestLoadId.current += 1; };
+    void load();
+    return () => { latestLoadId.current += 1; };
   }, [search, typeFilter, statusFilter, givingFrom, givingThrough, page, pageSize, retry]);
 
   useEffect(() => {
@@ -235,7 +236,7 @@ function ConstituentsWorkspace() {
       </section>
       <CRMFilterBar><div className="donor-browse-filters">
         <div className="donor-browse-filter-heading"><DonorQuickViews label="Constituent quick views" items={([["all", "All"], ["active", "Active"], ["lapsed", "Lapsed"], ["prospects", "Prospects"]] as const).map(([view, label]) => ({ label, active: activeDirectoryView === view, onClick: () => applyDirectoryView(view) }))} /><span className="donor-scope-note">Stored relationship status · not period giving</span></div>
-        <label className="donor-browse-search"><Search size={18} aria-hidden="true" /><span className="sr-only">Search constituents</span><input id="constituent-search" type="search" placeholder="Find a supporter by name, email, or phone" value={search} onChange={(event) => changeFilters({ search: event.target.value })} /></label>
+        <label className="donor-browse-search"><Search size={18} aria-hidden="true" /><span className="sr-only">Search constituents</span><DebouncedSearchInput id="constituent-search" placeholder="Find a supporter by name, email, or phone" value={search} onSearch={(value) => changeFilters({ search: value })} /></label>
         <DonorFilterPanel count={[typeFilter, statusFilter].filter(Boolean).length}>
           <label>Constituent type<select value={typeFilter} onChange={(event) => changeFilters({ type: event.target.value })}><option value="">All types</option>{CONSTITUENT_TYPES.map((type) => <option key={type} value={type}>{typeLabel(type)}</option>)}</select></label>
           <label>Donor status<select value={statusFilter} onChange={(event) => changeFilters({ status: event.target.value })}><option value="">All statuses</option>{DONOR_STATUSES.map((status) => <option key={status} value={status}>{status === "MAJOR_DONOR" ? "Major donor" : status.charAt(0) + status.slice(1).toLowerCase()}</option>)}</select></label>

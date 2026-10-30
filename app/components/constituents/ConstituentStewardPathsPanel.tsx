@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import EnrollmentTasks from "./EnrollmentTasks";
 import EnrollmentHistory from "./EnrollmentHistory";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -123,6 +124,7 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
                 </div>
                 <p className="mt-1 truncate text-[11px] text-slate-600">{enrollment.currentStep ? `Current: ${enrollment.currentStep.name}` : "No remaining step"}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{formatDueAt(enrollment.nextStepDueAt)}</p>
+                <EnrollmentTasks enrollmentId={enrollment.id} constituentId={constituentId} />
                 <EnrollmentHistory enrollmentId={enrollment.id} />
               </div>
             ))}

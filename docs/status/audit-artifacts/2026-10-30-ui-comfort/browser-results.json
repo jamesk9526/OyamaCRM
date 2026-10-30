@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "/constituents: rapid typing coalesces to one list read; Enter flushes once; clear removes URL search",
+    "/donations: rapid typing coalesces to one list read; Enter flushes once; clear removes URL search",
+    "Desktop/tablet/mobile fit viewport; reduced-motion skeleton is static and keeps list space",
+    "Dashboard refresh reloads new donors and staff reminders while preserving selected month"
+  ],
+  "errors": [],
+  "fixture": "Synthetic API reads; no business writes"
+}

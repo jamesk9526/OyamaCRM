@@ -1,4 +1,3 @@
-// TODO(staff-workflows #16): Add a report/chart request field backed by validated report definitions and preview; keep existing real-data interactive graphs. See docs/plans/staff-workflows.md.
 import Link from "next/link";
 import { ArrowUpRight, FileCheck2, Repeat2, SearchCheck, UsersRound } from "lucide-react";
 import CRMCard from "@/app/components/ui/crm/CRMCard";

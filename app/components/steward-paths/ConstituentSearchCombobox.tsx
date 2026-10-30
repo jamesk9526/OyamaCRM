@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface ConstituentResult {
@@ -46,9 +46,11 @@ export default function ConstituentSearchCombobox({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ConstituentResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState(0);
   const [selected, setSelected] = useState<ConstituentResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 220);
 
@@ -59,12 +61,11 @@ export default function ConstituentSearchCombobox({
 
   // Fetch results whenever debounced query changes
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    let active = true;
+    setError(null);
+    if (!query.trim() || query !== debouncedQuery || selected) {
+      setLoading(false);
       setResults([]);
-      return;
-    }
-    if (selected && fullName(selected) === debouncedQuery) {
-      // Query matches the already-selected item — skip re-fetch
       return;
     }
     setLoading(true);
@@ -72,12 +73,14 @@ export default function ConstituentSearchCombobox({
       `/api/constituents?search=${encodeURIComponent(debouncedQuery)}&limit=8`,
     )
       .then((data) => {
+        if (!active) return;
         setResults(data);
         setCursor(0);
       })
-      .catch(() => setResults([]))
-      .finally(() => setLoading(false));
-  }, [debouncedQuery, selected]);
+      .catch(() => { if (active) { setResults([]); setError("Search unavailable. Edit your search to try again."); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [query, debouncedQuery, selected]);
 
   function handleSelect(c: ConstituentResult) {
     setSelected(c);
@@ -86,7 +89,7 @@ export default function ConstituentSearchCombobox({
   }
 
   function handleConfirm() {
-    const target = selected ?? (results[0] ?? null);
+    const target = selected;
     if (!target) return;
     onConfirm(target.id, fullName(target));
   }
@@ -103,7 +106,7 @@ export default function ConstituentSearchCombobox({
         setCursor((c) => Math.max(c - 1, 0));
         return;
       }
-      if (event.key === "Enter" || event.key === "Tab") {
+      if (event.key === "Enter") {
         const pick = results[cursor];
         if (pick) {
           event.preventDefault();
@@ -122,10 +125,10 @@ export default function ConstituentSearchCombobox({
   }
 
   const showDropdown = results.length > 0 && !selected;
-  const canRun = Boolean(selected) || Boolean(results[0]);
+  const canRun = Boolean(selected) && !loading;
 
   return (
-    <div className="relative flex items-center gap-1.5">
+    <div className="relative flex flex-wrap items-center gap-3">
       {/* Search input */}
       <div className="relative">
         <svg
@@ -137,10 +140,18 @@ export default function ConstituentSearchCombobox({
         </svg>
         <input
           ref={inputRef}
+          aria-label="Search donor by name or email"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showDropdown}
+          aria-controls={showDropdown ? resultsId : undefined}
+          aria-activedescendant={showDropdown ? `${resultsId}-${cursor}` : undefined}
           type="text"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
+            setResults([]);
+            setCursor(0);
             if (selected) setSelected(null); // clear selection if user edits
           }}
           onKeyDown={handleKeyDown}
@@ -150,7 +161,7 @@ export default function ConstituentSearchCombobox({
         />
         {loading && (
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
-            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
+            <span className="inline-block h-3 w-3 motion-safe:animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
           </span>
         )}
 
@@ -158,13 +169,20 @@ export default function ConstituentSearchCombobox({
         {showDropdown && (
           <div
             ref={listRef}
+            id={resultsId}
+            role="listbox"
+            aria-label="Matching donors"
             className="absolute left-0 top-full z-40 mt-1 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
           >
             {results.map((c, i) => (
               <button
                 key={c.id}
+                id={`${resultsId}-${i}`}
+                role="option"
+                aria-selected={i === cursor}
                 type="button"
-                onMouseDown={(e) => { e.preventDefault(); handleSelect(c); }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(c)}
                 className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition ${
                   i === cursor ? "bg-green-50" : "hover:bg-slate-50"
                 }`}
@@ -187,6 +205,9 @@ export default function ConstituentSearchCombobox({
           </div>
         )}
       </div>
+
+      {error && <p role="alert" className="w-full text-xs text-rose-700">{error}</p>}
+      {!loading && !error && query.trim() && query === debouncedQuery && !selected && results.length === 0 && <p role="status" className="w-full text-xs text-slate-500">No donors match your search.</p>}
 
       {/* Run button */}
       <button
