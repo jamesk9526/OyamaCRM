@@ -23,12 +23,15 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const { qbEnabled } = usePlugins();
+  const [toolSearch, setToolSearch] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const groups = useMemo(() => buildDonorDailyNavigation({ qbEnabled }).map((group) => ({
     ...group,
     items: group.items.filter((item) => isDonorNavigationItemVisible(item, user)),
   })).filter((group) => group.items.length), [qbEnabled, user]);
+  const searchTerms = toolSearch.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const filteredGroups = groups.map(group => ({ ...group, items: group.items.filter(item => searchTerms.every(term => `${item.label} ${item.description ?? ""} ${item.href} ${group.label}`.toLowerCase().includes(term))) })).filter(group => group.items.length);
   const activeItem = resolveDonorNavigationActiveItem(groups, pathname);
 
   useDialogFocus(dialogRef, mobileOpen, () => setMobileOpen(false));
@@ -57,8 +60,13 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
     );
     return (
       <nav aria-label={mobile ? "Mobile Donor CRM" : "Donor CRM"} className="oyama-reference-nav min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
-        {groups.map((group) => group.collapsible ? (
-          <details key={`${group.id}-${pathname}`} open={group.items.some((item) => item.id === activeItem)} className="group border-t border-white/10 pt-2">
+        <div className="donor-tool-search">
+          <label className="sr-only" htmlFor={mobile ? "mobile-tool-search" : "desktop-tool-search"}>Find a Donor CRM tool</label>
+          <div className="flex items-center gap-2"><Search size={16} aria-hidden="true" /><input id={mobile ? "mobile-tool-search" : "desktop-tool-search"} type="search" placeholder="Find a tool…" value={toolSearch} onChange={event => setToolSearch(event.target.value)} onKeyDown={event => { if (event.key === "Escape" && toolSearch) { event.preventDefault(); event.stopPropagation(); setToolSearch(""); } }} /></div>
+          {toolSearch && <p role="status" className="mt-2 text-xs">{filteredGroups.reduce((count, group) => count + group.items.length, 0)} matching tools · <button type="button" onClick={() => setToolSearch("")} className="underline">Clear</button></p>}
+        </div>
+        {filteredGroups.map((group) => group.collapsible ? (
+          <details key={`${group.id}-${pathname}`} open={Boolean(toolSearch.trim()) || group.items.some((item) => item.id === activeItem)} className="group border-t border-white/10 pt-2">
             <summary tabIndex={0} className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 [&::-webkit-details-marker]:hidden">
               {group.label}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
             </summary>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import EnrollmentTasks from "./EnrollmentTasks";
 import EnrollmentHistory from "./EnrollmentHistory";
@@ -37,6 +37,8 @@ function formatDueAt(value?: string | null): string {
 
 /** Current Steward Paths and enrollment control for one constituent profile. */
 export default function ConstituentStewardPathsPanel({ constituentId }: { constituentId: string }) {
+  const requestVersion = useRef(0);
+  const enrolling = useRef(false);
   const [templates, setTemplates] = useState<PathTemplate[]>([]);
   const [enrollments, setEnrollments] = useState<PathEnrollment[]>([]);
   const [selectedPathId, setSelectedPathId] = useState("");
@@ -44,29 +46,36 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const request = ++requestVersion.current;
     setLoading(true);
+    setLoadFailed(false);
     setError(null);
     try {
       const [templateRows, enrollmentRows] = await Promise.all([
         apiFetch<PathTemplate[]>("/api/steward-paths/templates"),
         apiFetch<PathEnrollment[]>(`/api/steward-paths/enrollments?constituentId=${encodeURIComponent(constituentId)}&limit=100`),
       ]);
-      const activeTemplates = (Array.isArray(templateRows) ? templateRows : []).filter((path) => path.status === "ACTIVE");
+      if (request !== requestVersion.current) return;
+      const activeTemplates = (Array.isArray(templateRows) ? templateRows : []).filter((path) => path.status === "ACTIVE" && path.steps.some(step => step.isActive));
       setTemplates(activeTemplates);
       setEnrollments(Array.isArray(enrollmentRows) ? enrollmentRows : []);
       setSelectedPathId((current) => current && activeTemplates.some((path) => path.id === current) ? current : activeTemplates[0]?.id ?? "");
     } catch (loadError) {
+      if (request !== requestVersion.current) return;
+      setLoadFailed(true);
       setError(loadError instanceof Error ? loadError.message : "Failed to load Steward Paths.");
     } finally {
-      setLoading(false);
+      if (request === requestVersion.current) setLoading(false);
     }
   }, [constituentId]);
 
   useEffect(() => {
     void load();
+    return () => { requestVersion.current++; };
   }, [load]);
 
   const currentEnrollments = useMemo(
@@ -77,9 +86,10 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
   const isAlreadyEnrolled = Boolean(selectedPath && currentEnrollments.some((enrollment) => enrollment.path.id === selectedPath.id));
 
   async function enroll(): Promise<void> {
-    if (!selectedPath || isAlreadyEnrolled) return;
+    if (!selectedPath || isAlreadyEnrolled || enrolling.current || loading) return;
     if (replaceExisting && currentEnrollments.length > 0 && !window.confirm("Replace all active or paused paths for this constituent? Their current paths will be cancelled.")) return;
 
+    enrolling.current = true;
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -94,24 +104,25 @@ export default function ConstituentStewardPathsPanel({ constituentId }: { consti
     } catch (enrollError) {
       setError(enrollError instanceof Error ? enrollError.message : "Failed to enroll constituent in the selected path.");
     } finally {
+      enrolling.current = false;
       setSaving(false);
     }
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section id="steward-paths" className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Steward Paths</p>
           <p className="mt-1 text-xs text-slate-600">Current and past relationship workflows for this constituent.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">Refresh</button>
+        <button type="button" onClick={() => void load()} disabled={loading || saving} className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">Refresh</button>
       </div>
 
-      {notice ? <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-800">{notice}</p> : null}
-      {error ? <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-800">{error}</p> : null}
+      {notice ? <p role="status" className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-800">{notice}</p> : null}
+      {error ? <p role="alert" className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-800">{error}</p> : null}
 
-      {loading ? <p className="mt-3 text-xs text-slate-500">Loading paths...</p> : (
+      {loading ? <p className="mt-3 text-xs text-slate-500">Loading paths...</p> : loadFailed ? <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><p>Enrollment information is unavailable. Retry before making changes.</p><button type="button" className="donor-button mt-2" onClick={() => void load()}>Retry loading paths</button></div> : (
         <>
           <Link href={`/tasks?constituentId=${encodeURIComponent(constituentId)}`} className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-[var(--crm-accent)] hover:underline">Review this donor’s outstanding and completed tasks →</Link>
           <div className="mt-3 space-y-2">

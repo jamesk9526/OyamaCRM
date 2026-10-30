@@ -1,5 +1,6 @@
 "use client";
 
+import ReleaseBanner from "./ReleaseBanner";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TopBar from "./TopBar";
@@ -378,6 +379,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
             <ErrorBoundary>
               <div className="crm-route-content min-w-0 max-w-full">
+                <ReleaseBanner />
                 {children}
               </div>
             </ErrorBoundary>

@@ -9,14 +9,14 @@ import { PluginProvider } from "./components/plugins/PluginProvider";
 import PWARegister from "./components/pwa/PWARegister";
 
 export const metadata: Metadata = {
-  title: "OyamaCRM v1.45b",
+  title: "OyamaCRM v2.0",
   description: "Nonprofit Donor Management",
-  applicationName: "OyamaCRM v1.45b",
+  applicationName: "OyamaCRM v2.0",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "OyamaCRM v1.45b",
+    title: "OyamaCRM v2.0",
   },
   formatDetection: {
     telephone: false,

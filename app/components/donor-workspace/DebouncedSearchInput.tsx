@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Keep typing local; only settled searches change the URL and trigger API reads. */
-export default function DebouncedSearchInput({ value, onSearch, placeholder, id }: {
+export default function DebouncedSearchInput({ value, onSearch, placeholder, id, resetKey }: {
   value: string;
   onSearch: (value: string) => void;
   placeholder: string;
   id?: string;
+  resetKey?: string;
 }) {
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,7 +29,7 @@ export default function DebouncedSearchInput({ value, onSearch, placeholder, id 
   useEffect(() => {
     cancel();
     setDraft(value);
-  }, [value]);
+  }, [value, resetKey]);
   useEffect(() => () => cancel(), []);
 
   return <input id={id} type="search" value={draft} placeholder={placeholder}

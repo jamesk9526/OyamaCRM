@@ -1297,15 +1297,15 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
         <div className={`oyama-reference-topbar-brand relative z-20 hidden h-full ${isDonorEnterpriseChrome ? "w-64" : "w-[520px]"} xl:block`}>
           {isDonorEnterpriseChrome ? (
-            <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-[2px] px-1 py-1 text-white transition-colors hover:bg-white/[0.07]" aria-label="Go to OyamaCRM v1.45b home">
+            <Link href={homeHref} className="absolute left-5 top-1/2 flex -translate-y-1/2 items-baseline gap-1.5 rounded-[2px] px-1 py-1 text-white transition-colors hover:bg-white/[0.07]" aria-label="Go to OyamaCRM v2.0 home">
               <span className="text-[15px] font-bold tracking-[-0.035em]">OyamaCRM</span>
-              <span className="rounded-[2px] bg-white/[0.1] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-[#cfe4fa] ring-1 ring-white/10">v1.45b</span>
+              <span className="rounded-[2px] bg-white/[0.1] px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-[#cfe4fa] ring-1 ring-white/10">v2.0</span>
             </Link>
           ) : (
           <Link href={homeHref} className={`absolute left-8 flex shrink-0 items-center gap-2.5 rounded-2xl px-2 py-1 transition-[top,opacity,background-color,border-color] ${shellMotionClass} hover:opacity-90 ${scrolled ? "top-2.5" : "top-4"}`} aria-label="Go to workspace home">
             <Image
               src={OYAMA_PRODUCT_LOGO}
-              alt="OyamaCRM v1.45b"
+              alt="OyamaCRM v2.0"
               width={260}
               height={74}
               className={`object-contain object-left transition-[height,width,opacity] ${shellMotionClass} ${scrolled ? "h-9 w-[128px]" : "h-11 w-[166px]"}`}
@@ -1336,13 +1336,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </svg>
               </button>
               {/* ── TopBar Brand ── */}
-              <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v1.45b home">
+              <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v2.0 home">
                 {isDonorEnterpriseChrome ? (
-                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v1.45b</span></span>
+                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v2.0</span></span>
                 ) : (
                   <Image
                     src={OYAMA_PRODUCT_LOGO}
-                    alt="OyamaCRM v1.45b"
+                    alt="OyamaCRM v2.0"
                     width={144}
                     height={48}
                     className="block h-8 w-[116px] object-contain object-left transition-[width,height] duration-200 max-[430px]:w-[96px] max-[380px]:h-7 max-[380px]:w-[76px]"
