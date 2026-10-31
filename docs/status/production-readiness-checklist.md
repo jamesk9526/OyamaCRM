@@ -1,3 +1,7 @@
+## Custom report studio — 2026-10-30
+
+Added /reports/custom with source columns, date ranges, text filters, grouping, currency totals, personal saved definitions and print/PDF presentations. Starter reports cover fund allocation, payment reconciliation and deductible giving by fund. Library search now matches multiple terms. The legacy builder route redirects to the studio. Saves and runs are server-validated and scoped to the current organization/user using existing settings storage. No migration or deployment performed. Source limits/notices remain applicable; counts represent source rows, not unique donors. Scheduling, arbitrary SQL, cross-source joins and PowerPoint exports are not included.
+
 ## Donor-wide recent records and operational widgets — 2026-10-30
 
 Added a working Recent Records sidebar section on donor desktop/mobile navigation. The five most recently opened record links are stored per organization/user in browser session storage, validated as internal donor record routes, deduplicated and clearable. Dashboard operational cards now display recent completed donations, actionable tasks and upcoming donor meetings in a compact reference-style grid. Shared donor card/control styling applies across the donor shell. Task completion now guards duplicate clicks, exposes a named pending action and distinguishes load failure from an empty list. No deployment or live data writes were performed.

@@ -390,12 +390,13 @@ export default function DonorReportsSpreadsheet() {
 function ReportLibrary({ onRun, onOpenDonationAudience }: { onRun: (definition: ReportDefinition) => void; onOpenDonationAudience: () => void }) {
   const [reportSearch, setReportSearch] = useState("");
   const normalizedSearch = reportSearch.trim().toLowerCase();
-  const filteredReports = REPORTS.filter((report) => !normalizedSearch || [report.title, report.description, report.source, reportCapabilities(report)].some((value) => value.toLowerCase().includes(normalizedSearch)));
+  const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
+  const filteredReports = REPORTS.filter((report) => searchTerms.every(term => [report.title, report.description, report.source, reportCapabilities(report), report.group].join(" ").toLowerCase().includes(term)));
   return (
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#edf5fc_58%,#fff_100%)] px-5 py-5">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0f6cbd]">Donor reporting</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Choose a report</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Reports & insights</h1><Link href="/reports/custom" className="mt-4 inline-flex rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Create a custom report →</Link>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Every report runs against live, organization-scoped donor data and can be printed or exported after review.</p>
       </div>
       <div className="grid gap-px border-b border-slate-200 bg-slate-200 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">

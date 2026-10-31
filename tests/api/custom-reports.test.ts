@@ -1,0 +1,17 @@
+import express,{type Request,type Response,type NextFunction} from "express";
+import request from "supertest";
+import {beforeEach,it,expect,vi} from "vitest";
+const db=vi.hoisted(()=>({findMany:vi.fn(),count:vi.fn(),create:vi.fn(),deleteMany:vi.fn(),allowed:true,build:vi.fn()}));
+vi.mock("@/server/src/lib/prisma",()=>({prisma:{pluginSetting:db}}));
+vi.mock("@/server/src/middleware/requireAuth",()=>({requireAuth:(req:Request,_res:Response,next:NextFunction)=>{req.user={sub:"user1",orgId:"org1",role:"staff",email:"test@example.invalid"};next();}}));
+vi.mock("@/server/src/middleware/requirePermission",()=>({requirePermission:()=> (_req:Request,res:Response,next:NextFunction)=>db.allowed?next():res.status(403).json({error:"Forbidden"})}));
+vi.mock("@/server/src/services/donor-report-library",()=>({isDonorLibraryReportKey:(key:string)=>key==="donations",parseDonorLibraryReportOptions:()=>({}),buildDonorLibraryReport:db.build}));
+import router from "@/server/src/routes/custom-reports";
+const app=express();app.use(express.json());app.use("/custom",router);
+const body={name:"My gifts",source:"donations",from:"2026-01-01",through:"2026-10-30",columns:["amount"],groupBy:"",metric:"",contains:""};
+beforeEach(()=>{vi.resetAllMocks();db.allowed=true;db.findMany.mockResolvedValue([]);db.count.mockResolvedValue(0);db.create.mockResolvedValue({id:"saved1"});db.deleteMany.mockResolvedValue({count:0});db.build.mockResolvedValue({columns:[{key:"amount",type:"currency"}],rows:[{amount:10}],notices:[],summary:[]});});
+it("scopes saved reports to current organization and user",async()=>{expect((await request(app).get("/custom")).status).toBe(200);expect(db.findMany.mock.calls[0][0].where).toEqual({organizationId:"org1",pluginKey:{startsWith:"custom-report:user1:"}});});
+it("ignores supplied identity when saving",async()=>{expect((await request(app).post("/custom").send({...body,organizationId:"foreign",userId:"other"})).status).toBe(201);expect(db.create.mock.calls[0][0].data).toMatchObject({organizationId:"org1",pluginKey:expect.stringMatching(/^custom-report:user1:/)});});
+it("cannot remove another user's saved report",async()=>{expect((await request(app).delete("/custom/foreign")).status).toBe(404);expect(db.deleteMany.mock.calls[0][0].where).toEqual({id:"foreign",organizationId:"org1",pluginKey:{startsWith:"custom-report:user1:"}});});
+it("enforces reporting permission before reads and writes",async()=>{db.allowed=false;expect((await request(app).get("/custom")).status).toBe(403);expect((await request(app).post("/custom").send(body)).status).toBe(403);expect(db.create).not.toHaveBeenCalled();});
+it("runs the source only in the authenticated organization",async()=>{expect((await request(app).post("/custom/run").send(body)).status).toBe(200);expect(db.build.mock.calls[0][0]).toBe("org1");});

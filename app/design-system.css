@@ -370,3 +370,12 @@
 .crm-fonts[data-oyama-sidebar=true] :is(input,select,textarea):not([type=checkbox],[type=radio]) { border-radius:6px; }
 @media(max-width:1100px) { .donor-reference-operations { grid-template-columns:minmax(0,1fr); } }
 @media(max-height:760px) { .donor-recent-items ul { max-height:82px; overflow:auto; } }
+
+@media print {
+ body:has(.custom-report-presentation) * { visibility:hidden; }
+ body:has(.custom-report-presentation) .custom-report-presentation,body:has(.custom-report-presentation) .custom-report-presentation * { visibility:visible; }
+ .custom-report-presentation { position:absolute; inset:0; border:0; background:white; overflow:visible; }
+ .custom-report-presentation .custom-report-print { display:none; }
+ .custom-report-presentation tr { break-inside:avoid; }
+ .custom-report-presentation thead { display:table-header-group; }
+}
