@@ -49,7 +49,11 @@ router.get("/members", route(async (req, res, actor) => {
 }));
 router.get("/posts", route(async (req, res, actor) => {
   const page = pageNumber(req.query.page);
-  const items = await prisma.communityPost.findMany({ where: { organizationId: actor.organizationId, deletedAt: null, ...(req.query.mine === "true" ? { authorId: actor.id } : {}) }, include: postInclude(actor.id), orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 21, skip: (page - 1) * 20 });
+  const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+  const board = req.query.board === "true";
+  const sort = req.query.sort ?? "new";
+  if (!["new", "discussed", "liked"].includes(String(sort))) reject(400, "Choose a valid feed order.");
+  const items = await prisma.communityPost.findMany({ where: { organizationId: actor.organizationId, deletedAt: null, ...(board ? { kind: { in: ["IDEA", "PROJECT", "QUESTION"] } } : {}), ...(search ? { OR: [{ body: { contains: search } }, { title: { contains: search } }] } : {}), ...(req.query.mine === "true" ? { authorId: actor.id } : {}) }, include: postInclude(actor.id), orderBy: [...(sort === "discussed" ? [{ replies: { _count: "desc" as const } }] : sort === "liked" ? [{ reactions: { _count: "desc" as const } }] : []), { createdAt: "desc" }, { id: "desc" }], take: 21, skip: (page - 1) * 20 });
   res.json({ items: items.slice(0, 20), hasMore: items.length > 20 });
 }));
 router.get("/posts/:id", route(async (req, res, actor) => {
@@ -58,21 +62,32 @@ router.get("/posts/:id", route(async (req, res, actor) => {
 }));
 router.post("/posts", route(async (req, res, actor) => {
   const body = textBody(req.body?.body, 3000), key = requestId(req.body?.requestId, actor);
-  const data = { organizationId: actor.organizationId, authorId: actor.id, body, requestId: key };
+  const kind = req.body?.kind ?? "UPDATE";
+  if (!["UPDATE", "IDEA", "PROJECT", "QUESTION"].includes(kind)) reject(400, "Choose an entry type.");
+  const title = kind === "UPDATE" ? null : textBody(req.body?.title, 160);
+  const data = { organizationId: actor.organizationId, authorId: actor.id, body, requestId: key, kind, title };
   try { const post = await prisma.communityPost.create({ data }); res.status(201).json({ id: post.id }); }
   catch (error) {
     if ((error as { code?: string }).code !== "P2002") throw error;
-    const existing = await prisma.communityPost.findFirst({ where: { requestId: key, organizationId: actor.organizationId, authorId: actor.id, body, deletedAt: null } });
+    const existing = await prisma.communityPost.findFirst({ where: { requestId: key, organizationId: actor.organizationId, authorId: actor.id, body, kind, title, deletedAt: null } });
     if (!existing) reject(409, "This request was already used. Refresh before posting again.");
     res.json({ id: existing.id });
   }
 }));
 router.put("/posts/:id", route(async (req, res, actor) => {
   const body = textBody(req.body?.body, 3000);
+  const title = req.body?.title === undefined ? undefined : req.body.title === null ? null : textBody(req.body.title, 160);
   const updatedAt = new Date(req.body?.updatedAt);
   if (!Number.isFinite(updatedAt.getTime())) reject(400, "Reload this post before editing.");
-  const result = await prisma.communityPost.updateMany({ where: { id: String(req.params.id), organizationId: actor.organizationId, authorId: actor.id, deletedAt: null, updatedAt }, data: { body } });
+  const result = await prisma.communityPost.updateMany({ where: { id: String(req.params.id), organizationId: actor.organizationId, authorId: actor.id, deletedAt: null, updatedAt }, data: { body, ...(title !== undefined ? { title } : {}) } });
   if (!result.count) reject(409, "This post changed or is no longer editable. Refresh before trying again.");
+  res.json({ saved: true });
+}));
+router.put("/posts/:id/stage", route(async (req, res, actor) => {
+  const stage = req.body?.stage;
+  if (!["OPEN", "PLANNED", "IN_PROGRESS", "DONE"].includes(stage)) reject(400, "Choose a valid stage.");
+  const result = await prisma.communityPost.updateMany({ where: { id: String(req.params.id), organizationId: actor.organizationId, deletedAt: null, kind: { in: ["IDEA", "PROJECT", "QUESTION"] } }, data: { stage } });
+  if (!result.count) reject(404, "Board entry unavailable.");
   res.json({ saved: true });
 }));
 router.delete("/posts/:id", route(async (req, res, actor) => {

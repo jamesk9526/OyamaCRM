@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Search, X } from "lucide-react";
+import { ChevronDown, Search, X, MessagesSquare } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import type { CrmSidebarItem } from "./CrmSidebar";
@@ -90,6 +90,7 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
           <CrmBrandLockup moduleLabel="Donor CRM" tone="light" className="w-full" />
         </Link>
         {navigation(false)}
+        {user?.role === "admin" && <Link href="/community" aria-label="Open Admin community" aria-current={pathname === "/community" ? "page" : undefined} className="mx-3 mt-3 flex min-h-14 items-center gap-3 rounded-xl border border-teal-300/30 bg-teal-400/10 px-4 text-sm font-semibold text-white hover:bg-teal-400/20"><MessagesSquare className="h-6 w-6 text-teal-200" /><span>Community<span className="block text-xs font-normal text-teal-100">Connect with your team</span></span></Link>}
         <button type="button" onClick={() => window.dispatchEvent(new Event("crm:focus-topbar-search"))}
           className="m-3 flex min-h-11 items-center gap-3 rounded-lg border border-white/20 px-3 text-sm text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
           <Search className="h-4 w-4" aria-hidden="true" />Search CRM

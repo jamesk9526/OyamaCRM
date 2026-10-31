@@ -21,8 +21,8 @@
   --oyama-teal: #007f80;
   --oyama-teal-hover: #006b6c;
   --oyama-teal-soft: #e4f4f3;
-  --oyama-canvas: #f8fafb;
-  --oyama-surface: #fff;
+  --oyama-canvas: #eef2f4;
+  --oyama-surface: #f9faf8;
   --oyama-heading: #101f43;
   --oyama-text: #334155;
   --oyama-muted: #64748b;
@@ -264,3 +264,14 @@
 .oyama-settings-sidebar nav a { min-height:48px; }
 .oyama-settings-sidebar nav a[aria-current=page] { border-left:3px solid #007f80; background:#e7f3f5; }
 @media(prefers-reduced-motion:no-preference) { .crm-notification-list > li { transition:background-color 180ms ease,border-color 180ms ease; } }
+
+/* Softer internal workspace surfaces; authored/public documents keep their own colors. */
+@media screen {
+  :is(.crm-fonts.crm-fonts,.event-studio-shell,.compassion-shell.care-app,[data-oyama-module]) .bg-white:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { background-color: var(--oyama-surface); }
+}
+.community-workspace article { transition: box-shadow .18s ease, border-color .18s ease; }
+.community-workspace article:hover { border-color: #bbcdd2; box-shadow: 0 5px 20px #10283f08; }
+.community-workspace > header { position: relative; background-image: radial-gradient(ellipse at 85% 15%,#2c9c9050,transparent 48%),linear-gradient(120deg,#10273d,#075b59); }
+@media (min-width:1280px) { .community-workspace > header { padding-block: 2.5rem; } }
+@media (max-width:1279px) { .community-feed-nav { display:flex; flex-wrap:wrap; gap:8px; } .community-feed-nav > p { display:none; } .community-feed-nav > button,.community-feed-nav > a { width:auto; } }
+@media (prefers-reduced-motion:reduce) { .community-workspace article { transition:none; } }

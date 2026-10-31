@@ -10,3 +10,7 @@
 - Migration: `20261031010000_admin_community`; apply prerequisite pending migrations through the normal deployment process. No migration, deployment, live enrollment or outbound communication was performed here.
 - Content is plain text rendered through React. Directory returns explicit profile fields, not credentials or account activity. External profile photos must use HTTPS and are loaded without a referrer; initials are the fallback.
 - Initial feature scope: shared admin feed, one-level reply threads, likes, own-content management and directory. No attachments, private messages, mentions, moderation console or live feed streaming. Use Refresh feed for new posts. Soft-deleted content remains in the database but is excluded from the community APIs.
+
+## Social workspace and ideas board follow-up
+
+30 community API tests passed, including search/order, titled project/question creation and stage validation/scoping. Web/server type checks, targeted ESLint and Prisma validation passed. Synthetic browser checks passed for publishing a project and moving it to In progress, in addition to the existing feed/profile flows. Feed screenshots were refreshed at desktop/mobile widths. Shared internal surfaces now use off-white; public/authored documents are excluded from the new utility override. No database migration or deployment occurred. Requires additional migration `20261031020000_community_boards`.

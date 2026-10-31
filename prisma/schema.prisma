@@ -3519,6 +3519,9 @@ model NotificationEmailDelivery {
 
 // Private organization administrator community. Plain text only.
 model CommunityPost {
+  kind String @default("UPDATE")
+  stage String @default("OPEN")
+  title String? @db.VarChar(160)
   id String @id @default(cuid())
   organizationId String
   authorId String

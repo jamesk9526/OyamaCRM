@@ -1,3 +1,9 @@
+## Community social workspace and ideas board — 2026-10-30
+
+Community now fills the available workspace width with persistent desktop sidebar access, feed navigation, conversation search, newest/most-discussed/most-liked ordering, safe bold/link rendering, expandable long posts and shareable conversation links. Internal workspace surfaces use softer off-white and gray colors, excluding authored/public documents.
+
+Ideas & Projects adds titled ideas, projects and questions with shared Open/Planned/In progress/Complete stages. Replies serve as answers and working notes; personal reply notifications remain available. Search and popularity ordering help surface existing ideas and team priorities. This is a lightweight collaborative board; no AI prioritization, project assignments, due dates or dependency scheduling are claimed. Requires migration `20261031020000_community_boards` after the community migration. No migrations or deployment were performed.
+
 ## Administrator profiles and internal community — 2026-10-30
 
 Added `/community`: an organization-private administrator feed with plain-text posts, author editing/removal, paginated replies, likes, personal-post filtering and a searchable administrator directory. Navigation exposes the community to admins. Every community API request rechecks active administrator membership and organization from the authenticated identity. Post/reply retries use unique request identifiers; edits check the original revision. Replies and their author notification are written in one transaction; self-replies do not notify. Personal email subscriptions may deliver these own-alert notifications.
