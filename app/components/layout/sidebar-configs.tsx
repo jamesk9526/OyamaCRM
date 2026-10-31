@@ -331,7 +331,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
     {
       id: "daily", label: "Donor CRM", collapsible: false, defaultOpen: true,
       items: [
-        ...take(["dashboard", "constituents", "donations", "tasks", "campaigns", "reports"]),
+        ...take(["dashboard", "constituents", "donations", "campaigns", "events", "tasks", "reports"]).map(item => ({ ...item, label: item.id === "dashboard" ? "Home" : item.id === "constituents" ? "Contacts" : item.label })),
         { id: "communications", label: "Communications", href: "/communications", icon: DONOR_ICONS.communications, permissions: ["view:communications"] },
       ],
     },
@@ -342,7 +342,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
     {
       id: "stewardship", label: "Stewardship", collapsible: true, defaultOpen: false,
       items: [
-        ...take(["donor-research", "steward-signals", "meetings", "oyama-email", "oyama-letters", "template-convert", "qr-codes", "steward-paths", "livecom", "volunteers", "events"]),
+        ...take(["donor-research", "steward-signals", "meetings", "oyama-email", "oyama-letters", "template-convert", "qr-codes", "steward-paths", "livecom", "volunteers"]),
         { id: "contacts-manager", label: "Audience Lists", href: "/contacts-manager", icon: DONOR_ICONS.contactsManager },
         { id: "agent-steward", label: "Steward Copilot", href: "/steward-ai-workspace", icon: DONOR_ICONS.agentSteward },
       ],

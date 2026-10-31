@@ -1,0 +1,5 @@
+# Recent records and operational widget pass
+
+Web type checking and targeted ESLint passed. Dashboard desktop/mobile rendering and overflow checks passed after adding the operational widgets. The expanded browser test for record navigation, history and clear did not complete: the local dashboard failed to expose Performance summary within 15 seconds. Recent-record interaction verification remains outstanding. Session history is scoped per user/organization and contains only validated internal record paths and display labels. It tracks record links opened from the app, not direct URL visits. No live donor writes, deployment or migrations occurred.
+
+Dashboard operational cards use real existing donation/task/meeting APIs, with explicit unavailable/empty states. Meetings are labeled as meetings rather than fundraising events. Task completion suppresses duplicate in-flight requests. Styling and recent records are in the shared donor shell; public authored pages are not intentionally restyled.

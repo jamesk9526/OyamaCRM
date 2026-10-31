@@ -1,3 +1,7 @@
+## Donor-wide recent records and operational widgets — 2026-10-30
+
+Added a working Recent Records sidebar section on donor desktop/mobile navigation. The five most recently opened record links are stored per organization/user in browser session storage, validated as internal donor record routes, deduplicated and clearable. Dashboard operational cards now display recent completed donations, actionable tasks and upcoming donor meetings in a compact reference-style grid. Shared donor card/control styling applies across the donor shell. Task completion now guards duplicate clicks, exposes a named pending action and distinguishes load failure from an empty list. No deployment or live data writes were performed.
+
 ## Community social workspace and ideas board — 2026-10-30
 
 Community now fills the available workspace width with persistent desktop sidebar access, feed navigation, conversation search, newest/most-discussed/most-liked ordering, safe bold/link rendering, expandable long posts and shareable conversation links. Internal workspace surfaces use softer off-white and gray colors, excluding authored/public documents.

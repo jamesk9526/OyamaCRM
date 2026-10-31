@@ -1,8 +1,9 @@
 "use client";
 
+import DonorReferenceOperations from "./DonorReferenceOperations";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Gift, RefreshCcw, TrendingUp, Users, Wallet } from "lucide-react";
+import { Gift, RefreshCcw, TrendingUp, Users, Megaphone } from "lucide-react";
 import { DonorDashboardOverviewSections } from "./DonorDashboardOverviewSections";
 import { buildStewardshipSuggestions, formatDashboardCurrency, toDashboardNumber } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/dashboard-client-service";
@@ -18,7 +19,6 @@ import DonorPerformanceCharts from "./DonorPerformanceCharts";
 import CRMCard from "@/app/components/ui/crm/CRMCard";
 import CRMMetricCard from "@/app/components/ui/crm/CRMMetricCard";
 import CRMPageHeader from "@/app/components/ui/crm/CRMPageHeader";
-import DonorWorkspaceNav from "@/app/components/donor-workspace/DonorWorkspaceNav";
 import { DonorQuickViews } from "@/app/components/donor-workspace/BrowsePrimitives";
 
 interface NaturalisticDonorDashboardProps {
@@ -72,7 +72,6 @@ export default function NaturalisticDonorDashboard({
     || data.errors.some((error) => error.startsWith("Recent donor movement")));
   const gifts = data?.recentDonations.slice(0, 6) ?? [];
   const firstName = name.split(" ")[0] || "there";
-  const averageGift = summary && summary.ytdCount > 0 ? summary.ytdAverageGift ?? toDashboardNumber(summary.ytdAmount) / summary.ytdCount : null;
   const revenueChange = summary?.revenueChangePercent;
   const periodLabel = summary?.period?.label ?? "Year to date";
   const comparisonHelper = summary?.previousPeriodAmount === 0 ? "No prior-year giving to compare" : "Prior-year comparison unavailable";
@@ -90,42 +89,30 @@ export default function NaturalisticDonorDashboard({
   if (summary?.period?.through) donorQuery.set("givingThrough", summary.period.through);
 
   return (
-    <div className="donor-daily-workspace donor-animated-dashboard space-y-5 pb-8">
-      <DonorWorkspaceNav />
+    <div className="donor-daily-workspace donor-animated-dashboard donor-reference-dashboard space-y-3 pb-8">
       <CRMPageHeader breadcrumb="Donor CRM" title={`${greeting}, ${firstName}`}
-        description="See your fundraising momentum and turn insights into stronger donor relationships."
+        description="Here’s your fundraising overview and next steps."
         primaryAction={<Link href="/donations?recordGift=1" className="donor-button donor-button-primary"><Gift className="h-4 w-4" aria-hidden="true" />Record gift</Link>}
-        secondaryActions={<>{headerActions}<button type="button" className="donor-button" onClick={refresh} disabled={busy}><RefreshCcw className={`h-4 w-4 ${busy ? "motion-safe:animate-spin" : ""}`} aria-hidden="true" />{busy ? "Refreshing" : "Refresh"}</button></>}
+        secondaryActions={<><Link href="/constituents" className="donor-button">Contacts</Link>{headerActions}<button type="button" className="donor-button" onClick={refresh} disabled={busy}><RefreshCcw className={`h-4 w-4 ${busy ? "motion-safe:animate-spin" : ""}`} aria-hidden="true" />{busy ? "Refreshing" : "Refresh"}</button></>}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
-        <span className="donor-period-label">{periodLabel} <span aria-hidden="true">·</span> Completed gifts</span>
-        <span>{summary ? dataThroughLabel : busy ? "Loading data…" : "Dashboard data unavailable"}</span>
-      </div>
-      <div className="donor-browse-filter-heading"><DonorQuickViews label="Dashboard focus" items={[{ label: "Fundraising overview", active: focus === "overview", onClick: () => setFocus("overview") }, { label: "Supporter relationships", active: focus === "relationships", onClick: () => setFocus("relationships") }]} /><p className="donor-scope-note">{focus === "overview" ? "Giving trends and the next actions to take" : "Recent gifts, retention, campaigns, and relationship tools"}</p></div>
       {errors.length > 0 ? <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <p>Some dashboard data is unavailable. Values from the last successful refresh may still be shown.</p>
         <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">View details</summary><ul className="mt-2 space-y-1 text-xs">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></details>
         <button type="button" onClick={refresh} disabled={busy} className="donor-button mt-3">Retry</button>
       </div> : null}
 
-      <DonorSpotlight onRefresh={refresh} data={data} summary={summary} loading={busy} unavailable={Boolean(loadError || requestError)} />
       <section aria-label="Performance summary">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Fundraising at a glance</h2>
-          <Link href="/reports" className="text-sm font-semibold text-[var(--crm-accent)] hover:underline">View reports</Link>
-        </div>
-        <div className="donor-performance-metrics grid grid-cols-2 gap-3 xl:grid-cols-3">
+        <div className="donor-performance-metrics grid grid-cols-2 gap-3 xl:grid-cols-4">
           <CRMMetricCard href={matchingGiftsHref} label="Giving this year" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.ytdAmount)) : "—"} icon={<TrendingUp className="h-4 w-4" />} helper={revenueChange != null ? <span className={revenueChange < 0 ? "text-amber-700" : "text-emerald-700"}>{revenueChange > 0 ? "+" : ""}{revenueChange.toFixed(1)}% vs. same elapsed prior year</span> : comparisonHelper} loading={summaryLoading} tone="green" />
           <CRMMetricCard href={`/donations?${monthQuery}`} label="Giving this month" value={summary ? formatDashboardCurrency(toDashboardNumber(summary.monthAmount)) : "—"} icon={<Gift className="h-4 w-4" />} helper="Completed gifts this calendar month" loading={summaryLoading} tone="blue" />
           <CRMMetricCard href="/constituents" label="Constituents" value={summary?.totalConstituents.toLocaleString() ?? "—"} icon={<Users className="h-4 w-4" />} helper="All constituent records" loading={summaryLoading} tone="orange" />
-          <CRMMetricCard href={matchingGiftsHref} label="Completed gifts" value={summary?.ytdCount?.toLocaleString() ?? "—"} icon={<Gift className="h-4 w-4" />} helper={periodLabel} loading={summaryLoading} tone="blue" />
-          <CRMMetricCard href={matchingGiftsHref} label="Average gift" value={averageGift === null ? "—" : formatDashboardCurrency(averageGift)} icon={<Wallet className="h-4 w-4" />} helper="Giving ÷ completed gifts this period" loading={summaryLoading} tone="purple" />
-          <CRMMetricCard href={`/constituents?${donorQuery}`} label="Active donors" value={summary?.activeDonors.toLocaleString() ?? "—"} icon={<Users className="h-4 w-4" />} helper="Donors with completed gifts this period" loading={summaryLoading} tone="orange" />
+          <CRMMetricCard href="/campaigns" label="Active campaigns" value={summary?.activeCampaigns.toLocaleString() ?? "—"} icon={<Megaphone className="h-4 w-4" />} helper="Currently active campaigns" loading={summaryLoading} tone="orange" />
         </div>
       </section>
-      <section className="grid min-w-0 gap-4 xl:grid-cols-2" aria-label="Donors and staff reminders"><NewDonorsWidget refreshVersion={refreshVersion} /><DashboardReminders refreshVersion={refreshVersion} /></section>
-      <DashboardReportFinder period={summary?.period} />
       {focus === "overview" && <DonorPerformanceCharts data={data} summary={summary} loading={richLoading} unavailable={Boolean(requestError)} />}
+      <DonorReferenceOperations data={data} loading={richLoading} unavailable={giftsUnavailable} revision={refreshVersion} />
+      <section className="grid min-w-0 gap-4 xl:grid-cols-2" aria-label="Donors and staff reminders"><NewDonorsWidget refreshVersion={refreshVersion} /><DashboardReminders refreshVersion={refreshVersion} /></section>
+
       <DonorActionCenter data={data} summary={summary} retention={retention} loading={busy} summaryUnavailable={Boolean(loadError || !summary)} detailsUnavailable={Boolean(requestError)} />
 
       {focus === "relationships" && <><section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" aria-label="Constituent relationships">
@@ -174,6 +161,13 @@ export default function NaturalisticDonorDashboard({
         </div>
       </details>
       </>}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+        <span className="donor-period-label">{periodLabel} <span aria-hidden="true">·</span> Completed gifts</span>
+        <span>{summary ? dataThroughLabel : busy ? "Loading data…" : "Dashboard data unavailable"}</span>
+      </div>
+      <div className="donor-browse-filter-heading"><DonorQuickViews label="Dashboard focus" items={[{ label: "Fundraising overview", active: focus === "overview", onClick: () => setFocus("overview") }, { label: "Supporter relationships", active: focus === "relationships", onClick: () => setFocus("relationships") }]} /><p className="donor-scope-note">{focus === "overview" ? "Giving trends and the next actions to take" : "Recent gifts, retention, campaigns, and relationship tools"}</p></div>
+      <details className="crm-card-surface rounded-xl border p-4"><summary className="cursor-pointer font-semibold">Workspace insights & report finder</summary><div className="mt-4 space-y-4">      <DonorSpotlight onRefresh={refresh} data={data} summary={summary} loading={busy} unavailable={Boolean(loadError || requestError)} />
+<DashboardReportFinder period={summary?.period} /></div></details>
       {extraSections}
     </div>
   );

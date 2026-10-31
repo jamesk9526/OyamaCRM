@@ -1,14 +1,14 @@
 /** Daily Donor CRM navigation. Desktop and mobile use the same route catalog. */
 "use client";
 
+import DonorRecentItems from "./DonorRecentItems";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Search, X, MessagesSquare } from "lucide-react";
+import { ChevronDown, Search, X, MessagesSquare, Cloud } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import type { CrmSidebarItem } from "./CrmSidebar";
-import CrmBrandLockup from "./CrmBrandLockup";
 import { buildDonorDailyNavigation, isDonorNavigationItemVisible, resolveDonorNavigationActiveItem } from "./sidebar-configs";
 import { useDialogFocus } from "@/app/components/ui/useDialogFocus";
 import type { DonorAccentTone } from "@/app/lib/workspace-settings";
@@ -87,9 +87,10 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
     <>
       <aside style={railStyle} className="oyama-reference-rail fixed bottom-0 left-0 top-0 z-[19] hidden w-64 flex-col border-r md:flex">
         <Link href="/" aria-label="Oyama CRM workspace home" className="oyama-reference-rail-brand">
-          <CrmBrandLockup moduleLabel="Donor CRM" tone="light" className="w-full" />
+          <span className="flex items-center gap-2"><Cloud aria-hidden="true" size={42} fill="#009ce8" stroke="#009ce8" /><span className="text-sm font-bold text-[#102d56]">OYAMA CRM<span className="block text-[10px] font-medium text-[#526b8c]">Donor CRM</span></span></span>
         </Link>
         {navigation(false)}
+        <DonorRecentItems />
         {user?.role === "admin" && <Link href="/community" aria-label="Open Admin community" aria-current={pathname === "/community" ? "page" : undefined} className="mx-3 mt-3 flex min-h-14 items-center gap-3 rounded-xl border border-teal-300/30 bg-teal-400/10 px-4 text-sm font-semibold text-white hover:bg-teal-400/20"><MessagesSquare className="h-6 w-6 text-teal-200" /><span>Community<span className="block text-xs font-normal text-teal-100">Connect with your team</span></span></Link>}
         <button type="button" onClick={() => window.dispatchEvent(new Event("crm:focus-topbar-search"))}
           className="m-3 flex min-h-11 items-center gap-3 rounded-lg border border-white/20 px-3 text-sm text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
@@ -109,6 +110,7 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
               </button>
             </div>
             {navigation(true)}
+            <DonorRecentItems />
           </div>
         </div>
       ) : null}

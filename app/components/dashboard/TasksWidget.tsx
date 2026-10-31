@@ -6,7 +6,7 @@
 "use client";
 
 import Card from "@/app/components/ui/Card";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
@@ -27,6 +27,8 @@ interface TaskItem {
 export default function TasksWidget() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const completing = useRef(new Set<string>());
+  const [pending, setPending] = useState<string[]>([]);
   const [filter, setFilter] = useState<"all" | "my">("all");
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,15 +61,17 @@ export default function TasksWidget() {
 
   /** Mark a task as complete and refresh */
   async function complete(id: string) {
+    if (completing.current.has(id)) return;
+    completing.current.add(id); setPending([...completing.current]);
     try {
       await apiFetch(`/api/tasks/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ status: "COMPLETED" }),
       });
-      load();
+      await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to complete task.");
-    }
+    } finally { completing.current.delete(id); setPending([...completing.current]); }
   }
 
   const now = new Date();
@@ -91,7 +95,7 @@ export default function TasksWidget() {
         </h3>
         <button
           onClick={load}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-xs text-slate-600 hover:text-gray-600 transition-colors"
           title="Refresh"
         >
           ↻
@@ -125,37 +129,37 @@ export default function TasksWidget() {
         {loading ? (
           // Skeleton rows
           Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-14 bg-gray-100 rounded animate-pulse" />
+            <div key={i} className="h-14 bg-gray-100 rounded motion-safe:animate-pulse" />
           ))
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <svg className="w-8 h-8 text-green-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-sm text-gray-500">No pending tasks!</p>
+            <p className="text-sm text-gray-500">{error ? "Tasks unavailable. Use Refresh to retry." : "No pending tasks."}</p>
           </div>
         ) : (
           <>
             {dueSoon.length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
                   Due Soon
                 </h4>
                 <div className="space-y-2">
                   {dueSoon.map((t) => (
-                    <TaskCard key={t.id} task={t} onComplete={complete} />
+                    <TaskCard key={t.id} task={t} busy={pending.includes(t.id)} onComplete={complete} />
                   ))}
                 </div>
               </div>
             )}
             {dueLater.length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
                   Due Later
                 </h4>
                 <div className="space-y-2">
                   {dueLater.map((t) => (
-                    <TaskCard key={t.id} task={t} onComplete={complete} />
+                    <TaskCard key={t.id} task={t} busy={pending.includes(t.id)} onComplete={complete} />
                   ))}
                 </div>
               </div>
@@ -170,7 +174,7 @@ export default function TasksWidget() {
 /**
  * Individual task row card.
  */
-function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: string) => void }) {
+function TaskCard({ task, onComplete, busy }: { busy: boolean; task: TaskItem; onComplete: (id: string) => void }) {
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
   const taskType = task.type ?? task.taskType ?? "FOLLOW_UP";
 
@@ -181,6 +185,8 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
           {task.title}
         </p>
         <button
+          disabled={busy}
+          aria-label={`Complete task: ${task.title}`}
           onClick={() => onComplete(task.id)}
           className="shrink-0 text-gray-300 hover:text-green-600 transition-colors"
           title="Mark complete"
@@ -207,7 +213,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
         </span>
         {/* Due date */}
         {task.dueDate && (
-          <span className={`text-[10px] font-medium flex items-center gap-0.5 ${isOverdue ? "text-red-500" : "text-gray-400"}`}>
+          <span className={`text-[10px] font-medium flex items-center gap-0.5 ${isOverdue ? "text-red-500" : "text-slate-600"}`}>
             {isOverdue && (
               <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
@@ -218,7 +224,7 @@ function TaskCard({ task, onComplete }: { task: TaskItem; onComplete: (id: strin
         )}
         {/* Assignee */}
         {task.assignee && (
-          <span className="text-[10px] text-gray-400 ml-auto">
+          <span className="text-[10px] text-slate-600 ml-auto">
             {task.assignee.firstName} {task.assignee.lastName[0]}.
           </span>
         )}

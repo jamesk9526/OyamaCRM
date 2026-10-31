@@ -1,5 +1,6 @@
 "use client";
 
+import DonorWorkspaceTabs from "./DonorWorkspaceTabs";
 import ReleaseBanner from "./ReleaseBanner";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -377,10 +378,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* ErrorBoundary catches page-level render errors without crashing the whole shell */}
           <main id="crm-main-content" tabIndex={-1} data-crm-scroll-root="true" className="h-full min-w-0 overscroll-contain overflow-x-hidden overflow-y-auto crm-page-surface px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-0 sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))] sm:pt-0 xl:px-7 xl:pb-7 xl:pt-0 min-[1440px]:px-8 min-[1440px]:pt-0 2xl:px-9 2xl:pt-0">
 
+            {donorShellVisible && <DonorWorkspaceTabs />}
             <ErrorBoundary>
               <div className="crm-route-content min-w-0 max-w-full">
-                <ReleaseBanner />
+                {pathname !== "/" && <ReleaseBanner />}
                 {children}
+                {pathname === "/" && <ReleaseBanner />}
               </div>
             </ErrorBoundary>
           </main>

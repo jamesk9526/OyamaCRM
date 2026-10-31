@@ -1,3 +1,15 @@
+## Donor-wide recent records and operational widgets — 2026-10-30
+
+Added a working Recent Records sidebar section on donor desktop/mobile navigation. The five most recently opened record links are stored per organization/user in browser session storage, validated as internal donor record routes, deduplicated and clearable. Dashboard operational cards now display recent completed donations, actionable tasks and upcoming donor meetings in a compact reference-style grid. Shared donor card/control styling applies across the donor shell. Task completion now guards duplicate clicks, exposes a named pending action and distinguishes load failure from an empty list. No deployment or live data writes were performed.
+
+## Reference-first dashboard composition — 2026-10-30
+
+AGENTS.md now explicitly adopts the supplied DonorCRM reference. Dashboard composition now places the illustrated greeting, four live summary cards, and giving charts first. Spotlight/report tools remain in an expandable section, and the release banner follows the dashboard. The light sidebar uses a blue cloud brand, compact spacing and Home/Contacts labels. Dashboard desktop/mobile render and overflow checks passed with mocked data; no exact pixel-equivalence or live deployment is claimed.
+
+## Light blue DonorCRM reference refresh — 2026-10-30
+
+The donor shell now uses a light sidebar, blue active navigation, horizontal permission-filtered workspace tabs, navy typography, softer cards and a pale blue canvas. Shared donor page headers include an original scalable mountain/cloud/tree illustration with a light text backing. The existing dashboard data and operations remain connected. This is a shared-shell and surface refactor toward the supplied reference; the dashboard widget arrangement and the existing dark spotlight carousel are retained. No production deployment performed.
+
 ## Community social workspace and ideas board — 2026-10-30
 
 Community now fills the available workspace width with persistent desktop sidebar access, feed navigation, conversation search, newest/most-discussed/most-liked ordering, safe bold/link rendering, expandable long posts and shareable conversation links. Internal workspace surfaces use softer off-white and gray colors, excluding authored/public documents.

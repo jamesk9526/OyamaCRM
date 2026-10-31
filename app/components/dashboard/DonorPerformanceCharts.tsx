@@ -25,9 +25,9 @@ export default function DonorPerformanceCharts({ data, summary, loading, unavail
   }
   const hasComparison = points.some((point) => point.previousAmount != null);
   return <section className="donor-chart-grid" aria-label="Giving performance charts">
-    <CRMCard className="min-w-0" padding="lg">
+    <CRMCard className="min-w-0" padding="md">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><p className="donor-eyebrow">Giving over time</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Revenue momentum</h2><p className="mt-1 text-xs leading-5 text-slate-500">Completed gifts · {summary?.period?.label ?? "selected reporting year"} · grants excluded</p></div>
+        <div><p className="donor-eyebrow">Giving over time</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Giving Trend</h2><p className="mt-1 text-xs leading-5 text-slate-500">Completed gifts · {summary?.period?.label ?? "selected reporting year"} · grants excluded</p></div>
         <Link href={`/reports?${reportQuery}`} className="donor-text-link">Open report →</Link>
       </div>
       <div className="donor-chart-canvas mt-5" aria-busy={loading}>
@@ -37,18 +37,18 @@ export default function DonorPerformanceCharts({ data, summary, loading, unavail
           : <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <ComposedChart data={points} margin={{ top: 12, right: 10, left: 0, bottom: 4 }} accessibilityLayer>
               <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--crm-accent)" stopOpacity={0.18} /><stop offset="100%" stopColor="var(--crm-accent)" stopOpacity={0.01} /></linearGradient></defs>
-              <CartesianGrid stroke="#e8eef0" strokeDasharray="4 5" vertical={false} />
+              <CartesianGrid stroke="#e8eef0" strokeDasharray="0" vertical={false} />
               <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} minTickGap={14} dy={8} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#64748b" }} tickFormatter={(value: number) => formatDashboardCompactCurrency(value)} width={62} />
               <Tooltip formatter={(value) => formatDashboardCurrency(Number(value))} contentStyle={{ borderRadius: 12, border: "1px solid #dce5ea", boxShadow: "0 8px 30px #0f172a14", fontSize: 12 }} />
-              <Area type="monotone" dataKey="amount" name="This period" stroke="var(--crm-accent)" strokeWidth={3} fill={`url(#${gradientId})`} isAnimationActive={false} />
+              <Area type="monotone" dataKey="amount" name="This period" stroke="var(--crm-accent)" strokeWidth={2} dot={{ r: 4, fill: "#1684ff", stroke: "white", strokeWidth: 1 }} fill={`url(#${gradientId})`} isAnimationActive={false} />
               {hasComparison && <Line type="monotone" dataKey="previousAmount" name="Prior year, same elapsed period" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />}
             </ComposedChart>
           </ResponsiveContainer>}
       </div>
       {!loading && !trendUnavailable && points.length > 0 && <><div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500"><span className="donor-chart-legend"><i style={{ background: "var(--crm-accent)" }} />This period</span>{hasComparison && <span className="donor-chart-legend"><i style={{ background: "#94a3b8" }} />Prior year, same elapsed period</span>}</div>{points.some((point) => point.isPartial) && <p className="mt-2 text-xs text-slate-500">The current month is partial; both series stop at the same elapsed point.</p>}<details className="donor-chart-table mt-3"><summary>View monthly values</summary><div className="overflow-x-auto"><table><caption className="sr-only">Monthly giving and matching prior-year comparison</caption><thead><tr><th scope="col">Month</th><th scope="col">Completed gifts</th><th scope="col">Amount</th>{hasComparison && <th scope="col">Prior year</th>}</tr></thead><tbody>{points.map((point) => <tr key={point.month ?? point.label}><th scope="row">{point.label}{point.isPartial ? " (partial)" : ""}</th><td>{point.giftCount ?? "—"}</td><td>{formatDashboardCurrency(point.amount)}</td>{hasComparison && <td>{point.previousAmount == null ? "—" : formatDashboardCurrency(point.previousAmount)}</td>}</tr>)}</tbody></table></div></details></>}
     </CRMCard>
-    <CRMCard className="min-w-0" padding="lg">
+    <CRMCard className="min-w-0" padding="md">
       <div><p className="donor-eyebrow">Where support goes</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Giving by fund</h2><p className="mt-1 text-xs leading-5 text-slate-500">Completed gifts in the same reporting period</p></div>
       {loading ? <p className="donor-chart-state" role="status">Loading fund mix…</p>
         : fundsUnavailable ? <p className="donor-chart-state">Fund mix unavailable. Retry the dashboard to load this chart.</p>
