@@ -1,5 +1,5 @@
 {
-  "packaged": true,
+  "packaged": false,
   "errors": [],
   "checks": [
     "renderer startup",

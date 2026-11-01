@@ -1137,6 +1137,12 @@ function renderCudaSelector(cudaDevices, selectedValue) {
     bridgeCudaDeviceSelect.appendChild(option);
   });
 
+  if (selected !== "auto" && !Array.from(bridgeCudaDeviceSelect.options).some(option => option.value === selected)) {
+    const unavailable = document.createElement("option");
+    unavailable.value = selected;
+    unavailable.textContent = `GPU ${selected} — saved, currently unavailable`;
+    bridgeCudaDeviceSelect.appendChild(unavailable);
+  }
   bridgeCudaDeviceSelect.value = selected;
   updateActiveCudaReadout(cudaDevices, selected);
 }
@@ -2377,14 +2383,6 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("DOMContentLoaded", () => {
   void bootstrap();
-});
-
-// Explicit profile selection preserves existing saved deployments until staff apply a change.
-document.getElementById("stewardModelProfile")?.addEventListener("change", (event) => {
-  const model = event.target.value;
-  if (!["qwen3.8:27b", "qwen3.5:9b"].includes(model)) return;
-  document.getElementById("bridgeModelInput").value = model;
-  document.getElementById("bridgeThinkingModelInput").value = model;
 });
 
 function appendResponseFeedback(item, entry) {

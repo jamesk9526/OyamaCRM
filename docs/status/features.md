@@ -1,3 +1,19 @@
+## Native desktop installer and browsing improvements
+
+Added Donations, readable table columns, record detail inspection, access-token renewal, empty-state guidance and styled keyboard-focus controls. Published a self-contained Windows x64 client and NSIS per-user installer. Startup and screenshot capture pass. Installer is unsigned; authenticated live workflows, clean-machine validation and CRM write workflows remain outstanding.
+
+## Native C# desktop CRM foundation
+
+Added OyamaDesktopCSharp, a separate Windows WPF API client with in-memory authentication, email MFA, paginated Contacts/Tasks, local text previews and visible-row CSV exports. Suite modules are registered independently from API and file services. Build passes without warnings. Live authenticated CRM validation, full feature parity, automatic token refresh, offline synchronization and installer packaging remain outstanding; this client is read-only for CRM data.
+
+## Bridge dashboard and retained history
+
+Updated dashboard composition with Oyama light-blue banner, compact cards and spreadsheet request rows. Request metadata persists across restarts, bounded to 1,000 records; prompts, generated content, query parameters and credentials are excluded from the persisted schema. Recent response previews remain session-only. Source desktop UI smoke checks passed; these latest changes are not yet in a rebuilt installer.
+
+## Bridge 2.0.2 GPU settings clarity
+
+Removed the preset model-profile selector; the actual configured model fields and GPU control are now authoritative. If telemetry temporarily omits the selected GPU, its saved option remains visible rather than becoming blank and saving Auto. GPU selection applies immediately with a managed-runtime restart and preserves pairing credentials.
+
 ## Steward evidence and response integrity
 
 Strengthened CRM and desktop prompts to distinguish current evidence, memory, partial results, missing data, configuration, and observed runtime behavior. Structured charts reject non-finite/missing values and mismatched series instead of inventing zero. Report trends are allow-listed and model-suggested actions retain confirmation. These checks validate shape, not the factual provenance of every model claim; live answer-quality evaluation remains necessary.

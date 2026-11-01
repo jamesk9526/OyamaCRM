@@ -1,3 +1,4 @@
+const { readHistory, saveRequest } = require("./request-history");
 const { createImprovementsStore } = require("./improvements");
 const { BRIDGE_SYSTEM_POLICY, resolveBridgeSupport } = require("./steward-policy");
 // Main process for standalone Oyama Bridge app.
@@ -778,6 +779,7 @@ async function buildBridgeState() {
   const runtime = bridgeManager
     ? bridgeManager.getRuntimeState()
     : { running: false, startedAt: null, uptimeMs: 0, requestCount: 0, lastError: null, requestLog: [] };
+  runtime.requestLog = [...new Map([...(runtime.requestLog || []), ...readHistory(path.join(app.getPath("userData"), "request-history.json"))].map(row => [row.id, row])).values()].sort((a,b) => String(b.timestamp).localeCompare(String(a.timestamp))).slice(0,1000);
   const ollama = ollamaRuntimeManager
     ? await ollamaRuntimeManager.refreshHealth()
     : {
@@ -1007,6 +1009,7 @@ function emitBridgeEvent(payload) {
 
   if (payload && payload.type === "request" && payload.entry) {
     try {
+      saveRequest(path.join(app.getPath("userData"), "request-history.json"), payload.entry);
       recordUsageEntry(payload.entry);
       if (shouldCountAsModelActivity(payload.entry)) {
         scheduleIdleVramClear();

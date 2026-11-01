@@ -1,6 +1,6 @@
 {
   "name": "oyama-bridge-desktop-server",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Standalone Oyama Bridge app for local AI gateway and donor/report Steward intelligence routing.",
   "author": "OyamaCRM",
   "main": "main.js",
@@ -30,6 +30,7 @@
       "bridge-server.js",
       "steward-policy.js",
       "improvements.js",
+      "request-history.js",
       "gpu-telemetry.js",
       "ollama-runtime.js",
       "preload.js",

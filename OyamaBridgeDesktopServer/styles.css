@@ -1678,3 +1678,13 @@ body.sidebar-open .settings-backdrop { left: 274px; }
 .sidebar-utilities{border-top:1px solid var(--border);padding-top:12px}.sidebar-utilities summary{cursor:pointer;color:var(--ink-2);font-size:12px;padding:8px}.sidebar-utilities:not([open])>button{display:none}.bridge-next-step{display:flex;justify-content:space-between;align-items:center;gap:20px;border:1px solid var(--border);border-radius:10px;background:#e5f1ff;padding:18px 20px;margin-bottom:20px}.bridge-next-step strong{font-size:15px}.bridge-next-step p,.connect-crm-card>p{color:var(--ink-2);font-size:12px;line-height:1.6;margin:7px 0}.connect-crm-card{margin-bottom:20px}.connect-crm-card h2{font-size:22px}.connect-crm-card .btn{padding:10px 16px;margin-top:12px}#connectCrmStatus{overflow-wrap:anywhere}.response-feedback button{display:inline-flex;align-items:center;gap:6px}
 
 .legacy-pairing>summary{cursor:pointer;padding:10px 0;color:var(--ink-2);font-size:12px}.legacy-pairing:not([open])>:not(summary){display:none}
+
+/* Oyama CRM dashboard composition */
+.server-dashboard-header{background:linear-gradient(125deg,#e8f5ff,#cde9fa);border:1px solid #c5dfef;border-radius:10px;padding:24px;min-height:125px;position:relative;overflow:hidden}
+.server-title-block{background:#ffffffb8;border-radius:8px;padding:16px 20px}.server-title-block h2{color:#17375e;font-size:26px;letter-spacing:-.7px}
+.server-primary-actions{background:#ffffffc9;border-radius:8px;padding:6px}
+.server-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.service-card{border-radius:9px;box-shadow:0 2px 5px #17375e08;padding:16px;min-height:95px}.service-card strong{color:#18385f}.card-label{letter-spacing:.04em}
+.runtime-stage{grid-template-columns:1fr}.runtime-stack{display:none}.runtime-banner h3{font-size:16px}.runtime-banner{padding:16px}
+.dashboard-reports{gap:14px}.dashboard-grid{gap:14px}.panel{border-radius:9px}.panel-head h2{font-size:15px;color:#17375e}
+.request-log-wrap th{background:#edf4fb;color:#355579}.request-log-wrap td{border-right:1px solid #e1eaf4}.request-log-wrap tr:nth-child(even){background:#f7faff}
+@media(max-width:900px){.server-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.server-dashboard-header{flex-wrap:wrap;gap:12px}}
