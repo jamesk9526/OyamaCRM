@@ -1,0 +1,14 @@
+{
+  "errors": [],
+  "copied": "Lapsed\t$250.00(1 gifts)",
+  "checks": [
+    "command dock hover and Escape",
+    "cell navigation",
+    "range selection and TSV copy",
+    "column resize",
+    "row density reduces height",
+    "donations table enhancement",
+    "desktop/mobile screenshot captures",
+    "mobile overflow"
+  ]
+}

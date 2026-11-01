@@ -135,7 +135,7 @@ export default function EventsStudioShell({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="event-studio-shell min-h-dvh bg-[#f6f7fb] text-slate-900">
+    <div data-oyama-internal="true" className="event-studio-shell min-h-dvh bg-[#f6f7fb] text-slate-900">
       <a href="#event-main-content" className="crm-skip-link">Skip to event workspace</a>
       <header className="event-studio-header sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-3 px-3 sm:px-5">

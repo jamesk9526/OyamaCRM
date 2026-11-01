@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { OYAMA_PRODUCT_LOGO, OYAMA_PRODUCT_LOGO_COLLAPSED } from "@/app/lib/product-branding";
+import { OYAMA_PRODUCT_LOGO_LIGHT, OYAMA_PRODUCT_LOGO, OYAMA_PRODUCT_LOGO_COLLAPSED } from "@/app/lib/product-branding";
 
 const BRAND_LABEL_FONT_STACK = '"Avenir Next", "Montserrat", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
 
@@ -16,13 +16,13 @@ export default function CrmBrandLockup({
   compact = false,
   className = "",
 }: CrmBrandLockupProps) {
-  const logoSrc = compact ? OYAMA_PRODUCT_LOGO_COLLAPSED : OYAMA_PRODUCT_LOGO;
+  const logoSrc = compact ? OYAMA_PRODUCT_LOGO_COLLAPSED : tone === "light" ? OYAMA_PRODUCT_LOGO_LIGHT : OYAMA_PRODUCT_LOGO;
   const labelClass = tone === "light" ? "text-slate-200" : "text-slate-500";
   const logoFrameClass = compact
     ? "bg-transparent ring-0 shadow-none"
     : tone === "light"
       ? "bg-white/[0.04] ring-1 ring-white/15"
-      : "bg-slate-950 ring-1 ring-slate-900/10";
+      : "bg-transparent ring-0";
 
   return (
     <div className={`${compact ? "flex flex-col items-center gap-1.5" : "flex flex-col items-start gap-2"} ${className}`.trim()}>

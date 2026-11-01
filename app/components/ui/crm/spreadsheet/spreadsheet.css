@@ -1,0 +1,17 @@
+/* Applies to enhanced internal data tables; authored/public documents are excluded in the enhancer. */
+[data-oyama-internal=true] table[data-spreadsheet=true] { border-collapse:separate; border-spacing:0; font-variant-numeric:tabular-nums; font-size:12px; }
+[data-oyama-internal=true] table[data-spreadsheet=true] :is(th,td) { border-right:1px solid #e0e8f1; border-bottom:1px solid #e0e8f1; padding:8px 12px; line-height:1.45; }
+[data-oyama-internal=true] table[data-spreadsheet=true] thead th { position:sticky; top:0; z-index:12; background:#edf3fa; color:#304f73; font-weight:600; box-shadow:0 1px 0 #c7d7e8; }
+[data-oyama-internal=true] table[data-spreadsheet=true] thead th::after { content:"";position:absolute;right:0;top:25%;bottom:25%;width:5px;border-right:2px solid #bdcde0;opacity:0;cursor:col-resize; }
+[data-oyama-internal=true] table[data-spreadsheet=true] thead th:hover::after { opacity:1; }
+[data-oyama-internal=true] table[data-spreadsheet=true] tbody tr:nth-child(even) { background:#f7faff; }
+[data-oyama-internal=true] table[data-spreadsheet=true] tbody tr:hover { background:#edf5ff; }
+[data-oyama-internal=true] table[data-spreadsheet=true] [data-sheet-selected=true] { background:#e1eeff; }
+[data-oyama-internal=true] table[data-spreadsheet=true] [data-sheet-focus=true]:focus { outline:2px solid #0876e8; outline-offset:-2px; background:#eff6ff; }
+[data-oyama-internal=true] table[data-spreadsheet=true] tr:has(input[type=checkbox]:checked) { background:#e4f0ff; }
+[data-oyama-internal=true] [data-density=compact] table[data-spreadsheet=true] :is(th,td) { padding-block:5px; }
+.crm-table-toolbar .sheet-address { display:inline-flex;min-width:48px;justify-content:center;border:1px solid #d4e1ef;border-radius:5px;background:white;padding:3px 8px;font:11px ui-monospace,monospace;color:#24466e; }
+@media print { [data-oyama-internal=true] table[data-spreadsheet=true] [data-sheet-selected=true] { background:transparent; } }
+
+[data-oyama-internal=true] table[data-spreadsheet=true] thead th[data-sheet-column]::before { content:attr(data-sheet-column); display:block; margin-bottom:4px; color:#7a91ac; font:9px ui-monospace,monospace; letter-spacing:.05em; }
+@media print { [data-oyama-internal=true] table[data-spreadsheet=true] thead th[data-sheet-column]::before { display:none; } }

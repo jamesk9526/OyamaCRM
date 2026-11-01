@@ -162,12 +162,12 @@
 :is(.crm-fonts.crm-fonts,.event-studio-shell,[data-oyama-module]) :is(section,article,div):is(.rounded-lg,.rounded-xl,.rounded-2xl,.rounded-3xl):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-radius: var(--oyama-radius); }
 .crm-fonts.crm-fonts .oyama-table-shell:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: var(--oyama-border); border-radius: var(--oyama-radius); }
 .crm-fonts.crm-fonts main table:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: var(--oyama-border); color: #334155; font-size: 13px; }
-.crm-fonts.crm-fonts main table thead:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { background: #f5f5f5; }
-.crm-fonts.crm-fonts main table th:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: #52637a; font-size: 11px; font-weight: 600; letter-spacing: .015em; }
-.crm-fonts.crm-fonts main table :is(th,td):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: #edf0f4; }
-.crm-fonts.crm-fonts main table tbody tr:hover:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { background-color: var(--crm-accent-soft); }
-.crm-fonts.crm-fonts main table tbody :is(td,th):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { padding-top: 15px; padding-bottom: 15px; }
-.crm-fonts.crm-fonts main table a:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--crm-accent); }
+.crm-fonts.crm-fonts main table:not([data-spreadsheet=true]) thead:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { background: #f5f5f5; }
+.crm-fonts.crm-fonts main table:not([data-spreadsheet=true]) th:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: #52637a; font-size: 11px; font-weight: 600; letter-spacing: .015em; }
+.crm-fonts.crm-fonts main table:not([data-spreadsheet=true]) :is(th,td):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: #edf0f4; }
+.crm-fonts.crm-fonts main table:not([data-spreadsheet=true]) tbody tr:hover:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { background-color: var(--crm-accent-soft); }
+.crm-fonts.crm-fonts main table:not([data-spreadsheet=true]) tbody :is(td,th):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { padding-top: 15px; padding-bottom: 15px; }
+.crm-fonts.crm-fonts main table:not([data-spreadsheet=true]) a:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--crm-accent); }
 .crm-fonts.crm-fonts .oyama-status-badge:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; line-height: 1.45; padding: 4px 9px; font-weight: 500; }
 .crm-fonts.crm-fonts .donor-pagination:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: var(--oyama-border); box-shadow: none; }
 .donor-record-actions-panel { border-radius: var(--oyama-radius); border-color: var(--oyama-border); font-family: var(--oyama-font); color: var(--oyama-text); box-shadow: 0 8px 28px #10283f18; }

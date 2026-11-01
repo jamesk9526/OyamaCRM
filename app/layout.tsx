@@ -1,3 +1,4 @@
+import SpreadsheetTables from "./components/ui/crm/spreadsheet/SpreadsheetTables";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./design-system.css";
@@ -27,8 +28,8 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: [
-      { url: "/api/pwa/icon?size=180", sizes: "180x180", type: "image/png" },
-      { url: "/api/pwa/icon?size=192", sizes: "192x192", type: "image/png" },
+      { url: "/branding/oyama-crm-v2-icon-180.png", sizes: "180x180", type: "image/png" },
+      { url: "/branding/oyama-crm-v2-icon-192.png", sizes: "192x192", type: "image/png" },
     ],
   },
   robots: {
@@ -69,6 +70,7 @@ export default function RootLayout({
         <AuthProvider>
           <PluginProvider>
             <AppShell>{children}</AppShell>
+            <SpreadsheetTables />
           </PluginProvider>
         </AuthProvider>
       </body>

@@ -4,10 +4,10 @@ import DonorWorkspaceTabs from "./DonorWorkspaceTabs";
 import ReleaseBanner from "./ReleaseBanner";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import WorkspaceStatusControl from "./WorkspaceStatusControl";
 import TopBar from "./TopBar";
 import DonorMegaMenu from "./DonorMegaMenu";
 import CrmContextualHelp from "@/app/components/help/CrmContextualHelp";
-import StewardProactiveNudge from "@/app/components/ai/StewardProactiveNudge";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
@@ -325,6 +325,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Next owns document scrolling; this shell owns a separate scrolling main.
+  useLayoutEffect(() => {
+    if (!window.location.hash) document.getElementById("crm-main-content")?.scrollTo({top:0,left:0,behavior:"instant"});
+    setShellScrolled(false);
+  }, [pathname]);
+
   // Public pages — no shell
   if (isCompassion) return <>{children}</>;
   if (isPublic) return <>{children}</>;
@@ -389,8 +395,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <WorkspaceStatusControl />
       <CrmContextualHelp pathname={pathname} />
-      <StewardProactiveNudge />
     </div>
   );
 }

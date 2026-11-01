@@ -292,15 +292,7 @@ export default function AISettingsPage() {
             />
             Enable multi-stage agentic pipeline (plan → reason → answer)
           </label>
-          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              checked={config.chatHeadEnabled}
-              onChange={(event) => updateConfig("chatHeadEnabled", event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            Show floating Steward chat head launcher
-          </label>
+
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">

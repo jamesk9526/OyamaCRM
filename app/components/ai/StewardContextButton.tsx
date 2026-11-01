@@ -2,7 +2,7 @@
  * StewardContextButton — a small, inline contextual AI action button.
  *
  * Fires a `steward:open-with-prompt` CustomEvent when clicked, which causes
- * the global StewardDockPanel to open and auto-send the specified prompt.
+ * the global StewardWorkspaceBridge to route to the dedicated workspace.
  * Designed to appear natively inside cards, record pages, and report widgets.
  */
 "use client";

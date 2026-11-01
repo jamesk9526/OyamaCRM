@@ -13,15 +13,15 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppLauncherIcon from "@/app/components/layout/AppLauncherIcon";
 import DonorAccountMenu from "@/app/components/layout/DonorAccountMenu";
 import StewardAiRuntimePill from "@/app/components/layout/StewardAiRuntimePill";
-import WorkspaceStatusControl from "@/app/components/layout/WorkspaceStatusControl";
+import ChromeIcon from "./topbar/ChromeIcon";
 import ContextualTutorialModal from "@/app/components/help/ContextualTutorialModal";
-import StewardDockPanel from "@/app/components/ai/StewardDockPanel";
+import StewardWorkspaceBridge from "@/app/components/ai/StewardWorkspaceBridge";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { SupportTicketModal } from "@/app/components/support/SupportTicketModal";
 import { apiFetch } from "@/app/lib/auth-client";
 import NotificationPanel from "@/app/components/notifications/NotificationPanel";
 import { changeNotification, markNotificationsRead, safeNotificationHref, subscribeToNotifications, type NotificationItem, type NotificationAction } from "@/app/components/notifications/notification-client";
-import { OYAMA_PRODUCT_LOGO } from "@/app/lib/product-branding";
+import { OYAMA_PRODUCT_LOGO, OYAMA_PRODUCT_ICON } from "@/app/lib/product-branding";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
   fetchWorkspaceSettings,
@@ -78,45 +78,23 @@ function isEditableEventTarget(target: EventTarget | null): boolean {
 }
 
 /** Generic help-circle icon used for help control in topbar controls. */
-function HelpCircleIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9a2.25 2.25 0 1 1 3.4 1.93c-.87.52-1.15.92-1.15 1.82" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 17h.01" />
-    </svg>
-  );
+function HelpCircleIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return <ChromeIcon name="help" className={className} />;
 }
 
 /** Generic bell icon used for notifications control in topbar controls. */
-function BellIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.86 17H9.14a2.8 2.8 0 0 1-2.8-2.8v-2.47a5.66 5.66 0 0 1 11.32 0v2.47a2.8 2.8 0 0 1-2.8 2.8z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10 17a2 2 0 1 0 4 0" />
-    </svg>
-  );
+function BellIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return <ChromeIcon name="notifications" className={className} />;
 }
 
 /** Small research icon used for the global individual-donor research shortcut. */
-function DonorResearchIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="10.75" cy="10.75" r="5.75" />
-      <path strokeLinecap="round" d="m15 15 4.25 4.25" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 10.75h4.5M10.75 8.5v4.5" />
-    </svg>
-  );
+function DonorResearchIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return <ChromeIcon name="research" className={className} />;
 }
 
 /** Neutral AI icon for the donor topbar Steward workspace entry point. */
-function AiOrbIcon({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="4.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5M18.54 5.46l-1.77 1.77M7.23 16.77l-1.77 1.77M18.54 18.54l-1.77-1.77M7.23 7.23L5.46 5.46" />
-    </svg>
-  );
+function AiOrbIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return <ChromeIcon name="assistant" className={className} />;
 }
 
 interface TopBarProps {
@@ -526,9 +504,8 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         pathname={pathname}
       />
       {/* Direct staff messaging is retired for now; a future module will be separately reviewed. */}
-      <StewardDockPanel
+      <StewardWorkspaceBridge
         moduleKey={moduleKey}
-        showLauncher
       />
       {/* Command search modal — opened from the centered top-bar icon or Ctrl+K. */}
       {mobileSearchOpen && (
@@ -645,7 +622,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               {/* ── TopBar Brand ── */}
               <Link href={homeHref} className={`flex min-w-0 shrink items-center rounded-xl px-1.5 py-1 transition-opacity hover:opacity-90 max-[380px]:px-1 ${isDonorEnterpriseChrome ? "text-white" : ""}`} aria-label="Go to OyamaCRM v2.0 home">
                 {isDonorEnterpriseChrome ? (
-                  <span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v2.0</span></span>
+                  <><Image src={OYAMA_PRODUCT_ICON} alt="" width={26} height={26} className="mr-1 hidden min-[360px]:block"/><span className="inline-flex items-baseline gap-1 whitespace-nowrap text-sm font-bold tracking-[-0.035em] text-white max-[380px]:text-xs">OyamaCRM <span className="text-[9px] font-bold tracking-wide text-emerald-200">v2.0</span></span></>
                 ) : (
                   <Image
                     src={OYAMA_PRODUCT_LOGO}
@@ -669,7 +646,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
           {/* Mobile top-right priority controls */}
           <div className="oyama-topbar-mobile-actions flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
-            <div className={isDonorEnterpriseChrome ? "hidden sm:block" : ""}><WorkspaceStatusControl dark={false} /></div>
+
             <Link
               href="/donor-profile"
               title="Open OYAMADonorPROFILE"
@@ -770,7 +747,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               </nav>
             )}
 
-            <WorkspaceStatusControl dark={false} />
+
 
             {showTopBarAppLauncher ? (
               <button

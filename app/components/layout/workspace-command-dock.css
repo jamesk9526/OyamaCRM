@@ -1,0 +1,22 @@
+/* A single contextual command surface, within reach without covering the page. */
+.workspace-command-dock { position:fixed; z-index:45; left:50%; bottom:max(14px,env(safe-area-inset-bottom)); transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; width:max-content; max-width:calc(100vw - 32px); padding-top:8px; color:#183b60; }
+@media(min-width:768px) { [data-oyama-sidebar=true] .workspace-command-dock { left:calc(50% + 102px); max-width:calc(100vw - 260px); } }
+.workspace-command-pill { display:flex; align-items:center; gap:10px; min-height:44px; padding:6px 14px 6px 7px; border:1px solid #cbdcf0; border-radius:28px; background:#fff; box-shadow:0 4px 20px #16375424; font-size:12px; white-space:nowrap; }
+.workspace-command-pill > span:not(.workspace-command-mark,.workspace-command-separator) { color:#526b85; }
+.workspace-command-mark { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:#eaf3ff; color:#006bdc; }
+.workspace-command-separator { height:16px; width:1px; background:#dce7f1; }
+.workspace-command-ribbon { width: min(720px,calc(100vw - 32px)); max-width:100%; overflow:hidden; border:1px solid #ccdbeb; border-radius:12px; background:#fff; box-shadow:0 8px 32px #16375426; }
+.workspace-command-ribbon header { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #e3ecf5; background:#f4f8fd; }
+.workspace-command-ribbon header > div { flex:1; min-width:0; }
+.workspace-command-ribbon header p { color:#526b85; font-size:10px; }
+.workspace-command-ribbon h2 { font-size:14px; font-weight:650; }
+.workspace-command-ribbon header > span { font-size:11px; color:#526b85; }
+.workspace-command-ribbon header button { width:32px; height:32px; border-radius:6px; font-size:20px; }
+.workspace-command-ribbon nav { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:4px; padding:8px; max-height:min(42vh,320px); overflow:auto; }
+.workspace-command-ribbon nav :is(a,button) { display:flex; align-items:center; gap:8px; min-height:40px; padding:8px; border-radius:7px; font-size:12px; text-align:left; }
+.workspace-command-ribbon :is(a,button):hover { background:#eaf3ff; color:#005fca; }
+.workspace-command-dock :focus-visible { outline:2px solid #006bdc; outline-offset:2px; }
+.workspace-command-empty { padding:16px; font-size:12px; color:#526b85; }
+[data-oyama-internal=true] #crm-main-content { padding-bottom:88px; }
+@media(prefers-reduced-motion:no-preference) { .workspace-command-ribbon { animation:command-reveal 130ms ease-out; } @keyframes command-reveal { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } } }
+@media print { .workspace-command-dock { display:none; } }

@@ -1,0 +1,22 @@
+{
+  "errors": [],
+  "failed": [],
+  "github": [
+    "https://github.com/jamesk9526/OyamaCRM",
+    "https://github.com/jamesk9526/OyamaCRM",
+    "https://github.com/jamesk9526/OyamaCRM/blob/main/README.md",
+    "https://github.com/jamesk9526/OyamaCRM",
+    "https://github.com/jamesk9526/OyamaCRM/blob/main/README.md",
+    "https://github.com/jamesk9526/OyamaCRM/tree/main/docs",
+    "https://github.com/jamesk9526/OyamaCRM/tree/main/website/v2",
+    "https://github.com/jamesk9526/OyamaCRM"
+  ],
+  "checks": [
+    "screenshot tabs",
+    "dialog opens and Escape closes",
+    "mobile navigation",
+    "four responsive widths",
+    "no failed asset requests",
+    "repository links"
+  ]
+}

@@ -1,11 +1,13 @@
 /** Daily Donor CRM navigation. Desktop and mobile use the same route catalog. */
 "use client";
 
+import Image from "next/image";
+import { OYAMA_PRODUCT_ICON } from "@/app/lib/product-branding";
 import DonorRecentItems from "./DonorRecentItems";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Search, X, MessagesSquare, Cloud } from "lucide-react";
+import { ChevronDown, Search, X, MessagesSquare } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { usePlugins } from "@/app/components/plugins/PluginProvider";
 import type { CrmSidebarItem } from "./CrmSidebar";
@@ -87,7 +89,7 @@ export default function DonorMegaMenu({ chromeTint }: DonorMegaMenuProps) {
     <>
       <aside style={railStyle} className="oyama-reference-rail fixed bottom-0 left-0 top-0 z-[19] hidden w-64 flex-col border-r md:flex">
         <Link href="/" aria-label="Oyama CRM workspace home" className="oyama-reference-rail-brand">
-          <span className="flex items-center gap-2"><Cloud aria-hidden="true" size={42} fill="#009ce8" stroke="#009ce8" /><span className="text-sm font-bold text-[#102d56]">OYAMA CRM<span className="block text-[10px] font-medium text-[#526b8c]">Donor CRM</span></span></span>
+          <span className="flex items-center gap-2"><Image src={OYAMA_PRODUCT_ICON} alt="" width={42} height={42} priority /><span className="text-sm font-bold text-[#102d56]">OYAMA CRM<span className="block text-[10px] font-medium text-[#526b8c]">Donor CRM</span></span></span>
         </Link>
         {navigation(false)}
         <DonorRecentItems />

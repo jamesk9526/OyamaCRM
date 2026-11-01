@@ -192,7 +192,7 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(appShell).toContain('donorShellVisible ? "md:pl-64" : ""');
     expect(appShell).not.toContain('"/trivia", "/steward-ai-workspace"');
     expect(appShell).toContain("useBrowserLayoutEffect");
-    expect(appShell).toContain("StewardProactiveNudge");
+    expect(appShell).not.toContain("StewardProactiveNudge");
     expect(appShell).not.toContain('hidden h-full lg:flex');
     expect(topBar).toContain('xl:h-[72px]');
     expect(topBar).toContain("OyamaCRM v1.3 home");
@@ -215,26 +215,6 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(nudge).toContain("using the real saved path data");
   });
 
-  it("opens the full Steward workspace directly from its chat head", () => {
-    const dock = read("app/components/ai/StewardDockPanel.tsx");
-    const nudge = read("app/components/ai/StewardProactiveNudge.tsx");
-    const workspace = read("app/components/ai/StewardCopilotWorkspace.tsx");
-    const layout = read("app/steward-ai-workspace/layout.tsx");
-
-    expect(dock).toContain("Open Steward workspace");
-    expect(dock).toContain("router.push");
-    expect(dock).toContain("stewardWorkspaceHref");
-    expect(dock).not.toContain("StewardChatPanel");
-    expect(nudge).toContain("getStewardNudge");
-    expect(nudge).toContain("steward-nudge:v1:");
-    expect(nudge).toContain("chatHeadEnabled === false");
-    expect(workspace).toContain("initialPrompt");
-    expect(workspace).toContain("scopePath: initialScopePath");
-    expect(workspace).toContain("PATH_STARTERS");
-    expect(workspace).toContain('initialScopePath.startsWith("/steward-paths")');
-    expect(layout).toContain("return children");
-    expect(layout).not.toContain('className="h-[100dvh]');
-  });
 
   it("applies the next visual pass to Constituents without removing existing behavior", () => {
     const page = read("app/constituents/page.tsx");
