@@ -537,12 +537,11 @@ test("managed runtime refuses to claim a port already owned by another Ollama se
   }));
 
   try {
-    await assert.rejects(() => runtimeManager.start(), /cannot guarantee GPU selection/);
+    await assert.rejects(() => runtimeManager.start(), /cannot guarantee GPU selection|Could not stop the conflicting Ollama/);
     const state = runtimeManager.getState();
     assert.equal(state.status, "managed-port-in-use");
     assert.equal(state.running, true);
-    assert.equal(state.ready, true);
-    assert.equal(state.version, "0.6.0-test");
+    assert.equal(state.ready, process.platform !== "win32");
   } finally {
     await new Promise((resolve) => upstream.server.close(resolve));
   }

@@ -1,7 +1,7 @@
 const { createImprovementsStore } = require("./improvements");
 const { BRIDGE_SYSTEM_POLICY, resolveBridgeSupport } = require("./steward-policy");
 // Main process for standalone Oyama Bridge app.
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require("electron");
 const fs = require("node:fs");
 const https = require("node:https");
 const os = require("node:os");
@@ -377,13 +377,12 @@ function toBase64Url(text) {
 function buildPairingBundle(config, options = {}) {
   const safe = sanitizeConfig(config);
   const now = Date.now();
-  // Pairing keys never expire — set expiresAt to null so the CRM and bridge
-  // accept them indefinitely without requiring re-pairing.
-  const expiresAt = null;
+  // Handoff lifetime is separate from the unchanged bridge credential.
+  const expiresAt = new Date(now + 10 * 60000).toISOString();
   const keyName = String(options.keyName || "Oyama Bridge Pairing Key").trim().slice(0, 80) || "Oyama Bridge Pairing Key";
   const mode = String(options.mode || "donor_reports_only").toLowerCase() === "full" ? "full" : "donor_reports_only";
 
-  const endpoint = String(safe.bridgePublicBaseUrl || "").trim() || `http://127.0.0.1:${safe.bridgePort}`;
+  const endpoint = String(options.endpointUrl || safe.bridgePublicBaseUrl || "").trim() || `http://127.0.0.1:${safe.bridgePort}`;
   const payload = {
     version: 1,
     name: keyName,
@@ -410,7 +409,7 @@ function buildPairingBundle(config, options = {}) {
     .replace(/=+$/g, "");
 
   const token = `${tokenPayload}.${signature}`;
-  const pairingUrl = `${String(safe.crmSiteUrl || "").replace(/\/+$/, "")}/settings/ai?bridgePair=${encodeURIComponent(token)}`;
+  const pairingUrl = `${String(safe.crmSiteUrl || "").replace(/\/+$/, "")}/settings/ai#bridgePair=${encodeURIComponent(token)}`;
 
   return {
     payload,
@@ -1838,3 +1837,20 @@ const improvementsRetryTimer = setInterval(() => {
 }, 60000);
 improvementsRetryTimer.unref();
 app.on("before-quit", () => clearInterval(improvementsRetryTimer));
+
+ipcMain.handle("oyama-bridge:connect-crm", async (event, payload) => {
+  assertFeedbackSender(event);
+  try {
+    const config = readConfig();
+    const site = new URL(String(payload?.siteUrl || config.crmSiteUrl || ""));
+    if (site.protocol !== "https:" && !(site.protocol === "http:" && ["localhost", "127.0.0.1"].includes(site.hostname))) throw new Error("Enter the HTTPS URL of your CRM.");
+    if(site.username || site.password) throw new Error("CRM URL must not contain credentials.");
+    const state = await buildBridgeState();
+    const endpoint = new URL(String(payload?.endpointUrl || config.bridgePublicBaseUrl || state.appValues.endpointUrl));
+    if(!["http:","https:"].includes(endpoint.protocol) || endpoint.username || endpoint.password) throw new Error("Enter a valid bridge endpoint.");
+    writeConfig({ ...config, crmSiteUrl: site.origin, bridgePublicBaseUrl: endpoint.origin });
+    const pairing = buildPairingBundle({ ...config, crmSiteUrl: site.origin }, { endpointUrl: endpoint.origin });
+    await shell.openExternal(pairing.pairingUrl);
+    return { ok: true, message: "CRM opened in your browser. Sign in as an administrator, review the desktop endpoint, then choose Verify and connect." };
+  } catch(error) { return { ok:false, message:error.message || "Could not open CRM connection." }; }
+});

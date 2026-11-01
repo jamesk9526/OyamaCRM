@@ -1,0 +1,14 @@
+{
+  "packaged": true,
+  "errors": [],
+  "checks": [
+    "renderer startup",
+    "light dashboard capture",
+    "feedback persisted",
+    "unconnected sync preserves report",
+    "improvements capture",
+    "1100px overflow",
+    "fragment handoff opens normal CRM sign-in",
+    "GPU preserved across legacy import"
+  ]
+}

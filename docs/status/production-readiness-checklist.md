@@ -1,3 +1,17 @@
+## GPU restart follow-up
+
+GPU selection now saves immediately and restarts the managed runtime without changing pairing credentials. Stale UI drafts no longer override GPU choice. Windows startup attempts to stop only verified Ollama listeners on the configured local port; other applications are refused. Advanced settings are collapsed. Installer rebuilt with these fixes and packaged desktop QA passed. Physical GPU inference remains outstanding for this follow-up.
+
+## Verified desktop sign-in handoff and simplified bridge - 2026-11-01
+
+Added desktop-to-CRM pairing through the normal browser sign-in, a reviewable endpoint preview, and a server-side connection test before settings are saved. The handoff uses a URL fragment, is removed from the visible URL, and is held in session storage for at most ten minutes through sign-in. No CRM password enters the desktop app. The pairing credential grants no CRM role; the connect endpoint remains admin-only and preserves existing settings when authentication, endpoint, or installed-model checks fail.
+
+Simplified desktop navigation to Overview, Connect CRM, Diagnostics, Improvements, and Settings. Advanced service/backup/debug tools and legacy key import remain in collapsible sections. New pairing bundles expire in ten minutes without rotating the existing bridge API key. Legacy CRM import no longer resets the physical desktop GPU selection. Sensitive key fields are masked.
+
+Live diagnostics: the installed bridge accepted the saved credential at both local/public endpoints, and completed a synthetic model request. Its UI showed successful responses following earlier 401s. The signed-in Edge session could not be inspected: the browser tool repeatedly returned “Local browser use is disabled in Work settings,” including after the user reported enabling it and after reconnecting. Therefore live CRM settings and CRM-side end-to-end success are not claimed. The new CRM/backend changes require deployment before the new desktop handoff can be used.
+
+Evidence and installer details: `docs/status/audit-artifacts/2026-11-01-bridge-pairing/`. New API tests cover failed authentication without configuration mutation and verified imports; browser tests use synthetic fixtures for fragment capture, review, connection, and config refresh. Desktop tests use isolated QA profiles and intercept browser opening.
+
 ## Bridge pairing credential alignment - 2026-11-01
 
 Fixed pairing exports generating a desktop credential that CRM requests did not use. Pairing now reuses the saved CRM key, or persists an initial key before exporting it. Configuration-only readiness no longer implies live authentication passed. A regression check covers initial persistence, repeated exports, and the untested readiness state. Existing installations with mismatched credentials still require the desktop key to be saved in CRM AI settings; deployment of this repository fix was not performed.
@@ -1224,3 +1238,4 @@ The [2026-09-22 public registration and payment review](audit-artifacts/2026-09-
 - [x] Current-source desktop/tablet/mobile browser fixtures verify visible revenue/fund charts, accurate gift averages, accessible monthly values, isolated chart failures and retry, dashboard customization, account/reporting controls, notification authentication, canonical Custom Fields routing, and existing donor actions. All 33 browser checks passed with zero runtime errors or business writes.
 - [x] Whole-web typecheck, focused donor ESLint, and 44 directly repeated unit/API tests passed. Additional metric-worker coverage passed 63 checks including an America/Chicago timezone run and server typecheck. Storage is mocked in the new metric API tests.
 - [ ] Reconcile calculation results against approved production-data samples and verify the deployed build. No deployment, live donor edit, import, payment, or outbound communication occurred in this work. Five legacy visual-source assertions remain stale, as documented in the preceding donor audit; behavioral checks are the evidence for this redesign. Detailed evidence: `audit-artifacts/2026-10-29-donor-modernization/verification.md`.
+

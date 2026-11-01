@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import BridgeConnectPanel from "./BridgeConnectPanel";
 import BridgePairingPanel from "./BridgePairingPanel";
 import AIMemorySettingsPanel from "./AIMemorySettingsPanel";
 import AIContextLibraryPanel from "./AIContextLibraryPanel";
@@ -198,6 +199,7 @@ export default function AISettingsPage() {
 
   return (
     <div className="space-y-6">
+      <BridgeConnectPanel onConnected={() => void loadConfig().then(() => setNotice({ type: "success", message: "Desktop bridge connected. Endpoint, key, and selected models were verified and saved." }))} />
       <div>
         <h1 className="text-xl font-semibold text-gray-900">AI Assistant</h1>
         <a href="/settings/ai/improvements" className="inline-flex rounded border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700">Master improvements log →</a>

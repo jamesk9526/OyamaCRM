@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("oyamaBridge", {
   saveImprovement: payload => ipcRenderer.invoke("oyama-bridge:improvements-save", payload),
   connectImprovements: payload => ipcRenderer.invoke("oyama-bridge:improvements-connect", payload),
   syncImprovements: () => ipcRenderer.invoke("oyama-bridge:improvements-sync"),
+  connectCrm: payload => ipcRenderer.invoke("oyama-bridge:connect-crm", payload),
   getConfig: () => ipcRenderer.invoke("oyama-bridge:get-config"),
   setConfig: (payload) => ipcRenderer.invoke("oyama-bridge:set-config", payload),
   getBridgeState: () => ipcRenderer.invoke("oyama-bridge:get-bridge-state"),

@@ -1,3 +1,4 @@
+import BridgeConnectionResume from "./components/ai/BridgeConnectionResume";
 import SpreadsheetTables from "./components/ui/crm/spreadsheet/SpreadsheetTables";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
@@ -68,6 +69,7 @@ export default function RootLayout({
       <body className="h-full">
         <PWARegister />
         <AuthProvider>
+          <BridgeConnectionResume />
           <PluginProvider>
             <AppShell>{children}</AppShell>
             <SpreadsheetTables />

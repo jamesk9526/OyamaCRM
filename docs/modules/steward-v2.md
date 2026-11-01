@@ -80,3 +80,15 @@ The model check starts an isolated managed runtime on port 11435, uses synthetic
 The Windows installer is `OyamaBridgeDesktopServer/release/Oyama-Bridge-Setup-2.0.0.exe`. Build outputs are local artifacts, not committed source. Set `BRIDGE_QA_EXECUTABLE` to the packaged executable when running the Electron test. QA profiles use an isolated temporary directory and never overwrite the installed application's configuration.
 
 The desktop has context isolation, sandboxing, a restricted preload, CSP, blocked window navigation, and validated feedback IPC. Signing credentials were not provided; the installer is unsigned. Production web/API deployment, a fresh-machine install, live communications, and a full tenant-wide operational audit remain separate validation steps.
+
+## Simplified pairing (Bridge 2.0.1)
+
+1. Deploy the updated CRM web/API code, including `POST /api/steward-ai/bridge/connect`.
+2. In desktop **Connect CRM**, confirm the CRM URL and bridge endpoint reachable from the CRM server.
+3. Choose **Sign in and connect CRM**. Sign in normally in the browser if needed; the desktop never receives the password.
+4. Review the desktop endpoint and select **Verify and connect**. The server checks the actual exported key and both installed model tags before saving the remote configuration.
+5. Run a fresh Steward request to verify inference after pairing.
+
+There is no manual API-key copy in this path. Keys travel in the fragment handoff (not HTTP query parameters) and are removed from the visible URL. Pending handoffs expire after ten minutes. Manual import remains available if session storage is blocked. A connection must still be network-reachable; signing in does not create a tunnel or expose a new port. Incorrect authentication and missing models leave existing CRM settings unchanged.
+
+Older saved links and manual CRM exports remain under **Advanced: import an older CRM connection key**. Import preserves the GPU already selected on the desktop. Non-expiring legacy tokens can still be read, but newly generated desktop handoffs expire. Bridge 2.0.1 is packaged separately as `Oyama-Bridge-Setup-2.0.1.exe`.

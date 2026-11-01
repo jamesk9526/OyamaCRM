@@ -247,6 +247,15 @@ async function waitForOllamaHealthy(upstreamUrl, options = {}) {
   };
 }
 
+async function releaseLocalOllamaPort(port) {
+  if (process.platform !== "win32") return false;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid local Ollama port.");
+  // Only stop verified Ollama listeners on our configured port, never unrelated services.
+  const script = `$owners = @(Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique); foreach ($ownerId in $owners) { $process = Get-Process -Id $ownerId -ErrorAction Stop; if ($process.ProcessName -ne 'ollama') { throw 'The configured port belongs to another application.' }; Stop-Process -Id $ownerId -Force -ErrorAction Stop }`;
+  await new Promise((resolve, reject) => execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; " + script], {windowsHide:true,timeout:10000}, error => error ? reject(new Error("Could not stop the conflicting Ollama service. Check permissions or stop it manually.")) : resolve()));
+  return true;
+}
+
 function createOllamaRuntimeManager(readConfig, options = {}) {
   const emit = typeof options.onEvent === "function" ? options.onEvent : null;
   let child = null;
@@ -438,7 +447,18 @@ function createOllamaRuntimeManager(readConfig, options = {}) {
       return refreshHealth();
     }
 
-    const existing = await probeOllamaHealth(settings.upstreamUrl);
+    let existing = await probeOllamaHealth(settings.upstreamUrl);
+    if (existing.ok && process.platform === "win32") {
+      broadcast("reclaiming", { message: "Stopping the conflicting local Ollama listener before applying GPU selection." });
+      try { await releaseLocalOllamaPort(settings.port); } catch (error) {
+        state.status = "managed-port-in-use"; state.running = true; state.ready = false; state.lastError = error.message; throw error;
+      }
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await delay(200);
+        existing = await probeOllamaHealth(settings.upstreamUrl);
+        if (!existing.ok) break;
+      }
+    }
     if (existing.ok) {
       state.running = true;
       state.ready = true;
@@ -501,6 +521,7 @@ function createOllamaRuntimeManager(readConfig, options = {}) {
     });
 
     nextChild.on("exit", (code, signal) => {
+      if (child !== nextChild) return; // A previous process must not clear a replacement runtime.
       state.running = false;
       state.ready = false;
       state.healthOk = false;

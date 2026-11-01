@@ -385,7 +385,7 @@ function restoreUiDraft() {
   applyInputValue(ollamaExecutablePathInput, fields.ollamaExecutablePathInput);
   applyInputValue(bridgeModelInput, fields.bridgeModelInput);
   applyInputValue(bridgeThinkingModelInput, fields.bridgeThinkingModelInput);
-  applyInputValue(bridgeCudaDeviceSelect, fields.bridgeCudaDeviceSelect);
+  // GPU selection is persisted by the main process, never restored from a stale UI draft.
   applyInputValue(bridgeTemperatureInput, fields.bridgeTemperatureInput);
   applyInputValue(bridgeTimeoutInput, fields.bridgeTimeoutInput);
   applyInputValue(bridgeAutostartInput, fields.bridgeAutostartInput);
@@ -1437,9 +1437,7 @@ function populateSettingsFromPairing(bridgeConfig) {
     bridgeThinkingModelInput.value = safeConfig.bridgeThinkingModel;
   }
 
-  if (bridgeCudaDeviceSelect && safeConfig.bridgeCudaDevice != null) {
-    bridgeCudaDeviceSelect.value = String(safeConfig.bridgeCudaDevice || "auto");
-  }
+
 
   if (bridgeTemperatureInput && safeConfig.bridgeTemperature != null) {
     bridgeTemperatureInput.value = String(safeConfig.bridgeTemperature);
@@ -1514,9 +1512,9 @@ async function applyBridgePairing(rawInput, sourceLabel = "Pairing") {
     bridgeAllowedOrigins: String(bridgeConfig.bridgeAllowedOrigins || bridgeAllowedOriginsInput?.value || ""),
     bridgeApiKey: String(bridgeConfig.bridgeApiKey || bridgeApiKeyInput?.value || ""),
     bridgePublicBaseUrl: String(bridgeConfig.bridgePublicBaseUrl || bridgePublicBaseUrlInput?.value || ""),
-    bridgeModel: String(bridgeConfig.bridgeModel || bridgeModelInput?.value || "llama3.2:3b"),
-    bridgeThinkingModel: String(bridgeConfig.bridgeThinkingModel || bridgeThinkingModelInput?.value || "deepseek-r1:8b"),
-    bridgeCudaDevice: String(bridgeConfig.bridgeCudaDevice || "auto"),
+    bridgeModel: String(bridgeConfig.bridgeModel || bridgeModelInput?.value || "qwen3.5:9b"),
+    bridgeThinkingModel: String(bridgeConfig.bridgeThinkingModel || bridgeThinkingModelInput?.value || "qwen3.5:9b"),
+    bridgeCudaDevice: String(bridgeState?.config?.bridgeCudaDevice || bridgeCudaDeviceSelect?.value || "auto"),
     bridgeTemperature: Number(bridgeConfig.bridgeTemperature ?? bridgeTemperatureInput?.value ?? 0.3),
     bridgeTimeoutMs: Number(bridgeConfig.bridgeTimeoutMs || bridgeTimeoutInput?.value || "36500"),
     bridgeSystemPromptBase: bridgeSystemPromptBaseInput?.value || "",
@@ -1557,6 +1555,10 @@ function renderBridgeState(state) {
   const runtime = state.runtime || {};
   const network = state.network || {};
   const appValues = state.appValues || {};
+  const connectSite = document.getElementById("connectCrmSite");
+  const connectEndpoint = document.getElementById("connectCrmEndpoint");
+  if (connectSite && document.activeElement !== connectSite && !connectSite.value) connectSite.value = config.crmSiteUrl || "";
+  if (connectEndpoint && document.activeElement !== connectEndpoint && !connectEndpoint.value) connectEndpoint.value = config.bridgePublicBaseUrl || appValues.endpointUrl || "";
 
   if (crmSiteUrlInput) crmSiteUrlInput.value = config.crmSiteUrl || "";
   if (bridgeDomainUrlInput) bridgeDomainUrlInput.value = config.bridgeDomainUrl || "";
@@ -2165,22 +2167,18 @@ bridgeAutostartInput?.addEventListener("change", () => {
   void setStartupPatch({ bridgeAutostart: Boolean(bridgeAutostartInput.checked) }, "Bridge autostart preference updated.");
 });
 
-bridgeCudaDeviceSelect?.addEventListener("change", () => {
-  updateActiveCudaReadout(bridgeState?.network?.cudaDevices || [], bridgeCudaDeviceSelect.value || "auto");
-  renderOllamaState({
-    ...(bridgeState?.ollama || {}),
-    mode: ollamaRuntimeModeSelect?.value || bridgeState?.ollama?.mode || "managed",
-    selectedGpu: bridgeCudaDeviceSelect.value || "auto",
-    envHint: bridgeCudaDeviceSelect.value === "auto"
-      ? "Automatic GPU selection"
-      : `CUDA_VISIBLE_DEVICES=${bridgeCudaDeviceSelect.value}`,
-  }, {
-    ...(bridgeState?.config || {}),
-    bridgeCudaDevice: bridgeCudaDeviceSelect.value || "auto",
-    ollamaRuntimeMode: ollamaRuntimeModeSelect?.value || bridgeState?.config?.ollamaRuntimeMode || "managed",
-    ollamaExecutablePath: ollamaExecutablePathInput?.value || bridgeState?.config?.ollamaExecutablePath || "ollama",
-  });
-  persistUiDraft(false);
+bridgeCudaDeviceSelect?.addEventListener("change", async () => {
+  const selected = bridgeCudaDeviceSelect.value || "auto";
+  bridgeCudaDeviceSelect.disabled = true;
+  setBridgeMessage("Applying GPU selection and restarting the local AI service…");
+  try {
+    const result = await window.oyamaBridge.setConfig({ bridgeCudaDevice: selected, ollamaRuntimeMode: "managed" });
+    if (result?.state) renderBridgeState(result.state);
+    if (!result?.ok) throw new Error(result?.message || "GPU restart failed.");
+    persistUiDraft(true);
+    setBridgeMessage("GPU selection saved and applied. CRM pairing is unchanged.");
+  } catch (error) { setBridgeMessage(error.message || "GPU restart failed.", true); }
+  finally { bridgeCudaDeviceSelect.disabled = false; }
 });
 
 ollamaRuntimeModeSelect?.addEventListener("change", () => {
@@ -2438,3 +2436,10 @@ document.getElementById("syncImprovementsBtn")?.addEventListener("click", async 
  finally { button.disabled=false; }
 });
 void refreshImprovements();
+
+document.getElementById("signInConnectCrmBtn")?.addEventListener("click", async event => {
+ const button=event.currentTarget; button.disabled=true; const status=document.getElementById("connectCrmStatus"); status.textContent="Preparing your connection…";
+ try { const result=await window.oyamaBridge.connectCrm({siteUrl:document.getElementById("connectCrmSite").value,endpointUrl:document.getElementById("connectCrmEndpoint").value}); status.textContent=result.message; }
+ catch { status.textContent="The connection could not be started. Check the desktop diagnostics and retry."; }
+ finally { button.disabled=false; }
+});

@@ -40,19 +40,13 @@
         <button class="rail-icon" type="button" title="Requests" aria-label="Requests" data-tab-target="requests">
           <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </button>
-        <button class="rail-icon" type="button" title="Generated content" aria-label="Generated content" data-tab-target="generated">
-          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </button>
-        <button class="rail-icon" type="button" title="Usage receipts" aria-label="Usage receipts" data-tab-target="usage">
+<button class="rail-icon" type="button" title="Usage receipts" aria-label="Usage receipts" data-tab-target="usage">
           <svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="14" y2="15"/></svg>
         </button>
-        <button class="rail-icon" type="button" title="Pair CRM" aria-label="Pair CRM" data-tab-target="pairing">
+        <button class="rail-icon" type="button" title="Connect CRM" aria-label="Connect CRM" data-tab-target="pairing">
           <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
         </button>
-        <button class="rail-icon" type="button" title="Debug" aria-label="Debug" data-tab-target="advanced">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        </button>
-        <button class="rail-icon rail-bottom" type="button" title="Settings" aria-label="Settings" data-tab-target="settings">
+<button class="rail-icon rail-bottom" type="button" title="Settings" aria-label="Settings" data-tab-target="settings">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
       </div>
@@ -63,31 +57,9 @@
           <strong>Commands</strong>
         </div>
 
-        <section class="sidebar-group">
-          <span class="sidebar-label">Service</span>
-          <button id="bridgeStartBtn" class="sidebar-action primary" type="button">Start</button>
-          <button id="bridgeStopBtn" class="sidebar-action" type="button">Stop</button>
-          <button id="bridgeRestartBtn" class="sidebar-action" type="button">Restart</button>
-          <button id="bridgeRefreshBtn" class="sidebar-action" type="button">Refresh</button>
-        </section>
-
-        <section class="sidebar-group">
-          <span class="sidebar-label">Workspace</span>
-          <button class="sidebar-action" type="button" data-tab-target="requests">Request Flow</button>
-          <button class="sidebar-action" type="button" data-tab-target="generated">Generated Log</button>
-          <button class="sidebar-action" type="button" data-tab-target="usage">Usage Receipts</button>
-          <button class="sidebar-action" type="button" data-tab-target="advanced">Ask Bridge</button>
-        </section>
-
-        <section class="sidebar-group sidebar-bottom-group">
-          <span class="sidebar-label">Tools</span>
-          <button class="sidebar-action" type="button" data-tab-target="pairing">Pair CRM</button>
-          <button class="sidebar-action" type="button" data-tab-target="backup">Backup</button>
-          <button class="sidebar-action" type="button" data-tab-target="improvements">Improvements log</button>
-          <button class="sidebar-action" type="button" data-tab-target="settings">Settings</button>
-          <button id="clearLogBtn" class="sidebar-action" type="button">Clear Logs</button>
-          <button id="quitAppBtn" class="sidebar-action danger" type="button">Quit</button>
-        </section>
+        <section class="sidebar-group"><span class="sidebar-label">Workspace</span><button class="sidebar-action" type="button" data-tab-target="dashboard">Overview</button><button class="sidebar-action" type="button" data-tab-target="pairing">Connect CRM</button><button class="sidebar-action" type="button" data-tab-target="requests">Diagnostics</button><button class="sidebar-action" type="button" data-tab-target="improvements">Improvements</button><button class="sidebar-action" type="button" data-tab-target="settings">Settings</button></section>
+        <details class="sidebar-utilities"><summary>Service controls</summary><button id="bridgeStartBtn" class="sidebar-action" type="button">Start</button><button id="bridgeStopBtn" class="sidebar-action" type="button">Stop</button><button id="bridgeRestartBtn" class="sidebar-action" type="button">Restart</button><button id="bridgeRefreshBtn" class="sidebar-action" type="button">Refresh</button></details>
+        <details class="sidebar-utilities"><summary>Advanced tools</summary><button class="sidebar-action" type="button" data-tab-target="generated">Generated responses</button><button class="sidebar-action" type="button" data-tab-target="usage">Usage receipts</button><button class="sidebar-action" type="button" data-tab-target="advanced">Runtime support chat</button><button class="sidebar-action" type="button" data-tab-target="backup">Backup</button><button id="clearLogBtn" class="sidebar-action" type="button">Clear session logs</button><button id="quitAppBtn" class="sidebar-action danger" type="button">Quit app</button></details>
       </div>
     </aside>
 
@@ -105,8 +77,8 @@
       <section id="dashboardPage" class="tab-page active" data-tab-page="dashboard">
         <section class="server-dashboard-header" aria-label="Bridge summary">
           <div class="server-title-block">
-            <span class="eyebrow">Enterprise local AI gateway</span>
-            <h2>Oyama Bridge Server</h2>
+            <span class="eyebrow">Oyama Bridge</span>
+            <h2>Your local AI connection</h2>
             <p id="serviceModeValue">Autostart ready</p>
           </div>
           <div class="server-primary-actions">
@@ -116,6 +88,7 @@
           </div>
         </section>
 
+        <section class="bridge-next-step"><div><strong>Connect once. Work in your CRM.</strong><p>Start the model runtime, then sign in to your CRM to verify the connection. No API-key copying required.</p></div><button class="btn primary" type="button" data-tab-target="pairing">Connect CRM →</button></section>
         <section class="runtime-stage" aria-label="Ollama runtime control">
           <article class="runtime-banner panel">
             <div>
@@ -382,16 +355,16 @@
         <div class="settings-sidebar-head">
           <div>
             <span class="eyebrow">Bridge settings</span>
-            <h2>Runtime ownership, GPU pinning, network, and Windows behavior</h2>
+            <h2>Model and GPU</h2>
           </div>
           <div class="settings-title-actions">
-            <button id="saveAllBtn" class="btn primary" type="button">Save All</button>
+            <button id="saveAllBtn" class="btn primary" type="button" hidden>Save All</button>
             <button id="saveAllBtnSettings" class="btn ghost" type="button">Save Settings</button>
             <button id="settingsCloseBtn" class="window-btn" type="button" aria-label="Close settings">x</button>
           </div>
         </div>
         <section class="settings-grid">
-          <section class="panel settings-card">
+          <details class="panel settings-card"><summary>Windows Service Behavior</summary>
             <div class="panel-head"><h2>Windows Service Behavior</h2></div>
             <div class="checks compact-checks">
               <label class="check"><input id="bridgeAutostartInput" type="checkbox" /> Start bridge when app opens</label>
@@ -400,9 +373,9 @@
               <label class="check"><input id="startHiddenInput" type="checkbox" /> Start hidden on login</label>
             </div>
             <button id="trayHideBtn" class="btn ghost" type="button">Hide dashboard to tray</button>
-          </section>
+          </details>
 
-          <section class="panel settings-card">
+          <details class="panel settings-card"><summary>Network</summary>
             <div class="panel-head">
               <h2>Network</h2>
             </div>
@@ -413,15 +386,15 @@
               <div class="field"><label for="bridgePortInput">Bridge Port</label><input id="bridgePortInput" type="number" min="1024" max="65535" step="1" /></div>
               <div class="field"><label for="bridgePublicBaseUrlInput">Public Base URL</label><input id="bridgePublicBaseUrlInput" type="url" placeholder="https://bridge.yourorg.org" /></div>
             </div>
-          </section>
+          </details>
 
-          <section class="panel settings-card">
+          <details class="panel settings-card"><summary>Ollama Ownership</summary>
             <div class="panel-head"><h2>Ollama Ownership</h2></div>
             <div class="form-grid">
               <div class="field"><label for="ollamaRuntimeModeSelect">Runtime Mode</label><select id="ollamaRuntimeModeSelect"><option value="managed">Managed by Oyama Bridge</option><option value="external">External service</option></select></div>
               <div class="field span-2"><label for="ollamaExecutablePathInput">Ollama Executable Path</label><input id="ollamaExecutablePathInput" type="text" placeholder="ollama" /><p id="ollamaModeHelpText" class="field-hint">Managed mode starts <span class="mono-inline">ollama serve</span> itself and applies GPU visibility before launch.</p></div>
             </div>
-          </section>
+          </details>
 
           <section class="panel settings-card">
             <div class="panel-head"><h2>Model Runtime</h2></div>
@@ -429,24 +402,26 @@
             <div class="form-grid">
               <div class="field"><label for="bridgeModelInput">Model</label><input id="bridgeModelInput" type="text" /></div>
               <div class="field"><label for="bridgeThinkingModelInput">Thinking Model</label><input id="bridgeThinkingModelInput" type="text" /></div>
-              <div class="field"><label for="bridgeCudaDeviceSelect">CUDA Device</label><select id="bridgeCudaDeviceSelect"></select><p id="activeCudaDeviceValue" class="field-hint">Selected CUDA: auto</p></div>
+              <div class="field"><label for="bridgeCudaDeviceSelect">GPU · applies and restarts automatically</label><select id="bridgeCudaDeviceSelect"></select><p id="activeCudaDeviceValue" class="field-hint">Selected CUDA: auto</p></div>
               <div class="field"><label for="bridgeTemperatureInput">Temperature</label><input id="bridgeTemperatureInput" type="number" min="0" max="2" step="0.1" /></div>
               <div class="field"><label for="bridgeTimeoutInput">Timeout (ms)</label><input id="bridgeTimeoutInput" type="number" min="3650" max="600000" step="1000" /><p class="field-hint">Large local models can take longer than 30-60 seconds. Default is 180000 ms.</p></div>
             </div>
           </section>
 
-          <section class="panel settings-card">
+          <details class="panel settings-card"><summary>Security</summary>
             <div class="panel-head"><h2>Security</h2></div>
             <div class="form-grid">
               <div class="field span-2"><label for="bridgeAllowedOriginsInput">Allowed Origins</label><input id="bridgeAllowedOriginsInput" type="text" placeholder="https://crm.yourorg.org" /></div>
-              <div class="field span-2"><label for="bridgeApiKeyInput">Bridge API Key</label><input id="bridgeApiKeyInput" type="text" /></div>
+              <div class="field span-2"><label for="bridgeApiKeyInput">Bridge API Key</label><input id="bridgeApiKeyInput" type="password" /></div>
             </div>
-          </section>
+          </details>
         </section>
       </aside>
 
       <section id="pairingPanel" class="tab-page" data-tab-page="pairing">
-        <section class="panel settings-card wide">
+        <section class="panel connect-crm-card"><p class="eyebrow">ONE CONNECTION · YOUR NORMAL CRM SIGN-IN</p><h2>Connect your CRM</h2><p>Open your CRM in the browser to sign in. Its server verifies the desktop endpoint, key, and models before saving. Your CRM password never enters this app.</p><div class="form-grid"><div class="field"><label for="connectCrmSite">CRM site</label><input id="connectCrmSite" type="url" placeholder="https://www.crm.partnertpcc.com" /></div><div class="field"><label for="connectCrmEndpoint">Bridge endpoint reachable by the CRM server</label><input id="connectCrmEndpoint" type="url" placeholder="https://bridge.example.org" /></div></div><button id="signInConnectCrmBtn" class="btn primary" type="button">Sign in and connect CRM</button><p id="connectCrmStatus" role="status"></p></section>
+
+        <details class="panel settings-card wide legacy-pairing"><summary>Advanced: import an older CRM connection key</summary>
           <div class="panel-head">
             <div>
               <h2>CRM Pairing</h2>
@@ -460,12 +435,12 @@
           </div>
           <div class="form-grid">
             <div class="field span-2"><label for="pairingInput">Pairing URL, Raw Token, or Connection Key JSON</label><textarea id="pairingInput" class="mono-value" rows="4" placeholder="Paste CRM-generated pairing URL or token"></textarea></div>
-            <div class="field span-2"><label for="pairingTokenOutput">Pairing Token</label><input id="pairingTokenOutput" class="mono-value" type="text" readonly /></div>
+            <div class="field span-2"><label for="pairingTokenOutput">Pairing Token</label><input id="pairingTokenOutput" class="mono-value" type="password" readonly /></div>
             <div class="field span-2"><label for="pairingJsonOutput">Decoded Pairing Payload</label><textarea id="pairingJsonOutput" class="mono-value" rows="4" readonly></textarea></div>
             <div class="field span-2"><label for="pairingExpiresOutput">Pairing Expiration</label><input id="pairingExpiresOutput" type="text" readonly /></div>
           </div>
           <input id="pairingImportKeyInput" type="file" accept="application/json,.json,.txt" hidden />
-        </section>
+        </details>
       </section>
 
       <section id="backupPanel" class="tab-page" data-tab-page="backup">

@@ -1,3 +1,4 @@
+import { parseDesktopBridgeConnection } from "../steward/bridge-connection.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { compactStewardConversation } from "../steward/conversation-context.js";
 import { resolveStewardPlaybook, STEWARD_PLAYBOOKS } from "../steward/playbooks.js";
@@ -2027,6 +2028,30 @@ router.get("/bridge/readiness", requireRole("admin"), async (req, res) => {
   res.json({
     data: readiness,
   });
+});
+
+/** Desktop-to-CRM pairing tests the exact exported credential before saving anything. */
+router.post("/bridge/connect", requireRole("admin"), async (req, res) => {
+  const organizationId = await resolveOrgId(req);
+  if (!organizationId) { res.status(400).json({ error: { message: "Organization required." } }); return; }
+  let imported;
+  try { imported = parseDesktopBridgeConnection(req.body?.connectionKey); }
+  catch { res.status(400).json({ error: { message: "Invalid desktop key. Copy a fresh connection key from Oyama Bridge, including its reachable endpoint." } }); return; }
+  const existing = await getStewardAiSetting(organizationId);
+  const nextConfig = parseStewardAiConfig({ ...parseStewardAiConfig(existing?.config), ...imported, mode: "remote" });
+  try {
+    const models = await listStewardAiModels({ ...nextConfig, timeoutMs: 10000 });
+    if (!models.includes(imported.model) || !models.includes(imported.thinkingModel)) { res.status(422).json({ error: { message: "Bridge authentication passed, but a selected model is not installed. Install the selected model in Ollama, then retry." } }); return; }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    res.status(422).json({ error: { message: /401|403/.test(message) ? "The bridge rejected this key. Generate the connection key from the running desktop instance and retry. Previous CRM settings were preserved." : "The CRM server could not verify the desktop bridge. Check its reachable endpoint, runtime, and network connection. Previous CRM settings were preserved." } }); return;
+  }
+  await prisma.pluginSetting.upsert({
+    where: { organizationId_pluginKey: { organizationId, pluginKey: STEWARD_AI_PLUGIN_KEY } },
+    create: { organizationId, pluginKey: STEWARD_AI_PLUGIN_KEY, enabled: true, config: nextConfig as unknown as Prisma.InputJsonValue },
+    update: { enabled: true, config: nextConfig as unknown as Prisma.InputJsonValue },
+  });
+  res.json({ data: { connected: true, config: toPublicConfig(true, nextConfig) } });
 });
 
 /** POST /api/steward-ai/bridge/pairing-key — Generates one-step desktop pairing URL and downloadable key payload. */

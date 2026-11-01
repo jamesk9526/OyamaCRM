@@ -1,0 +1,12 @@
+{
+  "fixtureData": true,
+  "errors": [],
+  "connects": 1,
+  "checks": [
+    "fragment captured and removed",
+    "explicit review before connect",
+    "single verified connect",
+    "successful config refresh",
+    "desktop/mobile screenshots"
+  ]
+}
