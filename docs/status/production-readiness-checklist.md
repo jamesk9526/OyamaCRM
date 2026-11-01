@@ -1,3 +1,7 @@
+## Steward evidence and response integrity
+
+Strengthened CRM and desktop prompts to distinguish current evidence, memory, partial results, missing data, configuration, and observed runtime behavior. Structured charts reject non-finite/missing values and mismatched series instead of inventing zero. Report trends are allow-listed and model-suggested actions retain confirmation. These checks validate shape, not the factual provenance of every model claim; live answer-quality evaluation remains necessary.
+
 ## GPU restart follow-up
 
 GPU selection now saves immediately and restarts the managed runtime without changing pairing credentials. Stale UI drafts no longer override GPU choice. Windows startup attempts to stop only verified Ollama listeners on the configured local port; other applications are refused. Advanced settings are collapsed. Installer rebuilt with these fixes and packaged desktop QA passed. Physical GPU inference remains outstanding for this follow-up.

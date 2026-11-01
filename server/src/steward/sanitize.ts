@@ -162,7 +162,8 @@ export function sanitizeArtifact(rawArtifact: unknown): Record<string, unknown> 
         const label = asSafeText(rm.label, "", 80);
         const value = asSafeText(rm.value, "", 80);
         if (!label || !value) return null;
-        const trend = asSafeText(rm.trend, "", 10) as "up" | "down" | "flat" | "";
+        const rawTrend = asSafeText(rm.trend, "", 10);
+        const trend = ["up", "down", "flat"].includes(rawTrend) ? rawTrend as "up" | "down" | "flat" : undefined;
         return { label, value, delta: asSafeText(rm.delta, "", 60), trend: trend || undefined };
       })
       .filter(Boolean)
@@ -171,7 +172,7 @@ export function sanitizeArtifact(rawArtifact: unknown): Record<string, unknown> 
       const cd = candidate.chartData as Record<string, unknown>;
       const cdLabels = Array.isArray(cd.labels) ? cd.labels.map((l) => asSafeText(l, "", 20)).filter(Boolean).slice(0, 36) : [];
       const cdValues = Array.isArray(cd.values) ? cd.values.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : 0)).slice(0, 36) : [];
-      if (cdLabels.length > 0 && cdValues.length > 0) sanitized.chartData = { labels: cdLabels, values: cdValues };
+      if (cdLabels.length > 0 && cdLabels.length === cdValues.length && Array.isArray(cd.values) && cd.values.every(v => typeof v === "number" && Number.isFinite(v))) sanitized.chartData = { labels: cdLabels, values: cdValues };
     }
   }
 
@@ -193,7 +194,7 @@ export function sanitizeArtifact(rawArtifact: unknown): Record<string, unknown> 
         const data = Array.isArray(rs.data)
           ? rs.data.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : 0)).slice(0, 36)
           : [];
-        if (data.length === 0) return null;
+        if (data.length === 0 || data.length !== (sanitized.labels as string[]).length || !Array.isArray(rs.data) || !rs.data.every(v => typeof v === "number" && Number.isFinite(v))) return null;
         return { name, color: asSafeText(rs.color, "", 30) || undefined, data };
       })
       .filter(Boolean)
@@ -252,7 +253,7 @@ export function normalizeStewardStructuredResponse(
         return {
           label,
           actionType,
-          requiresConfirmation: candidate.requiresConfirmation !== false,
+          requiresConfirmation: true,
           ...(payload ? { payload } : {}),
         };
       })
