@@ -1,3 +1,7 @@
+## Bridge pairing credential alignment - 2026-11-01
+
+Fixed pairing exports generating a desktop credential that CRM requests did not use. Pairing now reuses the saved CRM key, or persists an initial key before exporting it. Configuration-only readiness no longer implies live authentication passed. A regression check covers initial persistence, repeated exports, and the untested readiness state. Existing installations with mismatched credentials still require the desktop key to be saved in CRM AI settings; deployment of this repository fix was not performed.
+
 ## Steward chathead, local runtime, and improvement feedback - 2026-11-01
 
 Steward now uses the supplied chathead mockup as its sole conversation UI, with streaming responses, reviewed quick actions, real-data insight requests, memory controls, request-scoped thinking, and thumbs feedback. Legacy full-page/Signals entry links open the chathead. Removed unused assistant UI while preserving Steward Paths and shared record/tool capabilities. Paths validation now distinguishes save-ready drafts from publish-ready workflows and shows activation blockers.

@@ -1277,7 +1277,7 @@ async function buildBridgeReadinessPayload(options: {
     label: "API key present",
     status: options.config.apiKey ? "Working" : "Partially Working",
     detail: options.config.apiKey
-      ? "API key is configured for secure bridge calls."
+      ? "An API key is saved. Its match with the desktop bridge is verified only by a live connection test."
       : "Add an API key for bridge authentication hardening.",
   });
 
@@ -1317,6 +1317,10 @@ async function buildBridgeReadinessPayload(options: {
         detail: error instanceof Error ? error.message : "Bridge endpoint health test failed.",
       });
     }
+  }
+
+  if (!options.includeLiveTest) {
+    checks.push({ id: "live-endpoint-test", label: "Live bridge authentication", status: "Partially Working", detail: "Not tested. Run the live connection check to verify the saved key and endpoint." });
   }
 
   checks.sort((a, b) => statusWeight(b.status) - statusWeight(a.status));
@@ -2057,7 +2061,17 @@ router.post("/bridge/pairing-key", requireRole("admin"), async (req, res) => {
   const siteOrigin = new URL(siteUrl).origin;
   const generatedAt = new Date();
   const expiresAt = new Date(generatedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const bridgeApiKey = `oyama-${crypto.randomBytes(18).toString("hex")}`;
+  const bridgeApiKey = config.apiKey || `oyama-${crypto.randomBytes(18).toString("hex")}`;
+  // Pairing must share the credential already used by CRM requests. Persist an
+  // initial key before exporting it; never silently rotate an existing bridge.
+  if (!config.apiKey) {
+    config.apiKey = bridgeApiKey;
+    await prisma.pluginSetting.upsert({
+      where: { organizationId_pluginKey: { organizationId, pluginKey: STEWARD_AI_PLUGIN_KEY } },
+      create: { organizationId, pluginKey: STEWARD_AI_PLUGIN_KEY, enabled: setting?.enabled ?? false, config: config as unknown as Prisma.InputJsonValue },
+      update: { config: config as unknown as Prisma.InputJsonValue },
+    });
+  }
 
   const pairingPayload: BridgePairingKeyPayload = {
     version: 1,
