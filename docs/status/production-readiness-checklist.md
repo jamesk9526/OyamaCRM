@@ -1,3 +1,9 @@
+## Expanded v2 product website and documentation - 2026-11-01
+
+Expanded the standalone site to four pages: a fuller CRM homepage, staff/developer documentation, hosting guidance, and a nine-screen downloadable gallery. Added donor workflow stories, module summaries, mobile previews, FAQs, fiscal-period explanations, spreadsheet shortcuts, and local setup instructions. Hosting separates static publishing from CRM service deployment, documents explicit environment loading, and limits the example PM2 startup to donor web/API services. No deployment was performed; production instructions were reviewed against repository configuration, not exercised on a fresh host.
+
+Verification: `node tests/e2e/v2-website.e2e.mjs` passed across four pages at 320/390/768/1440px, with zero browser errors or failed requests, 32 local links/anchors checked, gallery filters and previews, and screenshot downloads. Desktop/mobile captures are under `docs/status/audit-artifacts/2026-11-01-v2-website/`. GitHub documentation targets were checked against local files. Screenshots use existing synthetic application captures; no live donor data was added.
+
 ## Static v2 website and Steward chathead removal - 2026-11-01
 
 Added `website/v2/` with a standalone HTML/CSS/JavaScript product site, the mountain-and-sun logo, final synthetic app screenshots, responsive navigation, screen selection, a native screenshot dialog and links to the verified GitHub remote (`jamesk9526/OyamaCRM`, main branch). Root README links to the site and its local preview instructions. No hosting deployment or GitHub visibility change was performed.

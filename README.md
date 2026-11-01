@@ -53,7 +53,7 @@ Table links, sort buttons, checkboxes, forms, and record-editing flows retain th
 
 ## V2 product website
 
-The standalone [v2 website](website/v2/index.html) is in `website/v2`, built with plain HTML, CSS and JavaScript. It includes the new identity, final app screenshots, product-preview controls and links to this GitHub repository. No build step is required.
+The standalone [v2 website](website/v2/index.html) is in `website/v2`, built with plain HTML, CSS and JavaScript. It includes a full product homepage, a [documentation hub](website/v2/docs.html), a [hosting guide](website/v2/hosting.html), and a [library of nine downloadable desktop/mobile screenshots](website/v2/screenshots.html). Shared navigation, screenshot filters, full-size previews, and GitHub links work without a framework or build step.
 
 ```powershell
 python -m http.server 8082 --directory website/v2
@@ -80,10 +80,10 @@ Use Node.js compatible with the installed Next.js release, pnpm **10**, and MySQ
 
 ```powershell
 pnpm install
-Copy-Item .env.example .env.local
+Copy-Item .env.example .env
 ```
 
-Configure `DATABASE_URL`, `JWT_SECRET`, and the browser/API origins for your environment. Then initialize a development database and start the services:
+Configure `DATABASE_URL`, `JWT_SECRET`, and the browser/API origins for your environment. Prisma and the API read `.env`; Next.js also reads it. Keep any overriding `.env.local` values consistent. Then initialize a development database and start the services:
 
 ```powershell
 pnpm db:generate

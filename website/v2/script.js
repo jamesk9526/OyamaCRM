@@ -16,9 +16,20 @@ function selectShot(key){
 }
 document.querySelectorAll('[data-shot]').forEach(button=>button.addEventListener('click',()=>selectShot(button.dataset.shot)));
 document.querySelectorAll('[data-select]').forEach(link=>link.addEventListener('click',()=>selectShot(link.dataset.select)));
-function preview(){const shot=shots[current];const large=dialog.querySelector('img');large.src=shot.src;large.alt=shot.alt;dialog.showModal();}
-document.querySelector('.screen-preview').addEventListener('click',preview);
-document.querySelector('.enlarge').addEventListener('click',preview);
+function showPreview(src,alt){const large=dialog.querySelector('img');large.src=src;large.alt=alt;dialog.showModal();}
+function preview(){const shot=shots[current];showPreview(shot.src,shot.alt);}
+document.querySelector('.screen-preview')?.addEventListener('click',preview);
+document.querySelector('.enlarge')?.addEventListener('click',preview);
+document.querySelectorAll('[data-preview]').forEach(button=>button.addEventListener('click',()=>showPreview(button.dataset.preview,button.dataset.alt)));
+document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{
+ const filter=button.dataset.filter;
+ document.querySelectorAll('[data-filter]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+ const cards=[...document.querySelectorAll('[data-category]')];
+ cards.forEach(card=>{card.hidden=filter!=='all'&&card.dataset.category!==filter;});
+ document.querySelector('#gallery-count').textContent=`${cards.filter(card=>!card.hidden).length} screenshots`;
+}));
+const currentPage=location.pathname.split('/').pop()||'index.html';
+document.querySelectorAll('#site-nav a').forEach(link=>{if(link.getAttribute('href')===currentPage)link.setAttribute('aria-current','page');});
 dialog.querySelector('.dialog-close').addEventListener('click',()=>dialog.close());
 dialog.addEventListener('click',event=>{if(event.target===dialog){const bounds=dialog.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)dialog.close();}});
 const toggle=document.querySelector('.menu-toggle');const nav=document.querySelector('#site-nav');

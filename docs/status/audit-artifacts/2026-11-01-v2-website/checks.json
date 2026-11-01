@@ -11,11 +11,15 @@
     "https://github.com/jamesk9526/OyamaCRM/tree/main/website/v2",
     "https://github.com/jamesk9526/OyamaCRM"
   ],
+  "localLinksChecked": 32,
   "checks": [
     "screenshot tabs",
     "dialog opens and Escape closes",
     "mobile navigation",
-    "four responsive widths",
+    "four pages at four responsive widths",
+    "nine screenshot downloads",
+    "gallery desktop/mobile filters",
+    "all local links and anchors",
     "no failed asset requests",
     "repository links"
   ]
