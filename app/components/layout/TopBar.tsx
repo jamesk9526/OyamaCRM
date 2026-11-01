@@ -1,5 +1,6 @@
 // TopBar: full-width global navigation header with logo, module switcher, search, and user controls.
 "use client";
+import { openStewardWithPrompt } from "@/app/lib/steward-context";
 
 import ModuleSwitcher from "./topbar/ModuleSwitcher";
 import UserMenu from "./topbar/UserMenu";
@@ -846,7 +847,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                   <div className="mx-1 h-5 w-px shrink-0 bg-white/15" />
 
                   <Link
-                    href="/steward-ai-workspace"
+                    href="/steward-ai-workspace" onClick={(event) => { event.preventDefault(); openStewardWithPrompt({}); }}
                     title="Open Steward Copilot"
                     aria-label="Open Steward Copilot"
                     className={darkIconButtonBase}
@@ -867,7 +868,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                   </div>
 
                   <Link
-                    href="/steward-ai-workspace"
+                    href="/steward-ai-workspace" onClick={(event) => { event.preventDefault(); openStewardWithPrompt({}); }}
                     title="Open Steward Copilot"
                     aria-label="Open Steward Copilot"
                     className="ml-0.5 inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
@@ -974,8 +975,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 </button>
 
                 <Link
-                  href="/steward-ai-workspace"
-                  onClick={() => setMobileQuickOpen(false)}
+                  href="/steward-ai-workspace" onClick={(event) => { event.preventDefault(); setMobileQuickOpen(false); openStewardWithPrompt({}); }}
                   className="flex items-center gap-3 w-full min-h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium text-left"
                 >
                   <StewardAvatarIcon size={16} alt="Steward" className="ring-slate-300/80" />

@@ -190,6 +190,7 @@ export default function AISettingsPage() {
     return (
       <div className="space-y-3">
         <h1 className="text-xl font-semibold text-gray-900">AI Assistant</h1>
+        <a href="/settings/ai/improvements" className="inline-flex rounded border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700">Master improvements log →</a>
         <p className="text-sm text-gray-500">Loading AI settings...</p>
       </div>
     );
@@ -199,6 +200,7 @@ export default function AISettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">AI Assistant</h1>
+        <a href="/settings/ai/improvements" className="inline-flex rounded border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700">Master improvements log →</a>
         <p className="text-sm text-gray-500 mt-0.5">
           Configure Steward AI using a local Ollama runtime or a remote hosted Ollama endpoint.
         </p>
@@ -337,7 +339,7 @@ export default function AISettingsPage() {
                   type="text"
                   value={config.model}
                   onChange={(event) => updateConfig("model", event.target.value)}
-                  placeholder="llama3.2:3b"
+                  placeholder="qwen3.5:9b"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               )}
@@ -359,7 +361,7 @@ export default function AISettingsPage() {
                 type="text"
                 value={config.model}
                 onChange={(event) => updateConfig("model", event.target.value)}
-                placeholder="llama3.2:3b"
+                placeholder="qwen3.5:9b"
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </label>
@@ -387,7 +389,7 @@ export default function AISettingsPage() {
                 type="text"
                 value={config.thinkingModel}
                 onChange={(event) => updateConfig("thinkingModel", event.target.value)}
-                placeholder="deepseek-r1:8b"
+                placeholder="qwen3.5:9b"
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </label>

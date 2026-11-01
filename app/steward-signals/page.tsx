@@ -1,11 +1,6 @@
-/** Steward Signals route entry for Donor CRM. */
+import { redirect } from "next/navigation";
 
-import StewardSignalsPage from "@/app/components/steward/StewardSignalsPage";
-
-/**
- * StewardSignalsRoute renders the initial Steward Signals workspace.
- * This page is intentionally UI-first while analytics and AI actions are being wired.
- */
-export default function StewardSignalsRoute() {
-  return <StewardSignalsPage />;
+/** Retired standalone UI; saved links open the shared Steward chathead. */
+export default function LegacyStewardEntry() {
+  redirect("/steward-ai-workspace?prompt=Review%20donor%20follow-up%20priorities");
 }

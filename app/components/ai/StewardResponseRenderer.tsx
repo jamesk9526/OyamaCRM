@@ -140,7 +140,9 @@ function AboutPanel({
   evidence?: Array<{ label: string; detail?: string }>;
 }) {
   const displayTools = (toolsUsed ?? []).filter((t) => t !== "fiscal.context");
-  const dataSource = provider === "crm-data"
+  const dataSource = provider === "playbook"
+    ? "Reviewed workflow · no model used"
+    : provider === "crm-data"
     ? "Live CRM data (deterministic)"
     : provider === "ollama-agentic"
       ? "Live CRM data + AI reasoning (agentic)"

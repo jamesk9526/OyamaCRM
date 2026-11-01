@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Oyama Bridge</title>
   <link rel="stylesheet" href="./styles.css" />
@@ -9,17 +10,11 @@
 <body>
   <header class="titlebar">
     <div class="title-left">
-      <span class="steward-mark" role="img" aria-label="Steward">
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M16 4.5c6.35 0 11.5 5.15 11.5 11.5S22.35 27.5 16 27.5 4.5 22.35 4.5 16 9.65 4.5 16 4.5Z" />
-          <path d="M10.2 17.9c0-4.75 3.38-7.55 7.15-7.55 2.9 0 5.15 1.66 5.15 4.08 0 4.18-6.12 3.48-6.12 6.17 0 1.16.96 1.88 2.34 1.88 1.5 0 2.74-.7 3.72-1.78" />
-          <path d="M10.1 21.7c1.06-1.2 2.43-1.82 4.08-1.82" />
-        </svg>
-      </span>
+      <img class="bridge-brand-mark" src="assets/oyama-mark.svg" width="38" height="38" alt="Oyama mountain sunrise" />
       <span id="bridgeRunningDot" class="dot" aria-hidden="true"></span>
       <div>
-        <h1>Oyama Bridge Steward Workspace</h1>
-        <p id="titleEndpointValue">Local LLM service dashboard</p>
+        <h1>Oyama Bridge</h1>
+        <p id="titleEndpointValue">Your local AI workspace</p>
       </div>
     </div>
     <div class="title-status">
@@ -88,6 +83,7 @@
           <span class="sidebar-label">Tools</span>
           <button class="sidebar-action" type="button" data-tab-target="pairing">Pair CRM</button>
           <button class="sidebar-action" type="button" data-tab-target="backup">Backup</button>
+          <button class="sidebar-action" type="button" data-tab-target="improvements">Improvements log</button>
           <button class="sidebar-action" type="button" data-tab-target="settings">Settings</button>
           <button id="clearLogBtn" class="sidebar-action" type="button">Clear Logs</button>
           <button id="quitAppBtn" class="sidebar-action danger" type="button">Quit</button>
@@ -429,6 +425,7 @@
 
           <section class="panel settings-card">
             <div class="panel-head"><h2>Model Runtime</h2></div>
+            <div class="field"><label for="stewardModelProfile">Steward v2 profile</label><select id="stewardModelProfile"><option value="">Keep configured models</option><option value="qwen3.8:27b">Quality candidate · Qwen3.8 27B · 24 GB+ GPU</option><option value="qwen3.5:9b">Balanced candidate · Qwen3.5 9B · 12–16 GB GPU</option></select><p class="field-hint">Sets both model fields; save to apply. Install the chosen tag with Ollama first. Model weights need additional memory for context; benchmark your actual workload. Existing saved settings are preserved.</p></div>
             <div class="form-grid">
               <div class="field"><label for="bridgeModelInput">Model</label><input id="bridgeModelInput" type="text" /></div>
               <div class="field"><label for="bridgeThinkingModelInput">Thinking Model</label><input id="bridgeThinkingModelInput" type="text" /></div>
@@ -568,6 +565,11 @@
           </section>
         </section>
       </section>
+    <section class="tab-page" data-tab-page="improvements" aria-label="Improvements log">
+      <header class="server-dashboard-header"><div><p class="eyebrow">STEWARD QUALITY</p><h2>Improvements log</h2><p>Feedback is saved locally first. Connect your CRM to sync reports to its master log.</p></div><button id="syncImprovementsBtn" class="btn primary" type="button">Sync pending reports</button></header>
+      <section class="panel"><h2>Connect to the master log</h2><p class="panel-subtitle">An administrator can create a 30-day feedback token in CRM Settings → AI → Improvements.</p><div class="form-grid"><div class="field"><label for="feedbackSiteUrl">CRM site URL</label><input id="feedbackSiteUrl" type="url" placeholder="https://crm.example.org" /></div><div class="field"><label for="feedbackConnectionToken">Feedback connection token</label><input id="feedbackConnectionToken" type="password" autocomplete="off" /></div></div><button id="connectImprovementsBtn" class="btn" type="button">Save feedback connection</button></section>
+      <p id="improvementsStatus" role="status">Loading reports…</p><div id="improvementsList"></div>
+    </section>
     </section>
 
     <footer class="status-footer">

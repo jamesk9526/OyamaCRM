@@ -1,4 +1,5 @@
 "use client";
+import { openStewardWithPrompt } from "@/app/lib/steward-context";
 import AppLauncherIcon from "../AppLauncherIcon";
 import StewardAvatarIcon from "@/app/components/ui/StewardAvatarIcon";
 import { CircleHelp as HelpCircleIcon } from "lucide-react";
@@ -161,8 +162,7 @@ export default function UserMenu({
                   </Link>
                 ) : null}
                 <Link
-                  href="/steward-ai-workspace"
-                  onClick={() => setOpen(false)}
+                  href="/steward-ai-workspace" onClick={(event) => { event.preventDefault(); setOpen(false); openStewardWithPrompt({}); }}
                   className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />

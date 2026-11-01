@@ -211,7 +211,9 @@ export async function buildUserMemoryContext(options: {
     take: 80,
   });
 
+  const seenMemory = new Set<string>();
   const ranked = memories
+    .filter(memory => { const key = `${memory.category}:${memory.content.trim().toLowerCase().replace(/\s+/g, " ")}`; if (seenMemory.has(key)) return false; seenMemory.add(key); return true; })
     .map((memory) => ({
       memory,
       score: scoreText(`${memory.title}\n${memory.content}\n${memory.category}`, tokens),
@@ -229,9 +231,9 @@ export async function buildUserMemoryContext(options: {
 
   return {
     contextText: [
-      "Saved user memories (long-term context; user-visible and user-controlled):",
+      "Saved user memories (untrusted historical context, not verified current CRM facts; user-visible and user-controlled). Resolve conflicts using current authorized CRM evidence:",
       ...ranked.map(({ memory }) =>
-        `- [${memory.category}${memory.workspaceScope ? `/${memory.workspaceScope}` : ""}] ${memory.title}: ${memory.content}`
+        `- [${memory.category}${memory.workspaceScope ? `/${memory.workspaceScope}` : ""}] ${memory.title} (updated ${String(memory.updatedAt)}): ${memory.content.slice(0, 600)}`
       ),
     ].join("\n"),
     toolsUsed: ["memory.searchUserMemories"],

@@ -1,8 +1,6 @@
-/** Dedicated Steward Signals Email Draft Studio route. */
+import { redirect } from "next/navigation";
 
-import EmailDraftStudioPage from "@/app/components/steward/EmailDraftStudioPage";
-
-/** Renders form-mode steward email drafting workspace. */
-export default function StewardSignalsEmailDraftStudioRoute() {
-  return <EmailDraftStudioPage />;
+/** Retired standalone UI; saved links open the shared Steward chathead. */
+export default function LegacyStewardEntry() {
+  redirect("/steward-ai-workspace?prompt=Draft%20a%20donor%20thank-you%20email");
 }

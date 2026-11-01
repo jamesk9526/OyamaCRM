@@ -175,7 +175,8 @@ function injectCudaDeviceOptions(config, pathname, bodyBuffer) {
       ? { ...payload.options }
       : {};
 
-    options.main_gpu = cudaIndex;
+    // A managed runtime sees only the pinned physical GPU, remapped to ordinal 0.
+    options.main_gpu = config.ollamaRuntimeMode === "managed" ? 0 : cudaIndex;
 
     const nextPayload = {
       ...payload,

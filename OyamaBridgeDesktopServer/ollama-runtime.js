@@ -463,6 +463,18 @@ function createOllamaRuntimeManager(readConfig, options = {}) {
     state.lastOutput = "";
 
     const env = buildOllamaLaunchEnv(readConfig(), process.env);
+    if (settings.selectedGpu !== "auto") {
+      // nvidia-smi indices and CUDA ordinals can differ on mixed GPU systems.
+      // Resolve the selected physical card to its stable UUID before discovery.
+      const listing = await new Promise((resolve, reject) => execFile("nvidia-smi", ["--query-gpu=index,uuid", "--format=csv,noheader"], { windowsHide: true, timeout: 5000 }, (error, stdout) => error ? reject(error) : resolve(String(stdout))));
+      const row = String(listing).split(/\r?\n/).map(line => line.split(",").map(value => value.trim())).find(values => values[0] === settings.selectedGpu);
+      if (!row || !/^GPU-[a-f0-9-]+$/i.test(row[1])) throw new Error("Selected NVIDIA GPU could not be resolved. Refresh GPU selection before starting Ollama.");
+      env.CUDA_VISIBLE_DEVICES = row[1];
+      env.NVIDIA_VISIBLE_DEVICES = row[1];
+      // Vulkan discovery does not honor CUDA_VISIBLE_DEVICES and can escape pinning.
+      env.OLLAMA_VULKAN = "false";
+      state.envHint = `CUDA_VISIBLE_DEVICES=${row[1]}`;
+    }
     const nextChild = spawn(settings.executablePath, ["serve"], {
       env,
       stdio: ["ignore", "pipe", "pipe"],

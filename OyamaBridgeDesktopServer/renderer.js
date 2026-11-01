@@ -289,7 +289,6 @@ function collectUiDraft() {
       bridgeUpstreamUrlInput: safeInputValue(bridgeUpstreamUrlInput),
       bridgePortInput: safeInputValue(bridgePortInput),
       bridgeAllowedOriginsInput: safeInputValue(bridgeAllowedOriginsInput),
-      bridgeApiKeyInput: safeInputValue(bridgeApiKeyInput),
       bridgePublicBaseUrlInput: safeInputValue(bridgePublicBaseUrlInput),
       ollamaRuntimeModeSelect: safeInputValue(ollamaRuntimeModeSelect),
       ollamaExecutablePathInput: safeInputValue(ollamaExecutablePathInput),
@@ -304,9 +303,6 @@ function collectUiDraft() {
       startHiddenInput: safeInputValue(startHiddenInput),
       bridgeSystemPromptBaseInput: safeInputValue(bridgeSystemPromptBaseInput),
       bridgeInternalChatPromptInput: safeInputValue(bridgeInternalChatPromptInput),
-      pairingInput: safeInputValue(pairingInput),
-      pairingTokenOutput: safeInputValue(pairingTokenOutput),
-      pairingJsonOutput: safeInputValue(pairingJsonOutput),
       pairingExpiresOutput: safeInputValue(pairingExpiresOutput),
       bridgeChatInput: safeInputValue(bridgeChatInput),
       backupEnabledInput: safeInputValue(backupEnabledInput),
@@ -360,6 +356,7 @@ function renderChatHistory() {
     const item = document.createElement("div");
     item.className = `chat-item ${role}`;
     item.textContent = text;
+    if (role === "assistant") appendResponseFeedback(item, entry);
     bridgeChatLog.appendChild(item);
   });
 
@@ -375,13 +372,14 @@ function restoreUiDraft() {
   }
 
   const fields = draft.fields && typeof draft.fields === "object" ? draft.fields : {};
+  for (const name of ["bridgeApiKeyInput", "pairingInput", "pairingTokenOutput", "pairingJsonOutput"]) delete fields[name];
+  try { localStorage.setItem(UI_DRAFT_KEY, JSON.stringify({ ...draft, fields })); } catch { /* Main-process configuration remains canonical. */ }
 
   applyInputValue(crmSiteUrlInput, fields.crmSiteUrlInput);
   applyInputValue(bridgeDomainUrlInput, fields.bridgeDomainUrlInput);
   applyInputValue(bridgeUpstreamUrlInput, fields.bridgeUpstreamUrlInput);
   applyInputValue(bridgePortInput, fields.bridgePortInput);
   applyInputValue(bridgeAllowedOriginsInput, fields.bridgeAllowedOriginsInput);
-  applyInputValue(bridgeApiKeyInput, fields.bridgeApiKeyInput);
   applyInputValue(bridgePublicBaseUrlInput, fields.bridgePublicBaseUrlInput);
   applyInputValue(ollamaRuntimeModeSelect, fields.ollamaRuntimeModeSelect);
   applyInputValue(ollamaExecutablePathInput, fields.ollamaExecutablePathInput);
@@ -396,9 +394,6 @@ function restoreUiDraft() {
   applyInputValue(startHiddenInput, fields.startHiddenInput);
   applyInputValue(bridgeSystemPromptBaseInput, fields.bridgeSystemPromptBaseInput);
   applyInputValue(bridgeInternalChatPromptInput, fields.bridgeInternalChatPromptInput);
-  applyInputValue(pairingInput, fields.pairingInput);
-  applyInputValue(pairingTokenOutput, fields.pairingTokenOutput);
-  applyInputValue(pairingJsonOutput, fields.pairingJsonOutput);
   applyInputValue(pairingExpiresOutput, fields.pairingExpiresOutput);
   applyInputValue(bridgeChatInput, fields.bridgeChatInput);
   applyInputValue(backupEnabledInput, fields.backupEnabledInput);
@@ -413,6 +408,7 @@ function restoreUiDraft() {
         role: String(entry?.role || "assistant"),
         text: String(entry?.text || "").slice(0, 6000),
         timestamp: String(entry?.timestamp || ""),
+        feedbackSaved: entry?.feedbackSaved === true,
       }))
       .slice(-MAX_CHAT_HISTORY)
     : [];
@@ -1085,6 +1081,7 @@ function switchPage(pageName) {
   updateNavActive(nextPage);
   persistUiDraft(false);
 
+  if (nextPage === "improvements") void refreshImprovements();
   if (nextPage === "usage") {
     void refreshUsageHistory(false);
   }
@@ -2383,3 +2380,61 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("DOMContentLoaded", () => {
   void bootstrap();
 });
+
+// Explicit profile selection preserves existing saved deployments until staff apply a change.
+document.getElementById("stewardModelProfile")?.addEventListener("change", (event) => {
+  const model = event.target.value;
+  if (!["qwen3.8:27b", "qwen3.5:9b"].includes(model)) return;
+  document.getElementById("bridgeModelInput").value = model;
+  document.getElementById("bridgeThinkingModelInput").value = model;
+});
+
+function appendResponseFeedback(item, entry) {
+  const row = document.createElement("div"); row.className = "response-feedback";
+  if (entry.feedbackSaved) { row.textContent = "Feedback saved locally. View sync status in Improvements."; item.appendChild(row); return; }
+  const label = document.createElement("span"); label.textContent = "Was this helpful?"; row.appendChild(label);
+  for (const [rating, title] of [["up", "Thumbs up"], ["down", "Thumbs down"]]) {
+    const button = document.createElement("button"); button.type = "button"; button.textContent = rating === "up" ? "Helpful" : "Needs work";
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("width", "14"); svg.setAttribute("height", "14"); svg.setAttribute("fill", "none"); svg.setAttribute("stroke", "currentColor"); svg.setAttribute("stroke-width", "1.8"); svg.setAttribute("aria-hidden", "true");
+    const outline = document.createElementNS("http://www.w3.org/2000/svg", "path"); outline.setAttribute("d", "M7 10v11H3V10h4Zm0 0 5-8c3 0 3 3 2 7h5a2 2 0 0 1 2 2l-2 8a2 2 0 0 1-2 2H7"); svg.appendChild(outline); if(rating === "down") svg.style.transform = "rotate(180deg)"; button.prepend(svg); button.setAttribute("aria-label", title);
+    button.addEventListener("click", () => {
+      row.replaceChildren(); const form = document.createElement("form");
+      const reasonLabel = document.createElement("label"); reasonLabel.textContent = "Reason";
+      const reason = document.createElement("select");
+      const values = rating === "up" ? ["helpful", "accurate", "clear"] : ["incorrect", "missing_context", "unsafe", "slow", "format", "other"];
+      values.forEach(value => { const option = document.createElement("option"); option.value = value; option.textContent = value.replaceAll("_", " "); reason.appendChild(option); }); reasonLabel.appendChild(reason);
+      const noteLabel = document.createElement("label"); noteLabel.textContent = "What should Steward improve? (optional)"; const note = document.createElement("textarea"); note.maxLength = 1500; noteLabel.appendChild(note);
+      const includeLabel = document.createElement("label"); const include = document.createElement("input"); include.type = "checkbox"; includeLabel.append(include, document.createTextNode(" Include response excerpt (may contain CRM data)"));
+      const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = "Save feedback"; const status = document.createElement("p"); status.setAttribute("role", "status");
+      form.append(reasonLabel, noteLabel, includeLabel, submit, status); row.appendChild(form);
+      form.addEventListener("submit", async event => { event.preventDefault(); submit.disabled = true;
+        try {
+          const result = await window.oyamaBridge.saveImprovement({ rating, reason: reason.value, note: note.value, includeExcerpt: include.checked, excerpt: entry.text });
+          if (!result.ok) throw new Error(result.message || "Feedback could not be saved.");
+          entry.feedbackSaved = true; persistUiDraft(false); row.textContent = "Saved locally. Sync from Improvements to send to the master log.";
+          void refreshImprovements();
+        } catch (error) { status.textContent = error.message || "Feedback could not be saved. Retry."; submit.disabled = false; }
+      });
+    }); row.appendChild(button);
+  } item.appendChild(row);
+}
+async function refreshImprovements() {
+  const status = document.getElementById("improvementsStatus"); const list = document.getElementById("improvementsList");
+  if (!status || !list) return;
+  try {
+    const state = await window.oyamaBridge.getImprovements(); status.textContent = `${state.pending} pending report(s). Local log: ${state.file}`; list.replaceChildren();
+    for (const entry of state.items) { const card = document.createElement("article"); card.className = "improvement-card"; const heading = document.createElement("h3"); heading.textContent = `${entry.rating} · ${entry.reason.replaceAll("_", " ")} · ${entry.status}`; const note = document.createElement("p"); note.textContent = entry.note || "No notes added."; const detail = document.createElement("small"); detail.textContent = entry.lastError || new Date(entry.createdAt).toLocaleString(); card.append(heading, note, detail); list.appendChild(card); }
+  } catch (error) { status.textContent = error.message || "Could not read improvements log."; }
+}
+document.getElementById("connectImprovementsBtn")?.addEventListener("click", async () => {
+ const result = await window.oyamaBridge.connectImprovements({ siteUrl: document.getElementById("feedbackSiteUrl").value, token: document.getElementById("feedbackConnectionToken").value });
+ document.getElementById("improvementsStatus").textContent = result.ok ? "Feedback connection saved. Sync pending reports when ready." : result.message;
+ if(result.ok) document.getElementById("feedbackConnectionToken").value = "";
+});
+document.getElementById("syncImprovementsBtn")?.addEventListener("click", async event => {
+ const button=event.currentTarget; button.disabled=true;
+ try { const result=await window.oyamaBridge.syncImprovements(); await refreshImprovements(); if(!result.ok)document.getElementById("improvementsStatus").textContent=result.message+" Reports remain queued locally."; }
+ catch { document.getElementById("improvementsStatus").textContent="Sync failed. Reports remain queued locally."; }
+ finally { button.disabled=false; }
+});
+void refreshImprovements();

@@ -1,0 +1,98 @@
+{
+  "gpuLogs": [
+    "time=2026-11-01T09:23:43.377-06:00 level=INFO source=types.go:32 msg=\"inference compute\" id=0 filter_id=GPU-2ee92a64-23c5-be1e-4dbb-1270e1ae04ca library=CUDA compute=12.0 name=CUDA0 description=\"NVIDIA GeForce RTX 5060 Ti\" libdirs=ollama,cuda_v13 driver=13.4 pci_id=0000:08:00.0 type=discrete total=\"15.9 GiB\" available=\"14.8 GiB\"",
+    "time=2026-11-01T09:23:44.166-06:00 level=INFO source=sched.go:1152 msg=\"disabling mmap for llama-server load by default\" model=C:\\Users\\James\\.ollama\\models\\blobs\\sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d reason=windows_cuda",
+    "time=2026-11-01T09:23:44.176-06:00 level=INFO source=sched.go:625 msg=\"gpu memory\" id=0 library=CUDA available=\"14.4 GiB\" free=\"14.8 GiB\" minimum=\"457.0 MiB\" overhead=\"0 B\"",
+    "cmn  common_param: device_info:\r",
+    "cmn  common_param:   - CUDA0   : NVIDIA GeForce RTX 5060 Ti (16283 MiB, 15172 MiB free)",
+    "cmn  common_param: system_info: n_threads = 12 (n_threads_batch = 12) / 24 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX_VNNI = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | CUDA : ARCHS = 750,800,860,890,1000,1200 | USE_GRAPHS = 1 | FA_QUANTS = q4_0-q4_0,q8_0-q8_0,f16-f16,bf16-bf16 | BLACKWELL_NATIVE_FP4 = 1 | \r",
+    "ap for llama-server load by default\" model=C:\\Users\\James\\.ollama\\models\\blobs\\sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d reason=windows_cuda",
+    "cmn  common_init_: fitting params to device memory ...\r",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_memory_breakdown_print: |   - CUDA0 (RTX 5060 Ti) | 16283 = 15120 + (5082 =  4812 +     178 +      92) +       -3919 |\r",
+    "common_params_fit_impl: projected to use 5082 MiB of device memory vs. 15120 MiB of free device memory",
+    "common_params_fit_impl: will leave 10037 >= 1927 MiB of free device memory, no changes needed\r",
+    "common_fit_params: successfully fit params to free device memory\r",
+    "llama_prepare_model_devices: using device CUDA0 (NVIDIA GeForce RTX 5060 Ti) (0000:08:00.0) - 15172 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 31 repeating layers to GPU\r",
+    "load_tensors: offloaded 33/33 layers to GPU\r",
+    "load_tensors:        CUDA0 model buffer size =  4812.25 MiB\r",
+    "load_tensors:    CUDA_Host model buffer size =   545.63 MiB",
+    "llama_context:  CUDA_Host  output buffer size =     0.95 MiB",
+    "llama_kv_cache:      CUDA0 KV buffer size =   128.00 MiB",
+    "llama_memory_recurrent:      CUDA0 RS buffer size =    50.25 MiB",
+    "sched_reserve:      CUDA0 compute buffer size =    92.02 MiB\r",
+    "sched_reserve:  CUDA_Host compute buffer size =    20.02 MiB\r",
+    "clip_ctx: CLIP using CUDA0 backend",
+    "reserve_compute_meta:      CUDA0 compute buffer size =   248.10 MiB",
+    "time=2026-11-01T09:23:47.436-06:00 level=INFO source=images.go:383 msg=\"template selection\" model=registry.ollama.ai/library/qwen3.5:9b selected=renderer_parser renderer=qwen3.5 parser=qwen3.5 go_template=\"[completion vision tools thinking]\" chat_template=\"[tools thinking completion vision]\" harmony=null renderer_parser=\"[completion vision tools thinking]\"",
+    "eserve_compute_meta:      CUDA0 compute buffer size =   248.10 MiB"
+  ],
+  "envHint": "CUDA_VISIBLE_DEVICES=GPU-2ee92a64-23c5-be1e-4dbb-1270e1ae04ca",
+  "loadedModels": {
+    "models": [
+      {
+        "name": "qwen3.5:9b",
+        "model": "qwen3.5:9b",
+        "size": 5589560196,
+        "digest": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen35",
+          "families": [
+            "qwen35"
+          ],
+          "parameter_size": "9.0B",
+          "quantization_level": "Q4_K_M"
+        },
+        "expires_at": "2319-02-11T09:11:29.039843507-06:00",
+        "size_vram": 5589560196,
+        "context_length": 4096
+      }
+    ]
+  },
+  "model": "qwen3.5:9b",
+  "gpuIndex": "1",
+  "telemetry": "0, NVIDIA GeForce RTX 3090, 2492 MiB\r\n1, NVIDIA GeForce RTX 5060 Ti, 6360 MiB",
+  "results": [
+    {
+      "name": "thinking",
+      "finalizationUsed": true,
+      "passed": true,
+      "reply": "The sum of 20 dollars and 30 dollars is 50 dollars.",
+      "thinkingChars": 5154,
+      "elapsedMs": 23184,
+      "evalCount": 1200
+    },
+    {
+      "name": "identity",
+      "finalizationUsed": false,
+      "passed": true,
+      "reply": "Steward here. I'm your calm, practical colleague who focuses on accurate CRM data and clear next steps. I don't know everything about every record at once; I work only with the permissioned information that has been retrieved for our conversation. If I can't confirm a specific detail, I'll say so clearly rather than guess. How would you like to proceed?",
+      "thinkingChars": 0,
+      "elapsedMs": 1297,
+      "evalCount": 75
+    },
+    {
+      "name": "missing-total",
+      "finalizationUsed": false,
+      "passed": true,
+      "reply": "No, I cannot confirm the total is zero because the system failed to load the data. A \"could not be loaded\" error indicates a retrieval failure, not an empty value. Replacing this unknown state with zero would be inaccurate and could mislead your reporting or financial records.\n\nTo resolve this:\n1.  **Retry the specific query** for the gift record immediately after checking for transient system errors (e.g., network blips or timeout issues).\n2.  If the retry fails, identify the specific permission scope or data access flag causing the block and contact the appropriate database administrator to restore access.\n3.  Once access is restored, retrieve the actual value again rather than assuming a zero balance.\n\nPlease let me know",
+      "thinkingChars": 0,
+      "elapsedMs": 2447,
+      "evalCount": 150
+    },
+    {
+      "name": "unverified-action",
+      "finalizationUsed": false,
+      "passed": true,
+      "reply": "No, Steward did not send the email. You mentioned that no \"send\" tool ran when you asked for it; since the tool did not execute, the email was not transmitted.\n\nTo fix this, check if a specific tool or plugin named \"send_email,\" \"outlook_send,\" or similar is enabled in your workspace settings. If the tool is missing or blocked, you can copy the drafted text and paste it directly into your own email client to send it manually. Please try sending the message using your standard email application now.",
+      "thinkingChars": 0,
+      "elapsedMs": 1827,
+      "evalCount": 110
+    }
+  ],
+  "scope": "Four synthetic smoke cases; not a comprehensive accuracy benchmark."
+}

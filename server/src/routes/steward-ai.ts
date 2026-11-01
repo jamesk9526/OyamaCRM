@@ -1,3 +1,6 @@
+import { requirePermission } from "../middleware/requirePermission.js";
+import { compactStewardConversation } from "../steward/conversation-context.js";
+import { resolveStewardPlaybook, STEWARD_PLAYBOOKS } from "../steward/playbooks.js";
 /** Steward AI API routes for config, health test, and chat completion. */
 import { Router } from "express";
 import crypto from "node:crypto";
@@ -62,7 +65,6 @@ import type {
   StewardResponseIntent,
   StewardContextResult,
   TopDonorResult,
-  AgenticPreparationResult,
   StewardStructuredResponsePayload,
   StewardSuggestedActionPayload,
   StewardEvidencePayload,
@@ -86,94 +88,23 @@ import { buildThoughtStackAssessment } from "../steward/guide-paths.js";
 
 const router: ExpressRouter = Router();
 const STEWARD_AI_PLUGIN_KEY = "steward_ai";
-const CHAT_CONTEXT_MAX_MESSAGES = 80;
-const CHAT_CONTEXT_MAX_CHARS = 42_000;
-const CHAT_CONTEXT_MESSAGE_MAX_CHARS = 3_500;
-const CHAT_CONTEXT_ANCHOR_LIMIT = 8;
-
-interface StewardChatContextWindow {
-  normalizedMessages: StewardAiChatMessage[];
-  totalInputMessages: number;
-  droppedMessages: number;
-  keptChars: number;
-}
-
-/**
- * Keeps full-chat continuity via a safe rolling window.
- * Strategy:
- * 1) sanitize all messages
- * 2) keep newest messages first (recency priority)
- * 3) add sparse older anchors when space allows (long-thread continuity)
- */
-function buildSafeRollingContextWindow(payloadMessages: StewardAiChatPayload["messages"]): StewardChatContextWindow {
-  const normalizedAll = (payloadMessages ?? [])
-    .filter((message) => message && typeof message.content === "string")
-    .map((message): StewardAiChatMessage => ({
-      role: message.role === "assistant" || message.role === "system" ? message.role : "user",
-      content: message.content.slice(0, CHAT_CONTEXT_MESSAGE_MAX_CHARS),
-    }));
-
-  if (normalizedAll.length === 0) {
-    return {
-      normalizedMessages: [],
-      totalInputMessages: 0,
-      droppedMessages: 0,
-      keptChars: 0,
-    };
-  }
-
-  const indexed = normalizedAll.map((message, index) => ({
-    message,
-    index,
-    chars: message.content.length,
-  }));
-  const selectedIndices = new Set<number>();
-  let keptChars = 0;
-
-  for (let i = indexed.length - 1; i >= 0; i -= 1) {
-    const candidate = indexed[i];
-    const nextCount = selectedIndices.size + 1;
-    const nextChars = keptChars + candidate.chars;
-    if (nextCount > CHAT_CONTEXT_MAX_MESSAGES || nextChars > CHAT_CONTEXT_MAX_CHARS) {
-      continue;
-    }
-    selectedIndices.add(candidate.index);
-    keptChars = nextChars;
-  }
-
-  if (selectedIndices.size < CHAT_CONTEXT_MAX_MESSAGES && keptChars < CHAT_CONTEXT_MAX_CHARS) {
-    const anchorStep = Math.max(1, Math.floor(indexed.length / CHAT_CONTEXT_ANCHOR_LIMIT));
-    for (let i = 0; i < indexed.length; i += anchorStep) {
-      const candidate = indexed[i];
-      if (selectedIndices.has(candidate.index)) continue;
-      const nextCount = selectedIndices.size + 1;
-      const nextChars = keptChars + candidate.chars;
-      if (nextCount > CHAT_CONTEXT_MAX_MESSAGES || nextChars > CHAT_CONTEXT_MAX_CHARS) {
-        continue;
-      }
-      selectedIndices.add(candidate.index);
-      keptChars = nextChars;
-      if (selectedIndices.size >= CHAT_CONTEXT_MAX_MESSAGES || keptChars >= CHAT_CONTEXT_MAX_CHARS) {
-        break;
-      }
-    }
-  }
-
-  const normalizedMessages = indexed
-    .filter((item) => selectedIndices.has(item.index))
-    .sort((a, b) => a.index - b.index)
-    .map((item) => item.message);
-
-  return {
-    normalizedMessages,
-    totalInputMessages: normalizedAll.length,
-    droppedMessages: Math.max(0, normalizedAll.length - normalizedMessages.length),
-    keptChars,
-  };
-}
+const buildSafeRollingContextWindow = compactStewardConversation;
 
 // Steward AI endpoints require authenticated users.
 router.use(requireAuth);
+// Direct module snapshots must enforce the same permissions as their source routes.
+router.use((req, res, next) => {
+  if (!["/chat", "/chat/stream"].includes(req.path)) { next(); return; }
+  const requestedModule = req.body?.moduleKey || "donor";
+  if (!["donor", "events", "watchdog", "webmaster", "oshareview", "all"].includes(requestedModule)) { res.status(400).json({ error: { code: "INVALID_MODULE", message: "Choose a supported Steward module." } }); return; }
+  if (requestedModule === "watchdog") { void requirePermission("view:audit_logs")(req, res, next); return; }
+  if (requestedModule === "events") { void requirePermission("view:events")(req, res, next); return; }
+  next();
+});
+
+
+/** Shared catalog for future chathead clients; contains no organization records. */
+router.get("/playbooks", (_req, res) => { res.json({ data: { version: 1, playbooks: STEWARD_PLAYBOOKS } }); });
 function isTopDonorQuestion(input: string): boolean {
   const normalized = input.toLowerCase();
   return /(top\s+donors?|largest\s+donors?|major\s+donors?|highest\s+donors?)/.test(normalized);
@@ -943,7 +874,7 @@ async function runDraftEmailPipeline(options: {
 
   // Give the model enough time for its <think> pass plus generation (deepseek-r1 needs ~60s for thinking alone).
   const pipelineConfig = { ...options.config, timeoutMs: Math.max(options.config.timeoutMs, 180_000) };
-  console.log("[steward-ai/emailPipeline] Single-pass call — timeoutMs:", pipelineConfig.timeoutMs, "model:", options.reasoningModel);
+
 
   const combinedPrompt = [
     "You are Steward, the nonprofit donor CRM assistant.",
@@ -1083,7 +1014,7 @@ async function runRescueCompletion(options: {
     "Produce a useful response now using available CRM context.",
     "If details are missing, make reasonable defaults and proceed.",
     "Ask one concise follow-up only when execution safety truly requires it.",
-    "Do not mention internal tools or system failures.",
+    "Do not expose internal tool names or secrets. State missing evidence and failed data retrieval plainly; never conceal a failure by inventing an answer.",
     `Chat mode: ${options.mode}`,
     "User query:",
     options.userQuery || "(empty query)",
@@ -2414,15 +2345,6 @@ router.post("/chat/stream", async (req, res) => {
   }
 
   const setting = await getStewardAiSetting(organizationId);
-  if (!setting?.enabled) {
-    res.status(412).json({
-      error: {
-        code: "AI_NOT_ENABLED",
-        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
-      },
-    });
-    return;
-  }
 
   const payload = req.body as StewardAiChatPayload;
   const contextWindow = buildSafeRollingContextWindow(payload.messages);
@@ -2438,11 +2360,34 @@ router.post("/chat/stream", async (req, res) => {
     return;
   }
 
-  const config = parseStewardAiConfig(setting.config);
+  const config = { ...parseStewardAiConfig(setting?.config), ...(typeof payload.thinkingEnabled === "boolean" ? { reasoningMode: payload.thinkingEnabled ? "thinking" as const : "standard" as const, agenticMultiStage: false, maxTokens: payload.thinkingEnabled ? 2048 : 600 } : {}) };
   const mode = payload.mode ?? "ask";
   const moduleKey = payload.moduleKey ?? "donor";
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const playbook = !payload.donorContext?.length && !payload.forcedTools?.length
+    ? resolveStewardPlaybook(latestUserMessage, mode, moduleKey) : null;
+  if (playbook) {
+    const result = { reply: playbook.reply, model: "reviewed-playbook", provider: "playbook", mode,
+      runtimeMode: config.mode, moduleKey, scopePath, toolsUsed: [`playbook.${playbook.id}`], recordsUsed: [] };
+    if (req.path.endsWith("/stream")) {
+      res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.write(`${JSON.stringify({ type: "chunk", delta: result.reply })}\n`);
+      res.end(`${JSON.stringify({ type: "done", ...result })}\n`);
+    } else res.json({ data: result });
+    return;
+  }
+  if (!setting?.enabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
+      },
+    });
+    return;
+  }
+
   const userIntent = detectStewardIntent(latestUserMessage, mode);
   const responseContract = [
     buildIntentResponseContract(userIntent),
@@ -2497,29 +2442,6 @@ router.post("/chat/stream", async (req, res) => {
   res.flushHeaders?.();
 
   // ── Debug logging ────────────────────────────────────────────────────────────
-  console.log("[steward-ai/stream] REQUEST", JSON.stringify({
-    organizationId,
-    moduleKey,
-    mode,
-    userIntent,
-    taggedDonorFocus,
-    mentionedConstituentIds,
-    messageCount: normalizedMessages.length,
-    contextWindowTotalInputMessages: contextWindow.totalInputMessages,
-    contextWindowDroppedMessages: contextWindow.droppedMessages,
-    contextWindowKeptChars: contextWindow.keptChars,
-    forcedToolNames,
-    workspaceNoteAttached: workspaceNoteContent.length > 0,
-    workspaceNoteChars: workspaceNoteContent.length,
-    latestUserMessage,
-    donorContext: payload.donorContext,
-  }, null, 2));
-  const _streamLines: string[] = [];
-  const _origWrite = res.write.bind(res);
-  res.write = (chunk: unknown, ...args: unknown[]) => {
-    if (typeof chunk === "string") _streamLines.push(chunk.trimEnd());
-    return (_origWrite as (...a: unknown[]) => boolean)(chunk, ...args);
-  };
 
   /** Sends a human-readable progress update to the client during pipeline stages. */
   function writeProgress(message: string, stage: "retrieve" | "plan" | "generate" = "retrieve", percent = 0): void {
@@ -2614,7 +2536,7 @@ router.post("/chat/stream", async (req, res) => {
         moduleKey,
         scopePath,
       })}\n`);
-      console.log("[steward-ai/stream] RESPONSE (top-donor fast path, " + _streamLines.length + " lines):\n" + _streamLines.join("\n"));
+
       res.end();
       return;
     }
@@ -2644,7 +2566,7 @@ router.post("/chat/stream", async (req, res) => {
         moduleKey,
         scopePath,
       })}\n`);
-      console.log("[steward-ai/stream] RESPONSE (report fast path, " + _streamLines.length + " lines):\n" + _streamLines.join("\n"));
+
       res.end();
       return;
     }
@@ -2716,13 +2638,7 @@ router.post("/chat/stream", async (req, res) => {
     const modelContextText = buildModelContextForIntent(mergedContextText, userIntent);
     const combinedRecordsUsed = [...retrieval.recordsUsed, ...forcedToolContext.recordsUsed];
 
-    console.log("[steward-ai/stream] RETRIEVAL", JSON.stringify({
-      toolsUsed: [...retrieval.toolsUsed, ...forcedToolContext.toolsUsed],
-      recordsUsed: combinedRecordsUsed,
-      contextTextLength: mergedContextText.length,
-      contextTextPreview: mergedContextText.slice(0, 800),
-      forcedToolWarnings: forcedToolContext.warnings,
-    }, null, 2));
+
 
     if (mode !== "free" && retrieval.toolsUsed.length > 1) {
       writeProgress(`Checking ${retrieval.toolsUsed.length} data sources…`, "retrieve", 40);
@@ -2798,13 +2714,7 @@ router.post("/chat/stream", async (req, res) => {
     const agenticNotes = [...thoughtStack.summaryLines, ...agenticPreparation.stageSummaries, ...agenticToolPass.notes];
     const agenticToolsUsed = [...agenticPreparation.toolsUsed, ...agenticToolPass.toolsUsed];
 
-    console.log("[steward-ai/stream] AGENTIC_PREP", JSON.stringify({
-      reasoningModel: agenticPreparation.reasoningModel,
-      stageSummaries: agenticPreparation.stageSummaries,
-      toolsUsed: agenticPreparation.toolsUsed,
-      agenticToolPassNotes: agenticToolPass.notes,
-      agenticToolPassToolsUsed: agenticToolPass.toolsUsed,
-    }, null, 2));
+
 
     if (agenticPreparation.stageSummaries.length > 0) {
       writeProgress("Verifying data and checking for gaps…", "plan", 62);
@@ -2842,20 +2752,7 @@ router.post("/chat/stream", async (req, res) => {
     let provider = agenticPreparation.stageSummaries.length > 0 ? "ollama-agentic" : "ollama";
     let completion: { content: string; model: string };
 
-    console.log("[steward-ai/stream] MODEL_CALL", JSON.stringify({
-      model: config.model,
-      thinkingModel: config.thinkingModel,
-      reasoningModel: agenticPreparation.reasoningModel,
-      temperature: config.temperature,
-      maxTokens: responseMaxTokens,
-      timeoutMs: config.timeoutMs,
-      endpointUrl: config.endpointUrl,
-      mode: config.mode,
-      userIntent,
-      systemPromptLength: runtimeSystemPrompt.length,
-      systemPromptPreview: runtimeSystemPrompt.slice(0, 600),
-      messageCount: normalizedMessages.length,
-    }, null, 2));
+
 
     writeProgress("Drafting a response…", "generate", 72);
     writeTool("model.generate", "Drafting answer", "start");
@@ -2884,7 +2781,7 @@ router.post("/chat/stream", async (req, res) => {
       writeTool("model.generate", "Writing email draft", "done");
     } else {
       try {
-        console.log("[steward-ai/stream] Calling runStewardAiChatStream...");
+
         completion = await withStewardAiTask(
           {
             organizationId,
@@ -2902,22 +2799,18 @@ router.post("/chat/stream", async (req, res) => {
             ],
             {
               onDelta: (delta) => {
-                console.log("[steward-ai/stream] TOKEN_DELTA", JSON.stringify(delta));
+
                 res.write(`${JSON.stringify({ type: "chunk", delta })}\n`);
               },
               onThinkingDelta: (delta) => {
-                console.log("[steward-ai/stream] THINKING_DELTA", JSON.stringify(delta));
+
                 writeThinking(delta);
               },
               maxTokens: responseMaxTokens,
             }
           )
         );
-        console.log("[steward-ai/stream] MODEL_RAW_COMPLETION", JSON.stringify({
-          model: completion.model,
-          contentLength: completion.content.length,
-          content: completion.content,
-        }, null, 2));
+
       } catch (streamError) {
         const message = streamError instanceof Error ? streamError.message : "";
         if (!/empty assistant response/i.test(message)) {
@@ -3059,11 +2952,10 @@ router.post("/chat/stream", async (req, res) => {
       moduleKey,
       scopePath,
     })}\n`);
-    console.log("[steward-ai/stream] RESPONSE (" + _streamLines.length + " lines):\n" + _streamLines.join("\n"));
+
     res.end();
   } catch (error) {
     console.error("[steward-ai/stream] Unhandled error:", error);
-    console.error("[steward-ai/stream] Stream output so far:\n" + _streamLines.join("\n"));
     res.write(`${JSON.stringify({
       type: "error",
       message: error instanceof Error ? error.message : "Steward AI request failed.",
@@ -3079,15 +2971,6 @@ router.post("/chat", async (req, res) => {
   }
 
   const setting = await getStewardAiSetting(organizationId);
-  if (!setting?.enabled) {
-    res.status(412).json({
-      error: {
-        code: "AI_NOT_ENABLED",
-        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
-      },
-    });
-    return;
-  }
 
   const payload = req.body as StewardAiChatPayload;
   const contextWindow = buildSafeRollingContextWindow(payload.messages);
@@ -3103,11 +2986,34 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const config = parseStewardAiConfig(setting.config);
+  const config = { ...parseStewardAiConfig(setting?.config), ...(typeof payload.thinkingEnabled === "boolean" ? { reasoningMode: payload.thinkingEnabled ? "thinking" as const : "standard" as const, agenticMultiStage: false, maxTokens: payload.thinkingEnabled ? 2048 : 600 } : {}) };
   const mode = payload.mode ?? "ask";
   const moduleKey = payload.moduleKey ?? "donor";
   const scopePath = payload.scopePath ?? "/";
   const latestUserMessage = [...normalizedMessages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const playbook = !payload.donorContext?.length && !payload.forcedTools?.length
+    ? resolveStewardPlaybook(latestUserMessage, mode, moduleKey) : null;
+  if (playbook) {
+    const result = { reply: playbook.reply, model: "reviewed-playbook", provider: "playbook", mode,
+      runtimeMode: config.mode, moduleKey, scopePath, toolsUsed: [`playbook.${playbook.id}`], recordsUsed: [] };
+    if (req.path.endsWith("/stream")) {
+      res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.write(`${JSON.stringify({ type: "chunk", delta: result.reply })}\n`);
+      res.end(`${JSON.stringify({ type: "done", ...result })}\n`);
+    } else res.json({ data: result });
+    return;
+  }
+  if (!setting?.enabled) {
+    res.status(412).json({
+      error: {
+        code: "AI_NOT_ENABLED",
+        message: "Steward AI is not enabled. Configure it in Settings > AI Assistant.",
+      },
+    });
+    return;
+  }
+
   const userIntent = detectStewardIntent(latestUserMessage, mode);
   const responseContract = [
     buildIntentResponseContract(userIntent),

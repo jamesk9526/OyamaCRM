@@ -579,11 +579,13 @@ export default function StewardPathBuilderPage({ templateIdFromRoute }: { templa
   /** Runs non-destructive validation and surfaces the first actionable result. */
   const validateWorkflow = useCallback(() => {
     if (supportReport.canSaveLinear) {
-      setFeedbackMessage("Validation passed. Workflow is save-ready.");
+      setFeedbackMessage(supportReport.canActivate
+        ? "Validation passed. This workflow is ready to save and publish."
+        : `Draft can be saved. Publishing is blocked: ${supportReport.activationReasons.join(" ")}`);
       return;
     }
     setFeedbackMessage(supportReport.reasons[0] ?? "Validation failed. Resolve workflow issues before saving.");
-  }, [supportReport.canSaveLinear, supportReport.reasons]);
+  }, [supportReport.canSaveLinear, supportReport.canActivate, supportReport.activationReasons, supportReport.reasons]);
 
   /** Opens run history in a modal and refreshes history data for this template. */
   const openHistoryModal = useCallback(() => {

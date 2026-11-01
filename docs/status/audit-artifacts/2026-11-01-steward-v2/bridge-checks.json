@@ -1,0 +1,12 @@
+{
+  "packaged": true,
+  "errors": [],
+  "checks": [
+    "renderer startup",
+    "light dashboard capture",
+    "feedback persisted",
+    "unconnected sync preserves report",
+    "improvements capture",
+    "1100px overflow"
+  ]
+}

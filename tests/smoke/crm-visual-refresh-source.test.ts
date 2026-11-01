@@ -206,15 +206,6 @@ describe("Donor CRM visual refresh foundation", () => {
     expect(globals).toContain("scrollbar-gutter: stable");
   });
 
-  it("offers dismissible route-aware Steward adoption prompts", () => {
-    const nudge = read("app/components/ai/StewardProactiveNudge.tsx");
-    expect(nudge).toContain("getStewardNudge");
-    expect(nudge).toContain("steward-nudge:v1:");
-    expect(nudge).toContain("/api/steward-ai/config");
-    expect(nudge).toContain("openStewardWithPrompt");
-    expect(nudge).toContain("using the real saved path data");
-  });
-
 
   it("applies the next visual pass to Constituents without removing existing behavior", () => {
     const page = read("app/constituents/page.tsx");

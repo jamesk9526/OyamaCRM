@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { _electron as electron } from 'playwright';
+const profile = await mkdtemp(path.join(os.tmpdir(),'oyama-bridge-v2-qa-'));
+await writeFile(path.join(profile,'oyama-bridge-config.json'),JSON.stringify({bridgeAutostart:false,bridgeEnabled:false,startHidden:false,bridgeModel:'qwen3.5:9b',bridgeThinkingModel:'qwen3.5:9b',bridgeCudaDevice:'1'}));
+const evidence='docs/status/audit-artifacts/2026-11-01-steward-v2';
+await mkdir(evidence,{recursive:true});
+const packaged=process.env.BRIDGE_QA_EXECUTABLE;
+const app=await electron.launch({executablePath:packaged||path.resolve('OyamaBridgeDesktopServer/node_modules/electron/dist/electron.exe'),args:packaged?[]:[path.resolve('OyamaBridgeDesktopServer')],env:{...process.env,OYAMA_BRIDGE_DATA_DIR:profile}});
+const errors=[];
+try {
+ const page=await app.firstWindow();page.on('pageerror',error=>errors.push(error.message));
+ await page.waitForLoadState('domcontentloaded');
+ await page.getByRole('heading',{name:'Oyama Bridge',exact:true}).waitFor();
+ await page.waitForFunction(()=>document.getElementById('titleModelValue').textContent.includes('qwen3.5'),{timeout:45000});
+ await page.screenshot({path:`${evidence}/bridge-dashboard.png`,animations:'disabled'});
+ const save=await page.evaluate(()=>window.oyamaBridge.saveImprovement({rating:'down',reason:'incorrect',note:'Synthetic QA report; no donor data.'}));
+ assert.equal(save.ok,true);
+ await page.getByRole('button',{name:'Open command sidebar',exact:true}).click();
+ await page.locator('[data-tab-target="improvements"]').first().click();
+ await page.getByRole('heading',{name:'Improvements log',exact:true}).waitFor();
+ assert.ok((await page.locator('[data-tab-page="improvements"]').boundingBox()).width>600);
+ await page.getByText('Synthetic QA report; no donor data.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Sync pending reports'}).click();
+ await page.getByRole('status').filter({hasText:'Reports remain queued locally'}).waitFor();
+ const state=await page.evaluate(()=>window.oyamaBridge.getImprovements());assert.equal(state.pending,1);
+ await page.screenshot({path:`${evidence}/bridge-improvements.png`,animations:'disabled'});
+ await page.setViewportSize({width:1100,height:800});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ assert.deepEqual(errors,[]);
+ await writeFile(`${evidence}/bridge-checks.json`,JSON.stringify({packaged:!!packaged,errors,checks:['renderer startup','light dashboard capture','feedback persisted','unconnected sync preserves report','improvements capture','1100px overflow']},null,2));
+} finally { await app.close(); }

@@ -1,35 +1,27 @@
-/** StewardAIWorkspace — route shell for the focused Copilot chat workspace. */
 "use client";
 
-import { useMemo } from "react";
-import { useSearchParams } from "next/navigation";
-import StewardCopilotWorkspace from "@/app/components/ai/StewardCopilotWorkspace";
+import { useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { openStewardWithPrompt, type StewardOpenPromptDetail } from "@/app/lib/steward-context";
 
-type ModuleKey = "donor" | "events" | "watchdog" | "webmaster" | "all";
-type ChatMode = "ask" | "analyze" | "draft" | "agentic" | "action" | "help";
-
-function resolveModuleKey(raw: string | null): ModuleKey {
-  if (raw === "events" || raw === "watchdog" || raw === "webmaster" || raw === "all") return raw;
-  return "donor";
-}
-
-function resolveMode(raw: string | null): ChatMode | undefined {
-  return raw === "ask" || raw === "analyze" || raw === "draft" || raw === "agentic" || raw === "action" || raw === "help" ? raw : undefined;
-}
-
-/** Reads launcher context and passes it to the dedicated Steward workspace. */
+/** Compatibility entry for saved links. All conversation UI lives in the chathead. */
 export default function StewardAIWorkspace() {
-  const searchParams = useSearchParams();
-  const initialModule = useMemo(() => resolveModuleKey(searchParams.get("module")), [searchParams]);
-  const initialThreadId = useMemo(() => searchParams.get("thread") || undefined, [searchParams]);
-  const initialPrompt = useMemo(() => searchParams.get("prompt") || undefined, [searchParams]);
-  const initialMode = useMemo(() => resolveMode(searchParams.get("mode")), [searchParams]);
-  const initialScopePath = useMemo(() => {
-    const scope = searchParams.get("scope");
-    return scope?.startsWith("/") ? scope : "/";
-  }, [searchParams]);
-
-  return <div className="h-[calc(100dvh-7rem)] min-h-[560px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <StewardCopilotWorkspace initialModule={initialModule} initialThreadId={initialThreadId} initialScopePath={initialScopePath} initialPrompt={initialPrompt} initialMode={initialMode} />
-  </div>;
+  const params = useSearchParams();
+  const router = useRouter();
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    const scope = params.get("scope");
+    router.replace(scope?.startsWith("/") && !scope.startsWith("//") && !scope.includes("\\") && !scope.startsWith("/steward-ai-workspace") ? scope : "/");
+    // Route replacement keeps the shared shell/chathead mounted.
+    const requestedModule = params.get("module") || "donor";
+    const mode = params.get("mode") || "ask";
+    openStewardWithPrompt({ prompt: params.get("prompt")?.slice(0, 3500) || undefined,
+      scopePath: scope || "/",
+      moduleKey: ["donor", "events", "watchdog", "webmaster", "all"].includes(requestedModule) ? requestedModule as StewardOpenPromptDetail["moduleKey"] : "donor",
+      mode: ["ask", "help", "analyze", "draft", "action"].includes(mode) ? mode as StewardOpenPromptDetail["mode"] : "ask",
+    });
+  }, [params, router]);
+  return null;
 }

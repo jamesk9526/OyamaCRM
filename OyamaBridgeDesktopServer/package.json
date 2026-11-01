@@ -1,13 +1,13 @@
 {
   "name": "oyama-bridge-desktop-server",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Standalone Oyama Bridge app for local AI gateway and donor/report Steward intelligence routing.",
   "author": "OyamaCRM",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/bridge-server.test.js",
+    "test": "node --test tests/*.test.js",
     "build:installer": "npm run build:installer:script",
     "build:installer:nsis:oneclick": "npm run build:installer:script",
     "build:installer:script": "build-nsis-oneclick.bat",
@@ -28,6 +28,8 @@
     "files": [
       "main.js",
       "bridge-server.js",
+      "steward-policy.js",
+      "improvements.js",
       "gpu-telemetry.js",
       "ollama-runtime.js",
       "preload.js",

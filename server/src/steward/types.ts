@@ -101,6 +101,7 @@ export interface BridgePairingKeyPayload {
 // ─── Chat payload ──────────────────────────────────────────────────────────────
 
 export interface StewardAiChatPayload {
+  thinkingEnabled?: boolean;
   messages?: StewardAiChatMessage[];
   mode?: "ask" | "analyze" | "draft" | "free" | "agentic" | "writing" | "llm" | "action" | "help";
   moduleKey?: "donor" | "events" | "watchdog" | "webmaster" | "oshareview";

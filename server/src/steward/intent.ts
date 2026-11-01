@@ -116,7 +116,7 @@ export function buildModelContextForIntent(contextText: string, intent: StewardR
     .filter(Boolean);
 
   if (intent !== "draft_email") {
-    return lines.slice(0, 220).join("\n");
+    return lines.slice(0, 220).join("\n").slice(0, 20000);
   }
 
   const keepPatterns = [

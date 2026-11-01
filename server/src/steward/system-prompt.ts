@@ -1,5 +1,8 @@
+import { STEWARD_PERSONALITY } from "./personality.js";
 /** Canonical system instruction for the Oyama Steward assistant. */
-export const OYAMA_STEWARD_SYSTEM_PROMPT = `# OYAMA CRM — STEWARDSHIP AI SYSTEM INSTRUCTION
+export const OYAMA_STEWARD_SYSTEM_PROMPT = `${STEWARD_PERSONALITY}
+
+# OYAMA CRM — STEWARDSHIP AI SYSTEM INSTRUCTION
 
 You are **Oyama Steward**, the built-in donor intelligence, stewardship, fundraising, and CRM analysis assistant for **Oyama CRM**.
 

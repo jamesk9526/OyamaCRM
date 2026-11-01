@@ -1,0 +1,16 @@
+{
+  "errors": [],
+  "fixtureData": true,
+  "requestCount": 3,
+  "checks": [
+    "launcher open/close and Escape focus return",
+    "single request per shortcut",
+    "NDJSON response rendering",
+    "quick action catalog",
+    "insights have no invented numbers",
+    "503 error state",
+    "new conversation",
+    "contextual event",
+    "four responsive widths"
+  ]
+}

@@ -42,7 +42,7 @@ The dock replaces the workspace-status menu in the top bar. It lists working reg
 | Change row spacing | Use Compact rows / Comfortable rows in shared table shells |
 | Clear a range | Escape |
 
-Table links, sort buttons, checkboxes, forms, and record-editing flows retain their normal controls. Copying cells does not write to CRM records. Column widths are session UI state. The floating Steward chathead and proactive suggestion popup have been removed; contextual links continue to open the dedicated Steward workspace. Mobile browse pages can retain their existing card views.
+Table links, sort buttons, checkboxes, forms, and record-editing flows retain their normal controls. Copying cells does not write to CRM records. Column widths are session UI state. The legacy Steward launcher and standalone workspace have been replaced with a single chathead, reviewed workflows, memory controls, thinking, and feedback. Mobile browse pages can retain their existing card views.
 
 ### Mobile workspace
 
@@ -50,6 +50,14 @@ Table links, sort buttons, checkboxes, forms, and record-editing flows retain th
   <img src="docs/status/audit-artifacts/2026-11-01-v2-workspace/dashboard-mobile.png" width="280" alt="Donor dashboard on mobile" />
   <img src="docs/status/audit-artifacts/2026-11-01-v2-workspace/command-dock-mobile.png" width="280" alt="Expanded mobile command dock" />
 </p>
+
+## Steward v2
+
+Steward now opens as a compact chathead inspired by the supplied UI mockup. It combines reviewed model-free help with permissioned CRM evidence, local Qwen generation, saved memory controls, private thinking, and feedback into an organization improvements log. Steward Paths remains available as its own workflow system.
+
+![Steward chathead](docs/status/audit-artifacts/2026-11-01-steward-v2/chathead-response-desktop.png)
+
+See the [Steward and desktop bridge guide](docs/modules/steward-v2.md) for model setup on the RTX 5060 Ti, memory/compaction behavior, feedback connection, installer build, evidence, and remaining validation limits.
 
 ## V2 product website
 

@@ -1,3 +1,17 @@
+## Steward chathead, local runtime, and improvement feedback - 2026-11-01
+
+Steward now uses the supplied chathead mockup as its sole conversation UI, with streaming responses, reviewed quick actions, real-data insight requests, memory controls, request-scoped thinking, and thumbs feedback. Legacy full-page/Signals entry links open the chathead. Removed unused assistant UI while preserving Steward Paths and shared record/tool capabilities. Paths validation now distinguishes save-ready drafts from publish-ready workflows and shows activation blockers.
+
+Added sixteen model-free playbooks plus identity handling, bounded extractive conversation compaction, deduplicated memory excerpts with provenance, and a shared Steward personality/evidence policy. Discarded client system-role messages, removed raw chat/reasoning debug logging, and enforced event/security snapshot permissions. Qwen3.5 9B was installed locally and tested on the secondary 5060 Ti; managed runtime GPU selection now resolves UUIDs and disables Vulkan escape from CUDA pinning. Thinking-budget exhaustion has one bounded final-answer completion pass without exposing reasoning.
+
+Desktop v2 uses the shared blue/mountain identity, refreshed light styling, durable feedback/error-summary outbox, reasoned thumbs ratings, sync retries, and a central organization-scoped improvements log. Feedback persistence is acknowledged only after a database write; a separate-purpose 30-day desktop capability cannot authenticate as a CRM user. The master log uses the existing audit table; no migration is needed. Live server deployment and a production feedback connection were not performed.
+
+See `docs/modules/steward-v2.md` and `docs/status/audit-artifacts/2026-11-01-steward-v2/` for controls, limitations, screenshots, tests, and installer evidence. Focused unit/API/desktop/browser checks and both TypeScript targets passed; broader production and fresh-machine validation remain separate.
+
+## Floating page-help button removed - 2026-11-01
+
+Removed the bottom-right page-help launcher from the shared application shell and deleted its unused component. The top-bar help entry and dedicated help routes remain available. Verified with focused ESLint and a reference scan.
+
 ## Expanded v2 product website and documentation - 2026-11-01
 
 Expanded the standalone site to four pages: a fuller CRM homepage, staff/developer documentation, hosting guidance, and a nine-screen downloadable gallery. Added donor workflow stories, module summaries, mobile previews, FAQs, fiscal-period explanations, spreadsheet shortcuts, and local setup instructions. Hosting separates static publishing from CRM service deployment, documents explicit environment loading, and limits the example PM2 startup to donor web/API services. No deployment was performed; production instructions were reviewed against repository configuration, not exercised on a fresh host.

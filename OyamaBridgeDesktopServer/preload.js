@@ -2,6 +2,10 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("oyamaBridge", {
+  getImprovements: () => ipcRenderer.invoke("oyama-bridge:improvements-state"),
+  saveImprovement: payload => ipcRenderer.invoke("oyama-bridge:improvements-save", payload),
+  connectImprovements: payload => ipcRenderer.invoke("oyama-bridge:improvements-connect", payload),
+  syncImprovements: () => ipcRenderer.invoke("oyama-bridge:improvements-sync"),
   getConfig: () => ipcRenderer.invoke("oyama-bridge:get-config"),
   setConfig: (payload) => ipcRenderer.invoke("oyama-bridge:set-config", payload),
   getBridgeState: () => ipcRenderer.invoke("oyama-bridge:get-bridge-state"),

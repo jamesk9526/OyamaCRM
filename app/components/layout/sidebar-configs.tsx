@@ -138,14 +138,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           badge: "New" as SidebarItemBadge,
           description: "Research reviewable public-source evidence with provenance and confidence.",
         },
-        {
-          id: "steward-signals",
-          label: "Steward Signals",
-          href: "/steward-signals",
-          icon: DONOR_ICONS.signals,
-          kind: "insight" as const,
-          description: "Review donor signals, opportunities, and engagement insights.",
-        },
+
       ],
     },
     {
@@ -344,7 +337,6 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
       items: [
         ...take(["donor-research", "steward-signals", "meetings", "oyama-email", "oyama-letters", "template-convert", "qr-codes", "steward-paths", "livecom", "volunteers"]),
         { id: "contacts-manager", label: "Audience Lists", href: "/contacts-manager", icon: DONOR_ICONS.contactsManager },
-        { id: "agent-steward", label: "Steward Copilot", href: "/steward-ai-workspace", icon: DONOR_ICONS.agentSteward },
       ],
     },
     {

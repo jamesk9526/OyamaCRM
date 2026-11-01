@@ -1,3 +1,5 @@
+const { createImprovementsStore } = require("./improvements");
+const { BRIDGE_SYSTEM_POLICY, resolveBridgeSupport } = require("./steward-policy");
 // Main process for standalone Oyama Bridge app.
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require("electron");
 const fs = require("node:fs");
@@ -31,6 +33,8 @@ const VRAM_IDLE_TIMEOUT_MS = 12 * 60 * 1000;
 
 const DEFAULT_CONFIG = {
   crmSiteUrl: "",
+  feedbackSiteUrl: "",
+  feedbackToken: "",
   startupLaunchEnabled: false,
   startHidden: false,
   bridgeAutostart: true,
@@ -44,8 +48,8 @@ const DEFAULT_CONFIG = {
   bridgeDomainUrl: "",
   ollamaRuntimeMode: "managed",
   ollamaExecutablePath: "ollama",
-  bridgeModel: "llama3.2:3b",
-  bridgeThinkingModel: "deepseek-r1:8b",
+  bridgeModel: "qwen3.5:9b",
+  bridgeThinkingModel: "qwen3.5:9b",
   bridgeSystemPromptBase: "You are Oyama Bridge Steward assistant. Stay donor/report focused, use grounded facts, and avoid unsupported claims.",
   bridgeInternalChatPrompt: "When possible, summarize bridge runtime state, request health, and operational risks in practical terms.",
   bridgeCudaDevice: "auto",
@@ -64,7 +68,7 @@ const DEFAULT_CONFIG = {
   backgroundBackupIncludeLogs: true,
 };
 
-const APP_DATA_ROOT = path.join(app.getPath("appData"), "OyamaBridgeDesktopServer");
+const APP_DATA_ROOT = process.env.OYAMA_BRIDGE_DATA_DIR ? path.resolve(process.env.OYAMA_BRIDGE_DATA_DIR) : path.join(app.getPath("appData"), "OyamaBridgeDesktopServer");
 const SESSION_DATA_ROOT = path.join(APP_DATA_ROOT, "session-data");
 const DISK_CACHE_ROOT = path.join(SESSION_DATA_ROOT, "Cache");
 
@@ -641,6 +645,7 @@ function toPublicConfig(config) {
   const safe = sanitizeConfig(config);
   return {
     ...safe,
+    feedbackToken: undefined,
     donorReportsOnly: true,
   };
 }
@@ -990,7 +995,17 @@ function buildFallbackTrayImage() {
   return nativeImage.createFromBuffer(pngBuf, { scaleFactor: 1 });
 }
 
+const recentImprovementErrors = new Map();
 function emitBridgeEvent(payload) {
+  if (payload?.type === "error" && payload.entry) {
+    const code = String(payload.entry.code || "RUNTIME_ERROR").replace(/[^A-Z0-9_]/g, "").slice(0, 80);
+    const signature = `${code}:${Number(payload.entry.statusCode) || 0}`;
+    if (Date.now() - (recentImprovementErrors.get(signature) || 0) > 60000) {
+      try { improvements.add({ rating: "error", reason: "runtime_error", note: `Runtime category: ${code}. HTTP status: ${Number(payload.entry.statusCode) || 0}. Review local diagnostics for request details.` }); recentImprovementErrors.set(signature, Date.now()); }
+      catch { console.error("Improvements log write failed. Check storage availability."); }
+    }
+  }
+
   if (payload && payload.type === "request" && payload.entry) {
     try {
       recordUsageEntry(payload.entry);
@@ -1176,6 +1191,9 @@ function createMainWindow(showImmediately = true) {
     },
   });
 
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", event => event.preventDefault());
+  mainWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   mainWindow.loadFile(path.join(__dirname, "index.html"));
 
   if (!showImmediately) {
@@ -1557,6 +1575,8 @@ ipcMain.handle("oyama-bridge:chat", async (_event, payload) => {
   }
 
   const config = readConfig();
+  const supportReply = resolveBridgeSupport(prompt, bridgeManager?.getRuntimeState() || { running: false, requestCount: 0 });
+  if (supportReply) return { ok: true, reply: supportReply, model: "reviewed-playbook", provider: "playbook" };
   if (!bridgeManager) {
     bridgeManager = createBridgeServer(() => readConfig(), { onEvent: emitBridgeEvent });
   }
@@ -1585,6 +1605,7 @@ ipcMain.handle("oyama-bridge:chat", async (_event, payload) => {
   ];
 
   const systemPrompt = [
+    BRIDGE_SYSTEM_POLICY,
     config.bridgeSystemPromptBase,
     config.bridgeInternalChatPrompt,
     "Use live bridge telemetry context below before answering.",
@@ -1798,3 +1819,22 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+
+const improvements = createImprovementsStore(path.join(APP_DATA_ROOT, "improvements"), readConfig);
+function assertFeedbackSender(event) { if (!mainWindow || event.sender.id !== mainWindow.webContents.id) throw new Error("Untrusted feedback sender."); }
+ipcMain.handle("oyama-bridge:improvements-state", event => { assertFeedbackSender(event); return improvements.state(); });
+ipcMain.handle("oyama-bridge:improvements-save", (event, payload) => { assertFeedbackSender(event); try { const entry = improvements.add(payload); if (readConfig().feedbackToken) void improvements.sync().catch(() => {}); return { ok: true, entry, state: improvements.state() }; } catch (error) { return { ok: false, message: error.message }; } });
+ipcMain.handle("oyama-bridge:improvements-connect", (event, payload) => { assertFeedbackSender(event); try {
+ const url = new URL(String(payload?.siteUrl || ""));
+ if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) throw new Error("Use an HTTPS CRM URL.");
+ const token = String(payload?.token || "").trim(); if (!token || token.length > 4000) throw new Error("Paste a feedback connection token.");
+ writeConfig({ ...readConfig(), feedbackSiteUrl: url.origin, feedbackToken: token }); return { ok: true };
+ } catch (error) { return { ok: false, message: error.message }; }
+});
+ipcMain.handle("oyama-bridge:improvements-sync", async event => { assertFeedbackSender(event); try { return { ok: true, state: await improvements.sync() }; } catch (error) { return { ok: false, message: error.message, state: improvements.state() }; } });
+
+const improvementsRetryTimer = setInterval(() => {
+ try { if (readConfig().feedbackToken && improvements.state().pending > 0) void improvements.sync().catch(() => {}); } catch { /* State panel reports storage errors. */ }
+}, 60000);
+improvementsRetryTimer.unref();
+app.on("before-quit", () => clearInterval(improvementsRetryTimer));

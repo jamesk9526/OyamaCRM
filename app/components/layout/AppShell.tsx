@@ -7,7 +7,6 @@ import { usePathname, useRouter } from "next/navigation";
 import WorkspaceStatusControl from "./WorkspaceStatusControl";
 import TopBar from "./TopBar";
 import DonorMegaMenu from "./DonorMegaMenu";
-import CrmContextualHelp from "@/app/components/help/CrmContextualHelp";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import ErrorBoundary from "@/app/components/ErrorBoundary";
@@ -396,7 +395,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <WorkspaceStatusControl />
-      <CrmContextualHelp pathname={pathname} />
     </div>
   );
 }

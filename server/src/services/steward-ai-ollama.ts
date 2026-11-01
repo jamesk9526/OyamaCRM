@@ -143,11 +143,11 @@ interface OllamaChatStreamResponse {
 const DEFAULT_CONFIG: StewardAiConfig = {
   mode: "local",
   endpointUrl: "http://127.0.0.1:11434",
-  model: "llama3.2:3b",
-  thinkingModel: "deepseek-r1:8b",
-  reasoningMode: "thinking",
-  agenticMultiStage: true,
-  chatHeadEnabled: true,
+  model: "qwen3.5:9b",
+  thinkingModel: "qwen3.5:9b",
+  reasoningMode: "standard",
+  agenticMultiStage: false,
+  chatHeadEnabled: false,
   temperature: 0.3,
   maxTokens: 600,
   timeoutMs: 120000,
@@ -456,17 +456,24 @@ export async function runStewardAiChat(
     method: "POST",
     body: JSON.stringify({
       model: selectedModel,
+        ...(selectedModel.startsWith("qwen3.") ? { think: config.reasoningMode === "thinking" } : {}),
       stream: false,
       messages: mergedMessages,
       options: {
         temperature: selectedTemperature,
         num_predict: selectedMaxTokens,
+          ...(selectedModel.startsWith("qwen3.") ? { num_ctx: 16384 } : {}),
       },
     }),
   });
 
   const content = extractAssistantContent(data);
   if (!content) {
+    if (config.reasoningMode === "thinking" && selectedModel.startsWith("qwen3.")) {
+      // A reasoning budget can end before final content. Complete once from the
+      // original evidence with thinking disabled; private reasoning stays private.
+      return runStewardAiChat({ ...effectiveConfig, reasoningMode: "standard" }, messages, { ...options, maxTokens: 600 });
+    }
     throw new Error("Ollama returned an empty assistant response.");
   }
 
@@ -500,11 +507,13 @@ export async function runStewardAiChatStream(
       signal: controller.signal,
       body: JSON.stringify({
         model: selectedModel,
+        ...(selectedModel.startsWith("qwen3.") ? { think: config.reasoningMode === "thinking" } : {}),
         stream: true,
         messages: mergedMessages,
         options: {
           temperature: selectedTemperature,
           num_predict: selectedMaxTokens,
+          ...(selectedModel.startsWith("qwen3.") ? { num_ctx: 16384 } : {}),
         },
       }),
     });
@@ -638,6 +647,11 @@ export async function runStewardAiChatStream(
     }
 
     if (!fullText.trim()) {
+      if (config.reasoningMode === "thinking" && selectedModel.startsWith("qwen3.")) {
+        const final = await runStewardAiChat({ ...config, reasoningMode: "standard" }, messages, { model: selectedModel, maxTokens: 600 });
+        options.onDelta?.(final.content);
+        return final;
+      }
       throw new Error("Ollama returned an empty assistant response.");
     }
 
