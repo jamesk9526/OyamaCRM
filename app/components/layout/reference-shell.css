@@ -105,11 +105,11 @@
 }
 .oyama-reference-header-control:hover { background: #e8f4f3 !important; color: #007f80 !important; }
 .oyama-reference-quick-add {
-  background: var(--oyama-teal, #007f80) !important;
-  border-color: var(--oyama-teal, #007f80) !important;
+  background: var(--crm-accent, #2563eb) !important;
+  border-color: var(--crm-accent, #2563eb) !important;
   border-radius: 6px;
 }
-.oyama-reference-quick-add:hover { background: #006869 !important; }
+.oyama-reference-quick-add:hover { filter: brightness(.94); }
 .oyama-reference-workspace-switcher {
   background: #fff !important;
   border-color: #e0e6ec !important;
@@ -160,8 +160,7 @@
 
 /* Donor v2 command chrome: clean top bar and quiet working controls. */
 .oyama-reference-topbar[data-donor-topbar="true"] { box-shadow: 0 2px 14px #10283f10 !important; border-bottom: 1px solid #dce5eb; }
-.oyama-reference-topbar[data-donor-topbar="true"] .oyama-reference-topbar-brand a,
-.oyama-reference-topbar[data-donor-topbar="true"] .oyama-reference-topbar-brand a > span { color:white; }
+
 .donor-tool-search { padding:12px; border:1px solid #ffffff24; border-radius:8px; background:#ffffff08; color:#c2d9e5; }
 .donor-tool-search input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:white; font-size:13px; min-height:28px; }
 .donor-tool-search input::placeholder { color:#b5cad7; }
@@ -171,3 +170,68 @@
 @media (prefers-reduced-motion:no-preference) {
  .oyama-reference-nav-item { transition:background-color 160ms ease,border-color 160ms ease; }
 }
+
+/* Donor header: workspace identity, dedicated search, then account/actions. */
+.oyama-reference-topbar[data-donor-topbar="true"] {
+  --topbar-ink: #183b60;
+  --topbar-muted: #526b85;
+  --topbar-line: #dce7f1;
+  --topbar-hover: #eaf3ff;
+  color: var(--topbar-ink);
+}
+[data-donor-topbar="true"] .oyama-reference-desktop-toolbar > div { max-width: none; }
+[data-donor-topbar="true"] .oyama-reference-desktop-toolbar > div > div { gap: 12px; }
+[data-donor-topbar="true"] .oyama-reference-search-tools {
+  height: 36px;
+  max-width: 560px;
+  margin-inline: auto;
+  background: #f1f6fc !important;
+  border-color: var(--topbar-line) !important;
+}
+[data-donor-topbar="true"] .oyama-reference-search-tools:focus-within { outline: 2px solid #93c5fd; outline-offset: 1px; }
+[data-donor-topbar="true"] .oyama-reference-header-control {
+  color: var(--topbar-muted) !important;
+  border-color: transparent;
+  border-radius: 8px;
+}
+[data-donor-topbar="true"] .oyama-reference-header-control:hover {
+  background: var(--topbar-hover) !important;
+  color: #1d4ed8 !important;
+}
+[data-donor-topbar="true"] :is(button, a):focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+[data-donor-topbar="true"] .oyama-reference-workspace-switcher { border-color: transparent !important; padding-inline: 4px; }
+[data-donor-topbar="true"] .oyama-reference-workspace-switcher > span:not([aria-hidden="true"]) { background: #eaf3ff !important; color: #2563eb !important; }
+[data-donor-topbar="true"] .oyama-reference-workspace-switcher p:first-child { display: none; }
+[data-donor-topbar="true"] .oyama-reference-mobile-brand > a > span { color: var(--topbar-ink); }
+[data-donor-topbar="true"] .oyama-reference-mobile-brand > a > span > span { color: var(--topbar-muted); }
+[data-donor-topbar="true"] .oyama-topbar-actions > .w-px { background: var(--topbar-line); }
+[data-donor-topbar="true"] button[aria-label^="Reporting period:"] { border-radius: 8px; padding-inline: 8px; }
+@media (min-width: 1280px) and (max-width: 1535px) {
+  [data-donor-topbar="true"] .oyama-reference-desktop-toolbar > div > div { gap: 8px; }
+  [data-donor-topbar="true"] button[aria-label^="Reporting period:"] > span { display: none; }
+}
+@media (max-width: 639px) {
+  [data-donor-topbar="true"] .oyama-reference-mobile-toolbar { gap: 4px; }
+  [data-donor-topbar="true"] .oyama-topbar-mobile-actions { gap: 0; }
+  [data-donor-topbar="true"] .oyama-reference-mobile-brand { padding: 0; gap: 0; }
+  [data-donor-topbar="true"] .oyama-reference-mobile-brand > a { padding-inline: 2px; }
+  [data-donor-topbar="true"] .oyama-reference-mobile-brand > a > span > span { display: none; }
+}
+
+@media (min-width: 768px) {
+  .crm-fonts.oyama-reference-shell[data-oyama-sidebar="true"] .oyama-reference-topbar[data-donor-topbar="true"] {
+    left: 204px;
+    width: calc(100% - 204px);
+  }
+}
+.crm-fonts [data-donor-topbar="true"] .oyama-reference-search-tools input {
+  height: 32px;
+  min-height: 0;
+  padding-block: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none;
+}
+[data-donor-topbar="true"] .oyama-reference-workspace-switcher { min-width: 136px; }
+[data-donor-topbar="true"] .oyama-reference-workspace-switcher p:last-child { font-size: 12px; }

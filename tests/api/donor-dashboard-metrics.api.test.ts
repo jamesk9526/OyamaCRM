@@ -109,3 +109,17 @@ describe("new donor cohorts", () => {
     expect(bad.status).toBe(400);
   });
 });
+
+
+describe("July fiscal-year rollover", () => {
+  it.each([
+    ["2026-06-30T23:59:59.999Z", 2026, "2025-07-01T00:00:00.000Z"],
+    ["2026-07-01T00:00:00.000Z", 2027, "2026-07-01T00:00:00.000Z"],
+  ])("scopes summary at %s to FY %s", async (now, year, from) => {
+    vi.setSystemTime(new Date(now));
+    const summary = await request(app).get("/api/reports/summary?dateBasis=fiscal");
+    expect(summary.status).toBe(200);
+    expect(summary.body.period).toMatchObject({basis:"fiscal", year, from, through:now});
+    expect(db.donation.aggregate.mock.calls[0][0].where.date).toEqual({gte:new Date(from),lte:new Date(now)});
+  });
+});

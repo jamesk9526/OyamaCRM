@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import { getFiscalYearForDate, normalizeFiscalYearStart } from "@/app/lib/fiscal-year";
+import { getReportingFiscalYearForDate, normalizeFiscalYearStart } from "@/app/lib/fiscal-year";
 import { formatDashboardCurrency } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 
 interface MonthData {
@@ -29,6 +29,7 @@ interface FiscalSettingsResponse {
 }
 
 interface GivingTrendChartProps {
+  refreshVersion?: number;
   /**
    * When true, grant amounts are stacked onto each bar and counted in the YTD total.
    * This matches the "Include Grants" toggle on the dashboard.
@@ -40,7 +41,7 @@ interface GivingTrendChartProps {
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-export default function GivingTrendChart({ includeGrants = false, dateBasis = "calendar" }: GivingTrendChartProps) {
+export default function GivingTrendChart({ includeGrants = false, dateBasis = "calendar", refreshVersion = 0 }: GivingTrendChartProps) {
   const [currentData, setCurrentData] = useState<MonthData[]>([]);
   const [previousData, setPreviousData] = useState<MonthData[]>([]);
   const [fiscalYearStart, setFiscalYearStart] = useState(1);
@@ -48,8 +49,8 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
   const [error, setError] = useState<string | null>(null);
   const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
 
-  const year = new Date().getFullYear();
-  const currentFiscalYear = getFiscalYearForDate(new Date(), fiscalYearStart);
+  const year = new Date().getUTCFullYear();
+  const currentFiscalYear = getReportingFiscalYearForDate(new Date(), fiscalYearStart);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,10 +60,10 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
     async function loadTrend() {
       try {
         const settings = dateBasis === "fiscal"
-          ? await apiFetch<FiscalSettingsResponse>("/api/settings").catch(() => null)
+          ? await apiFetch<FiscalSettingsResponse>("/api/settings")
           : null;
         const resolvedFiscalYearStart = normalizeFiscalYearStart(settings?.fiscalYearStart);
-        const resolvedFiscalYear = getFiscalYearForDate(new Date(), resolvedFiscalYearStart);
+        const resolvedFiscalYear = getReportingFiscalYearForDate(new Date(), resolvedFiscalYearStart);
         const currentQuery = dateBasis === "fiscal"
           ? `dateBasis=fiscal&year=${resolvedFiscalYear}`
           : `year=${year}`;
@@ -117,7 +118,7 @@ export default function GivingTrendChart({ includeGrants = false, dateBasis = "c
     return () => {
       cancelled = true;
     };
-  }, [dateBasis, year]);
+  }, [dateBasis, year, refreshVersion]);
 
   /** Point total = donations + grants (when includeGrants is on). */
   const monthTotal = useCallback((d: MonthData) => d.amount + (includeGrants ? d.grantAmount : 0), [includeGrants]);

@@ -86,3 +86,8 @@ export function buildStewardshipSuggestions(
 
   return suggestions;
 }
+
+/** Unknown/zero goals stay unset; never infer a fundraising target from receipts. */
+export function resolveDashboardRevenueGoal(mode: "AUTO" | "MANUAL", manualGoal: number, campaignGoal: number): number {
+  return Math.max(0, toDashboardNumber(mode === "MANUAL" ? manualGoal : campaignGoal));
+}

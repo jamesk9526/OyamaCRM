@@ -1,3 +1,5 @@
+import { unavailableWidgetSource } from "@/app/features/donor-dashboard/widget-availability";
+import { WIDGET_META } from "./dashboardPageConfig";
 /**
  * DashboardWidgetRenderer maps widget IDs to concrete widget content.
  * Keeping the large switch here keeps route composition files small and readable.
@@ -48,6 +50,8 @@ export interface DashboardWidgetRendererData {
   retention: RetentionData | null;
   loading: boolean;
   revenueGoal: number;
+  refreshVersion: number;
+  onRetry: () => void | Promise<void>;
 }
 
 interface DashboardWidgetRendererProps {
@@ -68,6 +72,16 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
     layoutClassName: frame.layoutClassName,
     ...(frame.dragProps ?? {}),
   };
+
+  const unavailable = unavailableWidgetSource(id, Boolean(data.summary), Boolean(data.retention));
+  if (!data.loading && unavailable) {
+    return <DashboardWidget id={id} title={WIDGET_META.find(widget => widget.id === id)?.label ?? "Dashboard insight"} {...editProps}>
+      <div role="status" className="py-6 text-sm text-slate-600">
+        <p>{unavailable} could not be loaded. This insight is unavailable.</p>
+        <button type="button" onClick={() => void data.onRetry()} className="donor-button mt-3">Retry insight</button>
+      </div>
+    </DashboardWidget>;
+  }
 
   switch (id) {
     case "at-a-glance":
@@ -136,37 +150,37 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
     case "monthly-donors":
       return (
         <DashboardWidget key={id} id={id} title="This Month's Giving" subtitle="Running total · click to see donors" {...editProps}>
-          <MonthlyDonationsWidget />
+          <MonthlyDonationsWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "designation-mix":
       return (
         <DashboardWidget key={id} id={id} title="Giving by Fund" subtitle={data.reportingYearMode === "fiscal" ? "Current fiscal-year designation mix" : "Current-year designation mix"} {...editProps}>
-          <DesignationMixWidget dateBasis={data.reportingYearMode} />
+          <DesignationMixWidget refreshVersion={data.refreshVersion} dateBasis={data.reportingYearMode} />
         </DashboardWidget>
       );
     case "campaign-scorecard":
       return (
         <DashboardWidget key={id} id={id} title="Campaign Scorecard" subtitle="Top active campaigns by funds raised" {...editProps}>
-          <CampaignScorecardWidget />
+          <CampaignScorecardWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "recurring-giving-health":
       return (
         <DashboardWidget key={id} id={id} title="Recurring Giving Health" subtitle="Live payment-plan performance" {...editProps}>
-          <RecurringGivingHealthWidget />
+          <RecurringGivingHealthWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "giving-trend":
       return (
         <DashboardWidget key={id} id={id} title="Giving Trend" subtitle={data.reportingYearMode === "fiscal" ? "Fiscal year monthly totals" : `${new Date().getFullYear()} monthly totals`} className="min-h-[250px]" {...editProps}>
-          <GivingTrendChart includeGrants={data.includeGrants} dateBasis={data.reportingYearMode} />
+          <GivingTrendChart refreshVersion={data.refreshVersion} includeGrants={data.includeGrants} dateBasis={data.reportingYearMode} />
         </DashboardWidget>
       );
     case "recent-donations":
       return (
         <DashboardWidget key={id} id={id} title="Recent Donations" subtitle="Last 8 gifts" {...editProps}>
-          <RecentDonationsWidget />
+          <RecentDonationsWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "revenue":
@@ -222,7 +236,7 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
         <DashboardWidget key={id} id={id} title="Fundraising Forecast" subtitle="Projected year-end pace" {...editProps}>
           <FundraisingForecastWidget
             ytdAmount={data.summary?.ytdAmount ?? 0}
-            monthAmount={data.summary?.monthAmount ?? 0}
+            period={data.summary?.period}
             revenueGoal={data.revenueGoal}
             loading={data.loading}
           />
@@ -284,19 +298,19 @@ export default function DashboardWidgetRenderer({ id, frame, data }: DashboardWi
     case "top-donors":
       return (
         <DashboardWidget key={id} id={id} title="Top Donors" subtitle="By lifetime giving" {...editProps}>
-          <TopDonorsWidget />
+          <TopDonorsWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "tasks":
       return (
         <DashboardWidget key={id} id={id} title="Tasks" subtitle="Open & upcoming" {...editProps}>
-          <TasksWidget />
+          <TasksWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "meetings":
       return (
         <DashboardWidget key={id} id={id} title="Upcoming Meetings" subtitle="Scheduled donor meetings" {...editProps}>
-          <MeetingsWidget />
+          <MeetingsWidget refreshVersion={data.refreshVersion} />
         </DashboardWidget>
       );
     case "weekly-stats":

@@ -75,7 +75,7 @@ export default function RevenueProgress({
         ) : (
           <div className="relative group">
             <div className="rounded-full transition-transform hover:scale-[1.02]">
-              <CircularProgress percentage={percentage} />
+              {goal > 0 ? <CircularProgress percentage={percentage} /> : <p className="py-6 text-sm text-slate-500">No revenue goal configured</p>}
             </div>
             <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="bg-slate-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap shadow">
@@ -103,7 +103,7 @@ export default function RevenueProgress({
             </>
           )}
           <p className="text-sm text-slate-500 mt-1">
-            {rawPercentage}% of {formatDashboardCurrency(goal)} goal
+            {goal > 0 ? `${rawPercentage}% of ${formatDashboardCurrency(goal)} goal` : "Set a campaign goal or customize a manual target."}
           </p>
           {overGoalAmount > 0 && (
             <p className="text-[11px] text-green-700 font-semibold mt-1">

@@ -6,7 +6,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 
 type Campaign = { id: string; name: string; goal: number | null; totalRaised: number };
 
-export default function CampaignScorecardWidget() {
+export default function CampaignScorecardWidget({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -15,7 +15,7 @@ export default function CampaignScorecardWidget() {
       .then((data) => { if (!cancelled) setCampaigns(Array.isArray(data) ? data.sort((a, b) => b.totalRaised - a.totalRaised).slice(0, 3) : []); })
       .catch(() => { if (!cancelled) { setError(true); setCampaigns([]); } });
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshVersion]);
   if (!campaigns) return <div className="h-32 animate-pulse rounded-lg bg-gray-50" />;
   if (error || campaigns.length === 0) return <p className="flex h-32 items-center justify-center text-sm text-gray-400">{error ? "Campaign data could not be loaded." : "No active campaigns yet."}</p>;
   return <div className="space-y-3">

@@ -1,0 +1,15 @@
+{
+  "errors": [],
+  "checks": [
+    "five responsive widths",
+    "metric cards do not overflow",
+    "task filter survives refresh",
+    "partial core failures isolated",
+    "failed summary clears stale totals",
+    "meeting failure retry",
+    "recovery",
+    "relationship focus",
+    "detailed insights",
+    "failed reporting period switch clears previous totals"
+  ]
+}

@@ -24,7 +24,8 @@ interface TaskItem {
   constituent: { firstName: string; lastName: string } | null;
 }
 
-export default function TasksWidget() {
+export default function TasksWidget({ refreshVersion = 0, embedded = false }: { refreshVersion?: number; embedded?: boolean }) {
+  const request = useRef(0);
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const completing = useRef(new Set<string>());
@@ -36,11 +37,13 @@ export default function TasksWidget() {
 
   /** Fetch tasks from the API */
   const load = useCallback(async () => {
+    const id = ++request.current;
     setLoading(true);
     setError(null);
     try {
       const scope = filter === "my" ? "personal" : "all";
       const data = await apiFetch<{ items?: TaskItem[] } | TaskItem[]>(`/api/tasks?status=PENDING&limit=20&scope=${scope}`);
+      if (id !== request.current) return;
       // Tasks API returns { items: [...], total }
       const nextTasks = Array.isArray(data) ? data : ((data as { items?: TaskItem[] }).items ?? []);
       // Defensive local guard so MY view remains truthful even if backend ignores scope.
@@ -50,14 +53,17 @@ export default function TasksWidget() {
         setTasks(nextTasks);
       }
     } catch (requestError) {
+      if (id !== request.current) return;
       setTasks([]);
       setError(requestError instanceof Error ? requestError.message : "Failed to load tasks.");
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }, [filter, userId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { request.current += 1; }; }, [load, refreshVersion]);
+  const latestLoad = useRef(load);
+  useEffect(() => { latestLoad.current = load; }, [load]);
 
   /** Mark a task as complete and refresh */
   async function complete(id: string) {
@@ -68,7 +74,7 @@ export default function TasksWidget() {
         method: "PATCH",
         body: JSON.stringify({ status: "COMPLETED" }),
       });
-      await load();
+      await latestLoad.current();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to complete task.");
     } finally { completing.current.delete(id); setPending([...completing.current]); }
@@ -83,9 +89,9 @@ export default function TasksWidget() {
   const dueLater = tasks.filter((t) => t.dueDate && new Date(t.dueDate) > tomorrow);
 
   return (
-    <Card className="h-full flex flex-col" padding="small">
+    <Card className={`h-full flex flex-col ${embedded ? "dashboard-embedded-task" : ""}`} padding="small">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+        <h3 className={`${embedded ? "sr-only" : ""} font-semibold text-gray-900 flex items-center gap-2`}>
           Tasks
           {!loading && tasks.length > 0 && (
             <span className="bg-green-100 text-green-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
@@ -95,6 +101,8 @@ export default function TasksWidget() {
         </h3>
         <button
           onClick={load}
+          disabled={loading}
+          aria-label="Refresh tasks"
           className="text-xs text-slate-600 hover:text-gray-600 transition-colors"
           title="Refresh"
         >
@@ -108,9 +116,10 @@ export default function TasksWidget() {
           <button
             key={f}
             onClick={() => setFilter(f)}
+            aria-pressed={filter === f}
             className={`pb-1.5 px-3 text-xs font-medium border-b-2 transition-colors ${
               filter === f
-                ? "border-green-600 text-green-600"
+                ? "border-blue-600 text-blue-700"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >

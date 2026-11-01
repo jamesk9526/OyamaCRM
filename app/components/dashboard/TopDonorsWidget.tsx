@@ -45,7 +45,7 @@ function statusLabel(status: string): string {
   return status.replace("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function TopDonorsWidget() {
+export default function TopDonorsWidget({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const [donors, setDonors] = useState<TopDonor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function TopDonorsWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshVersion]);
 
   if (loading) {
     return (

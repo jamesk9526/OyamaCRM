@@ -6,7 +6,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 
 type RecurringHealth = { activeRecurringDonors: number; recurringRevenueLast30Days: number; upcomingCount: number; missedCount: number };
 
-export default function RecurringGivingHealthWidget() {
+export default function RecurringGivingHealthWidget({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const [health, setHealth] = useState<RecurringHealth | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -17,7 +17,7 @@ export default function RecurringGivingHealthWidget() {
     }).then((data) => { if (!cancelled) setHealth(data.result); })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshVersion]);
   if (!health && !error) return <div className="h-32 animate-pulse rounded-lg bg-gray-50" />;
   if (!health) return <p className="flex h-32 items-center justify-center text-sm text-gray-400">Recurring-giving health could not be loaded.</p>;
   return <div className="space-y-3">

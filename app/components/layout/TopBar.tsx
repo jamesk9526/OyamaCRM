@@ -1,9 +1,13 @@
 // TopBar: full-width global navigation header with logo, module switcher, search, and user controls.
 "use client";
 
+import ModuleSwitcher from "./topbar/ModuleSwitcher";
+import UserMenu from "./topbar/UserMenu";
+import GlobalSearch from "./topbar/GlobalSearch";
+import DonorQuickAddButton from "./topbar/DonorQuickAddButton";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import AppLauncherIcon from "@/app/components/layout/AppLauncherIcon";
@@ -24,10 +28,10 @@ import {
   getDonorAccentTheme,
   type WorkspaceSettings,
 } from "@/app/lib/workspace-settings";
-import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
+import { resolveTopBarModuleKey } from "@/app/lib/navigation-boundaries";
 import {
   getFiscalYearEndMonth,
-  getFiscalYearForDate,
+  getReportingFiscalYearForDate,
   getStoredReportingYearMode,
   setStoredReportingYearMode,
   type ReportingYearMode,
@@ -39,26 +43,10 @@ import {
   type TopBarPanelSetters,
 } from "@/app/components/layout/topbar/panel-callbacks";
 import {
-  resolveModuleSwitcherTone,
   resolveTopBarHomeHref,
   resolveTopBarModuleAccentClass,
   resolveTopBarModuleChromePalette,
 } from "@/app/components/layout/topbar/theme-tokens";
-
-interface SearchResult {
-  id: string;
-  type: "tool" | "constituent" | "donation" | "campaign" | "client" | "case" | "event" | "guest" | "site" | "page";
-  label: string;
-  sublabel?: string;
-  href: string;
-  group: "tools" | "records";
-}
-
-interface SearchResponse {
-  module: "donor" | "events" | "watchdog" | "webmaster" | "oshareview";
-  query: string;
-  results: SearchResult[];
-}
 
 interface FiscalSettings {
   fiscalYearStart: number;
@@ -131,682 +119,6 @@ function AiOrbIcon({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
-/** Workspace switcher icon set using inline SVG (no custom image assets). */
-function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey: TopBarModuleKey; className?: string }) {
-  if (moduleKey === "letters") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h10l4 4v14H6V3z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 11h6M9 15h6M16 3v5h4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "events") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4.5" y="5.5" width="15" height="14" rx="2" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 3.5v4M16 3.5v4M4.5 10.5h15" />
-      </svg>
-    );
-  }
-  if (moduleKey === "watchdog") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.5l7 2.8v5.6c0 4.2-3 7.7-7 8.8-4-1.1-7-4.6-7-8.8V6.3L12 3.5z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 12.5l1.7 1.7 3.3-3.4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "webmaster") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5h17M8.5 4.5v4" />
-      </svg>
-    );
-  }
-  if (moduleKey === "oshareview") {
-    return (
-      <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 18.5h14" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15.5v-4M12 15.5V8M16.5 15.5v-6" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l2.2 4.5 4.9.7-3.5 3.4.8 4.9L12 15.9 7.6 18l.8-4.9-3.5-3.4 4.9-.7L12 4.5z" />
-    </svg>
-  );
-}
-
-/** Quick Add dropdown for Donor CRM mode — links to the most common creation flows. */
-function DonorQuickAddButton() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  const items = [
-    { label: "New Gift", href: "/donations/new", icon: "M12 2v20m7-15H9a3 3 0 100 6h6a3 3 0 110 6H5" },
-    { label: "New Constituent", href: "/constituents/new", icon: "M12 4a4 4 0 100 8 4 4 0 000-8zM6 20v-1a6 6 0 0112 0v1" },
-    { label: "New Campaign", href: "/campaigns", icon: "M12 3l2.8 5.7L21 9.6l-4.5 4.4 1 6.2L12 17l-5.5 3.2 1-6.2L3 9.6l6.2-.9L12 3z" },
-    { label: "New Task", href: "/tasks", icon: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" },
-  ];
-
-  return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Quick Add"
-        className="oyama-reference-quick-add inline-flex h-8 items-center gap-1.5 rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-2.5 text-[13px] font-semibold text-white transition-colors hover:border-[#115ea3] hover:bg-[#115ea3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60cdff]"
-      >
-        <svg className="h-4 w-4 shrink-0 text-white/95" fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-        </svg>
-        <span>Quick Add</span>
-        <svg className={`h-3.5 w-3.5 shrink-0 text-white/85 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div role="menu" className="absolute left-0 top-full z-50 mt-1.5 w-48 rounded-[2px] border border-[#d1d1d1] bg-white py-1 shadow-none">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 transition-colors hover:bg-[#eff6fc] hover:text-[#0f548c]"
-            >
-              <svg className="h-4 w-4 shrink-0 text-[#0f6cbd]" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-              </svg>
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GlobalSearch({
-  moduleKey,
-  pathname,
-  autoFocus = false,
-  onNavigate,
-  wide = false,
-  darkChrome = false,
-}: {
-  moduleKey: TopBarModuleKey;
-  pathname: string;
-  autoFocus?: boolean;
-  onNavigate?: () => void;
-  wide?: boolean;
-  darkChrome?: boolean;
-}) {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState(0);
-  const [recentQueries, setRecentQueries] = useState<string[]>([]);
-  const [resultGroupFilter, setResultGroupFilter] = useState<"all" | "tools" | "records">("all");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const searchCacheRef = useRef<Map<string, SearchResult[]>>(new Map());
-  const lastRequestIdRef = useRef(0);
-
-  const storageKey = `oyama:topbar-search:recent:${moduleKey}`;
-
-  const quickActions: SearchResult[] = useMemo(() => moduleKey === "events"
-      ? [
-        { id: "quick-events-workspace", type: "tool", label: "Open Events", sublabel: "Find, create, or open an event", href: "/events", group: "tools" },
-        { id: "quick-events-registry", type: "tool", label: "New Event", sublabel: "Create a standard event or trivia night", href: "/events", group: "tools" },
-        { id: "quick-events-checkin", type: "tool", label: "Open Event Check-In", sublabel: "Use All Events to select event first", href: "/events/events", group: "tools" },
-        { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=events&scopePath=${encodeURIComponent(pathname || "/events")}`, group: "tools" },
-      ]
-      : moduleKey === "watchdog"
-        ? [
-          { id: "quick-watchdog-home", type: "tool", label: "Open Watchdog Home", sublabel: "Security workspace", href: "/watchdog", group: "tools" },
-          { id: "quick-watchdog-support", type: "tool", label: "Open Support Tickets", sublabel: "Review organization support requests", href: "/watchdog/support-tickets", group: "tools" },
-          { id: "quick-watchdog-alerts", type: "tool", label: "Open Alerts", sublabel: "Threat and anomaly activity", href: "/watchdog/alerts", group: "tools" },
-          { id: "quick-watchdog-audit", type: "tool", label: "Open Audit Logs", sublabel: "Security event trail", href: "/watchdog/audit", group: "tools" },
-          { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=global&scopePath=${encodeURIComponent(pathname || "/watchdog")}`, group: "tools" },
-        ]
-        : moduleKey === "webmaster"
-          ? [
-            { id: "quick-webmaster-home", type: "tool", label: "Open Webmaster Home", sublabel: "Website operations", href: "/webmaster", group: "tools" },
-            { id: "quick-webmaster-sites", type: "tool", label: "Open Sites", sublabel: "Manage web properties", href: "/webmaster/sites", group: "tools" },
-            { id: "quick-webmaster-pages", type: "tool", label: "Open Pages", sublabel: "Content and structure", href: "/webmaster/pages", group: "tools" },
-            { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=global&scopePath=${encodeURIComponent(pathname || "/webmaster")}`, group: "tools" },
-          ]
-          : moduleKey === "oshareview"
-            ? [
-              { id: "quick-donor-reports", type: "tool", label: "Open donor reports", sublabel: "Month-to-date giving workbook", href: "/reports", group: "tools" },
-              { id: "quick-donor-designations", type: "tool", label: "Donors by designation", sublabel: "Month-to-date donor giving", href: "/reports?sheet=designation", group: "tools" },
-              { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=donor&scopePath=${encodeURIComponent(pathname || "/reports")}`, group: "tools" },
-            ]
-            : [
-              { id: "quick-donor-home", type: "tool", label: "Open Donor Dashboard", sublabel: "Fundraising home", href: "/", group: "tools" },
-              { id: "quick-donor-constituents", type: "tool", label: "Open Constituents", sublabel: "Profiles and stewardship", href: "/constituents", group: "tools" },
-              { id: "quick-donor-donations", type: "tool", label: "Open Donations", sublabel: "Gift records", href: "/donations", group: "tools" },
-              { id: "quick-donor-campaigns", type: "tool", label: "Open Campaigns", sublabel: "Fundraising initiatives", href: "/campaigns", group: "tools" },
-              { id: "quick-help", type: "tool", label: "Open Help Center", sublabel: "Guides and walkthroughs", href: `/help?scope=donor&scopePath=${encodeURIComponent(pathname || "/")}`, group: "tools" },
-            ], [moduleKey, pathname]);
-
-  const resultLimit = wide ? 24 : 12;
-  const filteredResults = useMemo(() => (resultGroupFilter === "all"
-    ? results
-    : results.filter((result) => result.group === resultGroupFilter)
-  ).slice(0, resultLimit), [resultGroupFilter, resultLimit, results]);
-
-  const quickActionMatches = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return quickActions.slice(0, 5);
-    return quickActions
-      .filter((action) =>
-        action.label.toLowerCase().includes(normalized)
-        || (action.sublabel ?? "").toLowerCase().includes(normalized)
-      )
-      .slice(0, 4);
-  }, [query, quickActions]);
-
-  const combinedNavigableResults = useMemo(() => query.trim()
-    ? [...filteredResults, ...quickActionMatches.filter((action) => !filteredResults.some((result) => result.href === action.href))]
-    : quickActions.slice(0, 5), [filteredResults, query, quickActionMatches, quickActions]);
-
-  function storeRecentQuery(value: string) {
-    const normalized = value.trim();
-    if (!normalized) return;
-    const next = [normalized, ...recentQueries.filter((entry) => entry.toLowerCase() !== normalized.toLowerCase())].slice(0, 6);
-    setRecentQueries(next);
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(next));
-    } catch {
-      // localStorage may be unavailable in constrained browser contexts.
-    }
-  }
-
-  function openHelpSearch() {
-    const normalized = query.trim();
-    if (!normalized) return;
-    storeRecentQuery(normalized);
-    const params = new URLSearchParams();
-    params.set("scope", mapModuleKeyToHelpScope(moduleKey));
-    params.set("scopePath", pathname || "/");
-    params.set("q", normalized);
-    setOpen(false);
-    setQuery("");
-    onNavigate?.();
-    router.push(`/help?${params.toString()}`);
-  }
-
-  // ⌘K / Ctrl+K focus shortcut
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-      if (e.key === "Escape") {
-        setOpen(false);
-        setQuery("");
-        inputRef.current?.blur();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  useEffect(() => {
-    if (!autoFocus) return;
-    const timeout = window.setTimeout(() => {
-      inputRef.current?.focus();
-      setOpen(true);
-    }, 50);
-    return () => window.clearTimeout(timeout);
-  }, [autoFocus]);
-
-  useEffect(() => {
-    function focusSearch() {
-      if (!inputRef.current?.getClientRects().length) return;
-      inputRef.current?.focus();
-      setOpen(true);
-    }
-
-    window.addEventListener("crm:focus-topbar-search", focusSearch);
-    return () => window.removeEventListener("crm:focus-topbar-search", focusSearch);
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (!raw) {
-        setRecentQueries([]);
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        setRecentQueries([]);
-        return;
-      }
-      setRecentQueries(parsed.filter((entry): entry is string => typeof entry === "string").slice(0, 6));
-    } catch {
-      setRecentQueries([]);
-    }
-  }, [storageKey]);
-
-  const search = useCallback(async (q: string) => {
-    const normalized = q.trim();
-    if (!normalized) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
-
-    const cached = searchCacheRef.current.get(normalized.toLowerCase());
-    if (cached) {
-      setResults(cached);
-      setOpen(true);
-      setSelected(0);
-      return;
-    }
-
-    const requestId = ++lastRequestIdRef.current;
-    setLoading(true);
-    try {
-      const searchModule = moduleKey === "oshareview" || moduleKey === "letters" ? "donor" : moduleKey;
-      const params = new URLSearchParams({
-        module: searchModule,
-        q: normalized,
-        limit: "12",
-      });
-      const data = await apiFetch<SearchResponse>(`/api/search?${params.toString()}`);
-
-      // Ignore stale responses when users type quickly and previous requests finish late.
-      if (requestId !== lastRequestIdRef.current) return;
-
-      const normalizedQuery = normalized.toLowerCase();
-      const rankedResults = [...data.results].sort((left, right) => {
-        const leftLabel = left.label.toLowerCase();
-        const rightLabel = right.label.toLowerCase();
-        const leftSub = (left.sublabel ?? "").toLowerCase();
-        const rightSub = (right.sublabel ?? "").toLowerCase();
-
-        const leftScore = (leftLabel.startsWith(normalizedQuery) ? 12 : leftLabel.includes(normalizedQuery) ? 8 : 0)
-          + (leftSub.includes(normalizedQuery) ? 3 : 0)
-          + (left.group === "tools" ? 1 : 0);
-        const rightScore = (rightLabel.startsWith(normalizedQuery) ? 12 : rightLabel.includes(normalizedQuery) ? 8 : 0)
-          + (rightSub.includes(normalizedQuery) ? 3 : 0)
-          + (right.group === "tools" ? 1 : 0);
-
-        if (rightScore !== leftScore) return rightScore - leftScore;
-        return left.label.localeCompare(right.label);
-      });
-
-      setResults(rankedResults);
-      setOpen(true);
-      setSelected(0);
-
-      searchCacheRef.current.set(normalized.toLowerCase(), rankedResults);
-      if (searchCacheRef.current.size > 25) {
-        const oldest = searchCacheRef.current.keys().next().value;
-        if (oldest) searchCacheRef.current.delete(oldest);
-      }
-    } catch {
-      if (requestId !== lastRequestIdRef.current) return;
-      setResults([]);
-      setOpen(true);
-    } finally {
-      if (requestId === lastRequestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [moduleKey]);
-
-  useEffect(() => {
-    const t = setTimeout(() => search(query), 180);
-    return () => clearTimeout(t);
-  }, [query, search]);
-
-  useEffect(() => {
-    setSelected(0);
-  }, [query, resultGroupFilter]);
-
-  useEffect(() => {
-    if (selected <= combinedNavigableResults.length - 1) return;
-    setSelected(Math.max(combinedNavigableResults.length - 1, 0));
-  }, [combinedNavigableResults, selected]);
-
-  function navigate(href: string, recentValue?: string) {
-    if (recentValue?.trim()) {
-      storeRecentQuery(recentValue);
-    }
-    setOpen(false);
-    setQuery("");
-    onNavigate?.();
-    router.push(href);
-  }
-
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Tab" && open && combinedNavigableResults[selected]) {
-      e.preventDefault();
-      setQuery(combinedNavigableResults[selected].label);
-      return;
-    }
-    if (!open) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelected((s) => Math.min(s + 1, Math.max(combinedNavigableResults.length - 1, 0)));
-    }
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelected((s) => Math.max(s - 1, 0));
-    }
-    if (e.key === "Enter") {
-      if (e.shiftKey) {
-        e.preventDefault();
-        openHelpSearch();
-        return;
-      }
-      const active = combinedNavigableResults[selected];
-      if (active) {
-        e.preventDefault();
-        navigate(active.href, query.trim() || active.label);
-      } else if (query.trim()) {
-        e.preventDefault();
-        openHelpSearch();
-      }
-    }
-  }
-
-  function renderHighlightedText(value: string) {
-    const normalized = query.trim();
-    if (!normalized) return value;
-    const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(`(${escaped})`, "ig");
-    const parts = value.split(pattern);
-    return (
-      <>
-        {parts.map((part, index) => (
-          part.toLowerCase() === normalized.toLowerCase()
-            ? <mark key={`${part}-${index}`} className="bg-yellow-100 text-gray-900 px-0.5 rounded">{part}</mark>
-            : <span key={`${part}-${index}`}>{part}</span>
-        ))}
-      </>
-    );
-  }
-
-  const typeLabel: Record<string, string> = {
-    tool: "Tool",
-    constituent: "Constituent",
-    campaign: "Campaign",
-    donation: "Donation",
-    client: "Client",
-    case: "Case",
-    event: "Event",
-    guest: "Guest",
-    site: "Site",
-    page: "Page",
-  };
-
-  function TypeIcon({ type }: { type: string }) {
-    if (type === "tool") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4L15 12l-3-3 2.7-2.7z" />
-        </svg>
-      );
-    }
-    if (type === "event") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="4" y="5" width="16" height="15" rx="2" />
-          <path strokeLinecap="round" d="M8 3v4M16 3v4M4 10h16" />
-        </svg>
-      );
-    }
-    if (type === "guest" || type === "client" || type === "constituent") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1" />
-          <circle cx="9.5" cy="7" r="3" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 19v-1a4 4 0 0 0-3-3.87" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M14 4.13a3 3 0 0 1 0 5.74" />
-        </svg>
-      );
-    }
-    if (type === "case") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
-        </svg>
-      );
-    }
-    if (type === "campaign") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="7" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-      );
-    }
-    if (type === "site") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <path strokeLinecap="round" d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
-        </svg>
-      );
-    }
-    if (type === "page") {
-      return (
-        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-          <path strokeLinecap="round" d="M14 3v5h5M9 13h6M9 17h6" />
-        </svg>
-      );
-    }
-    return (
-      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="8" />
-      </svg>
-    );
-  }
-
-  const focusRing = moduleKey === "events"
-      ? "focus:ring-violet-400/60"
-      : moduleKey === "watchdog"
-        ? "focus:ring-red-400/60"
-        : moduleKey === "webmaster"
-          ? "focus:ring-indigo-400/60"
-          : moduleKey === "oshareview"
-              ? "focus:ring-cyan-400/60"
-          : "focus:ring-indigo-400/60";
-  const activeResultBg = moduleKey === "events"
-      ? "bg-violet-50"
-      : moduleKey === "watchdog"
-        ? "bg-red-50"
-        : moduleKey === "webmaster"
-          ? "bg-indigo-50"
-          : moduleKey === "oshareview"
-              ? "bg-cyan-50"
-          : "bg-indigo-50";
-  const spinnerColor = moduleKey === "events"
-      ? "border-violet-400"
-      : moduleKey === "watchdog"
-        ? "border-red-400"
-        : moduleKey === "webmaster"
-          ? "border-indigo-400"
-          : moduleKey === "oshareview"
-              ? "border-cyan-500"
-          : "border-indigo-400";
-  const placeholder = moduleKey === "events"
-      ? "Search events, guests, tools..."
-      : moduleKey === "watchdog"
-        ? "Search alerts, vault, security tools..."
-        : moduleKey === "webmaster"
-          ? "Search sites, pages, publish tools..."
-          : moduleKey === "oshareview"
-              ? "Search reports, segments, analytics..."
-          : "Search records, workflows, reports, and tools...";
-
-  return (
-    <div className={`relative w-full min-w-0 ${wide ? "max-w-none" : "max-w-xl"}`}>
-      <div className="group/search relative transition-colors duration-200 ease-out">
-        <svg className={`absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 pointer-events-none transition-colors duration-200 ease-out ${darkChrome ? "text-slate-400 group-focus-within/search:text-white" : "text-slate-500 group-focus-within/search:text-slate-700"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-        </svg>
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder={placeholder}
-          className={`w-full rounded-xl border pl-8 pr-12 shadow-sm transition-colors duration-200 ease-out focus:outline-none focus:ring-1 ${darkChrome ? "border-white/10 bg-transparent text-white placeholder:text-slate-400 focus:border-emerald-300/50 focus:bg-white/[0.04] focus:ring-emerald-300/30" : `border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 focus:border-indigo-300 focus:bg-white ${focusRing}`} ${wide ? "h-12 text-sm" : "py-2 text-xs"}`}
-        />
-        <kbd className={`absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-md border px-1.5 py-0.5 font-mono text-[10px] transition-colors duration-200 ease-out min-[1120px]:block ${darkChrome ? "border-white/10 bg-white/[0.06] text-slate-400 group-focus-within/search:bg-white/[0.1] group-focus-within/search:text-white" : "border-slate-200 bg-slate-50 text-slate-500 group-focus-within/search:bg-white group-focus-within/search:text-slate-700"}`}>
-          Ctrl+K
-        </kbd>
-        {loading && (
-          <div className={`absolute right-9 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin rounded-full border-2 ${spinnerColor} border-t-transparent`} />
-        )}
-      </div>
-
-      {open && (
-        <div className={`${wide ? "relative mt-3 max-h-[calc(100dvh-15rem)] min-h-[22rem]" : "absolute top-full mt-2 left-0 right-0 max-h-[min(30rem,calc(100dvh-9rem))]"} overflow-y-auto bg-white rounded-2xl border border-gray-200 shadow-2xl z-50`}>
-          <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/80 flex flex-wrap items-center gap-1.5">
-            <button
-              onMouseDown={() => setResultGroupFilter("all")}
-              className={`px-2 py-1 rounded-md text-[11px] font-semibold border ${resultGroupFilter === "all" ? "bg-white text-gray-900 border-gray-300" : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-white"}`}
-            >
-              All ({results.length})
-            </button>
-            <button
-              onMouseDown={() => setResultGroupFilter("tools")}
-              className={`px-2 py-1 rounded-md text-[11px] font-semibold border ${resultGroupFilter === "tools" ? "bg-white text-gray-900 border-gray-300" : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-white"}`}
-            >
-              Tools ({results.filter((item) => item.group === "tools").length})
-            </button>
-            <button
-              onMouseDown={() => setResultGroupFilter("records")}
-              className={`px-2 py-1 rounded-md text-[11px] font-semibold border ${resultGroupFilter === "records" ? "bg-white text-gray-900 border-gray-300" : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-white"}`}
-            >
-              Records ({results.filter((item) => item.group === "records").length})
-            </button>
-            {query.trim() ? (
-              <button
-                onMouseDown={() => openHelpSearch()}
-                className="ml-auto px-2 py-1 rounded-md text-[11px] font-semibold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
-              >
-                Search Help For "{query.trim()}"
-              </button>
-            ) : null}
-          </div>
-
-          {!query.trim() ? (
-            <div className="py-2">
-              {recentQueries.length > 0 ? (
-                <div className="px-4 pb-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Recent searches</p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {recentQueries.map((recentQuery) => (
-                      <button
-                        key={recentQuery}
-                        onMouseDown={() => {
-                          setQuery(recentQuery);
-                          setOpen(true);
-                        }}
-                        className="px-2 py-1 rounded-full border border-gray-200 bg-gray-50 text-[11px] text-gray-700 hover:bg-gray-100"
-                      >
-                        {recentQuery}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Quick actions</p>
-              <ul className="py-1">
-                {quickActions.slice(0, 5).map((action, index) => (
-                  <li key={action.id}>
-                    <button
-                      onMouseDown={() => navigate(action.href, action.label)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${index === selected ? activeResultBg : "hover:bg-gray-50"}`}
-                    >
-                      <TypeIcon type={action.type} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{action.label}</p>
-                        <p className="text-xs text-gray-400 truncate">{action.sublabel}</p>
-                      </div>
-                      <span className="text-[10px] uppercase tracking-wide shrink-0 px-1.5 py-0.5 rounded-full border text-slate-500 bg-slate-50 border-slate-200">Quick</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : combinedNavigableResults.length > 0 ? (
-            <ul className="py-1">
-              {combinedNavigableResults.map((r, i) => {
-                const isQuick = r.id.startsWith("quick-");
-                return (
-                  <li key={`${r.id}-${r.href}`}>
-                    <button
-                      onMouseDown={() => navigate(r.href, query.trim() || r.label)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selected ? activeResultBg : "hover:bg-gray-50"}`}
-                    >
-                      <TypeIcon type={r.type} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{renderHighlightedText(r.label)}</p>
-                        <p className="text-xs text-gray-400 truncate">{r.sublabel ? renderHighlightedText(r.sublabel) : null}</p>
-                      </div>
-                      <span className={`text-[10px] uppercase tracking-wide shrink-0 px-1.5 py-0.5 rounded-full border ${isQuick ? "text-slate-500 bg-slate-50 border-slate-200" : r.group === "tools" ? "text-slate-500 bg-slate-50 border-slate-200" : "text-gray-400 bg-gray-50 border-gray-200"}`}>
-                        {isQuick ? "Quick" : typeLabel[r.type]}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="px-4 py-4 text-sm text-gray-500">
-              <p>No direct matches in this CRM scope.</p>
-              <button
-                onMouseDown={() => openHelpSearch()}
-                className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-              >
-                Search Help For "{query.trim()}"
-              </button>
-            </div>
-          )}
-          <div className="border-t border-gray-100 px-4 py-2 flex items-center gap-3 bg-gray-50">
-            <span className="text-xs text-gray-400">↑↓ navigate</span>
-            <span className="text-xs text-gray-400">↵ open</span>
-            <span className="text-xs text-gray-400">Tab autocomplete</span>
-            <span className="text-xs text-gray-400">Shift+↵ search help</span>
-            <span className="text-xs text-gray-400">Esc close</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface TopBarProps {
   scrolled?: boolean;
   donorChromeTint?: DashboardChromeTint;
@@ -834,7 +146,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const [analyzingSignals, setAnalyzingSignals] = useState(false);
   const [signalsAnalyzeError, setSignalsAnalyzeError] = useState<string | null>(null);
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>(DEFAULT_WORKSPACE_SETTINGS);
-  const [fiscalSettings, setFiscalSettings] = useState<FiscalSettings>({ fiscalYearStart: 1, fiscalYearEnd: 12 });
+  const [fiscalSettings, setFiscalSettings] = useState<FiscalSettings | null>(null);
   const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>("calendar");
   const [topBarReactiveGlow, setTopBarReactiveGlow] = useState(false);
   const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
@@ -851,7 +163,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
   const donorAccentTheme = getDonorAccentTheme(workspaceSettings.donorAccentTone);
   const isDonorEnterpriseChrome = moduleKey === "donor";
   const chromeButtonBase = isDonorEnterpriseChrome
-    ? "oyama-reference-header-control flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-100 shadow-none transition-all duration-200 hover:bg-white/[0.12] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95 max-[380px]:h-8 max-[380px]:w-8"
+    ? "oyama-reference-header-control flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 max-[380px]:h-8 max-[380px]:w-8"
     : "flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-slate-200/90 bg-white/96 text-slate-600 shadow-[0_4px_10px_rgba(15,23,42,0.045)] transition-all duration-200 hover:-translate-y-px hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:translate-y-0 max-[380px]:h-8 max-[380px]:w-8";
   const mobileSheetBase = "fixed left-2 right-2 bottom-2 rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] z-50 overflow-hidden xl:hidden pb-[max(0.5rem,env(safe-area-inset-bottom))]";
   const shellMotionClass = "duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]";
@@ -862,7 +174,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       : "xl:pl-[284px]"
     : "";
   const darkIconButtonBase = isDonorEnterpriseChrome
-    ? "oyama-reference-header-control flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-300 transition-all duration-200 hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 active:scale-95"
+    ? "oyama-reference-header-control flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
     : "flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-transparent bg-transparent text-slate-500 transition-all duration-200 hover:-translate-y-px hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-0 active:scale-95";
   const donorResearchMobileButtonBase = chromeButtonBase.replace("rounded-xl", "rounded-full");
   const donorResearchDesktopButtonBase = darkIconButtonBase.replace("rounded-lg", "rounded-full");
@@ -877,10 +189,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
     scope: mapModuleKeyToHelpScope(moduleKey),
     scopePath: pathname,
   });
-  const currentFiscalYear = getFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart);
-  const donorReportingModeLabel = reportingYearMode === "fiscal" ? `FY ${currentFiscalYear}` : "Calendar Year";
+  const currentFiscalYear = fiscalSettings ? getReportingFiscalYearForDate(new Date(), fiscalSettings.fiscalYearStart) : null;
+  const donorReportingModeLabel = reportingYearMode === "fiscal" ? (currentFiscalYear ? `FY ${currentFiscalYear}` : "Fiscal year") : "Calendar Year";
   const donorReportingModeDescription = reportingYearMode === "fiscal"
-    ? `Fiscal year mode is on. FY${currentFiscalYear} runs month ${fiscalSettings.fiscalYearStart}-${fiscalSettings.fiscalYearEnd}.`
+    ? (fiscalSettings ? `Fiscal year mode is on. FY${currentFiscalYear} runs month ${fiscalSettings.fiscalYearStart}-${fiscalSettings.fiscalYearEnd}.` : "Fiscal year mode is on. Organization fiscal settings could not be loaded; reports use the server settings.")
     : "Calendar year mode is on. Click to use the fiscal year offset from Organization Settings.";
   const canRunAiConnectionTest = user?.role === "admin" || user?.role === "super_admin";
   const topBarPanelSetters: TopBarPanelSetters = {
@@ -918,10 +230,10 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
       if (!active) return;
       setWorkspaceSettings(settings);
       const fiscalYearStart = organizationSettings?.fiscalYearStart ?? 1;
-      setFiscalSettings({
+      setFiscalSettings(organizationSettings ? {
         fiscalYearStart,
-        fiscalYearEnd: organizationSettings?.fiscalYearEnd ?? getFiscalYearEndMonth(fiscalYearStart),
-      });
+        fiscalYearEnd: organizationSettings.fiscalYearEnd ?? getFiscalYearEndMonth(fiscalYearStart),
+      } : null);
     }
 
     void loadWorkspaceSettings();
@@ -1246,18 +558,13 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         </>
       )}
       <header data-topbar-root="true" data-donor-topbar={isDonorEnterpriseChrome ? "true" : "false"} className={`oyama-reference-topbar fixed left-0 right-0 top-0 isolate z-50 h-14 w-full shrink-0 transition-[box-shadow,background-color,border-color] ${shellMotionClass} ${isDonorEnterpriseChrome
-        ? "border-b border-white/10 bg-[#061a36] shadow-[0_10px_26px_rgba(2,10,28,0.22)] xl:h-14"
+        ? "border-b border-slate-200 bg-white xl:h-14"
         : (scrolled
           ? "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_8px_20px_rgba(15,23,42,0.055)] xl:h-[72px]"
           : "border-b border-slate-200/85 bg-white/98 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,23,42,0.035)] xl:h-[72px]")}`}
         style={{
           paddingTop: "max(0rem, env(safe-area-inset-top))",
-          ...(isDonorEnterpriseChrome && donorChromeTint
-            ? {
-                background: `linear-gradient(110deg, ${donorChromeTint.dark}, ${donorChromeTint.mid} 58%, ${donorChromeTint.base})`,
-                borderColor: donorChromeTint.border,
-              }
-            : {}),
+
         }}>
         {!isDonorEnterpriseChrome ? (
           <div aria-hidden="true" className={`oyama-reference-brand-decoration pointer-events-none absolute left-0 top-0 z-10 hidden h-full transition-[width] saturate-[1.18] ${shellMotionClass} xl:block ${scrolled ? "w-[372px]" : "w-[472px]"}`}>
@@ -1361,14 +668,14 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
           </div>
 
           {/* Mobile top-right priority controls */}
-          <div className="flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
+          <div className="oyama-topbar-mobile-actions flex shrink-0 items-center gap-1.5 max-[380px]:gap-1 xl:hidden">
             <div className={isDonorEnterpriseChrome ? "hidden sm:block" : ""}><WorkspaceStatusControl dark={false} /></div>
             <Link
               href="/donor-profile"
               title="Open OYAMADonorPROFILE"
               aria-label="Open OYAMADonorPROFILE"
               aria-current={pathname === "/donor-profile" || pathname === "/donor-research" ? "page" : undefined}
-              className={`${donorResearchMobileButtonBase} ${donorResearchActiveClass}`}
+              className={`${donorResearchMobileButtonBase} ${donorResearchActiveClass} ${isDonorEnterpriseChrome ? "hidden sm:flex" : ""}`}
             >
               <DonorResearchIcon className="h-[18px] w-[18px]" />
             </Link>
@@ -1431,6 +738,8 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               )}
             </div>
 
+            {isDonorEnterpriseChrome && <DonorAccountMenu helpHref={helpHref} onSupport={() => openFeedbackFromUserMenu(topBarPanelSetters)} />}
+
             <button
               type="button"
               title="More workspace tools"
@@ -1470,18 +779,20 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 title="Open app launcher"
                 aria-label="Open app launcher"
                 className={isDonorEnterpriseChrome
-                  ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] text-slate-300 transition-colors hover:bg-white/[0.12] hover:text-white"
+                  ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
                   : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-[0_1px_4px_rgba(15,23,42,0.05)] transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"}
               >
                 <AppLauncherIcon className="h-4 w-4" />
               </button>
             ) : null}
 
-            <div className={`oyama-reference-search-tools flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-9 border-white/10 bg-white/[0.06] px-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
+            <div className={`oyama-reference-search-tools flex min-w-0 ${isDonorEnterpriseChrome ? "flex-1" : "w-full max-w-[1000px]"} items-center rounded-xl border transition-[height,padding,box-shadow,border-color,background-color] ${shellMotionClass} ${isDonorEnterpriseChrome ? "h-9 border-slate-200 bg-slate-50 px-1.5" : (scrolled ? "h-10 px-1.5 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]" : "h-11 px-2 border-slate-200/95 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.07)]")}`}>
               <div className={`min-w-0 flex-1 ${isDonorEnterpriseChrome ? "px-1" : "px-1.5"}`}>
                 <GlobalSearch moduleKey={moduleKey} pathname={pathname} darkChrome={false} onNavigate={() => setNotificationsOpen(false)} />
               </div>
 
+            </div>
+            <div className="oyama-topbar-actions flex shrink-0 items-center gap-1">
               {isDonorEnterpriseChrome && (
                 <div className="mx-1 shrink-0">
                   <DonorQuickAddButton />
@@ -1513,6 +824,8 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
 
               <div ref={desktopNotificationsRef} className="relative shrink-0">
                 <button
+                  aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                  aria-expanded={notificationsOpen}
                   title="Notifications"
                   onClick={() =>
                     setNotificationsOpen((current) => {
@@ -1559,7 +872,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                     href="/steward-ai-workspace"
                     title="Open Steward Copilot"
                     aria-label="Open Steward Copilot"
-                    className="steward-topbar-launcher relative ml-0.5 inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-violet-300/30 bg-violet-500/90 text-white shadow-[0_5px_14px_rgba(124,58,237,0.22)] transition-colors hover:bg-violet-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                    className={darkIconButtonBase}
                   >
                     <AiOrbIcon className="h-3.5 w-3.5" />
                   </Link>
@@ -1595,7 +908,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 aria-label="Open page tutorial"
                 className={`${darkIconButtonBase} ml-0.5`}
               >
-                ?
+                <HelpCircleIcon className="h-4 w-4" />
               </button>
             </div>
 
@@ -1603,7 +916,7 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
               {isDonorEnterpriseChrome ? <>
                 <button type="button" onClick={handleReportingWindowToggle} title={donorReportingModeDescription}
                   aria-label={`Reporting period: ${donorReportingModeLabel}. Switch calendar or fiscal year`}
-                  className={`inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-semibold text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${reportingModeJustChanged ? "ring-2 ring-emerald-300/70" : ""}`}>
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${reportingModeJustChanged ? "ring-2 ring-emerald-300/70" : ""}`}>
                   <span className="text-slate-400">Period</span>{donorReportingModeLabel}
                 </button>
                 <DonorAccountMenu helpHref={helpHref} onSupport={() => openFeedbackFromUserMenu(topBarPanelSetters)} />
@@ -1643,6 +956,8 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
                 {isDonorEnterpriseChrome && showModuleSwitcher ? (
                   <div className="pb-2 sm:hidden"><ModuleSwitcher moduleKey={moduleKey} settings={workspaceSettings} scrolled /></div>
                 ) : null}
+                <Link href="/donor-profile" onClick={() => setMobileQuickOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3 text-sm text-slate-700"><DonorResearchIcon />Donor research</Link>
+                <DonorQuickAddButton />
                 {isStewardSignalsWorkspace && (
                   <button
                     title={signalsAnalyzeError ?? "Rebuild Steward Signals analysis index"}
@@ -1750,358 +1065,5 @@ export default function TopBar({ scrolled = false, donorChromeTint, donorSidebar
         />
     </header>
     </>
-  );
-}
-
-/**
- * ModuleSwitcher: lets users switch between all enabled OyamaCRM modules.
- */
-function ModuleSwitcher({
-  moduleKey,
-  settings,
-  scrolled = false,
-}: {
-  moduleKey: TopBarModuleKey;
-  settings: WorkspaceSettings;
-  scrolled?: boolean;
-}) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  const modules = useMemo(() => [
-    { key: "compassion", label: "Compassion CRM", helper: "Client care", href: "/compassion", icon: <WorkspaceSwitcherIcon moduleKey="compassion" />, active: moduleKey === "compassion" },
-    {
-      key: "donor",
-      label: "DonorCRM",
-      helper: "Fundraising",
-      href: "/",
-      icon: <WorkspaceSwitcherIcon moduleKey="donor" />,
-      active: moduleKey === "donor" && !pathname.startsWith("/reports"),
-    },
-    {
-      key: "letters",
-      label: "OyamaLetters",
-      helper: "Document studio",
-      href: "/oyama-letters",
-      icon: <WorkspaceSwitcherIcon moduleKey="letters" />,
-      active: moduleKey === "letters",
-    },
-    {
-      key: "events",
-      label: "Events",
-      helper: "Operations",
-      href: "/events",
-      icon: <WorkspaceSwitcherIcon moduleKey="events" />,
-      active: moduleKey === "events",
-    },
-  ].filter((module) => {
-    if (module.key === "donor") return settings.donorEnabled;
-    return true;
-  }), [moduleKey, pathname, settings.donorEnabled]);
-
-  const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  if (!current) return null;
-
-  const switcherTone = resolveModuleSwitcherTone(current.key as TopBarModuleKey, scrolled);
-  const isDonorWorkspace = moduleKey === "donor";
-
-  function switchTo(href: string) {
-    setOpen(false);
-    router.push(href);
-  }
-
-  return (
-    <div className="relative shrink-0">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`oyama-reference-workspace-switcher group relative flex items-center overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-200 ease-out ${isDonorWorkspace ? "border-white/10 bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]" : `hover:border-slate-400 ${switcherTone.button}`} ${scrolled ? "gap-1 px-1.5 py-0.5 xl:min-w-[150px] xl:gap-1.5 xl:px-2.5 xl:py-0.5" : "gap-1.5 px-2.5 py-1 xl:min-w-[182px] xl:gap-2 xl:px-3.5 xl:py-1"}`}
-      >
-        <span
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 bg-gradient-to-r ${isDonorWorkspace ? "from-emerald-300/10 via-transparent to-violet-300/10" : switcherTone.glow} transition-opacity duration-200 ${open ? "opacity-90" : "opacity-40 group-hover:opacity-60"}`}
-        />
-        <span className={`relative flex items-center justify-center rounded-xl border transition-all duration-300 ${isDonorWorkspace ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-200" : (current.key === "donor" ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700")} ${scrolled ? "h-5 w-5 xl:h-5 xl:w-5" : "h-6 w-6 xl:h-6 xl:w-6"}`}>
-          {current.icon}
-        </span>
-        <div className="relative hidden min-w-0 text-left leading-tight min-[1180px]:block lg:block">
-          <p className={`max-h-3.5 overflow-hidden text-[8px] uppercase tracking-[0.16em] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>Workspace</p>
-          <p className={`truncate font-semibold transition-[font-size,color] duration-300 ${scrolled ? "text-[10px]" : "text-[12px]"} ${isDonorWorkspace ? "text-white" : "text-slate-800"}`}>{current.label}</p>
-        </div>
-        <svg className={`relative h-3 w-3 transition-[transform,color] ${isDonorWorkspace ? "text-slate-300 group-hover:text-white" : "text-slate-500 group-hover:text-slate-700"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className={`fixed inset-x-2 bottom-2 z-50 mt-0 w-auto max-w-none overflow-hidden rounded-2xl shadow-[0_20px_54px_rgba(0,0,0,0.45)] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:left-0 lg:bottom-auto lg:top-full lg:mt-2 lg:w-[330px] lg:max-w-[calc(100vw-1rem)] lg:pb-0 ${isDonorWorkspace ? "border border-[#4b4b4b] bg-[#242424] text-slate-100" : "border border-slate-300 bg-white"}`}>
-            <div className={`border-b px-4 pt-3 pb-2.5 ${isDonorWorkspace ? "border-white/10 bg-[#292929]" : "border-slate-200 bg-slate-50"}`}>
-              <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>Switch Workspace</p>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className={`text-[11px] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>Move between modules without leaving your session.</p>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDonorWorkspace ? "bg-white/[0.08] text-slate-300 ring-1 ring-white/10" : "bg-slate-100 text-slate-600"}`}>
-                  {modules.length} active
-                </span>
-              </div>
-            </div>
-            <div className="max-h-[min(66vh,30rem)] space-y-1.5 overflow-y-auto p-2.5">
-              {modules.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => switchTo(m.href)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${m.active ? switcherTone.activeItem : isDonorWorkspace ? "border-transparent bg-transparent hover:border-white/15 hover:bg-white/[0.07]" : "border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50"}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${m.active ? switcherTone.activeIcon : isDonorWorkspace ? "border-white/10 bg-white/[0.06] text-slate-300" : "border-slate-200 bg-white text-slate-600"}`}>
-                      {m.icon}
-                    </span>
-                    <div className="min-w-0 flex-1 px-0.5">
-                      <p className={`truncate text-[12px] font-semibold ${isDonorWorkspace ? "text-slate-100" : "text-slate-900"}`}>{m.label}</p>
-                      <p className={`mt-0.5 truncate text-[10px] ${isDonorWorkspace ? "text-slate-400" : "text-slate-500"}`}>{m.helper}</p>
-                    </div>
-                    {m.active ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${switcherTone.activePill}`}>
-                        Current
-                      </span>
-                    ) : (
-                        <svg className={`h-3.5 w-3.5 ${isDonorWorkspace ? "text-slate-500" : "text-slate-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 6l6 6-6 6" />
-                      </svg>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-interface UserMenuProps {
-  moduleKey: TopBarModuleKey;
-  showApps: boolean;
-  onOpenApps: () => void;
-  onOpenFeedback: () => void;
-  helpHref: string;
-}
-
-/** UserMenu: avatar with account, workspace tools, and role-aware admin controls. */
-function UserMenu({
-  moduleKey,
-  showApps,
-  onOpenApps,
-  onOpenFeedback,
-  helpHref,
-}: UserMenuProps) {
-  const { user, signOut } = useAuth();
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-
-  const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : "?";
-  const canSeeAdminMenu = user?.role === "admin" || user?.role === "super_admin";
-  const adminLinks: Array<{ label: string; href: string; icon: string; openInNewTab?: boolean }> = [
-    { label: "Settings Home", href: "/settings", icon: "M10.3 4.3c.4-1.8 2.9-1.8 3.4 0 .2.8.9 1.3 1.7 1.3.3 0 .6-.1.9-.2 1.5-.9 3.3.8 2.4 2.4-.5.8-.2 1.9.7 2.3 1.8.4 1.8 2.9 0 3.4-.8.2-1.3.9-1.3 1.7 0 .3.1.6.2.9.9 1.5-.8 3.3-2.4 2.4-.8-.5-1.9-.2-2.3.7-.4 1.8-2.9 1.8-3.4 0-.2-.8-.9-1.3-1.7-1.3-.3 0-.6.1-.9.2-1.5.9-3.3-.8-2.4-2.4.5-.8.2-1.9-.7-2.3-1.8-.4-1.8-2.9 0-3.4.8-.2 1.3-.9 1.3-1.7 0-.3-.1-.6-.2-.9-.9-1.5.8-3.3 2.4-2.4.8.5 1.9.2 2.3-.7zM12 15a3 3 0 100-6 3 3 0 000 6z" },
-    { label: "Users", href: "/settings/users", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2m20 0v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 11a4 4 0 100-8 4 4 0 000 8z" },
-    { label: "Roles", href: "/settings/roles", icon: "M12 3l7 4v5c0 4.5-2.9 8.5-7 9-4.1-.5-7-4.5-7-9V7l7-4zm-2 9 1.5 1.5L15 10" },
-    { label: "Security", href: "/settings/security", icon: "M12 2l8 4v6c0 5.5-3.5 9.74-8 10-4.5-.26-8-4.5-8-10V6l8-4zm0 7v4m0 4h.01" },
-    { label: "Modules", href: "/settings/modules", icon: "M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" },
-    { label: "Reports", href: "/reports", icon: "M4 19h16M7 15V9m5 6V5m5 10v-3" },
-    { label: "Imports", href: "/data-tools/import", icon: "M12 3v10m0 0 4-4m-4 4-4-4M5 17v2h14v-2" },
-    { label: "Data Tools", href: "/data-tools", icon: "M12 3C7 3 3 4.8 3 7v10c0 2.2 4 4 9 4s9-1.8 9-4V7c0-2.2-4-4-9-4zm0 0c5 0 9 1.8 9 4s-4 4-9 4-9-1.8-9-4 4-4 9-4zm-9 9c0 2.2 4 4 9 4s9-1.8 9-4" },
-    { label: "Custom Fields", href: "/custom-fields", icon: "M4 6h16M4 10h10M4 14h16M4 18h8M16 8v4m-2-2h4" },
-    { label: "Audit Log", href: "/settings/audit", icon: "M7 4h10M7 8h10M7 12h6m-8 8h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  ];
-
-  async function handleSignOut() {
-    await signOut();
-    router.replace("/login");
-  }
-
-  function runProfileAction(action: () => void) {
-    setOpen(false);
-    action();
-  }
-
-  const avatarCls = moduleKey === "events"
-      ? "bg-violet-700 border-violet-200"
-      : moduleKey === "watchdog"
-        ? "bg-red-700 border-red-200"
-        : moduleKey === "webmaster"
-          ? "bg-indigo-700 border-indigo-200"
-          : moduleKey === "oshareview"
-              ? "bg-cyan-700 border-cyan-200"
-          : "bg-indigo-700 border-indigo-200";
-
-  return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={user ? `Open profile menu for ${user.firstName} ${user.lastName}` : "Open profile menu"}
-        data-mobile-touch="true"
-        title={user ? `${user.firstName} ${user.lastName}` : "Account"}
-        className={`inline-flex h-11 max-w-[12rem] shrink-0 items-center gap-2 rounded-[18px] border px-1.5 pr-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200 max-[480px]:h-10 max-[480px]:w-10 max-[480px]:justify-center max-[480px]:rounded-full max-[480px]:p-0 ${moduleKey === "donor" ? "border-transparent text-white hover:bg-white/[0.08] focus-visible:ring-emerald-300/70" : "border-transparent hover:bg-slate-50/90"}`}
-      >
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] max-[480px]:h-9 max-[480px]:w-9 max-[480px]:text-xs ${avatarCls}`}>
-          {initials}
-        </span>
-        <span className="hidden min-w-0 leading-tight min-[1400px]:block">
-          <span className={`block max-w-[132px] truncate text-sm font-semibold ${moduleKey === "donor" ? "text-white" : "text-slate-900"}`}>
-            {user ? `${user.firstName} ${user.lastName}` : "Account"}
-          </span>
-          <span className={`block max-w-[132px] truncate text-xs ${moduleKey === "donor" ? "text-slate-400" : "text-slate-500"}`}>Oyama Organization</span>
-        </span>
-        <svg className={`hidden h-4 w-4 transition-transform xl:block ${moduleKey === "donor" ? "text-slate-300" : "text-slate-500"} ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.25} viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div role="menu" className="fixed inset-x-2 bottom-2 z-50 max-h-[calc(100dvh-1rem)] w-auto overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_24px_72px_rgba(2,6,23,0.22)] xl:absolute xl:inset-x-auto xl:right-0 xl:bottom-auto xl:top-full xl:mt-2 xl:max-h-[min(80vh,44rem)] xl:w-[min(25rem,calc(100vw-1rem))] xl:pb-0">
-            <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.12),transparent_42%),linear-gradient(90deg,#ffffff,#f8fafc)] px-4 py-3.5">
-              <div className="flex items-start gap-3">
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.12)] ${avatarCls}`}>
-                  {initials}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
-                  <p className="truncate text-xs text-slate-500">{user?.email}</p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                      {user?.role}
-                    </span>
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      Profile
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-b border-slate-200 px-3.5 py-3">
-              <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">More Tools</p>
-                <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-100">Workspace</span>
-              </div>
-              <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-                <Link
-                  href="/settings/profile"
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                >
-                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 00-16 0m12-13a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  <span className="min-w-0 truncate">My profile</span>
-                </Link>
-                {showApps ? (
-                  <button
-                    type="button"
-                    onClick={() => runProfileAction(onOpenApps)}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                  >
-                    <AppLauncherIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="min-w-0 truncate">Apps</span>
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => runProfileAction(onOpenFeedback)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                >
-                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M6 19l-1.5-1.5A2.12 2.12 0 0 1 4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-2 2Z" />
-                  </svg>
-                  <span className="min-w-0 truncate">Get support</span>
-                </button>
-                {moduleKey === "donor" ? (
-                  <Link
-                    href="/settings/appearance"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                  >
-                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2m0 14v2M3 12h2m14 0h2m-3.64-5.64 1.42-1.42M5.22 18.78l1.42-1.42m0-10.72L5.22 5.22m13.56 13.56-1.42-1.42M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    <span className="min-w-0 truncate">My appearance</span>
-                  </Link>
-                ) : null}
-                <Link
-                  href="/steward-ai-workspace"
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                >
-                  <StewardAvatarIcon size={14} alt="Steward" className="ring-slate-300/80" />
-                  <span className="min-w-0 truncate">Steward</span>
-                </Link>
-                <Link
-                  href={helpHref}
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                >
-                  <HelpCircleIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  <span className="min-w-0 truncate">Help</span>
-                </Link>
-              </div>
-            </div>
-
-            {canSeeAdminMenu ? (
-              <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-3.5 py-3.5">
-                <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Admin Controls</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Organization configuration and governance tools</p>
-                  </div>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">Admin</span>
-                </div>
-                <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-                  {adminLinks.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      target={link.openInNewTab ? "_blank" : undefined}
-                      rel={link.openInNewTab ? "noopener noreferrer" : undefined}
-                      onClick={() => setOpen(false)}
-                      className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-all hover:-translate-y-[1px] hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-                    >
-                      <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d={link.icon} />
-                      </svg>
-                      <span className="min-w-0 truncate">{link.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="bg-slate-50/60 px-2.5 py-2">
-              <button
-                onClick={handleSignOut}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Sign out
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
   );
 }

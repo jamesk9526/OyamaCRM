@@ -65,7 +65,7 @@ function methodColor(method: string | null): string {
   return map[method ?? ""] ?? "bg-gray-100 text-gray-600";
 }
 
-export default function RecentDonationsWidget() {
+export default function RecentDonationsWidget({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const [donations, setDonations] = useState<RecentDonation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +94,7 @@ export default function RecentDonationsWidget() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshVersion]);
 
   if (loading) {
     return (

@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/app/lib/auth-client";
 
@@ -41,31 +41,35 @@ const TYPE_LABELS: Record<string, string> = {
  * MeetingsWidget — renders upcoming scheduled meetings on the dashboard.
  * Links each meeting title to the /meetings page.
  */
-export default function MeetingsWidget() {
+export default function MeetingsWidget({ refreshVersion = 0 }: { refreshVersion?: number }) {
+  const request = useRef(0);
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [todayCount, setTodayCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const id = ++request.current;
     setLoading(true);
     setError(null);
     try {
       const data = await apiFetch<{ items?: MeetingItem[]; todayCount?: number }>(
         "/api/meetings/upcoming"
       );
+      if (id !== request.current) return;
       setMeetings(data.items ?? []);
       setTodayCount(data.todayCount ?? 0);
     } catch {
+      if (id !== request.current) return;
       setMeetings([]);
       setTodayCount(0);
       setError("Upcoming meetings could not be loaded.");
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { request.current += 1; }; }, [load, refreshVersion]);
 
   if (loading) {
     return (
@@ -78,13 +82,15 @@ export default function MeetingsWidget() {
     );
   }
 
+  if (error) return <div role="alert" className="py-6 text-sm text-slate-600"><p>{error}</p><button type="button" className="donor-button mt-3" onClick={load}>Retry meetings</button></div>;
+
   if (meetings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <div className="text-gray-400 text-sm mb-2">{error ?? "No upcoming meetings"}</div>
         <Link
           href="/meetings"
-          className="text-xs text-green-600 hover:text-green-700 font-medium hover:underline"
+          className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:underline"
         >
           Schedule a meeting →
         </Link>
@@ -153,7 +159,7 @@ export default function MeetingsWidget() {
       <div className="pt-1.5 border-t border-gray-100">
         <Link
           href="/meetings"
-          className="block text-center text-xs text-green-600 hover:text-green-700 font-medium py-1 hover:underline"
+          className="block text-center text-xs text-blue-600 hover:text-blue-700 font-medium py-1 hover:underline"
         >
           View all meetings →
         </Link>

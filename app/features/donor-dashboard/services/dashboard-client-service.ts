@@ -19,8 +19,9 @@ import type {
 import type { ReportingYearMode } from "@/app/lib/fiscal-year";
 
 export interface DashboardCoreMetrics {
-  summary: DonorDashboardSummary;
-  retention: RetentionData;
+  summary: DonorDashboardSummary | null;
+  retention: RetentionData | null;
+  errors: string[];
 }
 
 function reportingBasisQuery(mode: ReportingYearMode | string): string {
@@ -30,11 +31,16 @@ function reportingBasisQuery(mode: ReportingYearMode | string): string {
 /** Loads the two canonical metric contracts used by every dashboard surface. */
 export async function loadDonorDashboardCoreMetrics(mode: ReportingYearMode): Promise<DashboardCoreMetrics> {
   const query = reportingBasisQuery(mode);
-  const [summary, retention] = await Promise.all([
+  const [summary, retention] = await Promise.allSettled([
     apiFetch<DonorDashboardSummary>(`/api/reports/summary${query}`),
     apiFetch<RetentionData>(`/api/reports/donor-retention${query}`),
   ]);
-  return { summary, retention };
+  return {
+    summary: summary.status === "fulfilled" ? summary.value : null,
+    retention: retention.status === "fulfilled" ? retention.value : null,
+    errors: [rejectedMessage("Summary metrics", summary), rejectedMessage("Donor retention", retention)]
+      .filter((message): message is string => Boolean(message)),
+  };
 }
 
 interface DonationListResponse {

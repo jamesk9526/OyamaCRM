@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/app/lib/auth-client";
-import { loadDonorDashboardData } from "@/app/features/donor-dashboard/services/dashboard-client-service";
-import { buildStewardshipSuggestions } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
+import { loadDonorDashboardData, loadDonorDashboardCoreMetrics } from "@/app/features/donor-dashboard/services/dashboard-client-service";
+import { buildStewardshipSuggestions, resolveDashboardRevenueGoal } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
 import type { DonorDashboardSummary } from "@/app/features/donor-dashboard/types";
 
 vi.mock("@/app/lib/auth-client", () => ({ apiFetch: vi.fn() }));
@@ -59,4 +59,35 @@ describe("daily donor dashboard data", () => {
     expect(suggestions[0].description).toContain("seasonal");
     expect(buildStewardshipSuggestions(summary, { total: 0, retained: 0, rate: 0 })).toEqual([]);
   });
+});
+
+
+describe("dashboard partial core failures", () => {
+  it("keeps summary metrics available when retention fails", async () => {
+    vi.mocked(apiFetch).mockImplementation(async url => {
+      if (url.startsWith("/api/reports/donor-retention")) throw new Error("Retention offline");
+      return { ytdAmount: 125 };
+    });
+    const result = await loadDonorDashboardCoreMetrics("fiscal");
+    expect(result.summary?.ytdAmount).toBe(125);
+    expect(result.retention).toBeNull();
+    expect(result.errors).toEqual(["Donor retention: Retention offline"]);
+  });
+  it("keeps retention available when summary fails", async () => {
+    vi.mocked(apiFetch).mockImplementation(async url => {
+      if (url.startsWith("/api/reports/summary")) throw new Error("Summary offline");
+      return { total: 10, retained: 4, rate: 40 };
+    });
+    const result = await loadDonorDashboardCoreMetrics("calendar");
+    expect(result.summary).toBeNull();
+    expect(result.retention?.retained).toBe(4);
+    expect(result.errors).toEqual(["Summary metrics: Summary offline"]);
+  });
+});
+
+it("uses configured revenue goals without fabricating a minimum", () => {
+  expect(resolveDashboardRevenueGoal("AUTO", 1000, 0)).toBe(0);
+  expect(resolveDashboardRevenueGoal("AUTO", 1000, 50)).toBe(50);
+  expect(resolveDashboardRevenueGoal("MANUAL", 500, 1000)).toBe(500);
+  expect(resolveDashboardRevenueGoal("MANUAL", -5, 1000)).toBe(0);
 });

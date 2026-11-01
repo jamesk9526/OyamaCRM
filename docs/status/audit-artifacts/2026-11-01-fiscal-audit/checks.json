@@ -1,0 +1,17 @@
+{
+  "errors": [],
+  "fiscalReads": [
+    "http://localhost:3000/api/reports/summary",
+    "http://localhost:3000/api/reports/summary",
+    "http://localhost:3000/api/reports/summary?dateBasis=fiscal",
+    "http://localhost:3000/api/reports/summary?dateBasis=fiscal"
+  ],
+  "checks": [
+    "FY 2027 label for July 2026 start",
+    "fiscal summary API query",
+    "matching gifts date link",
+    "fiscal forecast interval",
+    "unavailable retention insight with retry",
+    "mobile overflow"
+  ]
+}

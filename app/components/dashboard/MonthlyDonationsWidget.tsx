@@ -107,7 +107,7 @@ function mergeMonthlyDonors(rows: MonthDonor[]): MonthDonor[] {
   return Array.from(donorsById.values()).sort((a, b) => b.amount - a.amount);
 }
 
-export default function MonthlyDonationsWidget() {
+export default function MonthlyDonationsWidget({ refreshVersion = 0 }: { refreshVersion?: number }) {
   const router = useRouter();
   const [data, setData] = useState<MonthlyData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,7 +143,7 @@ export default function MonthlyDonationsWidget() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshVersion]);
 
   useEffect(() => {
     if (!modalOpen) return;

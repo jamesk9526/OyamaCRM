@@ -102,9 +102,6 @@
 .crm-fonts.crm-fonts .crm-page-header-surface p:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--oyama-muted); font-size: 14px; line-height: 1.65; }
 .crm-fonts.crm-fonts .crm-page-header-surface > div:first-child > div:first-child:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; }
 .crm-fonts.crm-fonts .crm-card-surface:hover:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { border-color: var(--oyama-border); }
-.crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 120px; height: 100%; padding: 20px; }
-.crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface > div > p:first-child:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; letter-spacing: .025em; text-transform: none; font-weight: 500; }
-.crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface > div > p:nth-child(2):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { color: var(--oyama-heading); font-size: clamp(21px,1.6vw,29px); font-weight: 700; letter-spacing: -.035em; }
 .crm-fonts.crm-fonts .donor-browse-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 112px; padding: 20px; }
 .crm-fonts.crm-fonts .crm-metric-card > span:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { width: 44px; height: 44px; border-radius: 50%; box-shadow: none; }
 .crm-fonts.crm-fonts .crm-metric-card > div > p:first-child:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; }
@@ -182,8 +179,6 @@
   .crm-fonts.crm-fonts .crm-page-header-surface h1:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 25px; }
   .crm-fonts.crm-fonts .crm-page-header-surface p:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 12px; }
   .crm-fonts.crm-fonts .crm-metric-card > span:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { width: 35px; height: 35px; }
-  .crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { min-height: 118px; padding: 16px; }
-  .crm-fonts.crm-fonts .donor-performance-metrics .crm-card-surface > div > p:nth-child(2):not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { font-size: 24px; }
   .crm-fonts.crm-fonts .donor-chart-canvas:not(.event-public-document, .event-public-document *, [data-oyama-authored], [data-oyama-authored] *) { height: 240px; }
 }
 @media(prefers-reduced-motion:reduce) {
@@ -346,7 +341,6 @@
 
 .crm-fonts[data-oyama-sidebar=true] .oyama-reference-brand-decoration { display:none !important; }
 .crm-fonts[data-oyama-sidebar=true] .oyama-reference-rail-brand { min-height:90px; }
-.crm-fonts[data-oyama-sidebar=true] .donor-reference-dashboard .donor-performance-metrics > * { min-height:100px; padding:16px; }
 
 .donor-recent-items { flex-shrink:0; border-top:1px solid #e0e9f2; padding:12px 16px; color:#23436b; }
 .donor-recent-items h2 { font-size:11px; font-weight:600; }
@@ -355,20 +349,8 @@
 .donor-recent-items a:hover { color:#006bdf; }
 .donor-recent-icon { padding:3px; color:white; border-radius:4px; background:#9270dc; }
 .donor-recent-icon-1 { background:#39a0c4; }.donor-recent-icon-2 { background:#d36a91; }
-.donor-reference-operations { display:grid; grid-template-columns:minmax(0,1.15fr) repeat(2,minmax(0,1fr)); gap:14px; }
-.donor-reference-widget { min-width:0; background:var(--oyama-surface); border:1px solid var(--oyama-border); border-radius:9px; padding:14px 16px; box-shadow:var(--oyama-shadow); }
-.donor-reference-widget > header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-.donor-reference-widget > header h2 { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:650; }
-.donor-reference-widget > header h2 svg { background:#e5f1ff; color:#1684ff; padding:3px; width:24px; height:24px; border-radius:4px; }
-.donor-reference-widget > header a { color:#0074ed; font-size:12px; white-space:nowrap; }
-.donor-reference-widget th,.donor-reference-widget td { padding:7px 4px; text-align:left; border-bottom:1px solid #edf1f6; }
-.donor-reference-widget td a { color:#006bdc; }
-.donor-reference-task-content,.donor-reference-meeting-content { max-height:230px; overflow:auto; }
-.donor-reference-task-content > div { border:0; box-shadow:none; background:transparent; padding:0; }
-.donor-reference-task-content > div > div:first-child h3 { display:none; }
 .crm-fonts[data-oyama-sidebar=true] :is(.crm-card-surface,.crm-shell-surface,.crm-filter-surface,.oyama-card) { border-radius:9px; border-color:#dfe8f0; box-shadow:0 2px 6px #16375409; }
 .crm-fonts[data-oyama-sidebar=true] :is(input,select,textarea):not([type=checkbox],[type=radio]) { border-radius:6px; }
-@media(max-width:1100px) { .donor-reference-operations { grid-template-columns:minmax(0,1fr); } }
 @media(max-height:760px) { .donor-recent-items ul { max-height:82px; overflow:auto; } }
 
 @media print {

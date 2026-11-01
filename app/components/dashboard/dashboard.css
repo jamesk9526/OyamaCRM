@@ -1,0 +1,49 @@
+/* Dashboard-owned layout. Shared cards retain their design-system tokens. */
+.crm-fonts.crm-fonts .donor-reference-dashboard .donor-performance-metrics .crm-metric-card {
+  height: 100%;
+  min-height: 120px;
+  padding: 16px;
+  border-top-width: 1px;
+}
+.crm-fonts.crm-fonts .donor-reference-dashboard .donor-performance-metrics .crm-metric-card > div > p:first-child {
+  white-space: normal;
+  overflow: visible;
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.crm-fonts.crm-fonts .donor-reference-dashboard .donor-performance-metrics .crm-metric-card > div > p:nth-child(2) {
+  font-size: clamp(22px, 1.8vw, 28px);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.donor-reference-dashboard .donor-performance-metrics a { height: 100%; }
+@media (min-width: 480px) and (max-width: 1023px) {
+  .crm-fonts.crm-fonts .donor-reference-dashboard .donor-performance-metrics .crm-metric-card { flex-direction: column; }
+}
+@media (max-width: 479px) {
+  .crm-fonts.crm-fonts .donor-reference-dashboard .donor-performance-metrics .crm-metric-card { min-height: 104px; }
+}
+
+.donor-reference-operations { display:grid; grid-template-columns:minmax(0,1.15fr) repeat(2,minmax(0,1fr)); gap:14px; }
+.donor-reference-widget { min-width:0; background:var(--oyama-surface); border:1px solid var(--oyama-border); border-radius:9px; padding:14px 16px; box-shadow:var(--oyama-shadow); }
+.donor-reference-widget > header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.donor-reference-widget > header h2 { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:650; }
+.donor-reference-widget > header h2 svg { background:#e5f1ff; color:#1684ff; padding:3px; width:24px; height:24px; border-radius:4px; }
+.donor-reference-widget > header a { color:#0074ed; font-size:12px; white-space:nowrap; }
+.donor-reference-widget th,.donor-reference-widget td { padding:7px 4px; text-align:left; border-bottom:1px solid #edf1f6; }
+.donor-reference-widget td a { color:#006bdc; }
+.donor-reference-task-content,.donor-reference-meeting-content { max-height:230px; overflow:auto; }
+.dashboard-embedded-task { border:0; box-shadow:none; background:transparent; padding:0; }
+@media(max-width:1100px) { .donor-reference-operations { grid-template-columns:minmax(0,1fr); } }
+@media (prefers-reduced-motion: no-preference) {
+ .donor-animated-dashboard > section, .donor-animated-dashboard .donor-chart-grid { animation: donor-dashboard-reveal 360ms ease-out both; }
+ .donor-animated-dashboard .donor-performance-metrics > * { animation: donor-dashboard-reveal 400ms ease-out both; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(2) { animation-delay: 45ms; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(3) { animation-delay: 90ms; }
+ .donor-animated-dashboard .donor-performance-metrics > :nth-child(4) { animation-delay: 135ms; }
+ .donor-animated-dashboard .crm-metric-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+ .donor-animated-dashboard a:hover .crm-metric-card { transform: translateY(-3px); box-shadow: 0 8px 24px #10283f12; }
+}
+@keyframes donor-dashboard-reveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

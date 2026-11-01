@@ -27,15 +27,15 @@ export default function DonorAccountMenu({ helpHref, onSupport }: { helpHref: st
   return <div className="relative">
     <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}
       aria-label={`Open profile menu for ${name}`}
-      className="inline-flex min-h-10 items-center gap-2 rounded-xl px-1.5 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent-light)]">
-      <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15 text-xs font-semibold ring-1 ring-white/20">{initials}</span>
+      className="inline-flex min-h-10 items-center gap-2 rounded-lg px-1.5 text-slate-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--crm-accent-light)]">
+      <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-100 text-xs font-semibold text-blue-800 ring-1 ring-blue-200">{initials}</span>
       <span className="hidden max-w-32 truncate text-xs font-medium min-[1500px]:block">{name}</span>
       <ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && <>
       <button type="button" tabIndex={-1} aria-label="Close account menu" onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Account" tabIndex={-1}
-        className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-xl">
+        className="fixed right-2 top-14 z-50 w-72 max-w-[calc(100vw-1rem)] sm:absolute sm:right-0 sm:top-full sm:mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4">
           <div className="min-w-0"><p className="truncate text-sm font-semibold">{name}</p><p className="mt-1 truncate text-xs text-slate-500">{user?.email}</p></div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close account menu" className="rounded-lg p-1 text-slate-500 hover:bg-slate-100"><X size={16} /></button>

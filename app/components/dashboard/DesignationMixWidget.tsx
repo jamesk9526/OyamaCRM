@@ -7,7 +7,7 @@ import type { ReportingYearMode } from "@/app/lib/fiscal-year";
 
 type DesignationSummary = { slices: Array<{ name: string; amount: number }>; total: number };
 
-export default function DesignationMixWidget({ dateBasis }: { dateBasis: ReportingYearMode }) {
+export default function DesignationMixWidget({ dateBasis, refreshVersion = 0 }: { dateBasis: ReportingYearMode; refreshVersion?: number }) {
   const [report, setReport] = useState<DesignationSummary | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -21,7 +21,7 @@ export default function DesignationMixWidget({ dateBasis }: { dateBasis: Reporti
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [dateBasis]);
+  }, [dateBasis, refreshVersion]);
 
   if (loading) return <div className="h-32 animate-pulse rounded-lg bg-gray-50" />;
   if (!report) return <p className="flex h-32 items-center justify-center text-sm text-gray-400">Fund data could not be loaded.</p>;
@@ -39,10 +39,10 @@ export default function DesignationMixWidget({ dateBasis }: { dateBasis: Reporti
             <span className="truncate font-medium text-gray-700">{slice.name}</span>
             <span className="shrink-0 text-gray-500">${slice.amount.toLocaleString()} · {Math.round(share)}%</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(share, 2)}%` }} /></div>
+          <div className="h-2 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-[var(--crm-accent)]" style={{ width: `${Math.max(0, Math.min(share, 100))}%` }} /></div>
         </div>;
       })}
-      <Link href="/reports" className="inline-flex pt-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800">Open giving reports →</Link>
+      <Link href="/reports" className="inline-flex pt-1 text-xs font-semibold text-[var(--crm-accent)] hover:underline">Open giving reports →</Link>
     </div>
   );
 }

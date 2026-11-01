@@ -197,7 +197,7 @@ export function loadOrder(): WidgetId[] {
     if (sameOrder(parsed, PREVIOUS_DEFAULT_WIDGET_ORDER)) {
       return [...DEFAULT_WIDGET_ORDER];
     }
-    const validSavedOrder = parsed.filter((id): id is WidgetId => DEFAULT_WIDGET_ORDER.includes(id as WidgetId));
+    const validSavedOrder = [...new Set(parsed.filter((id): id is WidgetId => DEFAULT_WIDGET_ORDER.includes(id as WidgetId)))];
     // Merge: keep saved order, but append any new widgets not yet in the saved list.
     const existing = new Set(validSavedOrder);
     return [...validSavedOrder, ...DEFAULT_WIDGET_ORDER.filter((widgetId) => !existing.has(widgetId))];

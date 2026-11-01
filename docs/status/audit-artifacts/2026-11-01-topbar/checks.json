@@ -1,0 +1,19 @@
+{
+  "widths": [
+    1440,
+    1024,
+    768,
+    390,
+    320
+  ],
+  "errors": [],
+  "checks": [
+    "no horizontal overflow",
+    "account opens and Escape closes at each width",
+    "Quick Add keyboard dismissal",
+    "workspace switcher keyboard dismissal",
+    "search empty results",
+    "reporting period toggle",
+    "mobile Quick Add and search"
+  ]
+}

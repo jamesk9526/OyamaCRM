@@ -1,12 +1,11 @@
+import { resolveDashboardRevenueGoal } from "@/app/features/donor-dashboard/calculations/dashboard-calculations";
+import { useDonorDashboardData } from "@/app/features/donor-dashboard/useDonorDashboardData";
 /**
  * useDashboardPageState centralizes dashboard state, effects, persistence, and layout controls.
  * This keeps the route component focused on composing UI sections.
  */
 
-import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
-import { getStoredReportingYearMode, type ReportingYearMode } from "@/app/lib/fiscal-year";
-import type { DonorDashboardSummary, RetentionData } from "@/app/features/donor-dashboard/types";
-import { loadDonorDashboardCoreMetrics } from "@/app/features/donor-dashboard/services/dashboard-client-service";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import type { DashboardWidgetSize } from "./DashboardWidget";
 import type { RevenueGoalMode, RevenueProgressSource } from "./DashboardLayoutModal";
 import {
@@ -84,17 +83,18 @@ export interface DashboardLayoutApplySettings {
   autoArrangePreset: AutoArrangePreset;
 }
 
+/** Storage may be unavailable (private browsing/quota); preferences still work in memory. */
+function saveDashboardPreference(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* Nonessential persistence. */ }
+}
+
 function isWidgetId(value: string): value is WidgetId {
   return DEFAULT_WIDGET_ORDER.includes(value as WidgetId);
 }
 
 export function useDashboardPageState() {
-  const [summary, setSummary] = useState<DonorDashboardSummary | null>(null);
-  const [retention, setRetention] = useState<RetentionData | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState(new Date());
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const metricsRequestId = useRef(0);
+  const metrics = useDonorDashboardData();
+  const { summary } = metrics;
 
   // Layout state.
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
@@ -106,7 +106,6 @@ export function useDashboardPageState() {
   const [layoutMode, setLayoutMode] = useState<DashboardLayoutMode>(loadLayoutMode);
   const [autoArrangePreset, setAutoArrangePreset] = useState<AutoArrangePreset>(loadAutoArrangePreset);
   const [widgetSizes, setWidgetSizes] = useState<Record<WidgetId, DashboardWidgetSize>>(loadWidgetSizes);
-  const [reportingYearMode, setReportingYearMode] = useState<ReportingYearMode>(getStoredReportingYearMode);
 
   // Revenue settings.
   const [includeGrants, setIncludeGrants] = useState(loadIncludeGrants);
@@ -123,95 +122,57 @@ export function useDashboardPageState() {
   const effectiveLayoutMode: DashboardLayoutMode = editMode ? "GRID" : layoutMode;
   const sectionLayoutClassName = getSectionLayoutClass(effectiveLayoutMode);
 
-  const load = useCallback(async () => {
-    const requestId = ++metricsRequestId.current;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const metrics = await loadDonorDashboardCoreMetrics(reportingYearMode);
-      if (requestId !== metricsRequestId.current) return;
-      setSummary(metrics.summary);
-      setRetention(metrics.retention);
-      setLastRefreshed(new Date());
-    } catch (requestError) {
-      if (requestId !== metricsRequestId.current) return;
-      setLoadError(requestError instanceof Error ? requestError.message : "Failed to load dashboard metrics.");
-    } finally {
-      if (requestId === metricsRequestId.current) setLoading(false);
-    }
-  }, [reportingYearMode]);
-
-  useEffect(() => {
-    load();
-    return () => { metricsRequestId.current += 1; };
-  }, [load]);
-
-  useEffect(() => {
-    const handleReportingModeChange = (event: Event) => {
-      const detail = (event as CustomEvent<{ mode?: ReportingYearMode }>).detail;
-      setReportingYearMode(detail?.mode === "fiscal" ? "fiscal" : "calendar");
-    };
-    window.addEventListener("reporting-year-mode:changed", handleReportingModeChange);
-    return () => {
-      window.removeEventListener("reporting-year-mode:changed", handleReportingModeChange);
-    };
-  }, []);
-
   // Persist dashboard preferences.
   useEffect(() => {
-    localStorage.setItem(LS_ORDER_KEY, JSON.stringify(widgetOrder));
+    saveDashboardPreference(LS_ORDER_KEY, JSON.stringify(widgetOrder));
   }, [widgetOrder]);
 
   useEffect(() => {
-    localStorage.setItem(LS_HIDDEN_WIDGETS_KEY, JSON.stringify(hiddenWidgets));
+    saveDashboardPreference(LS_HIDDEN_WIDGETS_KEY, JSON.stringify(hiddenWidgets));
   }, [hiddenWidgets]);
 
   useEffect(() => {
-    localStorage.setItem(LS_LOCK_KEY, locked ? "true" : "false");
+    saveDashboardPreference(LS_LOCK_KEY, locked ? "true" : "false");
     if (locked) setEditMode(false);
   }, [locked]);
 
   useEffect(() => {
-    localStorage.setItem(LS_GRANTS_KEY, includeGrants ? "true" : "false");
+    saveDashboardPreference(LS_GRANTS_KEY, includeGrants ? "true" : "false");
   }, [includeGrants]);
 
   useEffect(() => {
-    localStorage.setItem(LS_REVENUE_SOURCE_KEY, revenueProgressSource);
+    saveDashboardPreference(LS_REVENUE_SOURCE_KEY, revenueProgressSource);
   }, [revenueProgressSource]);
 
   useEffect(() => {
-    localStorage.setItem(LS_REVENUE_GOAL_MODE_KEY, revenueGoalMode);
+    saveDashboardPreference(LS_REVENUE_GOAL_MODE_KEY, revenueGoalMode);
   }, [revenueGoalMode]);
 
   useEffect(() => {
-    localStorage.setItem(LS_MANUAL_REVENUE_GOAL_KEY, String(manualRevenueGoalAmount));
+    saveDashboardPreference(LS_MANUAL_REVENUE_GOAL_KEY, String(manualRevenueGoalAmount));
   }, [manualRevenueGoalAmount]);
 
   useEffect(() => {
-    localStorage.setItem(LS_AI_WIDGETS_ENABLED_KEY, aiWidgetsEnabled ? "true" : "false");
+    saveDashboardPreference(LS_AI_WIDGETS_ENABLED_KEY, aiWidgetsEnabled ? "true" : "false");
   }, [aiWidgetsEnabled]);
 
   useEffect(() => {
-    localStorage.setItem(LS_LAYOUT_MODE_KEY, layoutMode);
+    saveDashboardPreference(LS_LAYOUT_MODE_KEY, layoutMode);
   }, [layoutMode]);
 
   useEffect(() => {
-    localStorage.setItem(LS_AUTO_ARRANGE_PRESET_KEY, autoArrangePreset);
+    saveDashboardPreference(LS_AUTO_ARRANGE_PRESET_KEY, autoArrangePreset);
   }, [autoArrangePreset]);
 
   useEffect(() => {
-    localStorage.setItem(LS_WIDGET_SIZES_KEY, JSON.stringify(widgetSizes));
+    saveDashboardPreference(LS_WIDGET_SIZES_KEY, JSON.stringify(widgetSizes));
   }, [widgetSizes]);
 
   const autoGoal = summary?.activeGoalTotal ?? 0;
-  const dynamicFallbackGoal = Math.max(autoGoal, summary?.ytdAmount ?? 0, 1000);
-  const revenueGoal = revenueGoalMode === "MANUAL" ? Math.max(1, manualRevenueGoalAmount) : dynamicFallbackGoal;
-  const dataThroughLabel = summary?.freshness?.dataThrough
-    ? `Data through ${new Date(summary.freshness.dataThrough).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
-    : `Refreshed ${lastRefreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  const revenueGoal = resolveDashboardRevenueGoal(revenueGoalMode, manualRevenueGoalAmount, autoGoal);
 
   function moveWidget(from: number, to: number) {
-    if (to < 0 || to >= visibleWidgetOrder.length) return;
+    if (from < 0 || from >= visibleWidgetOrder.length || to < 0 || to >= visibleWidgetOrder.length) return;
     const nextVisible = [...visibleWidgetOrder];
     const hidden = widgetOrder.filter((id) => hiddenWidgets.includes(id));
     const [moved] = nextVisible.splice(from, 1);
@@ -237,8 +198,7 @@ export function useDashboardPageState() {
   }
 
   function handleDrop(idx: number) {
-    if (dragFrom.current === null || dragFrom.current === idx) return;
-    moveWidget(dragFrom.current, idx);
+    if (dragFrom.current !== null && dragFrom.current !== idx) moveWidget(dragFrom.current, idx);
     dragFrom.current = null;
     setDraggingIdx(null);
     setDragOverIdx(null);
@@ -308,7 +268,7 @@ export function useDashboardPageState() {
   }
 
   function applyCustomizeSettings(newOrder: string[], settings: DashboardLayoutApplySettings) {
-    const normalizedOrder = newOrder.filter(isWidgetId);
+    const normalizedOrder = [...new Set(newOrder.filter(isWidgetId))];
     const normalizedHidden = settings.hiddenWidgetIds.filter(isWidgetId);
     setWidgetOrder(normalizedOrder.length > 0 ? normalizedOrder : [...DEFAULT_WIDGET_ORDER]);
     setRevenueProgressSource(settings.revenueProgressSource);
@@ -354,11 +314,7 @@ export function useDashboardPageState() {
   }
 
   return {
-    summary,
-    retention,
-    loading,
-    loadError,
-    load,
+    ...metrics,
     widgetOrder,
     hiddenWidgets,
     editMode,
@@ -374,7 +330,6 @@ export function useDashboardPageState() {
     revenueGoalMode,
     manualRevenueGoalAmount,
     widgetSizes,
-    reportingYearMode,
     visibleWidgetOrder,
     sectionLayoutClassName,
     visibleTopKpiWidgets,
@@ -384,7 +339,6 @@ export function useDashboardPageState() {
     visibleIntelligenceWidgets,
     visibleOtherWidgets,
     revenueGoal,
-    dataThroughLabel,
     enableAiWidgets,
     toggleGrants,
     openCustomizeModal,
