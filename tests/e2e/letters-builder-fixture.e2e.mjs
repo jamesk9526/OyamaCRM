@@ -113,6 +113,12 @@ try {
  await page.getByRole('img',{name:'PDF page 2',exact:true}).last().waitFor();
  await page.evaluate(()=>window.scrollTo(0,0));
  await capture(`canonical-proof-mobile.png`);
+ await page.setViewportSize({width:2400,height:1100});
+ await page.getByRole('img',{name:'PDF page 2',exact:true}).last().waitFor();
+ const writing=await page.locator('.lb-canvas-column').boundingBox();
+ const proof=await page.locator('.lb-proof-section').boundingBox();
+ assert.ok(proof.x>=writing.x+writing.width-2,'Proof should be beside writing at 2400px');
+ await capture('wide-side-by-side-proof.png');
  assert.deepEqual(errors,[]);
  await writeFile(`${output}/browser-results.json`,JSON.stringify({passed:true,errors,checks:['editing','revision saves','A4 layout persistence','save conflict preserves draft','proof failure visibility','responsive widths','stale proof remains stale after failed refresh','stale download/print disabled','download matches original PDF bytes','canonical Preview action']},null,2));
 }catch(error){console.log('URL',page.url());console.log('BODY',(await page.locator('body').innerText()).slice(0,3000));console.log('ERRORS',errors);await page.screenshot({path:`${output}/failure.png`,fullPage:true});throw error;}finally{await browser.close();}

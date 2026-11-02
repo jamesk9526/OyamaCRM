@@ -1522,3 +1522,17 @@ Repaired palette paragraph/heading insertion, synchronized toolbar selection sta
 ### Canonical structured-letter tools and PDF checks — 2026-11-02
 
 Consolidated structural insertion in the block library, formatting in the toolbar, paper/margins in Document settings, and PDF navigation/download/print in the proof viewer. Branding retains its existing organization home. Fixed stale-proof identity/cancellation and renderer asset/signature/chrome checks; renderer v2.1 invalidates old fingerprints. 85 focused tests, types, lint and synthetic browser regression pass, including downloaded PDF byte equality. New canonical desktop/mobile screenshots and remaining limits are recorded in `audit-artifacts/2026-11-02-letter-builder/verification.md`. Live automation, approval/batch workflows and physical printing remain unverified.
+
+
+### Four-module stale/confusing UI pass — 2026-11-02
+
+Dedicated Letters, Email, Donor CRM and Donor Profiles subagent passes improve request cancellation, accurate saved/loading/failed states, retry controls, hidden-filter clarity and canonical SMTP navigation. Web/server types and targeted checks pass; combined browser certification is limited by intermittent local development chunk errors. See [module verification](audit-artifacts/2026-11-02-module-ui-pass/verification.md) for changes, screenshots and exact verification limits. No live sends or deployment.
+
+
+### Wide-screen print proof and refresh stability — 2026-11-02
+
+The ribbon builder now positions its existing proof beside the writing pane when its actual editor container is at least 1250px wide. Narrower layouts remain stacked. The structured builder places the same proof viewer beside the canvas on screens at least 2000px wide, preserving one viewer instance across breakpoints.
+
+Ribbon proof fingerprints normalize draft HTML through the same browser serialization used by the editable canvas. Automatic refresh waits 1.5 seconds after input settles and attempts each pending fingerprint only once, preventing HTML normalization differences from triggering an endless refresh/reload cycle. Failed attempts require manual refresh. The old PDF remains visible while a replacement is rendering.
+
+Web TypeScript passed; targeted lint has no errors and the ribbon's existing warning baseline. The structured browser fixture passed, including an asserted side-by-side geometry check at 2400px; screenshot: `docs/status/audit-artifacts/2026-11-02-letter-builder/wide-side-by-side-proof.png`. Two print/layout suites passed. The broader source-contract test has three stale UI-copy expectations; it was not weakened. The legacy refresh loop fix has not been verified against the user's live template/API.

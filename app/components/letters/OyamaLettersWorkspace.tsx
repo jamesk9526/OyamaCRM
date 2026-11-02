@@ -15,6 +15,7 @@ import { openPdfPrintView } from "@/app/components/letters/pdf-print";
 import MatchingLabelsDownload from "@/app/components/letters/MatchingLabelsDownload";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
 import QRCode from "qrcode";
+import "./letter-proof-layout.css";
 import ProductionBuilder from "./production/ProductionBuilder";
 import {
   DEFAULT_BRANDING_SETTINGS,
@@ -1349,6 +1350,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [editorPdfPageCount, setEditorPdfPageCount] = useState<number | null>(null);
   const [autoRefreshProof, setAutoRefreshProof] = useState(true);
   const editorPdfAbortRef = useRef<AbortController | null>(null);
+  const lastAutomaticProofRef = useRef<string | null>(null);
   const [canvasOverflowing, setCanvasOverflowing] = useState(false);
   const [aiComposerOpen, setAiComposerOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -1546,7 +1548,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       constituentId,
       name: snapshot.name,
       printSubject: snapshot.printSubject,
-      printBody: snapshot.printBody,
+      printBody: typeof document === "undefined" ? snapshot.printBody : (() => { const element = document.createElement("div"); element.innerHTML = snapshot.printBody || "<p></p>"; return element.innerHTML; })(),
       printLayoutJson: snapshot.printLayoutJson,
       signatureBlockId: snapshot.signatureBlockId,
     });
@@ -2536,13 +2538,18 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     && editorPdfFingerprint !== pdfPreviewFingerprint(draft, testConstituentId),
   );
 
+  const pendingProofFingerprint = pdfPreviewFingerprint(draft, testConstituentId);
   useEffect(() => {
     if (!autoRefreshProof || !editorPdfStale || editorPdfLoading || editorPdfError || !testConstituentId) return;
-    const timer = window.setTimeout(() => void openServerPdfPreview(testConstituentId, false), 1200);
+    if (lastAutomaticProofRef.current === pendingProofFingerprint) return;
+    const timer = window.setTimeout(() => {
+      lastAutomaticProofRef.current = pendingProofFingerprint;
+      void openServerPdfPreview(testConstituentId, false);
+    }, 1500);
     return () => window.clearTimeout(timer);
-    // Render only after the draft settles; failures require an explicit retry.
+    // The fingerprint captures all render inputs. UI-only state must not retrigger rendering.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefreshProof, editorPdfStale, editorPdfLoading, editorPdfError, testConstituentId, draft]);
+  }, [autoRefreshProof, editorPdfStale, editorPdfLoading, editorPdfError, testConstituentId, pendingProofFingerprint]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -2951,7 +2958,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </details>
           </div>
         </aside>
-        <section className="order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
+        <section className="letter-editor-proof-layout order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
+          <div className="letter-writing-pane min-w-0">
           <div ref={canvasViewportRef} className="w-full min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-700">
             <CheckField label="Fit canvas to width" checked={fitCanvas} onChange={setFitCanvas} />
@@ -3043,11 +3051,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
               Content continues below. Render the print proof to check automatic page breaks for the selected recipient, or use Add Page to choose a break.
             </div>
           ) : null}
-          <section aria-label="Print proof" className="mt-4 min-w-0 rounded-md border border-slate-300 bg-white p-3">
+          </div>
+          <section aria-label="Print proof" className="letter-inline-proof mt-4 min-w-0 rounded-md border border-slate-300 bg-white p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-slate-900">Print proof</h2>
-                <p className="text-xs text-slate-600">Exact PDF pages for the selected recipient. Editing above uses a continuous canvas.</p>
+                <p className="text-xs text-slate-600">Exact PDF pages for the selected recipient. The writing canvas is continuous; this PDF shows printed page breaks.</p>
               </div>
               <Button onClick={() => void openServerPdfPreview(testConstituentId, false)} disabled={editorPdfLoading}>{editorPdfLoading ? "Rendering…" : "Refresh print proof"}</Button>
             </div>

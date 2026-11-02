@@ -22,3 +22,12 @@
 @media(max-width:900px){.lb-command{gap:8px;padding:12px;flex-wrap:wrap}.lb-title input{font-size:17px}.lb-actions{margin-left:auto}.lb-studio{display:block;padding:12px}.lb-left,.lb-canvas-column,.lb-inspector,.lb-proof-section{display:none}.lb-mobile-visible{display:block}.lb-left.lb-mobile-visible,.lb-inspector.lb-mobile-visible{display:flex}.lb-paper{padding:24px!important;min-height:600px}.lb-mobile-tabs{display:flex;gap:5px;padding:10px 12px;overflow:auto}.lb-mobile-tabs .lb-button{text-transform:capitalize}.lb-mobile-tabs [aria-pressed=true]{background:#d2eeeb;border-color:#008b89}.lb-canvas-caption{flex-wrap:wrap}.lb-block-grid{grid-template-columns:1fr 1fr}}
 
 @media(max-width:900px){.lb-command>.lb-title{flex:1 1 calc(100% - 48px)}.lb-command>a{flex-shrink:0}.lb-command>.lb-status{margin-left:28px}}
+
+/* One proof instance: stacked until the actual studio has enough room. */
+.lb-studio>.lb-proof-section{grid-column:1/-1;order:4;padding:0}
+.lb-studio>.lb-inspector{order:3}
+@media(min-width:2000px){
+ .lb-studio{grid-template-columns:220px minmax(0,1fr) minmax(0,1fr) 260px;align-items:start}
+ .lb-studio>.lb-proof-section{grid-column:auto;order:0;position:sticky;top:12px}
+ .lb-studio>.lb-inspector{order:0}
+}

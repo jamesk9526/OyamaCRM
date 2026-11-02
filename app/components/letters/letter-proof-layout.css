@@ -1,0 +1,7 @@
+.letter-editor-proof-layout{container-type:inline-size}
+@container (min-width:1250px){
+ .letter-writing-pane{width:calc(50% - 10px);float:left}
+ .letter-inline-proof{width:calc(50% - 10px);margin-top:0!important;margin-left:calc(50% + 10px);position:sticky;top:0}
+ .letter-inline-proof object{height:80dvh}
+}
+.letter-editor-proof-layout:after{content:"";display:block;clear:both}
