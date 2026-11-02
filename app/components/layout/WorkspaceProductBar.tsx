@@ -9,6 +9,7 @@ interface WorkspaceProductBarProps {
   backHref: string;
   backLabel: string;
   helpHref: string;
+  appearance?: "dark" | "light";
 }
 
 /** Compact product chrome shared by standalone workspaces. */
@@ -18,18 +19,20 @@ export default function WorkspaceProductBar({
   backHref,
   backLabel,
   helpHref,
+  appearance = "dark",
 }: WorkspaceProductBarProps) {
   const { user } = useAuth();
+  const light = appearance === "light";
   const initials = user
     ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U"
     : "U";
 
   return (
-    <header className="flex h-[52px] shrink-0 items-center border-t-4 border-[#0f6cbd] bg-[#3b3a39] text-white">
+    <header className={`flex h-[52px] shrink-0 items-center ${light ? "border-b border-slate-200 bg-white text-slate-800" : "border-t-4 border-[#0f6cbd] bg-[#3b3a39] text-white"}`}>
       <Link
         href="/"
         aria-label="Open OyamaCRM"
-        className="grid h-12 w-[52px] shrink-0 place-items-center hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
+        className={`grid h-12 w-[52px] shrink-0 place-items-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] ${light ? "text-blue-700 hover:bg-blue-50 focus-visible:outline-blue-700" : "hover:bg-white/10 focus-visible:outline-white"}`}
       >
         <span className="grid grid-cols-3 gap-[3px]" aria-hidden="true">
           {Array.from({ length: 9 }, (_, index) => (
@@ -45,19 +48,19 @@ export default function WorkspaceProductBar({
       <div className="ml-auto flex h-12 items-center pr-2">
         <Link
           href={backHref}
-          className="hidden h-10 items-center px-3 text-xs font-medium text-white/90 hover:bg-white/10 hover:text-white sm:inline-flex"
+          className={`hidden h-10 items-center px-3 text-xs font-medium sm:inline-flex ${light ? "text-slate-600 hover:bg-blue-50 hover:text-blue-800" : "text-white/90 hover:bg-white/10 hover:text-white"}`}
         >
           {backLabel}
         </Link>
         <Link
           href={helpHref}
           aria-label={`${productName} help`}
-          className="grid h-10 w-10 place-items-center text-xl hover:bg-white/10"
+          className={`grid h-10 w-10 place-items-center text-xl ${light ? "text-slate-500 hover:bg-blue-50" : "hover:bg-white/10"}`}
         >
           ?
         </Link>
         <div
-          className="ml-1 grid h-8 w-8 place-items-center rounded-full border border-white/90 text-[11px] font-semibold"
+          className={`ml-1 grid h-8 w-8 place-items-center rounded-full border text-[11px] font-semibold ${light ? "border-blue-100 bg-blue-50 text-blue-800" : "border-white/90"}`}
           aria-label={user ? `${user.firstName} ${user.lastName}` : "Account"}
           title={user ? `${user.firstName} ${user.lastName}` : "Account"}
         >

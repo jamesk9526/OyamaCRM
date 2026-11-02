@@ -36,7 +36,7 @@ export default function LetterFormattingToolbar({ editor }: { editor: Editor | n
   const fonts = [...new Set(["Inter", "Noto Serif", selected?.font || "Inter"])];
   const lineHeights = [...new Set(["1", "1.15", "1.5", "2", selected?.lineHeight || "1.5"])];
   const spacings = [...new Set(["0pt", "6pt", "9pt", "12pt", "18pt", "24pt", selected?.spacing || "9pt"])];
-  return <div role="toolbar" aria-label="Letter formatting" className="flex flex-wrap items-center gap-2 border-y border-slate-200 bg-white p-2">
+  return <div role="toolbar" aria-label="Letter formatting" className="lb-formatting-toolbar flex flex-wrap items-center gap-2 border-y border-slate-200 bg-white p-2">
     <div role="group" aria-label="History" className={groupClass}>
       {tool("Undo", <Undo2 size={16}/>, e => e.chain().focus().undo().run(), { disabled: !selected?.undo })}
       {tool("Redo", <Redo2 size={16}/>, e => e.chain().focus().redo().run(), { disabled: !selected?.redo })}

@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "editing",
+    "revision saves",
+    "A4 layout persistence",
+    "save conflict preserves draft",
+    "proof failure visibility",
+    "responsive widths",
+    "stale proof remains stale after failed refresh",
+    "stale download/print disabled",
+    "download matches original PDF bytes",
+    "canonical Preview action"
+  ]
+}

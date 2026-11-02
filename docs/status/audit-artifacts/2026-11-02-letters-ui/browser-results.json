@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "fixtureData": true,
+  "errors": [],
+  "interceptedDeletionRequests": [
+    "/api/letters/templates/qa-welcome/permanent",
+    "/api/letters/templates/qa-welcome/permanent",
+    "/api/letters/templates/qa-thanks/permanent",
+    "/api/letters/generated/qa-generated-1"
+  ],
+  "checks": [
+    "search and filter recovery",
+    "ownership, status and AI filters",
+    "sorting",
+    "grid/list switching",
+    "load error and retry",
+    "sidebar accessibility",
+    "typed delete confirmation: cancel, wrong text, reset, retry, success and template history conflict",
+    "generated-letter removal and pagination",
+    "delete controls hidden without permission",
+    "desktop/mobile library and both editors",
+    "no horizontal overflow"
+  ]
+}

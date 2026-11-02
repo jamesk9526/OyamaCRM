@@ -17,6 +17,10 @@ import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWo
 import QRCode from "qrcode";
 import "./letter-proof-layout.css";
 import ProductionBuilder from "./production/ProductionBuilder";
+import { PanelLeftClose, PanelLeftOpen, Search, SlidersHorizontal, RefreshCw, Upload, Plus, LayoutGrid, List, FileText, ArrowUpRight, Download, CircleHelp, X, CheckCircle2, PenLine, Archive } from "lucide-react";
+import "./letters-workspace.css";
+import DeleteLetterButton from "./DeleteLetterButton";
+import GeneratedLettersLibrary from "./GeneratedLettersLibrary";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -34,7 +38,7 @@ import type {
   SignatureBlock,
 } from "@/app/components/letters/types";
 
-type WorkspaceView = "library" | "builder" | "publish" | "generate" | "labels" | "settings" | "howto";
+type WorkspaceView = "library" | "builder" | "publish" | "generate" | "history" | "labels" | "settings" | "howto";
 type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 type TemplateOwnershipScope = "MINE" | "TEAM" | "ALL";
 type TemplateProvenanceScope = "ALL" | "HUMAN" | "AI";
@@ -587,6 +591,7 @@ const LETTERS_TEMPLATE_SETUP_HINT_COMPLETED_KEY = "oyamaLetters.templateSetupHin
 const LETTERS_SIDEBAR_ITEMS = [
   { label: "Template Library", href: "/oyama-letters" },
   { label: "Generate Letters", href: "/oyama-letters/generate" },
+  { label: "Generated Letters", href: "/oyama-letters/generated" },
   { label: "Mailing Labels", href: "/oyama-letters/labels" },
   { label: "Docs & Walkthroughs", href: "/oyama-letters/docs" },
   { label: "Settings", href: "/oyama-letters/settings" },
@@ -610,13 +615,14 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
   }
 
   return (
-    <div className="workspace-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-950">
+    <div className="letters-workspace min-h-[100dvh] text-slate-950">
       <WorkspaceProductBar
         productName="OyamaCRM Letters"
         homeHref="/oyama-letters"
         backHref="/communications"
         backLabel="Communications"
         helpHref="/help?scope=donor&scopePath=/oyama-letters"
+        appearance="light"
       />
       <div className="flex min-h-[calc(100dvh-52px)]">
         <LettersSidebar activeView={view} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
@@ -627,6 +633,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
           {view === "builder" ? productionEnabled === null ? <p role="status" className="p-6 text-sm text-slate-600">Loading letter workspace…</p> : productionEnabled ? <ProductionBuilder templateId={templateId} /> : <TemplateBuilder templateId={templateId} /> : null}
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
           {view === "generate" ? <GenerateWorkspace /> : null}
+          {view === "history" ? <GeneratedLettersLibrary /> : null}
           {view === "labels" ? <MailMergeLabelsWorkspace /> : null}
           {view === "howto" ? <LettersHowToWorkspace /> : null}
           {view === "settings" ? <SettingsWorkspace /> : null}
@@ -647,16 +654,8 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
   }
 
   return (
-    <div className="sticky top-0 z-40 border-b border-[#d1d1d1] bg-white px-3 py-2 text-slate-950 lg:hidden">
-      <div className="flex items-center gap-3">
-        <Link href="/oyama-letters" className="min-w-0 text-sm font-semibold tracking-wide text-slate-900">
-          OyamaCRM Letters
-        </Link>
-        <Link href="/communications" className="ml-auto shrink-0 border border-[#c8c6c4] bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-          Communications
-        </Link>
-      </div>
-      <nav className="mt-2 flex gap-2 overflow-x-auto pb-1" aria-label="Oyama Letters mobile navigation">
+    <div className="letters-mobile-nav lg:hidden">
+      <nav aria-label="Oyama Letters mobile navigation">
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
@@ -667,10 +666,7 @@ function LettersMobileNav({ activeView }: { activeView: WorkspaceView }) {
             <Link
               key={item.href}
               href={item.href}
-              className={[
-                "inline-flex h-9 shrink-0 items-center border px-3 text-xs font-semibold",
-                active ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-[#d1d1d1] bg-white text-slate-600",
-              ].join(" ")}
+              aria-current={active ? "page" : undefined}
             >
               {item.label}
             </Link>
@@ -701,38 +697,23 @@ function LettersSidebar({
 
   return (
     <aside className={[
-      "hidden shrink-0 flex-col border-l-4 border-[#0f6cbd] bg-[#292929] text-white transition-[width] duration-200 lg:flex",
-      collapsed ? "w-[64px]" : "w-[284px]",
+      "letters-sidebar hidden shrink-0 flex-col lg:flex",
+      collapsed ? "letters-sidebar-collapsed" : "",
     ].join(" ")}>
+      <div className="letters-sidebar-heading">
+        {!collapsed ? <span>Workspace</span> : null}
       <button
         type="button"
         onClick={onToggle}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className={["flex h-12 shrink-0 items-center text-white hover:bg-[#363636]", collapsed ? "justify-center" : "gap-3 px-4"].join(" ")}
+        aria-expanded={!collapsed}
+        aria-controls="letters-navigation"
+        className="letters-sidebar-toggle"
       >
-        <span className="text-xl leading-none" aria-hidden="true">☰</span>
-        {!collapsed ? <span className="text-sm font-semibold">Letters</span> : null}
+        {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
       </button>
-
-      {/* Shared communication hub */}
-      <Link
-        href="/communications"
-        title={collapsed ? "Communications hub" : undefined}
-        className={[
-          "flex h-10 items-center text-xs font-semibold text-[#f5f5f5] hover:bg-[#363636]",
-          collapsed ? "justify-center" : "gap-3 px-4",
-        ].join(" ")}
-      >
-        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-        </svg>
-        {!collapsed ? <span>Communications hub</span> : null}
-      </Link>
-
-      <nav className={[
-        "flex-1 overflow-y-auto",
-        collapsed ? "mt-1" : "mt-1",
-      ].join(" ")}>
+      </div>
+      <nav id="letters-navigation" aria-label="Letters workspace" className="flex-1">
         {LETTERS_SIDEBAR_ITEMS.map((item) => {
           const active = isActiveRoute(item.href)
             || (item.href === "/oyama-letters/generate" && activeView === "generate")
@@ -743,15 +724,10 @@ function LettersSidebar({
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.label}
+              aria-current={active ? "page" : undefined}
               title={collapsed ? item.label : undefined}
-              className={[
-                "relative flex h-10 items-center text-sm font-normal transition",
-                collapsed ? "justify-center" : "gap-3",
-                collapsed ? "px-2" : "px-4",
-                active
-                  ? "bg-[#333333] text-white before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:bg-[#3a96dd]"
-                  : "text-[#f5f5f5] hover:bg-[#363636]",
-              ].join(" ")}
+              className={item.href === "/oyama-letters/docs" ? "letters-nav-secondary" : undefined}
             >
               <LineIcon name={item.label} />
               {!collapsed ? <span className="truncate">{item.label}</span> : null}
@@ -760,23 +736,11 @@ function LettersSidebar({
         })}
       </nav>
 
-      <div className="border-t border-[#4b4b4b]">
-        {!collapsed ? (
-          <Link href="/help?scope=donor&scopePath=/oyama-letters" className="flex h-10 items-center gap-3 px-4 text-sm text-[#f5f5f5] hover:bg-[#363636]">
-            <span aria-hidden="true">?</span>
-            <span>Help</span>
-          </Link>
-        ) : null}
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-label="Expand sidebar"
-            className="inline-flex h-10 w-full items-center justify-center text-white hover:bg-[#363636]"
-          >
-            <ChevronRight />
-          </button>
-        ) : null}
+      <div className="letters-sidebar-footer">
+        <Link href="/help?scope=donor&scopePath=/oyama-letters" aria-label="Letters help" title="Letters help">
+          <CircleHelp size={18} aria-hidden="true" />
+          {!collapsed ? <span>Help & support</span> : null}
+        </Link>
       </div>
     </aside>
   );
@@ -784,65 +748,47 @@ function LettersSidebar({
 
 function LettersTopBar({ view, templateId }: { view: WorkspaceView; templateId?: string }) {
   const { user, signOut } = useAuth();
-  const initials = user ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U" : "U";
-  const templateLabel = templateId ? titleFromId(templateId) : "New Template";
-  const showProcessStepper = view === "library" || view === "builder" || view === "publish" || view === "generate";
+  const showProcessStepper = view === "builder" || view === "publish" || view === "generate";
 
   return (
-    <header className="z-30 flex min-h-[52px] flex-wrap items-center gap-3 border-b border-[#d1d1d1] bg-white px-3 py-2 sm:px-5 lg:sticky lg:top-0 xl:px-8">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Link href="/communications" className="inline-flex h-8 w-8 items-center justify-center border border-[#c8c6c4] text-slate-600 hover:bg-[#f3f2f1] hover:text-[#0f6cbd]" aria-label="Back to communications home">
-          <ChevronLeft />
-        </Link>
-        <div className="flex min-w-0 items-center gap-2 text-xs">
-          <Link href="/communications" className="shrink-0 text-slate-500 hover:text-[#0f6cbd]">Communications</Link>
-          <ChevronRight />
-          <Link href="/oyama-letters" className="shrink-0 text-slate-500 hover:text-[#0f6cbd]">Template Library</Link>
-          {view !== "library" ? <ChevronRight /> : null}
-          {view === "builder" || view === "publish" ? <span className="truncate font-semibold text-slate-700">{templateLabel}</span> : null}
-          {view === "builder" || view === "publish" ? <ChevronRight /> : null}
-          <span className="min-w-0 truncate font-semibold text-slate-950">{viewLabel(view)}</span>
-        </div>
-      </div>
+    <header className="letters-context-bar">
+      <nav aria-label="Breadcrumb" className="letters-breadcrumb">
+        <Link href="/communications">Communications</Link>
+        <ChevronRight />
+        {view === "library" ? <span aria-current="page">Letters</span> : <><Link href="/oyama-letters">Letters</Link><ChevronRight /><span aria-current="page">{viewLabel(view)}</span></>}
+      </nav>
       {showProcessStepper ? <ProcessStepper view={view} templateId={templateId} /> : null}
-      <div className="hidden items-center gap-2.5 border-l border-slate-200 pl-4 xl:flex">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#0f6cbd] text-xs font-semibold text-white ring-1 ring-[#cfe4fa]">{initials}</div>
-        <div className="leading-tight">
-          <p className="max-w-36 truncate text-xs font-semibold text-slate-800">{user ? `${user.firstName} ${user.lastName}` : "Account"}</p>
-          <button type="button" onClick={() => void signOut()} className="text-[10px] text-slate-500 hover:text-[#0f548c]">Sign out</button>
-        </div>
-      </div>
+      {user ? <button type="button" onClick={() => void signOut()} className="letters-signout">Sign out</button> : null}
     </header>
   );
 }
 
 function ProcessStepper({ view, templateId }: { view: WorkspaceView; templateId?: string }) {
   const steps = [
-    { key: "library", label: "Template Library", href: "/oyama-letters" },
-    { key: "builder", label: "Canvas Builder", href: templateId ? `/oyama-letters/templates/${templateId}` : "/oyama-letters/templates/new" },
-    { key: "publish", label: "Publish Review", href: templateId ? `/oyama-letters/templates/${templateId}/publish` : "/oyama-letters/templates/new" },
-    { key: "generate", label: "Generate Letters", href: "/oyama-letters/generate" },
+    { key: "library", label: "Templates", href: "/oyama-letters" },
+    { key: "builder", label: "Write", href: templateId ? `/oyama-letters/templates/${templateId}` : "/oyama-letters/templates/new" },
+    { key: "publish", label: "Review", href: templateId ? `/oyama-letters/templates/${templateId}/publish` : "/oyama-letters/templates/new" },
+    { key: "generate", label: "Generate", href: "/oyama-letters/generate" },
   ] as const;
   const activeIndex = steps.findIndex((step) => step.key === view);
 
   return (
-    <div className="hidden min-w-0 items-center justify-center gap-2 border border-[#d1d1d1] bg-[#fafafa] px-3 py-1.5 lg:flex">
+    <nav className="letters-process" aria-label="Letter workflow">
       {steps.map((step, index) => {
         const active = index === activeIndex;
-        const complete = activeIndex >= 0 && index < activeIndex;
         return (
           <div key={step.key} className="flex items-center gap-2">
-            <Link href={step.href} className="flex items-center gap-1.5">
-              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active || complete ? "border-[#0f6cbd] bg-[#0f6cbd] text-white" : "border-[#a19f9d] bg-white text-slate-500"].join(" ")}>
-                {complete ? <CheckIcon /> : index + 1}
+            <Link href={step.href} aria-current={active ? "step" : undefined} className="flex items-center gap-1.5">
+              <span className={["flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold", active ? "border-[#0f6cbd] bg-[#0f6cbd] text-white" : "border-slate-300 bg-white text-slate-500"].join(" ")}>
+                {index + 1}
               </span>
               <span className={active ? "text-[11px] font-semibold text-slate-900" : "text-[11px] font-medium text-slate-500"}>{step.label}</span>
             </Link>
-            {index < steps.length - 1 ? <span className="h-px w-8 bg-slate-200" /> : null}
+            {index < steps.length - 1 ? <span className="h-px w-4 bg-slate-200" /> : null}
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
@@ -994,13 +940,17 @@ function TemplateLibrary() {
   const [templates, setTemplates] = useState<LetterTemplateSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [category, setCategory] = useState("ALL");
-  const [ownership, setOwnership] = useState<TemplateOwnershipScope>("MINE");
+  const [ownership, setOwnership] = useState<TemplateOwnershipScope>("ALL");
   const [provenance, setProvenance] = useState<TemplateProvenanceScope>("ALL");
   const [layout, setLayout] = useState<"grid" | "list">("list");
+  const [sort, setSort] = useState("recent");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const libraryRequest = useRef<AbortController | null>(null);
   const [setupHintOpen, setSetupHintOpen] = useState(false);
   const [setupHintStep, setSetupHintStep] = useState<0 | 1 | 2>(0);
   const [applyingDefaults, setApplyingDefaults] = useState(false);
@@ -1019,41 +969,57 @@ function TemplateLibrary() {
   }, []);
 
   const load = useCallback(async () => {
+    libraryRequest.current?.abort();
+    const controller = new AbortController();
+    libraryRequest.current = controller;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
-      const params = new URLSearchParams();
-      if (status !== "ALL") params.set("status", status);
-      if (category !== "ALL") params.set("category", category);
-      if (search.trim()) params.set("search", search.trim());
-      setTemplates(await apiFetch<LetterTemplateSummary[]>(`/api/letters/templates?${params.toString()}`));
+      // This endpoint returns the organization's complete library. Filter its metadata
+      // locally so typing cannot race requests and counts keep the same scope.
+      const rows = await apiFetch<LetterTemplateSummary[]>("/api/letters/templates", { signal: controller.signal });
+      if (!Array.isArray(rows)) throw new Error("The template list was incomplete. Refresh to try again.");
+      if (!controller.signal.aborted) setTemplates(rows);
     } catch (requestError) {
-      setError(errorMessage(requestError, "Failed to load templates."));
-      setTemplates([]);
+      if (!controller.signal.aborted) setLoadError(errorMessage(requestError, "Failed to load templates."));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [category, search, status]);
+  }, []);
 
   useEffect(() => {
     void load();
+    return () => libraryRequest.current?.abort();
   }, [load]);
 
   const visibleTemplates = useMemo(() => templates.filter((item) => {
     const isMine = Boolean(user?.id) && item.createdBy?.id === user?.id;
     if (ownership === "MINE" && !isMine) return false;
-    if (ownership === "TEAM" && isMine) return false;
+    if (ownership === "TEAM" && (!item.createdBy?.id || isMine)) return false;
     if (provenance === "AI" && !item.aiAssisted) return false;
     if (provenance === "HUMAN" && item.aiAssisted) return false;
-    return true;
-  }), [ownership, provenance, templates, user?.id]);
+    if (status !== "ALL" && item.status !== status) return false;
+    if (category !== "ALL" && item.category !== category) return false;
+    return `${item.name} ${item.category.replaceAll("_", " ")} ${item.description ?? ""}`.toLowerCase().includes(search.trim().toLowerCase());
+  }).sort((left, right) => sort === "name" ? left.name.localeCompare(right.name) : sort === "usage" ? (right._count?.generatedLetters ?? 0) - (left._count?.generatedLetters ?? 0) : Date.parse(right.updatedAt) - Date.parse(left.updatedAt)), [ownership, provenance, templates, user?.id, status, category, search, sort]);
 
-  const activeCount = visibleTemplates.filter((item) => item.status === "ACTIVE").length;
-  const draftCount = visibleTemplates.filter((item) => item.status === "DRAFT").length;
-  const archivedCount = visibleTemplates.filter((item) => item.status === "ARCHIVED").length;
+  const activeCount = templates.filter((item) => item.status === "ACTIVE").length;
+  const draftCount = templates.filter((item) => item.status === "DRAFT").length;
+  const archivedCount = templates.filter((item) => item.status === "ARCHIVED").length;
   const myCount = templates.filter((item) => item.createdBy?.id === user?.id).length;
   const teamCount = templates.filter((item) => item.createdBy?.id && item.createdBy.id !== user?.id).length;
-  const aiCount = templates.filter((item) => item.aiAssisted).length;
+  const filterCount = [search.trim(), status !== "ALL", category !== "ALL", ownership !== "ALL", provenance !== "ALL"].filter(Boolean).length;
+  const categories = [...new Set([...CATEGORIES, ...templates.map(template => template.category)])];
+
+  function clearFilters() {
+    setSearch(""); setCategory("ALL"); setStatus("ALL"); setOwnership("ALL"); setProvenance("ALL");
+  }
+
+  function templateDeleted(template: LetterTemplateSummary) {
+    setTemplates(current => current.filter(item => item.id !== template.id));
+    setNotice(`Deleted ${template.name}.`);
+    window.requestAnimationFrame(() => document.getElementById("letters-template-search")?.focus());
+  }
 
   function dismissSetupHint() {
     try {
@@ -1123,6 +1089,7 @@ function TemplateLibrary() {
       });
       setOwnership("ALL");
       setStatus("DRAFT");
+      setSearch(""); setCategory("ALL"); setProvenance("ALL");
       setNotice(`Imported ${created.name} as a draft template.`);
       void load();
     } catch (requestError) {
@@ -1133,85 +1100,58 @@ function TemplateLibrary() {
   }
 
   return (
-    <main className="min-w-0 flex-1 bg-[#f5f5f5]">
-      <PageHero
-        title="Template Library"
-        subtitle="Create, edit, and manage your letter templates."
-        tooltip="Templates stay reusable here. Generation creates letter batches later so recipients, queue state, and print/mail actions do not mutate the template itself."
-      >
-        <Button onClick={() => void load()}>Refresh</Button>
-        <Button onClick={() => importInputRef.current?.click()} disabled={importingTemplate}>
-          {importingTemplate ? "Importing..." : "Import Template"}
-        </Button>
-        <Button href="/oyama-letters/templates/new" tone="primary">Create New Template</Button>
-        <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" />
-      </PageHero>
-      <section className="border-b border-[#d1d1d1] bg-white px-4 py-4 xl:px-7">
-        <div className="grid overflow-hidden rounded-[4px] border border-[#d1d1d1] bg-white lg:grid-cols-[235px_minmax(0,1fr)]">
-          <aside className="border-b border-[#d1d1d1] bg-[#f3f2f1] p-4 lg:border-b-0 lg:border-r">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Library views</p>
-            <div className="mt-3 space-y-1">
-              {([
-                { value: "MINE", label: "My templates", count: myCount },
-                { value: "TEAM", label: "Team templates", count: teamCount },
-                { value: "ALL", label: "All templates", count: templates.length },
-              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setOwnership(option.value)} className={["flex w-full items-center justify-between rounded-[2px] px-3 py-2 text-left text-sm font-semibold", ownership === option.value ? "bg-[#0f6cbd] text-white" : "text-slate-700 hover:bg-white"].join(" ")}><span>{option.label}</span><span className={ownership === option.value ? "text-blue-100" : "text-slate-400"}>{option.count}</span></button>)}
-            </div>
-            <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Authoring</p>
-            <div className="mt-2 grid grid-cols-3 gap-1.5">
-              {([
-                { value: "ALL", label: "All" },
-                { value: "HUMAN", label: "Staff" },
-                { value: "AI", label: `AI ${aiCount}` },
-              ] as const).map((option) => <button key={option.value} type="button" onClick={() => setProvenance(option.value)} className={["rounded-[2px] border px-2 py-1.5 text-[11px] font-semibold", provenance === option.value ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-[#c8c6c4] bg-white text-slate-600 hover:bg-[#faf9f8]"].join(" ")}>{option.label}</button>)}
-            </div>
-            <div className="mt-5 border-t border-slate-200 pt-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Categories</p>
-              <div className="mt-2 flex max-h-52 flex-col gap-1 overflow-y-auto pr-1">
-                {["ALL", ...CATEGORIES].map((value) => <button key={value} type="button" onClick={() => setCategory(value)} className={["flex items-center justify-between rounded-[2px] px-2 py-1.5 text-left text-xs", category === value ? "bg-white font-semibold text-[#0f548c] shadow-[inset_3px_0_0_#0f6cbd]" : "text-slate-600 hover:bg-white"].join(" ")}><span>{value === "ALL" ? "All categories" : value.replaceAll("_", " ")}</span><span className="text-[10px] text-slate-400">{value === "ALL" ? templates.length : templates.filter((template) => template.category === value).length}</span></button>)}
-              </div>
-            </div>
-          </aside>
-          <div className="min-w-0 p-4 sm:p-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by letter name, category, or content" className="h-10 w-full rounded-[2px] border border-[#8a8886] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0f6cbd]" /></label>
-              <Select value={status} onChange={setStatus} options={["ALL", "DRAFT", "ACTIVE", "ARCHIVED"]} />
-              <Button onClick={() => void load()}>Refresh</Button>
-              <Button onClick={() => { setSearch(""); setCategory("ALL"); setStatus("ALL"); setOwnership("MINE"); setProvenance("ALL"); }}>Clear</Button>
-              <div className="ml-auto flex gap-1"><IconToggle active={layout === "grid"} onClick={() => setLayout("grid")} label="Grid">▦</IconToggle><IconToggle active={layout === "list"} onClick={() => setLayout("list")} label="List">☷</IconToggle></div>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[["Showing", visibleTemplates.length, "text-slate-900"], ["Published", activeCount, "text-[#0f548c]"], ["Drafts", draftCount, "text-amber-800"], ["Archived", archivedCount, "text-slate-600"]].map(([label, value, color]) => <div key={String(label)} className="border border-[#d1d1d1] border-t-2 border-t-[#0f6cbd] bg-[#fafafa] px-3 py-2.5"><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className={["mt-1 text-xl font-semibold", String(color)].join(" ")}>{value}</p></div>)}
-            </div>
-            <p className="mt-4 text-xs leading-5 text-slate-600">Open a draft to edit it. Published templates continue to <span className="font-semibold text-slate-800">Generate Letters</span> for recipient-specific output.</p>
+    <main className="letters-library">
+      <header className="letters-library-heading">
+        <div>
+          <p className="letters-eyebrow">PERSONAL CONNECTIONS, ON PAPER</p>
+          <h1>Template Library</h1>
+          <p>Create a thoughtful letter once. Make it personal for every recipient.</p>
+        </div>
+        <div className="letters-heading-actions">
+          <button type="button" className="letters-button" onClick={() => importInputRef.current?.click()} disabled={importingTemplate}><Upload size={16} aria-hidden="true" />{importingTemplate ? "Importing…" : "Import template"}</button>
+          <Link className="letters-button letters-button-primary" href="/oyama-letters/templates/new"><Plus size={17} aria-hidden="true" />Create New Template</Link>
+          <input ref={importInputRef} type="file" accept="application/json,.json" onChange={(event) => void importTemplateBackup(event)} className="hidden" aria-label="Import template backup" />
+        </div>
+      </header>
+
+      <dl className="letters-library-stats" aria-label="Whole library summary">
+        {[{ label: "Total templates", value: templates.length, icon: FileText, tone: "blue" }, { label: "Published", value: activeCount, icon: CheckCircle2, tone: "green" }, { label: "Drafts", value: draftCount, icon: PenLine, tone: "amber" }, { label: "Archived", value: archivedCount, icon: Archive, tone: "slate" }].map(item => <div key={item.label}><span className={`letters-stat-icon letters-stat-${item.tone}`}><item.icon size={18} aria-hidden="true" /></span><div><dt>{item.label}</dt><dd>{loading || loadError ? "—" : item.value}</dd></div></div>)}
+      </dl>
+
+      <section className="letters-library-content" aria-label="Letter templates" aria-busy={loading}>
+        <div className="letters-library-views">
+          <div role="group" aria-label="Template ownership" className="letters-scope-tabs">
+            {([{ value: "ALL", label: "All templates", count: templates.length }, { value: "MINE", label: "My templates", count: myCount }, { value: "TEAM", label: "Team templates", count: teamCount }] as const).map(option => <button key={option.value} type="button" aria-pressed={ownership === option.value} onClick={() => setOwnership(option.value)}>{option.label}<span>{loading || loadError ? "—" : option.count}</span></button>)}
+          </div>
+          <button type="button" className="letters-icon-button" aria-label="Refresh templates" title="Refresh templates" onClick={() => void load()} disabled={loading}><RefreshCw size={16} aria-hidden="true" /></button>
+        </div>
+        <div className="letters-library-toolbar">
+          <label className="letters-search"><Search size={17} aria-hidden="true" /><input id="letters-template-search" type="search" aria-label="Search templates" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search names, categories or descriptions…" /></label>
+          <button type="button" className="letters-button" aria-expanded={filtersOpen} aria-controls="letters-library-filters" onClick={() => setFiltersOpen(value => !value)}><SlidersHorizontal size={16} aria-hidden="true" />Filters{filterCount ? <span className="letters-filter-count">{filterCount}</span> : null}</button>
+          <label className="letters-sort"><span className="sr-only">Sort templates</span><select aria-label="Sort templates" value={sort} onChange={event => setSort(event.target.value)}><option value="recent">Recently updated</option><option value="name">Name A–Z</option><option value="usage">Most used</option></select></label>
+          <div role="group" aria-label="Template display" className="letters-display-toggle">
+            <button type="button" aria-label="List" title="List view" aria-pressed={layout === "list"} onClick={() => setLayout("list")}><List size={18} aria-hidden="true" /></button>
+            <button type="button" aria-label="Grid" title="Grid view" aria-pressed={layout === "grid"} onClick={() => setLayout("grid")}><LayoutGrid size={17} aria-hidden="true" /></button>
           </div>
         </div>
+        <div id="letters-library-filters" className="letters-library-filters" hidden={!filtersOpen}>
+          <label>Category<select aria-label="Category" value={category} onChange={event => setCategory(event.target.value)}><option value="ALL">All categories</option>{categories.map(value => <option key={value} value={value}>{titleCase(value.replaceAll("_", " "))}</option>)}</select></label>
+          <label>Template status<select aria-label="Template status" value={status} onChange={event => setStatus(event.target.value)}><option value="ALL">All statuses</option><option value="DRAFT">Draft</option><option value="ACTIVE">Published</option><option value="ARCHIVED">Archived</option></select></label>
+          <label>Authoring<select aria-label="Authoring" value={provenance} onChange={event => setProvenance(event.target.value as TemplateProvenanceScope)}><option value="ALL">All authoring</option><option value="HUMAN">Staff created</option><option value="AI">AI-assisted</option></select></label>
+        </div>
+        {filterCount ? <div className="letters-active-filters"><span>Filtered by {[
+          search.trim() ? `“${search.trim()}”` : "", ownership === "MINE" ? "my templates" : ownership === "TEAM" ? "team templates" : "", category !== "ALL" ? titleCase(category.replaceAll("_", " ")) : "", status !== "ALL" ? status === "ACTIVE" ? "Published" : titleCase(status) : "", provenance === "AI" ? "AI-assisted" : provenance === "HUMAN" ? "staff created" : "",
+        ].filter(Boolean).join(" · ")}</span><button type="button" onClick={clearFilters}><X size={14} aria-hidden="true" />Clear filters</button></div> : null}
+
+        {notice ? <p role="status" className="letters-library-notice">{notice}</p> : null}
+        {error ? <p role="alert" className="letters-library-error">{error}</p> : null}
+        {loading ? <div role="status" aria-label="Loading templates" className="letters-loading-rows">{Array.from({ length: 4 }, (_, index) => <div key={index}><span /><span /><span /></div>)}<span className="sr-only">Loading templates…</span></div> : loadError ? <div role="alert" className="letters-library-empty"><CircleHelp size={30} aria-hidden="true" /><h2>Templates could not be loaded</h2><p>{loadError}</p><button type="button" className="letters-button" onClick={() => void load()}>Try again</button></div> : visibleTemplates.length === 0 ? <div className="letters-library-empty"><FileText size={32} aria-hidden="true" /><h2>{filterCount ? "No matching templates" : "Your next connection starts here"}</h2><p>{filterCount ? "Try a different search or clear your filters to see the whole library." : "Create your first reusable letter, then personalize it with your CRM data."}</p>{filterCount ? <button type="button" className="letters-button" onClick={clearFilters}>Clear filters</button> : <Link href="/oyama-letters/templates/new" className="letters-button letters-button-primary"><Plus size={16} aria-hidden="true" />Create New Template</Link>}</div> : layout === "grid" ? <div className="letters-template-grid">{visibleTemplates.map(template => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} onDeleted={() => templateDeleted(template)} />)}</div> : <div className="letters-template-list">
+          <div className="letters-template-list-heading" aria-hidden="true"><span>Template</span><span>Category & usage</span><span>Status</span><span>Updated</span><span className="text-right">Actions</span></div>
+          {visibleTemplates.map(template => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} onDeleted={() => templateDeleted(template)} />)}
+        </div>}
+        {!loading && !loadError ? <footer className="letters-library-footer"><span role="status">Showing {visibleTemplates.length} of {templates.length} template{templates.length === 1 ? "" : "s"}</span><Link href="/oyama-letters/generate">Generate from a published template<ArrowUpRight size={14} aria-hidden="true" /></Link></footer> : null}
       </section>
-      {notice ? <Alert tone="green">{notice}</Alert> : null}
-      {error ? <Alert tone="amber">{error}</Alert> : null}
-      {loading ? (
-        <LoadingGrid />
-      ) : visibleTemplates.length === 0 ? (
-        <EmptyState title="No templates found" body="No live templates match the current filters. Create a template to begin the OyamaLetters workflow." actionHref="/oyama-letters/templates/new" actionLabel="Create Template" />
-      ) : layout === "grid" ? (
-        <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 xl:p-6">
-          {visibleTemplates.map((template) => <TemplateCard key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
-        </div>
-      ) : (
-        <div className="m-4 overflow-hidden border border-[#d1d1d1] bg-white xl:m-6">
-          <div className="hidden grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_100px_110px_auto] gap-4 border-b border-[#d1d1d1] bg-[#f3f2f1] px-4 py-2 text-xs font-semibold text-[#424242] md:grid">
-            <span>Template</span>
-            <span>Category</span>
-            <span>Status</span>
-            <span>Updated</span>
-            <span className="text-right">Actions</span>
-          </div>
-          {visibleTemplates.map((template) => <TemplateRow key={template.id} template={template} currentUserId={user?.id ?? null} onExport={exportTemplateBackup} />)}
-        </div>
-      )}
-      <div className="px-4 pb-4 text-xs text-slate-600 xl:px-7 xl:pb-6">
-        Showing {visibleTemplates.length} of {templates.length} template{templates.length === 1 ? "" : "s"}
-      </div>
+      <div className="letters-library-branding"><span>Make every letter feel like you.</span><Link href="/settings/branding#letter-output-defaults">Manage letterhead & signature<ArrowUpRight size={14} aria-hidden="true" /></Link><button type="button" onClick={() => { setSetupHintStep(0); setSetupHintOpen(true); }}>Branding setup guide</button></div>
 
       {setupHintOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1294,7 +1234,12 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
   const [constituents, setConstituents] = useState<ConstituentLookup[]>([]);
   const [activeRibbon, setActiveRibbon] = useState<"File" | "Insert" | "Format" | "Layout" | "Review" | "View" | "AI">("Insert");
   const [toolDrawerOpen, setToolDrawerOpen] = useState(false);
+  const [mobileBuilderPanel, setMobileBuilderPanel] = useState<"write" | "blocks" | "settings">("write");
   const [inspectorTab, setInspectorTab] = useState<"Document" | "Merge Fields" | "Block Settings">("Document");
+  function openInspector(tab: "Document" | "Merge Fields" | "Block Settings") {
+    setInspectorTab(tab);
+    setMobileBuilderPanel("settings");
+  }
   const [mergeFieldSearch, setMergeFieldSearch] = useState("");
   const [mergeLinePreviewToken, setMergeLinePreviewToken] = useState<string | null>(null);
   const [mergeLinePreview, setMergeLinePreview] = useState<MergeLinePreviewResponse | null>(null);
@@ -2213,7 +2158,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
     const container = target.closest<HTMLElement>("[data-letter-image-block], figure, p, div");
     const textAlign = container?.style.textAlign === "left" || container?.style.textAlign === "right" ? container.style.textAlign : "center";
     setSelectedImageAlign(textAlign);
-    setInspectorTab("Block Settings");
+    openInspector("Block Settings");
   }
 
   function resizeSelectedImage(widthPercent: number) {
@@ -2748,7 +2693,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         {activeRibbon === "Insert" ? (
           <>
               <RibbonGroup label="Insert">
-                <RibbonToolButton iconName="merge-fields" glyph="{}" label="Merge Field" onClick={() => allFields[0] ? insertToken(allFields[0]) : setInspectorTab("Merge Fields")} />
+                <RibbonToolButton iconName="merge-fields" glyph="{}" label="Merge Field" onClick={() => allFields[0] ? insertToken(allFields[0]) : openInspector("Merge Fields")} />
                 <RibbonToolButton iconName="signature-block" glyph="✒" label="Signature" onClick={() => insertSignature()} />
               </RibbonGroup>
             <RibbonGroup label="Font">
@@ -2828,7 +2773,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           <RibbonGroup label="Tools">
             <RibbonButton onClick={runSpellCheck}>Spelling</RibbonButton>
             <RibbonButton onClick={() => setFindOpen((open) => !open)}>Find</RibbonButton>
-            <RibbonButton onClick={() => setInspectorTab("Merge Fields")}>Merge Fields</RibbonButton>
+            <RibbonButton onClick={() => openInspector("Merge Fields")}>Merge Fields</RibbonButton>
           </RibbonGroup>
           {findOpen ? (
             <form
@@ -2860,8 +2805,8 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
           <RibbonGroup label="Tools">
             <RibbonButton onClick={() => setTestConstituentLookupOpen(true)}>Test Constituent</RibbonButton>
             <RibbonButton onClick={() => void openServerPdfPreview()}>Production Preview</RibbonButton>
-            <RibbonButton onClick={() => setInspectorTab("Document")}>Document</RibbonButton>
-            <RibbonButton onClick={() => setInspectorTab("Block Settings")}>Block Settings</RibbonButton>
+            <RibbonButton onClick={() => openInspector("Document")}>Document</RibbonButton>
+            <RibbonButton onClick={() => openInspector("Block Settings")}>Block Settings</RibbonButton>
           </RibbonGroup>
         ) : null}
         {activeRibbon === "AI" ? (
@@ -2888,8 +2833,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
       </div>
       {error ? <Alert tone="amber">{error}</Alert> : null}
       {editorPdfError && !editorPdfOpen ? <Alert tone="amber">{editorPdfError}</Alert> : null}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 p-4 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:overflow-hidden lg:p-5 xl:p-6">
-        <aside className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
+      <div className="letters-ribbon-mobile-tabs" role="group" aria-label="Builder panels">{(["write", "blocks", "settings"] as const).map(panel => <button key={panel} type="button" aria-pressed={mobileBuilderPanel === panel} onClick={() => setMobileBuilderPanel(panel)}>{panel === "write" ? <FileText size={15} aria-hidden="true" /> : panel === "blocks" ? <LayoutGrid size={15} aria-hidden="true" /> : <SlidersHorizontal size={15} aria-hidden="true" />}{titleCase(panel)}</button>)}</div>
+      <div className="letter-legacy-grid grid min-h-0 flex-1 grid-cols-1 gap-5 p-4 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:overflow-hidden lg:p-5 xl:p-6">
+        <aside data-mobile-panel="blocks" data-mobile-active={mobileBuilderPanel === "blocks"} aria-label="Letter blocks" className="order-1 max-h-[34dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:order-none lg:max-h-none">
           <div className="space-y-2.5">
             <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-3 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Letter Block Library</p>
@@ -2945,7 +2891,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   </details>
                 ))}
               </div>
-              <button type="button" onClick={() => setInspectorTab("Merge Fields")} className="mt-3 text-xs font-semibold text-indigo-700 hover:underline">Open data review and live previews →</button>
+              <button type="button" onClick={() => openInspector("Merge Fields")} className="mt-3 text-xs font-semibold text-indigo-700 hover:underline">Open data review and live previews →</button>
             </details>
             <details className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
               <summary className="cursor-pointer text-sm font-semibold text-slate-900">Branding & signatures</summary>
@@ -2958,7 +2904,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             </details>
           </div>
         </aside>
-        <section className="letter-editor-proof-layout order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
+        <section data-mobile-panel="write" data-mobile-active={mobileBuilderPanel === "write"} aria-label="Writing and print proof" className="letter-editor-proof-layout order-2 min-w-0 overflow-auto rounded-md border border-slate-300 bg-slate-100 p-2 sm:p-5 lg:order-none">
           <div className="letter-writing-pane min-w-0">
           <div ref={canvasViewportRef} className="w-full min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-700">
@@ -3073,9 +3019,9 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             ) : <p className="py-4 text-sm text-slate-600">Choose a recipient and render a proof to verify page breaks, signature placement, and margins before printing.</p>}
           </section>
         </section>
-        <aside className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:col-span-2 xl:col-span-1 xl:order-none xl:max-h-none">
+        <aside data-mobile-panel="settings" data-mobile-active={mobileBuilderPanel === "settings"} aria-label="Letter settings" className="order-3 max-h-[40dvh] min-h-0 overflow-y-auto rounded-[18px] border border-white/90 bg-white/90 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/60 backdrop-blur-xl lg:col-span-2 xl:col-span-1 xl:order-none xl:max-h-none">
           <div className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-slate-200/80 bg-white/95 p-2 backdrop-blur">
-            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => setInspectorTab(tab)} className={["h-8 rounded-lg px-2.5 text-[11px] font-semibold transition-all", inspectorTab === tab ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
+            {(["Document", "Merge Fields", "Block Settings"] as const).map((tab) => <button key={tab} type="button" onClick={() => openInspector(tab)} className={["h-8 rounded-lg px-2.5 text-[11px] font-semibold transition-all", inspectorTab === tab ? "bg-indigo-50 text-indigo-800 shadow-sm ring-1 ring-indigo-100" : "text-slate-600 hover:bg-slate-50"].join(" ")}>{tab}</button>)}
           </div>
           <div className="space-y-3 p-3">
             {inspectorTab === "Document" ? (
@@ -7271,87 +7217,50 @@ function CheckField({ label, checked, onChange }: { label: string; checked: bool
   );
 }
 
-function TemplateCard({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
+function TemplateCard({ template, currentUserId, onExport, onDeleted }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void; onDeleted: () => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
-    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md">
-      <Link href={`/oyama-letters/templates/${template.id}`} className="block">
+    <article className="letters-template-card">
+      <Link href={`/oyama-letters/templates/${template.id}`} className="letters-template-cover" aria-label={`Edit ${template.name}`}>
         <DocumentThumb template={template} />
       </Link>
-      <div className="space-y-3 border-t border-slate-200 p-4">
+      <div className="letters-template-card-body">
+        <div className="letters-template-card-meta"><span>{titleCase(template.category.replaceAll("_", " "))}</span><StatusPill label={template.status === "ACTIVE" ? "Published" : titleCase(template.status)} tone={template.status === "ACTIVE" ? "green" : template.status === "DRAFT" ? "orange" : "slate"} /></div>
         <div>
-          <Link href={`/oyama-letters/templates/${template.id}`} className="text-[17px] font-semibold text-slate-950 hover:text-indigo-800">{template.name}</Link>
-          <p className="mt-1 text-sm text-slate-600">{template.category.replaceAll("_", " ")}</p>
+          <h2><Link href={`/oyama-letters/templates/${template.id}`}>{template.name}</Link></h2>
+          {template.description ? <p className="letters-template-description">{template.description}</p> : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{ownershipLabel}</span>
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${template.aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
-            {template.aiAssisted ? "AI-assisted" : "User created"}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <StatusPill label={template.status === "ACTIVE" ? "Published" : titleCase(template.status)} tone={template.status === "ACTIVE" ? "green" : template.status === "DRAFT" ? "orange" : "slate"} />
-          <p className="text-xs text-slate-500">Updated {formatDate(template.updatedAt)}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Usage</p>
-            <p className="mt-1 font-semibold text-slate-800">{template._count?.generatedLetters ?? 0} runs</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">State</p>
-            <p className="mt-1 font-semibold text-slate-800">{template.status === "ACTIVE" ? "Live" : titleCase(template.status)}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/oyama-letters/templates/${template.id}`} className="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50">
-            Open Template
-          </Link>
-          <button
-            type="button"
-            onClick={() => onExport(template)}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            Export
-          </button>
-          <Link
-            href={template.status === "ACTIVE" ? `/oyama-letters/generate?templateId=${encodeURIComponent(template.id)}` : `/oyama-letters/templates/${template.id}/publish`}
-            className="inline-flex h-9 items-center justify-center rounded-md bg-indigo-700 px-3 text-xs font-semibold text-white hover:bg-indigo-800"
-          >
-            {template.status === "ACTIVE" ? "Continue Workflow" : "Continue to Publish"}
-          </Link>
+        <p className="letters-template-byline">{ownershipLabel}{template.aiAssisted ? <span> · AI-assisted</span> : null}</p>
+        <p className="letters-template-byline">{template._count?.generatedLetters ?? 0} letters · Updated {formatDate(template.updatedAt)}</p>
+        <div className="letters-template-actions">
+          <Link href={`/oyama-letters/templates/${template.id}`} className="letters-button">Open</Link>
+          <Link href={template.status === "ACTIVE" ? `/oyama-letters/generate?templateId=${encodeURIComponent(template.id)}` : `/oyama-letters/templates/${template.id}/publish`} className="letters-button letters-button-primary">{template.status === "ACTIVE" ? "Generate" : "Review"}<ArrowUpRight size={14} aria-hidden="true" /></Link>
+          <button type="button" onClick={() => onExport(template)} className="letters-icon-button" aria-label={`Export ${template.name}`} title="Export template backup"><Download size={16} aria-hidden="true" /></button>
+          <DeleteLetterButton kind="template" id={template.id} name={template.name} onDeleted={onDeleted} />
         </div>
       </div>
     </article>
   );
 }
 
-function TemplateRow({ template, currentUserId, onExport }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void }) {
+function TemplateRow({ template, currentUserId, onExport, onDeleted }: { template: LetterTemplateSummary; currentUserId: string | null; onExport: (template: LetterTemplateSummary) => void; onDeleted: () => void }) {
   const ownershipLabel = template.createdBy?.id === currentUserId ? "Created by you" : template.createdBy ? "Shared by team" : "Creator unknown";
   return (
-    <article className="grid gap-3 border-b border-[#e5e5e5] px-4 py-3 last:border-b-0 hover:bg-[#fafafa] md:grid-cols-[minmax(0,2fr)_minmax(140px,1fr)_100px_110px_auto] md:items-center md:gap-4">
-      <div className="min-w-0 flex-1">
-        <Link href={`/oyama-letters/templates/${template.id}`} className="line-clamp-1 text-[15px] font-semibold text-[#242424] hover:text-[#0f6cbd] hover:underline">{template.name}</Link>
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700">{ownershipLabel}</span>
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${template.aiAssisted ? "border-sky-200 bg-sky-50 text-sky-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
-            {template.aiAssisted ? "AI-assisted" : "Staff created"}
-          </span>
-        </div>
+    <article className="letters-template-row">
+      <div className="letters-template-name">
+        <span className="letters-document-icon"><FileText size={20} aria-hidden="true" /></span>
+        <div><h2><Link href={`/oyama-letters/templates/${template.id}`}>{template.name}</Link></h2><p>{ownershipLabel}{template.aiAssisted ? <span className="letters-ai-label"> · AI-assisted</span> : null}</p></div>
       </div>
-      <div>
-        <p className="text-sm text-[#424242]">{template.category.replaceAll("_", " ")}</p>
-        <p className="mt-0.5 text-xs text-[#616161]">Used {template._count?.generatedLetters ?? 0} time{template._count?.generatedLetters === 1 ? "" : "s"}</p>
+      <div className="letters-template-category">
+        <p>{titleCase(template.category.replaceAll("_", " "))}</p>
+        <small>{template._count?.generatedLetters ?? 0} letters generated</small>
       </div>
-      <div><StatusPill label={template.status === "ACTIVE" ? "Published" : titleCase(template.status)} tone={template.status === "ACTIVE" ? "green" : template.status === "DRAFT" ? "orange" : "slate"} /></div>
-      <p className="text-xs text-[#616161]">{formatDate(template.updatedAt)}</p>
-      <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
-        <button type="button" onClick={() => onExport(template)} className="inline-flex h-8 items-center justify-center rounded-[2px] px-2 text-xs font-semibold text-[#0f6cbd] hover:bg-[#eff6fc]">
-          Export
-        </button>
-        <Link href={`/oyama-letters/templates/${template.id}`} className="inline-flex h-8 items-center justify-center rounded-[2px] border border-[#0f6cbd] bg-[#0f6cbd] px-3 text-xs font-semibold text-white hover:bg-[#115ea3]">
-          Open
-        </Link>
+      <div className="letters-template-status"><StatusPill label={template.status === "ACTIVE" ? "Published" : titleCase(template.status)} tone={template.status === "ACTIVE" ? "green" : template.status === "DRAFT" ? "orange" : "slate"} /></div>
+      <p className="letters-template-updated">{formatDate(template.updatedAt)}</p>
+      <div className="letters-template-actions">
+        <button type="button" onClick={() => onExport(template)} className="letters-icon-button" aria-label={`Export ${template.name}`} title="Export template backup"><Download size={16} aria-hidden="true" /></button>
+        <DeleteLetterButton kind="template" id={template.id} name={template.name} onDeleted={onDeleted} />
+        <Link href={`/oyama-letters/templates/${template.id}`} className="letters-button">Open<ArrowUpRight size={14} aria-hidden="true" /></Link>
       </div>
     </article>
   );
@@ -7359,7 +7268,7 @@ function TemplateRow({ template, currentUserId, onExport }: { template: LetterTe
 
 function DocumentThumb({ template, small = false }: { template: LetterTemplateSummary; small?: boolean }) {
   return (
-    <div className={`${small ? "h-24" : "h-[188px]"} bg-[linear-gradient(140deg,#f8fafc,#eef3f8)] p-3`}>
+    <div aria-hidden="true" className={`${small ? "h-24" : "h-[160px]"} bg-[linear-gradient(140deg,#f8fafc,#eef3f8)] p-3`}>
       <div className="mx-auto h-full max-w-[150px] rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-emerald-800" /><span className="h-1.5 w-14 rounded bg-slate-700" /></div>
@@ -7608,10 +7517,6 @@ function SearchBox({ value, onChange, placeholder }: { value: string; onChange: 
   return <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full border border-[#8a8886] bg-white px-3 text-sm outline-none focus:border-[#0f6cbd] focus:ring-2 focus:ring-[#c7e0f4] sm:w-80" />;
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: string[] }) {
-  return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800">{options.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}</select>;
-}
-
 function LabeledSelect({ label, value, onChange, options, labels = {} }: { label: string; value: string; onChange: (value: string) => void; options: string[]; labels?: Record<string, string> }) {
   return (
     <label className="block text-xs font-semibold text-slate-700">
@@ -7682,10 +7587,6 @@ function MiniPresetCard({ title, body, action }: { title: string; body: string; 
   return <button type="button" onClick={action} className="block w-full">{content}</button>;
 }
 
-function IconToggle({ active, onClick, label, children }: { active: boolean; onClick: () => void; label: string; children: ReactNode }) {
-  return <button type="button" onClick={onClick} aria-label={label} className={["flex h-11 w-11 items-center justify-center rounded-md border text-lg", active ? "border-[#0f6cbd] bg-[#eff6fc] text-[#0f548c]" : "border-slate-300 bg-white text-slate-700"].join(" ")}>{children}</button>;
-}
-
 function StatusPill({ label, tone }: { label: string; tone: "green" | "orange" | "red" | "slate" }) {
   const normalized = label.toLowerCase();
   const explicit =
@@ -7714,10 +7615,6 @@ function Alert({ children, tone }: { children: ReactNode; tone: "amber" | "green
   return <div className={`mx-4 mt-4 rounded-md border px-4 py-3 text-sm xl:mx-6 ${tone === "green" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{children}</div>;
 }
 
-function EmptyState({ title, body, actionHref, actionLabel }: { title: string; body: string; actionHref: string; actionLabel: string }) {
-  return <div className="m-6 rounded-md border border-dashed border-slate-300 bg-white p-10 text-center"><p className="font-semibold">{title}</p><p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">{body}</p><Button href={actionHref} tone="primary">{actionLabel}</Button></div>;
-}
-
 function WorkflowShortcutCard({ title, body, href, actionLabel }: { title: string; body: string; href: string; actionLabel: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -7734,10 +7631,6 @@ function LoadingPage({ label }: { label: string }) {
   return <div className="flex min-h-[420px] items-center justify-center text-sm font-semibold text-slate-500">{label}</div>;
 }
 
-function LoadingGrid() {
-  return <div className="grid gap-5 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 xl:p-6">{Array.from({ length: 10 }).map((_, index) => <div key={index} className="h-80 animate-pulse rounded-md bg-slate-100" />)}</div>;
-}
-
 function LoadingRows() {
   return <div className="space-y-2 p-4">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />)}</div>;
 }
@@ -7750,6 +7643,7 @@ function LineIcon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     "Template Library": "M6 3h10l4 4v14H6V3Zm4 9h6m-6 4h6",
     "Generate Letters": "M4 7h16M4 12h10M4 17h16",
+    "Generated Letters": "M8 3h9l4 4v14H8V3ZM17 3v5h4M4 7v14m8-9h5m-5 4h5",
     "Mailing Labels": "M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Z",
     "Print & Mail Queue": "M6 9V3h12v6M6 17H4v-6h16v6h-2M7 14h10v7H7v-7Z",
     Batches: "M5 19h14M8 16V9m4 7V5m4 11v-4",
@@ -7759,16 +7653,8 @@ function LineIcon({ name }: { name: string }) {
   return <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d={paths[name] ?? paths["Template Library"]} /></svg>;
 }
 
-function ChevronLeft() {
-  return <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="m15 19-7-7 7-7" /></svg>;
-}
-
 function ChevronRight() {
   return <svg className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="m9 18 6-6-6-6" /></svg>;
-}
-
-function CheckIcon() {
-  return <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" /></svg>;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -8145,11 +8031,8 @@ function tokenSource(token: string): string {
   return titleCase(inner.split(".")[0] || "unknown");
 }
 
-function titleFromId(id: string): string {
-  return id.split("-").filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
-}
-
 function viewLabel(view: WorkspaceView): string {
+  if (view === "history") return "Generated Letters";
   if (view === "library") return "Template Library";
   if (view === "builder") return "Canvas Builder";
   if (view === "publish") return "Publish Workspace";

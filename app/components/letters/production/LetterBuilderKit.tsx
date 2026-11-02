@@ -8,7 +8,7 @@ export function BuilderButton({primary=false,className="",...props}:ButtonHTMLAt
  return <button type="button" {...props} className={`lb-button ${primary?"lb-button-primary":""} ${className}`}/>;
 }
 export function BuilderCard({title,children}: {title:string;children:ReactNode}) { return <section className="lb-card"><h3>{title}</h3><div className="lb-card-body">{children}</div></section>; }
-export function BuilderStatus({state,children}:{state:"saved"|"warning"|"draft";children:ReactNode}) {return <span className={`lb-status lb-status-${state}`}>{state==="saved"?<Check size={13}/>:state==="warning"?<AlertCircle size={13}/>:<FileText size={13}/>} {children}</span>;}
+export function BuilderStatus({state,children}:{state:"saved"|"warning"|"draft";children:ReactNode}) {return <span role="status" className={`lb-status lb-status-${state}`}>{state==="saved"?<Check size={13} aria-hidden="true"/>:state==="warning"?<AlertCircle size={13} aria-hidden="true"/>:<FileText size={13} aria-hidden="true"/>} {children}</span>;}
 export function ReviewChecklist({items}:{items:Array<{label:string;ok:boolean}>}){return <ul className="lb-checklist">{items.map(item=><li key={item.label}>{item.ok?<Check size={17} className="lb-check"/>:<AlertCircle size={17} className="lb-warning"/>}<span>{item.label}</span></li>)}</ul>;}
 
 const blocks=[
@@ -42,7 +42,7 @@ export function BlockLibrary({onInsert,disabled}:{onInsert:(id:string)=>void;dis
    <h2><FileText size={17} aria-hidden="true"/>Document blocks</h2>
    <label className="lb-search"><Search size={16} aria-hidden="true"/><input aria-label="Search document blocks" placeholder="Search blocks…" value={search} onChange={event=>setSearch(event.target.value)}/></label>
    <div className="lb-filter" role="group" aria-label="Block categories">{["All","Writing","Layout","Giving"].map(value=><button key={value} type="button" aria-pressed={group===value} onClick={()=>setGroup(value)}>{value}</button>)}</div>
-   <div className="lb-block-grid">{filtered.map(block=><button type="button" className="lb-block" key={block.id} disabled={disabled} draggable={!disabled}
+   <div className="lb-block-grid">{filtered.map(block=><button type="button" className="lb-block" key={block.id} title={block.description} disabled={disabled} draggable={!disabled}
      onDragStart={event=>{event.dataTransfer.setData("application/oyama-letter-block",block.id);event.dataTransfer.effectAllowed="copy";}} onClick={()=>onInsert(block.id)}>
      <block.icon size={21} aria-hidden="true"/><span><strong>{block.label}</strong><small>{block.description}</small></span>
    </button>)}</div>

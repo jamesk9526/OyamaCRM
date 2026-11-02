@@ -1,8 +1,9 @@
 import { chromium } from 'playwright';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-const output='docs/status/audit-artifacts/2026-11-02-letter-builder';
+import { Script } from 'node:vm';
+const fixture='docs/status/audit-artifacts/2026-11-02-letter-builder';
+const output=process.env.QA_ARTIFACT_DIR || fixture;
 await mkdir(output,{recursive:true});
 const browser=await chromium.launch();
 const page=await browser.newPage({viewport:{width:1600,height:1050}});
@@ -19,6 +20,17 @@ async function capture(name) {
 const errors=[]; page.on('pageerror',error=>errors.push(error.stack || error.message));
 let template={id:'qa-template',name:'Community thank you',category:'GENERAL',revision:1,documentSchemaVersion:2,printSubject:'',printBody:'<h2>Thank you for your support</h2><p>Dear {{donor.firstName}},</p><p>Your generosity supports our community. We appreciate your partnership.</p>',printLayoutJson:{}};
 let failSave=false; let failRender=true;
+// Validate buffered dev chunks before delivery; do not confuse transport truncation with UI behavior.
+await page.route('**/_next/static/**',async route=>{
+ for(let attempt=0;attempt<3;attempt++){
+  try{
+   const response=await fetch(route.request().url());
+   const body=Buffer.from(await response.arrayBuffer());
+   if(new URL(route.request().url()).pathname.endsWith('.js'))new Script(body.toString());
+   await route.fulfill({status:response.status,contentType:response.headers.get('content-type')||'application/javascript',body});return;
+  }catch(error){if(attempt===2)throw error;}
+ }
+});
 await page.route('**/api/**',async route=>{
  const path=new URL(route.request().url()).pathname;let body={};
  if(path.endsWith('/auth/refresh'))body={data:{accessToken:'qa-fixture-token'}};
@@ -31,7 +43,7 @@ await page.route('**/api/**',async route=>{
   if(failSave)return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:{message:'This template changed in another session.'}})});
   const incoming=route.request().postDataJSON();template={...template,...incoming,revision:template.revision+1};body=template;
  }else if(path==='/api/letters/production/jobs')body={id:'qa-job',status:failRender?'FAILED':'READY',revision:template.revision,error:failRender?'QA render failure: retry available':null};
- else if(path==='/api/letters/production/artifacts/qa-job/pdf')return route.fulfill({contentType:'application/pdf',body:await readFile(`${output}/multi-page-letter.pdf`)});
+ else if(path==='/api/letters/production/artifacts/qa-job/pdf')return route.fulfill({contentType:'application/pdf',body:await readFile(`${fixture}/multi-page-letter.pdf`)});
  else if(/signatures|header-presets|footer-presets/.test(path))body=[];
  else if(path.includes('/notifications'))body={items:[],unreadCount:0};
  else if(path.includes('/branding'))body={};
@@ -88,6 +100,11 @@ try {
  failRender=false;
  await page.getByRole('button',{name:'Preview',exact:true}).click();
  await page.getByText('6 PDF pages · current proof',{exact:true}).waitFor();
+
+ const downloadEvent=page.waitForEvent('download');
+ await page.getByRole('button',{name:'Download PDF',exact:true}).click();
+ const downloaded=await downloadEvent;
+ assert.deepEqual(await readFile(await downloaded.path()),await readFile(`${fixture}/multi-page-letter.pdf`));
 
  for(const width of [390,768,1280,1600]){
   await page.setViewportSize({width,height:1000});

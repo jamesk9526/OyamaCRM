@@ -41,6 +41,7 @@ import {
 } from "../services/oyama-email/email-render-service.js";
 
 import productionRoutes from "./letter-production.js";
+import deletionRoutes from "./letter-deletion.js";
 import { readArtifact, combineArtifacts, ProductionError } from "../services/letter-production.js";
 
 const router = Router();
@@ -335,6 +336,7 @@ router.get("/media/:organizationId/:fileName", (req, res) => {
 
 router.use(requireAuth);
 router.use("/production", productionRoutes);
+router.use(deletionRoutes);
 
 /** Validates and returns the active organization context for one request. */
 async function requireOrganizationId(req: Request): Promise<string | null> {
@@ -5187,6 +5189,7 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
   const stewardPathEnrollmentId = typeof req.query.stewardPathEnrollmentId === "string" ? req.query.stewardPathEnrollmentId : undefined;
   const stewardPathStepRunId = typeof req.query.stewardPathStepRunId === "string" ? req.query.stewardPathStepRunId : undefined;
   const limit = parsePositiveInt(req.query.limit, 100, 1, 400);
+  const offset = parsePositiveInt(req.query.offset, 0, 0, 1_000_000);
 
   const rows = await prisma.generatedLetter.findMany({
     where: {
@@ -5208,8 +5211,9 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
       emailCampaign: { select: { id: true, status: true, sentAt: true } },
       generatedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
-    orderBy: { generatedAt: "desc" },
+    orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
     take: limit,
+    skip: offset,
   });
 
   res.json(rows);

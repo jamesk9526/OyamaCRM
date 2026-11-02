@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "fixtureData": true,
+  "errors": [],
+  "businessWrites": [],
+  "checks": [
+    "baseline screenshots"
+  ]
+}
