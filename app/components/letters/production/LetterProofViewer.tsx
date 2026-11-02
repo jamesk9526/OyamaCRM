@@ -74,7 +74,7 @@ function ProofDocument({ url, stale, busy, label }: ProofViewerProps) {
     })().catch(reason => { if (!disposed) setError(reason instanceof Error ? reason.message : "PDF viewer could not load."); });
     return () => { disposed = true; destroy?.(); };
   }, [url]);
-  const actionsDisabled = !url || stale || busy;
+  const actionsDisabled = !url || !document || !!error || stale || busy;
   function download() {
     if (actionsDisabled || !url) return;
     const link = window.document.createElement("a");

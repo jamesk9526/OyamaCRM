@@ -1246,6 +1246,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
   const [previewRefreshing, setPreviewRefreshing] = useState(false);
+  const previewRequest = useRef<AbortController | null>(null);
+  const previewTextRef = useRef("");
+  const [previewIdentity, setPreviewIdentity] = useState("");
+
   // status
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1540,8 +1544,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       });
       setStatus(saved.status || "DRAFT");
       setLastSavedAt(saved.updatedAt || null);
-      setServerPreviewHtml(saved.renderedHtml || "");
-      setServerPreviewText(saved.renderedText || "");
+      setPreviewIdentity("");
       setDirty(!unchanged);
 
       if (!templateId || templateId !== saved.id) {
@@ -1551,7 +1554,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       if (!auto) {
         setNotice("Draft saved.");
       }
-      return saved.id;
+      return unchanged ? saved.id : null;
     } catch (requestError) {
       const conflict = requestError instanceof Error && "conflict" in requestError
         ? (requestError as Error & { conflict?: SaveConflictState }).conflict
@@ -1577,7 +1580,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   }, [activeTemplateId, lastSavedAt, router, saveConflictModal, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
 
   const createLetterCompanion = useCallback(async () => {
-    const id = activeTemplateId ?? await saveTemplate(false);
+    const id = dirty || !activeTemplateId ? await saveTemplate(false) : activeTemplateId;
     if (!id) return;
     setError(null);
     try {
@@ -1587,7 +1590,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to create a letter companion.");
     }
-  }, [activeTemplateId, router, saveTemplate]);
+  }, [activeTemplateId, dirty, router, saveTemplate]);
 
   const resolveSaveConflict = useCallback(async (options: SaveTemplateOptions) => {
     if (saving || autosaving || !saveConflictModal) return;
@@ -1646,8 +1649,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       });
       setStatus(saved.status || "DRAFT");
       setLastSavedAt(saved.updatedAt || null);
-      setServerPreviewHtml(saved.renderedHtml || "");
-      setServerPreviewText(saved.renderedText || "");
+      setPreviewIdentity("");
       setDirty(false);
 
       if (!templateId || templateId !== saved.id) {
@@ -1767,17 +1769,26 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     if (!options?.silent) {
       setError(null);
     }
+    previewRequest.current?.abort();
+    const controller = new AbortController();
+    previewRequest.current = controller;
+    const identity = JSON.stringify([previewTemplateId, lastSavedAt, buildPreviewRequestBody()]);
+    const timeout = window.setTimeout(() => controller.abort("timeout"), 30000);
     setPreviewRefreshing(true);
     try {
       const preview = await apiFetch<PreviewResponse>(`/api/oyama-email/templates/${previewTemplateId}/preview`, {
         method: "POST",
         body: JSON.stringify(buildPreviewRequestBody()),
+        signal: controller.signal,
       });
-      const deltaSummary = summarizePreviewDelta(serverPreviewText, preview.text || "");
+      if (controller.signal.aborted || previewRequest.current !== controller) return;
+      setPreviewIdentity(identity);
+      const deltaSummary = summarizePreviewDelta(previewTextRef.current, preview.text || "");
       setServerPreviewHtml(preview.html || "");
       setServerPreviewText(preview.text || "");
       setServerPreviewWarnings(Array.isArray(preview.warnings) ? preview.warnings : []);
       setPreviewRecipientLabel(preview.recipient ? (preview.recipient.fullName || preview.recipient.email) : null);
+      previewTextRef.current = preview.text || "";
       setPreviewDeltaSummary(deltaSummary);
       setPreviewLastUpdatedAt(new Date().toISOString());
       if (!options?.silent) {
@@ -1793,35 +1804,31 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         setNotice(Array.isArray(preview.warnings) && preview.warnings.length > 0 ? "Server preview refreshed with warnings." : "Server preview refreshed.");
       }
     } catch (requestError) {
+      if (controller.signal.aborted) {
+        if (controller.signal.reason === "timeout") setError("Email preview timed out. Retry Refresh after checking the connection.");
+        return;
+      }
       if (!options?.silent) {
         setError(requestError instanceof Error ? requestError.message : "Failed to refresh preview.");
       }
     } finally {
-      setPreviewRefreshing(false);
+      window.clearTimeout(timeout);
+      if (previewRequest.current === controller) setPreviewRefreshing(false);
     }
-  }, [activeTemplateId, buildPreviewRequestBody, serverPreviewText]);
+  }, [activeTemplateId, buildPreviewRequestBody, lastSavedAt]);
 
   useEffect(() => {
-    if (!previewModalOpen || !activeTemplateId) return;
-    const handle = window.setTimeout(() => {
-      void refreshServerPreview({ silent: true });
-    }, 280);
-    return () => {
-      window.clearTimeout(handle);
-    };
-  }, [activeTemplateId, previewModalOpen, previewMode, selectedPreviewRecipientId, testRecipientEmail, refreshServerPreview]);
+    if (!previewModalOpen || !activeTemplateId || dirty) return;
+    if (previewIdentity === JSON.stringify([activeTemplateId, lastSavedAt, buildPreviewRequestBody()])) return;
+    if (!previewAutoRefresh && previewIdentity) return;
+    const handle = window.setTimeout(() => void refreshServerPreview({ silent: true }), 350);
+    return () => { window.clearTimeout(handle); previewRequest.current?.abort(); };
+  }, [activeTemplateId, previewModalOpen, previewAutoRefresh, refreshServerPreview, previewIdentity, dirty, lastSavedAt, buildPreviewRequestBody]);
 
-  useEffect(() => {
-    if (!previewModalOpen || !activeTemplateId || !previewAutoRefresh || !lastSavedAt) return;
-    const handle = window.setTimeout(() => {
-      void refreshServerPreview({ silent: true });
-    }, 420);
-    return () => {
-      window.clearTimeout(handle);
-    };
-  }, [activeTemplateId, lastSavedAt, previewAutoRefresh, previewModalOpen, refreshServerPreview]);
+  useEffect(() => () => previewRequest.current?.abort(), []);
 
   const sendTestEmail = useCallback(async () => {
+    if (dirty) { setError("Save the latest draft before sending a test email."); return; }
     if (!activeTemplateId) {
       setError("Save this template before sending a test email.");
       return;
@@ -1855,9 +1862,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     } finally {
       setSaving(false);
     }
-  }, [activeTemplateId, previewMode, testRecipientEmail]);
+  }, [dirty, activeTemplateId, previewMode, testRecipientEmail]);
 
   const sendPreviewToMyself = useCallback(async () => {
+    if (dirty) { setError("Save the latest draft before sending a test email."); return; }
     if (!activeTemplateId) {
       setError("Save this template before sending a test email.");
       return;
@@ -1918,7 +1926,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     } finally {
       setSendingPreviewToSelf(false);
     }
-  }, [activeTemplateId, buildPreviewRequestBody, currentUserEmail, previewMode, serverPreviewHtml, serverPreviewText, serverPreviewWarnings, smtpDefaults.fromEmail, testRecipientEmail, previewRecipientLabel]);
+  }, [dirty, activeTemplateId, buildPreviewRequestBody, currentUserEmail, previewMode, serverPreviewHtml, serverPreviewText, serverPreviewWarnings, smtpDefaults.fromEmail, testRecipientEmail, previewRecipientLabel]);
 
   const uploadImage = useCallback(async (blockId: string, file: File) => {
     const allowedTypes = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
@@ -3815,6 +3823,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   <button
                     type="button"
                     onClick={() => void refreshServerPreview()}
+                    disabled={previewRefreshing || dirty}
+                    title={dirty ? "Save the latest draft before refreshing the server preview" : "Refresh saved template preview"}
                     className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                   >
                     {previewRefreshing ? "Refreshing..." : "Refresh"}
@@ -3822,7 +3832,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                   <button
                     type="button"
                     onClick={() => void sendPreviewToMyself()}
-                    disabled={sendingPreviewToSelf || previewRefreshing}
+                    disabled={sendingPreviewToSelf || previewRefreshing || dirty}
                     className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
                   >
                     {sendingPreviewToSelf ? "Sending..." : "Send to Myself"}
@@ -3916,6 +3926,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 {previewMode === "selected" && selectedPreviewRecipientId && selectedPreviewRecipient ? (
                   <span className="text-xs text-slate-500">Selected: {selectedPreviewRecipient.displayName || [selectedPreviewRecipient.firstName, selectedPreviewRecipient.lastName].filter(Boolean).join(" ") || selectedPreviewRecipient.email || selectedPreviewRecipient.id}</span>
                 ) : null}
+                {dirty || previewIdentity !== JSON.stringify([activeTemplateId, lastSavedAt, buildPreviewRequestBody()]) ? <span role="status" className="rounded bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Preview out of date · save changes and refresh</span> : null}
                 {previewLastUpdatedAt ? <span className="text-xs text-slate-500">Updated {formatLastSaved(previewLastUpdatedAt)}</span> : null}
                 {previewDeltaSummary ? <span className="text-xs text-slate-500">{previewDeltaSummary}</span> : null}
               </div>

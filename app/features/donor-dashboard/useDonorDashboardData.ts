@@ -58,7 +58,7 @@ export function useDonorDashboardData() {
     loadError: current?.metrics.errors.join(" ") || null,
     detailsError: current?.error ?? null,
     reportingYearMode, refreshVersion, load: refresh,
-    dataThroughLabel: through
+    dataThroughLabel: loading ? "Refreshing dashboard…" : !summary ? "Dashboard metrics unavailable" : through
       ? `Data through ${new Date(through).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
       : current ? `Refreshed ${current.refreshed.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Loading data...",
   };

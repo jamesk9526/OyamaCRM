@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "checks": [
+    "quick views do not misrepresent search/period filters",
+    "All clears hidden constraints",
+    "Email SMTP canonical organization link"
+  ],
+  "errors": []
+}

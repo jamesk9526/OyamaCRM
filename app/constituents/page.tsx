@@ -68,9 +68,11 @@ function ConstituentsWorkspace() {
 
   useEffect(() => {
     const loadId = ++latestLoadId.current;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setSelectedIds([]);
+    setActionError(null);
     async function load() {
       try {
         const params = new URLSearchParams();
@@ -82,7 +84,7 @@ function ConstituentsWorkspace() {
         params.set("page", String(page));
         params.set("pageSize", String(pageSize));
 
-        const data = await apiFetch<ConstituentsPageResponse | ConstituentRow[]>(`/api/constituents?${params}`);
+        const data = await apiFetch<ConstituentsPageResponse | ConstituentRow[]>(`/api/constituents?${params}`, { signal: controller.signal });
 
         if (loadId !== latestLoadId.current) return;
         if (Array.isArray(data)) {
@@ -110,7 +112,7 @@ function ConstituentsWorkspace() {
       }
     }
     void load();
-    return () => { latestLoadId.current += 1; };
+    return () => { latestLoadId.current += 1; controller.abort(); };
   }, [search, typeFilter, statusFilter, givingFrom, givingThrough, page, pageSize, retry]);
 
   useEffect(() => {
@@ -205,13 +207,13 @@ function ConstituentsWorkspace() {
   }
 
   const hasFilters = Boolean(search || typeFilter || statusFilter || givingFrom || givingThrough);
-  const activeDirectoryView: DirectoryView | null = !typeFilter && !statusFilter ? "all"
+  const activeDirectoryView: DirectoryView | null = search || givingFrom || givingThrough ? null : !typeFilter && !statusFilter ? "all"
     : typeFilter === "PROSPECT" && !statusFilter ? "prospects"
     : !typeFilter && statusFilter === "ACTIVE" ? "active"
     : !typeFilter && statusFilter === "LAPSED" ? "lapsed" : null;
 
   function applyDirectoryView(view: DirectoryView) {
-    changeFilters({ type: view === "prospects" ? "PROSPECT" : null, status: view === "active" ? "ACTIVE" : view === "lapsed" ? "LAPSED" : null });
+    changeFilters({ search: null, givingFrom: null, givingThrough: null, type: view === "prospects" ? "PROSPECT" : null, status: view === "active" ? "ACTIVE" : view === "lapsed" ? "LAPSED" : null });
   }
 
   function handleMerged(keepId: string) {

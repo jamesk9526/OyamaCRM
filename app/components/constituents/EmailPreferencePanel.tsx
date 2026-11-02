@@ -31,8 +31,14 @@ interface SubscriptionPayload {
 
 /** Renders donor profile controls for global and category-level email consent state. */
 export default function EmailPreferencePanel({ constituentId, email }: { constituentId: string; email?: string }) {
+  return <EmailPreferences key={`${constituentId}:${email || ""}`} constituentId={constituentId} email={email} />;
+}
+
+function EmailPreferences({ constituentId, email }: { constituentId: string; email?: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [globalStatus, setGlobalStatus] = useState<GlobalStatus>("UNKNOWN");
@@ -54,6 +60,7 @@ export default function EmailPreferencePanel({ constituentId, email }: { constit
       try {
         const data = await apiFetch<SubscriptionPayload>(`/api/email/subscriptions/by-constituent/${constituentId}`);
         if (!active) return;
+        setLoaded(true);
         setGlobalStatus(data.subscription?.globalStatus ?? "UNKNOWN");
         setCategoryPreferences(data.categoryPreferences ?? []);
         setSuppressions(data.suppressions ?? []);
@@ -69,7 +76,7 @@ export default function EmailPreferencePanel({ constituentId, email }: { constit
     return () => {
       active = false;
     };
-  }, [constituentId, email]);
+  }, [constituentId, email, loadAttempt]);
 
   /** Updates one category status in local panel state before persisting. */
   function updateCategory(category: string, checked: boolean) {
@@ -138,6 +145,11 @@ export default function EmailPreferencePanel({ constituentId, email }: { constit
       </div>
     );
   }
+
+  if (!loaded) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+    <p role="alert" className="text-sm text-amber-900">{error || "Email preferences could not be loaded."}</p>
+    <button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="mt-2 min-h-9 text-sm font-semibold text-blue-800 hover:underline">Retry preferences</button>
+  </div>;
 
   return (
     <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">

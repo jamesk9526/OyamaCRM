@@ -4245,7 +4245,7 @@ function SettingsView() {
         </div>
         <p className="mt-2 text-sm text-slate-600">Manage sender details, SMTP setup, and organization-level communications defaults.</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <WorkspaceAction href="/settings">Open CRM Settings</WorkspaceAction>
+          <WorkspaceAction href="/settings/organization">Sender & SMTP settings</WorkspaceAction>
           <WorkspaceAction href="/settings/branding">Open Branding</WorkspaceAction>
         </div>
       </article>
@@ -4257,7 +4257,7 @@ function SettingsView() {
             Publish and send validation runs before live delivery. These checks are meant to catch opt-out, footer, and sender problems before staff queue a campaign.
           </InfoTooltip>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Configure policy defaults used by Publish and Send validation checks.</p>
+        <p className="mt-2 text-sm text-slate-600">Review the checks performed before publishing and sending. These are readiness checks, not editable settings.</p>
         <ul className="mt-4 space-y-2 text-sm text-slate-700">
           <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Default preference category required for marketing sends</li>
           <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">Unsubscribe + physical address checks enabled</li>

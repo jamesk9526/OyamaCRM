@@ -153,10 +153,15 @@ type TabKey =
 
 export default function ConstituentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  return <ConstituentProfile key={id} id={id} />;
+}
+
+function ConstituentProfile({ id }: { id: string }) {
   const router = useRouter();
   const [constituent, setConstituent] = useState<ConstituentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [tab, setTab] = useState<TabKey>("overview");
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [deletingDonationId, setDeletingDonationId] = useState<string | null>(null);
@@ -185,23 +190,29 @@ export default function ConstituentDetailPage() {
   }, [constituent, isHousehold]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
     async function load() {
       try {
-        const data = await apiFetch<ConstituentDetail>(`/api/constituents/${id}`);
-        setConstituent(data);
+        const data = await apiFetch<ConstituentDetail>(`/api/constituents/${id}`, { signal: controller.signal });
+        if (!controller.signal.aborted) setConstituent(data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load");
+        if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Failed to load profile");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
-    load();
-  }, [id]);
+    void load();
+    return () => controller.abort();
+  }, [id, loadAttempt]);
 
   useEffect(() => {
-    apiFetch<{ merge: ReversibleMerge | null }>(`/api/constituents/merge-history/${id}`)
-      .then((data) => setReversibleMerge(data.merge))
-      .catch(() => setReversibleMerge(null));
+    const controller = new AbortController();
+    apiFetch<{ merge: ReversibleMerge | null }>(`/api/constituents/merge-history/${id}`, { signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setReversibleMerge(data.merge); })
+      .catch(() => { if (!controller.signal.aborted) setReversibleMerge(null); });
+    return () => controller.abort();
   }, [id]);
 
   async function handleUndoMerge() {
@@ -254,7 +265,7 @@ export default function ConstituentDetailPage() {
   }
 
   if (loading) return <LoadingState />;
-  if (error || !constituent) return <ErrorState error={error} id={id} />;
+  if (error || !constituent) return <ErrorState error={error} id={id} onRetry={() => setLoadAttempt(value => value + 1)} />;
 
   const c = constituent;
 
@@ -1271,13 +1282,13 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ error, id }: { error: string | null; id: string }) {
+function ErrorState({ error, id, onRetry }: { error: string | null; id: string; onRetry: () => void }) {
   return (
     <div className="space-y-4">
       <nav className="text-sm text-gray-500">
         <Link href="/constituents" className="hover:text-emerald-600">Constituents</Link>
         {" / "}
-        <span className="text-gray-900">Not Found</span>
+        <span className="text-gray-900">Profile unavailable</span>
       </nav>
       <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mx-auto mb-4">
@@ -1285,8 +1296,9 @@ function ErrorState({ error, id }: { error: string | null; id: string }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
           </svg>
         </div>
-        <h2 className="text-lg font-semibold text-gray-800">Constituent not found</h2>
-        <p className="text-sm text-gray-400 mt-1">{error ?? `No record with ID: ${id}`}</p>
+        <h2 className="text-lg font-semibold text-gray-800">Unable to load constituent</h2>
+        <p role="alert" className="text-sm text-slate-600 mt-1">{error ?? `No record with ID: ${id}`}</p>
+        <button type="button" onClick={onRetry} className="mt-4 mr-3 rounded-lg border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-50">Retry profile</button>
         <Link href="/constituents" className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors">
           Back to Constituents
         </Link>

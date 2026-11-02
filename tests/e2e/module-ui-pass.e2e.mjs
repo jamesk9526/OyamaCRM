@@ -1,0 +1,40 @@
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { installDonorWorkspaceFixtures } from './fixtures/donor-daily-workspace.mjs';
+const output='docs/status/audit-artifacts/2026-11-02-module-ui-pass';await mkdir(output,{recursive:true});
+const browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.route('**/api/**',async route=>{
+ const path=new URL(route.request().url()).pathname;let body={};
+ if(path.endsWith('/auth/refresh'))body={data:{accessToken:'fixture-token'}};
+ else if(path.endsWith('/auth/me'))body={id:'qa-user',organizationId:'qa-org',role:'ADMIN',firstName:'QA',lastName:'Staff',permissions:['*','constituents.view','letters.view','communications.view']};
+ else if(path.includes('email-campaigns')||path.includes('oyama-email/templates'))body=[];
+ else if(path.includes('/notifications'))body={items:[],unreadCount:0};
+ await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
+});
+await installDonorWorkspaceFixtures(page);
+try{
+ await page.goto('http://localhost:3019/constituents?search=QA&givingFrom=2026-01-01&givingThrough=2026-12-31',{waitUntil:'domcontentloaded',timeout:120000});
+ const views=page.getByRole('group',{name:'Constituent quick views'});await views.waitFor({timeout:60000});
+ assert.equal(await views.getByRole('button',{pressed:true}).count(),0);
+ await views.getByRole('button',{name:'All',exact:true}).click();
+ await page.waitForFunction(()=>!location.search.includes('search=')&&!location.search.includes('givingFrom='));
+ await views.getByRole('button',{name:'All',pressed:true}).waitFor();
+ await page.addStyleTag({content:'nextjs-portal{display:none!important}'});
+ await page.screenshot({path:`${output}/donor-directory-final.png`,fullPage:true});
+ await page.goto('http://localhost:3019/oyama-email/settings',{waitUntil:'domcontentloaded',timeout:120000});
+ await page.locator('a[href="/settings/organization"]').first().waitFor({timeout:60000});
+ await page.addStyleTag({content:'nextjs-portal{display:none!important}'});
+ await page.screenshot({path:`${output}/email-settings-final.png`,fullPage:true});
+ let failProfile=true;
+ await page.route('**/api/constituents/qa-person',route=>failProfile?route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{message:'Profile temporarily unavailable'}})}):route.fallback());
+ await page.goto('http://localhost:3019/constituents/qa-person',{waitUntil:'domcontentloaded',timeout:120000});
+ await page.getByText('Unable to load constituent',{exact:true}).waitFor({timeout:60000});
+ failProfile=false;
+ await page.getByRole('button',{name:/retry/i}).click();
+ await page.getByRole('heading',{name:'QA Individual',exact:true}).waitFor({timeout:30000});
+ await page.addStyleTag({content:'nextjs-portal{display:none!important}'});
+ await page.screenshot({path:`${output}/donor-profile-final.png`,fullPage:true});
+ assert.deepEqual(errors,[]);
+ await writeFile(`${output}/results.json`,JSON.stringify({passed:true,checks:['quick views do not misrepresent search/period filters','All clears hidden constraints','Email SMTP canonical organization link','profile failure and retry recovery'],errors},null,2));
+}catch(error){console.log(page.url(),(await page.locator('body').innerText()).slice(-2400),errors);throw error;}finally{await browser.close();}

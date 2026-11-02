@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 
 interface ConstituentLetterItem {
@@ -35,22 +35,16 @@ export default function ConstituentLettersPanel({ constituentId, canGenerate = t
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await apiFetch<ConstituentLetterItem[]>(`/api/letters/constituents/${constituentId}/generated`);
-      setLetters(result);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to load letter history.");
-    } finally {
-      setLoading(false);
-    }
-  }, [constituentId]);
-
+  const [loadAttempt, setLoadAttempt] = useState(0);
   useEffect(() => {
-    void load();
-  }, [load]);
+    const controller = new AbortController();
+    setLoading(true); setError(null); setLetters([]); setShowAll(false);
+    void apiFetch<ConstituentLetterItem[]>(`/api/letters/constituents/${constituentId}/generated`, { signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) setLetters(result); })
+      .catch(requestError => { if (!controller.signal.aborted) setError(requestError instanceof Error ? requestError.message : "Failed to load letter history."); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [constituentId, loadAttempt]);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -65,17 +59,17 @@ export default function ConstituentLettersPanel({ constituentId, canGenerate = t
           ) : (
             <button type="button" disabled title={disabledReason} className="cursor-not-allowed rounded-lg bg-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500">Generate Letter</button>
           )}
-          <button onClick={() => void load()} className="text-xs text-gray-500 hover:text-gray-700">Refresh</button>
+          <button type="button" disabled={loading} onClick={() => setLoadAttempt(value => value + 1)} className="min-h-9 text-xs text-blue-700 hover:underline disabled:opacity-50">{loading ? "Refreshing…" : error ? "Retry" : "Refresh"}</button>
         </div>
       </div>
 
-      {error && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{error}</div>}
+      {error && <div role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{error}</div>}
 
       {!loading && letters.length > 0 ? <p className="mt-3 text-xs text-slate-600">Review prior mailings before repeating outreach. Showing up to 100 recent letter records.</p> : null}
       <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto">
         {loading ? (
           <p className="text-sm text-gray-500">Loading letter history...</p>
-        ) : letters.length === 0 ? (
+        ) : error ? null : letters.length === 0 ? (
           <p className="text-sm text-gray-500">No letters generated yet for this constituent.</p>
         ) : (
           (showAll ? letters : letters.slice(0, 8)).map((letter) => (
