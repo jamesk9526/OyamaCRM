@@ -4,11 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import "pdfjs-dist/web/pdf_viewer.css";
 
+let pdfJsPromise: Promise<typeof import("pdfjs-dist")> | undefined;
+function loadPdfJs() {
+  const url = "/vendor/pdfjs/pdf.mjs";
+  return pdfJsPromise ??= import(/* webpackIgnore: true */ url).catch(error => { pdfJsPromise = undefined; throw error; });
+}
+
 function PdfPage({ document, page, width, text = false }: { document: PDFDocumentProxy; page: number; width: number; text?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const layer = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   useEffect(() => {
+    const textContainer = layer.current;
     let disposed = false; let task: RenderTask | undefined; let cancelText: (() => void) | undefined;
     void (async () => {
       const pdfPage = await document.getPage(page);
@@ -20,7 +27,7 @@ function PdfPage({ document, page, width, text = false }: { document: PDFDocumen
       task = pdfPage.render({ canvas: canvas.current, viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
       await task.promise;
       if (text && layer.current && !disposed) {
-        const { TextLayer } = await import("pdfjs-dist");
+        const { TextLayer } = await loadPdfJs();
         if (disposed || !layer.current) return;
         layer.current.replaceChildren();
         layer.current.style.setProperty("--scale-factor", String(viewport.scale));
@@ -29,7 +36,7 @@ function PdfPage({ document, page, width, text = false }: { document: PDFDocumen
         cancelText = () => textLayer.cancel(); await textLayer.render();
       }
     })().catch(reason => { if (!disposed) setError(reason instanceof Error ? reason.message : "Page could not be displayed."); });
-    return () => { disposed = true; task?.cancel(); cancelText?.(); layer.current?.replaceChildren(); };
+    return () => { disposed = true; task?.cancel(); cancelText?.(); textContainer?.replaceChildren(); };
   }, [document, page, width, text]);
   return <div className="relative mx-auto w-fit bg-white shadow-sm"><canvas ref={canvas} role="img" aria-label={`PDF page ${page}`} />{text ? <div ref={layer} className="textLayer" /> : null}{error ? <p role="alert" className="p-3 text-xs text-red-700">{error}</p> : null}</div>;
 }
@@ -47,8 +54,8 @@ export default function LetterProofViewer({ url, stale, busy, label }: { url: st
     if (!url) return;
     let disposed = false; let destroy: (() => void) | undefined;
     void (async () => {
-      const pdfjs = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+      const pdfjs = await loadPdfJs();
+      pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
       const task = pdfjs.getDocument({ url, isEvalSupported: false }); destroy = () => { void task.destroy(); };
       const loaded = await task.promise;
       if (disposed) { await loaded.destroy(); return; }

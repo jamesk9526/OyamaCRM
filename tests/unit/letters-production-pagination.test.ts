@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import { renderProductionLetter } from '../../server/src/services/letter-production-renderer';
 import type { LetterSnapshot } from '../../server/src/services/letter-production-contract';
@@ -20,6 +20,9 @@ describe('production PDF pagination', () => {
         bodyHtml: Array.from({ length: 70 }, (_, i) => `<p>Paragraph ${i + 1}. Thank you for supporting our community. This paragraph verifies that long letters flow onto additional pages without losing content.</p>`).join('') + '<div data-letter-page-break="true"></div><p>FINAL EXPLICIT PAGE</p>',
       };
       const result = await renderProductionLetter(snapshot);
+      const output = 'docs/status/audit-artifacts/2026-11-02-letter-builder';
+      await mkdir(output, { recursive: true });
+      await writeFile(`${output}/multi-page-${paper.toLowerCase()}.pdf`, result.bytes);
       const pdf = await PDFDocument.load(result.bytes);
       expect(result.pageCount).toBeGreaterThan(3);
       expect(pdf.getPages().every(page => Math.abs(page.getWidth() - (paper === 'Letter' ? 612 : 595.28)) < 1)).toBe(true);

@@ -1,3 +1,5 @@
+> Current server launch instructions: [Production launch and updates](../operations/LAUNCH.md). This guide owns the CloudPanel/MySQL/PM2 deployment sequence, Chromium setup, and Letters activation.
+
 # OyamaCRM How To Publish Updates
 
 Last updated: 2026-05-15
@@ -227,7 +229,8 @@ rollback() {
 }
 
 echo "[2/10] Backup database"
-pg_dump oyama_crm > "$BACKUP_DIR/db-$TIMESTAMP.sql"
+# Historical release-directory example: use the established MySQL backup procedure.
+# Do not run this example as the current CloudPanel deployment script.
 
 echo "[3/10] Backup release pointer"
 echo "$PREV_RELEASE_DIR" > "$BACKUP_DIR/prev-release-$TIMESTAMP.txt"

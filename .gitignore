@@ -79,3 +79,6 @@ OyamaBridgeDesktopServer/oyama-bridge-desktop-server-1.0.0.tgz
 /OyamaPrint/artifacts
 /.tmp
 /.private/
+
+/public/vendor/pdfjs/
+/apps/letters/public/vendor/pdfjs/

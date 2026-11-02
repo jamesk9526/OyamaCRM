@@ -146,42 +146,14 @@ Important:
 
 ## 4) Standard Deploy Flow
 
-		cd ~/htdocs/<APP_DIRECTORY>
-		git fetch origin
-		git checkout main
+Use the [canonical launch runbook](operations/LAUNCH.md) for current deployment, Chromium provisioning, feature activation, verification, and recovery instructions.
 
-##### Copy and run these!!
+```bash
+cd /home/partnertpccccrm/htdocs/www.crm.partnertpcc.com
+bash scripts/deploy/production.sh
+```
 
-		git pull --ff-only
-		pnpm install --frozen-lockfile
-		pnpm prisma migrate deploy
-		pnpm prisma generate
-		pnpm build
-		pnpm build:letters
-		pnpm build:server
-		set -a
-		source .env.production
-		set +a
-		pnpm pm2:start -- --env production --update-env
-		pnpm pm2:restart -- --env production --update-env
-		pnpm pm2 save
-
-Recommended safer variant (stop on first failure):
-
-		set -euo pipefail
-		git pull --ff-only
-		pnpm install --frozen-lockfile
-		pnpm prisma migrate deploy
-		pnpm prisma generate
-		pnpm build
-		pnpm build:letters
-		pnpm build:server
-		set -a
-		source .env.production
-		set +a
-		pnpm pm2:start -- --env production --update-env
-		pnpm pm2:restart -- --env production --update-env
-		pnpm pm2 save
+Run as the site/PM2 user. The script loads production environment settings before migrations/builds and builds web, server, and standalone Letters. Older troubleshooting examples below are not substitutes for the standard deployment script.
 
 ## 5) Verification Checklist
 

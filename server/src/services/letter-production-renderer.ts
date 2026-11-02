@@ -61,9 +61,9 @@ function chrome(snapshot: LetterSnapshot, footer: boolean): string {
   if (source.enabled === false) return "<div></div>";
   const b = snapshot.branding;
   const logo = snapshot.assets[string(b.logoUrl)];
-  const custom = string(source.customHtml);
+  const custom = string(source.customHtml).replace(/\bsrc\s*=\s*(["\'])(.*?)\1/gi, (_match, quote, src: string) => `src=${quote}${snapshot.assets[src] ?? ""}${quote}`);
   const label = footer ? string(source.customText) || string(b.footerLegalText) : string(b.organizationDisplayName || b.legalOrganizationName || b.organizationName);
-  const contact = [b.addressLine1, b.city, b.state, b.postalCode, b.contactEmail, b.contactPhone, b.websiteUrl].filter(value => typeof value === "string" && value).map(escape).join(" · ");
+  const contact = [b.streetAddress1 || b.addressLine1, b.streetAddress2, b.city, b.stateProvince || b.state, b.postalCode, b.contactEmail, b.contactPhone, b.websiteUrl].filter(value => typeof value === "string" && value).map(escape).join(" · ");
   return `<div style="font-family:Arial,sans-serif;font-size:8px;width:100%;padding:0 ${snapshot.layout.margins.right}in 0 ${snapshot.layout.margins.left}in;color:#243b58">${!footer && logo ? `<img src="${logo}" style="max-width:140px;max-height:35px;vertical-align:middle;margin-right:12px">` : ""}${custom ? sanitizeLetterHtml(custom) : `<strong>${escape(label)}</strong><div>${contact}</div>`}${footer && source.showPageNumber !== false ? '<span style="float:right">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' : ""}</div>`;
 }
 

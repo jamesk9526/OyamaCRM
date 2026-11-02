@@ -1,0 +1,99 @@
+import { chromium } from 'playwright';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const output='docs/status/audit-artifacts/2026-11-02-letter-builder';
+await mkdir(output,{recursive:true});
+const browser=await chromium.launch();
+const page=await browser.newPage({viewport:{width:1600,height:1050}});
+async function capture(name) {
+ await page.waitForFunction(() => {
+  const workspace=document.querySelector('.lb-workspace');
+  const toolbar=document.querySelector('[aria-label="Letter formatting"]');
+  return workspace && toolbar && getComputedStyle(workspace).backgroundColor==='rgb(234, 242, 247)' && getComputedStyle(toolbar).display==='flex';
+ },null,{timeout:30000});
+ await page.addStyleTag({content:"nextjs-portal{display:none!important}"});
+ await page.evaluate(()=>window.scrollTo(0,0));
+ await page.screenshot({path:`${output}/${name}`,fullPage:true});
+}
+const errors=[]; page.on('pageerror',error=>errors.push(error.stack || error.message));
+let template={id:'qa-template',name:'Community thank you',category:'GENERAL',revision:1,documentSchemaVersion:2,printSubject:'',printBody:'<h2>Thank you for your support</h2><p>Dear {{donor.firstName}},</p><p>Your generosity supports our community. We appreciate your partnership.</p>',printLayoutJson:{}};
+let failSave=false; let failRender=true;
+await page.route('**/api/**',async route=>{
+ const path=new URL(route.request().url()).pathname;let body={};
+ if(path.endsWith('/auth/refresh'))body={data:{accessToken:'qa-fixture-token'}};
+ else if(path.endsWith('/auth/me'))body={id:'qa-user',organizationId:'qa-org',role:'ADMIN',firstName:'QA',lastName:'Staff',permissions:['*','letters.view','letters.edit','letters.generate','letters.create','letters.export_pdf']};
+ else if(path.endsWith('/production/config'))body={enabled:true};
+ else if(path.endsWith('/merge-fields'))body={sections:[{label:'Contact',fields:['{{donor.firstName}}','{{donor.lastName}}']},{label:'Donation',fields:['{{gift.amount}}','{{gift.date}}','{{gift.fund}}']}]};
+ else if(path==='/api/constituents')body=[{id:'qa-contact',firstName:'Alexandra',lastName:'Example'}];
+ else if(path==='/api/letters/templates/qa-template')body=template;
+ else if(path==='/api/letters/production/templates/qa-template'){
+  if(failSave)return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:{message:'This template changed in another session.'}})});
+  const incoming=route.request().postDataJSON();template={...template,...incoming,revision:template.revision+1};body=template;
+ }else if(path==='/api/letters/production/jobs')body={id:'qa-job',status:failRender?'FAILED':'READY',revision:template.revision,error:failRender?'QA render failure: retry available':null};
+ else if(path==='/api/letters/production/artifacts/qa-job/pdf')return route.fulfill({contentType:'application/pdf',body:await readFile(`${output}/multi-page-letter.pdf`)});
+ else if(/signatures|header-presets|footer-presets/.test(path))body=[];
+ else if(path.includes('/notifications'))body={items:[],unreadCount:0};
+ else if(path.includes('/branding'))body={};
+ else if(path.includes('/modules'))body=[];
+ await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
+});
+try {
+ await page.goto(`${process.env.E2E_WEB_BASE_URL || 'http://localhost:3000'}/oyama-letters/templates/qa-template/builder`,{waitUntil:'domcontentloaded',timeout:120000});
+ await page.getByRole('textbox',{name:'Letter content'}).waitFor({timeout:30000});
+ await capture(`desktop.png`);
+ await page.getByRole('button',{name:'Text Add a paragraph',exact:true}).click();
+ await page.getByRole('textbox',{name:'Letter content'}).pressSequentially('Additional paragraph verified.');
+ await page.getByRole('button',{name:'Save letter',exact:true}).click();
+ await page.getByText('Saved · r2').waitFor();
+ assert.match(template.printBody,/<p[^>]*>Additional paragraph verified\.<\/p>/);
+ assert.match(template.printBody,/<h2[^>]*>Thank you for your support<\/h2>/);
+ await page.getByRole('textbox',{name:'Letter content'}).click();
+ await page.keyboard.press('Control+b');
+ await page.getByRole('button',{name:'Bold',exact:true,pressed:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Bold',exact:true}).getAttribute('aria-pressed'),'true');
+ await page.keyboard.press('Control+b');
+ await page.getByLabel('Paper size',{exact:true}).selectOption('A4 (8.27 x 11.69 in)');
+ await page.getByRole('button',{name:'Save letter',exact:true}).click();
+ await page.getByText('Saved · r3').waitFor();
+ assert.equal(template.printLayoutJson.letterPdfLayout.pageSize,'A4 (8.27 x 11.69 in)');
+ failSave=true;
+ await page.getByRole('textbox',{name:'Letter name',exact:true}).fill('Conflict draft');
+ await page.getByRole('button',{name:'Save letter',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'another session'}).waitFor();
+ assert.equal(await page.getByRole('textbox',{name:'Letter name',exact:true}).inputValue(),'Conflict draft');
+ failSave=false;
+ await page.getByRole('button',{name:'Preview',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'QA render failure'}).waitFor();
+ failRender=false;
+ await page.getByRole('textbox',{name:'Letter name',exact:true}).fill('Community thank you');
+ await page.getByRole('button',{name:'Preview',exact:true}).click();
+ await page.getByText('6 PDF pages · current proof',{exact:true}).waitFor({timeout:30000});
+ await page.getByRole('button',{name:'Next page',exact:true}).click();
+ await page.getByRole('img',{name:'PDF page 2',exact:true}).last().waitFor();
+ for(const width of [390,768,1280,1600]){
+  await page.setViewportSize({width,height:1000});
+  if(width<=900)await page.getByRole('button',{name:'write',exact:true}).click();
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await capture(`width-${width}.png`);
+  const dimensions=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));
+  assert.ok(dimensions.scroll<=dimensions.width+1,`Overflow at ${width}: ${dimensions.scroll}`);
+ }
+ await page.setViewportSize({width:1600,height:1050});
+ await page.getByRole('button',{name:'review',exact:true}).click();
+ await page.evaluate(()=>window.scrollTo(0,0));
+ await capture(`round-two-review-desktop.png`);
+ await page.setViewportSize({width:390,height:1000});
+ await page.getByRole('button',{name:'settings',exact:true}).click();
+ await page.getByRole('button',{name:'document',exact:true}).click();
+ await page.evaluate(()=>window.scrollTo(0,0));
+ await capture(`round-two-settings-mobile.png`);
+ await page.getByRole('button',{name:'blocks',exact:true}).click();
+ await page.getByRole('textbox',{name:'Search document blocks',exact:true}).fill('page');
+ await capture(`round-two-block-search-mobile.png`);
+ await page.getByRole('button',{name:'proof',exact:true}).click();
+ await page.getByRole('img',{name:'PDF page 2',exact:true}).last().waitFor();
+ await page.evaluate(()=>window.scrollTo(0,0));
+ await capture(`round-two-proof-mobile.png`);
+ assert.deepEqual(errors,[]);
+ await writeFile(`${output}/browser-results.json`,JSON.stringify({passed:true,errors,checks:['editing','revision saves','A4 layout persistence','save conflict preserves draft','proof failure visibility','responsive widths']},null,2));
+}catch(error){console.log('URL',page.url());console.log('BODY',(await page.locator('body').innerText()).slice(0,3000));console.log('ERRORS',errors);await page.screenshot({path:`${output}/failure.png`,fullPage:true});throw error;}finally{await browser.close();}

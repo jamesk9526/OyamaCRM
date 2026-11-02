@@ -1,3 +1,5 @@
+> Current server launch instructions: [Production launch and updates](docs/operations/LAUNCH.md). This guide owns the CloudPanel/MySQL/PM2 deployment sequence, Chromium setup, and Letters activation.
+
 <p align="center">
   <img src="public/branding/oyama-crm-v2-logo.svg" width="360" alt="OyamaCRM v2 — blue mountains with a sunrise" />
 </p>

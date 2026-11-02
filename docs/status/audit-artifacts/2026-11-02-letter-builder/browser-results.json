@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "editing",
+    "revision saves",
+    "A4 layout persistence",
+    "save conflict preserves draft",
+    "proof failure visibility",
+    "responsive widths"
+  ]
+}

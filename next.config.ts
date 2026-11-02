@@ -10,6 +10,7 @@ const apiProxyTarget = String(process.env.NEXT_PUBLIC_API_URL || "http://localho
 const compassionApiTarget = (process.env.COMPASSION_API_URL || "http://127.0.0.1:4100").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   allowedDevOrigins: ["www.crm.partnertpcc.com"],
   turbopack: {
     root: path.resolve(__dirname),

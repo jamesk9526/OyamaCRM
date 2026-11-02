@@ -1,3 +1,5 @@
+> Current server launch instructions: [Production launch and updates](LAUNCH.md). This guide owns the CloudPanel/MySQL/PM2 deployment sequence, Chromium setup, and Letters activation.
+
 # OyamaCRM Production Build Manager GUI
 
 This tool provides a professional workflow for preparing production bundles from the repository.

@@ -1268,3 +1268,23 @@ The [2026-09-22 public registration and payment review](audit-artifacts/2026-09-
 ### Letters production upgrade — 2026-11-02 (in progress)
 
 The organization-flagged structured builder now connects revision saves, recipient proof jobs, and PDF.js viewing. Web TypeScript passes. The flag remains disabled by default; complete workflow integration and visual/physical print verification remain pending. See `docs/status/audit-artifacts/2026-11-02-letters-production-progress.md`.
+
+
+### Launch operations documentation — 2026-11-02
+
+Added the canonical `docs/operations/LAUNCH.md` runbook and fail-fast `scripts/deploy/production.sh`. Current launch instructions cover environment order, frozen installation, all three builds, Chromium provisioning/PDF smoke check, PM2 worker reload/save, organization activation, and recovery. User-supplied server output establishes successful main web/server builds and initial PM2 online/save, not full letter rendering or physical-print certification. No server operations were executed by this documentation update.
+
+
+### Modular Letters builder — 2026-11-02
+
+The feature-flagged production builder now uses a modular UI kit inspired by the supplied letter mockups: navy command bar, searchable/category-filtered block library, document canvas, document/review inspector, CRM merge-field chips, recipient selector, and mobile workspace tabs. Block insertion supports cursor placement and drag/drop. Image insertion uses the authorized upload endpoint; paper/margin changes persist through the existing revision API. Legacy conversion now preserves its pre-conversion template revision before saving structured content. PDF proof remains the pagination authority. Visual browser comparison, complete automation/approval integration, and physical printer verification remain pending; no pixel-equivalence claim is made.
+
+
+### Letters builder verification follow-up — 2026-11-02
+
+Fixed the PDF.js browser module runtime failure, editor flag-loading mount race, mobile command title wrapping, accessible layout/recipient labels and proof invalidation during saves. Web/server types, targeted lint, 78 focused tests and the browser fixture pass. Inspected responsive screenshots and rasterized six-page Letter/A4 PDFs. Real database/automation/approval/batch workflows and physical printing are not certified. Evidence: [letter builder verification](audit-artifacts/2026-11-02-letter-builder/verification.md).
+
+
+### Letters builder second interaction pass — 2026-11-02
+
+Repaired palette paragraph/heading insertion, synchronized toolbar selection states, warned on refresh/close with unsaved text, and focused completed proofs. Expanded synthetic browser checks pass with fresh style-validated desktop/mobile screenshots in `audit-artifacts/2026-11-02-letter-builder`. Lint/web types and focused PDF tests pass. Live automation, approvals/batches and physical printing remain unverified.

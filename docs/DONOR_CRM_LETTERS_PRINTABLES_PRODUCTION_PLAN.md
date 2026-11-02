@@ -1,3 +1,5 @@
+> Current server launch instructions: [Production launch and updates](operations/LAUNCH.md). This guide owns the CloudPanel/MySQL/PM2 deployment sequence, Chromium setup, and Letters activation.
+
 # DonorCRM Letters & Printables Production Plan
 
 ## Objective

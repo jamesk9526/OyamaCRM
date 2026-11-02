@@ -1,0 +1,16 @@
+[
+  {
+    "paper": "letter",
+    "pages": 6,
+    "all70Paragraphs": true,
+    "explicitFinalPage": true,
+    "noBlankPages": true
+  },
+  {
+    "paper": "a4",
+    "pages": 6,
+    "all70Paragraphs": true,
+    "explicitFinalPage": true,
+    "noBlankPages": true
+  }
+]

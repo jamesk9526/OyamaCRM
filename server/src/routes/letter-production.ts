@@ -59,6 +59,10 @@ router.patch("/templates/:id", requirePermission("letters.edit"), route(async (r
   const data = documentData(record(req.body));
   if (!Number.isInteger(req.body?.revision) || req.body.revision < 0) throw new ProductionError(400, "The template revision is required.");
   const saved = await prisma.$transaction(async tx => {
+    const original = await tx.letterTemplate.findFirst({ where: { id: id(req), organizationId: org, revision: req.body.revision } });
+    if (original?.documentSchemaVersion === 1) {
+      await tx.letterDocumentRevision.upsert({ where: { organizationId_templateId_revision: { organizationId: org, templateId: original.id, revision: original.revision } }, update: {}, create: { organizationId: org, templateId: original.id, revision: original.revision, snapshotJson: json(original), createdBy: actor } });
+    }
     const changed = await tx.letterTemplate.updateMany({ where: { id: id(req), organizationId: org, revision: req.body.revision }, data: { ...data, revision: { increment: 1 }, updatedByUserId: actor } });
     if (!changed.count) throw new ProductionError(409, "This template changed in another session. Your draft is preserved; reload the saved version before retrying.");
     const template = await tx.letterTemplate.findFirstOrThrow({ where: { id: id(req), organizationId: org } });
