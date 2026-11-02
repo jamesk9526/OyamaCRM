@@ -1288,3 +1288,8 @@ Fixed the PDF.js browser module runtime failure, editor flag-loading mount race,
 ### Letters builder second interaction pass — 2026-11-02
 
 Repaired palette paragraph/heading insertion, synchronized toolbar selection states, warned on refresh/close with unsaved text, and focused completed proofs. Expanded synthetic browser checks pass with fresh style-validated desktop/mobile screenshots in `audit-artifacts/2026-11-02-letter-builder`. Lint/web types and focused PDF tests pass. Live automation, approvals/batches and physical printing remain unverified.
+
+
+### Canonical structured-letter tools and PDF checks — 2026-11-02
+
+Consolidated structural insertion in the block library, formatting in the toolbar, paper/margins in Document settings, and PDF navigation/download/print in the proof viewer. Branding retains its existing organization home. Fixed stale-proof identity/cancellation and renderer asset/signature/chrome checks; renderer v2.1 invalidates old fingerprints. 85 focused tests, types, lint and synthetic browser regression pass, including downloaded PDF byte equality. New canonical desktop/mobile screenshots and remaining limits are recorded in `audit-artifacts/2026-11-02-letter-builder/verification.md`. Live automation, approval/batch workflows and physical printing remain unverified.

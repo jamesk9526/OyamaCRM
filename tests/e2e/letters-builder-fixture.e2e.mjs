@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 const output='docs/status/audit-artifacts/2026-11-02-letter-builder';
 await mkdir(output,{recursive:true});
 const browser=await chromium.launch();
@@ -47,11 +48,13 @@ try {
  await page.getByText('Saved · r2').waitFor();
  assert.match(template.printBody,/<p[^>]*>Additional paragraph verified\.<\/p>/);
  assert.match(template.printBody,/<h2[^>]*>Thank you for your support<\/h2>/);
- await page.getByRole('textbox',{name:'Letter content'}).click();
- await page.keyboard.press('Control+b');
+ await page.getByRole('textbox',{name:'Letter content'}).getByText('Additional paragraph verified.',{exact:true}).click();
+ await page.keyboard.press('Home');
+ await page.keyboard.press('Shift+End');
+ await page.getByRole('button',{name:'Bold',exact:true}).click();
  await page.getByRole('button',{name:'Bold',exact:true,pressed:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Bold',exact:true}).getAttribute('aria-pressed'),'true');
- await page.keyboard.press('Control+b');
+ await page.getByRole('button',{name:'Bold',exact:true}).click();
  await page.getByLabel('Paper size',{exact:true}).selectOption('A4 (8.27 x 11.69 in)');
  await page.getByRole('button',{name:'Save letter',exact:true}).click();
  await page.getByText('Saved · r3').waitFor();
@@ -70,6 +73,22 @@ try {
  await page.getByText('6 PDF pages · current proof',{exact:true}).waitFor({timeout:30000});
  await page.getByRole('button',{name:'Next page',exact:true}).click();
  await page.getByRole('img',{name:'PDF page 2',exact:true}).last().waitFor();
+ assert.equal(await page.getByRole('button',{name:'Preview',exact:true}).count(),1);
+ assert.equal(await page.getByRole('button',{name:'Render print proof',exact:true}).count(),0);
+ await page.getByRole('textbox',{name:'Letter content'}).press('End');
+ await page.getByRole('textbox',{name:'Letter content'}).pressSequentially(' Proof freshness check.');
+ await page.getByRole('button',{name:'Save letter',exact:true}).click();
+ await page.getByText('Out of date · latest edits are not shown',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Download PDF',exact:true}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'Print PDF',exact:true}).isDisabled(),true);
+ failRender=true;
+ await page.getByRole('button',{name:'Preview',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'QA render failure'}).waitFor();
+ await page.getByText('Out of date · latest edits are not shown',{exact:true}).waitFor();
+ failRender=false;
+ await page.getByRole('button',{name:'Preview',exact:true}).click();
+ await page.getByText('6 PDF pages · current proof',{exact:true}).waitFor();
+
  for(const width of [390,768,1280,1600]){
   await page.setViewportSize({width,height:1000});
   if(width<=900)await page.getByRole('button',{name:'write',exact:true}).click();
@@ -81,19 +100,19 @@ try {
  await page.setViewportSize({width:1600,height:1050});
  await page.getByRole('button',{name:'review',exact:true}).click();
  await page.evaluate(()=>window.scrollTo(0,0));
- await capture(`round-two-review-desktop.png`);
+ await capture(`canonical-review-desktop.png`);
  await page.setViewportSize({width:390,height:1000});
  await page.getByRole('button',{name:'settings',exact:true}).click();
  await page.getByRole('button',{name:'document',exact:true}).click();
  await page.evaluate(()=>window.scrollTo(0,0));
- await capture(`round-two-settings-mobile.png`);
+ await capture(`canonical-settings-mobile.png`);
  await page.getByRole('button',{name:'blocks',exact:true}).click();
  await page.getByRole('textbox',{name:'Search document blocks',exact:true}).fill('page');
- await capture(`round-two-block-search-mobile.png`);
+ await capture(`canonical-block-search-mobile.png`);
  await page.getByRole('button',{name:'proof',exact:true}).click();
  await page.getByRole('img',{name:'PDF page 2',exact:true}).last().waitFor();
  await page.evaluate(()=>window.scrollTo(0,0));
- await capture(`round-two-proof-mobile.png`);
+ await capture(`canonical-proof-mobile.png`);
  assert.deepEqual(errors,[]);
- await writeFile(`${output}/browser-results.json`,JSON.stringify({passed:true,errors,checks:['editing','revision saves','A4 layout persistence','save conflict preserves draft','proof failure visibility','responsive widths']},null,2));
+ await writeFile(`${output}/browser-results.json`,JSON.stringify({passed:true,errors,checks:['editing','revision saves','A4 layout persistence','save conflict preserves draft','proof failure visibility','responsive widths','stale proof remains stale after failed refresh','stale download/print disabled','download matches original PDF bytes','canonical Preview action']},null,2));
 }catch(error){console.log('URL',page.url());console.log('BODY',(await page.locator('body').innerText()).slice(0,3000));console.log('ERRORS',errors);await page.screenshot({path:`${output}/failure.png`,fullPage:true});throw error;}finally{await browser.close();}

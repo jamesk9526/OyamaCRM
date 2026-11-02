@@ -33,3 +33,14 @@ Fixed Text/Heading palette insertion so new text begins in a separate block inst
 Expanded browser fixture passes on an isolated Next dev instance (port 3019, `.tmp/letters-qa-next` build directory). Screenshot capture asserts both kit and toolbar styles have loaded. Dev overlay chrome is hidden only for screenshot capture. Fresh captures: `round-two-review-desktop.png`, `round-two-settings-mobile.png`, `round-two-block-search-mobile.png`, and `round-two-proof-mobile.png`. The phone settings/proof screenshots were visually inspected. Synthetic APIs and real PDF viewer are used; no live writes occurred. Targeted lint and web TypeScript pass; six focused print/pagination tests pass again.
 
 For isolated reproduction, set NEXT_DIST_DIR=.tmp/letters-qa-next when starting Next on port 3019 and E2E_WEB_BASE_URL=http://localhost:3019 when running the browser fixture. Restore any auto-added temporary Next type paths before committing tsconfig.json. Normal production builds retain the default .next directory.
+
+
+## Canonical controls and PDF correctness pass (subagent review)
+
+Three subagents separately audited formatting/insertion ownership, PDF viewer lifecycle/actions, and server rendering. Integrated results:
+
+- Insertion is owned by the palette; formatting by the compact icon toolbar; paper/margins by the extracted Document settings component; branding links to its existing organization home; PDF tools live in the viewer. Removed duplicate Preview action from the recipient card.
+- Old proof bytes retain their rendered revision/recipient label; saved edits and failed refreshes cannot make them current. Download/print disable for stale or rendering states. Viewer document state resets on PDF URL replacement.
+- Missing/unsafe frozen images fail explicitly, signature markers survive sanitation to avoid duplicate automatic signatures, and header/footer visibility, reserved-margin fit and printable-width checks have focused regression coverage. Renderer version bumped to v2.1.
+- 85 tests pass in eight focused suites. Web/server TypeScript and targeted lint pass. Browser fixture passes save/conflict, proof replacement/failure, stale-action disablement, canonical Preview count, and SHA-256 equality of downloaded PDF bytes with the original. Screenshot evidence: `canonical-review-desktop.png`, `canonical-settings-mobile.png`, `canonical-block-search-mobile.png`, `canonical-proof-mobile.png`. Desktop/mobile settings images were visually inspected.
+- This pass does not establish live database authorization/concurrency, automation idempotency, batch approvals, all legacy settings migration, full recipient/custom header-column composition, unsupported-glyph coverage, or physical printing.

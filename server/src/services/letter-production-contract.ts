@@ -1,5 +1,5 @@
 /** Portable, frozen inputs. No renderer is allowed to look up current CRM data. */
-export const LETTER_RENDERER_VERSION = "chromium-letters-v2";
+export const LETTER_RENDERER_VERSION = "chromium-letters-v2.1";
 export interface LetterSnapshot {
   version: 2;
   organizationId: string;
