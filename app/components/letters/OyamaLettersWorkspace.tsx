@@ -15,6 +15,7 @@ import { openPdfPrintView } from "@/app/components/letters/pdf-print";
 import MatchingLabelsDownload from "@/app/components/letters/MatchingLabelsDownload";
 import MailMergeLabelsWorkspace from "@/app/components/letters/MailMergeLabelsWorkspace";
 import QRCode from "qrcode";
+import ProductionBuilder from "./production/ProductionBuilder";
 import {
   DEFAULT_BRANDING_SETTINGS,
   formatBrandingAddress,
@@ -592,6 +593,8 @@ const LETTERS_SIDEBAR_ITEMS = [
 
 /** Top-level dedicated workspace shell. */
 export default function OyamaLettersWorkspace({ view = "library", templateId }: OyamaLettersWorkspaceProps) {
+  const [productionEnabled, setProductionEnabled] = useState(false);
+  useEffect(() => { let active = true; void apiFetch<{ enabled: boolean }>("/api/letters/production/config").then(value => { if (active) setProductionEnabled(value.enabled); }).catch(() => {}); return () => { active = false; }; }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("oyamaLettersSidebarCollapsed") === "1";
@@ -620,7 +623,7 @@ export default function OyamaLettersWorkspace({ view = "library", templateId }: 
           <LettersMobileNav activeView={view} />
           <LettersTopBar view={view} templateId={templateId} />
           {view === "library" ? <TemplateLibrary /> : null}
-          {view === "builder" ? <TemplateBuilder templateId={templateId} /> : null}
+          {view === "builder" ? productionEnabled ? <ProductionBuilder templateId={templateId} /> : <TemplateBuilder templateId={templateId} /> : null}
           {view === "publish" ? <PublishWorkspace templateId={templateId} /> : null}
           {view === "generate" ? <GenerateWorkspace /> : null}
           {view === "labels" ? <MailMergeLabelsWorkspace /> : null}

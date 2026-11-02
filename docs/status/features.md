@@ -1,3 +1,7 @@
+## Windows Fluent desktop presentation
+
+Native CRM now targets .NET 9 Windows with Microsoft WPF Fluent light theme, Segoe UI Variable and neutral Windows surfaces. Self-contained publishing includes its runtime. Startup screenshot capture passes. Installer remains unsigned and live authenticated workflow/clean-machine tests remain outstanding.
+
 ## Native desktop installer and browsing improvements
 
 Added Donations, readable table columns, record detail inspection, access-token renewal, empty-state guidance and styled keyboard-focus controls. Published a self-contained Windows x64 client and NSIS per-user installer. Startup and screenshot capture pass. Installer is unsigned; authenticated live workflows, clean-machine validation and CRM write workflows remain outstanding.
@@ -1488,3 +1492,8 @@ Source-of-truth organization map:
 
 The donor dashboard now leads with visible monthly current/prior-year revenue and complete fund-mix charts, completed gift counts, average gift, unique active donors, and cohort-based retention. Comparisons match elapsed calendar/fiscal periods; zero baselines remain explicit, historical years have twelve months, and date-only gift boundaries and cent arithmetic are covered by focused tests. Dashboard layout controls share Customize dashboard; reporting has one control per device layout; imports remain in Data Tools; Custom Fields lives in Settings with a compatible redirect. Saved custom-field rendering, errors, retry, and mobile actions were repaired. Donor visual changes are scoped to the donor shell. See `audit-artifacts/2026-10-29-donor-modernization/verification.md` for evidence, current limitations, and the local-only verification boundary.
 
+
+
+### Letters production upgrade — 2026-11-02 (in progress)
+
+The organization-flagged structured builder now connects revision saves, recipient proof jobs, and PDF.js viewing. Web TypeScript passes. The flag remains disabled by default; complete workflow integration and visual/physical print verification remain pending. See `docs/status/audit-artifacts/2026-11-02-letters-production-progress.md`.

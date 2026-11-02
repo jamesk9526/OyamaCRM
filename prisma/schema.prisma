@@ -2272,6 +2272,85 @@ model StewardPathEmailDraft {
 
 // ─── Donor CRM Letters & Printables ───────────────────────────────────────
 
+// Production records intentionally outlive mutable templates and contacts.
+// All access must include organizationId; snapshots contain sensitive donor data.
+model LetterDocumentRevision {
+  id             String   @id @default(cuid())
+  organizationId String
+  templateId     String
+  revision       Int
+  snapshotJson   Json
+  createdBy      String
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, templateId, revision])
+}
+
+model LetterRenderJob {
+  id                String   @id @default(cuid())
+  organizationId    String
+  generatedLetterId String?
+  fingerprint       String
+  rendererVersion   String
+  snapshotJson      Json
+  status            String   @default("PENDING")
+  attempts          Int      @default(0)
+  leaseToken        String?
+  leaseUntil        DateTime?
+  error             String?  @db.Text
+  checksum          String?
+  pageCount         Int?
+  warningsJson      Json?
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@unique([organizationId, fingerprint])
+  @@index([status, leaseUntil, createdAt])
+  @@index([organizationId, generatedLetterId])
+}
+
+model LetterArtifactApproval {
+  id             String   @id @default(cuid())
+  organizationId String
+  artifactId     String
+  checksum       String
+  approvedBy     String
+  approvedAt     DateTime @default(now())
+  @@unique([organizationId, artifactId, checksum])
+}
+
+model LetterProductionBatch {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  manifestKey    String
+  createdBy      String
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, manifestKey])
+  @@index([organizationId, createdAt])
+}
+
+model LetterProductionBatchItem {
+  id                String @id @default(cuid())
+  organizationId    String
+  batchId           String
+  position          Int
+  generatedLetterId String
+  artifactId        String
+  @@unique([batchId, position])
+  @@index([organizationId, batchId])
+}
+
+model LetterProductionEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  artifactId     String
+  kind           String
+  reason         String?  @db.Text
+  actorId        String
+  createdAt      DateTime @default(now())
+  @@index([organizationId, artifactId, createdAt])
+}
+
 model LetterHeaderPreset {
   id                   String              @id @default(cuid())
   organizationId       String
@@ -2347,6 +2426,9 @@ model LetterSignatureBlock {
 
 model LetterTemplate {
   id               String               @id @default(cuid())
+  revision         Int                  @default(0)
+  documentSchemaVersion Int             @default(1)
+  documentJson     Json?
   organizationId   String
   name             String
   category         LetterCategory       @default(GENERAL)
@@ -2384,6 +2466,7 @@ model LetterTemplate {
 
 model GeneratedLetter {
   id                      String                @id @default(cuid())
+  productionKey           String?               @unique
   organizationId          String
   templateId              String
   constituentId           String?

@@ -1,3 +1,7 @@
+## Windows Fluent desktop presentation
+
+Native CRM now targets .NET 9 Windows with Microsoft WPF Fluent light theme, Segoe UI Variable and neutral Windows surfaces. Self-contained publishing includes its runtime. Startup screenshot capture passes. Installer remains unsigned and live authenticated workflow/clean-machine tests remain outstanding.
+
 ## Native desktop installer and browsing improvements
 
 Added Donations, readable table columns, record detail inspection, access-token renewal, empty-state guidance and styled keyboard-focus controls. Published a self-contained Windows x64 client and NSIS per-user installer. Startup and screenshot capture pass. Installer is unsigned; authenticated live workflows, clean-machine validation and CRM write workflows remain outstanding.
@@ -1259,3 +1263,8 @@ The [2026-09-22 public registration and payment review](audit-artifacts/2026-09-
 - [x] Whole-web typecheck, focused donor ESLint, and 44 directly repeated unit/API tests passed. Additional metric-worker coverage passed 63 checks including an America/Chicago timezone run and server typecheck. Storage is mocked in the new metric API tests.
 - [ ] Reconcile calculation results against approved production-data samples and verify the deployed build. No deployment, live donor edit, import, payment, or outbound communication occurred in this work. Five legacy visual-source assertions remain stale, as documented in the preceding donor audit; behavioral checks are the evidence for this redesign. Detailed evidence: `audit-artifacts/2026-10-29-donor-modernization/verification.md`.
 
+
+
+### Letters production upgrade — 2026-11-02 (in progress)
+
+The organization-flagged structured builder now connects revision saves, recipient proof jobs, and PDF.js viewing. Web TypeScript passes. The flag remains disabled by default; complete workflow integration and visual/physical print verification remain pending. See `docs/status/audit-artifacts/2026-11-02-letters-production-progress.md`.

@@ -1,5 +1,7 @@
 /** Shared execution helpers for letters preview/generation across API routes and steward-path steps. */
 import { type LetterCategory, type LetterTemplateStatus } from "@prisma/client";
+import { buildProductionSnapshot, productionEnabled, digest, json } from "./letter-production.js";
+import { LETTER_RENDERER_VERSION } from "./letter-production-contract.js";
 import { prisma } from "../lib/prisma.js";
 import { sumTaxDeductibleGiving } from "./donation-tax.js";
 import { collectMergeFieldKeys, renderMergeFields, unsupportedMergeFieldKeys } from "./letters-merge.js";
@@ -21,6 +23,8 @@ interface TemplateForMerge {
   printSubject: string | null;
   emailSubject: string | null;
   printLayoutJson: unknown;
+  revision: number;
+  documentSchemaVersion: number;
 }
 
 export interface ResolveMergeContextInput {
@@ -435,6 +439,8 @@ export async function getTemplateForGeneration(
       printSubject: true,
       emailSubject: true,
       printLayoutJson: true,
+      revision: true,
+      documentSchemaVersion: true,
       status: true,
     },
   });
@@ -458,10 +464,19 @@ export async function generateLetterFromTemplate(input: GenerateLetterInput) {
     actorUserId: input.actorUserId,
   });
 
+  const productionKey = input.stewardPathStepRunId ? digest(JSON.stringify([input.organizationId, input.stewardPathStepRunId, input.constituentId, input.donationId])) : null;
+  if (productionKey) {
+    const prior = await prisma.generatedLetter.findFirst({ where: { organizationId: input.organizationId, productionKey } });
+    if (prior) return { template, merged, generated: prior };
+  }
+  const production = template.documentSchemaVersion === 2;
+  if (production && !(await productionEnabled(input.organizationId))) throw new Error("Letter production is disabled. Enable the reviewed production workflow before generating this template.");
+  const frozen = production ? await buildProductionSnapshot({ organizationId: input.organizationId, templateId: template.id, bodyHtml: merged.mergedPrintBody, subject: merged.mergedPrintSubject || "", recipientId: merged.resolvedConstituentId, blockers: [...merged.unsupportedFields.map(field => `Unsupported field: ${field}`), ...merged.missingFields.map(field => `Missing value: ${field}`)] }) : null;
   const generated = await prisma.$transaction(async (tx) => {
     const created = await tx.generatedLetter.create({
       data: {
         organizationId: input.organizationId,
+        productionKey,
         templateId: template.id,
         constituentId: merged.resolvedConstituentId,
         donationId: merged.resolvedDonationId,
@@ -478,6 +493,7 @@ export async function generateLetterFromTemplate(input: GenerateLetterInput) {
         stewardPathStepRunId: input.stewardPathStepRunId,
         generatedByUserId: input.actorUserId,
         metadataJson: {
+          ...(production ? { productionVersion: 2, queue: { reviewStatus: "NEEDS_REVIEW", printStatus: "NEEDS_REVIEW" } } : {}),
           unsupportedMergeFields: merged.unsupportedFields,
           missingMergeFields: merged.missingFields,
           templateStatusAtGeneration: template.status,
@@ -487,6 +503,11 @@ export async function generateLetterFromTemplate(input: GenerateLetterInput) {
         },
       },
     });
+
+    if (frozen) {
+      frozen.generatedLetterId = created.id;
+      await tx.letterRenderJob.create({ data: { organizationId: input.organizationId, generatedLetterId: created.id, fingerprint: digest(JSON.stringify({ renderer: LETTER_RENDERER_VERSION, snapshot: frozen })), rendererVersion: LETTER_RENDERER_VERSION, snapshotJson: json(frozen), createdBy: input.actorUserId } });
+    }
 
     if (merged.resolvedConstituentId) {
       const activity = await tx.activity.create({

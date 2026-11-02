@@ -1,6 +1,6 @@
 # Oyama Desktop for Windows
 
-Native C# / WPF CRM client, separate from the Electron CRM and AI Bridge. Requires Windows and .NET 8 Desktop Runtime, or publish self-contained.
+Native C# / WPF CRM client, separate from the Electron CRM and AI Bridge. Requires Windows and .NET 9 Desktop Runtime, or publish self-contained.
 
 ```
 dotnet run --project OyamaDesktopCSharp/OyamaDesktop.csproj
@@ -20,3 +20,5 @@ The existing desktop applications remain available. This is a new native client,
 ## Installer
 
 `artifacts/Oyama-Desktop-Setup-2.0.0.exe` installs per-user, includes the .NET runtime, and registers Start-menu/desktop shortcuts and Windows uninstall. Build after publishing with NSIS `makensis installer.nsi`. The installer is unsigned. Authenticated live API testing and a clean-machine installation test remain outstanding.
+
+The Windows shell uses the built-in .NET 9 WPF Fluent light theme and Segoe UI Variable. Reference: https://learn.microsoft.com/en-us/dotnet/desktop/wpf/whats-new/net90

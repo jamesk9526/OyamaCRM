@@ -40,6 +40,9 @@ import {
   renderEmailTemplateDocument,
 } from "../services/oyama-email/email-render-service.js";
 
+import productionRoutes from "./letter-production.js";
+import { readArtifact, combineArtifacts, ProductionError } from "../services/letter-production.js";
+
 const router = Router();
 
 const LETTER_CATEGORIES = [
@@ -331,6 +334,7 @@ router.get("/media/:organizationId/:fileName", (req, res) => {
 });
 
 router.use(requireAuth);
+router.use("/production", productionRoutes);
 
 /** Validates and returns the active organization context for one request. */
 async function requireOrganizationId(req: Request): Promise<string | null> {
@@ -4023,7 +4027,12 @@ router.patch("/templates/:id", requirePermission("letters.edit"), async (req, re
     return;
   }
 
+  if (existing.documentSchemaVersion === 2) {
+    res.status(409).json({ error: { code: "STRUCTURED_DOCUMENT_REQUIRED", message: "Open this template in the new letter editor to preserve its structured content and revision." } });
+    return;
+  }
   const patch: Prisma.LetterTemplateUpdateInput = {
+    revision: { increment: 1 },
     updatedBy: { connect: { id: userId } },
   };
 
@@ -6677,6 +6686,18 @@ router.post("/generated/:id/export-pdf", requirePermission("letters.export_pdf")
     return;
   }
 
+  const frozenJob = await prisma.letterRenderJob.findFirst({ where: { organizationId, generatedLetterId: getRouteId(req) }, orderBy: { createdAt: "desc" } });
+  if (frozenJob) {
+    try {
+      const { job, bytes } = await readArtifact(organizationId, frozenJob.id);
+      res.set({ "Content-Type": "application/pdf", "Cache-Control": "private, no-store", "X-Letter-Artifact": job.id, "X-Letter-Checksum": job.checksum!, "Content-Disposition": `inline; filename="letter-${job.id}.pdf"` }).send(bytes);
+    } catch (error) {
+      if (error instanceof ProductionError) { res.status(error.status).json({ error: { code: "PROOF_NOT_READY", message: error.message } }); }
+      else throw error;
+    }
+    return;
+  }
+  res.setHeader("X-Letter-Legacy-Reconstruction", "true");
   const generatedLetter = await prisma.generatedLetter.findFirst({
     where: { id: getRouteId(req), organizationId },
     select: {
