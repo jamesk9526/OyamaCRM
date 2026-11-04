@@ -20,6 +20,8 @@ interface AppointmentEditorModalProps {
   mode: "create" | "edit";
   appointment?: CompassionAppointmentRecord | null;
   initialStartTime?: string | null;
+  initialClientId?: string;
+  initialAppointmentType?: string;
   clientOptions: ClientOption[];
   staffOptions: StaffOption[];
   onClose: () => void;
@@ -50,6 +52,8 @@ export default function AppointmentEditorModal({
   mode,
   appointment,
   initialStartTime,
+  initialClientId = "",
+  initialAppointmentType = "INTAKE",
   clientOptions,
   staffOptions,
   onClose,
@@ -60,8 +64,8 @@ export default function AppointmentEditorModal({
   }, [clientOptions]);
 
   const initialForm = useMemo(() => ({
-    clientId: appointment?.clientId ?? "",
-    appointmentType: appointment?.appointmentType ?? "INTAKE",
+    clientId: appointment?.clientId ?? initialClientId,
+    appointmentType: appointment?.appointmentType ?? initialAppointmentType,
     status: appointment?.status ?? "SCHEDULED",
     startTime: appointment ? toDatetimeLocalValue(appointment.startTime) : (initialStartTime ? toDatetimeLocalValue(initialStartTime) : defaultStartTime()),
     durationMinutes: String(appointment?.durationMinutes ?? 60),
@@ -69,7 +73,7 @@ export default function AppointmentEditorModal({
     location: appointment?.location ?? "",
     notes: appointment?.notes ?? "",
     followUpNeeded: Boolean(appointment?.followUpNeeded ?? appointment?.flags?.followUpNeeded),
-  }), [appointment, initialStartTime]);
+  }), [appointment, initialStartTime, initialClientId, initialAppointmentType]);
 
   const [form, setForm] = useState(initialForm);
   const [clientSearch, setClientSearch] = useState("");
@@ -258,6 +262,7 @@ export default function AppointmentEditorModal({
               />
               <select
                 required
+                aria-label="Appointment client"
                 value={form.clientId}
                 onChange={(event) => {
                   const nextClientId = event.target.value;
@@ -278,6 +283,7 @@ export default function AppointmentEditorModal({
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Appointment Type</label>
               <select
+                aria-label="Appointment type"
                 value={form.appointmentType}
                 onChange={(event) => setForm((current) => ({ ...current, appointmentType: event.target.value }))}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"

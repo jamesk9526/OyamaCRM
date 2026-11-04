@@ -10,10 +10,11 @@ import LetterDocumentSettings from "./LetterDocumentSettings";
 import Link from "next/link";
 import { ArrowLeft, Eye, Save, Settings2, FileText, Blocks } from "lucide-react";
 import "./letter-production.css";
+import type { NativeEditorState } from "@/app/components/oyama-email/EmailBuilderKit";
 
 type Template = { id: string; name: string; category: string; printSubject: string; printBody: string; documentJson?: JSONContent; documentSchemaVersion: number; revision: number; printLayoutJson: unknown };
 type Job = { id: string; status: string; error?: string; revision: number; recipient?: { name: string }; pageCount?: number };
-export default function ProductionBuilder({ templateId }: { templateId?: string }) {
+export default function ProductionBuilder({ templateId, returnHref = "/oyama-letters/templates", onEditorState, onSaved }: { templateId?: string; returnHref?: string; onEditorState?: (value: NativeEditorState) => void; onSaved?: () => Promise<unknown> }) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [contactAttempt, setContactAttempt] = useState(0);
   const [contactError, setContactError] = useState("");
@@ -63,7 +64,7 @@ export default function ProductionBuilder({ templateId }: { templateId?: string 
   async function save() {
     if(!template||!body||!accepted)return;
     setBusy(true);setError(""); const savingEdit=edits.current;
-    try {const saved=await apiFetch<Template>(`/api/letters/production/templates${template.id?`/${template.id}`:""}`,{method:template.id?"PATCH":"POST",body:JSON.stringify({...template,printBody:body.html,documentJson:body.json})});setTemplate(current=>edits.current===savingEdit?saved:{...current!,id:saved.id,revision:saved.revision});setDirty(edits.current!==savingEdit);return edits.current===savingEdit?saved:undefined;}
+    try {const saved=await apiFetch<Template>(`/api/letters/production/templates${template.id?`/${template.id}`:""}`,{method:template.id?"PATCH":"POST",body:JSON.stringify({...template,printBody:body.html,documentJson:body.json})});setTemplate(current=>edits.current===savingEdit?saved:{...current!,id:saved.id,revision:saved.revision});setDirty(edits.current!==savingEdit);await onSaved?.();return edits.current===savingEdit?saved:undefined;}
     catch(e){setError(e instanceof Error?e.message:"Save failed. Your draft remains in the editor.");}finally{setBusy(false);}
   }
   async function proof(){
@@ -102,6 +103,7 @@ export default function ProductionBuilder({ templateId }: { templateId?: string 
     if(id==="signature"){setInspector("document");return;}
     insertLetterBlock(editor,id);
   }
+  useEffect(() => { onEditorState?.({ dirty, save: async () => !dirty || !busy && !!await save() }); });
   async function upload(file:File){
     if(!editor||uploadInFlight.current)return;
     uploadInFlight.current=true;setUploading(true);setError("");
@@ -120,7 +122,7 @@ export default function ProductionBuilder({ templateId }: { templateId?: string 
   const stale=dirty||!proofIdentity||proofIdentity.revision!==template.revision||proofIdentity.recipient!==recipient;
   return <main className="lb-workspace">
     <input type="file" ref={imageInput} accept="image/png,image/jpeg,image/webp" hidden onChange={event=>{const file=event.target.files?.[0];if(file)void upload(file);event.target.value="";}}/>
-    <header className="lb-command"><Link className="lb-back" href="/oyama-letters" aria-label="Back to letter templates"><ArrowLeft size={18} aria-hidden="true"/></Link><div className="lb-title"><span>LETTER STUDIO</span><input aria-label="Letter name" title="Rename this letter" value={template.name} onChange={e=>{edits.current++;setTemplate({...template,name:e.target.value});setDirty(true);}}/></div><BuilderStatus state={dirty?"warning":template.id?"saved":"draft"}>{busy?"Working…":dirty?"Unsaved":template.id?"Saved":"New draft"} · r{template.revision}</BuilderStatus><div className="lb-actions"><BuilderButton disabled={busy||uploading||!accepted} onClick={()=>void proof()}><Eye size={16} aria-hidden="true"/>Preview</BuilderButton><BuilderButton primary disabled={busy||uploading||!accepted} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save letter</BuilderButton></div></header>
+    <header className="lb-command"><Link className="lb-back" href={returnHref} aria-label="Back to campaign or letter templates"><ArrowLeft size={18} aria-hidden="true"/></Link><div className="lb-title"><span>LETTER STUDIO</span><input aria-label="Letter name" title="Rename this letter" value={template.name} onChange={e=>{edits.current++;setTemplate({...template,name:e.target.value});setDirty(true);}}/></div><BuilderStatus state={dirty?"warning":template.id?"saved":"draft"}>{busy?"Working…":dirty?"Unsaved":template.id?"Saved":"New draft"} · r{template.revision}</BuilderStatus><div className="lb-actions"><BuilderButton disabled={busy||uploading||!accepted} onClick={()=>void proof()}><Eye size={16} aria-hidden="true"/>Preview</BuilderButton><BuilderButton primary disabled={busy||uploading||!accepted} onClick={()=>void save()}><Save size={16} aria-hidden="true"/>Save letter</BuilderButton></div></header>
     {!accepted&&<div className="lb-notice">Review this legacy letter before saving its structured conversion. The saved original is retained until you save.<BuilderButton onClick={()=>setAccepted(true)}>Review conversion</BuilderButton></div>}
     {error&&<p role="alert" className="lb-error">{error}</p>}
     {uploading&&<p role="status" className="lb-notice">Uploading image… Wait for it to appear before saving or rendering a proof.</p>}

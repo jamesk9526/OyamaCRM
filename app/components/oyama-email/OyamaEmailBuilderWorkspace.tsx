@@ -13,6 +13,7 @@ import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { apiFetch, apiFetchResponse } from "@/app/lib/auth-client";
+import { EmailCanvas, EmailInspector, EmailBlockLibrary, useEmailDocumentHistory, type NativeEditorState } from "./EmailBuilderKit";
 import { DEFAULT_BRANDING_SETTINGS, fetchBrandingSettings, formatBrandingAddress, type BrandingSettings } from "@/app/lib/branding-settings";
 import { InfoTooltip, WorkspaceHint } from "@/app/components/workspace/WorkspaceHelp";
 
@@ -1194,7 +1195,7 @@ function ToggleSwitch({ checked, onChange, label }: { checked: boolean; onChange
   );
 }
 
-export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?: string }) {
+export default function OyamaEmailBuilderWorkspace({ templateId, returnHref = "/oyama-email/templates", onEditorState, onSaved, onReturnToCampaign }: { templateId?: string; returnHref?: string; onEditorState?: (value: NativeEditorState) => void; onSaved?: () => Promise<unknown>; onReturnToCampaign?: () => Promise<void> }) {
   const router = useRouter();
 
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(templateId || null);
@@ -1225,6 +1226,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   const [activeTab, setActiveTab] = useState<ActiveTab>("edit");
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [blockLibraryModalOpen, setBlockLibraryModalOpen] = useState(false);
+  const [blockSearch, setBlockSearch] = useState("");
   const [plainTextModalOpen, setPlainTextModalOpen] = useState(false);
   const [testEmailDialogOpen, setTestEmailDialogOpen] = useState(false);
   const [saveConflictModal, setSaveConflictModal] = useState<SaveConflictState | null>(null);
@@ -1554,6 +1556,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       if (!auto) {
         setNotice("Draft saved.");
       }
+      await onSaved?.();
       return unchanged ? saved.id : null;
     } catch (requestError) {
       const conflict = requestError instanceof Error && "conflict" in requestError
@@ -1577,7 +1580,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
       setSaving(false);
       setAutosaving(false);
     }
-  }, [activeTemplateId, lastSavedAt, router, saveConflictModal, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId]);
+  }, [activeTemplateId, lastSavedAt, router, saveConflictModal, smtpDefaults.fromEmail, smtpDefaults.replyToEmail, templateId, onSaved]);
 
   const createLetterCompanion = useCallback(async () => {
     const id = dirty || !activeTemplateId ? await saveTemplate(false) : activeTemplateId;
@@ -1695,6 +1698,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
     setDraft((prev) => ({ ...prev, template: next }));
     setDirty(true);
   }, []);
+  const documentHistory = useEmailDocumentHistory(draft.template, dirty, setTemplateDocument);
+  useEffect(() => { onEditorState?.({ dirty, save: async () => !dirty || !!await saveTemplate(false) }); }, [dirty, onEditorState, saveTemplate]);
 
   const updateBlock = useCallback((blockId: string, updater: (block: BuilderBlock) => BuilderBlock) => {
     setTemplateDocument({
@@ -2743,30 +2748,30 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
   if (loading) {
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-700 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-700 border-t-transparent" />
         <p className="text-sm font-medium text-slate-500">Loading template builder…</p>
       </div>
     );
   }
 
   return (
-    <div className="communication-builder email-builder flex min-h-[100dvh] flex-col bg-[radial-gradient(circle_at_8%_0%,rgba(129,140,248,0.13),transparent_28%),radial-gradient(circle_at_94%_8%,rgba(96,165,250,0.13),transparent_25%),linear-gradient(180deg,#fafbff_0%,#eef3fb_100%)]">
+    <div className="communication-builder email-builder flex min-h-[100dvh] flex-col bg-[#edf4fc]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-white/80 bg-white/90 shadow-[0_10px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
         {/* Row 1: back + name + status + actions */}
         <div className="flex min-h-[58px] flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 lg:px-8">
           <button
             type="button"
-            onClick={() => router.push("/oyama-email/templates")}
+            onClick={() => { if (onReturnToCampaign) void onReturnToCampaign(); else router.push(returnHref); }}
             className="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-x-0.5 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-800"
-            title="Back to template library"
+            title={onReturnToCampaign ? "Back to campaign review" : "Back to template library"}
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
               <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
             </svg>
           </button>
           <div className="hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 lg:block">
-            Templates / Builder
+            {onReturnToCampaign ? "Email / Layout" : "Templates / Builder"}
           </div>
           {editingName ? (
             <input
@@ -2801,7 +2806,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             >
               Docs
             </Link>
-            <button
+            {!onReturnToCampaign && <button
               type="button"
               onClick={() => void createLetterCompanion()}
               disabled={saving || autosaving}
@@ -2809,7 +2814,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               title="Create a printable letter companion and retain every email block for a lossless return to this builder."
             >
               Create Letter
-            </button>
+            </button>}
             <button
               type="button"
               onClick={() => void saveTemplate(false)}
@@ -2825,7 +2830,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             >
               Send Test
             </button>
-            {canPublish ? (
+            {onReturnToCampaign ? <button type="button" disabled={saving || autosaving} onClick={() => void onReturnToCampaign()} className="h-8 rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60">Save & review</button> : canPublish ? (
               <Link
                 href={publishHref}
                 className="inline-flex h-8 items-center rounded-lg border border-indigo-700 bg-gradient-to-r from-indigo-700 to-blue-700 px-3 text-xs font-semibold text-white shadow-[0_6px_14px_rgba(67,56,202,0.18)] transition hover:from-indigo-600 hover:to-blue-600 sm:px-4"
@@ -2847,7 +2852,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
 
         {/* Row 2: Ribbon tabs + zoom + device toggle */}
         <div className="flex min-h-12 flex-wrap items-center gap-2 overflow-x-auto border-t border-slate-100/80 px-3 py-1.5 sm:px-6 lg:px-8">
-          <button type="button" onClick={() => { setInsertAfterIndex(draft.template.blocks.length - 1); setBlockLibraryModalOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-600" aria-label="Add email block"><span className="text-lg leading-none">+</span> Add block</button>
+          <button type="button" onClick={() => { setInsertAfterIndex(draft.template.blocks.length - 1); setBlockLibraryModalOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-md border border-blue-700 bg-blue-700 px-3 text-sm font-semibold text-white hover:bg-blue-800" aria-label="Add email block"><span className="text-lg leading-none">+</span> Add block</button>
           <div className="mr-2 flex min-w-max items-center gap-1 rounded-xl bg-slate-100/80 p-1 sm:mr-4">
             <button
               type="button"
@@ -2874,6 +2879,8 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             <span title="Select a block to edit it in the right inspector; drag blocks to reorder them." className="hidden whitespace-nowrap text-[11px] font-medium text-slate-500 xl:inline">{draft.template.blocks.length} blocks · {builderWarnings.length ? `${builderWarnings.length} to review` : "Preflight clear"}</span>
           </div>
           <div className="mb-1 flex min-w-max items-center gap-2">
+            <button type="button" onClick={documentHistory.undo} disabled={!documentHistory.canUndo} className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 disabled:opacity-40" aria-label="Undo email block edit">Undo</button>
+            <button type="button" onClick={documentHistory.redo} disabled={!documentHistory.canRedo} className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 disabled:opacity-40" aria-label="Redo email block edit">Redo</button>
             <details className="relative hidden xl:block">
               <summary className="cursor-pointer list-none rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-100">Email chrome</summary>
               <div className="absolute right-0 top-8 z-50 w-80 rounded-lg border border-indigo-200 bg-white p-3 text-xs text-indigo-950 shadow-xl">
@@ -3144,7 +3151,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
         </aside>
 
         {/* CANVAS */}
-        <main className="order-2 flex min-h-[60dvh] min-w-0 flex-1 flex-col overflow-auto border-r border-slate-200 bg-[#f4f6f7] lg:order-none lg:min-h-0">
+        <EmailCanvas>
           <div
             className="mx-auto my-4 w-full px-3 sm:my-8 sm:px-6 lg:my-10 lg:px-10"
             style={{ maxWidth: activeTab === "mobilePreview" ? 480 : canvasWidth + 160 }}
@@ -3324,10 +3331,10 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               )}
             </div>
           </div>
-        </main>
+        </EmailCanvas>
 
         {/* RIGHT PANEL */}
-        <aside className="order-3 flex max-h-[55dvh] w-full flex-none flex-col overflow-hidden bg-white lg:order-none lg:max-h-none lg:w-[390px] xl:w-[430px]">
+        <EmailInspector>
           <div className="flex border-b border-slate-200 px-5" role="tablist" aria-label="Builder inspector">
             <button type="button" role="tab" aria-selected={Boolean(selectedBlock)} onClick={() => selectedBlockId || setSelectedBlockId(draft.template.blocks[0]?.id ?? null)} className={["h-13 border-b-2 px-3 text-sm font-semibold", selectedBlock ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Content</button>
             <button type="button" role="tab" aria-selected={!selectedBlock} onClick={() => setSelectedBlockId(null)} className={["h-13 border-b-2 px-3 text-sm font-semibold", !selectedBlock ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-500"].join(" ")}>Email settings</button>
@@ -3549,7 +3556,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
             </>
             )}
           </div>
-        </aside>
+        </EmailInspector>
       </div>
 
       {blockLibraryModalOpen ? (
@@ -3560,14 +3567,14 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
               <div><h2 id="email-block-library-title" className="text-lg font-semibold text-slate-950">Add content</h2><p className="mt-1 text-sm text-slate-600">Choose one block. Its single editing panel will open on the right.</p></div>
               <button type="button" onClick={() => setBlockLibraryModalOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-lg text-slate-600 hover:bg-slate-50" aria-label="Close">×</button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <EmailBlockLibrary search={blockSearch} onSearch={setBlockSearch}>
               <div className="space-y-6">
                 {BLOCK_LIBRARY_DRAWERS.map((group) => (
                   <section key={group.id}>
                     <div><h3 className="text-sm font-semibold text-slate-900">{group.label}</h3><p className="text-xs text-slate-500">{group.detail}</p></div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                      {BLOCK_CHOICES.filter((choice) => group.types.includes(choice.type)).map((choice) => (
-                        <button key={choice.type} type="button" onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)} className="flex min-h-16 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 hover:border-emerald-400 hover:bg-emerald-50">
+                      {BLOCK_CHOICES.filter((choice) => group.types.includes(choice.type) && choice.label.toLowerCase().includes(blockSearch.toLowerCase())).map((choice) => (
+                        <button key={choice.type} type="button" onClick={() => handleInsertBlock(choice.type, insertAfterIndex ?? undefined)} className="flex min-h-16 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 text-left text-sm font-semibold text-slate-800 hover:border-blue-400 hover:bg-blue-50">
                           <BlockTypeIcon type={choice.type} />
                           <span>{choice.label}</span>
                         </button>
@@ -3578,11 +3585,11 @@ export default function OyamaEmailBuilderWorkspace({ templateId }: { templateId?
                 <section>
                   <h3 className="text-sm font-semibold text-slate-900">Ready-made layouts</h3>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {COLUMN_TEMPLATE_CHOICES.map((choice) => <button key={choice.id} type="button" onClick={() => handleInsertColumnTemplate(choice.id)} className="rounded-lg border border-slate-200 px-3 py-3 text-left hover:border-emerald-400 hover:bg-emerald-50"><span className="block text-sm font-semibold text-slate-900">{choice.label}</span><span className="mt-1 block text-xs text-slate-500">{choice.description}</span></button>)}
+                    {COLUMN_TEMPLATE_CHOICES.map((choice) => <button key={choice.id} type="button" onClick={() => handleInsertColumnTemplate(choice.id)} className="rounded-lg border border-slate-200 px-3 py-3 text-left hover:border-blue-400 hover:bg-blue-50"><span className="block text-sm font-semibold text-slate-900">{choice.label}</span><span className="mt-1 block text-xs text-slate-500">{choice.description}</span></button>)}
                   </div>
                 </section>
               </div>
-            </div>
+            </EmailBlockLibrary>
           </section>
         </div>
       ) : null}

@@ -158,7 +158,7 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
         {
           id: "campaigns",
           label: "Campaigns",
-          href: "/campaigns",
+          href: "/oyama-create/fundraising",
           icon: DONOR_ICONS.campaigns,
           kind: "core_record" as const,
           description: "Manage fundraising campaigns and appeals.",
@@ -196,32 +196,14 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
       collapsible: true,
       items: [
         {
-          id: "oyama-email",
-          label: "OyamaEmails",
-          href: "/oyama-email",
-          activePath: "/oyama-email",
+          id: "oyama-create",
+          label: "oyamaCreate",
+          href: "/oyama-create",
+          activePath: "/oyama-create",
           icon: DONOR_ICONS.communications,
           kind: "communication_tool" as const,
           badge: "New" as SidebarItemBadge,
-          permissions: ["view:communications"],
-          description: "Open the dedicated email studio for templates, send workflows, queue management, and analytics.",
-        },
-        {
-          id: "oyama-letters",
-          label: "OyamaLetters",
-          href: "/oyama-letters",
-          activePath: "/oyama-letters",
-          icon: DONOR_ICONS.letters,
-          kind: "communication_tool" as const,
-          description: "Create, print, and manage donor letters and printable mail workflows.",
-        },
-        {
-          id: "template-convert",
-          label: "Template Convert",
-          href: "/template-convert",
-          icon: DONOR_ICONS.letters,
-          kind: "communication_tool" as const,
-          description: "Review and create accurate email and letter companions without replacing the source template.",
+          description: "Create and manage campaigns across email, letters, webpages, SMS, and social channels.",
         },
         {
           id: "qr-codes",
@@ -325,7 +307,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
       id: "daily", label: "Donor CRM", collapsible: false, defaultOpen: true,
       items: [
         ...take(["dashboard", "constituents", "donations", "campaigns", "events", "tasks", "reports"]).map(item => ({ ...item, label: item.id === "dashboard" ? "Home" : item.id === "constituents" ? "Contacts" : item.label })),
-        { id: "communications", label: "Communications", href: "/communications", icon: DONOR_ICONS.communications, permissions: ["view:communications"] },
+        ...take(["oyama-create"]),
       ],
     },
     {
@@ -335,7 +317,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
     {
       id: "stewardship", label: "Stewardship", collapsible: true, defaultOpen: false,
       items: [
-        ...take(["donor-research", "steward-signals", "meetings", "oyama-email", "oyama-letters", "template-convert", "qr-codes", "steward-paths", "livecom", "volunteers"]),
+        ...take(["donor-research", "steward-signals", "meetings", "qr-codes", "steward-paths", "livecom", "volunteers"]),
         { id: "contacts-manager", label: "Audience Lists", href: "/contacts-manager", icon: DONOR_ICONS.contactsManager },
       ],
     },

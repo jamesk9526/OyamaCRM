@@ -1,0 +1,32 @@
+[
+  {
+    "selector": ".oc-page-heading p",
+    "foreground": "rgb(91, 110, 136)",
+    "background": "rgb(237, 244, 252)",
+    "ratio": 4.7
+  },
+  {
+    "selector": ".oc-stat-label",
+    "foreground": "rgb(91, 110, 136)",
+    "background": "rgb(255, 255, 255)",
+    "ratio": 5.21
+  },
+  {
+    "selector": ".oc-stat small",
+    "foreground": "rgb(91, 110, 136)",
+    "background": "rgb(255, 255, 255)",
+    "ratio": 5.21
+  },
+  {
+    "selector": ".oc-button.primary",
+    "foreground": "rgb(255, 255, 255)",
+    "background": "rgb(36, 94, 199)",
+    "ratio": 6
+  },
+  {
+    "selector": ".oc-sidebar nav a[aria-current]",
+    "foreground": "rgb(35, 88, 187)",
+    "background": "rgb(234, 241, 255)",
+    "ratio": 5.82
+  }
+]

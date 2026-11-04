@@ -641,6 +641,8 @@ export default function AppointmentsWorkspace() {
         mode={editorState.mode}
         appointment={editorState.appointment}
         initialStartTime={editorState.initialStartTime}
+        initialClientId={searchParams.get("clientId") || ""}
+        initialAppointmentType={APPOINTMENT_TYPE_OPTIONS.some((option) => option === searchParams.get("appointmentType")) ? searchParams.get("appointmentType")! : "INTAKE"}
         clientOptions={clientOptions}
         staffOptions={staffOptions}
         onClose={() => setEditorState({ open: false, mode: "create", appointment: null, initialStartTime: null })}

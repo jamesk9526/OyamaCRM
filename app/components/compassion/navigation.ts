@@ -1,4 +1,4 @@
-import { Activity, CalendarDays, ClipboardCheck, ClipboardList, FileText, GraduationCap, HeartHandshake, LayoutGrid, MessageSquare, Settings2, ShieldCheck, Stethoscope, Upload, Users, UserRoundCog, Clock3, DoorOpen, Globe } from "lucide-react";
+import { Activity, CalendarDays, ClipboardCheck, ClipboardList, FileText, GraduationCap, HeartHandshake, LayoutGrid, MessageSquare, Settings2, ShieldCheck, Stethoscope, Upload, Users, UserRoundCog, Clock3, DoorOpen, Globe, ScanLine } from "lucide-react";
 
 export const careNavigation = [
   { label: "Daily work", items: [
@@ -11,6 +11,7 @@ export const careNavigation = [
     { name: "Cases", href: "/compassion/cases", icon: HeartHandshake, capability: "casework" },
     { name: "Intake", href: "/compassion/intake", icon: ClipboardList, capability: "casework" },
     { name: "Clinical care", href: "/compassion/care", icon: Stethoscope, capability: "clinical" },
+    { name: "Ultrasounds", href: "/compassion/ultrasounds", icon: ScanLine, capability: "clinical" },
     { name: "Classes & assistance", href: "/compassion/classes", icon: GraduationCap, capability: "casework" },
     { name: "Messages", href: "/compassion/messages", icon: MessageSquare, capability: "messages" },
   ] },

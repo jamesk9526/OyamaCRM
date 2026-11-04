@@ -68,6 +68,8 @@ import helpAgentRoutes from "./routes/help-agent.js";
 import systemUpdatesRoutes from "./routes/system-updates.js";
 import pwaRoutes from "./routes/pwa.js";
 import oyamaEmailRoutes from "./routes/oyama-email.js";
+import oyamaCreateRoutes from "./oyama-create/routes.js";
+import { startCreateWorker, stopCreateWorker } from "./oyama-create/worker.js";
 import dataToolsRoutes from "./routes/data-tools.js";
 import donorProfileRoutes from "./routes/donor-profile.js";
 import donorProfileResearchRoutes from "./routes/donor-profile-research.js";
@@ -292,6 +294,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/steward-signals", stewardSignalsRoutes);
 app.use("/api/steward-paths", stewardPathRoutes);
 app.use("/api/oyama-email", oyamaEmailRoutes);
+app.use("/api/oyama-create", oyamaCreateRoutes);
 app.use("/api/data-tools", dataToolsRoutes);
 app.use("/api/qr-codes", qrCodeRoutes);
 app.use("/api/letters", lettersRoutes);
@@ -334,12 +337,14 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
+  startCreateWorker();
   startStewardPathsWorker();
   startQuickBooksSyncWorker();
   startTaskNotificationWorker();
   startNotificationEmailWorker();
   // Stop creating in-app reminders during the process manager's shutdown window.
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
+    stopCreateWorker();
     void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker()]).finally(() => process.exit(0));
   });
   app.listen(PORT, () => {

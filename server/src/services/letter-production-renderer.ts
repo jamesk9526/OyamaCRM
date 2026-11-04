@@ -10,7 +10,7 @@ const scalar = [/^\d+(?:\.\d+)?(?:pt|px|em|in|%)?$/];
 export function sanitizeLetterHtml(html: string): string {
   return sanitizeHtml(html, {
     allowedTags: ["p", "div", "span", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "figure", "figcaption", "a", "hr", "blockquote"],
-    allowedAttributes: { "*": ["style", "data-letter-page-break", "data-letter-spacer", "data-keep-together", "data-letter-signature"], img: ["src", "alt", "width", "height", "style"], a: ["href"], td: ["colspan", "rowspan", "style"], th: ["colspan", "rowspan", "style"] },
+      allowedAttributes: { "*": ["style", "data-create-block", "data-letter-page-break", "data-letter-spacer", "data-keep-together", "data-letter-signature"], img: ["src", "alt", "width", "height", "style"], a: ["href"], td: ["colspan", "rowspan", "style"], th: ["colspan", "rowspan", "style"] },
     allowedSchemes: ["https", "http", "mailto", "data"], allowedSchemesByTag: { img: ["data"] }, allowProtocolRelative: false,
     allowedStyles: { "*": {
       "font-family": [/^(?:Inter|Noto Serif|Arial|Helvetica|Calibri|Times New Roman|Georgia|serif|sans-serif|[,'"\s])+$/i],

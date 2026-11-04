@@ -14,6 +14,7 @@ export type OyamaEmailView =
   | "settings";
 
 export interface OyamaEmailWorkspaceProps {
+  embedded?: boolean;
   view?: OyamaEmailView;
   templateId?: string;
   campaignId?: string;

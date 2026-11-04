@@ -136,6 +136,7 @@ export default function HostedGivingPage({ token }: { token: string }) {
         body: JSON.stringify({
           token,
           surface: "hosted",
+          createPublicationId: new URLSearchParams(window.location.search).get("createPublication") || undefined,
           amount,
           giftType,
           designation,

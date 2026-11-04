@@ -29,6 +29,13 @@ export default function CommunicationsHub() {
   return (
     <EnterprisePageShell>
       <div className="mx-auto w-full max-w-[1320px] space-y-4 py-4">
+        <aside aria-labelledby="communications-create-move" className="flex flex-col gap-4 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h2 id="communications-create-move" className="text-base font-semibold text-blue-950">Communications is moving to oyamaCreate</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-blue-900">All communications tools will be moving into oyamaCreate, our new shared workspace for email, letters, and campaigns across every channel. You can continue using the tools below during the transition.</p>
+          </div>
+          <Link href="/oyama-create" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">Explore oyamaCreate</Link>
+        </aside>
         <section className="border border-[#d1d1d1] bg-white">
           <div className="border-b border-[#d1d1d1] px-5 py-4 sm:px-6">
             <div className="flex flex-wrap items-center gap-2">

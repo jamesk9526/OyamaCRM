@@ -1,3 +1,19 @@
+## oyamaCreate rollout gate — 2026-11-03
+
+- [x] Additive campaign/content/revision/variant/release/job schema and default-disabled organization flag; original fundraising and clinical records preserved.
+- [x] Shared draft autosave/conflicts, protected format customizations, native email/letter editing, review snapshots and explicit release authorization.
+- [x] Tenant/channel permissions, imported email owner restrictions, reviewed retry/reconciliation, callback deduplication, opt-out rechecks and independent provider outcomes.
+- [x] Current Communications page migration notice and link; explicit navigation rollback without deleting data.
+- [x] Independent channel schedules, frozen approval dates, calendar entries and date clearing on duplication; campaign search queries the server.
+- [x] 171 focused unit/API/rendering/layout tests; web/API type checks, API build, production web build; synthetic seven-page production-renderer proof.
+- [x] 19 synthetic production-browser checks; desktop/tablet/phone layouts, channel dates/calendar continuation, server search, visible keyboard focus, measured contrast, native email editing and all seven PDF pages rasterized.
+- [ ] Apply and verify migration/backfill against isolated MySQL; run `CREATE_MYSQL_TEST_URL` contention suite (three checks currently skipped).
+- [ ] Verify organization email transport, actual letter worker/storage, recipient proofs and physical printer/label output before live rollout.
+- [ ] Configure real Azure sender/Event Grid and Meta accounts/app grants; pass connection readiness before enabling their live channels.
+- [ ] Run reviewed provider sandbox/account integration and deployed authenticated acceptance. No live sends or public publishing occurred in this change.
+
+Actual browser evidence, synthetic fixture boundaries and known limits: [oyamaCreate verification](audit-artifacts/2026-11-03-oyama-create/verification.md). Deployment/rollback: [implementation notes](../plans/oyama-create-implementation.md). The new flag remains off until an administrator explicitly enables it.
+
 ## Windows Fluent desktop presentation
 
 Native CRM now targets .NET 9 Windows with Microsoft WPF Fluent light theme, Segoe UI Variable and neutral Windows surfaces. Self-contained publishing includes its runtime. Startup screenshot capture passes. Installer remains unsigned and live authenticated workflow/clean-machine tests remain outstanding.
@@ -145,6 +161,18 @@ Focused verification covers the shared reference design, donor browse handoffs, 
 ## Donor dashboard verification — 2026-10-29
 
 Focused dashboard, task scoping, financial calculation tests, GET-only local API probes, and synthetic browser workflows are recorded in the dated donor audit evidence. Live donor messages, gift creation, tax advice, production deployment, and external research connector delivery were not exercised. A previously pending local Donation tax-tracking migration was applied and reconciled to restore local reporting compatibility; existing gift amounts and tax-deductible flags were verified unchanged. Other unrelated pending migrations remain untouched. These checks do not replace the wider production-readiness requirements below.
+
+## Compassion ultrasound workflow — 2026-11-03
+
+- [x] Dedicated clinical worklist and client history use existing encrypted chart/document storage and server-side care permissions.
+- [x] Physician correction requests, explicit sign-off, author-only draft edits/attachments, signed-record protection, and chart-linked care-task validation have focused HTTP regression coverage with synthetic persistence.
+- [x] Open/overdue task filters preserve persisted `OVERDUE` values and include `IN_PROGRESS`; completion/reopening and duplicate-task guards are covered.
+- [x] Additive migration and scoped Compassion migration runner authored; Prisma schema validation and client generation passed.
+- [x] Production build, web/server type checks, targeted lint, and 33 focused tests passed. Ten production-browser acceptance checks passed with zero runtime errors/warnings, including amendments, contrast/focus, print, navigation guards, and 1440/768/390px layouts. Browser/API fixtures are explicitly synthetic.
+- [ ] Apply `20261103100000_compassion_chart_follow_ups` to the intended database with `pnpm compassion:migrate`, regenerate the Prisma client, and restart the updated Compassion API. Local MySQL was unreachable, so no database migration or live care write was performed in this pass.
+- [ ] Repeat persistence, transaction/concurrency, and migration verification against MySQL before deployment. Synthetic HTTP/browser checks do not establish database behavior or clinical launch approval.
+
+Rendered desktop/mobile results, production-build status, exact commands, and evidence limits are recorded in `audit-artifacts/2026-11-03-compassion-care-workflow/verification.md`. Existing clinical cutover requirements below still apply.
 
 ## Compassion clinical cutover — 2026-10-29
 

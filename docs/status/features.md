@@ -1,3 +1,13 @@
+## oyamaCreate communications workspace — 2026-11-03
+
+Added `/oyama-create` with campaigns, linked shared/format editing, reusable templates, saved audiences, delivery calendar, frozen review/release, per-channel delivery controls and results. Existing email and structured letter editors run inside a campaign. Added ordered print batches/labels, Webmaster-backed public campaign pages and reviewed forms, Azure SMS consent/Event Grid delivery, Facebook/Instagram publishing adapters, provider readiness and explicit unknown-outcome reconciliation. Private email ownership, donor/letter permissions and clinical isolation are retained. Financial campaign IDs and generated/sent history remain authoritative.
+
+The current `/communications` page now announces **“Communications is moving to oyamaCreate”**, explains that all communications tools are moving, and links to the new workspace. It remains a visible transition page. Organization rollout defaults off; legacy APIs and `?legacy=1` routes remain available. See [implementation and rollout](../plans/oyama-create-implementation.md).
+
+Channel versions can override their shared content delivery date. Review and the calendar show each format's schedule; approval freezes it, later edits cancel pending old releases, and new copies clear old dates. Campaign search queries the server to find records beyond the recent list.
+
+Verification: 171 focused communications/print tests pass; three isolated MySQL migration/contention checks are skipped because no disposable MySQL is configured and localhost refuses connections. Web/API types, API build and production web build pass. Browser/print evidence is recorded in [the audit folder](audit-artifacts/2026-11-03-oyama-create). No live migration, backfill, email/SMS send, social post, public publication, payment or clinical write was performed. Provider account readiness and actual MySQL contention remain deployment prerequisites.
+
 ## Windows Fluent desktop presentation
 
 Native CRM now targets .NET 9 Windows with Microsoft WPF Fluent light theme, Segoe UI Variable and neutral Windows surfaces. Self-contained publishing includes its runtime. Startup screenshot capture passes. Installer remains unsigned and live authenticated workflow/clean-machine tests remain outstanding.
@@ -155,6 +165,14 @@ The separately requested task and notification work adds complete task editing/a
 ## Donor daily workspace — 2026-10-29
 
 The redesigned dashboard now presents actionable acknowledgment, first-time donor, renewal, and overdue-task queues; campaign progress; and working links to recurring giving, annual statements, donor research, and data quality. The detailed giving and Steward panels and dashboard customization remain available. Report links preserve the selected fiscal/calendar period; overdue tasks respect organization and personal/team scope. Each source has an explicit unavailable state and retry. This donor work was separately authorized alongside Compassion; client-care records and styling remain isolated. See `docs/status/audit-artifacts/2026-10-29-donor-dashboard/verification.md` for evidence and limits.
+
+## Compassion ultrasound and connected care — 2026-11-03
+
+Compassion now has a dedicated `/compassion/ultrasounds` workspace with client search, paginated draft/review/signed queues, structured examination details, linked ultrasound appointments, protected scan/report uploads and previews, and physician review. Physicians can return unsigned charts with encrypted feedback; signed reports remain preserved and corrections create amendment drafts. Client profiles include ultrasound history, and Today shows clinical handoffs. Scheduling handoffs preselect the client and ultrasound visit type. Unsaved documentation is guarded when switching worklist items or following navigation links, and changing clients explicitly clears the unsaved examination.
+
+Chart-linked care tasks use a generic task title while findings stay in encrypted charts. Follow-up queues now include in-progress and existing overdue tasks, allow completion from those states, and clear completion timestamps on reopening. Server checks keep clinical access tenant-scoped, require active care assignees, and prevent reopening a duplicate open examination task.
+
+The nullable indexed follow-up chart link requires `pnpm compassion:migrate` and a generated Prisma client before the updated API is started. This environment's local MySQL service is unavailable; the migration has not been applied here. Focused HTTP tests use explicitly synthetic persistence. Verification and browser evidence are recorded in `docs/status/audit-artifacts/2026-11-03-compassion-care-workflow/verification.md`. This expands care workflow software; scanner/DICOM integration and prior clinical cutover requirements remain separate.
 
 ## Compassion client-care application — 2026-10-29
 

@@ -1,0 +1,92 @@
+{
+  "syntheticFixtures": true,
+  "liveClinicalWrites": false,
+  "checks": [
+    "Scoped text/action contrast meets 4.5:1 and keyboard navigation shows a visible focus ring",
+    "Worklist, status filtering, client-name search, and empty-filter recovery",
+    "Preselected client outside directory results, browser-history and scheduling navigation guards, and client-change content reset",
+    "Client-scoped draft, linked ultrasound visit, protected upload and preview, submission, and reviewed follow-up creation",
+    "Physician correction request, author-only correction, unsaved-change submit guard, explicit sign-off, and preserved print report",
+    "Amendments create a new draft and preserve the signed original; cancelling unsaved amendments is guarded",
+    "Today clinical handoffs, examination links in care follow-ups, and completion of an in-progress task",
+    "Existing scheduling editor prefills the patient and ultrasound visit type",
+    "Service error/retry, empty state, and clinical capability visibility",
+    "390px and 768px worklists/examinations without page overflow; mobile navigation and Escape dismissal"
+  ],
+  "errors": [],
+  "warnings": [],
+  "contrast": [
+    {
+      "selector": ".care-exam-stats small",
+      "foreground": "rgb(82, 108, 96)",
+      "background": "rgb(248, 252, 250)",
+      "ratio": 5.53
+    },
+    {
+      "selector": ".care-exam-item-date",
+      "foreground": "rgb(84, 111, 100)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.48
+    },
+    {
+      "selector": ".care-exam-item-bottom",
+      "foreground": "rgb(82, 109, 96)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.65
+    },
+    {
+      "selector": ".care-exam-filters .care-segmented button",
+      "foreground": "rgb(72, 103, 91)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 6.24
+    },
+    {
+      "selector": ".care-heading .care-button:not(.secondary)",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(0, 127, 128)",
+      "ratio": 4.83
+    }
+  ],
+  "writes": [
+    {
+      "path": "/api/compassion/charts",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/documents",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/charts/fixture-exam-11/submit",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/ultrasounds/fixture-exam-11/follow-ups",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/charts/fixture-exam-11/return",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/charts/fixture-exam-11",
+      "method": "PATCH"
+    },
+    {
+      "path": "/api/compassion/charts/fixture-exam-11/submit",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/charts/fixture-exam-11/sign",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/charts",
+      "method": "POST"
+    },
+    {
+      "path": "/api/compassion/follow-ups/fixture-task",
+      "method": "PATCH"
+    }
+  ]
+}

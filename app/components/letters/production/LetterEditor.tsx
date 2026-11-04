@@ -30,6 +30,7 @@ const Spacer = Node.create({
 const ParagraphLayout = Extension.create({
   name: "letterParagraphLayout",
   addGlobalAttributes: () => [{ types: ["paragraph", "heading", "blockquote", "image"], attributes: {
+    createBlockId: { default: null, parseHTML: element => element.getAttribute("data-create-block"), renderHTML: attributes => attributes.createBlockId ? { "data-create-block": attributes.createBlockId } : {} },
     spacing: { default: null, parseHTML: element => element.style.marginBottom || null, renderHTML: attributes => attributes.spacing ? { style: `margin-bottom:${attributes.spacing}` } : {} },
     keepTogether: { default: false, parseHTML: element => element.hasAttribute("data-keep-together"), renderHTML: attributes => attributes.keepTogether ? { "data-keep-together": "true" } : {} },
   } }],

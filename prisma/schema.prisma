@@ -506,6 +506,190 @@ model Organization {
   compassionClients      CompassionClient[]
 }
 
+// Marketing authoring is separate from financial Campaign and clinical records.
+model CreateCampaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  objective      String   @default("GENERAL")
+  description    String?  @db.Text
+  ownerId        String
+  isTemplate     Boolean  @default(false)
+  status         String   @default("DRAFT")
+  revision       Int      @default(1)
+  fundraisingCampaignId String?
+  eventId        String?
+  audienceListIds Json
+  channelsJson   Json
+  deliveryMode   String?
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  contents       CreateContent[]
+  releases       CreateRelease[]
+  leads          CreateLead[]
+  @@index([organizationId, isTemplate, updatedAt])
+}
+
+model CreateContent {
+  id             String   @id @default(cuid())
+  campaignId     String
+  organizationId String
+  name           String
+  revision       Int      @default(1)
+  documentJson   Json
+  scheduledAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  campaign       CreateCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  revisions      CreateDocumentRevision[]
+  variants       CreateVariant[]
+  @@index([organizationId, campaignId])
+}
+
+model CreateDocumentRevision {
+  id             String   @id @default(cuid())
+  organizationId String
+  contentId      String
+  revision       Int
+  documentJson   Json
+  createdBy      String
+  createdAt      DateTime @default(now())
+  content        CreateContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  @@unique([contentId, revision])
+}
+
+model CreateVariant {
+  id             String   @id @default(cuid())
+  organizationId String
+  contentId      String
+  channel        String
+  revision       Int      @default(1)
+  documentJson   Json
+  needsReview    Boolean  @default(false)
+  legacyId       String?
+  legacyFingerprint String?
+  nativeApproved Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+  content        CreateContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  @@unique([contentId, channel])
+  @@unique([organizationId, channel, legacyId])
+}
+
+model CreateRelease {
+  id             String   @id @default(cuid())
+  organizationId String
+  campaignId     String
+  campaignRevision Int
+  fingerprint    String
+  snapshotJson   Json
+  status         String   @default("APPROVED")
+  approvedBy     String
+  approvedAt     DateTime @default(now())
+  campaign       CreateCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  deliveries     CreateDelivery[]
+  @@unique([organizationId, campaignId, fingerprint])
+  @@unique([campaignId, campaignRevision])
+  @@index([organizationId, approvedAt])
+}
+
+model CreateDelivery {
+  id             String   @id @default(cuid())
+  organizationId String
+  releaseId      String
+  contentId      String
+  channel        String
+  recipientKey   String
+  deliveryKey    String   @unique
+  payloadJson    Json
+  status         String   @default("HELD")
+  scheduledAt    DateTime
+  claimedAt      DateTime?
+  attempts       Int      @default(0)
+  providerId     String?
+  executionId    String?
+  error          String?  @db.Text
+  acceptedAt     DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  release        CreateRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  @@index([organizationId, status, scheduledAt])
+  @@index([status, scheduledAt])
+  @@index([organizationId, providerId])
+}
+
+model CreateConnection {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String
+  configJson     Json
+  secret         String   @db.Text
+  webhookSecret  String   @db.Text
+  readyAt        DateTime?
+  error          String?  @db.Text
+  updatedAt      DateTime @updatedAt
+  @@unique([organizationId, provider])
+}
+
+model CreateSmsConsent {
+  id             String   @id @default(cuid())
+  organizationId String
+  phone          String
+  status         String
+  source         String
+  evidence       String   @db.Text
+  occurredAt     DateTime
+  updatedAt      DateTime @updatedAt
+  @@unique([organizationId, phone])
+}
+
+model CreateWebhookEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String
+  eventKey       String
+  processedAt    DateTime @default(now())
+  @@unique([organizationId, provider, eventKey])
+}
+
+model CreatePublication {
+  id             String   @id @default(cuid())
+  organizationId String
+  contentId      String
+  campaignId     String
+  slug           String
+  documentJson   Json
+  variantJson    Json
+  webmasterSiteId String
+  webmasterVersionId String
+  publishedBy    String
+  publishedAt    DateTime @default(now())
+  active         Boolean @default(true)
+  @@index([organizationId, contentId, publishedAt])
+  @@index([slug, active])
+}
+
+model CreateLead {
+  id             String   @id @default(cuid())
+  organizationId String
+  campaignId     String
+  publicationId  String
+  name           String
+  email          String
+  message        String?  @db.Text
+  consent        Boolean
+  consentText    String   @db.Text
+  status         String   @default("PENDING")
+  matchedConstituentId String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+  campaign       CreateCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  @@index([organizationId, status, createdAt])
+}
+
 model OrganizationSettings {
   id                          String   @id @default(cuid())
   organizationId              String   @unique
@@ -514,6 +698,7 @@ model OrganizationSettings {
   timezone                    String   @default("America/Chicago")
   donorWorkspaceEnabled       Boolean  @default(true)
   lettersVisualBuilderEnabled Boolean  @default(false)
+  oyamaCreateEnabled          Boolean  @default(false)
   showModuleSwitcher          Boolean  @default(true)
   defaultWorkspace            String   @default("donor")
   smtpHost                    String?
@@ -3316,6 +3501,8 @@ model CompassionFollowUp {
   clientId       String
   caseId         String?
   appointmentId  String?
+  /// Optional protected-chart association; clinical findings stay in the encrypted chart.
+  chartId        String?
 
   title                     String
   dueDate                   DateTime
@@ -3335,6 +3522,7 @@ model CompassionFollowUp {
   appointment             CompassionAppointment? @relation(fields: [appointmentId], references: [id])
   assignedStaff           User?                  @relation("CompassionFollowUpStaff", fields: [assignedStaffId], references: [id])
   assignedCompassionStaff CompassionStaff?       @relation("CompassionFollowUpCompassionStaff", fields: [assignedCompassionStaffId], references: [id])
+  @@index([organizationId, chartId])
 }
 
 model CompassionActivity {

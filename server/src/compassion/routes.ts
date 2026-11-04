@@ -8,6 +8,8 @@ import { migrationRoutes } from "./migration.js";
 import { validAvailability } from "./scheduling.js";
 import { letterRoutes } from "./letters.js";
 import { identityRoutes } from "./identity.js";
+import { ultrasoundRoutes } from "./ultrasounds.js";
+import { OPEN_CARE_TASK_STATUSES } from "./care-team.js";
 
 export const careRoutes = Router();
 export const publicCareRoutes = Router();
@@ -43,7 +45,7 @@ router.use(async (req, res, next) => {
   }
   next();
 });
-router.use(clinicalRoutes, migrationRoutes, identityRoutes, letterRoutes);
+router.use(clinicalRoutes, ultrasoundRoutes, migrationRoutes, identityRoutes, letterRoutes);
 
 router.get("/today", ...route("records", async (req, res) => {
   const now = new Date(); const start = req.query.start ? date(req.query.start) : new Date(now); if (!req.query.start) start.setHours(0, 0, 0, 0);
@@ -54,7 +56,7 @@ router.get("/today", ...route("records", async (req, res) => {
     prisma.compassionClient.count({ where: { ...scope, clientStatus: "ACTIVE" } }),
     prisma.compassionCase.count({ where: { ...scope, caseStatus: "OPEN" } }),
     prisma.compassionAppointment.findMany({ where: { ...scope, startTime: { gte: start, lt: end } }, select: { id: true, startTime: true, appointmentType: true, status: true, location: true, client: { select: { id: true, firstName: true, lastName: true } } }, orderBy: { startTime: "asc" }, take: 100 }),
-    res.locals.careCapabilities.includes("casework") ? prisma.compassionFollowUp.findMany({ where: { ...scope, assignedStaffId: req.user!.sub, status: "PENDING", dueDate: { lte: end } }, select: { id: true, clientId: true, title: true, dueDate: true }, orderBy: { dueDate: "asc" }, take: 15 }) : Promise.resolve([]),
+    res.locals.careCapabilities.includes("casework") ? prisma.compassionFollowUp.findMany({ where: { ...scope, assignedStaffId: req.user!.sub, status: { in: [...OPEN_CARE_TASK_STATUSES] }, dueDate: { lt: end } }, select: { id: true, clientId: true, title: true, dueDate: true, status: true, priority: true, chartId: true }, orderBy: { dueDate: "asc" }, take: 15 }) : Promise.resolve([]),
     res.locals.careCapabilities.includes("clinical") ? prisma.compassionChart.count({ where: { ...scope, status: "REVIEW" } }) : Promise.resolve(null),
     prisma.compassionIntake.count({ where: { ...scope, status: { in: ["REQUESTED", "RETURNED"] } } }),
   ]);

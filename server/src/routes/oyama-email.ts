@@ -5,6 +5,7 @@
 
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
+import { invalidateLegacyBindings } from "../oyama-create/legacy-invalidation.js";
 import { Prisma, type EmailPurpose } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
@@ -1438,6 +1439,7 @@ router.put("/templates/:id", async (req, res) => {
     },
   });
 
+  await invalidateLegacyBindings(organizationId, "EMAIL", updated.id);
   res.json(mapTemplateResponse(updated, branding));
 });
 

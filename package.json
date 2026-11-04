@@ -85,6 +85,7 @@
     "compassion:migrate": "node scripts/compassion-migrate.mjs",
     "compassion:grant": "node scripts/compassion-grant.mjs",
     "letters:worker": "node --import tsx server/src/workers/letters-production.ts",
+    "create:backfill": "node --import tsx server/src/oyama-create/backfill.ts",
     "letters:install-browser": "playwright install chromium"
   },
   "dependencies": {

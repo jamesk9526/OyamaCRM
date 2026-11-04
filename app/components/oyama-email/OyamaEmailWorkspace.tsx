@@ -308,7 +308,7 @@ const EMPTY_DRAFT: BuilderDraft = {
   preparationStatus: "DRAFT",
 };
 
-export default function OyamaEmailWorkspace({ view = "templates", templateId, campaignId }: OyamaEmailWorkspaceProps) {
+export default function OyamaEmailWorkspace({ view = "templates", templateId, campaignId, embedded = false }: OyamaEmailWorkspaceProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -605,26 +605,26 @@ export default function OyamaEmailWorkspace({ view = "templates", templateId, ca
 
   return (
     <div className="workspace-product-shell min-h-[100dvh] bg-[#f5f5f5] text-slate-900">
-      <WorkspaceProductBar
+      {!embedded && <WorkspaceProductBar
         productName="OyamaCRM Email"
         homeHref="/oyama-email"
         backHref="/communications"
         backLabel="Communications"
         helpHref="/oyama-email/docs"
-      />
+      />}
       <div className="flex min-h-[calc(100dvh-52px)]">
-        <OyamaEmailSidebar
+        {!embedded && <OyamaEmailSidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((prev) => !prev)}
           pathname={pathname}
           activeView={normalizedView}
-        />
+        />}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {normalizedView !== "builder" ? (
+          {!embedded && normalizedView !== "builder" ? (
             <OyamaEmailMobileNav pathname={pathname} activeView={normalizedView} />
           ) : null}
-          {normalizedView !== "builder" ? <OyamaEmailTopBar view={normalizedView} targetCampaign={selectedCampaign} /> : null}
+          {!embedded && normalizedView !== "builder" ? <OyamaEmailTopBar view={normalizedView} targetCampaign={selectedCampaign} /> : null}
           {error ? <Alert tone="error">{error}</Alert> : null}
           {notice ? <Alert tone="success">{notice}</Alert> : null}
 

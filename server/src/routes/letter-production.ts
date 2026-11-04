@@ -1,4 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { invalidateLegacyBindings } from "../oyama-create/legacy-invalidation.js";
+import { assertCurrentCreateArtifact, recordCreatePrintStatus } from "../oyama-create/print-adapter.js";
 import { LetterCategory, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { resolveOrganizationId } from "../lib/organization.js";
@@ -69,6 +71,7 @@ router.patch("/templates/:id", requirePermission("letters.edit"), route(async (r
     await tx.letterDocumentRevision.create({ data: { organizationId: org, templateId: template.id, revision: template.revision, snapshotJson: json(template), createdBy: actor } });
     return template;
   });
+  await invalidateLegacyBindings(org, "LETTER", saved.id);
   res.json(saved);
 }));
 router.get("/templates/:id/revisions", requirePermission("letters.view"), route(async (req, res, org) => {
@@ -103,6 +106,7 @@ router.get("/artifacts/:id/pdf", requirePermission("letters.export_pdf"), route(
   res.send(bytes);
 }));
 router.post("/artifacts/:id/approve", requirePermission("letters.manage_print_queue"), route(async (req, res, org, actor) => {
+  await assertCurrentCreateArtifact(org, id(req));
   const { job } = await readArtifact(org, id(req));
   if (req.body?.checksum !== job.checksum) throw new ProductionError(409, "The reviewed PDF checksum does not match.");
   await validateCurrentRecipient(org, job.snapshotJson as unknown as LetterSnapshot);
@@ -110,6 +114,7 @@ router.post("/artifacts/:id/approve", requirePermission("letters.manage_print_qu
   res.json({ approved: true, artifactId: job.id, checksum: job.checksum });
 }));
 router.post("/artifacts/:id/events", requirePermission("letters.manage_print_queue"), route(async (req, res, org, actor) => {
+  await assertCurrentCreateArtifact(org, id(req));
   const { job } = await readArtifact(org, id(req));
   const kind = string(req.body?.kind);
   if (!["PRINT_REQUESTED", "PRINTED", "MAILED", "REPRINT_REQUESTED"].includes(kind)) throw new ProductionError(400, "Invalid production event.");
@@ -126,6 +131,7 @@ router.post("/artifacts/:id/events", requirePermission("letters.manage_print_que
     await tx.letterProductionEvent.create({ data: { organizationId: org, artifactId: job.id, kind, reason, actorId: actor } });
     if (kind === "PRINTED" && job.generatedLetterId) await tx.generatedLetter.updateMany({ where: { id: job.generatedLetterId, organizationId: org }, data: { printedAt: new Date(), status: "PRINTED" } });
   });
+  await recordCreatePrintStatus(org, { artifactId: job.id }, kind === "PRINTED" ? "PRINTED" : "PRINT_REQUESTED");
   res.json({ recorded: true });
 }));
 
@@ -165,6 +171,7 @@ router.post("/batches/:id/export", requirePermission("letters.export_pdf"), rout
   if (!Number.isInteger(part) || part < 0) throw new ProductionError(400, "Select a valid batch part.");
   const items = await prisma.letterProductionBatchItem.findMany({ where: { organizationId: org, batchId: id(req), position: { gte: part * 500, lt: (part + 1) * 500 } }, orderBy: { position: "asc" } });
   if (!items.length) throw new ProductionError(404, "Batch part not found.");
+  for (const item of items) await assertCurrentCreateArtifact(org, item.artifactId);
   if (req.body?.labels === true) {
     const labels = [];
     for (const item of items) {

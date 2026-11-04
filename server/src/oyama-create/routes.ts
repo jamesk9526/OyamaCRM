@@ -1,0 +1,15 @@
+import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth.js";
+import campaigns from "./campaigns.js";
+import content from "./content.js";
+import imports from "./imports.js";
+import releases from "./releases.js";
+import connections, { webhookRouter } from "./connections.js";
+import web, { publicRouter } from "./web.js";
+import operations from "./operations.js";
+const router = Router();
+router.use("/public", publicRouter);
+router.use("/webhooks", webhookRouter);
+router.use(requireAuth);
+router.use(campaigns, content, imports, releases, connections, web, operations);
+export default router;

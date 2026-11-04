@@ -9,6 +9,8 @@ import { AuthProvider } from "./components/auth/AuthProvider";
 import AppShell from "./components/layout/AppShell";
 import { PluginProvider } from "./components/plugins/PluginProvider";
 import PWARegister from "./components/pwa/PWARegister";
+import { Suspense } from "react";
+import LegacyCreateRedirect from "./components/oyama-create/LegacyCreateRedirect";
 
 export const metadata: Metadata = {
   title: "OyamaCRM v2.0",
@@ -69,6 +71,7 @@ export default function RootLayout({
       <body className="h-full">
         <PWARegister />
         <AuthProvider>
+          <Suspense fallback={null}><LegacyCreateRedirect /></Suspense>
           <BridgeConnectionResume />
           <PluginProvider>
             <AppShell>{children}</AppShell>

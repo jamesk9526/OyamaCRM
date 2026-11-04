@@ -69,6 +69,7 @@ import type {
 } from "@prisma/client";
 
 import { requireCareMembership } from "../compassion/security.js";
+import { hasActiveCaseworkAccount, OPEN_CARE_TASK_STATUSES } from "../compassion/care-team.js";
 import { recoveredPolicy, careTransaction } from "../compassion/core-policy.js";
 const router = Router();
 
@@ -3328,7 +3329,18 @@ router.get("/follow-ups", async (req, res) => {
       return;
     }
 
-    const { clientId, status, priority, assignedStaffId, limit = "50" } = req.query as Record<string, string>;
+    const { clientId, chartId, status, priority, assignedStaffId, limit = "50" } = req.query as Record<string, string>;
+
+    if (status && !["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED", "OVERDUE", "OPEN"].includes(status)) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid follow-up status." } }); return;
+    }
+    if (priority && !["LOW", "MEDIUM", "HIGH", "URGENT"].includes(priority)) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a valid follow-up priority." } }); return;
+    }
+    const take = Number(limit);
+    if (!Number.isSafeInteger(take) || take < 1 || take > 500) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose a follow-up limit between 1 and 500." } }); return;
+    }
 
     const whereClauses: Array<Record<string, unknown>> = [];
     if (assignedStaffId) {
@@ -3344,11 +3356,12 @@ router.get("/follow-ups", async (req, res) => {
       where: {
         organizationId,
         ...(clientId && { clientId }),
-        ...(status && { status: status as CompassionFollowUpStatus }),
+        ...(chartId && { chartId }),
+        ...(status === "OVERDUE" ? { OR: [{ status: "OVERDUE" }, { status: { in: ["PENDING", "IN_PROGRESS"] as CompassionFollowUpStatus[] }, dueDate: { lt: new Date() } }] } : status === "OPEN" ? { status: { in: [...OPEN_CARE_TASK_STATUSES] } } : status ? { status: status as CompassionFollowUpStatus } : {}),
         ...(priority && { priority: priority as CompassionPriority }),
         ...(whereClauses.length > 0 ? { AND: whereClauses } : {}),
       },
-      take: parseInt(limit),
+      take,
       orderBy: { dueDate: "asc" },
       include: {
         client: { select: { id: true, firstName: true, lastName: true } },
@@ -3404,6 +3417,15 @@ router.post("/follow-ups", careTransaction(async (req, res) => {
       return;
     }
 
+    if (typeof title !== "string" || !title.trim() || title.length > 191 || typeof dueDate !== "string" || !Number.isFinite(Date.parse(dueDate)) || (priority && !["LOW", "MEDIUM", "HIGH", "URGENT"].includes(priority))) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Enter a title, valid due date, and supported priority." } }); return;
+    }
+    if (!await prisma.compassionClient.findFirst({ where: { id: String(clientId), organizationId }, select: { id: true } })
+      || (caseId && !await prisma.compassionCase.findFirst({ where: { id: String(caseId), clientId: String(clientId), organizationId }, select: { id: true } }))
+      || (appointmentId && !await prisma.compassionAppointment.findFirst({ where: { id: String(appointmentId), clientId: String(clientId), organizationId }, select: { id: true } }))) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Select a client and related records in this care workspace." } }); return;
+    }
+
     const normalizedAssignedCompassionStaffId = normalizeOptionalId(assignedCompassionStaffId);
     let normalizedAssignedStaffId = normalizeOptionalId(assignedStaffId);
 
@@ -3431,7 +3453,7 @@ router.post("/follow-ups", careTransaction(async (req, res) => {
         clientId,
         caseId: caseId ?? null,
         appointmentId: appointmentId ?? null,
-        title,
+        title: title.trim(),
         dueDate: new Date(dueDate),
         priority: (priority ?? "MEDIUM") as CompassionPriority,
         assignedCompassionStaffId: normalizedAssignedCompassionStaffId,
@@ -3481,6 +3503,13 @@ router.patch("/follow-ups/:id", careTransaction(async (req, res) => {
       notes,
     } = req.body;
 
+    if ((status !== undefined && !["PENDING", "IN_PROGRESS", "OVERDUE", "COMPLETED", "CANCELLED"].includes(status))
+      || (priority !== undefined && !["LOW", "MEDIUM", "HIGH", "URGENT"].includes(priority))
+      || (dueDate !== undefined && (typeof dueDate !== "string" || !Number.isFinite(Date.parse(dueDate))))
+      || (title !== undefined && (typeof title !== "string" || !title.trim() || title.length > 191))) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Enter valid follow-up details." } }); return;
+    }
+
     const compassionStaffProvided = assignedCompassionStaffId !== undefined;
     const legacyStaffProvided = assignedStaffId !== undefined;
     const normalizedAssignedCompassionStaffId = compassionStaffProvided
@@ -3515,6 +3544,15 @@ router.patch("/follow-ups/:id", careTransaction(async (req, res) => {
       return;
     }
 
+    const current = await prisma.compassionFollowUp.findFirst({ where: { id: req.params.id as string, organizationId } });
+    if (!current) { res.status(404).json({ error: { code: "NOT_FOUND", message: "Follow-up not found" } }); return; }
+    if (current.chartId && (legacyStaffProvided || compassionStaffProvided) && normalizedAssignedStaffId && !await hasActiveCaseworkAccount(organizationId, normalizedAssignedStaffId)) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Select an active care-team account with casework access." } }); return;
+    }
+    if (current.chartId && status && (OPEN_CARE_TASK_STATUSES as readonly string[]).includes(status)
+      && await prisma.compassionFollowUp.findFirst({ where: { organizationId, chartId: current.chartId, id: { not: current.id }, status: { in: [...OPEN_CARE_TASK_STATUSES] } } })) {
+      res.status(409).json({ error: { code: "FOLLOW_UP_EXISTS", message: "This examination already has another open care follow-up." } }); return;
+    }
     const updated = await prisma.compassionFollowUp.updateMany({
       where: { id: req.params.id as string, organizationId },
       data: {
@@ -3525,8 +3563,7 @@ router.patch("/follow-ups/:id", careTransaction(async (req, res) => {
         ...(compassionStaffProvided && { assignedCompassionStaffId: normalizedAssignedCompassionStaffId ?? null }),
         ...((legacyStaffProvided || compassionStaffProvided) && { assignedStaffId: normalizedAssignedStaffId ?? null }),
         ...(notes !== undefined && { notes }),
-        // Auto-set completedAt when marking complete
-        ...(status === "COMPLETED" && { completedAt: new Date() }),
+        ...(status !== undefined && { completedAt: status === "COMPLETED" ? new Date() : null }),
       },
     });
 

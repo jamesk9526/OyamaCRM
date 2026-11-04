@@ -21,6 +21,7 @@ import path from "node:path";
 import type { EmailCategory, EmailPurpose, EmailRecipientEligibilityStatus, Prisma } from "@prisma/client";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { prisma } from "../lib/prisma.js";
+import { invalidateLegacyBindings } from "../oyama-create/legacy-invalidation.js";
 import {
   categoryForPurpose,
   evaluateRecipientEligibility,
@@ -520,6 +521,8 @@ const DEFAULT_CAMPAIGN_WORKFLOW: CampaignWorkflowSettings = {
 type CampaignSendMode = "CAMPAIGN_AUDIENCE" | "SEGMENT" | "SAVED_LIST" | "LIST" | "INDIVIDUAL" | "MULTI_SEGMENT" | "MULTI_LIST";
 
 interface CampaignSendOptions {
+  /** Internal only: immutable, approved channel output supplied by the Create worker. */
+  approvedBodies?: { html: string; text: string };
   sendMode?: CampaignSendMode;
   audienceFilter?: AudienceFilter | { types?: string[] };
   recipientListId?: string;
@@ -686,7 +689,7 @@ function ensureComplianceFooter(content: string, format: "html" | "text"): strin
   return `${safeContent}${buildAutomaticComplianceFooterText(missingUnsubscribe, missingPreferences)}`;
 }
 
-function buildCampaignDeliveryBodies(
+export function buildCampaignDeliveryBodies(
   campaign: { id?: string; name?: string | null; bodyHtml: string | null; bodyText: string | null; templateJson?: string | null },
   purpose: EmailPurpose,
   branding?: OyamaEmailGlobalChrome,
@@ -2585,7 +2588,7 @@ interface CampaignValidationResult {
   audience: Omit<AudiencePreview, "recipients">;
 }
 
-async function validateCampaignSendReadiness(params: {
+export async function validateCampaignSendReadiness(params: {
   campaign: {
     id: string;
     organizationId: string;
@@ -2795,7 +2798,7 @@ export async function sendCampaignNow(
 
   const purpose = parseEmailPurpose((campaign as { purpose?: unknown }).purpose);
   const branding = await loadOrganizationBrandingContext(campaign.organizationId);
-  const deliveryBodies = buildCampaignDeliveryBodies(campaign, purpose, branding);
+  const deliveryBodies = options?.approvedBodies ?? buildCampaignDeliveryBodies(campaign, purpose, branding);
   const complianceIssues = getCampaignComplianceIssues({
     purpose,
     subject: campaign.subject,
@@ -4443,6 +4446,7 @@ router.put("/:id", async (req, res) => {
     },
   });
 
+  await invalidateLegacyBindings(organizationId, "EMAIL", campaign.id);
   const changedFields = [
     "name", "subject", "previewText", "fromName", "fromEmail", "replyToEmail",
     "purpose", "bodyHtml", "bodyText", "templateJson", "scheduledAt", "audienceFilter",

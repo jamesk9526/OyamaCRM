@@ -6,6 +6,7 @@ import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import Link from "next/link";
 import { CareEmpty, CareHeading } from "@/app/components/compassion/care-ui";
+import { useCareAccess } from "@/app/components/compassion/CompassionShell";
 
 /** Follow-up as returned from GET /api/compassion/follow-ups */
 interface CompassionFollowUp {
@@ -16,6 +17,7 @@ interface CompassionFollowUp {
   dueDate: string;
   completedAt?: string;
   notes?: string;
+  chartId?: string | null;
   client?: { id: string; firstName: string; lastName: string };
   assignedStaff?: { id: string; firstName: string; lastName: string };
 }
@@ -27,6 +29,7 @@ interface StaffUser    { id: string; firstName: string; lastName: string; displa
 function statusBadge(status: string) {
   const styles: Record<string, string> = {
     PENDING:    "bg-blue-100 text-blue-700",
+    IN_PROGRESS: "bg-sky-100 text-sky-700",
     COMPLETED:  "bg-emerald-100 text-emerald-700",
     OVERDUE:    "bg-red-100 text-red-700",
     CANCELLED:  "bg-gray-100 text-gray-400",
@@ -47,7 +50,7 @@ function priorityBadge(priority: string) {
 
 /** Returns true if the follow-up is past its due date and not completed */
 function isOverdue(fu: CompassionFollowUp) {
-  return fu.status === "PENDING" && new Date(fu.dueDate) < new Date();
+  return fu.status === "OVERDUE" || (["PENDING", "IN_PROGRESS"].includes(fu.status) && new Date(fu.dueDate) < new Date());
 }
 
 // ─── Add Follow-up Modal ──────────────────────────────────────────────────────
@@ -191,12 +194,13 @@ function AddFollowUpModal({ onClose, onCreated, clientList, staffList }: {
  * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
 export default function CompassionFollowUpsPage() {
+  const careAccess = useCareAccess();
   const [followUps, setFollowUps] = useState<CompassionFollowUp[]>([]);
   const [clientList, setClientList] = useState<ClientOption[]>([]);
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState("PENDING");
+  const [statusFilter, setStatusFilter] = useState("OPEN");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
@@ -268,8 +272,10 @@ export default function CompassionFollowUpsPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
         >
+          <option value="OPEN">All open follow-ups</option>
           <option value="">All Statuses</option>
           <option value="PENDING">Pending</option>
+          <option value="IN_PROGRESS">In progress</option>
           <option value="COMPLETED">Completed</option>
           <option value="OVERDUE">Overdue</option>
           <option value="CANCELLED">Cancelled</option>
@@ -286,7 +292,7 @@ export default function CompassionFollowUpsPage() {
           <option value="MEDIUM">Medium</option>
           <option value="LOW">Low</option>
         </select>
-        {(statusFilter !== "PENDING" || priorityFilter) && <button className="care-button secondary" onClick={() => { setStatusFilter("PENDING"); setPriorityFilter(""); }}>Reset filters</button>}
+        {(statusFilter !== "OPEN" || priorityFilter) && <button className="care-button secondary" onClick={() => { setStatusFilter("OPEN"); setPriorityFilter(""); }}>Reset filters</button>}
       </div>
 
       {(error || actionError) && (
@@ -326,6 +332,7 @@ export default function CompassionFollowUpsPage() {
                     <td className="px-4 py-3 font-medium text-gray-900">
                       <strong className="block text-sm font-semibold">{fu.title}</strong>
                       {fu.client ? <Link className="text-xs text-teal-700" href={`/compassion/clients/${fu.client.id}`}>{fu.client.firstName} {fu.client.lastName}</Link> : <span className="text-xs text-gray-400">Client unavailable</span>}
+                      {fu.chartId && careAccess?.capabilities.includes("clinical") && <Link className="block text-xs text-teal-700 mt-1" href={`/compassion/ultrasounds?examId=${encodeURIComponent(fu.chartId)}`}>Open examination →</Link>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadge(fu.status)}`}>
@@ -352,8 +359,9 @@ export default function CompassionFollowUpsPage() {
                       {fu.notes ?? ""}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {fu.status === "PENDING" && (
+                      {["PENDING", "IN_PROGRESS", "OVERDUE"].includes(fu.status) && (
                         <button
+                          aria-label={`Complete ${fu.title}`}
                           onClick={() => markComplete(fu.id)}
                           disabled={completing === fu.id}
                           className="text-xs text-emerald-600 hover:text-emerald-800 border border-emerald-200 rounded-md px-2 py-1 hover:bg-emerald-50 disabled:opacity-50 transition-colors"

@@ -31,10 +31,11 @@ export async function careWrite<T = unknown>(path: string, body?: unknown, metho
   return apiFetch<T>(`/api/compassion${path}`, { method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
 }
 export interface ClientOption { id: string; firstName: string; lastName: string; email?: string; phone?: string; clientStatus?: string; intakeDate?: string }
-export function ClientPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function ClientPicker({ value, onChange, selectedClient, disabled = false }: { value: string; onChange: (value: string) => void; selectedClient?: ClientOption | null; disabled?: boolean }) {
   const [query, setQuery] = useState("");
   const { data, error } = useCareData<ClientOption[]>(`/api/compassion/clients?limit=100&search=${encodeURIComponent(query)}`);
-  return <div className="care-form"><label>Find a client<input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or contact information" /></label><label>Client<select required value={value} onChange={(e) => onChange(e.target.value)}><option value="">Select a client</option>{data?.map((row) => <option value={row.id} key={row.id}>{row.firstName} {row.lastName}</option>)}</select></label><CareError error={error} /></div>;
+  const options = selectedClient && !data?.some((row) => row.id === selectedClient.id) ? [selectedClient, ...(data ?? [])] : data;
+  return <div className="care-form"><label>Find a client<input type="search" value={query} disabled={disabled} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name or contact information" /></label><label>Client<select aria-label="Client" required value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}><option value="">Select a client</option>{options?.map((row) => <option value={row.id} key={row.id}>{row.firstName} {row.lastName}</option>)}</select></label><CareError error={error} /></div>;
 }
 export function downloadCareFile(row: { base64: string; mimeType: string; name: string }) {
   const bytes = Uint8Array.from(atob(row.base64), (c) => c.charCodeAt(0)); const url = URL.createObjectURL(new Blob([bytes], { type: row.mimeType }));

@@ -51,8 +51,8 @@ const DONOR_APPEARANCE_CHROME: Record<DonorAppearanceTheme, {
 
 // Module routes render their own shells — bypass AppShell wrapper. Steward Copilot
 // intentionally remains inside this shell so CRM navigation and context stay visible.
-const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/give/", "/event-reservations", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
-const SHELL_BYPASS_PATHS = ["/compassion", "/events", "/oyama-letters", "/oyama-email", "/steward-paths"];
+const PUBLIC_PATHS = ["/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/give/", "/campaign-pages/", "/event-reservations", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
+const SHELL_BYPASS_PATHS = ["/compassion", "/events", "/oyama-letters", "/oyama-email", "/oyama-create", "/steward-paths"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",
   "apps",
@@ -80,6 +80,8 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "livecom",
   "oyama-letters",
   "oyama-email",
+  "oyama-create",
+  "campaign-pages",
   "login",
   "meetings",
   "notifications",

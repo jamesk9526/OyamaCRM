@@ -1521,6 +1521,20 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       if (donorEmail) sessionBody.set("customer_email", donorEmail);
     }
 
+    const createPublicationId = String(body.createPublicationId ?? "").trim();
+    if (createPublicationId) {
+      const publication = await prisma.createPublication.findFirst({ where: { id: createPublicationId, organizationId: hit.organizationId, active: true } });
+      if (!publication) { res.status(400).json({ error: { code: "CAMPAIGN_ATTRIBUTION_INVALID", message: "The campaign page attribution is no longer available. Return to the current published campaign page." } }); return; }
+      const variant = publication.variantJson as Record<string, unknown>;
+      const attribution = variant.attribution && typeof variant.attribution === "object" ? variant.attribution as Record<string, unknown> : {};
+      const linkedId = typeof attribution.fundraisingCampaignId === "string" ? attribution.fundraisingCampaignId : "";
+      if (linkedId && !await prisma.campaign.findFirst({ where: { id: linkedId, organizationId: hit.organizationId } })) { res.status(400).json({ error: { code: "CAMPAIGN_ATTRIBUTION_INVALID", message: "The linked fundraising campaign is unavailable." } }); return; }
+      for (const prefix of ["metadata", giftType === "monthly" ? "subscription_data[metadata]" : "payment_intent_data[metadata]"]) {
+        sessionBody.set(`${prefix}[createCampaignId]`, publication.campaignId);
+        sessionBody.set(`${prefix}[createPublicationId]`, publication.id);
+        if (linkedId) sessionBody.set(`${prefix}[campaignId]`, linkedId);
+      }
+    }
     const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
       headers: {

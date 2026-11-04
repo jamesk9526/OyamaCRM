@@ -1,0 +1,50 @@
+"use client";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, Heading2, Image, Link2, Plus, Redo2, Save, Search, Trash2, Type, Undo2 } from "lucide-react";
+import { apiFetch } from "@/app/lib/auth-client";
+import { message, type Campaign, type Content, type SharedDocument } from "./types";
+import { useDraftGuard } from "./use-draft-guard";
+export type EditorHandle = { flush: () => Promise<boolean> };
+const tools = [{ kind: "paragraph", label: "Paragraph", icon: Type }, { kind: "heading", label: "Heading", icon: Heading2 }, { kind: "image", label: "Image", icon: Image }, { kind: "link", label: "Link / call to action", icon: Link2 }] as const;
+const SharedEditor = forwardRef<EditorHandle, { content: Content; campaign: Campaign; onSaved: () => Promise<unknown>; onDirty: (dirty: boolean) => void; readonly?: boolean }>(function SharedEditor({ content, campaign, onSaved, onDirty, readonly = false }, ref) {
+  const [draft, setDraft] = useState({ name: content.name, document: content.documentJson, scheduledAt: content.scheduledAt || "" });
+  const [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState(""), [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string | null>(null), [history, setHistory] = useState<SharedDocument[]>([]), [future, setFuture] = useState<SharedDocument[]>([]);
+  const draftRef = useRef(draft), version = useRef(content.revision), campaignVersion = useRef(campaign.revision), edits = useRef(0), dirtyRef = useRef(false), pending = useRef<Promise<boolean> | null>(null);
+  const savedCallback = useRef(onSaved); savedCallback.current = onSaved;
+  useEffect(() => { campaignVersion.current = campaign.revision; }, [campaign.revision]);
+  useEffect(() => { onDirty(dirty); }, [dirty, onDirty]);
+  useDraftGuard(dirty);
+  function edit(next: typeof draft, record = true) {
+    if (readonly) return;
+    if (record && next.document !== draft.document) { setHistory(value => [...value.slice(-49), draft.document]); setFuture([]); }
+    draftRef.current = next; setDraft(next); edits.current++; dirtyRef.current = true; setDirty(true);
+  }
+  const save = useCallback(async (): Promise<boolean> => {
+    if (pending.current) return pending.current;
+    if (!dirtyRef.current) return true;
+    const submitted = draftRef.current; const serial = edits.current; setBusy(true); setError("");
+    const promise = (async () => {
+      try {
+        const saved = await apiFetch<Content & { campaignRevision: number }>(`/api/oyama-create/contents/${content.id}`, { method: "PATCH", body: JSON.stringify({ name: submitted.name, document: submitted.document, scheduledAt: submitted.scheduledAt || null, revision: version.current, campaignRevision: campaignVersion.current }) });
+        version.current = saved.revision; campaignVersion.current = saved.campaignRevision;
+        if (serial === edits.current) { dirtyRef.current = false; setDirty(false); }
+        await savedCallback.current(); return serial === edits.current;
+      } catch (error) { setError(message(error)); return false; } finally { setBusy(false); pending.current = null; }
+    })(); pending.current = promise; return promise;
+  }, [content.id]);
+  useImperativeHandle(ref, () => ({ flush: save }), [save]);
+  useEffect(() => { if (!dirty || error || readonly) return; const timer = window.setTimeout(() => void save(), 1400); return () => window.clearTimeout(timer); }, [draft, dirty, error, readonly, save]);
+  const changed = (id: string, text: string) => edit({ ...draft, document: { ...draft.document, blocks: draft.document.blocks.map(block => block.id === id ? { ...block, text } : block) } });
+  const selectedBlock = draft.document.blocks.find(block => block.id === selected);
+  function reorder(id: string, delta: number) { const blocks = [...draft.document.blocks]; const index = blocks.findIndex(block => block.id === id); const target = index + delta; if (target < 0 || target >= blocks.length) return; [blocks[index], blocks[target]] = [blocks[target], blocks[index]]; edit({ ...draft, document: { ...draft.document, blocks } }); }
+  function historyMove(undo: boolean) { const source = undo ? history : future; const next = source.at(-1); if (!next) return; if (undo) { setHistory(source.slice(0, -1)); setFuture(value => [...value, draft.document]); } else { setFuture(source.slice(0, -1)); setHistory(value => [...value, draft.document]); } edit({ ...draft, document: next }, false); }
+  const localTime = draft.scheduledAt ? new Date(new Date(draft.scheduledAt).getTime() - new Date(draft.scheduledAt).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+  return <div className="oc-editor-grid"><section className="oc-card"><div className="oc-editor-meta"><input aria-label="Content piece name" maxLength={200} value={draft.name} disabled={readonly} onChange={event => edit({ ...draft, name: event.target.value })}/><span role="status" className="oc-save-state">{busy ? "Saving…" : error ? "Save needs attention" : dirty ? "Unsaved · autosave on" : `Saved to server · r${version.current}`}</span><button className="oc-button small" disabled={busy || !dirty || readonly} onClick={() => void save()}><Save size={13}/>Save</button></div>
+    {error && <div className="oc-error" role="alert" style={{ margin: 12 }}>{error}<p>Your current draft remains in this editor. Copy it before reloading if another session saved a newer version.</p><button className="oc-button small" onClick={() => void save()}>Retry save</button></div>}
+    <div className="oc-insertbar"><div className="oc-search"><Search size={13}/><input type="search" aria-label="Search insertion tools" value={search} placeholder="Insert a block…" onChange={event => setSearch(event.target.value)}/></div>{tools.filter(tool => tool.label.toLowerCase().includes(search.toLowerCase())).map(tool => <button key={tool.kind} className="oc-button small" disabled={readonly} onClick={() => { const block = { id: `block-${crypto.randomUUID()}`, kind: tool.kind, text: "", ...(["link", "image"].includes(tool.kind) ? { url: "" } : {}) }; edit({ ...draft, document: { ...draft.document, blocks: [...draft.document.blocks, block] } }); setSelected(block.id); }}><tool.icon size={13}/>{tool.label.split(" /")[0]}</button>)}<button className="oc-icon-button" title="Undo" aria-label="Undo shared edit" disabled={!history.length || readonly} onClick={() => historyMove(true)}><Undo2 size={14}/></button><button className="oc-icon-button" title="Redo" aria-label="Redo shared edit" disabled={!future.length || readonly} onClick={() => historyMove(false)}><Redo2 size={14}/></button></div>
+    <div className="oc-writing-canvas">{!draft.document.blocks.length && <div className="oc-empty-document"><Plus size={26} style={{ margin: "0 auto 12px" }}/><p>Start with a heading or a paragraph.<br/>Your story will travel with every linked format.</p></div>}{draft.document.blocks.map((block, index) => <div key={block.id} className={`oc-copy-block ${block.kind} ${selected === block.id ? "selected" : ""}`} onFocus={() => setSelected(block.id)}><div className="oc-block-label">{block.kind} <span style={{ marginLeft: "auto", textTransform: "none" }}>Shared across formats</span></div><textarea aria-label={`${block.kind === "heading" ? "Heading" : block.kind === "image" ? "Image description" : block.kind === "link" ? "Link label" : "Paragraph"} ${index + 1}`} rows={block.kind === "heading" ? 1 : 3} value={block.text} maxLength={20000} disabled={readonly} onChange={event => changed(block.id, event.target.value)} placeholder={block.kind === "heading" ? "A meaningful headline…" : block.kind === "paragraph" ? "Write your message…" : "Accessible description or label…"}/>{["link", "image"].includes(block.kind) && <label className="oc-field">HTTPS URL<input type="url" aria-label={`${block.kind} URL ${index + 1}`} placeholder="https://" value={block.url || ""} disabled={readonly} onChange={event => edit({ ...draft, document: { ...draft.document, blocks: draft.document.blocks.map(item => item.id === block.id ? { ...item, url: event.target.value } : item) } })}/></label>}<div className="oc-block-tools"><button className="oc-icon-button" aria-label={`Move block ${index + 1} up`} disabled={index === 0 || readonly} onClick={() => reorder(block.id, -1)}><ArrowUp size={13}/></button><button className="oc-icon-button" aria-label={`Move block ${index + 1} down`} disabled={index === draft.document.blocks.length - 1 || readonly} onClick={() => reorder(block.id, 1)}><ArrowDown size={13}/></button><button className="oc-icon-button" aria-label={`Remove block ${index + 1}`} disabled={readonly} onClick={() => edit({ ...draft, document: { ...draft.document, blocks: draft.document.blocks.filter(item => item.id !== block.id) } })}><Trash2 size={13}/></button></div></div>)}</div></section>
+    <aside className="oc-card oc-editor-inspector"><h2>Shared content</h2><div className="oc-form"><p className="oc-help" style={{ margin: 0 }}>Write the core message here. Switch to a format to customize a paragraph or adjust its layout.</p><label>Delivery date & time<input type="datetime-local" disabled={readonly} value={localTime} onChange={event => edit({ ...draft, scheduledAt: event.target.value ? new Date(event.target.value).toISOString() : "" })}/><span className="oc-help">Your local time. If empty, the campaign start date applies.</span></label>{selectedBlock && <div className="oc-notice" style={{ margin: 0 }}>Selected {selectedBlock.kind}. Edits update linked draft formats. Existing customizations stay protected until review.</div>}<details><summary className="oc-help">Personalization & advanced layout</summary><p className="oc-help">Use the Email or Letter layout editor for merge fields, rich formatting, AI assistance, images, buttons, letterhead, and signatures. Keep recipient merge fields out of public, social, and SMS content.</p></details></div></aside>
+  </div>;
+});
+export default SharedEditor;

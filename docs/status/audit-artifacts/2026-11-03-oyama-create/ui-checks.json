@@ -1,0 +1,88 @@
+{
+  "fixture": "Synthetic browser APIs only; no live CRM/provider writes",
+  "checks": [
+    "Desktop home, real API-backed counts and navigation",
+    "Campaign search queries the server so records beyond the recent list remain discoverable",
+    "Shared autosave, protected letter customization, later shared changes require review",
+    "Email responsive and plain-text previews",
+    "Calendar discloses incomplete scans and loads remaining dated entries",
+    "Per-channel schedule autosaves and appears alongside the other formats in the campaign calendar",
+    "Mixed email/postal plan shows final counts, overlap and exclusions",
+    "Approval is separate from explicit live release; cancel retains held state",
+    "Legacy import is reviewable and identifies immutable historical executions",
+    "Provider readiness, organization rollout and separate SMS-consent controls",
+    "Per-delivery pause action reaches the server",
+    "Results distinguish provider acceptance and unavailable confirmed metrics",
+    "Public campaign page and explicit consent form submit to reviewed queue",
+    "Desktop 1440, tablet 768 and phone 390 render without document overflow; mobile navigation opens and Escape closes it",
+    "Native structured letter editor and all seven PDF pages rasterized in the browser; page navigation works",
+    "Native email block search, insertion, undo/redo and save return to the same campaign review without companion or legacy publish navigation; desktop/tablet/phone layouts fit",
+    "Current Communications page announces every tool moving to oyamaCreate and links to the new workspace",
+    "Representative shell/helper/action text meets 4.5:1 contrast and keyboard focus is visible",
+    "Create an appeal, explicitly select both formats and a shared audience, add a content piece, and autosave its copy"
+  ],
+  "errors": [],
+  "warnings": [],
+  "writes": [
+    {
+      "path": "/api/oyama-create/contents/synthetic-content",
+      "method": "PATCH"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content/variants/LETTER",
+      "method": "PATCH"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content",
+      "method": "PATCH"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content/review/LETTER",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content/variants/EMAIL",
+      "method": "PATCH"
+    },
+    {
+      "path": "/api/oyama-create/campaigns/synthetic-campaign/approve",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/deliveries/synthetic-delivery/pause",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/public/pages/synthetic-campaign/submissions",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content/native/LETTER",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content/proof",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-content/native/EMAIL",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-email/templates/native-email",
+      "method": "PUT"
+    },
+    {
+      "path": "/api/oyama-create/campaigns",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/campaigns/synthetic-new-2/contents",
+      "method": "POST"
+    },
+    {
+      "path": "/api/oyama-create/contents/synthetic-piece-3",
+      "method": "PATCH"
+    }
+  ]
+}

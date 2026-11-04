@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "./database.js";
 import { audit, digest, org, seal, unseal } from "./security.js";
 import { CareError, check, client, route, text } from "./http.js";
+import { validateUltrasoundContent } from "./ultrasound-validation.js";
 
 export const CHART_KINDS = ["PREGNANCY_TEST", "PREGNANCY_HISTORY", "ULTRASOUND", "STD_TEST", "CLINICAL_NOTE", "CONSENT"] as const;
 export function mayEditChart(status: string, authorId: string, userId: string): boolean { return status === "DRAFT" && authorId === userId; }
@@ -10,6 +11,16 @@ export function signedChartDigest(input: { id: string; version: number; content:
 }
 export const clinicalRoutes = Router();
 const router = clinicalRoutes;
+
+function checkVersion(updatedAt: Date, expected: unknown) {
+  if (expected !== undefined && expected !== updatedAt.toISOString()) throw new CareError(409, "CHART_CHANGED", "This chart has changed. Reload it before continuing.");
+}
+
+async function validateUltrasoundLink(organizationId: string, clientId: string, content: Record<string, unknown>) {
+  validateUltrasoundContent(content);
+  if (!content.appointmentId) return;
+  check(await prisma.compassionAppointment.findFirst({ where: { id: String(content.appointmentId), organizationId, clientId, appointmentType: "ULTRASOUND" } }), "Choose an ultrasound appointment belonging to this client.");
+}
 
 router.get("/charts", ...route("clinical", async (req, res) => {
   const clientId = String(req.query.clientId ?? "");
@@ -21,14 +32,17 @@ router.get("/charts", ...route("clinical", async (req, res) => {
 router.get("/charts/:id", ...route("clinical", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   if (!row) throw new CareError(404, "NOT_FOUND", "Chart not found.");
+  const patient = await client(req, row.clientId);
   await audit(req, "CHART_READ", row.id);
   const { encryptedContent, ...fields } = row;
-  res.json({ ...fields, content: JSON.parse(unseal(encryptedContent, `${org(req)}:${row.clientId}:chart`)) });
+  res.json({ ...fields, client: { id: patient.id, firstName: patient.firstName, lastName: patient.lastName }, content: JSON.parse(unseal(encryptedContent, `${org(req)}:${row.clientId}:chart`)) });
 }));
 router.post("/charts", ...route("clinical", async (req, res) => {
-  const clientId = text(req.body.clientId, 191); await client(req, clientId);
+  const clientId = text(req.body?.clientId, 191); await client(req, clientId);
   check(CHART_KINDS.includes(req.body.kind), "Choose a supported chart type.");
   check(req.body.content && typeof req.body.content === "object" && !Array.isArray(req.body.content), "Chart content must be an object.");
+  check(!req.body.content._signoff && !req.body.content._review, "Review and sign-off provenance is assigned only by the server.");
+  if (req.body.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), clientId, req.body.content);
   const content = JSON.stringify(req.body.content); check(content.length <= 100000, "Chart is too large.");
   let version = 1;
   const previousId = req.body.previousId ? text(req.body.previousId, 191) : null;
@@ -46,15 +60,23 @@ router.post("/charts", ...route("clinical", async (req, res) => {
 router.patch("/charts/:id", ...route("clinical", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row && mayEditChart(row.status, row.authorId, req.user!.sub), "Only the author may edit a draft. Signed records require an amendment.");
-  check(req.body.content && typeof req.body.content === "object" && !Array.isArray(req.body.content), "Chart content must be an object.");
-  const content = JSON.stringify(req.body.content); check(content.length <= 100000, "Chart is too large.");
+  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  check(req.body?.content && typeof req.body.content === "object" && !Array.isArray(req.body.content), "Chart content must be an object.");
+  check(!req.body.content._signoff && !req.body.content._review, "Review and sign-off provenance is assigned only by the server.");
+  if (row.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), row.clientId, req.body.content);
+  if (row.previousId) check(typeof req.body.content.amendmentReason === "string" && req.body.content.amendmentReason.trim(), "Keep the reason for amendment with this chart version.");
+  const previous = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
+  const content = JSON.stringify({ ...req.body.content, ...(previous._review ? { _review: previous._review } : {}) }); check(content.length <= 100000, "Chart is too large.");
   await prisma.compassionChart.update({ where: { id: row.id }, data: { encryptedContent: seal(content, `${org(req)}:${row.clientId}:chart`) } });
   await audit(req, "CHART_DRAFT_UPDATED", row.id); res.json({ id: row.id });
 }));
 router.post("/charts/:id/submit", ...route("clinical", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row && mayEditChart(row.status, row.authorId, req.user!.sub), "Only the author can submit a draft.");
+  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
   const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
+  if (row.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), row.clientId, content);
+  if (row.previousId) check(typeof content.amendmentReason === "string" && content.amendmentReason.trim(), "Record the reason for amendment before submitting.");
   const required: Record<string, string[]> = { PREGNANCY_TEST: ["testDate", "method", "result", "clinicalNotes"], PREGNANCY_HISTORY: ["historyDate", "pregnancyHistory", "clinicalNotes"], ULTRASOUND: ["examDate", "indication", "findings", "impression", "followUp"], STD_TEST: ["specimenDate", "testName", "result", "clinicalNotes"], CLINICAL_NOTE: ["encounterDate", "note"], CONSENT: content.sourceIntakeId ? ["consentVersion"] : ["consentVersion", "consentText", "signedName", "signedDate"] };
   check((required[row.kind] ?? []).every((key) => typeof content[key] === "string" && content[key].trim()), "Complete all required chart fields before submitting.");
   check(!content._signoff, "Sign-off provenance is assigned only by the server.");
@@ -62,10 +84,22 @@ router.post("/charts/:id/submit", ...route("clinical", async (req, res) => {
   await prisma.compassionChart.update({ where: { id: row.id }, data: { status: "REVIEW" } });
   await audit(req, "CHART_SUBMITTED", row.id); res.json({ id: row.id, status: "REVIEW" });
 }));
+router.post("/charts/:id/return", ...route("sign", async (req, res) => {
+  const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
+  check(row?.status === "REVIEW", "Only unsigned charts awaiting review can be returned for correction.");
+  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  const reason = text(req.body?.reason, 5000);
+  const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
+  content._review = { reason, reviewerId: req.user!.sub, returnedAt: new Date().toISOString() };
+  await prisma.compassionChart.update({ where: { id: row.id }, data: { status: "DRAFT", encryptedContent: seal(JSON.stringify(content), `${org(req)}:${row.clientId}:chart`) } });
+  await audit(req, "CHART_RETURNED_FOR_CORRECTION", row.id);
+  res.json({ id: row.id, status: "DRAFT" });
+}));
 router.post("/charts/:id/sign", ...route("sign", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row?.status === "REVIEW", "Only charts awaiting review may be signed.");
-  check(req.body.attest === true, "Confirm that you reviewed the chart and its attachments.");
+  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  check(req.body?.attest === true, "Confirm that you reviewed the chart and its attachments.");
   const signedAt = new Date();
   const original = unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`);
   const patient = await client(req, row.clientId);
@@ -81,8 +115,10 @@ router.get("/charts/:id/report", ...route("clinical", async (req, res) => {
   const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
   check(row.signedById && row.signedAt && row.signatureDigest === signedChartDigest({ id: row.id, version: row.version, content: JSON.stringify(content), signer: row.signedById, signedAt: row.signedAt.toISOString() }), "Report integrity verification failed.");
   await audit(req, "SIGNED_REPORT_EXPORTED", row.id);
+  // Internal correction requests are not part of the patient-facing report.
+  const { _review, ...reportContent } = content; void _review;
   // Structured output is rendered by the client into a printable report; signature provenance is retained.
-  res.json({ title: row.kind === "ULTRASOUND" ? "Limited Ultrasound Report" : "Signed Clinical Report", client: content._signoff.patient, version: row.version, templateVersion: row.templateVersion, content, signedById: row.signedById, signedAt: row.signedAt, signatureDigest: row.signatureDigest });
+  res.json({ title: row.kind === "ULTRASOUND" ? "Limited Ultrasound Report" : "Signed Clinical Report", client: content._signoff.patient, version: row.version, templateVersion: row.templateVersion, content: reportContent, signedById: row.signedById, signedAt: row.signedAt, signatureDigest: row.signatureDigest });
 }));
 
 router.get("/documents", ...route("clinical", async (req, res) => {
@@ -101,7 +137,7 @@ router.post("/documents", ...route("clinical", async (req, res) => {
   const chartId = req.body.chartId ? text(req.body.chartId, 191) : null;
   if (chartId) {
     const chart = await prisma.compassionChart.findFirst({ where: { id: chartId, organizationId: org(req), clientId, status: "DRAFT" } });
-    check(chart, "Attachments may only be added to a draft chart for this client.");
+    check(chart && chart.authorId === req.user!.sub, "Only the draft author may attach files to this chart.");
   }
   const row = await prisma.compassionDocument.create({ data: { organizationId: org(req), clientId, chartId, name, mimeType, checksum: digest(bytes), size: bytes.length, historical: req.body.historical === true, uploadedById: req.user!.sub, encryptedContent: seal(encoded, `${org(req)}:${clientId}:document`) } });
   await audit(req, "DOCUMENT_UPLOADED", row.id); res.status(201).json({ id: row.id, checksum: row.checksum });
@@ -117,7 +153,7 @@ router.patch("/documents/:id", ...route("clinical", async (req, res) => {
   check(row, "Document not found.");
   if (row.chartId && req.body.deleted !== undefined) {
     const chart = await prisma.compassionChart.findFirst({ where: { id: row.chartId, organizationId: org(req) } });
-    check(chart?.status === "DRAFT", "Attachments of reviewed or signed charts are protected.");
+    check(chart?.status === "DRAFT" && chart.authorId === req.user!.sub, "Only the draft author may remove attachments. Reviewed and signed attachments are protected.");
   }
   await prisma.compassionDocument.update({ where: { id: row.id }, data: { ...(typeof req.body.shared === "boolean" ? { shared: req.body.shared } : {}), ...(typeof req.body.deleted === "boolean" ? { deletedAt: req.body.deleted ? new Date() : null } : {}) } });
   await audit(req, "DOCUMENT_VISIBILITY_UPDATED", row.id); res.json({ id: row.id });

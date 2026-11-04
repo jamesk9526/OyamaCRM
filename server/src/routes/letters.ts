@@ -4,6 +4,8 @@
  * Provides template management, merge preview, generated letters, and email-draft integration.
  */
 import { Prisma } from "@prisma/client";
+import { invalidateLegacyBindings } from "../oyama-create/legacy-invalidation.js";
+import { recordCreatePrintStatus } from "../oyama-create/print-adapter.js";
 import { randomUUID } from "crypto";
 import { Router, type Request } from "express";
 import type { jsPDF as JsPdfDocument } from "jspdf";
@@ -3810,6 +3812,7 @@ router.post("/templates/apply-default-branding", requirePermission("letters.edit
     },
   });
 
+  await invalidateLegacyBindings(organizationId, "LETTER");
   await logAudit({
     action: "LETTER_TEMPLATE_DEFAULT_BRANDING_APPLIED",
     entity: "LetterTemplate",
@@ -4144,6 +4147,7 @@ router.patch("/templates/:id", requirePermission("letters.edit"), async (req, re
     data: patch,
   });
 
+  await invalidateLegacyBindings(organizationId, "LETTER", updated.id);
   await logAudit({
     action: "LETTER_TEMPLATE_UPDATED",
     entity: "LetterTemplate",
@@ -4714,6 +4718,7 @@ router.delete("/templates/:id", requirePermission("letters.archive"), async (req
     data: { status: "ARCHIVED", updatedByUserId: userId },
   });
 
+  await invalidateLegacyBindings(organizationId, "LETTER", existing.id);
   await logAudit({
     action: "LETTER_TEMPLATE_ARCHIVED",
     entity: "LetterTemplate",
@@ -6644,6 +6649,8 @@ router.post("/generated/queue/mail/actions", requirePermission("letters.manage_m
         metadataJson: buildMetadataWithQueue(row.metadataJson, nextQueue),
       },
     });
+
+    if (action === "MARK_MAILED") await recordCreatePrintStatus(organizationId, { generatedId: row.id }, "MAILED");
 
     if (row.constituentId) {
       await prisma.activity.create({
