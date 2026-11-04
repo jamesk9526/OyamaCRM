@@ -1,0 +1,29 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Failed lookup blocks silent unassigned gifts including submit-handler bypass",
+    "Independent retry preserves entered gift, selected fund and notes",
+    "Non-finite amount rejected before POST",
+    "Local gift date at UTC midnight",
+    "Ready request includes reviewed campaign/fund; failed save retains values",
+    "Phone dialog fits and no page errors"
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "constituentId": "qa-person",
+      "amount": 125.5,
+      "date": "2026-06-30",
+      "paymentMethod": "CHECK",
+      "campaignId": "synthetic-appeal",
+      "designationId": "synthetic-fund",
+      "taxDeductible": true,
+      "notes": "Synthetic gift note retained during lookup retry",
+      "status": "COMPLETED"
+    }
+  ],
+  "reads": {
+    "campaigns": 2,
+    "funds": 1
+  }
+}

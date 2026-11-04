@@ -1,0 +1,52 @@
+{
+  "synthetic": true,
+  "checks": [
+    "security: failed load blocks writes; retry restores authoritative values; failed save preserves edits; saved values survive reload; phone fits",
+    "workspaces: failed load blocks writes; retry restores authoritative values; failed save preserves edits; saved values survive reload; phone fits"
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "path": "/api/settings/security/auth",
+      "body": {
+        "emailMfaEnabled": true,
+        "passwordResetEnabled": false,
+        "mfaCodeTtlMinutes": 20,
+        "passwordResetTtlMinutes": 45
+      },
+      "failed": true
+    },
+    {
+      "path": "/api/settings/security/auth",
+      "body": {
+        "emailMfaEnabled": true,
+        "passwordResetEnabled": false,
+        "mfaCodeTtlMinutes": 20,
+        "passwordResetTtlMinutes": 45
+      },
+      "failed": false
+    },
+    {
+      "path": "/api/settings/workspaces",
+      "body": {
+        "donorEnabled": true,
+        "showModuleSwitcher": false,
+        "defaultWorkspace": "donor",
+        "donorNavigationLayout": "sidebar",
+        "donorAccentTone": "amber"
+      },
+      "failed": true
+    },
+    {
+      "path": "/api/settings/workspaces",
+      "body": {
+        "donorEnabled": true,
+        "showModuleSwitcher": false,
+        "defaultWorkspace": "donor",
+        "donorNavigationLayout": "sidebar",
+        "donorAccentTone": "amber"
+      },
+      "failed": false
+    }
+  ]
+}

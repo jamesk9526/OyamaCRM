@@ -63,6 +63,9 @@ try {
 
   await page.goto(`${web}/meetings`);
   await page.getByRole('button', { name: /Schedule Meeting/ }).first().click();
+  const planner = page.getByRole('dialog');
+  const plannerBounds = await planner.locator('.oyama-modal-surface').boundingBox();
+  assert.ok(plannerBounds && plannerBounds.y >= 0 && plannerBounds.y + plannerBounds.height <= 1001, 'Meeting planner remains in the desktop viewport');
   await page.getByLabel('Meeting Title').fill('Synthetic duration check');
   await page.getByLabel('Date', { exact: false }).first().fill('2099-01-02');
   await page.getByLabel('Start Time', { exact: true }).fill('10:00');

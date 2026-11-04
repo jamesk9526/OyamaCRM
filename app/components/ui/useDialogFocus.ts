@@ -3,13 +3,13 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 /** Keep dialog focus stable while form values and close callbacks change. */
-export function useDialogFocus(ref: RefObject<HTMLElement | null>, open: boolean, onClose: () => void) {
+export function useDialogFocus(ref: RefObject<HTMLElement | null>, open: boolean, onClose: () => void, returnFocusRef?: RefObject<HTMLElement | null>) {
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previous = returnFocusRef?.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     const overflow = document.body.style.overflow;
     const candidates = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(
       "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex='-1'])",
@@ -45,5 +45,5 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, open: boolean
       document.body.style.overflow = overflow;
       if (previous?.isConnected) previous.focus();
     };
-  }, [open, ref]);
+  }, [open, ref, returnFocusRef]);
 }

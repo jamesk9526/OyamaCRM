@@ -1,0 +1,11 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Staff ledger loads independently of administrator gateway permissions and exposes all 125 records",
+    "Server search reaches records beyond the old first100 limit; page-specific receipt filter remains available",
+    "Ledger failure and retry remain independent of gateway status",
+    "Unavailable gateway health never reports false readiness and can recover independently",
+    "Phone payment table scrolls inside the viewport"
+  ],
+  "errors": []
+}

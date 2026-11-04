@@ -1,7 +1,8 @@
 /** Shared setup-style modal shell with module-aware accent theming for CRM modals. */
 "use client";
 
-import { type ReactNode, useId, useMemo, useRef } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDialogFocus } from "./useDialogFocus";
 import { usePathname } from "next/navigation";
 import { resolveTopBarModuleKey, type TopBarModuleKey } from "@/app/lib/navigation-boundaries";
@@ -94,6 +95,8 @@ export default function WorkspaceSetupModal({
   closeOnBackdropClick = true,
 }: WorkspaceSetupModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const titleId = useId();
   const pathname = usePathname();
   const moduleKey = useMemo(() => resolveTopBarModuleKey(pathname || "/"), [pathname]);
@@ -101,7 +104,11 @@ export default function WorkspaceSetupModal({
   const isDark = appearance === "dark";
   const showChecklist = checklist.length > 0;
 
-  useDialogFocus(dialogRef, true, onClose);
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPortalHost(document.body);
+  }, []);
+  useDialogFocus(dialogRef, Boolean(portalHost), onClose, returnFocusRef);
 
   const shellClass = isDark
     ? "border-slate-800 bg-[#020617] text-slate-100 shadow-[0_30px_120px_rgba(2,6,23,0.85)]"
@@ -137,7 +144,9 @@ export default function WorkspaceSetupModal({
     </svg>
   );
 
-  return (
+  if (!portalHost) return null;
+  // Shell transforms and scrolling containers must not become the fixed dialog's viewport.
+  return createPortal(<div className="crm-fonts contents">
     <div
       className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       onMouseDown={(event) => {
@@ -148,8 +157,8 @@ export default function WorkspaceSetupModal({
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div ref={dialogRef} tabIndex={-1} data-appearance={appearance} className={`oyama-modal-surface w-full ${maxWidthClassName} max-h-[calc(100dvh-0.5rem)] overflow-hidden rounded-t-3xl border outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl ${shellClass} ${isDark ? "dark" : ""}`}>
-        <div className={`sticky top-0 z-10 flex items-start justify-between gap-4 border-b ${isDark ? "border-slate-800 bg-[#020617]" : "border-slate-200 bg-white"} px-4 py-4 sm:px-6 sm:py-5`}>
+      <div ref={dialogRef} tabIndex={-1} data-appearance={appearance} className={`oyama-modal-surface flex w-full flex-col ${maxWidthClassName} max-h-[calc(100dvh-0.5rem)] overflow-hidden rounded-t-3xl border outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl ${shellClass} ${isDark ? "dark" : ""}`}>
+        <div className={`sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b ${isDark ? "border-slate-800 bg-[#020617]" : "border-slate-200 bg-white"} px-4 py-4 sm:px-6 sm:py-5`}>
           <div className="flex min-w-0 items-start gap-3">
             <div className={`mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${iconBadgeClass} ring-4 ${isDark ? "ring-slate-800" : theme.focusRing}`}>
               {icon || defaultIcon}
@@ -186,7 +195,7 @@ export default function WorkspaceSetupModal({
           </div>
         </div>
 
-        <div className={`grid max-h-[calc(100dvh-7.5rem)] min-h-[min(420px,calc(100dvh-7.5rem))] sm:max-h-[calc(100dvh-8.75rem)] ${showChecklist || rightPanel ? "lg:grid-cols-[240px_minmax(0,1fr)_230px] xl:grid-cols-[260px_minmax(0,1fr)_250px]" : "grid-cols-1"}`}>
+        <div className={`grid min-h-0 flex-1 overflow-hidden ${showChecklist || rightPanel ? "lg:grid-cols-[240px_minmax(0,1fr)_230px] xl:grid-cols-[260px_minmax(0,1fr)_250px]" : "grid-cols-1"}`}>
           {showChecklist ? (
             <aside className={`hidden min-h-0 overflow-y-auto p-4 lg:block ${leftRailClass}`}>
               <div className="space-y-2">
@@ -230,5 +239,5 @@ export default function WorkspaceSetupModal({
         </div>
       </div>
     </div>
-  );
+  </div>, portalHost);
 }

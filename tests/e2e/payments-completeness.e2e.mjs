@@ -30,6 +30,8 @@ const page = await context.newPage();
 page.on('pageerror', error => errors.push(error.message));
 try {
   await page.goto(`${web}/payments`);
+  const welcome = page.getByRole('button', { name: /Got it, let.s get started/ });
+  await welcome.waitFor(); await welcome.click();
   if (process.env.CRM_AUDIT_BEFORE === '1') {
     await page.getByText('Synthetic gateway status unavailable', { exact: true }).waitFor();
     await page.screenshot({ path: `${evidence}/payments-before-staff.png`, fullPage: true });
@@ -67,6 +69,8 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: `${evidence}/payments-phone.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+    await page.getByRole('button', { name: 'Next', exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${evidence}/payments-phone-pagination.png`, fullPage: true });
     checks.push('Phone payment table scrolls inside the viewport');
     assert.deepEqual(errors, []);
     await writeFile(`${evidence}/payments-browser-checks.json`, JSON.stringify({ synthetic: true, checks, errors }, null, 2));

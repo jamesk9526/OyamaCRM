@@ -2,7 +2,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ constituent: { findMany: vi.fn() }, generatedLetter: { findMany: vi.fn() }, pluginSetting: { findUnique: vi.fn() } }));
+const db = vi.hoisted(() => ({ constituent: { findMany: vi.fn() }, generatedLetter: { findMany: vi.fn() }, pluginSetting: { findUnique: vi.fn() }, userPermission: { findUnique: vi.fn() } }));
 const services = vi.hoisted(() => ({ render: vi.fn(), template: vi.fn(), merge: vi.fn(), validate: vi.fn(), generate: vi.fn() }));
 vi.mock("@/server/src/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/server/src/lib/organization", () => ({ resolveOrganizationId: async () => "org" }));
@@ -22,6 +22,7 @@ beforeEach(() => {
   db.generatedLetter.findMany.mockResolvedValue([{ id: "l-a", constituentId: "A" }, { id: "l-b", constituentId: "B" }, { id: "l-c", constituentId: "C" }]);
   services.render.mockResolvedValue(Buffer.from("%PDF synthetic"));
   db.pluginSetting.findUnique.mockResolvedValue(null);
+  db.userPermission.findUnique.mockResolvedValue(null);
   services.template.mockResolvedValue({ id: "template", name: "Welcome", status: "ACTIVE", printBody: "Hello", printLayoutJson: null });
   services.merge.mockResolvedValue({ mergedPrintBody: "Hello", missingFields: [], unsupportedFields: [] });
   services.validate.mockReturnValue({ valid: true, reasons: [] });
@@ -65,6 +66,13 @@ describe("matched mailing labels", () => {
     db.generatedLetter.findMany.mockResolvedValue([{ id: "l-a" }]);
     const response = await request(app).post("/api/letters/generated/export-pdf-batch").send({ letterIds: ["l-a", "missing"] });
     expect(response.status).toBe(404);
+  });
+  it("retains the Studio sensitive-output permission guard before legacy exports", async () => {
+    db.generatedLetter.findMany.mockResolvedValue([{ id: "restricted", metadataJson: { studioSensitive: true } }]);
+    const response = await request(app).post("/api/letters/generated/export-pdf-batch").send({ letterIds: ["restricted"] });
+    expect(response.status).toBe(403); expect(response.body.error.code).toBe("SENSITIVE_MERGE_PERMISSION");
+    expect(db.userPermission.findUnique).toHaveBeenCalledWith({ where: { userId_permission: { userId: "staff", permission: "letters.view_sensitive_merge_data" } } });
+    expect(services.render).not.toHaveBeenCalled();
   });
   it("generates in selected order, deduplicates and reports unavailable recipients", async () => {
     const response = await request(app).post("/api/letters/generated/batch").send({ templateId: "template", constituentIds: ["C", "missing", "A", "C", "B"], donationMode: "none" });

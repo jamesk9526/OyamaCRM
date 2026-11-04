@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Paginated directory exposes all 125 volunteers and accurate server total",
+    "A stale overlapping search cannot replace newer results",
+    "Failed loads show an actionable retry and never show a false empty state",
+    "Phone directory remains within viewport with horizontally scrollable table",
+    "Add Volunteer initializes volunteer type; ordinary new constituent retains donor default"
+  ],
+  "errors": [],
+  "requests": [
+    "?type=VOLUNTEER&page=1&pageSize=25",
+    "?type=VOLUNTEER&page=2&pageSize=25",
+    "?type=VOLUNTEER&page=1&pageSize=25&search=old",
+    "?type=VOLUNTEER&page=1&pageSize=25&search=latest",
+    "?type=VOLUNTEER&page=1&pageSize=25&search=unavailable",
+    "?type=VOLUNTEER&page=1&pageSize=25&search=unavailable",
+    "?type=VOLUNTEER&page=1&pageSize=25"
+  ]
+}

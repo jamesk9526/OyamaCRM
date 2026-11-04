@@ -36,6 +36,8 @@ page.on('pageerror', error => errors.push(error.message));
 try {
   await page.goto(`${web}/volunteers`);
   await page.getByText('Latest Volunteer 001', { exact: true }).waitFor();
+  const welcome = page.getByRole('button', { name: /Got it, let.s get started/ });
+  if (await welcome.isVisible()) await welcome.click();
   if (process.env.CRM_AUDIT_BEFORE === '1') {
     await page.screenshot({ path: `${evidence}/volunteers-before-desktop.png`, fullPage: true });
   } else {
@@ -66,6 +68,8 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: `${evidence}/volunteers-phone.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+    await page.getByRole('button', { name: 'Next', exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${evidence}/volunteers-phone-pagination.png`, fullPage: true });
     checks.push('Phone directory remains within viewport with horizontally scrollable table');
     await page.getByRole('link', { name: 'Add Volunteer', exact: true }).first().click();
     await page.getByRole('heading', { name: 'Add New Volunteer', exact: true }).waitFor();

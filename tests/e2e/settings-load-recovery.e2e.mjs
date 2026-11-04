@@ -53,7 +53,7 @@ try {
     assert.equal(writes.length, kind === 'security' ? 0 : 2);
     failLoad = false;
     await page.getByRole('button', { name: kind === 'security' ? 'Retry loading authentication policy' : 'Retry loading workspace settings', exact: true }).click();
-    const control = page.getByLabel(kind === 'security' ? 'MFA code TTL (minutes)' : 'Accent color', { exact: true });
+    const control = kind === 'security' ? page.getByLabel('MFA code TTL (minutes)', { exact: true }) : page.getByRole('combobox', { name: /^Accent color/ });
     await control.waitFor({ state: 'visible' });
     if (kind === 'security') { assert.equal(await control.inputValue(), '15'); await control.fill('20'); }
     else { assert.equal(await control.inputValue(), 'teal'); await control.selectOption('amber'); }
