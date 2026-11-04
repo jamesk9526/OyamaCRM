@@ -1,3 +1,18 @@
+## CRM reliability audit gate — 2026-11-04
+
+- [x] Tenant-scoped organization settings, SMTP credential masking/preservation, validated grant inputs and organization staff assignments.
+- [x] Persisted meeting defaults, lifecycle concurrency predicates, timeline outcome preservation, one-time follow-up creation, bodyless action compatibility and correct follow-up filtering.
+- [x] Settings failed-load/save recovery, volunteer/payment server pagination and search, correct volunteer creation type, independent payment diagnostics and reviewed Quick Gift attribution fallback.
+- [x] Shared setup-dialog viewport, scrolling, focus trap and Escape return-focus acceptance on desktop/phone; before/after screenshots inspected.
+- [x] Event list/summary recovery, email backlog traversal, latest clinical message history and exact Create Letter/Email selection handoff.
+- [x] 986 unit tests and 229 mocked API tests; web/server types, both production builds and targeted lint (zero errors, one existing warning).
+- [x] Synthetic production-browser checks for meetings/events/settings/gifts/directories/ledger/Create, real anonymous image-route checks, and two inspected rasterized frozen-image PDF pages. See [audit evidence and exact coverage](audit-artifacts/2026-11-04-crm-completeness/verification.md).
+- [ ] Run database-backed reporting and full client-care acceptance with disposable CRM/Compassion MySQL schemas. Local localhost:3306 is unavailable. Existing Create/Trash migration and concurrency gates remain outstanding.
+- [ ] Deploy API and web together; repeat role-specific authenticated acceptance and provider/inbox/public-page/physical-printer checks in the deployment environment.
+- [ ] Complete documented follow-ups: clinical older-history pagination, explicit overnight meeting end dates, follow-up/task flag reconciliation, organization-currency payment display and report designation-lookup recovery.
+
+This audit does not certify every application workflow as production-ready. No deployment, live send, public publication, payment processing, production printing or migration was performed.
+
 ## oyamaCreate Studio rollout gate — 2026-11-03
 
 - [x] Additive design, brand draft/revision/binding, asset, saved section, opaque response and print-artifact records; Studio/Brand Hub flags default off.

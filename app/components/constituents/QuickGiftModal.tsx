@@ -76,25 +76,30 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lookups, setLookups] = useState({ campaign: { loading: true, loaded: false, error: "" }, fund: { loading: true, loaded: false, error: "" } });
+  const [lookups, setLookups] = useState({ campaign: { loading: true, loaded: false, error: "", acceptedUnassigned: false }, fund: { loading: true, loaded: false, error: "", acceptedUnassigned: false } });
   const lookupRequests = useRef({ campaign: 0, fund: 0 });
   const loadLookup = useCallback(async (kind: "campaign" | "fund") => {
     const current = ++lookupRequests.current[kind];
-    setLookups(previous => ({ ...previous, [kind]: { ...previous[kind], loading: true, error: "" } }));
+    setLookups(previous => ({ ...previous, [kind]: { ...previous[kind], loading: true, error: "", acceptedUnassigned: false } }));
     try {
       const payload = await apiFetch<Campaign[] | Designation[]>(kind === "campaign" ? "/api/campaigns" : "/api/designations");
       if (lookupRequests.current[kind] !== current) return;
       if (!Array.isArray(payload)) throw new Error(`The ${kind === "campaign" ? "campaign" : "fund"} list could not be loaded.`);
       if (kind === "campaign") setCampaigns((payload as Campaign[]).filter(item => item.active));
       else setDesignations(payload);
-      setLookups(previous => ({ ...previous, [kind]: { loading: false, loaded: true, error: "" } }));
+      setLookups(previous => ({ ...previous, [kind]: { loading: false, loaded: true, error: "", acceptedUnassigned: false } }));
     } catch (error) {
       if (lookupRequests.current[kind] !== current) return;
-      setLookups(previous => ({ ...previous, [kind]: { loading: false, loaded: false, error: error instanceof Error ? error.message : `The ${kind} list could not be loaded.` } }));
+      setLookups(previous => ({ ...previous, [kind]: { loading: false, loaded: false, error: error instanceof Error ? error.message : `The ${kind} list could not be loaded.`, acceptedUnassigned: false } }));
     }
   }, []);
   const cancelLookups = useCallback(() => { lookupRequests.current.campaign++; lookupRequests.current.fund++; }, []);
-  const lookupsReady = lookups.campaign.loaded && !lookups.campaign.loading && lookups.fund.loaded && !lookups.fund.loading;
+  const lookupsReady = (["campaign", "fund"] as const).every(kind => !lookups[kind].loading && (lookups[kind].loaded || lookups[kind].acceptedUnassigned));
+  function acceptUnassigned(kind: "campaign" | "fund") {
+    if (kind === "campaign") setCampaignId(""); else setDesignationId("");
+    setLookups(previous => ({ ...previous, [kind]: { ...previous[kind], acceptedUnassigned: true } }));
+    setError(null);
+  }
 
   // Load campaigns and designations for the dropdowns
   useEffect(() => {
@@ -106,7 +111,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (saving) return;
-    if (!lookupsReady) { setError("Load the campaign and fund lists before recording this gift so its attribution can be reviewed."); return; }
+    if (!lookupsReady) { setError("Load the campaign and fund lists or explicitly review each unavailable selection before recording this gift."); return; }
     const amt = Number(amount.trim());
     if (!Number.isFinite(amt) || amt <= 0) { setError("Please enter a valid amount."); return; }
     if (!date) { setError("Please enter a gift date."); return; }
@@ -153,7 +158,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
         {/* Form */}
         <form onSubmit={handleSave} className="mt-4 space-y-4">
           {(lookups.campaign.loading || lookups.fund.loading) && <p role="status" className="text-sm text-slate-600">Loading gift attribution choices…</p>}
-          {(["campaign", "fund"] as const).map(kind => lookups[kind].error && <div key={kind} role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><p>{kind === "campaign" ? "Campaigns" : "Funds"} are unavailable: {lookups[kind].error}</p><button type="button" onClick={() => { setError(null); void loadLookup(kind); }} className="mt-2 font-semibold underline">Retry {kind === "campaign" ? "campaigns" : "funds"}</button><p className="mt-1">Your gift details are retained. Recording is paused until the choices can be reviewed.</p></div>)}
+          {(["campaign", "fund"] as const).map(kind => lookups[kind].error && <div key={kind} role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><p>{kind === "campaign" ? "Campaigns" : "Funds"} are unavailable: {lookups[kind].error}</p><p className="mt-1">{lookups[kind].acceptedUnassigned ? `Reviewed choice: this gift will have no ${kind === "campaign" ? "campaign" : "fund designation"} selection.` : "Your gift details are retained. Retry loading, or deliberately continue without this selection."}</p><div className="mt-2 flex flex-wrap gap-3"><button type="button" disabled={saving} onClick={() => { setError(null); void loadLookup(kind); }} className="font-semibold underline">Retry {kind === "campaign" ? "campaigns" : "funds"}</button>{!lookups[kind].acceptedUnassigned && <button type="button" disabled={saving} onClick={() => acceptUnassigned(kind)} className="font-semibold underline">Continue without {kind} selection</button>}</div></div>)}
           {error && (
             <div role="alert" className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
           )}
@@ -231,7 +236,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
                 onChange={(e) => setCampaignId(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                <option value="">{lookups.campaign.loading ? "Loading campaigns…" : !lookups.campaign.loaded ? "Campaigns unavailable" : "— None —"}</option>
+                <option value="">{lookups.campaign.loading ? "Loading campaigns…" : lookups.campaign.acceptedUnassigned ? "No campaign (reviewed)" : !lookups.campaign.loaded ? "Campaigns unavailable" : "— None —"}</option>
                 {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
@@ -244,7 +249,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
                 onChange={(e) => setDesignationId(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                <option value="">{lookups.fund.loading ? "Loading funds…" : !lookups.fund.loaded ? "Funds unavailable" : "— General Fund —"}</option>
+                <option value="">{lookups.fund.loading ? "Loading funds…" : lookups.fund.acceptedUnassigned ? "No fund selection (reviewed)" : !lookups.fund.loaded ? "Funds unavailable" : "— General Fund —"}</option>
                 {designations.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>

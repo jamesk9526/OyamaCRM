@@ -1,0 +1,1310 @@
+{
+  "date": "2026-11-04",
+  "scope": "Local CRM audit, synthetic API/browser data; no deployment or live delivery",
+  "unit": {
+    "success": true,
+    "passed": 986,
+    "failed": 0,
+    "skipped": 0,
+    "files": [
+      {
+        "file": "tests/unit/annual-statement-print.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/audience-donation-filter.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/auth-client.test.ts",
+        "status": "passed",
+        "tests": 19
+      },
+      {
+        "file": "tests/unit/avery-labels.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/branding-assets.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/bridge-connection.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/communication-image-urls.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/compassion-appointment-widget-slots.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/compassion-appointments-utils.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/compassion-client-import-validator.test.ts",
+        "status": "passed",
+        "tests": 40
+      },
+      {
+        "file": "tests/unit/compassion-security.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/unit/compassion-ultrasound.test.ts",
+        "status": "passed",
+        "tests": 15
+      },
+      {
+        "file": "tests/unit/constituent-utils.test.ts",
+        "status": "passed",
+        "tests": 18
+      },
+      {
+        "file": "tests/unit/contacts-pagination.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-email-document.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/create-studio-block-actions.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-studio-selection.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/create-studio.test.ts",
+        "status": "passed",
+        "tests": 57
+      },
+      {
+        "file": "tests/unit/crm-backup-package.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/crm-sidebar-navigation.test.ts",
+        "status": "passed",
+        "tests": 14
+      },
+      {
+        "file": "tests/unit/custom-donor-report.test.ts",
+        "status": "passed",
+        "tests": 11
+      },
+      {
+        "file": "tests/unit/dashboard-ui-density.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/data-tools-audience-csv.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/data-tools-duplicate-groups.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/date-only-ranges.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/donation-tax.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/donation-utils.test.ts",
+        "status": "passed",
+        "tests": 10
+      },
+      {
+        "file": "tests/unit/donor-browse-query.test.ts",
+        "status": "passed",
+        "tests": 10
+      },
+      {
+        "file": "tests/unit/donor-dashboard-audit.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/unit/donor-dashboard-charts.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/donor-dashboard-data.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/donor-dashboard-metrics.test.ts",
+        "status": "passed",
+        "tests": 9
+      },
+      {
+        "file": "tests/unit/email-builder-utils.extra.test.ts",
+        "status": "passed",
+        "tests": 21
+      },
+      {
+        "file": "tests/unit/email-builder-utils.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/email-compliance.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/unit/email-queue-backlog.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/engagement-orchestration.test.ts",
+        "status": "passed",
+        "tests": 18
+      },
+      {
+        "file": "tests/unit/engagement-status.test.ts",
+        "status": "passed",
+        "tests": 10
+      },
+      {
+        "file": "tests/unit/event-checkin-exceptions.test.ts",
+        "status": "passed",
+        "tests": 9
+      },
+      {
+        "file": "tests/unit/event-checkin-service.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/unit/event-creation-readiness.test.ts",
+        "status": "passed",
+        "tests": 20
+      },
+      {
+        "file": "tests/unit/event-draft-save-queue.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/event-guest-lifecycle.test.ts",
+        "status": "passed",
+        "tests": 10
+      },
+      {
+        "file": "tests/unit/event-guest-registration.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/event-guest-ticket-route.test.ts",
+        "status": "passed",
+        "tests": 22
+      },
+      {
+        "file": "tests/unit/event-manual-order-capacity.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/unit/event-page-sections.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/event-public-mobile-contract.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/event-registry.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/event-reporting-occupancy.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/event-seat-clear.test.ts",
+        "status": "passed",
+        "tests": 1
+      },
+      {
+        "file": "tests/unit/event-stripe-reconciliation.test.ts",
+        "status": "passed",
+        "tests": 14
+      },
+      {
+        "file": "tests/unit/event-table-merge.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/unit/event-table-occupancy.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/event-table-seat-sync.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/feedback-context.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/help-content.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/letter-deletion-route.test.ts",
+        "status": "passed",
+        "tests": 24
+      },
+      {
+        "file": "tests/unit/letter-document.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/letters-branding-rendering.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/letters-merge.test.ts",
+        "status": "passed",
+        "tests": 19
+      },
+      {
+        "file": "tests/unit/letters-pdf-layout.test.ts",
+        "status": "passed",
+        "tests": 46
+      },
+      {
+        "file": "tests/unit/letters-pdf-print.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/letters-print-layout.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/letters-production-assets.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/unit/letters-production-pagination.test.ts",
+        "status": "passed",
+        "tests": 1
+      },
+      {
+        "file": "tests/unit/livecom-notifications.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/mail-merge-audience.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/mail-merge-label-eligibility.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/navigation-boundaries.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/unit/notification-email.test.ts",
+        "status": "passed",
+        "tests": 15
+      },
+      {
+        "file": "tests/unit/notifications-lifecycle.test.ts",
+        "status": "passed",
+        "tests": 10
+      },
+      {
+        "file": "tests/unit/oyama-create.test.ts",
+        "status": "passed",
+        "tests": 30
+      },
+      {
+        "file": "tests/unit/oyama-donor-profile.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/oyama-email-letter-conversion.test.ts",
+        "status": "passed",
+        "tests": 1
+      },
+      {
+        "file": "tests/unit/oyama-email-render-service.test.ts",
+        "status": "passed",
+        "tests": 16
+      },
+      {
+        "file": "tests/unit/oyama-profile-research.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/payment-gateway-settings.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/public-donor-research.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/unit/qr-codes.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/reporting-periods-and-money.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/unit/reporting-utils.test.ts",
+        "status": "passed",
+        "tests": 38
+      },
+      {
+        "file": "tests/unit/reset-verification.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/server-constituent-identity.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/site-embeds-donation-widget.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/steward-action-executor.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/steward-ai-runtime-pill.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/steward-ai-runtime-status.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/steward-artifact-integrity.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/steward-conversation-context.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/steward-intelligence-engine.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/steward-paths-adapters.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/steward-paths-api.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/steward-paths-backlog.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/steward-paths-email-eligibility.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/steward-paths-letter-eligibility.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/steward-paths-playground.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/steward-paths-status-change.test.ts",
+        "status": "passed",
+        "tests": 16
+      },
+      {
+        "file": "tests/unit/steward-paths-workflow-builder.test.ts",
+        "status": "passed",
+        "tests": 19
+      },
+      {
+        "file": "tests/unit/steward-playbooks.test.ts",
+        "status": "passed",
+        "tests": 24
+      },
+      {
+        "file": "tests/unit/steward-prompt-policy.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/steward-staff-notification.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/steward-thinking.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/stripe-webhooks.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/system-status.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/task-notification-worker.test.ts",
+        "status": "passed",
+        "tests": 9
+      },
+      {
+        "file": "tests/unit/task-policy.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/tax-deductible-report.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/trivia-game-import.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/unit/trivia-host-flow.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/trivia-host-winner.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/trivia-live-client.test.ts",
+        "status": "passed",
+        "tests": 12
+      },
+      {
+        "file": "tests/unit/trivia-live-route.test.ts",
+        "status": "passed",
+        "tests": 10
+      },
+      {
+        "file": "tests/unit/trivia-question-entry.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/trivia-remote-host.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/trivia-route-resolution.test.ts",
+        "status": "passed",
+        "tests": 1
+      },
+      {
+        "file": "tests/unit/trivia-score-control.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/trivia-sequential-actions.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/unit/trivia-state-persistence.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/trivia-timer.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/unit/webmaster-editor-utils.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/unit/webmaster-publish-readiness.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/unit/workspace-control-rail-presets.test.ts",
+        "status": "passed",
+        "tests": 2
+      }
+    ]
+  },
+  "api": {
+    "success": true,
+    "passed": 229,
+    "failed": 0,
+    "skipped": 0,
+    "files": [
+      {
+        "file": "tests/api/admin-community.test.ts",
+        "status": "passed",
+        "tests": 30
+      },
+      {
+        "file": "tests/api/admin-profile.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/api/compassion-message-history.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/api/compassion-ultrasound-workflow.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "tests/api/constituent-giving-filter.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/api/create-studio-workflow.test.ts",
+        "status": "passed",
+        "tests": 17
+      },
+      {
+        "file": "tests/api/create-trash.api.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/api/custom-reports.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/api/donation-follow-up.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/api/donor-browse-summary.api.test.ts",
+        "status": "passed",
+        "tests": 4
+      },
+      {
+        "file": "tests/api/donor-dashboard-metrics.api.test.ts",
+        "status": "passed",
+        "tests": 9
+      },
+      {
+        "file": "tests/api/event-creation.api.test.ts",
+        "status": "passed",
+        "tests": 9
+      },
+      {
+        "file": "tests/api/grants-validation.api.test.ts",
+        "status": "passed",
+        "tests": 14
+      },
+      {
+        "file": "tests/api/matched-mailing-labels.test.ts",
+        "status": "passed",
+        "tests": 11
+      },
+      {
+        "file": "tests/api/meetings-settings-workflow.test.ts",
+        "status": "passed",
+        "tests": 11
+      },
+      {
+        "file": "tests/api/notification-email-settings.test.ts",
+        "status": "passed",
+        "tests": 8
+      },
+      {
+        "file": "tests/api/notification-stream.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/api/notifications-workflow.api.test.ts",
+        "status": "passed",
+        "tests": 13
+      },
+      {
+        "file": "tests/api/oyama-create-workflow.test.ts",
+        "status": "passed",
+        "tests": 31
+      },
+      {
+        "file": "tests/api/settings-tenant-security.api.test.ts",
+        "status": "passed",
+        "tests": 6
+      },
+      {
+        "file": "tests/api/steward-feedback.api.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/api/steward-pairing-key.api.test.ts",
+        "status": "passed",
+        "tests": 3
+      },
+      {
+        "file": "tests/api/steward-playbooks.api.test.ts",
+        "status": "passed",
+        "tests": 5
+      },
+      {
+        "file": "tests/api/tasks-overdue-queue.test.ts",
+        "status": "passed",
+        "tests": 2
+      },
+      {
+        "file": "tests/api/tasks-workflow.test.ts",
+        "status": "passed",
+        "tests": 11
+      }
+    ]
+  },
+  "exclusions": [
+    {
+      "file": "tests/unit/event-reporting-service.test.ts",
+      "reason": "Requires a disposable MySQL database; localhost:3306 unavailable"
+    },
+    {
+      "file": "tests/api/compassion-client-care.test.ts",
+      "reason": "Requires a disposable clinical MySQL database; initialization could not connect to localhost:3306"
+    }
+  ],
+  "lint": {
+    "files": 42,
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "file": "server/src/routes/settings.ts",
+        "line": 2176,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "message": "'err' is defined but never used."
+      }
+    ]
+  },
+  "checks": {
+    "webProductionBuild": "passed",
+    "buildId": "Ba7ZrCd1yOh_wByhuL5y1",
+    "webTypes": "passed",
+    "serverTypes": "passed",
+    "serverProductionBuild": "passed",
+    "realDatabaseMigrationsOrContention": "not run",
+    "deployment": "not performed"
+  },
+  "browser": [
+    {
+      "file": "frontend-browser-checks.json",
+      "synthetic": true,
+      "checks": [
+        "Meeting defaults persist through reload; failed saves never report success",
+        "Meeting planner applies persisted duration and dispatches one create request",
+        "Meeting completion failure retains outcome and retry succeeds",
+        "Events survive summary failure, show unavailable metrics, filter and recover totals",
+        "Event-list failures have retry and never become a false empty registry",
+        "Canonical Events registry search and navigation remain functional on phone",
+        "Meeting settings fit phone; read-only and failed-load states prevent writes and retry recovers"
+      ],
+      "errors": [],
+      "writes": [
+        {
+          "path": "/api/meetings/settings",
+          "body": {
+            "defaultDuration": 45,
+            "autoTimeline": true,
+            "autoFollowUp": false,
+            "followUpDays": 2,
+            "followUpMessage": "Synthetic follow-up note"
+          }
+        },
+        {
+          "path": "/api/meetings",
+          "body": {
+            "title": "Synthetic duration check",
+            "type": "DONOR_VISIT",
+            "startTime": "2099-01-02T16:00:00.000Z",
+            "endTime": "2099-01-02T16:45:00.000Z",
+            "locationType": "IN_PERSON"
+          }
+        }
+      ]
+    },
+    {
+      "file": "settings-browser-checks.json",
+      "synthetic": true,
+      "checks": [
+        "security: failed load blocks writes; retry restores authoritative values; failed save preserves edits; saved values survive reload; phone fits",
+        "workspaces: failed load blocks writes; retry restores authoritative values; failed save preserves edits; saved values survive reload; phone fits"
+      ],
+      "errors": [],
+      "writes": [
+        {
+          "path": "/api/settings/security/auth",
+          "body": {
+            "emailMfaEnabled": true,
+            "passwordResetEnabled": false,
+            "mfaCodeTtlMinutes": 20,
+            "passwordResetTtlMinutes": 45
+          },
+          "failed": true
+        },
+        {
+          "path": "/api/settings/security/auth",
+          "body": {
+            "emailMfaEnabled": true,
+            "passwordResetEnabled": false,
+            "mfaCodeTtlMinutes": 20,
+            "passwordResetTtlMinutes": 45
+          },
+          "failed": false
+        },
+        {
+          "path": "/api/settings/workspaces",
+          "body": {
+            "donorEnabled": true,
+            "showModuleSwitcher": false,
+            "defaultWorkspace": "donor",
+            "donorNavigationLayout": "sidebar",
+            "donorAccentTone": "amber"
+          },
+          "failed": true
+        },
+        {
+          "path": "/api/settings/workspaces",
+          "body": {
+            "donorEnabled": true,
+            "showModuleSwitcher": false,
+            "defaultWorkspace": "donor",
+            "donorNavigationLayout": "sidebar",
+            "donorAccentTone": "amber"
+          },
+          "failed": false
+        }
+      ]
+    },
+    {
+      "file": "volunteers-browser-checks.json",
+      "synthetic": true,
+      "checks": [
+        "Paginated directory exposes all 125 volunteers and accurate server total",
+        "A stale overlapping search cannot replace newer results",
+        "Failed loads show an actionable retry and never show a false empty state",
+        "Phone directory remains within viewport with horizontally scrollable table",
+        "Add Volunteer initializes volunteer type; ordinary new constituent retains donor default"
+      ],
+      "errors": [],
+      "requests": [
+        "?type=VOLUNTEER&page=1&pageSize=25",
+        "?type=VOLUNTEER&page=2&pageSize=25",
+        "?type=VOLUNTEER&page=1&pageSize=25&search=old",
+        "?type=VOLUNTEER&page=1&pageSize=25&search=latest",
+        "?type=VOLUNTEER&page=1&pageSize=25&search=unavailable",
+        "?type=VOLUNTEER&page=1&pageSize=25&search=unavailable",
+        "?type=VOLUNTEER&page=1&pageSize=25"
+      ]
+    },
+    {
+      "file": "payments-browser-checks.json",
+      "synthetic": true,
+      "checks": [
+        "Staff ledger loads independently of administrator gateway permissions and exposes all 125 records",
+        "Server search reaches records beyond the old first100 limit; page-specific receipt filter remains available",
+        "Ledger failure and retry remain independent of gateway status",
+        "Unavailable gateway health never reports false readiness and can recover independently",
+        "Phone payment table scrolls inside the viewport"
+      ],
+      "errors": []
+    },
+    {
+      "file": "quick-gift-browser-checks.json",
+      "synthetic": true,
+      "checks": [
+        "Failed lookup blocks silent unassigned gifts including submit-handler bypass",
+        "Independent retry preserves entered gift, selected fund and notes",
+        "Non-finite amount rejected before POST",
+        "Local gift date at UTC midnight",
+        "Ready request includes reviewed campaign/fund; failed save retains values",
+        "Denied campaign lookup requires explicit reviewed fallback, preserves selected fund, and retry withdraws acknowledgment",
+        "Each unavailable lookup requires separate review before omitting both selections",
+        "Desktop/phone dialog and close control remain within viewport; focus trap and Escape restoration work"
+      ],
+      "errors": [],
+      "writes": [
+        {
+          "constituentId": "qa-person",
+          "amount": 125.5,
+          "date": "2026-06-30",
+          "paymentMethod": "CHECK",
+          "campaignId": "synthetic-appeal",
+          "designationId": "synthetic-fund",
+          "taxDeductible": true,
+          "notes": "Synthetic gift note retained during lookup retry",
+          "status": "COMPLETED"
+        },
+        {
+          "constituentId": "qa-person",
+          "amount": 75,
+          "date": "2026-06-30",
+          "paymentMethod": "CHECK",
+          "designationId": "synthetic-fund",
+          "taxDeductible": true,
+          "status": "COMPLETED"
+        },
+        {
+          "constituentId": "qa-person",
+          "amount": 50,
+          "date": "2026-06-30",
+          "paymentMethod": "CHECK",
+          "taxDeductible": true,
+          "status": "COMPLETED"
+        }
+      ],
+      "reads": {
+        "campaigns": 5,
+        "funds": 3
+      }
+    }
+  ],
+  "createStudio": {
+    "synthetic": true,
+    "checks": [
+      "Direct letter typing and persistence",
+      "Pattern inserts editable content at cursor",
+      "Exact text selection retained across Letter and Email",
+      "Email shared edits update letter and customizations remain protected",
+      "Desktop tablet phone layout",
+      "Campaign Trash review and restore UI with synthetic responses"
+    ],
+    "errors": [],
+    "draftWrites": 5
+  },
+  "media": {
+    "synthetic": true,
+    "checks": [
+      {
+        "label": "Brand Hub logos and asset thumbnails",
+        "images": [
+          {
+            "src": "/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 455,
+            "visibleHeight": 130
+          },
+          {
+            "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
+            "width": 360,
+            "height": 140,
+            "visibleWidth": 334.28125,
+            "visibleHeight": 129.984375
+          },
+          {
+            "src": "/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 315,
+            "visibleHeight": 90
+          },
+          {
+            "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
+            "width": 360,
+            "height": 140,
+            "visibleWidth": 231.421875,
+            "visibleHeight": 89.984375
+          },
+          {
+            "src": "/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 317.65625,
+            "visibleHeight": 87.09375
+          },
+          {
+            "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+            "width": 720,
+            "height": 240,
+            "visibleWidth": 270,
+            "visibleHeight": 90
+          }
+        ]
+      },
+      {
+        "label": "Preview background control works from the keyboard"
+      },
+      {
+        "label": "Saved signature preview",
+        "images": [
+          {
+            "src": "/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 474.109375,
+            "visibleHeight": 129.984375
+          }
+        ]
+      },
+      {
+        "label": "Studio asset chooser thumbnails",
+        "images": [
+          {
+            "src": "/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 145,
+            "visibleHeight": 41.421875
+          },
+          {
+            "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
+            "width": 360,
+            "height": 140,
+            "visibleWidth": 145,
+            "visibleHeight": 56.375
+          },
+          {
+            "src": "/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 145,
+            "visibleHeight": 39.75
+          },
+          {
+            "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+            "width": 720,
+            "height": 240,
+            "visibleWidth": 145,
+            "visibleHeight": 48.328125
+          }
+        ]
+      },
+      {
+        "label": "Letter canvas artwork and signature",
+        "images": [
+          {
+            "src": "/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 140,
+            "visibleHeight": 40
+          },
+          {
+            "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+            "width": 720,
+            "height": 240,
+            "visibleWidth": 571.1875,
+            "visibleHeight": 190.390625
+          },
+          {
+            "src": "/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 170,
+            "visibleHeight": 48
+          }
+        ]
+      },
+      {
+        "label": "Responsive email artwork",
+        "images": [
+          {
+            "src": "/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 159.953125,
+            "visibleHeight": 45.703125
+          },
+          {
+            "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+            "width": 720,
+            "height": 240,
+            "visibleWidth": 460.6875,
+            "visibleHeight": 153.5625
+          },
+          {
+            "src": "/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 170,
+            "visibleHeight": 48
+          }
+        ]
+      },
+      {
+        "label": "Legacy /uploads links proxy to real anonymous API image routes",
+        "count": 4
+      },
+      {
+        "label": "Outgoing HTML without a CRM session",
+        "images": [
+          {
+            "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 159.953125,
+            "visibleHeight": 45.703125
+          },
+          {
+            "src": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+            "width": 720,
+            "height": 240,
+            "visibleWidth": 459,
+            "visibleHeight": 153
+          },
+          {
+            "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 170,
+            "visibleHeight": 48
+          }
+        ]
+      },
+      {
+        "label": "Outgoing email on phone",
+        "images": [
+          {
+            "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+            "width": 560,
+            "height": 160,
+            "visibleWidth": 159.953125,
+            "visibleHeight": 45.703125
+          },
+          {
+            "src": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+            "width": 720,
+            "height": 240,
+            "visibleWidth": 277.09375,
+            "visibleHeight": 92.359375
+          },
+          {
+            "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+            "width": 620,
+            "height": 170,
+            "visibleWidth": 170,
+            "visibleHeight": 48
+          }
+        ]
+      },
+      {
+        "label": "Two-page Chromium proof uses frozen artwork after originals are removed",
+        "pages": 2,
+        "assets": [
+          "/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "/api/letters/media/synthetic-media-qa/signature.png",
+          "/uploads/email-media/synthetic-media-qa/story.png",
+          "/api/letters/media/synthetic-media-qa/logo.png"
+        ]
+      }
+    ],
+    "requests": [
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/public-media/branding/synthetic-media-qa/white-logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/missing.png",
+        "status": 404,
+        "type": "application/json; charset=utf-8"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/public-media/branding/synthetic-media-qa/white-logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
+        "status": 200,
+        "type": "image/png"
+      },
+      {
+        "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
+        "status": 200,
+        "type": "image/png"
+      }
+    ],
+    "errors": []
+  },
+  "proof": {
+    "synthetic": true,
+    "renderer": "Poppler 100 DPI; PDF image and text inspection via PyMuPDF",
+    "pages": [
+      {
+        "page": 1,
+        "images": 3,
+        "textCharacters": 239
+      },
+      {
+        "page": 2,
+        "images": 2,
+        "textCharacters": 186
+      }
+    ]
+  }
+}

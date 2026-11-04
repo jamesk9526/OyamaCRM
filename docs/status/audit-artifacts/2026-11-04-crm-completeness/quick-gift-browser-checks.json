@@ -6,7 +6,9 @@
     "Non-finite amount rejected before POST",
     "Local gift date at UTC midnight",
     "Ready request includes reviewed campaign/fund; failed save retains values",
-    "Phone dialog fits and no page errors"
+    "Denied campaign lookup requires explicit reviewed fallback, preserves selected fund, and retry withdraws acknowledgment",
+    "Each unavailable lookup requires separate review before omitting both selections",
+    "Desktop/phone dialog and close control remain within viewport; focus trap and Escape restoration work"
   ],
   "errors": [],
   "writes": [
@@ -20,10 +22,27 @@
       "taxDeductible": true,
       "notes": "Synthetic gift note retained during lookup retry",
       "status": "COMPLETED"
+    },
+    {
+      "constituentId": "qa-person",
+      "amount": 75,
+      "date": "2026-06-30",
+      "paymentMethod": "CHECK",
+      "designationId": "synthetic-fund",
+      "taxDeductible": true,
+      "status": "COMPLETED"
+    },
+    {
+      "constituentId": "qa-person",
+      "amount": 50,
+      "date": "2026-06-30",
+      "paymentMethod": "CHECK",
+      "taxDeductible": true,
+      "status": "COMPLETED"
     }
   ],
   "reads": {
-    "campaigns": 2,
-    "funds": 1
+    "campaigns": 5,
+    "funds": 3
   }
 }

@@ -66,6 +66,11 @@ try {
   const planner = page.getByRole('dialog');
   const plannerBounds = await planner.locator('.oyama-modal-surface').boundingBox();
   assert.ok(plannerBounds && plannerBounds.y >= 0 && plannerBounds.y + plannerBounds.height <= 1001, 'Meeting planner remains in the desktop viewport');
+  await page.setViewportSize({ width: 390, height: 900 });
+  const phonePlannerBounds = await planner.locator('.oyama-modal-surface').boundingBox();
+  assert.ok(phonePlannerBounds && phonePlannerBounds.y >= 0 && phonePlannerBounds.y + phonePlannerBounds.height <= 901 && phonePlannerBounds.width <= 390, 'Meeting planner remains in the phone viewport');
+  await page.screenshot({ path: `${evidence}/meeting-planner-phone.png`, fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByLabel('Meeting Title').fill('Synthetic duration check');
   await page.getByLabel('Date', { exact: false }).first().fill('2099-01-02');
   await page.getByLabel('Start Time', { exact: true }).fill('10:00');
