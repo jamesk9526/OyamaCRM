@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { absolutizeEmailAssetUrls } from "../../services/oyama-email/email-render-service.js";
 import { EmailPurpose } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { createOrganizationEmailSender, resolveOrganizationSmtpSettings } from "../../services/smtp-service.js";
@@ -37,6 +38,6 @@ router.post("/contents/:id/studio/send-test",route(async(req,res,org,actor)=>{
  await prisma.auditLog.create({data:{organizationId:org,userId:actor,action:"CREATE_STUDIO_TEST_ACCEPTED",entity:"CreateContent",entityId:content.id,metadata:{revision:content.revision,toEmail:string(req.body.toEmail).trim().toLowerCase(),providerMessageId:accepted.providerMessageId}}});
  res.json({accepted:true,confirmedDelivered:false,message:"Provider accepted the test message. This does not confirm inbox delivery."});
 }));
-export function absoluteStudioEmail(html:string){const base=process.env.NEXT_PUBLIC_APP_URL||process.env.FRONTEND_ORIGIN||"http://localhost:3000";return html.replace(/(\b(?:src|href)=")\/(?!\/)([^"<>]*)"/g,(_match,prefix:string,path:string)=>`${prefix}${new URL(`/${path}`,base).toString()}"`);}
+export function absoluteStudioEmail(html:string){const base=process.env.NEXT_PUBLIC_APP_URL||process.env.FRONTEND_ORIGIN||"http://localhost:3000";return absolutizeEmailAssetUrls(html,base).replace(/(\bhref=")\/(?!\/)([^"<>]*)"/g,(_match,prefix:string,path:string)=>`${prefix}${new URL(`/${path}`,base).toString()}"`);}
 export function absoluteStudioText(text:string){const base=process.env.NEXT_PUBLIC_APP_URL||process.env.FRONTEND_ORIGIN||"http://localhost:3000";return text.replace(/(^|[\s(])(\/give\/[a-z0-9_-]+[^\s)]*)/gi,(_match,prefix:string,path:string)=>prefix+new URL(path,base).toString());}
 export default router;

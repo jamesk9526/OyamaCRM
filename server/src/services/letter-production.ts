@@ -6,6 +6,7 @@ import { PDFDocument } from "pdf-lib";
 import { prisma } from "../lib/prisma.js";
 import { LETTER_RENDERER_VERSION, record, string, productionLayout, addressFingerprint, type LetterSnapshot } from "./letter-production-contract.js";
 import { sanitizeLetterHtml } from "./letter-production-renderer.js";
+import { managedPublicMedia } from "../lib/public-media.js";
 
 export const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 export const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
@@ -24,14 +25,12 @@ export const recipientSnapshot = (contact: { firstName?: string | null; lastName
 export async function freezeAsset(source: string, organizationId: string): Promise<string> {
   if (/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(source) && source.length <= 7_000_000) return source;
   // Only tenant-owned uploads. Never dereference a supplied host, local file, or SVG.
-  let pathname = source;
-  if (/^https?:/i.test(source)) pathname = new URL(source).pathname;
-  pathname = pathname.replace(/^\/api\/letters\/media\/([^/]+)\//, "/uploads/letter-media/$1/");
-  const match = pathname.match(/^\/uploads\/(letter-media|branding)\/([a-z0-9_-]+)\/([a-z0-9._-]+\.(png|jpe?g|webp))$/i);
-  if (!match || match[2] !== organizationId || match[3].includes("..")) throw new ProductionError(422, "An image is not an authorized tenant upload. Upload the image to this organization before printing.");
-  const bytes = await readFile(path.resolve("public", "uploads", match[1], match[2], match[3]));
+  const media = managedPublicMedia(source);
+  if (!media || media.organizationId !== organizationId || !/\.(png|jpe?g|webp)$/i.test(media.fileName)) throw new ProductionError(422, "An image is not an authorized PNG, JPEG or WebP tenant upload. Upload the image to this organization before printing.");
+  const bytes = await readFile(path.resolve("public", "uploads", media.namespace, media.organizationId, media.fileName)).catch(() => { throw new ProductionError(422, "A saved image is missing. Replace the upload and regenerate the proof."); });
   if (!bytes.length || bytes.length > 5_000_000) throw new ProductionError(422, "An image is empty or exceeds the 5 MB print limit.");
-  return `data:image/${match[4].toLowerCase().startsWith("jp") ? "jpeg" : match[4].toLowerCase()};base64,${bytes.toString("base64")}`;
+  const extension = media.fileName.split(".").pop()!.toLowerCase();
+  return `data:image/${extension.startsWith("jp") ? "jpeg" : extension};base64,${bytes.toString("base64")}`;
 }
 
 export async function buildProductionSnapshot(input: { organizationId: string; templateId: string; bodyHtml: string; subject: string; recipientId?: string | null; generatedAt?: Date; generatedLetterId?: string; blockers?: string[] }): Promise<LetterSnapshot> {

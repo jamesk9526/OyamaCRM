@@ -1,6 +1,7 @@
 import { CreateError, object, string } from "../domain.js";
 import { EMPTY_DOC, STUDIO_NODE_TYPES, type StudioDesign, type StudioDoc, type StudioNode, type StudioEnvelope } from "./types.js";
 import { paragraph } from "./registry.js";
+import { managedPublicMedia } from "../../lib/public-media.js";
 
 const ATTRS = new Set(["studioId", "level", "textAlign", "indent", "spacing", "keepTogether", "keepWithNext", "src", "alt", "width", "height", "crop", "focalX", "focalY", "caption", "href", "colspan", "rowspan", "colwidth", "background", "color", "borderColor", "signerId", "secondSignerId", "closing", "field", "operator", "value", "basis", "amounts", "multipliers", "fallback", "minimum", "maximum", "rounding", "label", "mode", "statement", "size", "html", "start", "emailOnly", "printOnly", "presetId"]);
 const MARKS = new Set(["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight", "superscript", "subscript"]);
@@ -12,6 +13,7 @@ export function color(value: unknown, fallback: string) { return /^#[a-f0-9]{6}$
 export function studioUrl(value: unknown, asset = false): string {
   const text = string(value).trim(); if (!text) return "";
   if (text.length > 2000) throw new CreateError(400, "The URL exceeds 2,000 characters.");
+  if (asset) { const managed = managedPublicMedia(text); if (managed) return managed.publicUrl; }
   if (asset && /^\/uploads\/[a-z0-9/_\-.]+$/i.test(text) && !text.includes("..")) return text;
   if (!asset && /^\/give\/[a-z0-9_-]+$/i.test(text)) return text;
   try { const url = new URL(text); if (url.protocol === "https:" && !url.username && !url.password) return url.toString(); } catch { /* validated below */ }

@@ -7,11 +7,11 @@ import { type LetterSnapshot, string, LETTER_RENDERER_VERSION } from "./letter-p
 const escape = (value: unknown) => string(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 const scalar = [/^\d+(?:\.\d+)?(?:pt|px|em|in|%)?$/];
 /** Constrain documents to flow layout. No script, positioning, remote CSS, or CSS URLs. */
-export function sanitizeLetterHtml(html: string): string {
+export function sanitizeLetterHtml(html: string, options: { authoredImages?: boolean } = {}): string {
   return sanitizeHtml(html, {
     allowedTags: ["p", "div", "span", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "figure", "figcaption", "a", "hr", "blockquote"],
       allowedAttributes: { "*": ["style", "data-create-block", "data-studio-page-number", "data-studio-total-pages", "data-letter-page-break", "data-letter-spacer", "data-keep-together", "data-letter-signature"], img: ["src", "alt", "width", "height", "style"], a: ["href"], td: ["colspan", "rowspan", "style"], th: ["colspan", "rowspan", "style"] },
-    allowedSchemes: ["https", "http", "mailto", "data"], allowedSchemesByTag: { img: ["data"] }, allowProtocolRelative: false,
+    allowedSchemes: ["https", "http", "mailto", "data"], allowedSchemesByTag: { img: options.authoredImages ? ["https", "data"] : ["data"] }, allowProtocolRelative: false,
     allowedStyles: { "*": {
       "font-family": [/^(?:Inter|Noto Serif|Arial|Helvetica|Calibri|Times New Roman|Georgia|serif|sans-serif|[,'"\s])+$/i],
       "font-size": scalar, "line-height": scalar, "letter-spacing": scalar,

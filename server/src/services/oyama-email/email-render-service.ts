@@ -4,6 +4,7 @@
  */
 
 import { canonicalizeEmailMergeToken, extractEmailMergeTokens } from "./merge-field-catalog.js";
+import { mapHtmlImageSources, normalizePublicMediaUrl } from "../../lib/public-media.js";
 
 export type OyamaEmailBlockType =
   | "header"
@@ -772,9 +773,9 @@ export type OyamaEmailGlobalChrome = {
 };
 
 function resolvePublicEmailAssetUrl(value: string, publicAssetBaseUrl: string): string {
-  const candidate = value.trim();
+  const candidate = normalizePublicMediaUrl(value);
   if (!candidate || candidate.startsWith("#") || candidate.includes("{{") || candidate.includes("}}")) return value;
-  if (/^https?:\/\//i.test(candidate)) return value;
+  if (/^https?:\/\//i.test(candidate)) return candidate;
   if (/^[a-z][a-z0-9+.-]*:/i.test(candidate)) return value;
 
   try {
@@ -787,7 +788,7 @@ function resolvePublicEmailAssetUrl(value: string, publicAssetBaseUrl: string): 
 /** Converts stored relative image attributes into absolute public URLs that inbox clients can request. */
 export function absolutizeEmailAssetUrls(html: string, publicAssetBaseUrl?: string): string {
   const configuredBase = String(publicAssetBaseUrl || "").trim();
-  if (!configuredBase) return html;
+  if (!configuredBase) return mapHtmlImageSources(html, normalizePublicMediaUrl);
 
   try {
     const parsed = new URL(configuredBase);
@@ -796,12 +797,7 @@ export function absolutizeEmailAssetUrls(html: string, publicAssetBaseUrl?: stri
     return html;
   }
 
-  return html.replace(
-    /\b(src|poster|background)\s*=\s*(["'])(.*?)\2/gi,
-    (_attribute, name: string, quote: string, value: string) => (
-      `${name}=${quote}${resolvePublicEmailAssetUrl(value, configuredBase)}${quote}`
-    ),
-  );
+  return mapHtmlImageSources(html, value => resolvePublicEmailAssetUrl(value, configuredBase));
 }
 
 function themeFromTemplate(template: OyamaEmailTemplateDocument): RenderTheme {

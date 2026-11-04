@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-04",
+  "method": "Anonymous GET; no cookies, authorization or writes",
+  "host": "https://www.crm.partnertpcc.com",
+  "observed": [
+    {
+      "path": "/uploads/letter-media/cmp24anjy0001gt4y218qq7ql/70ce1dd3-6f98-44b0-a870-2ad3e2600c6e.png",
+      "status": 400,
+      "contentType": "text/html",
+      "bytes": 226,
+      "pageTitle": "400 Request Header Or Cookie Too Large"
+    },
+    {
+      "path": "/api/letters/media/cmp24anjy0001gt4y218qq7ql/70ce1dd3-6f98-44b0-a870-2ad3e2600c6e.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 216064,
+      "signatureHex": "89504E470D0A1A0A0000000D49484452"
+    }
+  ],
+  "limit": "Read-only diagnosis of the screenshot asset; changes have not been deployed."
+}

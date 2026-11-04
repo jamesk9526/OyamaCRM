@@ -25,6 +25,19 @@ const org = "synthetic-studio-org";
 const call = (method: "get" | "put" | "post" | "patch", path: string, body?: unknown, role = "admin", organizationId = org) => { const action = request(app)[method](`/api/oyama-create${path}`).set("Authorization", `Bearer ${signAccessToken({ sub: "synthetic-staff", orgId: organizationId, email: "staff@example.invalid", role })}`); return body === undefined ? action : action.send(body as object); };
 beforeEach(async () => { resetCreateRows(); await db.organization.create({ data: { id: org, name: "Synthetic original organization" } }); await db.organizationSettings.create({ data: { organizationId: org, oyamaCreateEnabled: false } }); });
 describe("reviewed Brand Hub", () => {
+  it("saves and reopens legacy artwork and header images without removing their sources", async () => {
+    const current = (await call("get", "/brand")).body;
+    current.document.identity.logoUrl = `http://localhost:4000/uploads/letter-media/${org}/logo.png`;
+    current.document.identity.globalHeaderHtml = `<p><img src="/uploads/branding/${org}/header.png" alt="Organization header" onerror="bad()"></p>`;
+    const saved = await call("put", "/brand/draft", { revision: 0, document: current.document });
+    expect(saved.status).toBe(200);
+    const reopened = (await call("get", "/brand")).body.document;
+    expect(reopened.identity.logoUrl).toBe(`/api/letters/media/${org}/logo.png`);
+    expect(reopened.identity.globalHeaderHtml).toContain(`src="/api/public-media/branding/${org}/header.png"`);
+    expect(reopened.identity.globalHeaderHtml).not.toContain("onerror");
+    reopened.identity.globalHeaderHtml = '<img src="/api/letters/media/foreign/header.png">';
+    expect((await call("put", "/brand/draft", { revision: 1, document: reopened })).status).toBe(403);
+  });
   it("keeps a public event pinned until an explicit reviewed brand adoption",async()=>{
     await db.event.create({data:{id:"event",organizationId:org,name:"Synthetic event"}});const state=(await call("get","/brand")).body;state.document.identity.organizationDisplayName="New published identity";await call("put","/brand/draft",{revision:0,document:state.document});const review=(await call("get","/brand/review")).body;expect((await call("post","/brand/publish",{...review,confirm:true})).status).toBe(200);
     expect((await publicBrandIdentity(org,"EVENT","event"))?.organizationDisplayName).toBe("Synthetic original organization");

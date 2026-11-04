@@ -98,8 +98,9 @@ export async function publishBrand(org: string, actor: string, input: { draftRev
 }
 export function sanitizeBrandHtml(brand: BrandDocument): BrandDocument {
   const result = structuredClone(brand);
-  for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (result.identity[key]) result.identity[key] = sanitizeLetterHtml(String(result.identity[key]));
-  for (const preset of result.presets) if (preset.legacyHtml) preset.legacyHtml = sanitizeLetterHtml(preset.legacyHtml);
-  for (const profile of result.profiles) for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (profile.values[key]) profile.values[key] = sanitizeLetterHtml(String(profile.values[key]));
+  // Draft branding still references uploaded files. Only final print HTML requires frozen data URLs.
+  for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (result.identity[key]) result.identity[key] = sanitizeLetterHtml(String(result.identity[key]), { authoredImages: true });
+  for (const preset of result.presets) if (preset.legacyHtml) preset.legacyHtml = sanitizeLetterHtml(preset.legacyHtml, { authoredImages: true });
+  for (const profile of result.profiles) for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (profile.values[key]) profile.values[key] = sanitizeLetterHtml(String(profile.values[key]), { authoredImages: true });
   return result;
 }

@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "renderer": "PyMuPDF 108 DPI",
+  "pages": [
+    {
+      "page": 1,
+      "images": 3,
+      "textCharacters": 239
+    },
+    {
+      "page": 2,
+      "images": 2,
+      "textCharacters": 186
+    }
+  ]
+}

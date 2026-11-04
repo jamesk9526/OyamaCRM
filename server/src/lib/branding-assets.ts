@@ -1,7 +1,6 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
-
-const LOCAL_BRANDING_ASSET = /^\/uploads\/branding\/([a-z0-9_-]+)\/([a-z0-9][a-z0-9._-]{0,200}\.(?:png|jpe?g|webp|gif))$/i;
+import { managedPublicMedia } from "./public-media.js";
 
 /**
  * Keeps remote branding URLs intact and suppresses stale local upload URLs.
@@ -13,25 +12,15 @@ export async function usableBrandingAssetUrl(value: unknown, organizationId: str
   const normalized = typeof value === "string" ? value.trim() : "";
   if (!normalized) return "";
 
-  let pathname = normalized;
-  if (/^https?:\/\//i.test(normalized)) {
-    try {
-      pathname = new URL(normalized).pathname;
-    } catch {
-      return "";
-    }
-  }
-
-  const match = pathname.match(LOCAL_BRANDING_ASSET);
-  if (!match) return normalized;
-  if (match[1] !== organizationId) return "";
-
-  const assetPath = path.resolve(process.cwd(), "public", "uploads", "branding", match[1], match[2]);
+  const media = managedPublicMedia(normalized);
+  if (!media) return normalized;
+  if (media.organizationId !== organizationId) return "";
+  const assetPath = path.resolve(process.cwd(), "public", "uploads", media.namespace, media.organizationId, media.fileName);
   try {
     await access(assetPath);
     // Uploaded media is proxied by the public app. An old API or localhost
     // origin cannot be loaded by visitors, so always use the app-relative path.
-    return pathname;
+    return media.publicUrl;
   } catch {
     return "";
   }

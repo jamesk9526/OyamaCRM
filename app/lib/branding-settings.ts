@@ -1,5 +1,6 @@
 /** Shared branding settings helpers consumed by Settings pages and design-aware builders. */
 import { apiFetch } from "@/app/lib/auth-client";
+import { normalizePublicMediaUrl } from "@/server/src/lib/public-media";
 
 /** Canonical org branding shape used as a cross-module source of truth. */
 export interface BrandingSettings {
@@ -111,8 +112,8 @@ export function normalizeBrandingSettings(input: unknown): BrandingSettings {
     emailBackgroundColor: normalizeHex(raw.emailBackgroundColor, DEFAULT_BRANDING_SETTINGS.emailBackgroundColor),
     emailFontFamily: normalizeText(raw.emailFontFamily, DEFAULT_BRANDING_SETTINGS.emailFontFamily),
     emailContentWidth: normalizeWidth(raw.emailContentWidth, DEFAULT_BRANDING_SETTINGS.emailContentWidth),
-    logoUrl: normalizeText(raw.logoUrl),
-    logoSquareUrl: normalizeText(raw.logoSquareUrl),
+    logoUrl: normalizePublicMediaUrl(normalizeText(raw.logoUrl)),
+    logoSquareUrl: normalizePublicMediaUrl(normalizeText(raw.logoSquareUrl)),
     organizationDisplayName: normalizeText(raw.organizationDisplayName),
     legalOrganizationName: normalizeText(raw.legalOrganizationName),
     tagline: normalizeText(raw.tagline),

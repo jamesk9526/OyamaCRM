@@ -1,6 +1,7 @@
 /** StaffSignatureBlock renders a reusable personal signature section. */
 'use client';
 
+import { normalizePublicMediaUrl } from '@/server/src/lib/public-media';
 import type { StaffSignatureBlock as StaffSignatureBlockData } from '@/app/lib/email-builder-types';
 
 interface Props {
@@ -16,7 +17,7 @@ export default function StaffSignatureBlock({ block }: Props) {
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         {block.headshotUrl && (
           <img
-            src={block.headshotUrl}
+            src={normalizePublicMediaUrl(block.headshotUrl)}
             alt="Staff headshot"
             style={{ width: 64, height: 64, borderRadius: 999, objectFit: 'cover' }}
           />
@@ -24,7 +25,7 @@ export default function StaffSignatureBlock({ block }: Props) {
         <div>
           {block.signatureImageUrl && (
             <img
-              src={block.signatureImageUrl}
+              src={normalizePublicMediaUrl(block.signatureImageUrl)}
               alt="Signature"
               style={{ maxWidth: 180, height: 'auto', display: 'block', marginBottom: 6 }}
             />

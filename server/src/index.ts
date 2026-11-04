@@ -33,6 +33,7 @@ import taskRoutes from "./routes/tasks.js";
 import reportRoutes from "./routes/reports.js";
 import householdRoutes from "./routes/households.js";
 import emailCampaignRoutes from "./routes/email-campaigns.js";
+import publicMediaRoutes from "./routes/public-media.js";
 import emailPreferenceRoutes from "./routes/email-preferences.js";
 import settingsRoutes from "./routes/settings.js";
 import automationRoutes from "./routes/automations.js";
@@ -200,6 +201,7 @@ app.disable("x-powered-by");
 // without a CRM session. Keep the surface narrow instead of exposing every
 // runtime upload directory (some, such as Messenger, are private).
 const publicUploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+app.use("/api/public-media", publicMediaRoutes);
 const publicEmailAssetOptions = {
   index: false,
   fallthrough: true,

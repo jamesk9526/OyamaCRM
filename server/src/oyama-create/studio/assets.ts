@@ -9,8 +9,9 @@ import { route } from "../http.js";
 import { json } from "../../services/letter-production.js";
 import { normalizeDoc } from "./design.js";
 import { studioImageSize } from "./image-metadata.js";
+import { normalizePublicMediaUrl } from "../../lib/public-media.js";
 const router = Router();
-router.get("/studio/assets", route(async (req, res, org) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); res.json(await prisma.createStudioAsset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 500 })); }));
+router.get("/studio/assets", route(async (req, res, org) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); const assets = await prisma.createStudioAsset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 500 }); res.json(assets.map(asset => ({ ...asset, url: normalizePublicMediaUrl(asset.url) }))); }));
 router.post("/studio/assets", route(async (req, res, org, actor) => {
   const signature = req.body.kind === "SIGNATURE";
   if (signature) await demand(req, "letters.manage_signatures");
@@ -24,7 +25,7 @@ router.post("/studio/assets", route(async (req, res, org, actor) => {
   if (!/^[a-z0-9_-]+$/i.test(org)) throw new CreateError(400, "Invalid organization identity.");
   const directory = path.resolve("public", "uploads", "letter-media", org), file = `${randomUUID()}.${png ? "png" : jpeg ? "jpg" : "webp"}`;
   await mkdir(directory, { recursive: true }); await writeFile(path.join(directory, file), bytes, { flag: "wx" });
-  const asset = await prisma.createStudioAsset.create({ data: { organizationId: org, name: required(req.body.name, "Asset name"), kind: signature ? "SIGNATURE" : "IMAGE", url: `/uploads/letter-media/${org}/${file}`, mimeType: mime, bytes: bytes.length, width:size.width,height:size.height, checksum: createHash("sha256").update(bytes).digest("hex"), uploadedBy: actor } });
+  const asset = await prisma.createStudioAsset.create({ data: { organizationId: org, name: required(req.body.name, "Asset name"), kind: signature ? "SIGNATURE" : "IMAGE", url: `/api/letters/media/${org}/${file}`, mimeType: mime, bytes: bytes.length, width:size.width,height:size.height, checksum: createHash("sha256").update(bytes).digest("hex"), uploadedBy: actor } });
   res.status(201).json(asset);
 }));
 router.get("/studio/sections", route(async (req, res, org, actor) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); res.json(await prisma.createStudioSection.findMany({ where: { organizationId: org, OR: [{ ownerId: actor }, { shared: true }] }, orderBy: { updatedAt: "desc" }, take: 200 })); }));

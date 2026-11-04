@@ -29,7 +29,7 @@ describe("usableBrandingAssetUrl", () => {
     try {
       await writeFile(logoPath, "test image");
       await expect(usableBrandingAssetUrl(`http://localhost:4000${localUrl}`, organizationId))
-        .resolves.toBe(localUrl);
+        .resolves.toBe(`/api/public-media/branding/${organizationId}/primary-logo.png`);
     } finally {
       await unlink(logoPath);
       await rmdir(directory);

@@ -1356,3 +1356,16 @@ Web TypeScript passed; targeted lint has no errors and the ribbon's existing war
 Letters now has a scoped light shell, compact template library, composable filters and sorting, a denser structured builder, and mobile Write/Blocks/Settings panels in the standard editor. A new Generated Letters page supports loaded-record search, older-page loading and removal. Template and generated-letter deletion both require typing exactly `delete`, with server-side confirmation, existing archive permission, tenant scoping and transactional audit entries. Templates with generated letters or linked Steward Paths cannot be removed; the existing archive API is preserved. Contact activity, linked email drafts and frozen production records are retained.
 
 AGENTS.md now allows task-specific UI layouts, typography, density, radii and navigation while keeping the donor dashboard reference scoped to its purpose. Web/server types, targeted lint (zero errors; 22 existing warnings), 73 focused tests and isolated desktop/mobile browser checks pass. Browser deletion uses synthetic intercepted responses; actual MySQL transaction/concurrency and deployed behavior remain unverified. No live letters were deleted and no deployment was performed. Evidence and limits: [Letters UI verification](audit-artifacts/2026-11-02-letters-ui/verification.md).
+
+
+### oyamaCreate logos, images and signatures — 2026-11-04
+
+- [x] Canonical API image URLs and compatibility rewrites; public image delivery requires no CRM session. Brand retrieval remains restricted to approved image filenames/namespaces.
+- [x] Legacy signatures/logos and channel overrides normalize without destructive content migration; custom header/footer save/reopen preserves image sources and strips scripts/handlers. Tenant ownership remains enforced.
+- [x] Visible thumbnail, loading, failure and transparent-artwork previews in Brand Hub/Studio; desktop/tablet/phone and keyboard checks.
+- [x] 119 focused unit/API tests, web/server type checks, targeted lint (two pre-existing native-image warnings), web/server production builds and ten production-browser media checks.
+- [x] Rasterized two-page Chromium proof shows logos, body images and signatures using frozen assets after removal of original test uploads.
+- [ ] Deploy API and web changes together and verify the user's logo in the live authenticated workspace. Read-only diagnosis confirmed that its `/uploads` route returned 400 HTML while its API URL returned a valid PNG.
+- [ ] Perform reviewed Outlook/Gmail test sends after deployment; no real sends or brand publication were performed during development.
+
+[Evidence, exact checks and limits](audit-artifacts/2026-11-04-create-media/verification.md). No schema changes, production printing, deployment or rewriting of historical output occurred.

@@ -1,0 +1,351 @@
+{
+  "synthetic": true,
+  "checks": [
+    {
+      "label": "Brand Hub logos and asset thumbnails",
+      "images": [
+        {
+          "src": "/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 455,
+          "visibleHeight": 130
+        },
+        {
+          "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
+          "width": 360,
+          "height": 140,
+          "visibleWidth": 334.28125,
+          "visibleHeight": 129.984375
+        },
+        {
+          "src": "/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 315,
+          "visibleHeight": 90
+        },
+        {
+          "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
+          "width": 360,
+          "height": 140,
+          "visibleWidth": 231.421875,
+          "visibleHeight": 89.984375
+        },
+        {
+          "src": "/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 317.65625,
+          "visibleHeight": 87.09375
+        },
+        {
+          "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "width": 720,
+          "height": 240,
+          "visibleWidth": 270,
+          "visibleHeight": 90
+        }
+      ]
+    },
+    {
+      "label": "Preview background control works from the keyboard"
+    },
+    {
+      "label": "Saved signature preview",
+      "images": [
+        {
+          "src": "/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 474.109375,
+          "visibleHeight": 129.984375
+        }
+      ]
+    },
+    {
+      "label": "Studio asset chooser thumbnails",
+      "images": [
+        {
+          "src": "/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 132,
+          "visibleHeight": 37.703125
+        },
+        {
+          "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
+          "width": 360,
+          "height": 140,
+          "visibleWidth": 132,
+          "visibleHeight": 51.328125
+        },
+        {
+          "src": "/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 132,
+          "visibleHeight": 36.1875
+        },
+        {
+          "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "width": 720,
+          "height": 240,
+          "visibleWidth": 132,
+          "visibleHeight": 44
+        }
+      ]
+    },
+    {
+      "label": "Letter canvas artwork and signature",
+      "images": [
+        {
+          "src": "/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 119,
+          "visibleHeight": 34
+        },
+        {
+          "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "width": 720,
+          "height": 240,
+          "visibleWidth": 485.5093994140625,
+          "visibleHeight": 161.83203125
+        },
+        {
+          "src": "/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 144.5,
+          "visibleHeight": 40.7999267578125
+        }
+      ]
+    },
+    {
+      "label": "Responsive email artwork",
+      "images": [
+        {
+          "src": "/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 159.953125,
+          "visibleHeight": 45.703125
+        },
+        {
+          "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "width": 720,
+          "height": 240,
+          "visibleWidth": 459,
+          "visibleHeight": 153
+        },
+        {
+          "src": "/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 170,
+          "visibleHeight": 48
+        }
+      ]
+    },
+    {
+      "label": "Legacy /uploads links proxy to real anonymous API image routes",
+      "count": 4
+    },
+    {
+      "label": "Outgoing HTML without a CRM session",
+      "images": [
+        {
+          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 159.953125,
+          "visibleHeight": 45.703125
+        },
+        {
+          "src": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "width": 720,
+          "height": 240,
+          "visibleWidth": 459,
+          "visibleHeight": 153
+        },
+        {
+          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 170,
+          "visibleHeight": 48
+        }
+      ]
+    },
+    {
+      "label": "Outgoing email on phone",
+      "images": [
+        {
+          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+          "width": 560,
+          "height": 160,
+          "visibleWidth": 159.953125,
+          "visibleHeight": 45.703125
+        },
+        {
+          "src": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "width": 720,
+          "height": 240,
+          "visibleWidth": 277.09375,
+          "visibleHeight": 92.359375
+        },
+        {
+          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+          "width": 620,
+          "height": 170,
+          "visibleWidth": 170,
+          "visibleHeight": 48
+        }
+      ]
+    },
+    {
+      "label": "Two-page Chromium proof uses frozen artwork after originals are removed",
+      "pages": 2,
+      "assets": [
+        "/api/email-campaigns/media/synthetic-media-qa/story.png",
+        "/api/letters/media/synthetic-media-qa/signature.png",
+        "/uploads/email-media/synthetic-media-qa/story.png",
+        "/api/letters/media/synthetic-media-qa/logo.png"
+      ]
+    }
+  ],
+  "requests": [
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/public-media/branding/synthetic-media-qa/white-logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/missing.png",
+      "status": 404,
+      "type": "application/json; charset=utf-8"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/public-media/branding/synthetic-media-qa/white-logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    }
+  ],
+  "errors": []
+}

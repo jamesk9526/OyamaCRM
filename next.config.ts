@@ -44,15 +44,15 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         {
           source: "/uploads/email-media/:path*",
-          destination: `${apiProxyTarget}/uploads/email-media/:path*`,
+          destination: `${apiProxyTarget}/api/email-campaigns/media/:path*`,
         },
         {
           source: "/uploads/branding/:path*",
-          destination: `${apiProxyTarget}/uploads/branding/:path*`,
+          destination: `${apiProxyTarget}/api/public-media/branding/:path*`,
         },
         {
           source: "/uploads/letter-media/:path*",
-          destination: `${apiProxyTarget}/uploads/letter-media/:path*`,
+          destination: `${apiProxyTarget}/api/letters/media/:path*`,
         },
       ],
       fallback: [
