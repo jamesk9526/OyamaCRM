@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft, CalendarDays, ChartNoAxesCombined, FolderOpen, Home, LayoutTemplate, Megaphone, Menu, Send, Settings2, Sparkles, Users, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChartNoAxesCombined, FolderOpen, Home, LayoutTemplate, Megaphone, Menu, Send, Settings2, Sparkles, Trash2, Users, X } from "lucide-react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { Bootstrap } from "./types";
@@ -14,6 +14,7 @@ const nav = [
   { label: "Home", href: "/oyama-create", icon: Home }, { label: "Campaigns", href: "/oyama-create/campaigns", icon: Megaphone },
   { label: "Library", href: "/oyama-create/library", icon: LayoutTemplate }, { label: "Audiences", href: "/oyama-create/audiences", icon: Users },
   { label: "Calendar", href: "/oyama-create/calendar", icon: CalendarDays }, { label: "Delivery", href: "/oyama-create/delivery", icon: Send },
+  { label: "Trash", href: "/oyama-create/trash", icon: Trash2 },
   { label: "Results", href: "/oyama-create/results", icon: ChartNoAxesCombined }, { label: "Settings", href: "/oyama-create/settings", icon: Settings2 },
 ];
 export default function CreateShell({ children }: { children: ReactNode }) {

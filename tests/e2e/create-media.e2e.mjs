@@ -80,8 +80,8 @@ try{
   await page.setViewportSize({width:1500,height:1050});await page.goto(`${web}/oyama-create/campaigns/${campaign.id}`);
   await page.getByRole('textbox',{name:'Studio letter content'}).waitFor({timeout:30000});
   await page.locator('.cs-library-tabs').getByRole('button',{name:'Assets',exact:true}).click();await checkImages(page.locator('.cs-library .cs-asset img'),'Studio asset chooser thumbnails',4);await checkImages(page.locator('.cs-page-track img'),'Letter canvas artwork and signature',2);await page.screenshot({path:`${evidence}/letter-images-desktop.png`,fullPage:true});
-  await page.getByRole('button',{name:'Email',exact:true}).click();await page.getByRole('button',{name:'Refresh email preview',exact:true}).click();
-  await checkImages(page.frameLocator('iframe[title="Studio responsive email"]').locator('img'),'Responsive email artwork',3);await page.screenshot({path:`${evidence}/email-images-desktop.png`,fullPage:true});
+  await page.getByRole('button',{name:'Email',exact:true}).click();
+  await checkImages(page.locator('.cs-email-editor img'),'Responsive email artwork',3);await page.screenshot({path:`${evidence}/email-images-desktop.png`,fullPage:true});
   for(const asset of [logo,white,signature,story]){const result=await context.request.get(`${web}${asset.url}`);assert.equal(result.status(),200,'Legacy upload compatibility proxy');assert.deepEqual(await result.body(),asset.png);}
   checks.push({label:'Legacy /uploads links proxy to real anonymous API image routes',count:4});
   const email=renderEmailDocument(content.designJson,donor,brand);const html=emailModule.absolutizeEmailAssetUrls(email.html,web);await writeFile(`${evidence}/outgoing-synthetic-email.html`,html);

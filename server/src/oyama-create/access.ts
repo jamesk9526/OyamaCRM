@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { hasDefaultPermission, type PermissionKey } from "../lib/permissions.js";
 import { CreateError, type Channel } from "./domain.js";
 import { emailRecordAccessible } from "./legacy.js";
+import { isTrashed } from "./trash-state.js";
 
 export async function can(req: Request, permission: PermissionKey): Promise<boolean> {
   if (!req.user?.sub || !req.user.orgId || !req.user.role) return false;
@@ -25,9 +26,10 @@ export async function demandChannels(req: Request, channels: Channel[], write = 
     }
   }
 }
-export async function assertCampaign(req: Request, id: string, manage = false, tx: Prisma.TransactionClient = prisma) {
+export async function assertCampaign(req: Request, id: string, manage = false, tx: Prisma.TransactionClient = prisma, allowTrashed = false) {
   const campaign = await tx.createCampaign.findFirst({ where: { id, organizationId: req.user!.orgId } });
   if (!campaign) throw new CreateError(404, "Campaign not found.");
+  if (manage && !allowTrashed && await isTrashed(req.user!.orgId, "CAMPAIGN", id, tx)) throw new CreateError(409, "Restore this campaign from Trash before editing or releasing it.");
   const channels = campaign.channelsJson as Channel[];
   await demandChannels(req, channels.length ? channels : ["EMAIL"]);
   if (campaign.fundraisingCampaignId) await demand(req, "view:campaigns");
@@ -42,6 +44,7 @@ export async function touchCampaign(tx: Prisma.TransactionClient, org: string, i
   if (!Number.isInteger(revision)) throw new CreateError(400, "The campaign revision is required.");
   const changed = await tx.createCampaign.updateMany({ where: { id, organizationId: org, revision }, data: { revision: { increment: 1 }, status: "DRAFT" } });
   if (!changed.count) throw new CreateError(409, "This campaign changed in another session. Your local draft is preserved. Reload the saved version before retrying.");
+  if (await isTrashed(org, "CAMPAIGN", id, tx)) throw new CreateError(409, "Restore this campaign from Trash before editing it.");
   const releases = await tx.createRelease.findMany({ where: { organizationId: org, campaignId: id, status: { in: ["APPROVED", "RELEASED"] } }, select: { id: true } });
   await tx.createDelivery.updateMany({ where: { releaseId: { in: releases.map(item => item.id) }, status: { in: ["HELD", "PENDING", "PAUSED", "PREPARING"] } }, data: { status: "CANCELLED", error: "Campaign changed; review and approve a new release." } });
   await tx.createRelease.updateMany({ where: { id: { in: releases.map(item => item.id) } }, data: { status: "SUPERSEDED" } });

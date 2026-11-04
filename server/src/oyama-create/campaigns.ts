@@ -1,3 +1,4 @@
+import { trashedIds, isTrashed } from "./trash-state.js";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { json } from "../services/letter-production.js";
@@ -53,7 +54,7 @@ router.put("/config", route(async (req, res, org) => {
 router.get("/campaigns", route(async (req, res, org) => {
   const allowed = await Promise.all(CHANNELS.map(async channel => ({ channel, allowed: await can(req, channel === "LETTER" ? "letters.view" : "view:communications") })));
   if (!allowed.some(item => item.allowed)) throw new CreateError(403, "Communications or letter access is required.");
-  const items = await prisma.createCampaign.findMany({ where: { organizationId: org, isTemplate: req.query.templates === "true", ...(req.query.q ? { name: { contains: string(req.query.q).slice(0, 200) } } : {}) }, orderBy: { updatedAt: "desc" }, take: 101, include: { _count: { select: { contents: true, releases: true } } } });
+  const items = await prisma.createCampaign.findMany({ where: { organizationId: org, id: { notIn: await trashedIds(org, "CAMPAIGN") }, isTemplate: req.query.templates === "true", ...(req.query.q ? { name: { contains: string(req.query.q).slice(0, 200) } } : {}) }, orderBy: { updatedAt: "desc" }, take: 101, include: { _count: { select: { contents: true, releases: true } } } });
   const funds = await can(req, "view:campaigns");
   const bindings = await prisma.createVariant.findMany({ where: { organizationId: org, channel: "EMAIL", content: { campaignId: { in: items.map(item => item.id) } }, legacyId: { not: null } }, include: { content: { select: { campaignId: true } } } });
   const emails = await prisma.emailCampaign.findMany({ where: { organizationId: org, id: { in: bindings.map(item => item.legacyId!) } } });
@@ -73,7 +74,7 @@ router.get("/campaigns/:id", route(async (req, res, org) => {
   const contents = await prisma.createContent.findMany({ where: { campaignId: campaign.id, organizationId: org }, include: { variants: true }, orderBy: { createdAt: "asc" } });
   const items = await Promise.all(contents.map(async content => ({ ...content, variants: await Promise.all(content.variants.map(async variant => ({ ...variant, externalChanges: await nativeChanged(org, variant).catch(() => true) }))) })));
   const releases = await prisma.createRelease.findMany({ where: { campaignId: campaign.id, organizationId: org }, orderBy: { approvedAt: "desc" }, take: 20, select: { id: true, status: true, campaignRevision: true, approvedAt: true, approvedBy: true } });
-  res.json({ ...campaign, contents: items, releases });
+  res.json({ ...campaign, ...(await isTrashed(org, "CAMPAIGN", campaign.id) ? { trashed: true, status: "HISTORICAL" } : {}), contents: items, releases });
 }));
 router.patch("/campaigns/:id", route(async (req, res, org) => {
   const existing = await assertCampaign(req, param(req), true);

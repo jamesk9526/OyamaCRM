@@ -1369,3 +1369,19 @@ AGENTS.md now allows task-specific UI layouts, typography, density, radii and na
 - [ ] Perform reviewed Outlook/Gmail test sends after deployment; no real sends or brand publication were performed during development.
 
 [Evidence, exact checks and limits](audit-artifacts/2026-11-04-create-media/verification.md). No schema changes, production printing, deployment or rewriting of historical output occurred.
+
+The earlier Studio canvas slice is superseded by the 2026-11-04 word processor, unified email and recoverable Trash implementation below.
+
+
+### Studio word processor, visual canvas and Trash — 2026-11-04
+
+- [x] Approved mockup implemented as focused writing UI with generated block artwork and ribbon.
+- [x] Shared Letter/Email editing and protected overrides; reviewed recoverable Trash with tenant permissions.
+- [x] 98 focused tests, types, targeted lint, Prisma validation and production builds.
+- [x] Production-browser typing, patterns/undo, email sync/customization, responsive layout and Trash/restore.
+- [x] Chromium 1/2/5/20-page proofs and appeal pack; long-table and two-page raster inspection.
+- [ ] Run seven MySQL migration/contention tests against a disposable database.
+- [ ] Expand pointer-drag, IME, image/column resize and legacy-conversion browser acceptance.
+- [ ] Apply Trash migration and deploy API/web together through reviewed organization rollout.
+
+[Evidence and limits](audit-artifacts/2026-11-04-create-word-studio/verification.md).

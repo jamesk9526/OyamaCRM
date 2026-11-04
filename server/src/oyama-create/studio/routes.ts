@@ -1,3 +1,4 @@
+import { assertAvailableSelections } from "../trash-selection.js";
 import { Router } from "express";
 
 import { PDFDocument } from "pdf-lib";
@@ -46,6 +47,7 @@ router.post("/contents/:id/studio/convert", route(async (req, res, org, actor) =
   const design = req.body.design ? normalizeDesign(req.body.design) : req.body.presetId ? studioPreset(string(req.body.presetId)) : legacyDesign(content);
   const emailVersion=content.variants.find(item=>item.channel==="EMAIL");if(!design.email.subject)design.email.subject=emailVersion?variantFrom(emailVersion.documentJson).subject||content.name:content.name;
   assertStudioAssetOwnership(org,design);
+  await assertAvailableSelections(org, design);
   design.brandRevisionId = await baselineBrand(org, actor);
   if (!req.body.design && !req.body.presetId) {
     const variant = content.variants.find(item => item.channel === "LETTER"), native = variant ? await nativeRecord(org, variant) : null;
@@ -58,7 +60,7 @@ router.patch("/contents/:id/studio", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); await demandChannels(req, campaign.channelsJson as Channel[], true);
   if(campaign.status==="HISTORICAL")throw new CreateError(409,"Historical output is preserved. Duplicate it before editing.");
   if (!content.designJson) throw new CreateError(409, "Review the original content before converting it to Studio.");
-  const design = normalizeDesign(req.body.design); assertStudioAssetOwnership(org,design); await brandForDesign(org, design.brandRevisionId);
+  const design = normalizeDesign(req.body.design); assertStudioAssetOwnership(org,design); await assertAvailableSelections(org, design, content.designJson); await brandForDesign(org, design.brandRevisionId);
   if (!design.brandRevisionId) throw new CreateError(400, "Select a preserved brand revision.");
   const old = normalizeDesign(content.designJson); if (design.email.reviewedSource && design.email.reviewedSource !== old.email.reviewedSource && design.email.reviewedSource !== sourceIdentity(design)) throw new CreateError(400, "Review the current shared design before accepting email customizations.");
   const result = await prisma.$transaction(async tx => {

@@ -1,3 +1,4 @@
+import { trashedIds } from "./trash-state.js";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { json } from "../services/letter-production.js";
@@ -78,7 +79,7 @@ router.get("/calendar", route(async (req, res, org) => {
   // A stable ID cursor survives date edits. Undated/private rows never consume the result limit.
   while (scanned < 1000 && visible.length < 500) {
     const batchSize = Math.min(100, 1000 - scanned);
-    const items = await prisma.createContent.findMany({ where: { organizationId: org, ...(cursor ? { id: { gt: cursor } } : {}), campaign: { isTemplate: false } }, orderBy: { id: "asc" }, take: batchSize, select: { id: true, name: true, scheduledAt: true, campaignId: true, variants: { select: { channel: true, documentJson: true } }, campaign: { select: { name: true, status: true, channelsJson: true, startsAt: true } } } });
+    const items = await prisma.createContent.findMany({ where: { organizationId: org, ...(cursor ? { id: { gt: cursor } } : {}), campaign: { isTemplate: false, id: { notIn: await trashedIds(org, "CAMPAIGN") } } }, orderBy: { id: "asc" }, take: batchSize, select: { id: true, name: true, scheduledAt: true, campaignId: true, variants: { select: { channel: true, documentJson: true } }, campaign: { select: { name: true, status: true, channelsJson: true, startsAt: true } } } });
     if (!items.length) { exhausted = true; break; }
     for (const item of items) {
       cursor = item.id; scanned++;

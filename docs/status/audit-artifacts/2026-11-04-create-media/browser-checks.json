@@ -70,29 +70,29 @@
           "src": "/api/letters/media/synthetic-media-qa/logo.png",
           "width": 560,
           "height": 160,
-          "visibleWidth": 132,
-          "visibleHeight": 37.703125
+          "visibleWidth": 145,
+          "visibleHeight": 41.421875
         },
         {
           "src": "/api/public-media/branding/synthetic-media-qa/white-logo.png",
           "width": 360,
           "height": 140,
-          "visibleWidth": 132,
-          "visibleHeight": 51.328125
+          "visibleWidth": 145,
+          "visibleHeight": 56.375
         },
         {
           "src": "/api/letters/media/synthetic-media-qa/signature.png",
           "width": 620,
           "height": 170,
-          "visibleWidth": 132,
-          "visibleHeight": 36.1875
+          "visibleWidth": 145,
+          "visibleHeight": 39.75
         },
         {
           "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
           "width": 720,
           "height": 240,
-          "visibleWidth": 132,
-          "visibleHeight": 44
+          "visibleWidth": 145,
+          "visibleHeight": 48.328125
         }
       ]
     },
@@ -103,22 +103,22 @@
           "src": "/api/letters/media/synthetic-media-qa/logo.png",
           "width": 560,
           "height": 160,
-          "visibleWidth": 119,
-          "visibleHeight": 34
+          "visibleWidth": 140,
+          "visibleHeight": 40
         },
         {
           "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
           "width": 720,
           "height": 240,
-          "visibleWidth": 485.5093994140625,
-          "visibleHeight": 161.83203125
+          "visibleWidth": 571.1875,
+          "visibleHeight": 190.390625
         },
         {
           "src": "/api/letters/media/synthetic-media-qa/signature.png",
           "width": 620,
           "height": 170,
-          "visibleWidth": 144.5,
-          "visibleHeight": 40.7999267578125
+          "visibleWidth": 170,
+          "visibleHeight": 48
         }
       ]
     },
@@ -136,8 +136,8 @@
           "src": "/api/email-campaigns/media/synthetic-media-qa/story.png",
           "width": 720,
           "height": 240,
-          "visibleWidth": 459,
-          "visibleHeight": 153
+          "visibleWidth": 460.6875,
+          "visibleHeight": 153.5625
         },
         {
           "src": "/api/letters/media/synthetic-media-qa/signature.png",
@@ -252,12 +252,22 @@
       "type": "image/png"
     },
     {
+      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
       "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
       "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "status": 200,
+      "type": "image/png"
+    },
+    {
+      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
@@ -292,57 +302,12 @@
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
       "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     },
     {
       "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
-      "status": 200,
-      "type": "image/png"
-    },
-    {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     }

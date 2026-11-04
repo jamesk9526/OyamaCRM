@@ -1,12 +1,24 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { emptyDonor, renderStudio } from "@/server/src/oyama-create/studio/render";
 import type { StudioDesign } from "@/server/src/oyama-create/studio/types";
 import { flowPageCount, paginationMetrics, studioContentCss } from "@/server/src/oyama-create/studio/layout";
 
 export default function PagedCanvas({ design, children, headers, footers, zoom, onPages, onRegion }: { design: StudioDesign; children: ReactNode; headers: [string, string]; footers: [string, string]; zoom: number; onPages: (count: number) => void; onRegion: (key: keyof StudioDesign["regions"]) => void }) {
   const rail = useRef<HTMLDivElement>(null), flow = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState(1), [issue, setIssue] = useState("");
-  const metrics = paginationMetrics(design), scale = zoom / 100;
+  const metrics = paginationMetrics(design);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  useEffect(() => {
+    const element = rail.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setAvailableWidth(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const scale = zoom ? zoom / 100 : availableWidth ? Math.min(1, availableWidth / metrics.width) : 1;
   useEffect(() => {
     const root = flow.current; if (!root) return;
     let frame = 0, composing = false, disposed = false;
@@ -24,11 +36,12 @@ export default function PagedCanvas({ design, children, headers, footers, zoom, 
     void document.fonts.ready.then(measure); measure();
     return () => { disposed = true; cancelAnimationFrame(frame); mutation.disconnect(); resize.disconnect(); root.removeEventListener("compositionstart", start); root.removeEventListener("compositionend", end); root.removeEventListener("load", measure, true); };
   }, [metrics.bodyWidth, metrics.bodyHeight, metrics.columnGap, onPages, scale, design]);
+  const thumbnailHtml = renderStudio(design,emptyDonor(),{version:1,identity:{},profiles:[],presets:[],signers:[],defaultSignerId:null}).html;
   const totalWidth = pages * metrics.pitch - metrics.gap;
   const chrome = (html: string, page: number) => html.replace(/(<span[^>]*data-studio-page-number[^>]*>)[\s\S]*?<\/span>/g, `$1${page}</span>`).replace(/(<span[^>]*data-studio-total-pages[^>]*>)[\s\S]*?<\/span>/g, `$1${pages}</span>`);
-  return <><div className="cs-page-info"><span>{pages} editable page{pages === 1 ? "" : "s"} · automatic flow</span><span>PDF proof confirms final recipient pagination</span></div>{issue && <div className="oc-error" role="alert">{issue}</div>}<div className="cs-page-navigation" aria-label="Page outline">{Array.from({ length: pages }, (_, index) => <button type="button" key={index} className="oc-button small" onClick={() => rail.current?.scrollTo({ left: index * metrics.pitch * scale, behavior: "instant" })}>Page {index + 1}</button>)}</div><div className="cs-page-rail" ref={rail}><div style={{ width: totalWidth * scale, height: metrics.height * scale, position: "relative" }}><div className="cs-page-track" style={{ width: totalWidth, height: metrics.height, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+  return <><div className="cs-page-info"><span>{pages} editable page{pages === 1 ? "" : "s"} · automatic flow</span><span>PDF proof confirms final recipient pagination</span></div>{issue && <div className="oc-error" role="alert">{issue}</div>}<div className="cs-page-navigation" aria-label="Page outline">{Array.from({ length: pages }, (_, index) => <button type="button" key={index} className="cs-page-thumbnail" onClick={() => rail.current?.scrollTo({ left: index * metrics.pitch * scale, behavior: "instant" })}><span aria-hidden="true" style={{display:"block",width:55,height:72,overflow:"hidden",position:"relative",background:"white"}}><span className="studio-content cs-thumbnail-content" style={{display:"block",position:"absolute",left:5-index*metrics.pitch*.067,top:5,width:metrics.bodyWidth,height:metrics.bodyHeight,columnWidth:metrics.bodyWidth,columnGap:metrics.columnGap,columnFill:"auto",transform:"scale(.067)",transformOrigin:"top left"}} dangerouslySetInnerHTML={{__html:thumbnailHtml}}/></span><span>Page {index + 1}</span></button>)}</div><div className="cs-page-rail" ref={rail}><div style={{ width: totalWidth * scale, height: metrics.height * scale, position: "relative" }}><div className="cs-page-track" style={{ width: totalWidth, height: metrics.height, transform: `scale(${scale})`, transformOrigin: "top left" }}>
     <style>{studioContentCss(design)}{`.cs-editable{width:${metrics.bodyWidth}px;height:${metrics.bodyHeight}px;column-width:${metrics.bodyWidth}px;column-gap:${metrics.columnGap}px;column-fill:auto;outline:none;min-height:0}`}</style>
-    {Array.from({ length: pages }, (_, index) => <div key={index} className="cs-paper-page" style={{ left: index * metrics.pitch, width: metrics.width, height: metrics.height, background: design.styles.background }} aria-hidden="true"><button type="button" tabIndex={-1} className="cs-paper-header" style={{ left: design.page.margins.left * 96, right: design.page.margins.right * 96, top: 10, height: design.page.headerHeight * 96 }} onClick={() => onRegion(index ? "header" : "firstHeader")} dangerouslySetInnerHTML={{ __html: chrome(headers[index ? 1 : 0], index + 1) }}/><button type="button" tabIndex={-1} className="cs-paper-footer" style={{ left: design.page.margins.left * 96, right: design.page.margins.right * 96, bottom: 10, height: design.page.footerHeight * 96 }} onClick={() => onRegion(index ? "footer" : "firstFooter")} dangerouslySetInnerHTML={{ __html: chrome(footers[index ? 1 : 0], index + 1) }}/></div>)}
+    {Array.from({ length: pages }, (_, index) => <div key={index} className="cs-paper-page" style={{ left: index * metrics.pitch, width: metrics.width, height: metrics.height, background: design.styles.background }}><button type="button" aria-label={index ? "Edit continuation header" : "Edit first-page header"} className="cs-paper-header" style={{ left: design.page.margins.left * 96, right: design.page.margins.right * 96, top: 10, height: design.page.headerHeight * 96 }} onClick={() => onRegion(index ? "header" : "firstHeader")} dangerouslySetInnerHTML={{ __html: chrome(headers[index ? 1 : 0], index + 1) }}/><button type="button" aria-label={index ? "Edit continuation footer" : "Edit first-page footer"} className="cs-paper-footer" style={{ left: design.page.margins.left * 96, right: design.page.margins.right * 96, bottom: 10, height: design.page.footerHeight * 96 }} onClick={() => onRegion(index ? "footer" : "firstFooter")} dangerouslySetInnerHTML={{ __html: chrome(footers[index ? 1 : 0], index + 1) }}/></div>)}
     <div ref={flow} className="cs-flow-origin" style={{ position: "absolute", left: design.page.margins.left * 96, top: design.page.margins.top * 96, width: metrics.bodyWidth, height: metrics.bodyHeight }}>{children}</div>
   </div></div></div></>;
 }

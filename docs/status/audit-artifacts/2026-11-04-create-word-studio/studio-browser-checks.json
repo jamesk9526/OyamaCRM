@@ -1,0 +1,12 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Direct letter typing and persistence",
+    "Pattern inserts editable content at cursor",
+    "Email shared edits update letter and customizations remain protected",
+    "Desktop tablet phone layout",
+    "Campaign Trash review and restore UI with synthetic responses"
+  ],
+  "errors": [],
+  "draftWrites": 5
+}

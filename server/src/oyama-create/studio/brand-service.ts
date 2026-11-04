@@ -1,3 +1,4 @@
+import { trashedIds } from "../trash-state.js";
 import { parseSiteEmbedsConfig, SITE_EMBEDS_PLUGIN_KEY } from "../../services/site-embeds.js";
 import { widgetBrandValues } from "./widget-brand.js";
 import { defaultDesign } from "./design.js";
@@ -40,13 +41,13 @@ export async function readBrand(org: string) {
     prisma.organizationSettings.findUnique({ where: { organizationId: org } }),
   ]);
   const baseline = published ? normalizeBrand(published.documentJson) : await readLegacyBrand(org);
-  return { draftRevision: draft?.revision || 0, document: draft ? normalizeBrand(draft.documentJson) : baseline, published: published ? { id: published.id, revision: published.revision, publishedAt: published.publishedAt, document: baseline } : null, studioEnabled: settings?.oyamaCreateStudioEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true };
+  return { draftRevision: draft?.revision || 0, document: await brandAvailability(org, draft ? normalizeBrand(draft.documentJson) : baseline), published: published ? { id: published.id, revision: published.revision, publishedAt: published.publishedAt, document: baseline } : null, studioEnabled: settings?.oyamaCreateStudioEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true };
 }
 export async function brandForDesign(org: string, revisionId: string | null): Promise<BrandDocument> {
-  if (!revisionId) return readLegacyBrand(org);
+  if (!revisionId) return brandAvailability(org, await readLegacyBrand(org));
   const revision = await prisma.createBrandRevision.findFirst({ where: { id: revisionId, organizationId: org } });
   if (!revision) throw new CreateError(404, "This brand revision is unavailable in your organization.");
-  return normalizeBrand(revision.documentJson);
+  return brandAvailability(org, normalizeBrand(revision.documentJson));
 }
 export async function publicBrandIdentity(org: string, channel: "WEB" | "GIVING" | "EVENT" | "WIDGET", resourceId: string) {
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org } });
@@ -103,4 +104,9 @@ export function sanitizeBrandHtml(brand: BrandDocument): BrandDocument {
   for (const preset of result.presets) if (preset.legacyHtml) preset.legacyHtml = sanitizeLetterHtml(preset.legacyHtml, { authoredImages: true });
   for (const profile of result.profiles) for (const key of ["globalHeaderHtml", "globalFooterHtml"]) if (profile.values[key]) profile.values[key] = sanitizeLetterHtml(String(profile.values[key]), { authoredImages: true });
   return result;
+}
+
+async function brandAvailability(org: string, document: BrandDocument): Promise<BrandDocument> {
+  const [signers, presets] = await Promise.all([trashedIds(org, "SIGNATURE"), trashedIds(org, "PRESET")]);
+  return { ...document, signers: document.signers.map(signer => ({ ...signer, trashed: signers.includes(signer.id) })), presets: document.presets.map(preset => ({ ...preset, trashed: presets.includes(preset.id) })) };
 }

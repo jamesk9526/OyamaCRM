@@ -507,6 +507,20 @@ model Organization {
 }
 
 // Marketing authoring is separate from financial Campaign and clinical records.
+model CreateTrashItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String
+  resourceId     String
+  name           String
+  revision       Int      @default(1)
+  removedBy      String
+  removedAt      DateTime @default(now())
+  restoredAt     DateTime?
+  @@unique([organizationId, kind, resourceId])
+  @@index([organizationId, restoredAt, removedAt])
+}
+
 model CreateCampaign {
   id             String   @id @default(cuid())
   organizationId String

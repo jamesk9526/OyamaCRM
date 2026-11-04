@@ -19,8 +19,8 @@ export type StudioDesign = {
   email: { overrides: Record<string, StudioNode>; subject: string; previewText: string; reviewedSource: string | null };
 };
 export type BrandProfile = { id: string; name: string; channel: "LETTER" | "EMAIL" | "WEB" | "GIVING" | "EVENT" | "WIDGET"; resourceId: string; values: Record<string, string | number | boolean> };
-export type BrandSigner = { id: string; name: string; signerName: string; signerTitle: string; closingPhrase: string; signatureImageUrl: string; typedSignature: string; email: string; phone: string; active: boolean };
-export type BrandPreset = { id: string; name: string; kind: "header" | "footer"; content: StudioDoc; legacyHtml?: string; active: boolean; isDefault: boolean };
+export type BrandSigner = { id: string; name: string; signerName: string; signerTitle: string; closingPhrase: string; signatureImageUrl: string; typedSignature: string; email: string; phone: string; active: boolean; trashed?: boolean };
+export type BrandPreset = { id: string; name: string; kind: "header" | "footer"; content: StudioDoc; legacyHtml?: string; active: boolean; isDefault: boolean; trashed?: boolean };
 export type BrandDocument = { version: 1; identity: Record<string, string | number>; profiles: BrandProfile[]; signers: BrandSigner[]; presets: BrandPreset[]; defaultSignerId: string | null };
 export type StudioIssue = { code: string; message: string; nodeId?: string; blocking: boolean; channel?: string };
 export type DonorContext = {

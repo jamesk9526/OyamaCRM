@@ -17,6 +17,7 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     const migration = await readFile("prisma/migrations/20261103140000_oyama_create/migration.sql", "utf8");
     await connection.query(migration);
     await connection.query(await readFile("prisma/migrations/20261103200000_create_studio/migration.sql", "utf8"));
+    await connection.query(await readFile("prisma/migrations/20261104120000_create_recoverable_trash/migration.sql", "utf8"));
     second = await mysql.createConnection(url!);
     await connection.execute("INSERT INTO CreateCampaign (id, organizationId, name, ownerId, audienceListIds, channelsJson, updatedAt) VALUES (?, 'synthetic', 'Synthetic concurrency test', 'synthetic', '[]', '[\"EMAIL\"]', NOW(3))", [prefix]);
   });
@@ -56,4 +57,13 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     const piece="INSERT INTO CreatePrintArtifact (id,organizationId,deliveryId,kind,snapshotJson,updatedAt) VALUES (?,'synthetic',?,'LETTER','{}',NOW(3))";
     await connection.execute(piece,[`${prefix}-piece`,prefix]);await expect(second.execute(piece,[`${prefix}-piece-2`,prefix])).rejects.toThrow();
   });
+  it("allows one trash entry and one restore revision winner", async () => {
+    const insert = "INSERT INTO CreateTrashItem (id,organizationId,kind,resourceId,name,removedBy) VALUES (?,'synthetic','CAMPAIGN',?,'Synthetic trash','synthetic')";
+    const outcomes = await Promise.allSettled([connection.execute(insert,[`${prefix}-trash-1`,prefix]),second.execute(insert,[`${prefix}-trash-2`,prefix])]);
+    expect(outcomes.filter(result=>result.status==="fulfilled")).toHaveLength(1);
+    const update="UPDATE CreateTrashItem SET restoredAt=NOW(3),revision=revision+1 WHERE organizationId='synthetic' AND resourceId=? AND revision=1 AND restoredAt IS NULL";
+    const winners=await Promise.all([connection.execute(update,[prefix]),second.execute(update,[prefix])]);
+    expect(winners.map(([result])=>(result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0,1]);
+  });
+
 });

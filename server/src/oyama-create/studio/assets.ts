@@ -1,3 +1,4 @@
+import { trashedIds } from "../trash-state.js";
 import { Router } from "express";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -11,7 +12,7 @@ import { normalizeDoc } from "./design.js";
 import { studioImageSize } from "./image-metadata.js";
 import { normalizePublicMediaUrl } from "../../lib/public-media.js";
 const router = Router();
-router.get("/studio/assets", route(async (req, res, org) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); const assets = await prisma.createStudioAsset.findMany({ where: { organizationId: org }, orderBy: { createdAt: "desc" }, take: 500 }); res.json(assets.map(asset => ({ ...asset, url: normalizePublicMediaUrl(asset.url) }))); }));
+router.get("/studio/assets", route(async (req, res, org) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); const assets = await prisma.createStudioAsset.findMany({ where: { organizationId: org, id: { notIn: await trashedIds(org, "ASSET") } }, orderBy: { createdAt: "desc" }, take: 500 }); res.json(assets.map(asset => ({ ...asset, url: normalizePublicMediaUrl(asset.url) }))); }));
 router.post("/studio/assets", route(async (req, res, org, actor) => {
   const signature = req.body.kind === "SIGNATURE";
   if (signature) await demand(req, "letters.manage_signatures");
@@ -28,6 +29,6 @@ router.post("/studio/assets", route(async (req, res, org, actor) => {
   const asset = await prisma.createStudioAsset.create({ data: { organizationId: org, name: required(req.body.name, "Asset name"), kind: signature ? "SIGNATURE" : "IMAGE", url: `/api/letters/media/${org}/${file}`, mimeType: mime, bytes: bytes.length, width:size.width,height:size.height, checksum: createHash("sha256").update(bytes).digest("hex"), uploadedBy: actor } });
   res.status(201).json(asset);
 }));
-router.get("/studio/sections", route(async (req, res, org, actor) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); res.json(await prisma.createStudioSection.findMany({ where: { organizationId: org, OR: [{ ownerId: actor }, { shared: true }] }, orderBy: { updatedAt: "desc" }, take: 200 })); }));
+router.get("/studio/sections", route(async (req, res, org, actor) => { if (!await can(req, "letters.view") && !await can(req, "view:communications")) throw new CreateError(403, "Communications access is required."); res.json(await prisma.createStudioSection.findMany({ where: { organizationId: org, id: { notIn: await trashedIds(org, "SECTION") }, OR: [{ ownerId: actor }, { shared: true }] }, orderBy: { updatedAt: "desc" }, take: 200 })); }));
 router.post("/studio/sections", route(async (req, res, org, actor) => { if (!await can(req, "letters.edit") && !await can(req, "edit:communications")) throw new CreateError(403, "Editing access is required."); const section = await prisma.createStudioSection.create({ data: { organizationId: org, ownerId: actor, name: required(req.body.name, "Section name"), shared: req.body.shared === true, documentJson: json(normalizeDoc(req.body.document)) } }); res.status(201).json(section); }));
 export default router;

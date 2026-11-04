@@ -1,0 +1,41 @@
+{
+  "synthetic": true,
+  "results": [
+    {
+      "fixture": "1 pages",
+      "pages": 1
+    },
+    {
+      "fixture": "2 pages",
+      "pages": 2
+    },
+    {
+      "fixture": "5 pages",
+      "pages": 5
+    },
+    {
+      "fixture": "20 pages",
+      "pages": 20
+    },
+    {
+      "fixture": "LETTER",
+      "pages": 7
+    },
+    {
+      "fixture": "REPLY_SLIP",
+      "pages": 1
+    },
+    {
+      "fixture": "OUTER_ENVELOPE",
+      "pages": 1
+    },
+    {
+      "fixture": "RETURN_ENVELOPE",
+      "pages": 1
+    },
+    {
+      "fixture": "oversized group",
+      "rejected": true
+    }
+  ]
+}

@@ -1577,3 +1577,12 @@ AGENTS.md now allows task-specific UI layouts, typography, density, radii and na
 Uploaded logos, images and signatures now use stable public API media paths throughout Brand Hub, Studio, email rendering and print freezing. Existing `/uploads` URLs and obsolete absolute upload hosts remain compatible. Brand Hub and Studio show image thumbnails, checkerboard/dark preview backgrounds and actionable loading failures. Saving custom brand header/footer HTML preserves safe image references; tenant validation covers aliases and HTML. Letter proofs can freeze images selected from the email library. Sent content and generated PDFs are preserved.
 
 The user's exact logo was available through its API URL while its `/uploads` URL returned HTTP 400. The patch bypasses that failing path. 119 focused tests, web/server type checks, targeted lint (zero errors), production builds, production-browser image checks and an inspected two-page frozen PDF pass. No deployment or live sends. [Evidence and limits](audit-artifacts/2026-11-04-create-media/verification.md).
+
+Studio's letter canvas now fits its available width by default and offers manual zoom. The Patterns pane inserts photo/story, impact/ask, acknowledgment and pledge reminder arrangements into the current document.
+
+
+### oyamaCreate word processor and visual designer — 2026-11-04
+
+Studio follows the approved Word-style mockup with a focused writing view, Home/Insert/Layout/Review ribbon, generated block icons, patterns, live outline, asset thumbnails, contextual movement, image captions/resizing, column dividers and page thumbnails. Letter and Email are directly editable with protected customizations. Recoverable Trash covers campaigns, templates and library items with reviewed removal, original-ID restore and audit history.
+
+98 focused tests, production-browser editing/Trash checks, types, lint, schema and builds pass. Seven MySQL migration/contention tests need a disposable database. Apply the additive Trash migration before deployment. [Evidence and rollout limits](audit-artifacts/2026-11-04-create-word-studio/verification.md).

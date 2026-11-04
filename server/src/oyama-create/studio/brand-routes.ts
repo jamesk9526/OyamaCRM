@@ -1,3 +1,5 @@
+import { assertAvailableSelections } from "../trash-selection.js";
+import { trashedIds } from "../trash-state.js";
 import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
@@ -17,9 +19,16 @@ router.get("/brand", route(async (req, res, org) => {
 router.put("/brand/draft", route(async (req, res, org, actor) => {
   await view(req); const current = await readBrand(org), document = sanitizeBrandHtml(normalizeBrand(req.body.document));
   assertStudioAssetOwnership(org,document);
-  if (JSON.stringify(current.document.identity) !== JSON.stringify(document.identity)) await demand(req, "create.brand.publish");
-  if (JSON.stringify([current.document.presets, current.document.profiles]) !== JSON.stringify([document.presets, document.profiles])) await demand(req, "letters.manage_branding");
-  if (JSON.stringify([current.document.signers, current.document.defaultSignerId]) !== JSON.stringify([document.signers, document.defaultSignerId])) await demand(req, "letters.manage_signatures");
+  await assertAvailableSelections(org, document, current.document);
+  const currentDocument = normalizeBrand(current.document);
+  // Historical draft restoration keeps recoverable library records addressable by their original IDs.
+  for (const signer of current.document.signers.filter(item => item.trashed)) if (!document.signers.some(item => item.id === signer.id)) document.signers.push(normalizeBrand({ version: 1, signers: [signer] }).signers[0]);
+  for (const preset of current.document.presets.filter(item => item.trashed)) if (!document.presets.some(item => item.id === preset.id)) document.presets.push(normalizeBrand({ version: 1, presets: [preset] }).presets[0]);
+  const [signersInTrash, presetsInTrash] = await Promise.all([trashedIds(org, "SIGNATURE"), trashedIds(org, "PRESET")]);
+  if (document.defaultSignerId && signersInTrash.includes(document.defaultSignerId) || document.presets.some(preset => preset.active && preset.isDefault && presetsInTrash.includes(preset.id))) throw new CreateError(409, "Restore the library item before making it an active default.");
+  if (JSON.stringify(currentDocument.identity) !== JSON.stringify(document.identity)) await demand(req, "create.brand.publish");
+  if (JSON.stringify([currentDocument.presets, currentDocument.profiles]) !== JSON.stringify([document.presets, document.profiles])) await demand(req, "letters.manage_branding");
+  if (JSON.stringify([currentDocument.signers, currentDocument.defaultSignerId]) !== JSON.stringify([document.signers, document.defaultSignerId])) await demand(req, "letters.manage_signatures");
   if (req.body.revision !== current.draftRevision) throw new CreateError(409, "The brand draft changed. Your local changes are preserved; reload before saving.");
   if (!current.draftRevision) await prisma.createBrandDraft.create({ data: { organizationId: org, documentJson: json(document), updatedBy: actor } });
   else {
