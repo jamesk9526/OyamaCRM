@@ -1,30 +1,7 @@
-/**
- * EventsWorkspaceSelectorPage — Event selection and discovery interface.
- *
- * This is the landing page for the Events CRM when no specific event is selected.
- * It renders the event registry (all events) with summary metrics and journey overview cards.
- *
- * TODO: Replace the 4 summary metric cards with live data from /api/events/dashboard-summary
- *       once that endpoint returns accurate cross-event totals. Currently some values
- *       (volunteer hours, registered guest counts) are placeholders or approximations.
- *       See EventsDashboardSummary type in types.ts for the expected shape.
- *
- * TODO: Add search/filter controls to the event list (filter by type, date range, status).
- *       Large organizations will have 50+ events making scrolling impractical.
- *       Consider a top search bar + type/status filter chips above the event grid.
- *
- * TODO: Add an "Active / Upcoming / Past" tab switcher or filter pill row above the event grid
- *       instead of the current two static sections. This scales better with event volume.
- *
- * TODO: Add a quick "Duplicate event" action to each event card for organizations that
- *       run recurring annual events (Gala 2024 → Gala 2025).
- *
- * TODO: Show a "last updated" or event health indicator per card (registration open/closed,
- *       check-in status, page published) so staff can scan the registry for action items.
- */
+/** Event discovery with independent list/summary recovery and searchable registry filters. */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
@@ -128,35 +105,54 @@ export default function EventsWorkspaceSelectorPage() {
   const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const [eventData, summaryData] = await Promise.all([
-          apiFetch<EventItem[]>("/api/events"),
-          apiFetch<EventsDashboardSummary>("/api/events/dashboard-summary"),
-        ]);
-        const sorted = (Array.isArray(eventData) ? eventData : []).sort((a, b) => 
-          new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
-        );
-        setEvents(sorted);
-        setSummary(summaryData);
-      } finally {
-        setLoading(false);
-      }
+  const [listError, setListError] = useState("");
+  const [summaryError, setSummaryError] = useState("");
+  const [search, setSearch] = useState("");
+  const [eventType, setEventType] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+  const requestId = useRef(0);
+  const load = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    setLoading(true);
+    setListError("");
+    setSummaryError("");
+    const [eventResult, summaryResult] = await Promise.allSettled([
+      apiFetch<EventItem[]>("/api/events"),
+      apiFetch<EventsDashboardSummary>("/api/events/dashboard-summary"),
+    ]);
+    if (requestId.current !== currentRequest) return;
+    if (eventResult.status === "fulfilled" && Array.isArray(eventResult.value)) {
+      setEvents([...eventResult.value].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()));
+    } else {
+      setListError(eventResult.status === "rejected" && eventResult.reason instanceof Error ? eventResult.reason.message : "The event list could not be loaded.");
     }
-    void load();
+    if (summaryResult.status === "fulfilled" && summaryResult.value) {
+      setSummary(summaryResult.value);
+    } else {
+      setSummary(null);
+      setSummaryError("Event totals are unavailable. You can still open the loaded event workspaces.");
+    }
+    setLoading(false);
   }, []);
+  const cancelLoad = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => { void load(); return cancelLoad; }, [load, cancelLoad]);
 
-  const upcomingEvents = useMemo(
-    () => events.filter((e) => new Date(e.startDate).getTime() > Date.now()),
-    [events],
-  );
-
-  const pastEvents = useMemo(
-    () => events.filter((e) => new Date(e.startDate).getTime() <= Date.now()),
-    [events],
-  );
+  const eventTypes = useMemo(() => [...new Set(events.map(event => event.type))].sort(), [events]);
+  const filteredEvents = useMemo(() => {
+    const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return events.filter(event => {
+      const searchable = `${event.name} ${event.type} ${event.location || ""}`.toLowerCase();
+      if (!terms.every(term => searchable.includes(term)) || eventType && event.type !== eventType) return false;
+      const future = new Date(event.startDate).getTime() > Date.now();
+      if (dateFilter === "upcoming" && !future) return false;
+      if (dateFilter === "past" && future) return false;
+      if (dateFilter === "active" && !event.active) return false;
+      return true;
+    });
+  }, [events, search, eventType, dateFilter]);
+  const upcomingEvents = filteredEvents.filter(event => new Date(event.startDate).getTime() > Date.now());
+  const pastEvents = filteredEvents.filter(event => new Date(event.startDate).getTime() <= Date.now());
+  const undatedEvents = filteredEvents.filter(event => !Number.isFinite(new Date(event.startDate).getTime()));
 
   function openEvent(eventId: string) {
     router.push(`/events/${eventId}/overview`);
@@ -244,29 +240,31 @@ export default function EventsWorkspaceSelectorPage() {
         </div>
       </section>
 
+      {listError && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert"><p>{listError}</p><button type="button" disabled={loading} onClick={() => void load()} className="mt-2 rounded border border-red-300 px-3 py-1 font-semibold">{loading ? "Retrying…" : "Retry event loading"}</button></div>}
+      {summaryError && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status"><p>{summaryError}</p><button type="button" disabled={loading} onClick={() => void load()} className="mt-2 rounded border border-amber-300 px-3 py-1 font-semibold">Retry event totals</button></div>}
       {/* Summary metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryMetric
           label="Total Events"
-          value={summary?.totalEvents ?? 0}
-          note={`${summary?.activeEvents ?? 0} active`}
+          value={summary?.totalEvents ?? (loading ? "Loading…" : "Unavailable")}
+          note={summary ? `${summary.activeEvents} active` : "Across all events"}
           icon="🎪"
         />
         <SummaryMetric
           label="Registered Guests"
-          value={summary?.registeredGuests ?? 0}
-          note={`${summary?.checkedInGuests ?? 0} checked in`}
+          value={summary?.registeredGuests ?? (loading ? "Loading…" : "Unavailable")}
+          note={summary ? `${summary.checkedInGuests} checked in` : "Registration totals"}
           icon="👥"
         />
         <SummaryMetric
           label="Total Revenue"
-          value={`$${(summary?.totalRevenue ?? 0).toLocaleString()}`}
+          value={summary ? `$${summary.totalRevenue.toLocaleString()}` : loading ? "Loading…" : "Unavailable"}
           note="Across all events"
           icon="💰"
         />
         <SummaryMetric
           label="Volunteer Hours"
-          value={summary?.volunteerHours ?? 0}
+          value={summary?.volunteerHours ?? (loading ? "Loading…" : "Unavailable")}
           note="Logged so far"
           icon="⏱️"
         />
@@ -309,8 +307,17 @@ export default function EventsWorkspaceSelectorPage() {
         </div>
       </section>
 
+      <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="Filter events">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="text-xs font-semibold text-slate-700">Search events<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name or location" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"/></label>
+          <label className="text-xs font-semibold text-slate-700">Event type<select value={eventType} onChange={event => setEventType(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="">All types</option>{eventTypes.map(type => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}</select></label>
+          <label className="text-xs font-semibold text-slate-700">Event timing<select value={dateFilter} onChange={event => setDateFilter(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="all">All events</option><option value="upcoming">Upcoming</option><option value="past">Past</option><option value="active">Active</option></select></label>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">{loading ? "Loading events…" : `${filteredEvents.length} of ${events.length} loaded events`}</p>
+      </section>
+      {!loading && !listError && events.length > 0 && !filteredEvents.length && <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center"><p className="font-semibold text-slate-900">No matching events</p><button type="button" onClick={() => { setSearch(""); setEventType(""); setDateFilter("all"); }} className="mt-2 text-sm font-semibold text-violet-700">Clear event filters</button></div>}
       {/* Events list */}
-      {!loading && events.length === 0 && (
+      {!loading && !listError && events.length === 0 && (
         <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center">
           <p className="text-lg font-semibold text-slate-900">No events yet</p>
           <p className="text-sm text-slate-600 mt-1">Create your first event to get started with EventSTUDIO</p>
@@ -338,6 +345,7 @@ export default function EventsWorkspaceSelectorPage() {
         </section>
       )}
 
+      {undatedEvents.length > 0 && <section className="space-y-3"><h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Events without a date</h2><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{undatedEvents.map(event => <EventCard key={event.id} event={event} onOpen={openEvent}/>)}</div></section>}
       {pastEvents.length > 0 && (
         <section className="space-y-3">
           <div>

@@ -2,9 +2,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
-import { formatCurrency, formatDate, methodLabel, statusColor, type DonationRow } from "@/app/components/donations/donation-utils";
+import { formatCurrency, formatDonationDate, methodLabel, statusColor, type DonationRow } from "@/app/components/donations/donation-utils";
+import { useAuth } from "@/app/components/auth/AuthProvider";
+import { DonorPagination } from "@/app/components/donor-workspace/BrowsePrimitives";
 
 interface PaymentHealthPayload {
   stripeReady: boolean;
@@ -19,42 +21,56 @@ interface PaymentHealthPayload {
  * Mock processor configuration tabs are intentionally hidden until backend APIs exist.
  */
 export default function PaymentsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const [rows, setRows] = useState<DonationRow[]>([]);
   const [health, setHealth] = useState<PaymentHealthPayload | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [pageFilter, setPageFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const requestId = useRef(0);
+  const pageSize = 25;
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadLedger() {
+  const loadLedger = useCallback(async () => {
+      const current = ++requestId.current;
       setLoading(true);
       setError(null);
       try {
-        const [data, healthData] = await Promise.all([
-          apiFetch<{ items?: DonationRow[] }>("/api/donations?limit=100&page=1"),
-          apiFetch<PaymentHealthPayload>("/api/payments/health"),
-        ]);
-        if (!active) return;
-        setRows(data.items ?? []);
-        setHealth(healthData);
+        const query = new URLSearchParams({ limit: String(pageSize), page: String(page) });
+        if (search.trim()) query.set("search", search.trim());
+        const data = await apiFetch<{ items: DonationRow[]; total: number }>(`/api/donations?${query}`);
+        if (current !== requestId.current) return;
+        const lastPage = Math.max(1, Math.ceil(data.total / pageSize));
+        if (page > lastPage) { setPage(lastPage); return; }
+        setRows(data.items); setTotal(data.total);
       } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Failed to load payment ledger.");
+        if (current === requestId.current) setError(err instanceof Error ? err.message : "Failed to load payment ledger.");
       } finally {
-        if (active) setLoading(false);
+        if (current === requestId.current) setLoading(false);
       }
-    }
-
-    void loadLedger();
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [page, search]);
+  const invalidateRequest = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => {
+    setLoading(true);
+    const timer = setTimeout(() => void loadLedger(), search ? 300 : 0);
+    return () => { clearTimeout(timer); invalidateRequest(); };
+  }, [loadLedger, search, invalidateRequest]);
+  const loadHealth = useCallback(async () => {
+    if (!isAdmin) return;
+    setHealthLoading(true); setHealthError(""); setHealth(null);
+    try { setHealth(await apiFetch<PaymentHealthPayload>("/api/payments/health")); }
+    catch (reason) { setHealthError(reason instanceof Error ? reason.message : "Gateway status is unavailable."); }
+    finally { setHealthLoading(false); }
+  }, [isAdmin]);
+  useEffect(() => { void loadHealth(); }, [loadHealth]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = pageFilter.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) => {
       const fullName = `${row.constituent.firstName} ${row.constituent.lastName}`.toLowerCase();
@@ -65,7 +81,7 @@ export default function PaymentsPage() {
         (row.receiptNumber ?? "").toLowerCase().includes(q)
       );
     });
-  }, [rows, search]);
+  }, [rows, pageFilter]);
 
   return (
     <div className="space-y-6">
@@ -81,7 +97,10 @@ export default function PaymentsPage() {
         <p className="mt-1 text-sm text-amber-800">
           Stripe and PayPal are now configurable in settings. Donation embed checkout uses whichever provider is enabled and ready.
         </p>
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+        {!isAdmin ? <p className="mt-3 text-sm text-amber-900">Gateway configuration status is available to organization administrators. Recorded payments remain available below.</p>
+        : healthLoading ? <p role="status" className="mt-3 text-sm text-amber-900">Checking gateway configuration…</p>
+        : !health ? <div role="status" className="mt-3 text-sm text-amber-900"><p>Gateway configuration status unavailable. {healthError}</p><button type="button" className="mt-2 font-semibold underline" onClick={() => void loadHealth()}>Retry gateway status</button></div>
+        : <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
           <span className={`rounded-full px-2 py-0.5 font-semibold ${health?.stripeReady ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
             Stripe: {health?.stripeReady ? "Ready" : "Not Ready"}
           </span>
@@ -97,16 +116,17 @@ export default function PaymentsPage() {
           >
             Open Payment Settings
           </Link>
-        </div>
+        </div>}
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <input
-            type="text"
+            type="search"
+            aria-label="Search payment donors"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search donor, email, payment method, or receipt..."
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+            placeholder="Search donor name or email across all payments…"
             className="w-full max-w-xl rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
           <Link
@@ -116,11 +136,14 @@ export default function PaymentsPage() {
             Open full donations workspace
           </Link>
         </div>
+        <label className="block max-w-xl text-xs text-gray-600">Filter the current page by donor, email, payment method, or receipt
+          <input type="search" value={pageFilter} onChange={event => setPageFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
 
         {loading ? (
           <div className="py-10 text-center text-sm text-gray-400">Loading payment ledger...</div>
         ) : error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><p>{error}</p><button type="button" className="mt-2 font-semibold underline" onClick={() => void loadLedger()}>Retry payment ledger</button></div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="min-w-full text-sm">
@@ -137,7 +160,7 @@ export default function PaymentsPage() {
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-xs text-gray-600">{formatDate(row.date)}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{formatDonationDate(row.date)}</td>
                     <td className="px-3 py-2">
                       <p className="font-medium text-gray-900">{row.constituent.firstName} {row.constituent.lastName}</p>
                       <p className="text-xs text-gray-500">{row.constituent.email ?? "No email"}</p>
@@ -159,6 +182,7 @@ export default function PaymentsPage() {
             )}
           </div>
         )}
+        {!error && <DonorPagination page={page} pageSize={pageSize} total={total} totalPages={Math.max(1, Math.ceil(total / pageSize))} loading={loading} onPage={setPage} />}
       </section>
     </div>
   );

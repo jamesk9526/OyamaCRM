@@ -1,7 +1,9 @@
 import ConstituentForm from "@/app/components/constituents/ConstituentForm";
 import Link from "next/link";
 
-export default function NewConstituentPage() {
+export default async function NewConstituentPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  const query = await searchParams;
+  const volunteer = query.type === "VOLUNTEER";
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       {/* Breadcrumb */}
@@ -12,11 +14,11 @@ export default function NewConstituentPage() {
       </nav>
 
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Add New Constituent</h1>
+        <h1 className="text-xl font-semibold text-gray-900">{volunteer ? "Add New Volunteer" : "Add New Constituent"}</h1>
         <p className="text-sm text-gray-500 mt-0.5">Create a new donor, volunteer, member, or prospect record.</p>
       </div>
 
-      <ConstituentForm mode="create" />
+      <ConstituentForm mode="create" initialData={volunteer ? { type: "VOLUNTEER" } : undefined} />
     </div>
   );
 }

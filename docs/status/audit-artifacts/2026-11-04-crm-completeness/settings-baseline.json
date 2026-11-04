@@ -1,0 +1,9 @@
+{
+  "synthetic": true,
+  "checks": [
+    "security: reproduced enabled Save after failed initial read (no write performed)",
+    "workspaces: reproduced enabled Save after failed initial read (no write performed)"
+  ],
+  "errors": [],
+  "writes": []
+}

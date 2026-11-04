@@ -3,6 +3,7 @@
   "checks": [
     "Direct letter typing and persistence",
     "Pattern inserts editable content at cursor",
+    "Exact text selection retained across Letter and Email",
     "Email shared edits update letter and customizations remain protected",
     "Desktop tablet phone layout",
     "Campaign Trash review and restore UI with synthetic responses"

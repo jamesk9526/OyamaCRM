@@ -31,7 +31,7 @@ describe("public event mobile experience", () => {
     const document = read("app/components/events/page-builder/EventPageBuilderPreview.tsx");
 
     expect(document).toContain("grid grid-cols-2 gap-px");
-    expect(document).toContain("grid grid-cols-2 gap-2 sm:grid-cols-4");
+    expect(document).toContain("grid grid-cols-2 gap-2 sm:flex sm:flex-wrap");
     expect(document).toContain('loading="lazy"');
     expect(document).toContain("aspect-[16/10]");
   });

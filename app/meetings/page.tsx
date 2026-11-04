@@ -59,7 +59,8 @@ export default function MeetingsPage() {
     setError(null);
     try {
       const params = new URLSearchParams({ page: "1", limit: "50" });
-      if (statusFilter) params.set("status", statusFilter);
+      if (statusFilter === "NEEDS_FOLLOW_UP") params.set("followUpNeeded", "true");
+      else if (statusFilter) params.set("status", statusFilter);
       const data = await apiFetch<{ items?: Meeting[]; total?: number }>(`/api/meetings?${params}`);
       const items: Meeting[] = data.items ?? [];
       setMeetings(items);
@@ -71,7 +72,7 @@ export default function MeetingsPage() {
       const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
       setTodayCount(items.filter(m => m.status === "SCHEDULED" && new Date(m.startTime) >= todayStart && new Date(m.startTime) < tomorrowStart).length);
       setUpcomingCount(items.filter(m => m.status === "SCHEDULED" && new Date(m.startTime) >= now).length);
-      setFollowUpCount(items.filter(m => m.followUpNeeded && m.status !== "CANCELED").length);
+      setFollowUpCount(items.filter(m => m.status === "NEEDS_FOLLOW_UP" || m.followUpNeeded && m.status !== "CANCELED").length);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load meetings");
     } finally {
@@ -147,6 +148,7 @@ export default function MeetingsPage() {
         </svg>
         <span className="text-sm font-medium text-slate-500">Filter by</span>
         <select
+          aria-label="Meeting status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500"

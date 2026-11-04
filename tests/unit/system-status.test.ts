@@ -11,8 +11,8 @@ import {
 describe("system-status metadata", () => {
   it("returns safe public build info defaults", () => {
     expect(getPublicBuildInfo({} as NodeJS.ProcessEnv)).toEqual({
-      appName: "OyamaCRM v1.31b",
-      version: "1.31b",
+      appName: "OyamaCRM v2.0",
+      version: "2.0",
       buildDate: AUDIT_DATE,
       gitCommit: "local-dev",
       releaseChannel: "development",

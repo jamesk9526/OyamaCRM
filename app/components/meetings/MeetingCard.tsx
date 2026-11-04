@@ -41,8 +41,8 @@ const LOCATION_LABELS: Record<string, string> = {
 
 interface Props {
   meeting: Meeting;
-  onComplete: (id: string, outcome?: string) => void;
-  onCancel: (id: string) => void;
+  onComplete: (id: string, outcome?: string) => void | Promise<void>;
+  onCancel: (id: string) => void | Promise<void>;
 }
 
 /**
@@ -52,14 +52,24 @@ interface Props {
 export default function MeetingCard({ meeting, onComplete, onCancel }: Props) {
   const [completing, setCompleting] = useState(false);
   const [outcome, setOutcome] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   const start = new Date(meeting.startTime);
   const isToday = start.toDateString() === new Date().toDateString();
   const statusColor = STATUS_COLORS[meeting.status] ?? "bg-gray-100 text-gray-500";
 
   async function handleComplete() {
-    setCompleting(false);
-    onComplete(meeting.id, outcome || undefined);
+    setBusy(true); setError("");
+    try { await onComplete(meeting.id, outcome || undefined); setCompleting(false); }
+    catch (error) { setError(error instanceof Error ? error.message : "The meeting could not be completed."); }
+    finally { setBusy(false); }
+  }
+  async function handleCancel() {
+    setBusy(true); setError("");
+    try { await onCancel(meeting.id); }
+    catch (error) { setError(error instanceof Error ? error.message : "The meeting could not be cancelled."); }
+    finally { setBusy(false); }
   }
 
   const canComplete = meeting.status === "SCHEDULED";
@@ -141,6 +151,7 @@ export default function MeetingCard({ meeting, onComplete, onCancel }: Props) {
           </p>
         )}
 
+        {error && <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">{error}</p>}
         {/* Complete outcome input (shown when completing) */}
         {completing && (
           <div className="mt-3 flex items-center gap-2">
@@ -149,17 +160,20 @@ export default function MeetingCard({ meeting, onComplete, onCancel }: Props) {
               value={outcome}
               onChange={(e) => setOutcome(e.target.value)}
               placeholder="Optional: describe the outcome…"
+              aria-label="Meeting outcome"
               className="flex-1 text-sm border border-gray-200 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               autoFocus
             />
             <button
-              onClick={handleComplete}
+              onClick={() => void handleComplete()}
+              disabled={busy}
               className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700"
             >
-              Save
+              {busy ? "Saving…" : "Save"}
             </button>
             <button
               onClick={() => setCompleting(false)}
+              disabled={busy}
               className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200"
             >
               Back
@@ -173,7 +187,8 @@ export default function MeetingCard({ meeting, onComplete, onCancel }: Props) {
         <div className="flex items-center gap-2 shrink-0">
           {canComplete && (
             <button
-              onClick={() => setCompleting(true)}
+              onClick={() => { setError(""); setCompleting(true); }}
+              disabled={busy}
               className="px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
             >
               Mark Complete
@@ -181,7 +196,8 @@ export default function MeetingCard({ meeting, onComplete, onCancel }: Props) {
           )}
           {canCancel && (
             <button
-              onClick={() => onCancel(meeting.id)}
+              onClick={() => void handleCancel()}
+              disabled={busy}
               className="px-3 py-1.5 text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
             >
               Cancel

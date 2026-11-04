@@ -1,6 +1,7 @@
 // Unit tests for shared CRM sidebar config, grouping, and active-route helpers.
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { isSidebarItemActive, isSidebarItemVisible } from "@/app/components/layout/CrmSidebar";
 import {
   buildDonorSidebarGroups,
@@ -14,7 +15,7 @@ import {
 describe("Daily Donor navigation", () => {
   it("makes core workflows direct and preserves every specialist destination", () => {
     const groups = buildDonorDailyNavigation({ qbEnabled: true });
-    expect(groups[0].items.map((item) => item.href)).toEqual(["/", "/constituents", "/donations", "/tasks", "/campaigns", "/reports", "/communications"]);
+    expect(groups[0].items.map((item) => item.href)).toEqual(["/", "/constituents", "/donations", "/oyama-create/fundraising", "/events", "/tasks", "/reports", "/oyama-create"]);
     const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
     for (const item of buildDonorSidebarGroups({ qbEnabled: true }).flatMap((group) => group.items)) {
       expect(hrefs).toContain(item.href);
@@ -80,26 +81,28 @@ describe("Donor sidebar organization", () => {
     expect(stewardPathsIndex).toBeLessThan(eventsIndex);
   });
 
-  it("keeps OyamaLetters and LiveCom in engagement tools with expected routes", () => {
+  it("makes Create the canonical communications entry and keeps LiveCom available", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
     const communicationTools = groups.find((group) => group.id === "engagement");
 
-    const letters = communicationTools?.items.find((item) => item.id === "oyama-letters");
+    const create = communicationTools?.items.find((item) => item.id === "oyama-create");
     const liveCom = communicationTools?.items.find((item) => item.id === "livecom");
 
-    expect(letters?.label).toBe("OyamaLetters");
-    expect(letters?.href).toBe("/oyama-letters");
-    expect(letters?.kind).toBe("communication_tool");
-    expect(letters?.description).toContain("letters");
+    expect(create?.label).toBe("oyamaCreate");
+    expect(create?.href).toBe("/oyama-create");
+    expect(create?.kind).toBe("communication_tool");
+    expect(create?.description).toContain("letters");
+    expect(communicationTools?.items.some(item => item.id === "oyama-letters")).toBe(false);
     expect(liveCom?.badge).toBe("New");
   });
 
-  it("keeps Steward Signals under donor records and Volunteers under engagement", () => {
+  it("routes retired Steward Signals links to the shared AI workspace and retains Volunteers", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
     const donorRecords = groups.find((group) => group.id === "people-relationships");
     const engagement = groups.find((group) => group.id === "engagement");
 
-    expect(donorRecords?.items.map((item) => item.label)).toContain("Steward Signals");
+    expect(donorRecords?.items.map((item) => item.label)).not.toContain("Steward Signals");
+    expect(readFileSync("app/steward-signals/page.tsx", "utf8")).toContain('redirect("/steward-ai-workspace?prompt=Review%20donor%20follow-up%20priorities")');
     expect(engagement?.items.map((item) => item.label)).toContain("Volunteers");
   });
 

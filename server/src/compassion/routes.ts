@@ -157,8 +157,8 @@ router.delete("/clients/:id/portal-access", ...route("messages", async (req, res
 }));
 router.get("/messages", ...route("messages", async (req, res) => {
   const clientId = text(req.query.clientId, 191); await client(req, clientId);
-  const rows = await prisma.compassionMessage.findMany({ where: { organizationId: org(req), clientId }, orderBy: { createdAt: "asc" }, take: 250 });
-  await audit(req, "MESSAGES_READ", clientId); res.json(rows.map(({ encryptedContent, ...row }) => ({ ...row, content: unseal(encryptedContent, `${org(req)}:${clientId}:message`) })));
+  const rows = await prisma.compassionMessage.findMany({ where: { organizationId: org(req), clientId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 250 });
+  await audit(req, "MESSAGES_READ", clientId); res.json(rows.reverse().map(({ encryptedContent, ...row }) => ({ ...row, content: unseal(encryptedContent, `${org(req)}:${clientId}:message`) })));
 }));
 router.post("/messages", ...route("messages", async (req, res) => {
   const clientId = text(req.body.clientId, 191); await client(req, clientId);
@@ -243,14 +243,14 @@ publicCareRoutes.get("/portal/:token", async (_req, res) => {
   const grant = res.locals.portal as { organizationId: string; clientId: string };
   const scope = { organizationId: grant.organizationId, clientId: grant.clientId };
   const [messages, documents, appointments, entries, enrollments] = await Promise.all([
-    prisma.compassionMessage.findMany({ where: scope, orderBy: { createdAt: "asc" }, take: 250 }),
+    prisma.compassionMessage.findMany({ where: scope, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 250 }),
     prisma.compassionDocument.findMany({ where: { ...scope, shared: true, deletedAt: null }, select: { id: true, name: true, mimeType: true } }),
     prisma.compassionAppointment.findMany({ where: { ...scope, startTime: { gte: new Date() }, status: "SCHEDULED" }, select: { id: true, startTime: true, location: true } }),
     prisma.compassionPointEntry.aggregate({ where: scope, _sum: { amount: true } }),
     prisma.compassionEnrollment.findMany({ where: scope, select: { classId: true, status: true } }),
   ]);
   await prisma.compassionAudit.create({ data: { ...{ organizationId: grant.organizationId }, action: "PORTAL_VIEWED", entityId: grant.clientId } });
-  res.json({ messages: messages.map(({ encryptedContent, ...row }) => ({ id: row.id, direction: row.direction, createdAt: row.createdAt, content: unseal(encryptedContent, `${scope.organizationId}:${scope.clientId}:message`) })), documents, appointments, points: entries._sum.amount ?? 0, enrollments });
+  res.json({ messages: messages.reverse().map(({ encryptedContent, ...row }) => ({ id: row.id, direction: row.direction, createdAt: row.createdAt, content: unseal(encryptedContent, `${scope.organizationId}:${scope.clientId}:message`) })), documents, appointments, points: entries._sum.amount ?? 0, enrollments });
 });
 publicCareRoutes.post("/portal/:token/messages", async (req, res) => {
   const grant = res.locals.portal as { organizationId: string; clientId: string };

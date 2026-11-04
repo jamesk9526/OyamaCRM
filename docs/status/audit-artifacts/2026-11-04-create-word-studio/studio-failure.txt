@@ -1,0 +1,6 @@
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(selectedLetterText?.length===3)
+
+    at file:///C:/Users/James/Documents/GitHub/OyamaCRM/tests/e2e/create-word-studio.e2e.mjs:57:86
+Browser errors: 

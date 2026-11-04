@@ -156,21 +156,21 @@
       "label": "Outgoing HTML without a CRM session",
       "images": [
         {
-          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+          "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
           "width": 560,
           "height": 160,
           "visibleWidth": 159.953125,
           "visibleHeight": 45.703125
         },
         {
-          "src": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "src": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
           "width": 720,
           "height": 240,
           "visibleWidth": 459,
           "visibleHeight": 153
         },
         {
-          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+          "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
           "width": 620,
           "height": 170,
           "visibleWidth": 170,
@@ -182,21 +182,21 @@
       "label": "Outgoing email on phone",
       "images": [
         {
-          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+          "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
           "width": 560,
           "height": 160,
           "visibleWidth": 159.953125,
           "visibleHeight": 45.703125
         },
         {
-          "src": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+          "src": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
           "width": 720,
           "height": 240,
           "visibleWidth": 277.09375,
           "visibleHeight": 92.359375
         },
         {
-          "src": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+          "src": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
           "width": 620,
           "height": 170,
           "visibleWidth": 170,
@@ -217,97 +217,97 @@
   ],
   "requests": [
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/public-media/branding/synthetic-media-qa/white-logo.png",
+      "url": "http://localhost:3220/api/public-media/branding/synthetic-media-qa/white-logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/missing.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/missing.png",
       "status": 404,
       "type": "application/json; charset=utf-8"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/public-media/branding/synthetic-media-qa/white-logo.png",
+      "url": "http://localhost:3220/api/public-media/branding/synthetic-media-qa/white-logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/logo.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/logo.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/email-campaigns/media/synthetic-media-qa/story.png",
+      "url": "http://localhost:3220/api/email-campaigns/media/synthetic-media-qa/story.png",
       "status": 200,
       "type": "image/png"
     },
     {
-      "url": "http://localhost:3216/api/letters/media/synthetic-media-qa/signature.png",
+      "url": "http://localhost:3220/api/letters/media/synthetic-media-qa/signature.png",
       "status": 200,
       "type": "image/png"
     }

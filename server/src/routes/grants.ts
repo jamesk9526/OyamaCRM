@@ -43,6 +43,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
 import { requireRole } from "../middleware/requireRole.js";
 import type { GrantStatus, Prisma } from "@prisma/client";
+import { invalidGrantFields } from "../lib/grant-input.js";
 
 const router = Router();
 
@@ -91,6 +92,14 @@ function parseGrantStatus(value: unknown): GrantStatus | null {
   const normalized = String(value ?? "").trim().toUpperCase();
   if (!normalized) return null;
   return GRANT_STATUS_ALIASES[normalized] ?? null;
+}
+
+async function invalidGrantAssignee(value: unknown, organizationId: string): Promise<boolean> {
+  if (!value) return false;
+  return !await prisma.user.findFirst({
+    where: { id: String(value), organizationId, active: true, role: { not: "compassion_user" } },
+    select: { id: true },
+  });
 }
 
 // ─── Grant case-file items (reminders/tasks/resources/requirements) ────────
@@ -410,6 +419,12 @@ router.post("/", requirePermission("grants.create"), requireRole("manager"), asy
     return;
   }
 
+  const fieldError = invalidGrantFields(req.body);
+  if (fieldError || await invalidGrantAssignee(assigneeId, organizationId)) {
+    res.status(400).json({ error: { message: fieldError || "Choose an active staff member in your organization as assignee." } });
+    return;
+  }
+
   const funder = await prisma.grantFunder.findFirst({
     where: { id: String(funderId), organizationId },
     select: { id: true },
@@ -432,11 +447,11 @@ router.post("/", requirePermission("grants.create"), requireRole("manager"), asy
       title,
       programArea,
       status: parsedStatus ?? "IDEA",
-      amountRequested: amountRequested ? Number(amountRequested) : undefined,
+      amountRequested: amountRequested === "" || amountRequested == null ? undefined : Number(amountRequested),
       requiresLOI: requiresLOI ?? false,
       loiDeadline: loiDeadline ? new Date(loiDeadline) : undefined,
       applicationDeadline: applicationDeadline ? new Date(applicationDeadline) : undefined,
-      assigneeId: assigneeId ?? null,
+      assigneeId: assigneeId || null,
       notes,
       internalNotes,
       // Seed all default writing sections
@@ -818,6 +833,12 @@ router.patch("/:id", requirePermission("grants.edit"), async (req, res) => {
   });
   if (!existing) { res.status(404).json({ error: { message: "Grant not found" } }); return; }
 
+  const fieldError = invalidGrantFields(req.body);
+  if (fieldError || await invalidGrantAssignee(req.body.assigneeId, organizationId ?? "")) {
+    res.status(400).json({ error: { message: fieldError || "Choose an active staff member in your organization as assignee." } });
+    return;
+  }
+
   const allowed = [
     "title","funderId","programArea","status","amountRequested","amountAwarded",
     "requiresLOI","loiDeadline","loiSubmittedAt","applicationDeadline","submittedAt",
@@ -862,9 +883,11 @@ router.patch("/:id", requirePermission("grants.edit"), async (req, res) => {
            "awardedAt","rejectedAt","grantPeriodStart","grantPeriodEnd",
            "reportingDeadline","reportingSubmittedAt"].includes(k)) {
         data[k] = req.body[k] ? new Date(req.body[k]) : null;
-      } else {
-        data[k] = req.body[k];
-      }
+      } else if (["amountRequested", "amountAwarded"].includes(k)) {
+        data[k] = req.body[k] === "" || req.body[k] == null ? null : Number(req.body[k]);
+      } else if (k === "assigneeId") {
+        data[k] = req.body[k] || null;
+      } else data[k] = req.body[k];
     }
   }
 

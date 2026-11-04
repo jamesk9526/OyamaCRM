@@ -44,8 +44,6 @@ export default function StudioEmailCanvas({ design, brand, donor, editable, sele
   const [editor, setEditor] = useState<Editor | null>(null);
   const [selection, setSelection] = useState(selectedId);
   const [reviewed, setReviewed] = useState<{ source: string; ids: string[] }>({ source: "", ids: [] });
-  const currentSelection = useRef(selectedId);
-  const restored = useRef(false);
   const emitted = useRef("");
   const identity = profileIdentity(brand, "EMAIL", "", design.profileId);
   const overrideId = emailOverrideForSelection(design, selection);
@@ -63,20 +61,6 @@ export default function StudioEmailCanvas({ design, brand, donor, editable, sele
     editor.commands.setTextSelection({ from: Math.min(previous.from, maximum), to: Math.min(previous.to, maximum) });
   }, [editor, projection]);
 
-  useEffect(() => {
-    if (!editor || !selectedId || restored.current && selectedId === currentSelection.current) return;
-    restored.current = true;
-    let found = false;
-    editor.state.doc.descendants((node, position) => {
-      if (found || node.attrs.studioId !== selectedId) return;
-      found = true;
-      if (node.isAtom) editor.commands.setNodeSelection(position);
-      else editor.commands.setTextSelection(position + 1);
-      currentSelection.current = selectedId;
-      setSelection(selectedId);
-    });
-  }, [editor, selectedId]);
-
   const adaptations = renderStudio(design, donor, brand, { channel: "EMAIL" }).adaptations;
   return <section className="cs-email-design" aria-label="Editable email design">
     <div className="cs-email-edit-status" role="status">
@@ -93,7 +77,7 @@ export default function StudioEmailCanvas({ design, brand, donor, editable, sele
             : <>{identity.logoUrl && <img src={normalizePublicMediaUrl(String(identity.logoUrl))} alt={String(identity.organizationDisplayName || "Organization logo")} style={{ maxWidth: 160, height: "auto", display: "block", marginBottom: 8 }}/>}<strong>{String(identity.organizationDisplayName || "")}</strong></>}
         </header>
         <div className="cs-email-writing">
-          <StudioEditor initial={initial} context={context} editable={editable} onReady={ready} onInsertRequest={onInsertRequest} onSelect={(node, position) => { const id = node ? studioNodeId(node) : ""; currentSelection.current = id; setSelection(id); latest.current.onSelect(node, position); }} onChange={doc => {
+          <StudioEditor initial={initial} context={context} editable={editable} onReady={ready} onInsertRequest={onInsertRequest} onSelect={(node, position) => { const id = node ? studioNodeId(node) : "";  setSelection(id); latest.current.onSelect(node, position); }} onChange={doc => {
             emitted.current = JSON.stringify(doc);
             latest.current.onChange(applyEmailEditingDocument(latest.current.design, doc, retainedSources.current));
           }}/>

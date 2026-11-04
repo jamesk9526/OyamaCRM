@@ -1,6 +1,6 @@
 {
   "synthetic": true,
-  "renderer": "PyMuPDF 108 DPI",
+  "renderer": "Poppler 100 DPI; PDF image and text inspection via PyMuPDF",
   "pages": [
     {
       "page": 1,

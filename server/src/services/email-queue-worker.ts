@@ -49,6 +49,9 @@ const workerState: WorkerState = {
 };
 
 let timer: NodeJS.Timeout | null = null;
+// Paused or failing entries must not pin the first batch ahead of later work.
+// A complete sweep revisits them so changes to their queue state take effect.
+let dueAfter: { scheduledAt: Date; id: string } | undefined;
 
 /** Returns true for demo/stub campaign ids that should never hit real SMTP lanes. */
 function isDemoCampaignId(id: string): boolean {
@@ -99,12 +102,17 @@ async function processQueuePass(): Promise<void> {
           not: null,
           lte: now,
         },
+        ...(dueAfter ? { OR: [
+          { scheduledAt: { gt: dueAfter.scheduledAt } },
+          { scheduledAt: dueAfter.scheduledAt, id: { gt: dueAfter.id } },
+        ] } : {}),
       },
-      orderBy: { scheduledAt: "asc" },
+      orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],
       take: workerState.batchSize,
       select: {
         id: true,
         audienceFilter: true,
+        scheduledAt: true,
       },
     });
 
@@ -152,6 +160,10 @@ async function processQueuePass(): Promise<void> {
       }
     }
 
+    const last = dueCampaigns.at(-1);
+    dueAfter = dueCampaigns.length === workerState.batchSize && last?.scheduledAt
+      ? { scheduledAt: last.scheduledAt, id: last.id }
+      : undefined;
     workerState.pendingDueCount = await countDueCampaigns(new Date());
     if (dueCampaigns.length > 0 && !workerState.lastError) {
       workerState.lastSuccessAt = new Date().toISOString();
@@ -180,6 +192,7 @@ export function stopEmailQueueWorker(): void {
   if (!timer) return;
   clearInterval(timer);
   timer = null;
+  dueAfter = undefined;
   workerState.running = false;
   workerState.processing = false;
 }

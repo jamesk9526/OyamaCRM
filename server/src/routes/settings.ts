@@ -582,24 +582,10 @@ function resolveBrandingLogoExtension(mimeType: string, fileName: string): strin
   return "png";
 }
 
-/**
- * Resolves the single active installation organization for settings surfaces.
- * The app still behaves as a single-install CRM, so the oldest org is the
- * settings target until broader tenancy work lands.
- */
-async function getActiveOrganization() {
-  return prisma.organization.findFirst({
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true },
-  });
-}
-
-/** Resolves organizationId from auth context first, then falls back to the oldest installation org. */
+/** Authenticated settings must never fall back to a different installation tenant. */
 async function resolveSettingsOrganizationId(req: Request): Promise<string | null> {
   const userOrgId = req.user?.orgId?.trim();
-  if (userOrgId) return userOrgId;
-  const org = await getActiveOrganization();
-  return org?.id ?? null;
+  return userOrgId || null;
 }
 
 /** Normalizes workspace settings and enforces at least one enabled workspace. */
@@ -1632,27 +1618,13 @@ router.post("/email/provider/test", requireAuth, requireRole("admin"), async (re
 });
 
 /** GET /api/settings — Return merged organization and settings (regional + SMTP). Requires authentication. */
-router.get("/", requireAuth, async (_req: Request, res: Response) => {
+router.get("/", requireAuth, async (req: Request, res: Response) => {
   try {
     const envSmtp = getEnvSmtpDefaults();
-    const organization = await getActiveOrganization();
-    const organizationId = organization?.id;
+    const organizationId = await resolveSettingsOrganizationId(req);
 
     if (!organizationId) {
-      return res.json({
-        orgName: "",
-        fiscalYearStart: 1,
-        fiscalYearEnd: getFiscalYearEndMonth(1),
-        currency: "USD",
-        timezone: "America/Chicago",
-        smtpHost: envSmtp.smtpHost,
-        smtpPort: envSmtp.smtpPort,
-        smtpSecure: envSmtp.smtpSecure,
-        smtpUser: envSmtp.smtpUser,
-        smtpPass: envSmtp.smtpPass,
-        smtpFromName: envSmtp.smtpFromName || "OyamaCRM v1.3",
-        smtpFromEmail: envSmtp.smtpFromEmail,
-      });
+      return res.status(403).json({ error: { code: "ORG_REQUIRED", message: "Your account needs an organization to access settings." } });
     }
 
     const [org, settings] = await Promise.all([
@@ -1670,8 +1642,9 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
       smtpHost: valueOrEnv(settings?.smtpHost, envSmtp.smtpHost),
       smtpPort: settings?.smtpPort ?? envSmtp.smtpPort,
       smtpSecure: settings?.smtpSecure ?? envSmtp.smtpSecure,
-      smtpUser: valueOrEnv(settings?.smtpUser, envSmtp.smtpUser),
-      smtpPass: valueOrEnv(settings?.smtpPass, envSmtp.smtpPass),
+      smtpUser: req.user?.role === "admin" ? valueOrEnv(settings?.smtpUser, envSmtp.smtpUser) : "",
+      smtpPass: "",
+      smtpPassConfigured: Boolean(valueOrEnv(settings?.smtpPass, envSmtp.smtpPass)),
       smtpFromName: valueOrEnv(settings?.smtpFromName, envSmtp.smtpFromName || org?.name || "OyamaCRM v1.3"),
       smtpFromEmail: valueOrEnv(settings?.smtpFromEmail, envSmtp.smtpFromEmail),
     });
@@ -1683,7 +1656,8 @@ router.get("/", requireAuth, async (_req: Request, res: Response) => {
 /** PUT /api/settings — Update organization name, regional settings, and SMTP transport settings. Admin-only. */
 router.put("/", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
   try {
-    const organization = await getActiveOrganization();
+    const organizationId = await resolveSettingsOrganizationId(req);
+    const organization = organizationId ? await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true } }) : null;
     if (!organization) {
       return res.status(404).json({ error: { code: "SETTINGS_NOT_READY", message: "No organization has been configured yet." } });
     }
@@ -1698,10 +1672,12 @@ router.put("/", requireAuth, requireRole("admin"), async (req: Request, res: Res
       smtpPort,
       smtpSecure,
       smtpUser,
-      smtpPass,
+      smtpPass: requestedSmtpPass,
       smtpFromName,
       smtpFromEmail,
     } = body;
+    // Reads never expose credentials; an unchanged blank password keeps the saved value.
+    const smtpPass = typeof requestedSmtpPass === "string" && requestedSmtpPass.length ? requestedSmtpPass : undefined;
     const fiscalYearStart = rawFiscalYearStart === undefined ? undefined : normalizeFiscalYearStart(rawFiscalYearStart);
 
     const updates: Array<Promise<unknown>> = [];

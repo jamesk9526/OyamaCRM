@@ -21,6 +21,7 @@ interface Settings {
   smtpSecure: boolean;
   smtpUser: string;
   smtpPass: string;
+  smtpPassConfigured?: boolean;
   smtpFromName: string;
   smtpFromEmail: string;
 }
@@ -664,8 +665,9 @@ export default function OrganizationSettingsPage() {
                 value={form.smtpPass}
                 onChange={(e) => set("smtpPass", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="••••••••"
+                placeholder={form.smtpPassConfigured ? "Saved password configured" : "Enter SMTP password"}
               />
+              <p className="mt-1 text-xs text-gray-500">Leave blank to keep the saved password. Enter a new password to replace it.</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">From Name</label>

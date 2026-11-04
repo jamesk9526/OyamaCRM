@@ -1,0 +1,35 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Meeting defaults persist through reload; failed saves never report success",
+    "Meeting planner applies persisted duration and dispatches one create request",
+    "Meeting completion failure retains outcome and retry succeeds",
+    "Events survive summary failure, show unavailable metrics, filter and recover totals",
+    "Event-list failures have retry and never become a false empty registry",
+    "Canonical Events registry search and navigation remain functional on phone",
+    "Meeting settings fit phone; read-only and failed-load states prevent writes and retry recovers"
+  ],
+  "errors": [],
+  "writes": [
+    {
+      "path": "/api/meetings/settings",
+      "body": {
+        "defaultDuration": 45,
+        "autoTimeline": true,
+        "autoFollowUp": false,
+        "followUpDays": 2,
+        "followUpMessage": "Synthetic follow-up note"
+      }
+    },
+    {
+      "path": "/api/meetings",
+      "body": {
+        "title": "Synthetic duration check",
+        "type": "DONOR_VISIT",
+        "startTime": "2099-01-02T16:00:00.000Z",
+        "endTime": "2099-01-02T16:45:00.000Z",
+        "locationType": "IN_PERSON"
+      }
+    }
+  ]
+}

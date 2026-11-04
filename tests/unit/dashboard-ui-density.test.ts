@@ -7,7 +7,9 @@ function read(path: string): string {
 
 describe("dashboard UI density", () => {
   it("keeps detailed widgets behind an accessible disclosure", () => {
-    const page = read("app/page.tsx");
+    const entry = read("app/page.tsx");
+    expect(entry).toContain("<DashboardInsights dashboardState={dashboardState}");
+    const page = read("app/components/dashboard/DashboardInsights.tsx");
 
     expect(page).toContain("More dashboard tools");
     expect(page).toContain('aria-controls="dashboard-detailed-insights"');

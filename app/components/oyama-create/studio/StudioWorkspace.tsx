@@ -19,6 +19,7 @@ import StudioEditor, { type StudioEditorContext } from "./StudioEditor";
 import StudioToolbar from "./StudioToolbar";
 import PagedCanvas from "./PagedCanvas";
 import StudioEmailCanvas from "./StudioEmailCanvas";
+import { captureStudioSelection, restoreStudioSelection, type StudioSelectionBookmark } from "./selection-bookmark";
 import StudioLibrary from "./StudioLibrary";
 import { studioPattern } from "@/server/src/oyama-create/studio/patterns";
 import StudioEmailSettings from "./StudioEmailSettings";
@@ -43,7 +44,9 @@ const StudioWorkspace = forwardRef<EditorHandle,{content:Content;campaign:Campai
   const [focused,setFocused]=useState(true);
   const [libraryOpen,setLibraryOpen]=useState(true),[reviewOpen,setReviewOpen]=useState(false);
   const editor=view==="LETTER"?letterEditor:emailEditor;
+  const [emailOpened,setEmailOpened]=useState(false);
   const selectionIdentity=useRef("");
+  const handoff=useRef<{ view:"LETTER"|"EMAIL"; bookmark:StudioSelectionBookmark }|null>(null);
   const currentView=useRef(view);currentView.current=view;
   const file=useRef<HTMLInputElement>(null),imageApply=useRef<((url:string)=>void)|null>(null);
   const context=useRef<StudioEditorContext>({design:defaultDesign(),donor:emptyDonor(),brand:{version:1,identity:{},profiles:[],signers:[],presets:[],defaultSignerId:null}});
@@ -67,11 +70,24 @@ const StudioWorkspace = forwardRef<EditorHandle,{content:Content;campaign:Campai
   const ready=useCallback((value:Editor)=>setLetterEditor(value),[]);
   const select=useCallback((node:StudioNode|null,position:number)=>{if(node?.attrs?.studioId)selectionIdentity.current=String(node.attrs.studioId);setSelected(node?{node,position}:null);},[]);
   useEffect(()=>{
-    if(!editor||editor.isDestroyed||!selectionIdentity.current)return;
-    const frame=requestAnimationFrame(()=>{let found=false;editor.state.doc.descendants((node,position)=>{if(found||node.attrs.studioId!==selectionIdentity.current)return;found=true;if(node.isAtom)editor.commands.setNodeSelection(position);else editor.commands.setTextSelection(position+1);});});
+    if(!editor||editor.isDestroyed||handoff.current?.view!==view)return;
+    const transition=handoff.current;
+    const frame=requestAnimationFrame(()=>{
+      if(editor.isDestroyed)return;
+      restoreStudioSelection(editor,transition.bookmark);
+      handoff.current=null;
+    });
     return()=>cancelAnimationFrame(frame);
   },[view,editor]);
-  async function switchView(next:"LETTER"|"EMAIL") { if(next===view)return;if(!await save())return;setView(next);setSelected(null);if(next==="EMAIL")void previewRecipient("EMAIL"); }
+  async function switchView(next:"LETTER"|"EMAIL") {
+    if(next===view)return;
+    const bookmark=editor&&!editor.isDestroyed?captureStudioSelection(editor):null;
+    if(!await save())return;
+    handoff.current=bookmark?{view:next,bookmark}:null;
+    if(next==="EMAIL")setEmailOpened(true);
+    setView(next);setSelected(null);
+    if(next==="EMAIL")void previewRecipient("EMAIL");
+  }
   function insertPattern(id:string){if(!editor)return;const position=editor.state.selection.from;editor.chain().focus().insertContent(studioPattern(id,()=>crypto.randomUUID()) as JSONContent[]).run();editor.commands.setTextSelection(Math.min(position+1,editor.state.doc.content.size));setMobilePanel("write");}
 
   const edited=useCallback((doc:StudioDoc)=>{const value=draft.current;if(!value)return;if(region)change({...value,regions:{...value.regions,[region]:{...value.regions[region],mode:"custom",content:doc}}});else if(piece==="REPLY_SLIP")change({...value,pack:{...value.pack,replySlip:{...value.pack.replySlip,content:doc}}});else change({...value,body:doc});},[change,piece,region]);
@@ -103,7 +119,7 @@ const StudioWorkspace = forwardRef<EditorHandle,{content:Content;campaign:Campai
       {walkNodes(design.body).some(node=>node.type==="studioLegacy")&&<div className="oc-notice">Original content is preserved. Review the converted editable version before approval.<button className="oc-button small" onClick={convertOriginal}>Review conversion</button></div>}
       {region&&<div className="oc-notice">Editing {region}. This region becomes a custom override in this design. <button className="oc-button small" onClick={()=>openRegion(null)}>Return to letter</button></div>}
       <div hidden={view!=="LETTER"}>{envelope?<div className="cs-envelope-preview"><h3>{pieceNames[piece]}</h3><p>{piece==="OUTER_ENVELOPE"?donor.name:brand.identity.organizationDisplayName}</p><pre>{piece==="OUTER_ENVELOPE"?donor.address:[brand.identity.streetAddress1,brand.identity.city,brand.identity.stateProvince,brand.identity.postalCode].filter(Boolean).join("\n")}</pre><p className="oc-help">Set size, window and printer offsets in the inspector. Render this piece to verify its physical dimensions.</p><button className="oc-button" onClick={()=>void renderProof(piece)}>Proof this envelope</button></div>:<PagedCanvas design={design} headers={region?["",""]:header} footers={region?["",""]:footer} zoom={zoom} onPages={setPages} onRegion={openRegion}><StudioEditor key={`${content.id}:${piece}:${region}:${epoch}`} initial={initial.content.length?initial:{type:"doc",content:[paragraph(crypto.randomUUID())]}} context={context} initialHtml={region&&design.regions[region].mode==="brand"?renderRegion(design,donor,brand,region):undefined} onReady={ready} onSelect={(node,position)=>{if(currentView.current==="LETTER")select(node,position);}} onChange={edited} editable={resource.data.canEdit} onInsertRequest={insertedBlock}/></PagedCanvas>}</div>
-      {view==="EMAIL"&&<StudioEmailCanvas design={design} brand={brand} donor={donor} editable={resource.data.canEdit} selectedId={selectionIdentity.current} mobile={previewMode==="mobile"} onChange={change} onReady={setEmailEditor} onSelect={select} onInsertRequest={insertedBlock}/>}
+      {emailOpened&&<div hidden={view!=="EMAIL"}><StudioEmailCanvas design={design} brand={brand} donor={donor} editable={resource.data.canEdit} selectedId={selectionIdentity.current} mobile={previewMode==="mobile"} onChange={change} onReady={setEmailEditor} onSelect={(node,position)=>{if(currentView.current==="EMAIL")select(node,position);}} onInsertRequest={insertedBlock}/></div>}
       <div className="cs-document-health"><span>{pages} editable pages</span><span>{output.issues.filter(issue=>issue.blocking).length} setup/data issues</span></div>
     </main><aside className={`cs-inspector ${mobilePanel==="settings"?"mobile-active":""}`}><div className="cs-inspector-heading"><Paintbrush size={15}/><strong>{selected?"Selected block":"Design settings"}</strong>{selected&&<button className="oc-button small" onClick={()=>setSelected(null)}>Design</button>}</div>{selected&&editor?<BlockInspector key={`${selected.node.attrs?.studioId}:${selected.position}`} node={selected.node} position={selected.position} editor={editor} brand={brand} upload={chooseImage} crop={cropImage} imageWidth={assets.data?.find(asset=>asset.url===selected.node.attrs?.src)?.width||null} printWidth={((design.page.paper==="A4"?210/25.4:design.page.orientation==="landscape"?(design.page.paper==="LEGAL"?14:11):8.5)-design.page.margins.left-design.page.margins.right)*Number(selected.node.attrs?.width||100)/100} onChange={()=>{const actual=editor.state.doc.nodeAt(selected.position);if(actual)setSelected({node:actual.toJSON() as StudioNode,position:selected.position});}} onSection={node=>{setSavingSection(node);setSectionName("");}}/>:<DesignInspector design={design} change={change} brand={brand} region={region} editRegion={openRegion} artifact={piece} recipient={recipient} gifts={gifts.data||[]} openBrand={()=>setBrandOpen(true)}/>}</aside></div>
     {view==="EMAIL"&&<div className="cs-email-settings-bar"><label>Subject<input aria-label="Email subject" value={design.email.subject} disabled={!resource.data.canEdit} onChange={event=>change({...design,email:{...design.email,subject:event.target.value}})}/></label><label>Preview text<input aria-label="Email preview text" value={design.email.previewText} disabled={!resource.data.canEdit} onChange={event=>change({...design,email:{...design.email,previewText:event.target.value}})}/></label><button className="oc-button small" onClick={async()=>{if(await save())setEmailSettings(true);}}>Sender, compliance & test</button>{["desktop","mobile","plain-text"].map(mode=><button type="button" className="oc-button small" key={mode} aria-pressed={previewMode===mode} onClick={()=>{setPreviewMode(mode);if(mode==="plain-text")void previewRecipient("EMAIL");}}>{mode}</button>)}{previewMode==="plain-text"&&<pre>{preview?.text||"Apply recipient preview to inspect plain text."}</pre>}</div>}

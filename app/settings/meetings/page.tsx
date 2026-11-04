@@ -1,17 +1,9 @@
-/**
- * Settings — Meetings page.
- * Displays and allows editing of default meeting configuration:
- * meeting types, default duration, default reminder, follow-up task behavior,
- * and whether meetings automatically create timeline entries.
- *
- * These defaults apply when scheduling new meetings throughout the Donor CRM.
- * NOTE: Settings display is real UI; persistence to OrganizationSettings.metadata
- * requires a future backend wiring (currently shows configured defaults only).
- * TODO: wire save button to PUT /api/settings with a "meetings" namespace in metadata JSON.
- */
+/** Organization meeting defaults persisted through the meeting settings service. */
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/app/lib/auth-client";
+import type { MeetingSettings } from "@/server/src/lib/meeting-settings";
 
 /** Meeting type option with label and description */
 const MEETING_TYPES = [
@@ -29,13 +21,7 @@ const MEETING_TYPES = [
   { value: "OTHER", label: "Other", description: "Any other meeting type" },
 ];
 
-const REMINDER_OPTIONS = [
-  { value: "30", label: "30 minutes before" },
-  { value: "60", label: "1 hour before" },
-  { value: "120", label: "2 hours before" },
-  { value: "1440", label: "1 day before" },
-  { value: "2880", label: "2 days before" },
-];
+type MeetingDefaults = MeetingSettings & { canManage: boolean };
 
 const DURATION_OPTIONS = [
   { value: "30", label: "30 minutes" },
@@ -55,19 +41,44 @@ const FOLLOWUP_DAYS_OPTIONS = [
 
 /** MeetingsSettingsPage — configure meeting defaults for the Donor CRM */
 export default function MeetingsSettingsPage() {
-  // Default settings (these would be loaded from/saved to OrganizationSettings.metadata in a future PR)
+  const [canEdit, setCanEdit] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const requestId = useRef(0);
   const [defaultDuration, setDefaultDuration] = useState("60");
-  const [defaultReminder, setDefaultReminder] = useState("1440");
   const [autoTimeline, setAutoTimeline] = useState(true);
   const [autoFollowUp, setAutoFollowUp] = useState(true);
   const [followUpDays, setFollowUpDays] = useState("2");
   const [followUpMessage, setFollowUpMessage] = useState("Thank the donor and recap next steps from your meeting.");
   const [saved, setSaved] = useState(false);
 
-  // TODO: wire to PUT /api/settings with meetings namespace in metadata JSON
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const load = useCallback(async () => {
+    const current = ++requestId.current;
+    setLoading(true); setError(""); setSaved(false);
+    try {
+      const settings = await apiFetch<MeetingDefaults>("/api/meetings/settings");
+      if (current !== requestId.current) return;
+      setCanEdit(settings.canManage);
+      setDefaultDuration(String(settings.defaultDuration));
+      setAutoTimeline(settings.autoTimeline); setAutoFollowUp(settings.autoFollowUp);
+      setFollowUpDays(String(settings.followUpDays)); setFollowUpMessage(settings.followUpMessage);
+      setLoaded(true);
+    } catch (error) {
+      if (current === requestId.current) { setLoaded(false); setError(error instanceof Error ? error.message : "Meeting defaults could not be loaded."); }
+    } finally { if (current === requestId.current) setLoading(false); }
+  }, []);
+  const cancelLoad = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => { void load(); return cancelLoad; }, [load, cancelLoad]);
+  async function handleSave() {
+    if (!loaded || !canEdit) return;
+    setSaving(true); setSaved(false); setError("");
+    try {
+      await apiFetch("/api/meetings/settings", { method: "PUT", body: JSON.stringify({ defaultDuration: Number(defaultDuration), autoTimeline, autoFollowUp, followUpDays: Number(followUpDays), followUpMessage }) });
+      setSaved(true);
+    } catch (error) { setError(error instanceof Error ? error.message : "Meeting defaults could not be saved."); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -81,29 +92,28 @@ export default function MeetingsSettingsPage() {
           </p>
         </div>
         <button
-          onClick={handleSave}
+          onClick={() => void handleSave()}
+          disabled={loading || saving || !loaded || !canEdit}
           className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
         >
-          {saved ? "Saved ✓" : "Save Changes"}
+          {saving ? "Saving…" : "Save Changes"}
         </button>
       </div>
 
-      {/* Backend note */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-        <strong>Note:</strong> These defaults are UI-configured. Backend persistence to
-        OrganizationSettings requires wiring to{" "}
-        <code className="text-amber-700 bg-amber-100 px-1 rounded">PUT /api/settings</code>.
-        {/* TODO: backend API wiring needed */}
-      </div>
-
+      {loading && <p role="status" className="text-sm text-slate-600">Loading meeting defaults…</p>}
+      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{error}</p>{!loaded && <button type="button" onClick={() => void load()} className="mt-2 font-semibold underline">Retry loading defaults</button>}</div>}
+      {saved && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">Meeting defaults saved. New meetings use these defaults.</p>}
+      {!canEdit && <p className="text-sm text-slate-600">Organization settings permission is required to change these defaults.</p>}
+      <fieldset disabled={loading || saving || !loaded || !canEdit} onChange={() => setSaved(false)} className="space-y-6 disabled:opacity-60">
       {/* Default durations and reminders */}
       <section className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
         <h2 className="text-base font-semibold text-gray-800">Scheduling Defaults</h2>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Meeting Duration</label>
+            <label htmlFor="meeting-default-duration" className="block text-sm font-medium text-gray-700 mb-1">Default Meeting Duration</label>
             <select
+              id="meeting-default-duration"
               value={defaultDuration}
               onChange={(e) => setDefaultDuration(e.target.value)}
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -115,19 +125,6 @@ export default function MeetingsSettingsPage() {
             <p className="text-xs text-gray-400 mt-1">Used as end time when scheduling a meeting.</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Default Reminder</label>
-            <select
-              value={defaultReminder}
-              onChange={(e) => setDefaultReminder(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-            >
-              {REMINDER_OPTIONS.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">When staff receive a notification before meetings.</p>
-          </div>
         </div>
       </section>
 
@@ -167,10 +164,11 @@ export default function MeetingsSettingsPage() {
         </label>
 
         {autoFollowUp && (
-          <div className="grid grid-cols-2 gap-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Follow-Up Due</label>
+              <label htmlFor="meeting-follow-up-days" className="block text-sm font-medium text-gray-700 mb-1">Follow-Up Due</label>
               <select
+                id="meeting-follow-up-days"
                 value={followUpDays}
                 onChange={(e) => setFollowUpDays(e.target.value)}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -181,9 +179,11 @@ export default function MeetingsSettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Follow-Up Task Note</label>
+              <label htmlFor="meeting-follow-up-message" className="block text-sm font-medium text-gray-700 mb-1">Follow-Up Task Note</label>
               <input
                 type="text"
+                maxLength={2000}
+                id="meeting-follow-up-message"
                 value={followUpMessage}
                 onChange={(e) => setFollowUpMessage(e.target.value)}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -194,11 +194,12 @@ export default function MeetingsSettingsPage() {
         )}
       </section>
 
+      </fieldset>
       {/* Meeting types reference */}
       <section className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
         <h2 className="text-base font-semibold text-gray-800">Available Meeting Types</h2>
-        <p className="text-xs text-gray-500">These types are available when scheduling a meeting. Custom types can be added in a future release.</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-xs text-gray-500">These types are available when scheduling a meeting.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {MEETING_TYPES.map((t) => (
             <div key={t.value} className="flex items-start gap-2 p-2 rounded-lg bg-gray-50 border border-gray-100">
               <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />

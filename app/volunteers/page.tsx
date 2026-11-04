@@ -1,17 +1,18 @@
 /**
  * Volunteers page.
  * Lists constituent records with type=VOLUNTEER from /api/constituents.
- * Features: search, total count, add volunteer link, empty state.
+ * Uses the shared constituent pagination contract and volunteer creation defaults.
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import WorkspaceBreadcrumbBar from "@/app/components/layout/WorkspaceBreadcrumbBar";
 import WorkspaceRibbon from "@/app/components/workspace-ribbon/WorkspaceRibbon";
 import WorkspaceRibbonButton from "@/app/components/workspace-ribbon/WorkspaceRibbonButton";
 import WorkspaceRibbonGroup from "@/app/components/workspace-ribbon/WorkspaceRibbonGroup";
 import { apiFetch } from "@/app/lib/auth-client";
+import { DonorPagination } from "@/app/components/donor-workspace/BrowsePrimitives";
 
 /** Constituent record (volunteer) as returned from the API */
 interface Volunteer {
@@ -23,6 +24,9 @@ interface Volunteer {
   donorStatus: string;
   tags: Array<{ tagId: string; tag: { name: string; color: string } }>;
 }
+
+type VolunteerPage = { items: Volunteer[]; total: number; totalPages: number };
+const PAGE_SIZE = 25;
 
 /** Tailwind classes for donor status badge */
 function statusColor(s: string) {
@@ -50,29 +54,37 @@ function SkeletonRow() {
 
 /** Volunteers page — table of volunteer constituents */
 export default function VolunteersPage() {
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [data, setData] = useState<VolunteerPage>({ items: [], total: 0, totalPages: 0 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+      const current = ++requestId.current;
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ type: "VOLUNTEER", limit: "100" });
-        if (search) params.set("search", search);
-        const data = await apiFetch<Volunteer[]>(`/api/constituents?${params.toString()}`);
-        setVolunteers(Array.isArray(data) ? data : []);
+        const params = new URLSearchParams({ type: "VOLUNTEER", page: String(page), pageSize: String(PAGE_SIZE) });
+        if (search.trim()) params.set("search", search.trim());
+        const result = await apiFetch<VolunteerPage>(`/api/constituents?${params.toString()}`);
+        if (current !== requestId.current) return;
+        if (page > Math.max(result.totalPages, 1)) { setPage(Math.max(result.totalPages, 1)); return; }
+        setData(result);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load");
+        if (current === requestId.current) setError(err instanceof Error ? err.message : "Volunteers could not be loaded.");
       } finally {
-        setLoading(false);
+        if (current === requestId.current) setLoading(false);
       }
-    }
-    const t = setTimeout(load, search ? 300 : 0);
-    return () => clearTimeout(t);
-  }, [search]);
+  }, [page, search]);
+  const invalidateRequest = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => {
+    setLoading(true);
+    const t = setTimeout(() => void load(), search ? 300 : 0);
+    return () => { clearTimeout(t); invalidateRequest(); };
+  }, [load, search, invalidateRequest]);
+  function changeSearch(value: string) { setSearch(value); setPage(1); }
 
   return (
     <div className="space-y-5">
@@ -81,22 +93,22 @@ export default function VolunteersPage() {
           { label: "Donor CRM", href: "/" },
           { label: "Volunteers" },
         ]}
-        statusLabel={loading ? "Loading" : "Working"}
-        metadata={loading ? "Loading volunteers" : `${volunteers.length.toLocaleString()} volunteer${volunteers.length !== 1 ? "s" : ""}`}
-        primaryAction={<WorkspaceRibbonButton label="Add Volunteer" href="/constituents/new" variant="primary" />}
+        statusLabel={loading ? "Loading" : error ? "Unavailable" : "Working"}
+        metadata={loading ? "Loading volunteers" : error ? "Volunteer count unavailable" : `${data.total.toLocaleString()} volunteer${data.total !== 1 ? "s" : ""}`}
+        primaryAction={<WorkspaceRibbonButton label="Add Volunteer" href="/constituents/new?type=VOLUNTEER" variant="primary" />}
       />
 
       <WorkspaceRibbon>
         <WorkspaceRibbonGroup label="Create">
-          <WorkspaceRibbonButton label="Add Volunteer" href="/constituents/new" variant="primary" />
+          <WorkspaceRibbonButton label="Add Volunteer" href="/constituents/new?type=VOLUNTEER" variant="primary" />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="View">
-          <WorkspaceRibbonButton label="All Volunteers" onClick={() => setSearch("")} variant={!search ? "primary" : "secondary"} />
+          <WorkspaceRibbonButton label="All Volunteers" onClick={() => changeSearch("")} variant={!search ? "primary" : "secondary"} />
         </WorkspaceRibbonGroup>
 
         <WorkspaceRibbonGroup label="Filter">
-          <WorkspaceRibbonButton label="Clear Search" onClick={() => setSearch("")} disabled={!search} />
+          <WorkspaceRibbonButton label="Clear Search" onClick={() => changeSearch("")} disabled={!search} />
         </WorkspaceRibbonGroup>
       </WorkspaceRibbon>
 
@@ -104,27 +116,29 @@ export default function VolunteersPage() {
       <div className="flex gap-3">
         <input
           type="search"
+          aria-label="Search volunteers"
           placeholder="Search by name..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => changeSearch(e.target.value)}
           className="flex-1 max-w-xs px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
         />
         {search && (
-          <button onClick={() => setSearch("")} className="text-sm text-gray-500 hover:text-gray-700 px-2">
+          <button onClick={() => changeSearch("")} className="text-sm text-gray-500 hover:text-gray-700 px-2">
             Clear
           </button>
         )}
       </div>
 
       {error && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Could not connect to API — start it with <code className="bg-amber-100 px-1 rounded">pnpm start:server</code>
+        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p>Volunteers could not be loaded. {error}</p>
+          <button type="button" onClick={() => void load()} className="mt-2 font-semibold underline">Retry loading volunteers</button>
         </div>
       )}
 
       {/* Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Volunteers" aria-busy={loading}>
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               {["Name", "Email", "Phone", "Status", "Tags"].map((h) => (
@@ -135,7 +149,8 @@ export default function VolunteersPage() {
           <tbody className="divide-y divide-gray-100">
             {loading
               ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-              : volunteers.length === 0
+              : error ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-600">Volunteer records are unavailable. Retry loading above.</td></tr>
+              : data.items.length === 0
               ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-gray-500 text-sm">
@@ -145,7 +160,7 @@ export default function VolunteersPage() {
                   </td>
                 </tr>
               )
-              : volunteers.map((v) => (
+              : data.items.map((v) => (
                   <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">
                       <Link href={`/constituents/${v.id}`} className="hover:text-green-600 transition-colors">
@@ -173,6 +188,7 @@ export default function VolunteersPage() {
           </tbody>
         </table>
       </div>
+      {!error && <DonorPagination page={page} pageSize={PAGE_SIZE} total={data.total} totalPages={Math.max(data.totalPages, 1)} loading={loading} onPage={setPage} />}
     </div>
   );
 }

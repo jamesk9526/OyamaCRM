@@ -1,7 +1,7 @@
 /** Security settings page surfaces auth hardening work plus destructive recovery controls. */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AuditLogViewer from "@/app/components/settings/AuditLogViewer";
 import SettingsResetPanel from "@/app/components/settings/SettingsResetPanel";
 import SettingsRecoveryPanel from "@/app/components/settings/SettingsRecoveryPanel";
@@ -25,34 +25,36 @@ const DEFAULT_AUTH_SECURITY: AuthSecuritySettings = {
 export default function SecuritySettingsPage() {
   const [authSecurity, setAuthSecurity] = useState<AuthSecuritySettings>(DEFAULT_AUTH_SECURITY);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    let active = true;
-
-    /** Loads auth security settings for MFA and password-reset policy controls. */
-    async function loadAuthSecurity() {
+  /** A failed read must never make the initial defaults writable. */
+  const loadAuthSecurity = useCallback(async () => {
+      const current = ++requestId.current;
       setLoading(true);
       setError(null);
       try {
         const payload = await apiFetch<AuthSecuritySettings>("/api/settings/security/auth");
-        if (active) setAuthSecurity({ ...DEFAULT_AUTH_SECURITY, ...payload });
+        if (current !== requestId.current) return;
+        setAuthSecurity({ ...DEFAULT_AUTH_SECURITY, ...payload });
+        setLoaded(true);
       } catch (requestError) {
-        if (active) {
+        if (current === requestId.current) {
+          setLoaded(false);
           setError(requestError instanceof Error ? requestError.message : "Failed to load auth security settings.");
         }
       } finally {
-        if (active) setLoading(false);
+        if (current === requestId.current) setLoading(false);
       }
-    }
-
-    void loadAuthSecurity();
-    return () => {
-      active = false;
-    };
   }, []);
+  const cancelLoad = useCallback(() => { requestId.current++; }, []);
+  useEffect(() => {
+    void loadAuthSecurity();
+    return cancelLoad;
+  }, [loadAuthSecurity, cancelLoad]);
 
   /** Updates one auth security field while clearing stale status messages. */
   function setField<K extends keyof AuthSecuritySettings>(key: K, value: AuthSecuritySettings[K]) {
@@ -63,6 +65,7 @@ export default function SecuritySettingsPage() {
 
   /** Persists auth security settings and surfaces confirmation state. */
   async function saveAuthSecurity() {
+    if (!loaded || loading || saving) return;
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -73,7 +76,6 @@ export default function SecuritySettingsPage() {
       });
       setAuthSecurity({ ...DEFAULT_AUTH_SECURITY, ...payload });
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Failed to save auth security settings.");
     } finally {
@@ -99,9 +101,11 @@ export default function SecuritySettingsPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading security policy...</p>
+          <p role="status" className="text-sm text-gray-500">Loading security policy...</p>
         ) : (
           <div className="space-y-4">
+            {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"><p>{error}</p>{!loaded && <button type="button" onClick={() => void loadAuthSecurity()} className="mt-2 font-semibold underline">Retry loading authentication policy</button>}</div>}
+            <fieldset disabled={!loaded || saving} className="space-y-4 disabled:opacity-60">
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
@@ -147,19 +151,19 @@ export default function SecuritySettingsPage() {
               </label>
             </div>
 
-            {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            {saved && <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">Authentication policy saved.</p>}
+            {saved && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">Authentication policy saved.</p>}
 
             <div className="flex justify-end">
               <button
                 type="button"
-                disabled={saving}
+                disabled={!loaded || loading || saving}
                 onClick={() => void saveAuthSecurity()}
                 className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Save Auth Policy"}
               </button>
             </div>
+            </fieldset>
           </div>
         )}
       </section>

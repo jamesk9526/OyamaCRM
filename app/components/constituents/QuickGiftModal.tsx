@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 import DonationFollowUpModal from "@/app/components/donations/DonationFollowUpModal";
@@ -53,7 +53,8 @@ const PAYMENT_METHODS = [
 
 /** Format today as YYYY-MM-DD for the date input default. */
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 /**
@@ -75,23 +76,39 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lookups, setLookups] = useState({ campaign: { loading: true, loaded: false, error: "" }, fund: { loading: true, loaded: false, error: "" } });
+  const lookupRequests = useRef({ campaign: 0, fund: 0 });
+  const loadLookup = useCallback(async (kind: "campaign" | "fund") => {
+    const current = ++lookupRequests.current[kind];
+    setLookups(previous => ({ ...previous, [kind]: { ...previous[kind], loading: true, error: "" } }));
+    try {
+      const payload = await apiFetch<Campaign[] | Designation[]>(kind === "campaign" ? "/api/campaigns" : "/api/designations");
+      if (lookupRequests.current[kind] !== current) return;
+      if (!Array.isArray(payload)) throw new Error(`The ${kind === "campaign" ? "campaign" : "fund"} list could not be loaded.`);
+      if (kind === "campaign") setCampaigns((payload as Campaign[]).filter(item => item.active));
+      else setDesignations(payload);
+      setLookups(previous => ({ ...previous, [kind]: { loading: false, loaded: true, error: "" } }));
+    } catch (error) {
+      if (lookupRequests.current[kind] !== current) return;
+      setLookups(previous => ({ ...previous, [kind]: { loading: false, loaded: false, error: error instanceof Error ? error.message : `The ${kind} list could not be loaded.` } }));
+    }
+  }, []);
+  const cancelLookups = useCallback(() => { lookupRequests.current.campaign++; lookupRequests.current.fund++; }, []);
+  const lookupsReady = lookups.campaign.loaded && !lookups.campaign.loading && lookups.fund.loaded && !lookups.fund.loading;
 
   // Load campaigns and designations for the dropdowns
   useEffect(() => {
-    Promise.all([
-      apiFetch<Campaign[]>("/api/campaigns").catch(() => []),
-      apiFetch<Designation[]>("/api/designations").catch(() => []),
-    ]).then(([c, d]) => {
-      setCampaigns(Array.isArray(c) ? c.filter((x) => x.active) : []);
-      setDesignations(Array.isArray(d) ? d : []);
-    });
-  }, []);
+    void loadLookup("campaign"); void loadLookup("fund");
+    return cancelLookups;
+  }, [loadLookup, cancelLookups]);
 
   /** Validate and POST the donation to the API. */
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { setError("Please enter a valid amount."); return; }
+    if (saving) return;
+    if (!lookupsReady) { setError("Load the campaign and fund lists before recording this gift so its attribution can be reviewed."); return; }
+    const amt = Number(amount.trim());
+    if (!Number.isFinite(amt) || amt <= 0) { setError("Please enter a valid amount."); return; }
     if (!date) { setError("Please enter a gift date."); return; }
 
     setSaving(true);
@@ -135,19 +152,22 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
 
         {/* Form */}
         <form onSubmit={handleSave} className="mt-4 space-y-4">
+          {(lookups.campaign.loading || lookups.fund.loading) && <p role="status" className="text-sm text-slate-600">Loading gift attribution choices…</p>}
+          {(["campaign", "fund"] as const).map(kind => lookups[kind].error && <div key={kind} role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><p>{kind === "campaign" ? "Campaigns" : "Funds"} are unavailable: {lookups[kind].error}</p><button type="button" onClick={() => { setError(null); void loadLookup(kind); }} className="mt-2 font-semibold underline">Retry {kind === "campaign" ? "campaigns" : "funds"}</button><p className="mt-1">Your gift details are retained. Recording is paused until the choices can be reviewed.</p></div>)}
           {error && (
-            <div className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
+            <div role="alert" className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
           )}
 
           {/* Amount — most important field, large */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="quick-gift-amount" className="block text-sm font-medium text-gray-700 mb-1">
               Amount <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
               <input
                 type="number"
+                id="quick-gift-amount"
                 min="0.01"
                 step="0.01"
                 value={amount}
@@ -163,9 +183,10 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
           {/* Date + Payment method */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gift Date *</label>
+              <label htmlFor="quick-gift-date" className="block text-sm font-medium text-gray-700 mb-1">Gift Date *</label>
               <input
                 type="date"
+                id="quick-gift-date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -173,8 +194,9 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+              <label htmlFor="quick-gift-payment" className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
               <select
+                id="quick-gift-payment"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -187,8 +209,9 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
           {/* Check number — only shown for CHECK payments */}
           {paymentMethod === "CHECK" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Check Number</label>
+              <label htmlFor="quick-gift-check" className="block text-sm font-medium text-gray-700 mb-1">Check Number</label>
               <input
+                id="quick-gift-check"
                 value={checkNumber}
                 onChange={(e) => setCheckNumber(e.target.value)}
                 placeholder="e.g. 1042"
@@ -200,24 +223,28 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
           {/* Campaign + Fund */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Campaign</label>
+              <label htmlFor="quick-gift-campaign" className="block text-sm font-medium text-gray-700 mb-1">Campaign</label>
               <select
+                id="quick-gift-campaign"
+                disabled={!lookups.campaign.loaded || lookups.campaign.loading || saving}
                 value={campaignId}
                 onChange={(e) => setCampaignId(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                <option value="">— None —</option>
+                <option value="">{lookups.campaign.loading ? "Loading campaigns…" : !lookups.campaign.loaded ? "Campaigns unavailable" : "— None —"}</option>
                 {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fund</label>
+              <label htmlFor="quick-gift-fund" className="block text-sm font-medium text-gray-700 mb-1">Fund</label>
               <select
+                id="quick-gift-fund"
+                disabled={!lookups.fund.loaded || lookups.fund.loading || saving}
                 value={designationId}
                 onChange={(e) => setDesignationId(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                <option value="">— General Fund —</option>
+                <option value="">{lookups.fund.loading ? "Loading funds…" : !lookups.fund.loaded ? "Funds unavailable" : "— General Fund —"}</option>
                 {designations.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
@@ -225,8 +252,9 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label htmlFor="quick-gift-notes" className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <textarea
+              id="quick-gift-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
@@ -257,7 +285,7 @@ export default function QuickGiftModal({ constituentId, constituentName, onClose
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !lookupsReady}
               className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
               {saving ? "Saving…" : "Record Gift"}

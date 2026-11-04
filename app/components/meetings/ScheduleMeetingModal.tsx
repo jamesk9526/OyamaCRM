@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import WorkspaceSetupModal from "@/app/components/ui/WorkspaceSetupModal";
 
@@ -67,6 +67,25 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const duration = useRef(60);
+  const endTimeEdited = useRef(false);
+  const currentTime = useRef(time); currentTime.current = time;
+  const [defaultsWarning, setDefaultsWarning] = useState("");
+  useEffect(() => {
+    let mounted = true;
+    void apiFetch<{ defaultDuration: number }>("/api/meetings/settings").then(settings => {
+      if (!mounted) return;
+      duration.current = settings.defaultDuration;
+      if (!endTimeEdited.current) setEndTime(suggestedEnd(currentTime.current, settings.defaultDuration));
+    }).catch(() => { if (mounted) setDefaultsWarning("Organization defaults could not be loaded. Check the meeting end time before scheduling."); });
+    return () => { mounted = false; };
+  }, []);
+  function suggestedEnd(start: string, minutes: number) {
+    const [hours, minute] = start.split(":").map(Number);
+    const total = hours * 60 + minute + minutes;
+    return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  }
+
   /** Build ISO datetime string from separate date + time inputs */
   function buildDateTime(dateStr: string, timeStr: string): string {
     return new Date(`${dateStr}T${timeStr}:00`).toISOString();
@@ -82,13 +101,16 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
 
     setSaving(true);
     try {
+      const startsAt = buildDateTime(date, time);
+      const endsAt = endTimeEdited.current ? endTime ? buildDateTime(date, endTime) : undefined : new Date(new Date(startsAt).getTime() + duration.current * 60_000).toISOString();
+      if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) { setError("The meeting end time must be after its start time."); return; }
       await apiFetch("/api/meetings", {
         method: "POST",
         body: JSON.stringify({
           title: title.trim(),
           type,
-          startTime: buildDateTime(date, time),
-          endTime: endTime ? buildDateTime(date, endTime) : undefined,
+          startTime: startsAt,
+          endTime: endsAt,
           locationType,
           location: location.trim() || undefined,
           meetingUrl: meetingUrl.trim() || undefined,
@@ -118,6 +140,7 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          {defaultsWarning && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{defaultsWarning}</p>}
           {/* Error banner */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">{error}</div>
@@ -132,9 +155,10 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Title <span className="text-red-500">*</span></label>
+            <label htmlFor="meeting-title" className="block text-sm font-medium text-gray-700 mb-1">Meeting Title <span className="text-red-500">*</span></label>
             <input
               type="text"
+              id="meeting-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Lunch with John Smith"
@@ -145,8 +169,9 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
 
           {/* Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Type</label>
+            <label htmlFor="meeting-type" className="block text-sm font-medium text-gray-700 mb-1">Meeting Type</label>
             <select
+              id="meeting-type"
               value={type}
               onChange={(e) => setType(e.target.value)}
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -160,29 +185,32 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
           {/* Date and times */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
+              <label htmlFor="meeting-date" className="block text-sm font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
               <input
                 type="date"
+                id="meeting-date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+              <label htmlFor="meeting-start-time" className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
               <input
                 type="time"
+                id="meeting-start-time"
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
+                onChange={(e) => { setTime(e.target.value); if (!endTimeEdited.current) setEndTime(suggestedEnd(e.target.value, duration.current)); }}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+              <label htmlFor="meeting-end-time" className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
               <input
                 type="time"
+                id="meeting-end-time"
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                onChange={(e) => { endTimeEdited.current = true; setEndTime(e.target.value); }}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
               />
             </div>
@@ -264,7 +292,6 @@ export default function ScheduleMeetingModal({ onClose, onCreated, constituentId
             </button>
             <button
               type="submit"
-              onClick={handleSubmit}
               disabled={saving}
               className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
             >
