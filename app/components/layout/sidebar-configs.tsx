@@ -206,6 +206,22 @@ export function buildDonorSidebarGroups({ qbEnabled }: DonorSidebarOptions): Crm
           description: "Create and manage campaigns across email, letters, webpages, SMS, and social channels.",
         },
         {
+          id: "oyama-letters",
+          label: "OyamaLetters",
+          href: "/oyama-letters",
+          icon: DONOR_ICONS.letters,
+          kind: "communication_tool" as const,
+          description: "Open the standalone letter workspace while oyamaCreate is being completed.",
+        },
+        {
+          id: "oyama-email",
+          label: "OyamaEmail",
+          href: "/oyama-email",
+          icon: DONOR_ICONS.communications,
+          kind: "communication_tool" as const,
+          description: "Open the standalone email workspace while oyamaCreate is being completed.",
+        },
+        {
           id: "qr-codes",
           label: "QR Codes",
           href: "/qr-codes",
@@ -307,7 +323,7 @@ export function buildDonorDailyNavigation(options: DonorSidebarOptions): CrmSide
       id: "daily", label: "Donor CRM", collapsible: false, defaultOpen: true,
       items: [
         ...take(["dashboard", "constituents", "donations", "campaigns", "events", "tasks", "reports"]).map(item => ({ ...item, label: item.id === "dashboard" ? "Home" : item.id === "constituents" ? "Contacts" : item.label })),
-        ...take(["oyama-create"]),
+        ...take(["oyama-create", "oyama-letters", "oyama-email"]),
       ],
     },
     {

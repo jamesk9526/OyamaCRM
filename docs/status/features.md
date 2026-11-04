@@ -1,3 +1,7 @@
+## PWA version 2.0 — 2026-11-04
+
+The service-worker cache namespace is now `oyamacrm-v2.0.0`, matching the existing 2.0.0 package and v2.0 install identity. After deployment, the updated worker rebuilds its offline shell and removes the previous caches on activation. Registration, routes, icons and offline behavior are unchanged.
+
 ## CRM completeness and reliability audit — 2026-11-04
 
 Meeting defaults now persist per organization and drive scheduling, timeline entries and optional assigned follow-up tasks. Lifecycle actions validate related records, retain outcomes on failed requests, prevent duplicate follow-ups and keep completed meetings visible in the Follow-Up queue. Grant writes validate dates, amounts and organization staff assignments before persistence.
@@ -1602,3 +1606,6 @@ Studio's letter canvas now fits its available width by default and offers manual
 Studio follows the approved Word-style mockup with a focused writing view, Home/Insert/Layout/Review ribbon, generated block icons, patterns, live outline, asset thumbnails, contextual movement, image captions/resizing, column dividers and page thumbnails. Letter and Email are directly editable with protected customizations. Recoverable Trash covers campaigns, templates and library items with reviewed removal, original-ID restore and audit history.
 
 98 focused tests, production-browser editing/Trash checks, types, lint, schema and builds pass. Seven MySQL migration/contention tests need a disposable database. Apply the additive Trash migration before deployment. [Evidence and rollout limits](audit-artifacts/2026-11-04-create-word-studio/verification.md).
+## Standalone communications navigation restored — 2026-11-04
+
+OyamaLetters and OyamaEmail are available directly beside oyamaCreate in the shared desktop/mobile donor navigation and the Apps launcher while Create is being completed. Both links use their existing standalone routes. Navigation tests (14), targeted ESLint and web type checking pass. Desktop/mobile screenshots and verification limits: [evidence](audit-artifacts/2026-11-04-communications-navigation/verification.md).

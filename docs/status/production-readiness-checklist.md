@@ -1,3 +1,9 @@
+## PWA version 2.0 — 2026-11-04
+
+- [x] Service-worker cache namespace updated to `oyamacrm-v2.0.0`; package and install identity already identify v2.0.
+- [x] Isolated service-worker lifecycle verification covers v2 shell precaching, immediate activation, previous-cache cleanup and client claiming; JavaScript syntax check passes.
+- [ ] Deploy and confirm an existing installed PWA receives the updated worker. No deployment or installed-device visual verification was performed for this version-only change.
+
 ## CRM reliability audit gate — 2026-11-04
 
 - [x] Tenant-scoped organization settings, SMTP credential masking/preservation, validated grant inputs and organization staff assignments.
@@ -1400,3 +1406,8 @@ The earlier Studio canvas slice is superseded by the 2026-11-04 word processor, 
 - [ ] Apply Trash migration and deploy API/web together through reviewed organization rollout.
 
 [Evidence and limits](audit-artifacts/2026-11-04-create-word-studio/verification.md).
+## Standalone communications navigation — 2026-11-04
+
+- [x] Restore Letters and Email alongside Create in desktop/mobile donor navigation and Apps.
+- [x] Focused navigation suite: 14 passing tests; targeted lint and web type checking pass. Inspect desktop/mobile screenshots with synthetic browser responses.
+- [ ] Repeat authenticated destination click-through in the deployment environment; local synthetic browser navigation timed out. See [evidence](audit-artifacts/2026-11-04-communications-navigation/verification.md).

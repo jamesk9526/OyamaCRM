@@ -15,7 +15,7 @@ import {
 describe("Daily Donor navigation", () => {
   it("makes core workflows direct and preserves every specialist destination", () => {
     const groups = buildDonorDailyNavigation({ qbEnabled: true });
-    expect(groups[0].items.map((item) => item.href)).toEqual(["/", "/constituents", "/donations", "/oyama-create/fundraising", "/events", "/tasks", "/reports", "/oyama-create"]);
+    expect(groups[0].items.map((item) => item.href)).toEqual(["/", "/constituents", "/donations", "/oyama-create/fundraising", "/events", "/tasks", "/reports", "/oyama-create", "/oyama-letters", "/oyama-email"]);
     const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
     for (const item of buildDonorSidebarGroups({ qbEnabled: true }).flatMap((group) => group.items)) {
       expect(hrefs).toContain(item.href);
@@ -81,7 +81,7 @@ describe("Donor sidebar organization", () => {
     expect(stewardPathsIndex).toBeLessThan(eventsIndex);
   });
 
-  it("makes Create the canonical communications entry and keeps LiveCom available", () => {
+  it("keeps standalone Letters and Email alongside Create during the transition", () => {
     const groups = buildDonorSidebarGroups({ qbEnabled: false });
     const communicationTools = groups.find((group) => group.id === "engagement");
 
@@ -92,7 +92,7 @@ describe("Donor sidebar organization", () => {
     expect(create?.href).toBe("/oyama-create");
     expect(create?.kind).toBe("communication_tool");
     expect(create?.description).toContain("letters");
-    expect(communicationTools?.items.some(item => item.id === "oyama-letters")).toBe(false);
+    expect(communicationTools?.items.slice(0, 3).map(item => item.href)).toEqual(["/oyama-create", "/oyama-letters", "/oyama-email"]);
     expect(liveCom?.badge).toBe("New");
   });
 
