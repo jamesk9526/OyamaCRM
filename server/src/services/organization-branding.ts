@@ -89,6 +89,7 @@ function formatAddress(config: BrandingConfig): string {
 export async function loadOrganizationBrandingContext(
   organizationId: string,
   fallbackOrganizationName = "",
+  identityOverride?: Record<string, unknown>,
 ): Promise<OrganizationBrandingContext> {
   const setting = await prisma.pluginSetting.findUnique({
     where: {
@@ -100,7 +101,7 @@ export async function loadOrganizationBrandingContext(
     select: { config: true },
   });
 
-  const config = asObject(setting?.config);
+  const config = identityOverride || asObject(setting?.config);
   const organizationName =
     asText(config.organizationDisplayName)
     || asText(config.legalOrganizationName)

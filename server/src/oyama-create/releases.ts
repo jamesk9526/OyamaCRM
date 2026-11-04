@@ -1,4 +1,6 @@
 import { Router } from "express";
+import type { Request } from "express";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { CreateCampaign, CreateContent, CreateVariant } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { json, buildProductionSnapshot, productionEnabled } from "../services/letter-production.js";
@@ -12,15 +14,18 @@ import { collectMergeFieldKeys } from "../services/letters-merge.js";
 import { route, param } from "./http.js";
 import { resolvePlan } from "./audiences.js";
 import { adaptationIssues, emailRecordSharing, fingerprint, nativeRecord } from "./legacy.js";
-import { CreateError, documentFrom, object, publicCopySafe, renderShared, variantFrom, type Channel, type DeliveryMode, type SharedDocument, type VariantDocument } from "./domain.js";
+import { CreateError, documentFrom, object, publicCopySafe, renderShared, variantFrom, type Channel, type DeliveryMode, type SharedDocument, type VariantDocument, type AudiencePlan } from "./domain.js";
 import { metaAccount } from "./providers.js";
+import { compactStudioAssets } from "./studio/frozen-assets.js";
+import { prepareStudioRelease, freezeStudioRecipient, type FrozenStudio } from "./studio/release.js";
 const router = Router();
 export type FrozenVariant = { channel: Channel; revision: number; format: VariantDocument; html: string; text: string; nativeFingerprint: string | null; sourceSharing?: { ownerId: string | null; sharedWithOrganization: boolean }; email?: { name: string; subject: string; purpose: string; previewText: string | null; fromName: string; fromEmail: string; replyToEmail: string | null; bodyHtml: string | null; bodyText: string | null; templateJson: string | null }; letterBase?: LetterSnapshot };
-export type FrozenContent = { id: string; name: string; revision: number; scheduledAt: string; document: SharedDocument; variants: FrozenVariant[] };
-export type ReleaseSnapshot = { version: 1; campaign: { id: string; name: string; objective: string; revision: number; fundraisingCampaignId: string | null; eventId: string | null }; contents: FrozenContent[]; audience: { total: number; overlap: number; excluded: number; counts: Record<string, number> } };
+export type FrozenContent = { id: string; name: string; revision: number; scheduledAt: string; document: SharedDocument; variants: FrozenVariant[]; studio?: FrozenStudio };
+export type ReleaseSnapshot = { assetBundle?:Record<string,string>; version: 1; campaign: { id: string; name: string; objective: string; revision: number; fundraisingCampaignId: string | null; eventId: string | null }; contents: FrozenContent[]; audience: { total: number; overlap: number; excluded: number; counts: Record<string, number> } };
 
-export async function readiness(campaign: CreateCampaign, contents: Array<CreateContent & { variants: CreateVariant[] }>, actor: string, freeze = false) {
-  const org = campaign.organizationId, channels = campaign.channelsJson as Channel[];
+export async function readiness(campaign: CreateCampaign, contents: Array<CreateContent & { variants: CreateVariant[] }>, actor: string, freeze = false, request?: Request) {
+  const org = campaign.organizationId, channels = (campaign.channelsJson as Channel[]).filter(channel=>contents.some(content=>content.variants.some(variant=>variant.channel===channel&&variantFrom(variant.documentJson).enabled!==false)));
+  const contentPlans:Record<string,AudiencePlan>={};
   const issues: Array<{ channel: string; message: string }> = []; const frozen: FrozenContent[] = [];
   if (campaign.isTemplate) issues.push({ channel: "ALL", message: "Use this template to create a campaign before approval." });
   if (campaign.status === "HISTORICAL") issues.push({ channel: "ALL", message: "Historical content is read-only. Duplicate it into a new campaign." });
@@ -33,9 +38,16 @@ export async function readiness(campaign: CreateCampaign, contents: Array<Create
   if (channels.includes("SMS") && !connections.some(row => row.provider === "AZURE_SMS" && row.readyAt)) issues.push({ channel: "SMS", message: "Verify the Azure SMS sender and Event Grid connection in Settings." });
   if (channels.includes("SOCIAL") && !connections.some(row => row.provider === "META" && row.readyAt)) issues.push({ channel: "SOCIAL", message: "Verify a Meta connection with publishing permissions in Settings." });
   for (const content of contents) {
+    const pieceChannels=channels.filter(channel=>content.variants.some(variant=>variant.channel===channel&&variantFrom(variant.documentJson).enabled!==false));
+    const piecePlan=pieceChannels.length===channels.length?plan:await resolvePlan(org,campaign.audienceListIds as string[],pieceChannels,campaign.deliveryMode as DeliveryMode|null,campaign.objective);contentPlans[content.id]=piecePlan;
+    if(!pieceChannels.length)issues.push({channel:"ALL",message:`${content.name}: include at least one format for this content piece.`});
+    if (content.designJson) {
+      if (!request) throw new CreateError(403, "Studio review requires an authenticated staff request.");
+      const prepared = await prepareStudioRelease(request, campaign, content, piecePlan.recipients); issues.push(...prepared.issues); frozen.push(prepared.item); continue;
+    }
     const document = documentFrom(content.documentJson);
     const item: FrozenContent = { id: content.id, name: content.name, revision: content.revision, document, scheduledAt: (content.scheduledAt || campaign.startsAt || new Date()).toISOString(), variants: [] };
-    for (const channel of channels) {
+    for (const channel of pieceChannels) {
       const variant = content.variants.find(row => row.channel === channel);
       if (!variant) { issues.push({ channel, message: `${content.name}: create this format.` }); continue; }
       const format = variantFrom(variant.documentJson); const native = await nativeRecord(org, variant).catch(error => { issues.push({ channel, message: error.message }); return null; });
@@ -48,7 +60,7 @@ export async function readiness(campaign: CreateCampaign, contents: Array<Create
         if (native?.kind !== "EMAIL") issues.push({ channel, message: `${content.name}: open the email layout editor and review its sender/compliance settings.` });
         else {
           if (native.record.status !== "DRAFT" || native.record.sentAt || native.record.totalRecipients) issues.push({ channel, message: `${content.name}: duplicate this historical email before using it in a new release.` });
-          const emailRecipients = plan.recipients.filter(row => row.channel === "EMAIL").map(row => row.key);
+          const emailRecipients = piecePlan.recipients.filter(row => row.channel === "EMAIL").map(row => row.key);
           const validation = await validateCampaignSendReadiness({ campaign: native.record, sendOptions: { sendMode: "LIST", recipientEmails: emailRecipients } });
           for (const check of validation.checks.filter(check => check.blocking && !check.passed && (emailRecipients.length > 0 || check.key !== "audience"))) issues.push({ channel, message: `${content.name}: ${check.detail}` });
           const { name, subject, purpose, previewText, fromName, fromEmail, replyToEmail, bodyHtml, bodyText, templateJson } = native.record;
@@ -82,12 +94,14 @@ export async function readiness(campaign: CreateCampaign, contents: Array<Create
     }
     frozen.push(item);
   }
-  return { issues, plan, frozen };
+  const totals:Record<string,number>={EMAIL:0,LETTER:0,SMS:0};for(const piece of Object.values(contentPlans))for(const [channel,count] of Object.entries(piece.counts))totals[channel]=(totals[channel]||0)+count;
+  for(const content of frozen)for(const variant of content.variants)if(variant.format.requiresLandingPage&&frozen.filter(piece=>piece.variants.some(format=>format.channel==="WEB")).length!==1)issues.push({channel:variant.channel,message:"A dependent message requires exactly one selected landing page in this release."});
+  return { issues, plan:{...plan,counts:totals}, frozen, contentPlans };
 }
 router.get("/campaigns/:id/readiness", route(async (req, res, org, actor) => {
   const campaign = await assertCampaign(req, param(req));
   const contents = await prisma.createContent.findMany({ where: { organizationId: org, campaignId: campaign.id }, include: { variants: true } });
-  const { issues, plan, frozen } = await readiness(campaign, contents, actor);
+  const { issues, plan, frozen } = await readiness(campaign, contents, actor, false, req);
   const summary = { total: plan.total, overlap: plan.overlap, excluded: plan.excluded, missingEmail: plan.missingEmail, missingPostal: plan.missingPostal, missingSmsConsent: plan.missingSmsConsent, counts: plan.counts };
   const schedules = frozen.flatMap(content => content.variants.map(variant => ({ contentId: content.id, contentName: content.name, channel: variant.channel, scheduledAt: variant.format.scheduledAt || content.scheduledAt })));
   res.json({ campaignRevision: campaign.revision, ready: !issues.length, issues, eligibility: summary, schedules });
@@ -101,14 +115,20 @@ router.post("/campaigns/:id/approve", route(async (req, res, org, actor) => {
     const native = letterVariant ? await nativeRecord(org, letterVariant) : null;
     if (native?.kind === "LETTER" && collectMergeFieldKeys(native.record.printBody, native.record.printSubject).some(field => /^(gift\.|year|donor\.(?:total|lifetime)|total)/i.test(field))) await demand(req, "letters.view_sensitive_merge_data");
   }
-  const prepared = await readiness(campaign, contents, actor, true);
+  const prepared = await readiness(campaign, contents, actor, true, req);
   if (prepared.issues.length) { res.status(422).json({ error: { message: "Resolve readiness issues before approval." }, issues: prepared.issues }); return; }
   const snapshot: ReleaseSnapshot = { version: 1, campaign: { id: campaign.id, name: campaign.name, objective: campaign.objective, revision: campaign.revision, fundraisingCampaignId: campaign.fundraisingCampaignId, eventId: campaign.eventId }, contents: prepared.frozen, audience: { total: prepared.plan.total, overlap: prepared.plan.overlap, excluded: prepared.plan.excluded, counts: prepared.plan.counts } };
   const jobs: Array<{ contentId: string; channel: Channel; recipientKey: string; scheduledAt: Date; payloadJson: ReturnType<typeof json> }> = [];
+  const releaseId = randomUUID(), responses: Array<{organizationId:string;code:string;lookupKey:string;releaseId:string;contentId:string;constituentId:string|null;channel:string;payloadJson:ReturnType<typeof json>}> = [];
   for (const content of contents) {
     const frozen = prepared.frozen.find(item => item.id === content.id)!;
     const scheduledAt = (channel: Channel) => new Date(frozen.variants.find(variant => variant.channel === channel)?.format.scheduledAt || frozen.scheduledAt);
-    for (const recipient of prepared.plan.recipients) {
+    for (const recipient of prepared.contentPlans[content.id].recipients) {
+      if (frozen.studio) {
+        const code = randomBytes(18).toString("base64url"), resolved = await freezeStudioRecipient(req, campaign, frozen, recipient, code);
+        responses.push({ organizationId: org, code, lookupKey: fingerprint([org,campaign.id,campaign.revision,content.id,recipient.channel,recipient.key]), releaseId, contentId:content.id, constituentId:recipient.member.constituentId, channel:recipient.channel, payloadJson:json({ givingUrl:frozen.studio.design.data.givingUrl, frequency:frozen.studio.design.data.frequency, designation:frozen.studio.design.data.designation, financialCampaignId:campaign.fundraisingCampaignId }) });
+        jobs.push({contentId:content.id,channel:recipient.channel,recipientKey:recipient.key,scheduledAt:scheduledAt(recipient.channel),payloadJson:json({member:recipient.member,studio:resolved})});continue;
+      }
       let letter: Partial<LetterSnapshot> | null = null;
       if (recipient.channel === "LETTER") {
         const variant = content.variants.find(row => row.channel === "LETTER")!; const native = await nativeRecord(org, variant);
@@ -119,8 +139,9 @@ router.post("/campaigns/:id/approve", route(async (req, res, org, actor) => {
       }
       jobs.push({ contentId: content.id, channel: recipient.channel, recipientKey: recipient.key, scheduledAt: scheduledAt(recipient.channel), payloadJson: json({ member: recipient.member, letter }) });
     }
-    for (const channel of campaign.channelsJson as Channel[]) if (["WEB", "SOCIAL"].includes(channel)) jobs.push({ contentId: content.id, channel, recipientKey: channel === "WEB" ? content.id : `${frozen.variants.find(row => row.channel === "SOCIAL")!.format.network}:${frozen.variants.find(row => row.channel === "SOCIAL")!.format.accountId}`, scheduledAt: scheduledAt(channel), payloadJson: json({}) });
+    for (const channel of campaign.channelsJson as Channel[]) if (["WEB", "SOCIAL"].includes(channel) && frozen.variants.some(variant=>variant.channel===channel)) jobs.push({ contentId: content.id, channel, recipientKey: channel === "WEB" ? content.id : `${frozen.variants.find(row => row.channel === "SOCIAL")!.format.network}:${frozen.variants.find(row => row.channel === "SOCIAL")!.format.accountId}`, scheduledAt: scheduledAt(channel), payloadJson: json({}) });
   }
+  snapshot.assetBundle=compactStudioAssets(jobs);
   if (jobs.length > 15000 || JSON.stringify([snapshot, jobs]).length > 20000000) throw new CreateError(422, "This frozen release is too large. Split the campaign audience or content into smaller releases.");
   const digest = fingerprint([snapshot, jobs]);
   const release = await prisma.$transaction(async tx => {
@@ -132,7 +153,8 @@ router.post("/campaigns/:id/approve", route(async (req, res, org, actor) => {
     }
     const existing = await tx.createRelease.findUnique({ where: { campaignId_campaignRevision: { campaignId: campaign.id, campaignRevision: campaign.revision } } });
     if (existing) return existing;
-    const created = await tx.createRelease.create({ data: { organizationId: org, campaignId: campaign.id, campaignRevision: campaign.revision, fingerprint: digest, snapshotJson: json(snapshot), approvedBy: actor } });
+    const created = await tx.createRelease.create({ data: { id: releaseId, organizationId: org, campaignId: campaign.id, campaignRevision: campaign.revision, fingerprint: digest, snapshotJson: json(snapshot), approvedBy: actor } });
+    if(responses.length)await tx.createResponseCode.createMany({data:responses});
     await tx.createDelivery.createMany({ data: jobs.map(job => ({ ...job, organizationId: org, releaseId: created.id, deliveryKey: fingerprint([org, created.id, job.contentId, job.channel, job.recipientKey]) })) });
     return created;
   }, { timeout: 60000 });

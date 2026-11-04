@@ -14,6 +14,7 @@ import path from "node:path";
 import { logAudit } from "../lib/audit.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { hasDefaultPermission } from "../lib/permissions.js";
+import { legacyBrandGuard } from "../oyama-create/studio/legacy-brand-guard.js";
 import { prisma } from "../lib/prisma.js";
 import { isSchemaDriftError, migrationRequiredMessage } from "../lib/prisma-runtime-errors.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -44,6 +45,7 @@ import {
 
 import productionRoutes from "./letter-production.js";
 import deletionRoutes from "./letter-deletion.js";
+import {studioGeneratedGuard,maskStudioGenerated} from "../oyama-create/studio/print-access.js";
 import { readArtifact, combineArtifacts, ProductionError } from "../services/letter-production.js";
 
 const router = Router();
@@ -337,6 +339,8 @@ router.get("/media/:organizationId/:fileName", (req, res) => {
 });
 
 router.use(requireAuth);
+router.use("/generated",studioGeneratedGuard);
+router.use(["/header-presets", "/footer-presets", "/signatures"], legacyBrandGuard);
 router.use("/production", productionRoutes);
 router.use(deletionRoutes);
 
@@ -5221,7 +5225,7 @@ router.get("/generated", requirePermission("letters.view"), async (req, res) => 
     skip: offset,
   });
 
-  res.json(rows);
+  res.json(maskStudioGenerated(rows,await hasPermission(req,"letters.view_sensitive_merge_data")));
 });
 
 /** GET /api/letters/constituents/:id/generated — Lists one donor's generated letters. */
@@ -5245,7 +5249,7 @@ router.get("/constituents/:id/generated", requirePermission("letters.view"), asy
     take: 100,
   });
 
-  res.json(rows);
+  res.json(maskStudioGenerated(rows,await hasPermission(req,"letters.view_sensitive_merge_data")));
 });
 
 /** POST /api/letters/generated/preview — Merges one template with selected donor/gift context without saving. */
@@ -6315,7 +6319,7 @@ router.get("/generated/queue/print", requirePermission("letters.view"), async (r
     };
   }).filter((row) => (filterStatus ? row.queueStatus === filterStatus : true));
 
-  res.json(mapped);
+  res.json(maskStudioGenerated(mapped,await hasPermission(req,"letters.view_sensitive_merge_data")));
 });
 
 /** GET /api/letters/generated/queue/mail — Lists mail queue records with address readiness checks. */
@@ -6374,7 +6378,7 @@ router.get("/generated/queue/mail", requirePermission("letters.view"), async (re
     };
   }).filter((row) => (filterStatus ? row.queueStatus === filterStatus : true));
 
-  res.json(mapped);
+  res.json(maskStudioGenerated(mapped,await hasPermission(req,"letters.view_sensitive_merge_data")));
 });
 
 /** POST /api/letters/generated/queue/print/actions — Applies one bulk print-queue action to selected letters. */

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Public output retains the reviewed uploaded organization logo. */
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Heart, LockKeyhole, RotateCcw, ShieldCheck } from "lucide-react";
@@ -7,6 +8,7 @@ import type { DonationWidgetSettings, SiteEmbedAppearanceSettings } from "@/app/
 interface HostedGivingPayload {
   siteName: string;
   organizationName: string;
+  organizationLogoUrl?:string;
   publicSiteId: string;
   appearance: SiteEmbedAppearanceSettings;
   form: DonationWidgetSettings;
@@ -77,10 +79,15 @@ export default function HostedGivingPage({ token }: { token: string }) {
         if (!response.ok || !body.data) throw new Error(body.error?.message ?? "This giving page is unavailable.");
         if (!active) return;
         setPayload(body.data);
-        const firstAmount = body.data.form.suggestedAmounts[0] ?? null;
-        setSelectedAmount(firstAmount);
-        setGiftType(body.data.form.defaultGiftType === "monthly" && body.data.form.enableMonthlyGiving ? "monthly" : "one-time");
-        setDesignation(body.data.form.defaultDesignation || body.data.form.allowedDesignations[0] || "General Fund");
+        const form = body.data.form, query = new URLSearchParams(window.location.search);
+        const requestedAmount = Number(query.get("amount")), cents = Math.round(requestedAmount * 100);
+        const allowedAmount = Number.isFinite(requestedAmount) && requestedAmount > 0 && cents >= form.minimumAmountCents && cents <= form.maximumAmountCents && (form.allowCustomAmount || form.suggestedAmounts.some(value => Math.round(value * 100) === cents));
+        if (allowedAmount && !form.suggestedAmounts.includes(requestedAmount)) { setCustomAmount((cents / 100).toFixed(2)); setSelectedAmount(null); }
+        else setSelectedAmount(allowedAmount ? requestedAmount : form.suggestedAmounts[0] ?? null);
+        const requestedType = query.get("giftType") || form.defaultGiftType;
+        setGiftType(requestedType === "monthly" && form.enableMonthlyGiving ? "monthly" : "one-time");
+        const requestedDesignation = query.get("designation") || "";
+        setDesignation(form.allowedDesignations.find(value => value.toLowerCase() === requestedDesignation.toLowerCase()) || form.defaultDesignation || form.allowedDesignations[0] || "General Fund");
       })
       .catch((error) => active && setLoadError(error instanceof Error ? error.message : "This giving page is unavailable."))
       .finally(() => active && setLoading(false));
@@ -137,6 +144,7 @@ export default function HostedGivingPage({ token }: { token: string }) {
           token,
           surface: "hosted",
           createPublicationId: new URLSearchParams(window.location.search).get("createPublication") || undefined,
+          createResponse: new URLSearchParams(window.location.search).get("createResponse") || undefined,
           amount,
           giftType,
           designation,
@@ -187,7 +195,7 @@ export default function HostedGivingPage({ token }: { token: string }) {
         <aside className="relative flex flex-col justify-between gap-10 overflow-hidden bg-slate-950 p-6 text-white sm:p-9 lg:min-h-[720px] lg:p-11">
           <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full opacity-20 blur-3xl" style={{ backgroundColor: accent }} />
           <div>
-            <div className="relative inline-flex size-12 items-center justify-center rounded-2xl ring-1 ring-white/10" style={{ backgroundColor: `${accent}33`, color: accent }}><Heart className="size-6" fill="currentColor" /></div>
+            {payload.organizationLogoUrl?<img src={payload.organizationLogoUrl} alt={payload.organizationName} className="relative max-h-20 max-w-52 rounded bg-white p-2 object-contain"/>:<div className="relative inline-flex size-12 items-center justify-center rounded-2xl ring-1 ring-white/10" style={{ backgroundColor: `${accent}33`, color: accent }}><Heart className="size-6" fill="currentColor" /></div>}
             <p className="mt-9 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{payload.form.hostedPageEyebrow}</p>
             <h1 className="mt-4 max-w-xl text-3xl font-semibold leading-[1.08] tracking-tight sm:text-4xl lg:text-[2.75rem]">{payload.form.headline}</h1>
             <p className="mt-5 max-w-md text-sm leading-7 text-slate-300 sm:text-base">{payload.form.supportingCopy}</p>

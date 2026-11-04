@@ -4246,7 +4246,7 @@ function SettingsView() {
         <p className="mt-2 text-sm text-slate-600">Manage sender details, SMTP setup, and organization-level communications defaults.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <WorkspaceAction href="/settings/organization">Sender & SMTP settings</WorkspaceAction>
-          <WorkspaceAction href="/settings/branding">Open Branding</WorkspaceAction>
+          <WorkspaceAction href="/oyama-create/library/brand">Open Branding</WorkspaceAction>
         </div>
       </article>
 

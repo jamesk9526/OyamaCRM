@@ -11,7 +11,7 @@ const PRIMARY_ACTIONS = [
 ] as const;
 
 const GROUPS = [
-  { title: "Personalize", description: "Control how OyamaCRM looks for you and your team.", icon: Sparkles, links: [["My appearance", "/settings/appearance"], ["Dashboard appearance", "/settings/dashboard-appearance"], ["Branding", "/settings/branding"]] },
+  { title: "Personalize", description: "Control how OyamaCRM looks for you and your team.", icon: Sparkles, links: [["My appearance", "/settings/appearance"], ["Dashboard appearance", "/settings/dashboard-appearance"], ["Branding", "/oyama-create/library/brand"]] },
   { title: "Configure workspaces", description: "Choose the modules and tools your organization uses.", icon: Wrench, links: [["CRM modules", "/settings/modules"], ["Events CRM", "/settings/events"], ["AI assistant", "/settings/ai"], ["Site embeds", "/settings/site-embeds"]] },
   { title: "Protect your data", description: "Review access controls and move organizational data safely.", icon: ShieldCheck, links: [["Security & audit", "/settings/security"], ["Roles & scopes", "/settings/roles"], ["Import & export", "/settings/import-export"]] },
 ] as const;

@@ -872,7 +872,7 @@ const OYAMA_LETTERS_CONFIG: CrmRibbonPageConfig = {
             { id: "letters-header", label: "Header", href: "/oyama-letters/settings" },
             { id: "letters-footer", label: "Footer", href: "/oyama-letters/settings" },
             { id: "letters-margins", label: "Margins", disabledReason: "Open a template builder to edit margins." },
-            { id: "letters-brand-styles", label: "Brand Styles", href: "/settings/branding" },
+            { id: "letters-brand-styles", label: "Brand Styles", href: "/oyama-create/library/brand" },
           ],
         },
       ],

@@ -16,6 +16,7 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     await connection.query("CREATE TABLE OrganizationSettings (id VARCHAR(191) PRIMARY KEY, organizationId VARCHAR(191) NOT NULL UNIQUE)");
     const migration = await readFile("prisma/migrations/20261103140000_oyama_create/migration.sql", "utf8");
     await connection.query(migration);
+    await connection.query(await readFile("prisma/migrations/20261103200000_create_studio/migration.sql", "utf8"));
     second = await mysql.createConnection(url!);
     await connection.execute("INSERT INTO CreateCampaign (id, organizationId, name, ownerId, audienceListIds, channelsJson, updatedAt) VALUES (?, 'synthetic', 'Synthetic concurrency test', 'synthetic', '[]', '[\"EMAIL\"]', NOW(3))", [prefix]);
   });
@@ -38,5 +39,21 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     const sql = "UPDATE CreateDelivery SET status='SENDING', attempts=attempts+1 WHERE id=? AND status='PENDING'";
     const results = await Promise.all([connection.execute(sql, [prefix]), second.execute(sql, [prefix])]);
     expect(results.map(([result]) => (result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0, 1]);
+  });
+  it("keeps Studio and Brand Hub defaults disabled", async () => {
+    const [rows]=await connection.execute("SELECT oyamaCreateStudioEnabled,oyamaCreateBrandHubEnabled FROM OrganizationSettings WHERE id=?",[prefix]);
+    expect((rows as Array<{oyamaCreateStudioEnabled:number;oyamaCreateBrandHubEnabled:number}>)[0]).toMatchObject({oyamaCreateStudioEnabled:0,oyamaCreateBrandHubEnabled:0});
+  });
+  it("allows one immutable brand revision and one draft-save winner", async()=>{
+    const insert="INSERT INTO CreateBrandRevision (id,organizationId,revision,documentJson,publishedBy) VALUES (?,'synthetic',1,'{}','synthetic')";
+    const outcome=await Promise.allSettled([connection.execute(insert,[`${prefix}-brand-1`]),second.execute(insert,[`${prefix}-brand-2`])]);expect(outcome.filter(item=>item.status==="fulfilled")).toHaveLength(1);
+    await connection.execute("INSERT INTO CreateBrandDraft (id,organizationId,revision,documentJson,updatedBy,updatedAt) VALUES (?,'synthetic',1,'{}','synthetic',NOW(3))",[`${prefix}-draft`]);
+    const update="UPDATE CreateBrandDraft SET revision=revision+1 WHERE organizationId='synthetic' AND revision=1";const winners=await Promise.all([connection.execute(update),second.execute(update)]);expect(winners.map(([result])=>(result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0,1]);
+  });
+  it("enforces response lookup and appeal-piece uniqueness",async()=>{
+    const insert="INSERT INTO CreateResponseCode (id,organizationId,code,lookupKey,releaseId,contentId,channel,payloadJson) VALUES (?,'synthetic',?,?,?,'content','LETTER','{}')";
+    await connection.execute(insert,[`${prefix}-response`,`${prefix}-code`,`${prefix}-lookup`,prefix]);await expect(second.execute(insert,[`${prefix}-response-2`,`${prefix}-code-2`,`${prefix}-lookup`,prefix])).rejects.toThrow();
+    const piece="INSERT INTO CreatePrintArtifact (id,organizationId,deliveryId,kind,snapshotJson,updatedAt) VALUES (?,'synthetic',?,'LETTER','{}',NOW(3))";
+    await connection.execute(piece,[`${prefix}-piece`,prefix]);await expect(second.execute(piece,[`${prefix}-piece-2`,prefix])).rejects.toThrow();
   });
 });

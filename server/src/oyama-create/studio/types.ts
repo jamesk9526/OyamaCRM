@@ -1,0 +1,39 @@
+/** Shared, browser-safe Studio contracts. Automatic pagination never becomes saved content. */
+export type StudioNode = { type: string; text?: string; attrs?: Record<string, unknown>; marks?: Array<{ type: string; attrs?: Record<string, unknown> }>; content?: StudioNode[] };
+export type StudioDoc = StudioNode & { type: "doc"; content: StudioNode[] };
+export type ArtifactKind = "LETTER" | "REPLY_SLIP" | "OUTER_ENVELOPE" | "RETURN_ENVELOPE";
+export type StudioPage = { paper: "LETTER" | "A4" | "LEGAL"; orientation: "portrait" | "landscape"; margins: { top: number; right: number; bottom: number; left: number }; headerHeight: number; footerHeight: number };
+export type StudioStyles = { font: "Inter" | "Noto Serif"; emailFont: string; fontSize: number; lineHeight: number; color: string; primary: string; accent: string; background: string; paragraphSpacing: number };
+export type StudioRegion = { mode: "brand" | "custom" | "none"; presetId: string; content: StudioDoc };
+export type StudioEnvelope = { enabled: boolean; size: "#10" | "#9" | "DL"; window: boolean; addressX: number; addressY: number; addressWidth: number; offsetX: number; offsetY: number };
+export type StudioDesign = {
+  version: 2;
+  body: StudioDoc;
+  page: StudioPage;
+  styles: StudioStyles;
+  brandRevisionId: string | null;
+  profileId: string;
+  regions: { firstHeader: StudioRegion; header: StudioRegion; firstFooter: StudioRegion; footer: StudioRegion };
+  pack: { replySlip: { enabled: boolean; placement: "attached" | "separate"; content: StudioDoc }; outerEnvelope: StudioEnvelope; returnEnvelope: StudioEnvelope };
+  data: { period: "calendar" | "fiscal" | "custom"; year: number; from: string; to: string; giftPolicy: "latest-completed" | "selected"; giftSelections: Record<string, string>; givingUrl: string; frequency: "one-time" | "monthly"; designation: string };
+  email: { overrides: Record<string, StudioNode>; subject: string; previewText: string; reviewedSource: string | null };
+};
+export type BrandProfile = { id: string; name: string; channel: "LETTER" | "EMAIL" | "WEB" | "GIVING" | "EVENT" | "WIDGET"; resourceId: string; values: Record<string, string | number | boolean> };
+export type BrandSigner = { id: string; name: string; signerName: string; signerTitle: string; closingPhrase: string; signatureImageUrl: string; typedSignature: string; email: string; phone: string; active: boolean };
+export type BrandPreset = { id: string; name: string; kind: "header" | "footer"; content: StudioDoc; legacyHtml?: string; active: boolean; isDefault: boolean };
+export type BrandDocument = { version: 1; identity: Record<string, string | number>; profiles: BrandProfile[]; signers: BrandSigner[]; presets: BrandPreset[]; defaultSignerId: string | null };
+export type StudioIssue = { code: string; message: string; nodeId?: string; blocking: boolean; channel?: string };
+export type DonorContext = {
+  mergeValues?: Record<string, string>;
+  currency?: string;
+  available: boolean; sensitiveAllowed: boolean; constituentId: string | null; name: string; salutation: string; address: string; entityKind: string;
+  gift: { id: string; amount: number; date: string; fund: string; receiptNumber: string; deductible: number | null } | null;
+  giving: { total: number; count: number; largest: number; lastAmount: number | null; firstDate: string | null; lastDate: string | null; gifts: Array<{ amount: number; date: string; fund: string }> } | null;
+  pledge: { amount: number; paid: number; balance: number; due: string | null } | null;
+  campaign: { id: string; name: string; goal: number|null; raised: number } | null;
+  tags: string[]; recurring: boolean | null; responseCode: string; asOf: string;
+};
+export type StudioRender = { html: string; text: string; subject?:string; issues: StudioIssue[]; adaptations: StudioIssue[]; decisions: Array<{ nodeId: string; rule: string; result: string }> };
+export type FrozenStudioPrint = { sensitive?:boolean; version: 1; kind: ArtifactKind; width: number; height: number; margins: StudioPage["margins"]; styles: StudioStyles; html: string; headers: [string, string]; footers: [string, string]; assets: Record<string, string>; issues: StudioIssue[]; responseCode: string; brandRevisionId: string | null };
+export const EMPTY_DOC = (): StudioDoc => ({ type: "doc", content: [] });
+export const STUDIO_NODE_TYPES = ["doc", "paragraph", "heading", "text", "hardBreak", "bulletList", "orderedList", "listItem", "blockquote", "horizontalRule", "image", "table", "tableRow", "tableCell", "tableHeader", "studioSignature", "studioAsk", "studioGiving", "studioHistory", "studioReceipt", "studioPledge", "studioProgress", "studioAddress", "studioSalutation", "studioField", "studioQr", "studioResponse", "studioCondition", "studioGroup", "studioColumns", "studioColumn", "studioCallout", "studioImpact", "letterPageBreak", "letterSpacer", "studioLegacy"] as const;

@@ -2889,6 +2889,7 @@ export async function sendCampaignNow(
           text: personalizedContent.text,
           html: personalizedContent.html,
           fromNameOverride: campaign.fromName,
+      replyToOverride: campaign.replyToEmail || undefined,
         });
 
         await prisma.emailSendRecipient.updateMany({
@@ -5149,6 +5150,7 @@ router.post("/:id/send-test", async (req, res) => {
       text: personalizedContent.text,
       html: personalizedContent.html,
       fromNameOverride: campaign.fromName,
+      replyToOverride: campaign.replyToEmail || undefined,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Outbound email provider is not ready.";

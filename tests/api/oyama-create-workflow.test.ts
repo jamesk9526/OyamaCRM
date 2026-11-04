@@ -58,6 +58,17 @@ describe("oyamaCreate HTTP boundaries", () => {
   });
 });
 describe("linked drafts and approved releases", () => {
+  it("releases only the formats included for each content piece",async()=>{
+    const {campaign,content}=await setup(["EMAIL","WEB"]);await call("post",`/contents/${content.id}/native/EMAIL`,{campaignRevision:1});
+    const originalWeb=rows.createVariant.find(row=>row.contentId===content.id&&row.channel==="WEB")!;
+    expect((await call("patch",`/contents/${content.id}/variants/WEB`,{document:{...originalWeb.documentJson,enabled:false},revision:originalWeb.revision,campaignRevision:rows.createCampaign[0].revision})).status).toBe(200);
+    const page=await call("post",`/campaigns/${campaign.id}/contents`,{name:"Dedicated public page",document:doc,campaignRevision:rows.createCampaign[0].revision});expect(page.status).toBe(201);
+    const pageEmail=rows.createVariant.find(row=>row.contentId===page.body.id&&row.channel==="EMAIL")!;
+    expect((await call("patch",`/contents/${page.body.id}/variants/EMAIL`,{document:{...pageEmail.documentJson,enabled:false},revision:pageEmail.revision,campaignRevision:rows.createCampaign[0].revision})).status).toBe(200);
+    const review=await call("get",`/campaigns/${campaign.id}/readiness`);expect(review.status,JSON.stringify(review.body)).toBe(200);expect(review.body.eligibility.counts.EMAIL).toBe(1);
+    const approved=await call("post",`/campaigns/${campaign.id}/approve`,{revision:rows.createCampaign[0].revision,confirm:true});expect(approved.status,JSON.stringify(approved.body)).toBe(201);
+    expect(rows.createDelivery.map(row=>`${row.contentId}:${row.channel}`).sort()).toEqual([`${content.id}:EMAIL`,`${page.body.id}:WEB`].sort());
+  });
   it("freezes independent channel dates, renews approval after a date edit, and clears dates on duplication", async () => {
     const { campaign, content } = await setup(["EMAIL", "WEB"]);
     rows.createContent[0].scheduledAt = new Date("2031-06-01T14:00:00.000Z");

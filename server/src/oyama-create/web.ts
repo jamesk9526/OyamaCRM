@@ -7,6 +7,7 @@ import { assertCampaign, demand } from "./access.js";
 import { route, param } from "./http.js";
 import { CreateError, documentFrom, object, publicCopySafe, renderShared, required, string, variantFrom } from "./domain.js";
 import type { FrozenContent, FrozenVariant, ReleaseSnapshot } from "./releases.js";
+import { publicBrandIdentity } from "./studio/brand-service.js";
 export const publicRouter = Router();
 const router = Router();
 export async function publishFrozenPage(org: string, actor: string, snapshot: ReleaseSnapshot, content: FrozenContent, variant: FrozenVariant) {
@@ -35,7 +36,7 @@ publicRouter.get("/pages/:slug", async (req, res, next) => {
     const format = variantFrom(publication.variantJson); const document = documentFrom(publication.documentJson);
     if (!publicCopySafe(document, format)) { res.status(404).json({ error: { message: "This campaign page is unavailable." } }); return; }
     const campaign = await prisma.createCampaign.findFirst({ where: { id: publication.campaignId, organizationId: publication.organizationId }, select: { name: true } });
-    res.set("Cache-Control", "no-store").json({ id: publication.id, name: campaign?.name || "Campaign", document, format, ...renderShared(document, format), publishedAt: publication.publishedAt });
+    res.set("Cache-Control", "no-store").json({ id: publication.id, name: campaign?.name || "Campaign", document, format, ...renderShared(document, format), branding: await publicBrandIdentity(publication.organizationId,"WEB",publication.id), publishedAt: publication.publishedAt });
   } catch (error) { next(error); }
 });
 publicRouter.post("/pages/:slug/submissions", publicLimit, async (req, res, next) => {

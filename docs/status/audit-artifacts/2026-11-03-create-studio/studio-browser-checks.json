@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "checks": [
+    "Real Tiptap typing and server draft save",
+    "Protected email copy survives shared letter edits and requires review",
+    "Every catalog block inserted, saved and reopened; signature inspector, duplication and undo work",
+    "1 pages: typing, rich paste, selection, undo/redo and saved reflow",
+    "2 pages: typing, rich paste, selection, undo/redo and saved reflow",
+    "5 pages: typing, rich paste, selection, undo/redo and saved reflow",
+    "20 pages: typing, rich paste, selection, undo/redo and saved reflow",
+    "Studio fits 1600px viewport",
+    "Studio fits 900px viewport",
+    "Studio fits 390px viewport",
+    "Canonical Brand Hub signatures reachable within Create",
+    "Keyboard focus indicator and measured application text/action contrast"
+  ],
+  "errors": [],
+  "draftWrites": 36
+}

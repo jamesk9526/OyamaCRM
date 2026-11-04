@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type CSSProperties } from "react";
 import type { SharedDocument, VariantDocument } from "./types";
 import { message } from "./types";
 import { effectiveBlocks } from "@/server/src/oyama-create/domain";
 import "./oyama-create.css";
-type PublicPage = { id: string; name: string; document: SharedDocument; format: VariantDocument; publishedAt: string };
+type PublicPage = { id: string; name: string; document: SharedDocument; format: VariantDocument; publishedAt: string; branding?:Record<string,string|number|boolean>|null };
 function PublicImage({ src, alt }: { src: string; alt: string }) {
   // Native images preserve the dimensions of reviewed public campaign assets.
   // eslint-disable-next-line @next/next/no-img-element
@@ -40,9 +40,11 @@ export default function PublicCampaign({ slug }: { slug: string }) {
     if (url.origin === window.location.origin && url.pathname.startsWith("/give/")) url.searchParams.set("createPublication", page.id);
     return url.toString();
   }
-  return <main className="oc-public-page"><article className="oc-public-content">
+  const safeColor=(value:unknown,fallback:string)=>/^#[a-f0-9]{6}$/i.test(String(value))?String(value):fallback;
+  return <main className="oc-public-page" style={{"--oc-blue":safeColor(page?.branding?.primaryColor,"#245ec7"),background:safeColor(page?.branding?.backgroundColor,"#eef4fc"),color:safeColor(page?.branding?.textColor,"#213650"),fontFamily:page?.branding?.emailFontFamily?String(page.branding.emailFontFamily):undefined} as CSSProperties}><article className="oc-public-content">
     {error ? <><h1>Campaign page unavailable</h1><p role="alert">{error}</p></> : !page ? <p role="status">Loading campaign…</p> : <>
-      <h1>{page.format.subject || page.name}</h1>
+      {page.branding?.logoUrl&&<div style={{maxWidth:180,marginBottom:20}}><PublicImage src={String(page.branding.logoUrl)} alt={String(page.branding.organizationDisplayName||"Organization")}/></div>}
+      {page.branding?.organizationDisplayName&&<p>{String(page.branding.organizationDisplayName)}</p>}<h1>{page.format.subject || page.name}</h1>
       {effectiveBlocks(page.document, page.format).map(block => {
         if (block.kind === "heading") return <h2 key={block.id}>{block.text}</h2>;
         if (block.kind === "image" && block.url) return <figure key={block.id}><PublicImage src={block.url} alt={block.text}/></figure>;

@@ -38,6 +38,7 @@ import { guestTicketTypeError } from "../services/event-guest-ticket.js";
 import { getEventReportingSnapshot } from "../services/event-reporting-service.js";
 import { evaluateRecipientEligibility } from "../services/email-compliance.js";
 import { createOrganizationEmailSender } from "../services/smtp-service.js";
+import { publicBrandIdentity } from "../oyama-create/studio/brand-service.js";
 import { loadOrganizationBrandingContext } from "../services/organization-branding.js";
 import type {
   EventCheckInExceptionStatus,
@@ -1267,7 +1268,7 @@ router.get("/public/page/:pageSlug", async (req, res) => {
 
   const origin = resolveEventPageOrigin(req);
   const [branding, paymentGateway] = await Promise.all([
-    loadOrganizationBrandingContext(match.organizationId),
+    publicBrandIdentity(match.organizationId, "EVENT", event.id).then(identity => loadOrganizationBrandingContext(match.organizationId, "", identity || undefined)),
     readPaymentGatewayPublicSettings(match.organizationId),
   ]);
 

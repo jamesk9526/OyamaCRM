@@ -10,6 +10,7 @@ import { record, string, type LetterSnapshot } from "../services/letter-producti
 import { generateLetterFromTemplate, resolveLetterMergeContext } from "../services/letters-execution.js";
 import { renderAvery5160Pdf } from "../services/avery-labels.js";
 
+import {assertStudioArtifactAccess} from "../oyama-create/studio/print-access.js";
 const router = Router();
 const id = (req: Request, key = "id") => string(req.params[key]);
 const route = (handler: (req: Request, res: Response, organizationId: string, actorId: string) => Promise<unknown>) => async (req: Request, res: Response, next: NextFunction) => {
@@ -101,12 +102,14 @@ router.post("/jobs/:id/retry", requirePermission("letters.generate"), route(asyn
   res.json({ status: "PENDING" });
 }));
 router.get("/artifacts/:id/pdf", requirePermission("letters.export_pdf"), route(async (req, res, org) => {
+  await assertStudioArtifactAccess(req,org,id(req));
   const { job, bytes } = await readArtifact(org, id(req));
   res.set({ "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="letter-${job.id}.pdf"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "X-Letter-Checksum": job.checksum!, "X-Letter-Artifact": job.id });
   res.send(bytes);
 }));
 router.post("/artifacts/:id/approve", requirePermission("letters.manage_print_queue"), route(async (req, res, org, actor) => {
   await assertCurrentCreateArtifact(org, id(req));
+  await assertStudioArtifactAccess(req,org,id(req));
   const { job } = await readArtifact(org, id(req));
   if (req.body?.checksum !== job.checksum) throw new ProductionError(409, "The reviewed PDF checksum does not match.");
   await validateCurrentRecipient(org, job.snapshotJson as unknown as LetterSnapshot);
@@ -171,7 +174,7 @@ router.post("/batches/:id/export", requirePermission("letters.export_pdf"), rout
   if (!Number.isInteger(part) || part < 0) throw new ProductionError(400, "Select a valid batch part.");
   const items = await prisma.letterProductionBatchItem.findMany({ where: { organizationId: org, batchId: id(req), position: { gte: part * 500, lt: (part + 1) * 500 } }, orderBy: { position: "asc" } });
   if (!items.length) throw new ProductionError(404, "Batch part not found.");
-  for (const item of items) await assertCurrentCreateArtifact(org, item.artifactId);
+  for (const item of items) {await assertCurrentCreateArtifact(org, item.artifactId);await assertStudioArtifactAccess(req,org,item.artifactId);}
   if (req.body?.labels === true) {
     const labels = [];
     for (const item of items) {

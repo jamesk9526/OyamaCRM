@@ -20,6 +20,7 @@ export interface LetterSnapshot {
   assets: Record<string, string>;
   warnings: string[];
   blockers: string[];
+  studio?: import("../oyama-create/studio/types.js").FrozenStudioPrint;
 }
 export function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

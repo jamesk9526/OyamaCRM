@@ -35,7 +35,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
     label: "Organization",
     items: [
       { label: "Organization", href: "/settings/organization", description: "Identity, region, and email", iconSlug: "constituents" },
-      { label: "Branding", href: "/settings/branding", description: "Logos and public colors", iconSlug: "fund-designation" },
+      { label: "Branding", href: "/oyama-create/library/brand", description: "Logos and public colors", iconSlug: "fund-designation" },
       { label: "Team users & access", href: "/settings/users", description: "Add users, staff accounts, passwords and roles", iconSlug: "users" },
       { label: "Roles & Scopes", href: "/settings/roles", description: "Permission reference", iconSlug: "system-status" },
       { label: "Security & Audit", href: "/settings/security", description: "Authentication and recovery", iconSlug: "system-status" },

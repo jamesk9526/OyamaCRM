@@ -31,6 +31,9 @@ import {
   type SiteEmbedWidgetSettings,
 } from "../services/site-embeds.js";
 import { readPaymentGatewayRuntimeConfig } from "../services/payment-gateway-settings.js";
+import { responseAttribution } from "../oyama-create/studio/response.js";
+import { widgetBrandValues } from "../oyama-create/studio/widget-brand.js";
+import { brandedPublicEmbed } from "../oyama-create/studio/widget-brand.js";
 import { getFiscalYTDRange, normalizeFiscalYearStart } from "../lib/dateRanges.js";
 import { normalizePublicApiRootUrl } from "../lib/public-api-url.js";
 import {
@@ -561,8 +564,9 @@ router.get("/loader.js", async (req, res) => {
     select: { config: true },
   });
 
-  const brandingDefaults = readBrandingDefaults(brandingSetting?.config);
-  const publicConfig = applyBrandingDefaultsToPublicConfig(toPublicSiteEmbedConfig(hit.site), brandingDefaults);
+  const themed = await brandedPublicEmbed(hit.organizationId, hit.site, "WIDGET");
+  const brandingDefaults = readBrandingDefaults(themed.identity || brandingSetting?.config);
+  const publicConfig = applyBrandingDefaultsToPublicConfig(themed.publicConfig, brandingDefaults);
 
   const script = buildSiteEmbedLoaderScript({
     apiBaseUrl: resolveApiBaseUrl(req),
@@ -1521,8 +1525,12 @@ router.post("/public/donation-checkout-embedded", async (req, res) => {
       if (donorEmail) sessionBody.set("customer_email", donorEmail);
     }
 
+    let responseMetadata: Record<string, string>;
+    try { responseMetadata = await responseAttribution(hit.organizationId, token, body.createResponse); }
+    catch { res.status(400).json({ error: { code: "CAMPAIGN_ATTRIBUTION_INVALID", message: "This campaign response link is unavailable. Open the current giving page to continue." } }); return; }
+    for (const [key, value] of Object.entries(responseMetadata)) for (const prefix of ["metadata", giftType === "monthly" ? "subscription_data[metadata]" : "payment_intent_data[metadata]"]) sessionBody.set(`${prefix}[${key}]`, value);
     const createPublicationId = String(body.createPublicationId ?? "").trim();
-    if (createPublicationId) {
+    if (createPublicationId && !body.createResponse) {
       const publication = await prisma.createPublication.findFirst({ where: { id: createPublicationId, organizationId: hit.organizationId, active: true } });
       if (!publication) { res.status(400).json({ error: { code: "CAMPAIGN_ATTRIBUTION_INVALID", message: "The campaign page attribution is no longer available. Return to the current published campaign page." } }); return; }
       const variant = publication.variantJson as Record<string, unknown>;
@@ -1599,16 +1607,15 @@ router.get("/public/donation-page", async (req, res) => {
     }),
     readPaymentGatewayRuntimeConfig(hit.organizationId),
   ]);
-  const publicConfig = applyBrandingDefaultsToPublicConfig(
-    toPublicSiteEmbedConfig(hit.site),
-    readBrandingDefaults(brandingSetting?.config),
-  );
+  const themed = await brandedPublicEmbed(hit.organizationId, hit.site, "GIVING");
+  const publicConfig = applyBrandingDefaultsToPublicConfig(themed.publicConfig, readBrandingDefaults(themed.identity || brandingSetting?.config));
 
   res.setHeader("Cache-Control", "no-store");
   res.json({
     data: {
       siteName: hit.site.name,
       organizationName: publicConfig.widgets.liveCom.orgName || hit.site.name,
+      organizationLogoUrl: String(themed.identity?.logoUrl||publicConfig.widgets.liveCom.avatarUrl||""),
       publicSiteId: hit.site.publicSiteId,
       appearance: publicConfig.appearance,
       form: publicConfig.widgets.donation_widget,
@@ -2342,6 +2349,7 @@ router.get("/config", requireRole("admin"), async (req, res) => {
   }
 
   const config = await loadOrganizationConfig(organizationId);
+  const brandingState=await prisma.organizationSettings.findUnique({where:{organizationId}});
   const requestedSiteId = readStringInput(req, "siteId");
   const selectedSite = pickSite(config, requestedSiteId);
 
@@ -2349,6 +2357,7 @@ router.get("/config", requireRole("admin"), async (req, res) => {
 
   res.json({
     data: {
+      brandingManagedInCreate: !!brandingState?.createBrandPublicBaselineId,
       registry: SITE_EMBED_REGISTRY,
       sites: config.sites,
       selectedSiteId: selectedSite.id,
@@ -2431,6 +2440,8 @@ router.put("/config", requireRole("admin"), async (req, res) => {
     widgets: mergeWidgetSettings(selectedSite.widgets, body.widgets),
   };
 
+  const brandingState=await prisma.organizationSettings.findUnique({where:{organizationId}});
+  if(brandingState?.createBrandPublicBaselineId&&JSON.stringify(widgetBrandValues(selectedSite))!==JSON.stringify(widgetBrandValues(nextSite))){res.status(409).json({error:{code:"BRAND_REVIEW_REQUIRED",message:"Manage public widget branding in oyamaCreate → Library → Brand. Content and connection settings can still be saved here."},href:"/oyama-create/library/brand"});return;}
   if (nextSite.widgets.donation_widget.enabled) {
     const domainIssues = getDonationDomainConfigurationIssues(nextSite, {
       requireConfigured: !nextSite.widgets.donation_widget.hostedPageEnabled,

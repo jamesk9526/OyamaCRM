@@ -28,6 +28,7 @@ router.post("/campaigns/:id/contents", route(async (req, res, org, actor) => {
 }));
 router.patch("/contents/:id", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); await demandChannels(req, campaign.channelsJson as Channel[], true);
+  if(content.designJson)throw new CreateError(409,"This content uses Studio. Edit its shared design in oyamaCreate Studio to preserve its structure.");
   const document = documentFrom(req.body.document);
   const scheduledAt = req.body.scheduledAt ? new Date(string(req.body.scheduledAt)) : null;
   if (scheduledAt && !Number.isFinite(scheduledAt.getTime())) throw new CreateError(400, "Choose a valid delivery date and time.");
@@ -54,6 +55,9 @@ router.patch("/contents/:id/variants/:channel", route(async (req, res, org, acto
   const variant = content.variants.find(row => row.channel === channel);
   if (!variant) throw new CreateError(404, "Channel version not found.");
   const format = variantFrom(req.body.document);
+  if(content.designJson && ["EMAIL","LETTER"].includes(channel)) {
+    const before=variantFrom(variant.documentJson);if(JSON.stringify({...before,scheduledAt:null,enabled:null})!==JSON.stringify({...format,scheduledAt:null,enabled:null}))throw new CreateError(409,"Edit structured letter/email content in Studio. This view can change channel delivery dates only.");
+  }
   if (Object.keys(format.overrides).some(id => !documentFrom(content.documentJson).blocks.some(block => block.id === id))) throw new CreateError(400, "A customized block no longer exists in the shared document.");
   const external = await nativeChanged(org, variant);
   const saved = await prisma.$transaction(async tx => {
@@ -61,7 +65,7 @@ router.patch("/contents/:id/variants/:channel", route(async (req, res, org, acto
     const changed = await tx.createVariant.updateMany({ where: { id: variant.id, revision: req.body.revision }, data: { documentJson: json(format), revision: { increment: 1 }, needsReview: external || variant.nativeApproved } });
     if (!changed.count) throw new CreateError(409, "This format changed in another session. Reload before retrying.");
     const item = await tx.createVariant.findUniqueOrThrow({ where: { id: variant.id } });
-    if (item.legacyId && !external && !item.nativeApproved) await syncNative(tx, org, actor, content, item);
+    if (!content.designJson && item.legacyId && !external && !item.nativeApproved) await syncNative(tx, org, actor, content, item);
     return item;
   }); res.json({ ...saved, campaignRevision: campaign.revision + 1 });
 }));
@@ -77,6 +81,7 @@ router.get("/contents/:id/preview/:channel", route(async (req, res, org) => {
 }));
 router.post("/contents/:id/native/:channel", route(async (req, res, org, actor) => {
   const { content, campaign } = await contentFor(req, param(req), true); const channel = param(req, "channel") as Channel;
+  if(content.designJson)throw new CreateError(409,"This content uses the integrated Studio editor. Edit its letter or email view there.");
   if (!["EMAIL", "LETTER"].includes(channel) || !(campaign.channelsJson as Channel[]).includes(channel)) throw new CreateError(400, "Choose an email or letter version.");
   await demandChannels(req, [channel], true);
   if (channel === "LETTER") await demand(req, "letters.create");
@@ -92,6 +97,7 @@ router.post("/contents/:id/review/:channel", route(async (req, res, org, actor) 
   const variant = content.variants.find(row => row.channel === channel);
   if (!variant) throw new CreateError(404, "Channel version not found.");
   await demandChannels(req, [channel], true);
+  if(content.designJson && ["EMAIL","LETTER"].includes(channel))throw new CreateError(409,"Review structured content and legacy differences in Studio; legacy synchronization cannot replace a rich design.");
   if (!["KEEP_NATIVE", "SYNC_SHARED", "KEEP_CUSTOMIZATIONS"].includes(req.body.choice)) throw new CreateError(400, "Choose how to review this format.");
   await prisma.$transaction(async tx => {
     await touchCampaign(tx, org, campaign.id, req.body.campaignRevision);

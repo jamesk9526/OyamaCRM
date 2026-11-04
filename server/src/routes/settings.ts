@@ -13,6 +13,7 @@ import type { Prisma } from "@prisma/client";
 import nodemailer from "nodemailer";
 import { REFRESH_COOKIE } from "../lib/auth.js";
 import { logAudit } from "../lib/audit.js";
+import { legacyBrandGuard } from "../oyama-create/studio/legacy-brand-guard.js";
 import { prisma } from "../lib/prisma.js";
 import {
   clearResetVerificationCode,
@@ -844,7 +845,7 @@ router.get("/branding", requireAuth, async (req: Request, res: Response) => {
 });
 
 /** PUT /api/settings/branding — Persists organization branding defaults for downstream consumers. Admin-only. */
-router.put("/branding", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+router.put("/branding", requireAuth, requireRole("admin"), legacyBrandGuard, async (req: Request, res: Response) => {
   try {
     const organizationId = await resolveSettingsOrganizationId(req);
     if (!organizationId) {
@@ -896,7 +897,7 @@ router.put("/branding", requireAuth, requireRole("admin"), async (req: Request, 
  * Request: { fileName: string, mimeType: image/*, dataBase64: string, slot?: "primary" | "square" }
  * Response: { url, fileName, mimeType, sizeBytes }
  */
-router.post("/branding/logo-upload", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+router.post("/branding/logo-upload", requireAuth, requireRole("admin"), legacyBrandGuard, async (req: Request, res: Response) => {
   try {
     const organizationId = await resolveSettingsOrganizationId(req);
     const userId = req.user?.sub;

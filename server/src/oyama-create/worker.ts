@@ -1,3 +1,4 @@
+import { hydrateStudioAssets } from "./studio/frozen-assets.js";
 import type { CreateDelivery, EmailPurpose } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { hasDefaultPermission, type PermissionKey } from "../lib/permissions.js";
@@ -29,7 +30,8 @@ async function emailDelivery(job: CreateDelivery, variant: FrozenVariant, actor:
   }
   const executionId = job.executionId || `create_${job.id}_${job.attempts}`;
   // DRAFT executions are exclusively owned by Create. The legacy scheduled-email worker cannot claim them.
-  const snapshot = variant.email;
+  const studioEmail = object(object(object(job.payloadJson).studio).email);
+  const snapshot = { ...variant.email, ...(typeof studioEmail.html === "string" ? {bodyHtml:studioEmail.html,bodyText:string(studioEmail.text),...(typeof studioEmail.subject==="string"?{subject:studioEmail.subject}:{})} : {}) };
   const sourceSharing = variant.sourceSharing || { ownerId: actor, sharedWithOrganization: false };
   const email = await prisma.emailCampaign.upsert({ where: { id: executionId }, update: {}, create: { ...snapshot, purpose: snapshot.purpose as EmailPurpose, id: executionId, organizationId: job.organizationId, status: "DRAFT", audienceFilter: JSON.stringify({ _create: { releaseId: job.releaseId, deliveryId: job.id }, _sharing: { ownerId: sourceSharing.ownerId || null, sharedWithOrganization: sourceSharing.sharedWithOrganization === true } }) } });
   await prisma.createDelivery.update({ where: { id: job.id }, data: { executionId } });
@@ -40,6 +42,19 @@ async function emailDelivery(job: CreateDelivery, variant: FrozenVariant, actor:
   await prisma.createDelivery.updateMany({ where: { id: job.id, status: "SENDING" }, data: { status: "ACCEPTED", acceptedAt: accepted.sentAt, error: null } });
 }
 async function letterDelivery(job: CreateDelivery, variant: FrozenVariant, actor: string, snapshot: ReleaseSnapshot) {
+  const studio = object(object(job.payloadJson).studio);
+  if (Array.isArray(studio.artifacts)) {
+    if (!studio.artifacts.length) throw new CreateError(422, "The approved appeal pack has no frozen artifacts.");
+    let primary: {id:string;generatedId:string}|null=null;
+    for(const raw of studio.artifacts){const artifact=object(raw),letter=object(artifact.snapshot) as unknown as LetterSnapshot;await validateCurrentRecipient(job.organizationId,letter);hydrateStudioAssets(letter,snapshot.assetBundle);const key=`${job.deliveryKey}:${string(artifact.kind)}`;
+      const generated=await prisma.generatedLetter.upsert({where:{productionKey:key},update:{},create:{organizationId:job.organizationId,productionKey:key,templateId:letter.templateId,constituentId:letter.recipientId,campaignId:snapshot.campaign.fundraisingCampaignId,eventId:snapshot.campaign.eventId,category:"GENERAL",mergedPrintBody:letter.bodyHtml,mergedPrintSubject:letter.subject,generatedByUserId:actor,metadataJson:{productionVersion:2,createReleaseId:job.releaseId,studioKind:string(artifact.kind),studioSensitive:letter.studio?.sensitive===true,queue:{reviewStatus:"NEEDS_REVIEW",printStatus:"NEEDS_REVIEW"}}}});
+      letter.generatedLetterId=generated.id;const rendered=await enqueueSnapshot(letter,actor);
+      await prisma.createPrintArtifact.upsert({where:{deliveryId_kind:{deliveryId:job.id,kind:string(artifact.kind)}},update:{renderJobId:rendered.id,status:"PREPARED"},create:{organizationId:job.organizationId,deliveryId:job.id,kind:string(artifact.kind),generatedLetterId:generated.id,renderJobId:rendered.id,snapshotJson:JSON.parse(JSON.stringify(letter)),status:"PREPARED"}});
+      if(artifact.kind==="LETTER")primary={id:rendered.id,generatedId:generated.id};
+    }
+    if(!primary)throw new CreateError(422,"The approved appeal pack is missing its letter.");
+    await prisma.createDelivery.update({where:{id:job.id},data:{status:"PREPARED",executionId:primary.generatedId,providerId:primary.id,error:null}});return;
+  }
   if (!variant.letterBase) throw new CreateError(422, "The approved print snapshot is missing.");
   const letter = { ...variant.letterBase, ...object(object(job.payloadJson).letter) } as LetterSnapshot;
   await validateCurrentRecipient(job.organizationId, letter);
@@ -79,7 +94,7 @@ async function socialDelivery(job: CreateDelivery, variant: FrozenVariant) {
 async function dispatch(job: CreateDelivery, content: FrozenContent, variant: FrozenVariant, snapshot: ReleaseSnapshot, actor: string) {
   await approverCanDispatch(job.organizationId, actor, job.channel);
   if (variant.format.requiresLandingPage && job.channel !== "WEB") {
-    const webJob = await prisma.createDelivery.findFirst({ where: { releaseId: job.releaseId, contentId: job.contentId, channel: "WEB", status: "PUBLISHED" } });
+    const webJob = await prisma.createDelivery.findFirst({ where: { releaseId: job.releaseId, channel: "WEB", status: "PUBLISHED" } });
     if (!webJob) {
       await prisma.createDelivery.update({ where: { id: job.id }, data: { status: "PENDING", claimedAt: null, scheduledAt: new Date(Date.now() + 30000), error: "Waiting for this release's landing page to publish." } }); return;
     }

@@ -46,6 +46,7 @@ interface SendEmailPayload {
   text: string;
   html?: string;
   fromNameOverride?: string;
+  replyToOverride?: string;
   attachments?: OrganizationEmailAttachment[];
 }
 
@@ -202,6 +203,7 @@ async function sendMicrosoftGraphMail(input: {
   html: string;
   accessToken: string;
   attachments?: OrganizationEmailAttachment[];
+  replyTo?: string;
 }): Promise<void> {
   const mailbox = input.provider.microsoftMailbox.trim();
   const encodedMailbox = mailbox ? encodeURIComponent(mailbox) : "me";
@@ -223,6 +225,7 @@ async function sendMicrosoftGraphMail(input: {
           content: input.html,
         },
         toRecipients: [{ emailAddress: { address: input.toEmail } }],
+        ...(input.replyTo ? { replyTo: [{ emailAddress: { address: input.replyTo } }] } : {}),
         attachments: input.attachments?.map((attachment) => ({
           "@odata.type": "#microsoft.graph.fileAttachment",
           name: attachment.filename,
@@ -425,6 +428,7 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
           html,
           accessToken: activeProvider.graphAccessToken,
           attachments: payload.attachments,
+          replyTo: payload.replyToOverride,
         });
 
         return {
@@ -451,6 +455,7 @@ export async function createOrganizationEmailSender(organizationId: string): Pro
       const info = await transporter.sendMail({
         from: `"${payload.fromNameOverride || effectiveSmtp.smtpFromName || "OyamaCRM v1.3"}" <${effectiveSmtp.smtpFromEmail}>`,
         to: payload.to,
+        replyTo: payload.replyToOverride,
         subject: payload.subject,
         text: payload.text,
         html: payload.html ?? `<p>${payload.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`,

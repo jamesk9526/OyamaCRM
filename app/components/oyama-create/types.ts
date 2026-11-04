@@ -1,9 +1,9 @@
 import type { Channel, SharedDocument, VariantDocument } from "@/server/src/oyama-create/domain";
 export type { Channel, SharedDocument, VariantDocument };
-export type Bootstrap = { enabled: boolean; permissions: string[]; capabilities: Array<{ channel: Channel; available: boolean; requiresConnection: boolean; previews: string[] }> };
+export type Bootstrap = { enabled: boolean; studioEnabled?: boolean; brandHubEnabled?: boolean; permissions: string[]; capabilities: Array<{ channel: Channel; available: boolean; requiresConnection: boolean; previews: string[] }> };
 export type Audience = { id: string; name: string; description: string | null; _count: { recipients: number } };
 export type Variant = { id: string; channel: Channel; revision: number; documentJson: VariantDocument; needsReview: boolean; externalChanges?: boolean; nativeApproved: boolean; legacyId: string | null };
-export type Content = { id: string; name: string; campaignId: string; revision: number; documentJson: SharedDocument; scheduledAt: string | null; variants: Variant[] };
+export type Content = { id: string; name: string; campaignId: string; revision: number; documentJson: SharedDocument; designJson?: import("@/server/src/oyama-create/studio/types").StudioDesign|null; scheduledAt: string | null; variants: Variant[] };
 export type Release = { id: string; status: string; campaignRevision: number; approvedAt: string; approvedBy: string };
 export type Campaign = { id: string; name: string; objective: string; description: string | null; ownerId: string; isTemplate: boolean; status: string; revision: number; fundraisingCampaignId: string | null; eventId: string | null; audienceListIds: string[]; channelsJson: Channel[]; deliveryMode: string | null; startsAt: string | null; endsAt: string | null; updatedAt: string; contents?: Content[]; releases?: Release[]; _count?: { contents: number; releases: number } };
 export type Readiness = { campaignRevision: number; ready: boolean; issues: Array<{ channel: string; message: string }>; schedules: Array<{ contentId: string; contentName: string; channel: Channel; scheduledAt: string }>; eligibility: { total: number; overlap: number; excluded: number; missingEmail: number; missingPostal: number; missingSmsConsent: number; counts: Record<string, number> } };

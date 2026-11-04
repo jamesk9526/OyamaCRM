@@ -54,7 +54,7 @@ router.post("/deliveries/:id/:action", route(async (req, res, org, actor) => {
   const currentRelease = job.release.status === "RELEASED" && job.release.campaignRevision === campaign.revision;
   if (action === "pause" && ["PENDING", "PREPARING"].includes(job.status)) data = { status: "PAUSED" };
   else if (action === "resume" && job.status === "PAUSED" && currentRelease) data = { status: job.channel === "SOCIAL" && job.executionId ? "PREPARING" : "PENDING", error: null };
-  else if (action === "cancel" && ["HELD", "PENDING", "PAUSED", "PREPARING", "FAILED"].includes(job.status)) data = { status: "CANCELLED", error: "Cancelled by staff." };
+  else if (action === "cancel" && ["HELD", "PENDING", "PAUSED", "PREPARING", "FAILED", "PREPARED"].includes(job.status)) data = { status: "CANCELLED", error: "Cancelled by staff." };
   else if (action === "retry" && job.status === "FAILED" && currentRelease && req.body.confirm === true) data = { status: "PENDING", error: null, executionId: null, providerId: null };
   else if (action === "reconcile" && job.status === "UNKNOWN" && currentRelease && req.body.confirm === true) {
     await demand(req, "create.connections.manage");
@@ -88,7 +88,7 @@ router.get("/calendar", route(async (req, res, org) => {
       }
       if (!visibility.get(item.campaignId)) continue;
       for (const variant of item.variants) {
-        if (!(item.campaign.channelsJson as string[]).includes(variant.channel)) continue;
+        if (!(item.campaign.channelsJson as string[]).includes(variant.channel)||variantFrom(variant.documentJson).enabled===false) continue;
         const scheduledAt = variantFrom(variant.documentJson).scheduledAt || item.scheduledAt?.toISOString() || item.campaign.startsAt?.toISOString();
         if (scheduledAt) visible.push({ id: `${item.id}:${variant.channel}`, contentId: item.id, name: item.name, channel: variant.channel, scheduledAt, campaignId: item.campaignId, campaign: { name: item.campaign.name, status: item.campaign.status } });
       }

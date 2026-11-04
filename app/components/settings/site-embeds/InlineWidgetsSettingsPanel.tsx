@@ -4,6 +4,7 @@
 import type { SiteWidgetSettings } from "@/app/components/settings/site-embeds/site-embed-types";
 
 interface InlineWidgetsSettingsPanelProps {
+  brandingManaged?: boolean;
   /** Current per-widget settings draft for the selected site connection. */
   settings: SiteWidgetSettings;
   /** Called whenever one non-LiveCom widget settings block changes. */
@@ -24,7 +25,7 @@ function parseTextList(value: string): string[] {
     .filter(Boolean);
 }
 
-export default function InlineWidgetsSettingsPanel({ settings, onChange }: InlineWidgetsSettingsPanelProps) {
+export default function InlineWidgetsSettingsPanel({ settings, onChange, brandingManaged=false }: InlineWidgetsSettingsPanelProps) {
   const updateWidget = <K extends Exclude<keyof SiteWidgetSettings, "liveCom">>(key: K, patch: Partial<SiteWidgetSettings[K]>) => {
     onChange({
       ...settings,
@@ -113,7 +114,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
             />
             Enable monthly giving
           </label>
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.donation_widget.accentColor}
               onChange={(event) => updateWidget("donation_widget", { accentColor: event.target.value })}
@@ -164,7 +165,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.campaign_meter.accentColor}
               onChange={(event) => updateWidget("campaign_meter", { accentColor: event.target.value })}
@@ -208,7 +209,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.event_card.accentColor}
               onChange={(event) => updateWidget("event_card", { accentColor: event.target.value })}
@@ -247,7 +248,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.volunteer_signup.accentColor}
               onChange={(event) => updateWidget("volunteer_signup", { accentColor: event.target.value })}
@@ -300,7 +301,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.newsletter_signup.accentColor}
               onChange={(event) => updateWidget("newsletter_signup", { accentColor: event.target.value })}
@@ -345,7 +346,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
           Enabled
         </label>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.impact_counter.accentColor}
               onChange={(event) => updateWidget("impact_counter", { accentColor: event.target.value })}
@@ -439,7 +440,7 @@ export default function InlineWidgetsSettingsPanel({ settings, onChange }: Inlin
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
-          <label className="text-xs font-semibold text-gray-600">Accent Color
+          <label className="text-xs font-semibold text-gray-600" hidden={brandingManaged}>Accent Color
             <input
               value={settings.cta_block.accentColor}
               onChange={(event) => updateWidget("cta_block", { accentColor: event.target.value })}

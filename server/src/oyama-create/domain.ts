@@ -6,6 +6,7 @@ export type DeliveryMode = typeof DELIVERY_MODES[number];
 export type SharedBlock = { id: string; kind: "heading" | "paragraph" | "image" | "link"; text: string; url?: string };
 export type SharedDocument = { version: 1; blocks: SharedBlock[] };
 export type VariantDocument = {
+  enabled?: boolean;
   overrides: Record<string, string>;
   scheduledAt: string | null;
   subject: string;
@@ -73,7 +74,7 @@ export function variantFrom(value: unknown): VariantDocument {
     scheduledAt = date.toISOString();
   }
   for (const key of ["subject", "caption", "consentText", "ctaLabel"]) if (string(input[key]).length > (key === "caption" ? 2048 : 1000)) throw new CreateError(400, `${key} is too long.`);
-  return { overrides, scheduledAt, subject: string(input.subject), caption: string(input.caption), mediaUrl: safeUrl(input.mediaUrl), accountId: string(input.accountId).slice(0, 100), network: input.network === "INSTAGRAM" ? "INSTAGRAM" : "FACEBOOK", ctaLabel: string(input.ctaLabel), ctaUrl: safeUrl(input.ctaUrl), formEnabled: input.formEnabled === true, consentText: string(input.consentText), requiresLandingPage: input.requiresLandingPage === true };
+  return { ...(typeof input.enabled==="boolean"?{enabled:input.enabled}:{}), overrides, scheduledAt, subject: string(input.subject), caption: string(input.caption), mediaUrl: safeUrl(input.mediaUrl), accountId: string(input.accountId).slice(0, 100), network: input.network === "INSTAGRAM" ? "INSTAGRAM" : "FACEBOOK", ctaLabel: string(input.ctaLabel), ctaUrl: safeUrl(input.ctaUrl), formEnabled: input.formEnabled === true, consentText: string(input.consentText), requiresLandingPage: input.requiresLandingPage === true };
 }
 export function escapeHtml(text: string): string { return text.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
 export function effectiveBlocks(document: SharedDocument, variant: VariantDocument): SharedBlock[] { return document.blocks.map(block => ({ ...block, text: variant.overrides[block.id] ?? block.text })); }

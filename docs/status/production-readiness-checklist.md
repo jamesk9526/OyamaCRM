@@ -1,3 +1,18 @@
+## oyamaCreate Studio rollout gate — 2026-11-03
+
+- [x] Additive design, brand draft/revision/binding, asset, saved section, opaque response and print-artifact records; Studio/Brand Hub flags default off.
+- [x] Integrated letter-first editing, all catalog blocks inserted/saved/reopened in Chromium, rich email customizations, revision recovery and explicit legacy reconciliation.
+- [x] Actual donor context, sensitive merge authorization through frozen PDFs/legacy generated reads, financial currency, selected-gift checks, no-history ask fallbacks and explicit missing values; no clinical data source added.
+- [x] 1/2/5/20-page typing, cross-page selection, rich paste, undo/redo and bounded reflow fixtures; desktop/tablet/phone inspection.
+- [x] Production Chromium proofs, repeated table headers, six-row merged group, one signature, reply slip/envelopes, frozen fonts/assets, per-piece approval/status and release exports/manifests.
+- [x] Eight PDF fixtures and 38 rasterized pages inspected; all 60 table rows retained and the printed giving QR decodes with opaque attribution.
+- [x] Tenant-scoped Brand Hub drafts/publication, preserved preset/signature IDs, reviewed public/design brand adoption, legacy write guards and navigation rollback controls.
+- [x] Focused tests, Prisma validation, web/API types, targeted lint, API build and production web build. See [actual evidence and limits](audit-artifacts/2026-11-03-create-studio/verification.md).
+- [ ] Run all six `CREATE_MYSQL_TEST_URL` migration/contention checks in an empty disposable `oyama_create_test_*` schema. No disposable database is available locally; the legacy database-backed merge API suite also cannot connect to localhost:3306.
+- [ ] Apply migrations after backup and rehearse flag rollback in the deployment environment. Do not delete new drafts/history during rollback.
+- [ ] Verify deployed authentication, workers/storage, live inbox clients, real provider readiness and representative physical Letter/A4/Legal/envelope/label output before enabling organization defaults.
+- [ ] Verify representative operating-system input methods, fonts and complex page fixtures with staff devices. Chromium PDF review remains the printing approval artifact.
+
 ## oyamaCreate rollout gate — 2026-11-03
 
 - [x] Additive campaign/content/revision/variant/release/job schema and default-disabled organization flag; original fundraising and clinical records preserved.

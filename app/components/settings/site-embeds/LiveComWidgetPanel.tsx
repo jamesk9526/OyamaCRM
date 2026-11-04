@@ -4,6 +4,7 @@
 import type { LiveComWidgetSettings } from "@/app/components/settings/site-embeds/site-embed-types";
 
 interface LiveComWidgetPanelProps {
+  brandingManaged?: boolean;
   /** Current LiveCom widget settings for the selected site connection. */
   settings: LiveComWidgetSettings;
   /** Called when one or more LiveCom settings fields change. */
@@ -14,7 +15,7 @@ interface LiveComWidgetPanelProps {
  * LiveComWidgetPanel provides the first fully working embeddable configuration surface.
  * Admins can enable/disable the floating launcher and adjust copy/position settings.
  */
-export default function LiveComWidgetPanel({ settings, onChange }: LiveComWidgetPanelProps) {
+export default function LiveComWidgetPanel({ settings, onChange, brandingManaged=false }: LiveComWidgetPanelProps) {
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(settings.chatheadColor) ? settings.chatheadColor : "#16a34a";
 
   return (
@@ -70,7 +71,7 @@ export default function LiveComWidgetPanel({ settings, onChange }: LiveComWidget
           />
         </label>
 
-        <label className="block text-xs font-semibold text-gray-600">
+        <label className="block text-xs font-semibold text-gray-600" hidden={brandingManaged}>
           Chathead Color
           <div className="mt-1 flex items-center gap-2">
             <input
@@ -112,7 +113,7 @@ export default function LiveComWidgetPanel({ settings, onChange }: LiveComWidget
           </select>
         </label>
 
-        <label className="block text-xs font-semibold text-gray-600">
+        <label className="block text-xs font-semibold text-gray-600" hidden={brandingManaged}>
           Organization Name
           <input
             value={settings.orgName}
@@ -122,7 +123,7 @@ export default function LiveComWidgetPanel({ settings, onChange }: LiveComWidget
           />
         </label>
 
-        <label className="block text-xs font-semibold text-gray-600">
+        <label className="block text-xs font-semibold text-gray-600" hidden={brandingManaged}>
           Organization Subtitle
           <input
             value={settings.orgSubtitle}
@@ -132,7 +133,7 @@ export default function LiveComWidgetPanel({ settings, onChange }: LiveComWidget
           />
         </label>
 
-        <label className="block text-xs font-semibold text-gray-600 sm:col-span-2">
+        <label className="block text-xs font-semibold text-gray-600 sm:col-span-2" hidden={brandingManaged}>
           Header Avatar / Logo URL
           <input
             value={settings.avatarUrl}

@@ -15,6 +15,7 @@ const related = (model: string, row: Row, key: string): [string, Row | Row[] | u
   if (model === "createCampaign" && key === "contents") return many("createContent", "campaignId");
   if (model === "createCampaign" && key === "releases") return many("createRelease", "campaignId");
   if (model === "emailRecipientList" && key === "recipients") return many("emailRecipientListMember", "listId");
+  if ((model === "donation" || model === "pledge") && key === "constituent") return one("constituent", row.constituentId);
   return ["", undefined];
 };
 function matches(model: string, row: Row, where: Row = {}): boolean {
@@ -58,17 +59,18 @@ function defaults(model: string, data: Row): Row {
   const now = new Date(); const common = { id: `synthetic-${++sequence}`, createdAt: now, updatedAt: now };
   const base: Record<string, Row> = {
     createCampaign: { revision: 1, status: "DRAFT", isTemplate: false, startsAt: null, endsAt: null, fundraisingCampaignId: null, eventId: null, deliveryMode: null },
-    createContent: { revision: 1, scheduledAt: null }, createVariant: { revision: 1, needsReview: false, nativeApproved: false, legacyId: null, legacyFingerprint: null },
+    createContent: { revision: 1, scheduledAt: null, designJson: null }, createVariant: { revision: 1, needsReview: false, nativeApproved: false, legacyId: null, legacyFingerprint: null },
     createRelease: { status: "APPROVED", approvedAt: now }, createDelivery: { status: "HELD", attempts: 0, claimedAt: null, executionId: null, providerId: null, error: null, acceptedAt: null, deliveredAt: null },
     emailCampaign: { status: "DRAFT", purpose: "MARKETING", totalRecipients: 0, sentAt: null, scheduledAt: null, audienceFilter: null, previewText: null, replyToEmail: null },
     letterTemplate: { status: "DRAFT", crmScope: "DONOR", revision: 0, printLayoutJson: null, documentJson: null },
     createLead: { status: "PENDING" },
+    createBrandDraft: { revision: 1 }, createBrandRevision: { publishedAt: now }, createBrandBinding: { revision: 1 },
   };
   return { ...common, ...base[model], ...clone(data) };
 }
 function update(row: Row, data: Row) { for (const [key, value] of Object.entries(data)) if (value !== undefined) row[key] = value && typeof value === "object" && "increment" in value ? row[key] + value.increment : clone(value); row.updatedAt = new Date(); }
-const uniques: Record<string, string[][]> = { createVariant: [["organizationId", "channel", "legacyId"], ["contentId", "channel"]], createRelease: [["campaignId", "campaignRevision"]], createDelivery: [["deliveryKey"]], createConnection: [["organizationId", "provider"]], createSmsConsent: [["organizationId", "phone"]], createWebhookEvent: [["organizationId", "provider", "eventKey"]] };
-const models = ["user", "userPermission", "organization", "organizationSettings", "createCampaign", "createContent", "createVariant", "createDocumentRevision", "createRelease", "createDelivery", "createConnection", "createSmsConsent", "createWebhookEvent", "createLead", "createPublication", "emailCampaign", "emailSendRecipient", "emailCampaignDeliveryEvent", "emailRecipientList", "emailRecipientListMember", "letterTemplate", "constituent", "campaign", "event", "auditLog", "donation", "generatedLetter", "letterRenderJob", "pluginSetting"];
+const uniques: Record<string, string[][]> = { createBrandDraft: [["organizationId"]], createBrandRevision: [["organizationId", "revision"]], createBrandBinding: [["organizationId", "channel", "resourceId"]], createResponseCode: [["code"], ["lookupKey"]], createPrintArtifact: [["deliveryId", "kind"]], createVariant: [["organizationId", "channel", "legacyId"], ["contentId", "channel"]], createRelease: [["campaignId", "campaignRevision"]], createDelivery: [["deliveryKey"]], createConnection: [["organizationId", "provider"]], createSmsConsent: [["organizationId", "phone"]], createWebhookEvent: [["organizationId", "provider", "eventKey"]] };
+const models = ["user", "userPermission", "organization", "organizationSettings", "createCampaign", "createContent", "createVariant", "createDocumentRevision", "createRelease", "createDelivery", "createConnection", "createSmsConsent", "createWebhookEvent", "createLead", "createPublication", "emailCampaign", "emailSendRecipient", "emailCampaignDeliveryEvent", "emailRecipientList", "emailRecipientListMember", "letterTemplate", "constituent", "campaign", "event", "auditLog", "donation", "generatedLetter", "letterRenderJob", "pluginSetting", "letterHeaderPreset", "letterFooterPreset", "letterSignatureBlock", "createBrandDraft", "createBrandRevision", "createBrandBinding", "createStudioAsset", "createStudioSection", "createResponseCode", "createPrintArtifact", "pledge", "recurringDonation"];
 export const createMemoryDatabase: any = {};
 for (const model of models) {
   createRows[model] = [];

@@ -21,7 +21,7 @@ export const recipientSnapshot = (contact: { firstName?: string | null; lastName
   addressLine1: contact?.addressLine1 || "", addressLine2: contact?.addressLine2 || "", city: contact?.city || "", state: contact?.state || "", zip: contact?.zip || "",
 });
 
-async function freezeAsset(source: string, organizationId: string): Promise<string> {
+export async function freezeAsset(source: string, organizationId: string): Promise<string> {
   if (/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(source) && source.length <= 7_000_000) return source;
   // Only tenant-owned uploads. Never dereference a supplied host, local file, or SVG.
   let pathname = source;
@@ -48,12 +48,12 @@ export async function buildProductionSnapshot(input: { organizationId: string; t
   if (!template) throw new ProductionError(404, "Template not found.");
   if (input.recipientId && !recipient) throw new ProductionError(422, "Recipient is unavailable.");
   const branding = { organizationName: organization?.name, ...record(brandingSetting?.config) };
-  const signature = record(defaultSignature ?? template.signatureBlock ?? { signerName: record(branding).defaultLetterSignerName, signerTitle: record(branding).defaultLetterSignerTitle, signatureImageUrl: record(branding).defaultLetterSignatureImageUrl, closingPhrase: record(branding).defaultLetterClosingPhrase });
+  const signature = record(template.signatureBlock ?? defaultSignature ?? { signerName: record(branding).defaultLetterSignerName, signerTitle: record(branding).defaultLetterSignerTitle, signatureImageUrl: record(branding).defaultLetterSignatureImageUrl, closingPhrase: record(branding).defaultLetterClosingPhrase });
   const snapshot: LetterSnapshot = {
     version: 2, organizationId, templateId: template.id, revision: template.revision, generatedLetterId: input.generatedLetterId,
     title: template.name, subject: input.subject, bodyHtml: input.bodyHtml, generatedAt: (input.generatedAt ?? new Date()).toISOString(),
     recipientId: recipient?.id ?? null, recipient: recipientSnapshot(recipient), branding,
-    header: record(defaultHeader ?? template.headerPreset), footer: record(defaultFooter ?? template.footerPreset), signature,
+    header: record(template.headerPreset ?? defaultHeader), footer: record(template.footerPreset ?? defaultFooter), signature,
     layout: productionLayout(template.printLayoutJson), assets: {}, warnings: [], blockers: [...(input.blockers ?? [])],
   };
   if (recipient?.doNotContact || recipient?.doNotMail) snapshot.blockers.push("Recipient is suppressed from postal contact.");

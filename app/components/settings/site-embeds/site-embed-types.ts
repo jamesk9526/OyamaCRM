@@ -239,6 +239,7 @@ export interface SiteEmbedSnippetBundle {
 
 /** API payload returned by GET /api/site-embeds/config. */
 export interface SiteEmbedsConfigPayload {
+  brandingManagedInCreate?: boolean;
   /** Full embeddable registry for current/future widget architecture. */
   registry: SiteEmbedRegistryEntry[];
   /** All connected sites for the current organization. */

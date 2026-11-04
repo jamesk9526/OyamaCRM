@@ -576,16 +576,7 @@ export default function WebmasterStarterDashboard() {
               >
                 Open media library
               </button>
-              <button
-                type="button"
-                onClick={() => openIncompleteFeature(
-                  "Brand Kit In Development",
-                  "The brand kit workspace is still in development. Branding controls will be released in a later production pass.",
-                )}
-                className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm"
-              >
-                Open brand kit
-              </button>
+              <Link href="/oyama-create/library/brand" className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Open Create Brand Hub</Link>
               <Link href="/webmaster/publishing" className="px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm">Open publishing settings</Link>
             </div>
           </section>

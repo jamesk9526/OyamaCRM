@@ -10,7 +10,7 @@ const scalar = [/^\d+(?:\.\d+)?(?:pt|px|em|in|%)?$/];
 export function sanitizeLetterHtml(html: string): string {
   return sanitizeHtml(html, {
     allowedTags: ["p", "div", "span", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "img", "figure", "figcaption", "a", "hr", "blockquote"],
-      allowedAttributes: { "*": ["style", "data-create-block", "data-letter-page-break", "data-letter-spacer", "data-keep-together", "data-letter-signature"], img: ["src", "alt", "width", "height", "style"], a: ["href"], td: ["colspan", "rowspan", "style"], th: ["colspan", "rowspan", "style"] },
+      allowedAttributes: { "*": ["style", "data-create-block", "data-studio-page-number", "data-studio-total-pages", "data-letter-page-break", "data-letter-spacer", "data-keep-together", "data-letter-signature"], img: ["src", "alt", "width", "height", "style"], a: ["href"], td: ["colspan", "rowspan", "style"], th: ["colspan", "rowspan", "style"] },
     allowedSchemes: ["https", "http", "mailto", "data"], allowedSchemesByTag: { img: ["data"] }, allowProtocolRelative: false,
     allowedStyles: { "*": {
       "font-family": [/^(?:Inter|Noto Serif|Arial|Helvetica|Calibri|Times New Roman|Georgia|serif|sans-serif|[,'"\s])+$/i],
@@ -74,7 +74,7 @@ export function letterPrintHtml(snapshot: LetterSnapshot): string {
   ${snapshot.subject ? `<p class="letter-subject">${escape(snapshot.subject)}</p>` : ""}${letterBodyHtml(snapshot)}</body></html>`;
 }
 
-export function letterChromeHtml(snapshot: LetterSnapshot, footer: boolean): string {
+export function letterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "assets" | "layout" | "header" | "footer">, footer: boolean): string {
   const source = footer ? snapshot.footer : snapshot.header;
   if (source.enabled === false) return "<div></div>";
   const b = snapshot.branding;
@@ -96,6 +96,7 @@ export function letterChromeHtml(snapshot: LetterSnapshot, footer: boolean): str
 /** Called only by the dedicated production worker. Every browser has a hard lifetime. */
 export async function renderProductionLetter(snapshot: LetterSnapshot): Promise<{ bytes: Buffer; pageCount: number; warnings: string[] }> {
   if (snapshot.blockers.length) throw new Error(snapshot.blockers.join("; "));
+  if (snapshot.studio) return (await import("../oyama-create/studio/print.js")).renderFrozenStudio(snapshot.studio);
   const headerTemplate = letterChromeHtml(snapshot, false);
   const footerTemplate = letterChromeHtml(snapshot, true);
   const browser = await chromium.launch({ headless: true });

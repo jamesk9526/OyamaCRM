@@ -12,6 +12,11 @@ const compassionApiTarget = (process.env.COMPASSION_API_URL || "http://127.0.0.1
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   allowedDevOrigins: ["www.crm.partnertpcc.com"],
+  webpack(config) {
+    // Browser-safe Studio contracts also compile as Node ESM on the server.
+    config.resolve.extensionAlias = { ...config.resolve.extensionAlias, ".js": [".js", ".ts", ".tsx"] };
+    return config;
+  },
   turbopack: {
     root: path.resolve(__dirname),
     resolveAlias: {

@@ -2352,7 +2352,7 @@ export default function EmailBuilderApp({
                   {branding.contactPhone && <p className="text-xs text-gray-600">Phone: {branding.contactPhone}</p>}
                   {formatBrandingAddress(branding) && <p className="text-xs text-gray-600">Address: {formatBrandingAddress(branding)}</p>}
                   <a
-                    href="/settings/branding"
+                    href="/oyama-create/library/brand"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block text-[11px] text-green-700 hover:underline"

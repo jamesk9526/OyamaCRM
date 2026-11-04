@@ -2,7 +2,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useCreateData } from "@/app/components/oyama-create/use-create-data";
 import type React from "react";
 
 const BRANDING_TABS = [
@@ -13,6 +15,12 @@ const BRANDING_TABS = [
 /** BrandingLayout wraps all branding sub-pages with a shared header and tab navigation. */
 export default function BrandingLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const state = useCreateData<{brandHubEnabled:boolean}>("/api/oyama-create/brand");
+  useEffect(() => {
+    if (state.data?.brandHubEnabled) router.replace(`/oyama-create/library/brand${pathname.endsWith("/signatures") ? "/signatures" : pathname.endsWith("/letter-presets") ? "/letterhead" : ""}`);
+  }, [state.data?.brandHubEnabled, router, pathname]);
+  if (state.data?.brandHubEnabled) return <p role="status">Opening oyamaCreate Brand Hub…</p>;
 
   return (
     <div className="space-y-4">

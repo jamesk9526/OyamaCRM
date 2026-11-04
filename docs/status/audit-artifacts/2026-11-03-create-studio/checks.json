@@ -1,0 +1,56 @@
+{
+  "synthetic": true,
+  "tests": {
+    "passed": 216,
+    "mysqlSkipped": 6,
+    "filesPassed": 11,
+    "unavailableExistingApiSuite": "letters-merge-aliases.api.test.ts could not connect to localhost:3306; excluded from passing count"
+  },
+  "schema": "Prisma validation passed; additive migration not applied to live CRM",
+  "checks": {
+    "webTypes": "passed",
+    "serverTypes": "passed",
+    "serverBuild": "passed",
+    "productionWebBuild": "passed"
+  },
+  "lint": {
+    "studioAndTargetedModules": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "legacyRoutes": [
+      {
+        "file": "email-campaigns.ts",
+        "errors": 0,
+        "warnings": 2
+      },
+      {
+        "file": "events.ts",
+        "errors": 0,
+        "warnings": 0
+      },
+      {
+        "file": "letters.ts",
+        "errors": 0,
+        "warnings": 1
+      },
+      {
+        "file": "settings.ts",
+        "errors": 0,
+        "warnings": 1
+      },
+      {
+        "file": "site-embeds.ts",
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  },
+  "clinicalFilesChanged": 0,
+  "liveActionsExecuted": [],
+  "rollout": {
+    "studioDefault": false,
+    "brandHubNavigationDefault": false,
+    "requiresMigrationAndReviewedOrganizationEnable": true
+  }
+}

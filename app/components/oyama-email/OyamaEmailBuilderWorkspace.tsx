@@ -3513,7 +3513,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId, returnHref = "/
               <p className="text-xs font-semibold text-slate-700">Canvas Background</p>
               <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] leading-5 text-indigo-950">
                 Canvas background is inherited from Branding Defaults so every sent email uses the same organization presentation.
-                <Link href="/settings/branding#email-defaults" className="ml-1 font-semibold text-indigo-700 hover:underline">Edit email defaults →</Link>
+                <Link href="/oyama-create/library/brand#email-defaults" className="ml-1 font-semibold text-indigo-700 hover:underline">Edit email defaults →</Link>
               </div>
             </div>
 
@@ -3549,7 +3549,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId, returnHref = "/
             <div className="mt-4 border-t border-slate-100 pt-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Global branding</p>
               <p className="mt-2 text-xs leading-5 text-slate-600">Logo, header, footer, organization identity, font, canvas width, background, and sender defaults come from Branding Settings.</p>
-              <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Settings →</Link>
+              <Link href="/oyama-create/library/brand#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Settings →</Link>
             </div>
 
             <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">Select a canvas block to switch this panel to its editor.</div>
@@ -3711,7 +3711,7 @@ export default function OyamaEmailBuilderWorkspace({ templateId, returnHref = "/
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Email Typography Defaults</p>
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
                       <p className="text-[11px] text-indigo-950">Font family, canvas width, sender identity, organization header, and footer are inherited from global Branding Defaults.</p>
-                      <Link href="/settings/branding#communication-header-footer" className="text-[11px] font-semibold text-indigo-700 hover:underline">Edit Branding Defaults →</Link>
+                      <Link href="/oyama-create/library/brand#communication-header-footer" className="text-[11px] font-semibold text-indigo-700 hover:underline">Edit Branding Defaults →</Link>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block text-xs font-semibold text-slate-700">

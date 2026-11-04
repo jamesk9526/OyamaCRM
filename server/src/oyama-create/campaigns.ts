@@ -7,6 +7,7 @@ import { CHANNELS, DELIVERY_MODES, CreateError, object, required, string, varian
 import { emailRecordAccessible, nativeChanged, parseStored, remapManagedCopy } from "./legacy.js";
 import { resolvePlan } from "./audiences.js";
 import { hasDefaultPermission, PERMISSION_KEYS } from "../lib/permissions.js";
+import { normalizeDesign } from "./studio/design.js";
 const router = Router();
 
 function campaignInput(raw: unknown) {
@@ -41,7 +42,7 @@ router.get("/bootstrap", route(async (req, res, org) => {
   const permissions = PERMISSION_KEYS.filter(key => overrides.find(row => row.permission === key)?.granted ?? hasDefaultPermission(req.user!.role, key));
   if (!["view:communications", "letters.view", "view:campaigns"].some(key => permissions.includes(key as typeof permissions[number]))) throw new CreateError(403, "Communications, letters, or fundraising access is required.");
   const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: org } });
-  res.json({ enabled: settings?.oyamaCreateEnabled === true, permissions, capabilities: CHANNELS.map(channel => ({ channel, available: true, requiresConnection: ["SMS", "SOCIAL"].includes(channel), previews: channel === "EMAIL" ? ["desktop", "mobile", "plain-text"] : channel === "LETTER" ? ["pdf"] : ["content"] })) });
+  res.json({ enabled: settings?.oyamaCreateEnabled === true, studioEnabled: settings?.oyamaCreateStudioEnabled === true, brandHubEnabled: settings?.oyamaCreateBrandHubEnabled === true, permissions, capabilities: CHANNELS.map(channel => ({ channel, available: true, requiresConnection: ["SMS", "SOCIAL"].includes(channel), previews: channel === "EMAIL" ? ["desktop", "mobile", "plain-text"] : channel === "LETTER" ? ["pdf"] : ["content"] })) });
 }));
 router.put("/config", route(async (req, res, org) => {
   await demand(req, "create.connections.manage");
@@ -94,7 +95,9 @@ router.post("/campaigns/:id/duplicate", route(async (req, res, org, actor) => {
   const result = await prisma.$transaction(async tx => {
     const campaign = await tx.createCampaign.create({ data: { organizationId: org, ownerId: actor, name: required(req.body.name, "Campaign name"), objective: source.objective, description: source.description, channelsJson: json(source.channelsJson), audienceListIds: json([]), deliveryMode: source.deliveryMode, isTemplate: req.body.isTemplate === true, fundraisingCampaignId: source.fundraisingCampaignId, eventId: source.eventId } });
     for (const item of contents) {
-      const content = await tx.createContent.create({ data: { campaignId: campaign.id, organizationId: org, name: item.name, documentJson: json(item.documentJson) } });
+      const design = item.designJson ? normalizeDesign(item.designJson) : null;
+      if(design){design.data.giftSelections={};design.email.reviewedSource=null;}
+      const content = await tx.createContent.create({ data: { campaignId: campaign.id, organizationId: org, name: item.name, documentJson: json(item.documentJson), ...(design?{designJson:json(design)}:{}) } });
       await tx.createDocumentRevision.create({ data: { organizationId: org, contentId: content.id, revision: 1, documentJson: json(item.documentJson), createdBy: actor } });
       for (const variant of item.variants) {
         let legacyId: string | null = null;

@@ -539,6 +539,7 @@ model CreateContent {
   name           String
   revision       Int      @default(1)
   documentJson   Json
+  designJson     Json?
   scheduledAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -690,9 +691,102 @@ model CreateLead {
   @@index([organizationId, status, createdAt])
 }
 
+// Studio drafts and publications are organization-scoped; published revisions are immutable.
+model CreateBrandDraft {
+  id             String @id @default(cuid())
+  organizationId String @unique
+  revision       Int @default(1)
+  documentJson   Json
+  updatedBy      String
+  updatedAt      DateTime @updatedAt
+}
+
+model CreateBrandRevision {
+  id             String @id @default(cuid())
+  organizationId String
+  revision       Int
+  documentJson   Json
+  publishedBy    String
+  publishedAt    DateTime @default(now())
+  @@unique([organizationId, revision])
+  @@index([organizationId, publishedAt])
+}
+
+model CreateStudioAsset {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  kind           String @default("IMAGE")
+  url            String @db.Text
+  mimeType       String
+  width          Int?
+  height         Int?
+  bytes          Int
+  checksum       String
+  uploadedBy     String
+  createdAt      DateTime @default(now())
+  @@index([organizationId, createdAt])
+}
+
+model CreateBrandBinding {
+  id             String @id @default(cuid())
+  organizationId String
+  channel        String
+  resourceId     String
+  brandRevisionId String
+  revision       Int @default(1)
+  updatedBy      String
+  updatedAt      DateTime @updatedAt
+  @@unique([organizationId, channel, resourceId])
+}
+
+model CreateStudioSection {
+  id             String @id @default(cuid())
+  organizationId String
+  ownerId        String
+  name           String
+  documentJson   Json
+  shared         Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@index([organizationId, updatedAt])
+}
+
+model CreateResponseCode {
+  id             String @id @default(cuid())
+  organizationId String
+  code           String @unique
+  lookupKey      String @unique
+  releaseId      String
+  contentId      String
+  constituentId  String?
+  channel        String
+  payloadJson    Json
+  createdAt      DateTime @default(now())
+  @@index([organizationId, releaseId])
+}
+
+model CreatePrintArtifact {
+  id                String @id @default(cuid())
+  organizationId    String
+  deliveryId        String
+  kind              String
+  generatedLetterId String? @unique
+  renderJobId       String?
+  snapshotJson      Json
+  status            String @default("HELD")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@unique([deliveryId, kind])
+  @@index([organizationId, deliveryId])
+}
+
 model OrganizationSettings {
   id                          String   @id @default(cuid())
   organizationId              String   @unique
+  oyamaCreateStudioEnabled     Boolean  @default(false)
+  oyamaCreateBrandHubEnabled   Boolean  @default(false)
+  createBrandPublicBaselineId String?
   fiscalYearStart             Int      @default(1) // Month 1-12
   currency                    String   @default("USD")
   timezone                    String   @default("America/Chicago")

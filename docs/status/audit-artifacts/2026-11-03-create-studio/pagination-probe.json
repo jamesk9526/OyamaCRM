@@ -1,0 +1,26 @@
+{
+  "fixture": "Synthetic browser fragmentation probe; not the complete Studio editor acceptance",
+  "results": [
+    {
+      "pages": 1,
+      "actual": 1,
+      "crossPageTyping": true
+    },
+    {
+      "pages": 2,
+      "actual": 2,
+      "crossPageTyping": true
+    },
+    {
+      "pages": 5,
+      "actual": 5,
+      "crossPageTyping": true
+    },
+    {
+      "pages": 20,
+      "actual": 20,
+      "crossPageTyping": true
+    }
+  ],
+  "errors": []
+}

@@ -884,7 +884,7 @@ function LettersHowToWorkspace() {
       ],
       actions: [
         { href: "/oyama-letters/settings", label: "Open Letters Settings" },
-        { href: "/settings/branding", label: "Open Global Branding" },
+        { href: "/oyama-create/library/brand", label: "Open Global Branding" },
       ],
     },
   ] as const;
@@ -1155,7 +1155,7 @@ function TemplateLibrary() {
         </div>}
         {!loading && !loadError ? <footer className="letters-library-footer"><span role="status">Showing {visibleTemplates.length} of {templates.length} template{templates.length === 1 ? "" : "s"}</span><Link href="/oyama-letters/generate">Generate from a published template<ArrowUpRight size={14} aria-hidden="true" /></Link></footer> : null}
       </section>
-      <div className="letters-library-branding"><span>Make every letter feel like you.</span><Link href="/settings/branding#letter-output-defaults">Manage letterhead & signature<ArrowUpRight size={14} aria-hidden="true" /></Link><button type="button" onClick={() => { setSetupHintStep(0); setSetupHintOpen(true); }}>Branding setup guide</button></div>
+      <div className="letters-library-branding"><span>Make every letter feel like you.</span><Link href="/oyama-create/library/brand/letterhead">Manage letterhead & signature<ArrowUpRight size={14} aria-hidden="true" /></Link><button type="button" onClick={() => { setSetupHintStep(0); setSetupHintOpen(true); }}>Branding setup guide</button></div>
 
       {setupHintOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1186,8 +1186,8 @@ function TemplateLibrary() {
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-slate-900">Step-by-step setup</p>
                   <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-700">
-                    <li>Open <Link href="/settings/branding#communication-header-footer" className="font-semibold text-emerald-700 hover:underline">Branding Defaults</Link> and set the Communication Header + Footer.</li>
-                    <li>Open <Link href="/settings/branding/signatures" className="font-semibold text-emerald-700 hover:underline">Signatures</Link> and set one active default signature.</li>
+                    <li>Open <Link href="/oyama-create/library/brand#communication-header-footer" className="font-semibold text-emerald-700 hover:underline">Branding Defaults</Link> and set the Communication Header + Footer.</li>
+                    <li>Open <Link href="/oyama-create/library/brand/signatures" className="font-semibold text-emerald-700 hover:underline">Signatures</Link> and set one active default signature.</li>
                     <li>Return here when done.</li>
                   </ol>
                   <div className="flex justify-between gap-2">
@@ -1346,7 +1346,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
         apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
         apiFetch<SignatureBlock[]>("/api/letters/signatures"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
-        apiFetch<BrandingSettings>("/api/settings/branding"),
+        apiFetch<BrandingSettings>("/api/oyama-create/library/brand"),
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
       ]);
       setMergeSections(fields.sections ?? []);
@@ -2900,7 +2900,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
             <details className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
               <summary className="cursor-pointer text-sm font-semibold text-slate-900">Branding & signatures</summary>
               <p className="mt-2 text-xs leading-4 text-slate-600">The production header and footer come from Branding Defaults, outside the editable letter body.</p>
-              <Link href="/settings/branding#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
+              <Link href="/oyama-create/library/brand#communication-header-footer" className="mt-2 inline-flex text-xs font-semibold text-emerald-700 hover:underline">Open Branding Defaults</Link>
               <div className="mt-3 space-y-2">
                 {signatures.length === 0 ? <p className="text-xs text-slate-500">No signature blocks found.</p> : signatures.map((signature) => <MiniPresetCard key={signature.id} title={signature.signerName} body={signature.signerTitle ?? signature.name} action={() => insertSignature(signature)} />)}
                 <Button onClick={() => insertSignature()}>Insert default signature</Button>
@@ -3051,7 +3051,7 @@ function TemplateBuilder({ templateId }: { templateId?: string }) {
                   <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                     <p className="font-semibold text-slate-800">Shared letter output defaults</p>
                     <p className="mt-1">The printed logo, header, footer, upper-right organization/recipient information, and default signature come from Branding Defaults. This template only controls its letter body.</p>
-                    <Link href="/settings/branding#letter-output-defaults" className="mt-2 inline-flex font-semibold text-indigo-700 hover:underline">Edit global letter output defaults</Link>
+                    <Link href="/oyama-create/library/brand/letterhead" className="mt-2 inline-flex font-semibold text-indigo-700 hover:underline">Edit global letter output defaults</Link>
                   </div>
                 </InspectorCard>
                 <InspectorCard title="Template Status">
@@ -3508,7 +3508,7 @@ function PublishWorkspace({ templateId }: { templateId?: string }) {
       const [templateResult, fieldsResult, brandingResult, validationResult, historyResult] = await Promise.all([
         apiFetch<LetterTemplateDetail>(`/api/letters/templates/${templateId}`),
         apiFetch<MergeFieldCatalogResponse>("/api/letters/merge-fields"),
-        apiFetch<BrandingSettings>("/api/settings/branding"),
+        apiFetch<BrandingSettings>("/api/oyama-create/library/brand"),
         apiFetch<PublishValidationResult>(`/api/letters/templates/${templateId}/publish`, {
           method: "POST",
           body: JSON.stringify({ confirm: false }),
@@ -4107,7 +4107,7 @@ function GenerateWorkspace() {
         apiFetch<ConstituentLookup[]>("/api/constituents?limit=all").catch(() => []),
         apiFetch<RecipientListSummary[]>("/api/email-campaigns/lists").catch(() => []),
         apiFetch<ConstituentTagCatalog[]>("/api/constituents/tags/catalog").catch(() => []),
-        apiFetch<BrandingSettings>("/api/settings/branding").catch(() => DEFAULT_BRANDING_SETTINGS),
+        apiFetch<BrandingSettings>("/api/oyama-create/library/brand").catch(() => DEFAULT_BRANDING_SETTINGS),
       ]);
       setTemplates(templateRows);
       setGenerated(generatedRows);
@@ -6770,7 +6770,7 @@ function SettingsWorkspace() {
         subtitle="Letter branding now uses the global Branding Settings source of truth. Workflow policy remains here."
         tooltip="Branding is shared infrastructure for every letter. This workspace keeps only letters-specific workflow policy, queue defaults, and operational guidance."
       >
-        <Button href="/settings/branding" tone="primary">Global Branding</Button>
+        <Button href="/oyama-create/library/brand" tone="primary">Global Branding</Button>
       </PageHero>
       <div className="border-b border-slate-200 bg-white px-4 xl:px-7">
         <div className="flex gap-6 overflow-x-auto">
@@ -6781,14 +6781,14 @@ function SettingsWorkspace() {
       <div className="p-4 xl:p-6">
         {tab === "organization" ? (
           <div className="grid gap-4 xl:grid-cols-3">
-            <SettingsCard title="Identity & Logo" body="Organization name, address, colors, and logos used by server-rendered letter PDFs." href="/settings/branding" />
-            <SettingsCard title="Global Header + Footer" body="The single communication header and footer used by all letters and emails." href="/settings/branding#communication-header-footer" />
-            <SettingsCard title="Signatures" body="Reusable signer blocks used by templates and generated PDFs." href="/settings/branding/signatures" />
+            <SettingsCard title="Identity & Logo" body="Organization name, address, colors, and logos used by server-rendered letter PDFs." href="/oyama-create/library/brand" />
+            <SettingsCard title="Global Header + Footer" body="The single communication header and footer used by all letters and emails." href="/oyama-create/library/brand#communication-header-footer" />
+            <SettingsCard title="Signatures" body="Reusable signer blocks used by templates and generated PDFs." href="/oyama-create/library/brand/signatures" />
           </div>
         ) : null}
         {tab === "workflow" ? (
           <div className="grid gap-4 xl:grid-cols-[1fr_2fr]">
-            <SettingsCard title="Branding Settings" body="Letter branding, presets, and signatures are managed in global Branding Settings." href="/settings/branding" />
+            <SettingsCard title="Branding Settings" body="Letter branding, presets, and signatures are managed in global Branding Settings." href="/oyama-create/library/brand" />
             <WorkflowPolicyPanel />
           </div>
         ) : null}
@@ -6806,7 +6806,7 @@ function LettersOrganizationSettingsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const brandingRow = await apiFetch<BrandingSettings>("/api/settings/branding");
+      const brandingRow = await apiFetch<BrandingSettings>("/api/oyama-create/library/brand");
       setBranding(normalizeBrandingSettings(brandingRow));
     } catch (requestError) {
       setError(errorMessage(requestError, "Failed to load Letters organization settings."));
@@ -6856,7 +6856,7 @@ function LettersOrganizationSettingsPanel() {
             <ColorSwatch label="Primary" value={branding.primaryColor} />
             <ColorSwatch label="Accent" value={branding.accentColor} />
           </div>
-          <Button href="/settings/branding#communication-header-footer" tone="primary">Edit Branding Defaults</Button>
+          <Button href="/oyama-create/library/brand#communication-header-footer" tone="primary">Edit Branding Defaults</Button>
         </div>
       </section>
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
@@ -6885,7 +6885,7 @@ function LettersPresetManager({ mode }: { mode: "headers" | "footers" }) {
     setError(null);
     try {
       const [brandingRow, headerRows, footerRows] = await Promise.all([
-        apiFetch<BrandingSettings>("/api/settings/branding"),
+        apiFetch<BrandingSettings>("/api/oyama-create/library/brand"),
         apiFetch<HeaderPreset[]>("/api/letters/header-presets"),
         apiFetch<FooterPreset[]>("/api/letters/footer-presets"),
       ]);

@@ -245,14 +245,15 @@ export default function SiteEmbedsSettingsPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <SiteAppearancePanel
+        {payload?.brandingManagedInCreate ? <section className="rounded-xl border border-blue-200 bg-white p-5"><h2 className="font-semibold text-slate-900">Public output branding</h2><p className="mt-2 text-sm text-slate-600">Logos, colors, typography and channel overrides now use reviewed Brand Hub revisions.</p><Link href="/oyama-create/library/brand" className="mt-4 inline-block font-semibold text-blue-700">Open Create Brand Hub →</Link></section> : <SiteAppearancePanel
           appearance={draftSite.appearance}
           onChange={(nextAppearance) => {
             setDraftSite((prev) => (prev ? { ...prev, appearance: nextAppearance } : prev));
           }}
-        />
+        />}
 
         <LiveComWidgetPanel
+          brandingManaged={payload?.brandingManagedInCreate}
           settings={draftSite.widgets.liveCom}
           onChange={(nextLiveCom) => {
             setDraftSite((prev) => {
@@ -291,6 +292,7 @@ export default function SiteEmbedsSettingsPage() {
       <LiveComPreviewPanel settings={draftSite.widgets.liveCom} appearance={draftSite.appearance} />
 
       <InlineWidgetsSettingsPanel
+        brandingManaged={payload?.brandingManagedInCreate}
         settings={draftSite.widgets}
         onChange={(nextWidgets) => {
           setDraftSite((prev) => {

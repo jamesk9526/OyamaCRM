@@ -1,0 +1,28 @@
+{
+  "synthetic": true,
+  "accessibility": [
+    {
+      "selector": ".oc-button.primary",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(36, 94, 199)",
+      "contrast": 5.9986300979673866
+    },
+    {
+      "selector": ".oc-tabs button",
+      "foreground": "rgb(82, 107, 142)",
+      "background": "rgb(237, 244, 252)",
+      "contrast": 4.918132761745516
+    },
+    {
+      "selector": ".cs-brand-command strong",
+      "foreground": "rgb(23, 50, 79)",
+      "background": "rgb(255, 255, 255)",
+      "contrast": 13.079425035371862
+    }
+  ],
+  "focus": {
+    "tag": "BUTTON",
+    "outlineStyle": "solid",
+    "outlineWidth": "3px"
+  }
+}

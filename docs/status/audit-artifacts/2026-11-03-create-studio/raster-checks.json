@@ -1,0 +1,46 @@
+{
+  "synthetic": true,
+  "results": [
+    {
+      "file": "appeal-letter.pdf",
+      "rasterizedPages": 7,
+      "textRetained": true
+    },
+    {
+      "file": "appeal-outer_envelope.pdf",
+      "rasterizedPages": 1,
+      "textRetained": true
+    },
+    {
+      "file": "appeal-reply_slip.pdf",
+      "rasterizedPages": 1,
+      "textRetained": true
+    },
+    {
+      "file": "appeal-return_envelope.pdf",
+      "rasterizedPages": 1,
+      "textRetained": true
+    },
+    {
+      "file": "proof-1-pages.pdf",
+      "rasterizedPages": 1,
+      "textRetained": true
+    },
+    {
+      "file": "proof-2-pages.pdf",
+      "rasterizedPages": 2,
+      "textRetained": true
+    },
+    {
+      "file": "proof-20-pages.pdf",
+      "rasterizedPages": 20,
+      "textRetained": true
+    },
+    {
+      "file": "proof-5-pages.pdf",
+      "rasterizedPages": 5,
+      "textRetained": true
+    }
+  ],
+  "printedQrDecoded": "https://example.invalid/give/synthetic?giftType=one-time&createResponse=synthetic-response-code-fixture"
+}

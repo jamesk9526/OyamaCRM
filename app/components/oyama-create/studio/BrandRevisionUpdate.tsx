@@ -1,0 +1,9 @@
+"use client";
+import type {BrandDocument,StudioDesign,DonorContext} from "@/server/src/oyama-create/studio/types";
+import {renderRegion,renderEmailDocument} from "@/server/src/oyama-create/studio/render";
+import {useCreateData} from "../use-create-data";
+import {Modal} from "../ui";
+export default function BrandRevisionUpdate({design,brand,donor,latestId,apply,close}:{design:StudioDesign;brand:BrandDocument;donor:DonorContext;latestId:string;apply:(brand:BrandDocument)=>void;close:()=>void}){
+ const latest=useCreateData<{document:BrandDocument}>(`/api/oyama-create/brand/revisions/${latestId}`);
+ return <Modal title="Review the published brand update" wide close={close}><p>The current design retains its brand revision. Adopting the published revision creates a changed draft that requires campaign review.</p>{latest.error&&<p role="alert" className="oc-error">{latest.error}</p>}<div className="oc-grid-two">{[brand,latest.data?.document].map((document,index)=>document?<section className="oc-card cs-inspector-form" key={index}><h3>{index?"Published brand to adopt":"Current design brand"}</h3><div dangerouslySetInnerHTML={{__html:renderRegion(design,donor,document,"firstHeader")}}/><div dangerouslySetInnerHTML={{__html:renderRegion(design,donor,document,"firstFooter")}}/><iframe title={index?"Updated email brand":"Current email brand"} sandbox="" srcDoc={renderEmailDocument(design,donor,document).html} style={{width:"100%",height:340,border:0}}/></section>:<p key={index}>Loading published revision…</p>)}</div><div className="oc-actions" style={{marginTop:18}}><button className="oc-button" onClick={close}>Keep selected revision</button><button className="oc-button primary" disabled={!latest.data} onClick={()=>latest.data&&apply(latest.data.document)}>Adopt into this draft</button></div></Modal>;
+}
