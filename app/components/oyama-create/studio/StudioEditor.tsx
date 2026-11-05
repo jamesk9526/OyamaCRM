@@ -13,6 +13,7 @@ import { renderStudio } from "@/server/src/oyama-create/studio/render";
 import { paginationMetrics } from "@/server/src/oyama-create/studio/layout";
 import { normalizeDoc } from "@/server/src/oyama-create/studio/design";
 import StudioColumns from "./StudioColumns";
+import { blockPreviewDesign } from "./block-preview";
 import StudioImage from "./StudioImage";
 import StudioCanvasControls from "./StudioCanvasControls";
 import { blockDestinations, moveStudioBlock, selectedStudioBlock, studioBlocks } from "./block-actions";
@@ -25,7 +26,7 @@ const attributes = () => Object.fromEntries(Object.entries(defaults).map(([key, 
 function AtomicBlock({ node, selected, extension }: NodeViewProps) {
   const preview = useContext(PreviewContext);
   const context = preview || extension.options.context.current as StudioEditorContext;
-  const design = { ...context.design, body: { type: "doc", content: [node.toJSON() as StudioNode] } } as StudioDesign;
+  const design = blockPreviewDesign(context.design, node.toJSON() as StudioNode);
   const result = renderStudio(design, context.donor, context.brand, { channel: context.channel || "LETTER", sample: !context.donor.available });
   const label = STUDIO_BLOCKS.find(block => block.type === node.type.name)?.name || "Preserved content";
   return <NodeViewWrapper data-studio-atomic="true" data-studio-id={node.attrs.studioId} className={`cs-atomic ${selected ? "selected" : ""}`} contentEditable={false}><span className="cs-block-label">{label}</span><div className="cs-atomic-output" dangerouslySetInnerHTML={{ __html: result.html }}/></NodeViewWrapper>;

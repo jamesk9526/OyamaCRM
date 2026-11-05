@@ -1,0 +1,9 @@
+{
+  "fixture": "Synthetic browser APIs; no live CRM/provider writes",
+  "blocks": [
+    "Giving summary"
+  ],
+  "givingSummary": "125 USD; no attached reply slip inside block",
+  "fullPack": "Reply slip retained",
+  "errors": []
+}

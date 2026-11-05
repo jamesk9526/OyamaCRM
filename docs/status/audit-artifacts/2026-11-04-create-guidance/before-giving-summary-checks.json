@@ -1,0 +1,9 @@
+{
+  "fixture": "Synthetic browser APIs; no live CRM/provider writes",
+  "blocks": [
+    "Giving summary"
+  ],
+  "givingSummary": "Regression reproduced: attached reply slip appears inside Giving summary",
+  "fullPack": "Reply slip retained",
+  "errors": []
+}

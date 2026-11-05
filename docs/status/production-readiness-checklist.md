@@ -1,3 +1,13 @@
+## oyamaCreate guidance and gallery regression — 2026-11-04
+
+- [x] Home and campaign-tab instructions explain setup, writing, audience selection, review, approval, explicit release and results; next-step actions preserve existing save guards.
+- [x] Individual block previews exclude attached reply slips while full appeal-pack rendering retains them; focused missing-data and giving-total regression tests.
+- [x] Synthetic Chromium checks insert and persist all 26 gallery block types without losing earlier blocks, and check Giving summary separately with a selected synthetic donor.
+- [x] Desktop and phone guidance navigation and layouts checked; no live CRM/provider communications or release performed.
+- [ ] Confirm the changes in the deployed environment with organization permissions and real CRM recipient data. Existing provider, print and migration rollout gates remain in place.
+
+See [coverage and visual evidence](audit-artifacts/2026-11-04-create-guidance/verification.md).
+
 ## PWA version 2.0 — 2026-11-04
 
 - [x] Service-worker cache namespace updated to `oyamacrm-v2.0.0`; package and install identity already identify v2.0.

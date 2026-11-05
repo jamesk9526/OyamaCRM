@@ -7,3 +7,11 @@
 @media(prefers-reduced-motion:reduce){.oc-sidebar{transition:none}}
 
 .oc-editor-grid[hidden]{display:none}
+/* Guidance belongs to workspace chrome, outside document and print styles. */
+.oc-start-guide{list-style:decimal;padding-left:20px;margin:16px 0 20px;max-width:72ch;color:var(--oc-ink);font-size:13px;line-height:1.65}
+.oc-start-guide li+li{margin-top:9px}
+.oc-task-guide{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;margin-bottom:18px;border:1px solid var(--oc-line);border-radius:10px;background:#f6f9ff}
+.oc-task-guide h2{font-size:14px;color:var(--oc-ink);margin:0 0 6px}
+.oc-task-guide p{font-size:13px;line-height:1.65;color:var(--oc-muted);margin:0;max-width:95ch}
+.oc-task-guide>.oc-button{flex-shrink:0}
+@media(max-width:850px){.oc-task-guide{align-items:flex-start;flex-direction:column;gap:12px}}

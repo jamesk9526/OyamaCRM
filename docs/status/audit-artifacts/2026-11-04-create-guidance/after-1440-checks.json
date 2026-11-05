@@ -1,0 +1,10 @@
+{
+  "fixture": "Synthetic browser APIs only; no live CRM or provider writes",
+  "viewports": [
+    1440,
+    390
+  ],
+  "errors": [],
+  "warnings": [],
+  "writes": []
+}

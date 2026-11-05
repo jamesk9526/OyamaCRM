@@ -1,0 +1,12 @@
+{
+  "fixture": "Synthetic browser APIs only; no live CRM or provider writes",
+  "viewports": [
+    1440,
+    390
+  ],
+  "errors": [],
+  "warnings": [
+    "[Fast Refresh] performing full reload\n\nFast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.\nYou might have a file which exports a React component but also exports a value that is imported by a non-React component file.\nConsider migrating the non-React component export to a separate file and importing it into both files.\n\nIt is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.\nFast Refresh requires at least one parent function component in your React tree."
+  ],
+  "writes": []
+}

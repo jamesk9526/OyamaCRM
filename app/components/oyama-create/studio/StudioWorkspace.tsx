@@ -13,7 +13,7 @@ import type { ArtifactKind, BrandDocument, DonorContext, StudioDesign, StudioDoc
 
 import { defaultDesign, emailReviewRequired, normalizeDoc, walkNodes } from "@/server/src/oyama-create/studio/design";
 import { emptyDonor, renderStudio, renderRegion } from "@/server/src/oyama-create/studio/render";
-import { newBlock, paragraph } from "@/server/src/oyama-create/studio/registry";
+import { newBlock, paragraph, STUDIO_BLOCKS } from "@/server/src/oyama-create/studio/registry";
 import { STUDIO_PRESETS, studioPreset } from "@/server/src/oyama-create/studio/presets";
 import StudioEditor, { type StudioEditorContext } from "./StudioEditor";
 import StudioToolbar from "./StudioToolbar";
@@ -91,7 +91,25 @@ const StudioWorkspace = forwardRef<EditorHandle,{content:Content;campaign:Campai
   function insertPattern(id:string){if(!editor)return;const position=editor.state.selection.from;editor.chain().focus().insertContent(studioPattern(id,()=>crypto.randomUUID()) as JSONContent[]).run();editor.commands.setTextSelection(Math.min(position+1,editor.state.doc.content.size));setMobilePanel("write");}
 
   const edited=useCallback((doc:StudioDoc)=>{const value=draft.current;if(!value)return;if(region)change({...value,regions:{...value.regions,[region]:{...value.regions[region],mode:"custom",content:doc}}});else if(piece==="REPLY_SLIP")change({...value,pack:{...value.pack,replySlip:{...value.pack.replySlip,content:doc}}});else change({...value,body:doc});},[change,piece,region]);
-  function insert(type:string){if(!editor)return;const node=newBlock(type,crypto.randomUUID());editor.chain().focus().insertContent(node as JSONContent).run();if(type==="image")chooseImage(url=>{editor.state.doc.descendants((candidate,pos)=>{if(candidate.attrs.studioId===node.attrs?.studioId)editor.view.dispatch(editor.state.tr.setNodeMarkup(pos,undefined,{...candidate.attrs,src:url}));});});}
+  function insert(type:string) {
+    if(!editor)return;
+    const node=newBlock(type,crypto.randomUUID());
+    const insertion=editor.chain().focus();
+    // Keep a selected block; insert the next gallery choice after it.
+    const inserted="node" in editor.state.selection
+      ? insertion.insertContentAt(editor.state.selection.to,node as JSONContent).run()
+      : insertion.insertContent(node as JSONContent).run();
+    if(!inserted){setError("This block could not be inserted at the cursor. Select a position in the page and try again.");return;}
+    editor.state.doc.descendants((candidate,position)=>{
+      if(candidate.attrs.studioId===node.attrs?.studioId)editor.chain().setNodeSelection(position).scrollIntoView().run();
+    });
+    setNotice(`${STUDIO_BLOCKS.find(block=>block.type===type)?.name||"Block"} added`);
+    if(type==="image")chooseImage(url=>{
+      editor.state.doc.descendants((candidate,pos)=>{
+        if(candidate.attrs.studioId===node.attrs?.studioId)editor.view.dispatch(editor.state.tr.setNodeMarkup(pos,undefined,{...candidate.attrs,src:url}));
+      });
+    });
+  }
   function insertedBlock(node:StudioNode){if(node.type!=="image"||!editor)return;chooseImage(url=>{editor.state.doc.descendants((candidate,position)=>{if(candidate.attrs.studioId===node.attrs?.studioId)editor.view.dispatch(editor.state.tr.setNodeMarkup(position,undefined,{...candidate.attrs,src:url}));});});}
   function chooseImage(apply:(url:string)=>void){imageApply.current=apply;setLibrary("Assets");file.current?.click();}
   async function upload(image:File){setBusy(true);setError("");try{const encoded=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(image);});const result=await apiFetch<Asset>("/api/oyama-create/studio/assets",{method:"POST",body:JSON.stringify({name:image.name,mimeType:image.type,dataBase64:encoded})});imageApply.current?.(result.url);imageApply.current=null;await assets.reload();}catch(error){setError(message(error));}finally{setBusy(false);}}

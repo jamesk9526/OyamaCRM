@@ -1,3 +1,11 @@
+## oyamaCreate guidance and block preview correction — 2026-11-04
+
+Home now explains the four steps from campaign setup through explicit release. Campaign tabs provide task instructions and working next-step navigation; setup explains what happens after saving. The Blocks gallery shows each block’s purpose and insertion instructions, confirms insertion and selects the inserted block for its settings.
+
+Fixed the reported Giving summary / “Yes, I want to help” mix-up: individual atomic previews were rendering the attached reply slip from the full appeal pack. Canvas previews now render only the selected block; full-pack output retains its reply slip. No stored campaign content is converted or deleted.
+
+Verification and synthetic desktop/mobile before/after evidence: [Create guidance and blocks audit](audit-artifacts/2026-11-04-create-guidance/verification.md).
+
 ## PWA version 2.0 — 2026-11-04
 
 The service-worker cache namespace is now `oyamacrm-v2.0.0`, matching the existing 2.0.0 package and v2.0 install identity. After deployment, the updated worker rebuilds its offline shell and removes the previous caches on activation. Registration, routes, icons and offline behavior are unchanged.
