@@ -126,7 +126,8 @@ describe.sequential("AI access and CRM context", () => {
     await install();
     const token = await connect(["crm.read", "crm.write"]);
     const originalCreate = db.aiOperation.create.bind(db.aiOperation);
-    const persist = vi.spyOn(db.aiOperation, "create").mockImplementationOnce(async args => {
+    const persist = vi.spyOn(db.aiOperation, "create").mockImplementationOnce(async raw => {
+      const args = raw as { data: Record<string, unknown> & { payloadJson: unknown } };
       const payload = JSON.parse(JSON.stringify(args.data.payloadJson));
       payload.fields = Object.fromEntries(Object.entries(payload.fields).reverse());
       return originalCreate({ ...args, data: { ...args.data, payloadJson: payload } });
@@ -151,7 +152,8 @@ describe.sequential("AI access and CRM context", () => {
     await install();
     const token = await connect(["crm.read", "crm.write"]);
     const originalCreate = db.aiOperation.create.bind(db.aiOperation);
-    const persist = vi.spyOn(db.aiOperation, "create").mockImplementationOnce(async args => {
+    const persist = vi.spyOn(db.aiOperation, "create").mockImplementationOnce(async raw => {
+      const args = raw as { data: Record<string, unknown> & { payloadJson: unknown } };
       const payload = JSON.parse(JSON.stringify(args.data.payloadJson));
       payload.fields.bodyHtml = "<p>Different content</p>";
       return originalCreate({ ...args, data: { ...args.data, payloadJson: payload } });

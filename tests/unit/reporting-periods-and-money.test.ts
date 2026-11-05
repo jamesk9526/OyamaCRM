@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   getPriorMonthComparableRange,
   getReportingPeriod,
+  calcYoYPercent,
+  calcRetentionRate,
 } from "../../server/src/lib/dateRanges";
 import { centsToMoney, moneyToCents, sumMoney } from "../../server/src/lib/money";
 
@@ -38,6 +40,11 @@ describe("reporting period consistency", () => {
 });
 
 describe("exact report money arithmetic", () => {
+  it("preserves the quoted board-report growth and dashboard decline to a tenth", () => {
+    expect(calcYoYPercent(293210.45, 201676.83)).toBe(45.4);
+    expect(calcYoYPercent(54595.03, 70193.44)).toBe(-22.2);
+    expect(calcRetentionRate(124, 199)).toBe(62.3);
+  });
   it("preserves cents across additions", () => {
     expect(moneyToCents("498.97")).toBe(49_897);
     expect(sumMoney(["498.97", "184.99", "15.94"])).toBe(699.9);

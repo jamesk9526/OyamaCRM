@@ -252,11 +252,11 @@ describe("calcRetentionRate", () => {
     expect(calcRetentionRate(0, 200)).toBe(0);
   });
 
-  it("rounds to nearest integer (not floor)", () => {
-    // 1 / 3 = 33.33...% → rounds to 33
-    expect(calcRetentionRate(1, 3)).toBe(33);
-    // 2 / 3 = 66.67...% → rounds to 67
-    expect(calcRetentionRate(2, 3)).toBe(67);
+  it("rounds to nearest tenth (not floor)", () => {
+    // 1 / 3 = 33.33...% → rounds to 33.3
+    expect(calcRetentionRate(1, 3)).toBe(33.3);
+    // 2 / 3 = 66.67...% → rounds to 66.7
+    expect(calcRetentionRate(2, 3)).toBe(66.7);
   });
 
   it("does not include new donors in the retained count", () => {
@@ -289,14 +289,14 @@ describe("calcYoYPercent", () => {
     expect(calcYoYPercent(500, 1000)).toBe(-50);
   });
 
-  it("rounds to nearest integer", () => {
+  it("rounds to nearest tenth", () => {
     // 3 / 2 = 50% exactly — no rounding needed
-    // 7 / 6 = 16.67% → rounds to 17
-    expect(calcYoYPercent(7, 6)).toBe(17);
+    // 7 / 6 = 16.67% → rounds to 16.7
+    expect(calcYoYPercent(7, 6)).toBe(16.7);
   });
 
   it("handles large numbers without overflow", () => {
-    // $2,000,000 vs $1,500,000 = +33.33% → 33
-    expect(calcYoYPercent(2_000_000, 1_500_000)).toBe(33);
+    // $2,000,000 vs $1,500,000 = +33.33% → 33.3
+    expect(calcYoYPercent(2_000_000, 1_500_000)).toBe(33.3);
   });
 });

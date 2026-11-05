@@ -10,6 +10,7 @@ import {
 } from "../lib/dateRanges.js";
 import { centsToMoney, moneyToCents } from "../lib/money.js";
 import { parseCalendarDateExclusiveEnd, parseCalendarDateStart } from "../lib/dateOnlyRanges.js";
+import { donationCalendarRange } from "./donor-dashboard-metrics.js";
 import { sumTaxDeductibleGiving } from "./donation-tax.js";
 import { loadOrganizationBrandingContext } from "./organization-branding.js";
 
@@ -133,9 +134,10 @@ export function parseDonorLibraryReportOptions(
   const requestedLimit = Number.parseInt(typeof query.limit === "string" ? query.limit : "", 10);
   const dateBasis: ReportingYearBasis = query.dateBasis === "fiscal" ? "fiscal" : "calendar";
   const fiscalYearStart = normalizeFiscalYearStart(configuration.fiscalYearStart);
+  const calendarNow = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const currentReportingYear = dateBasis === "fiscal"
-    ? getFiscalYearForDate(now, fiscalYearStart)
-    : now.getFullYear();
+    ? getFiscalYearForDate(calendarNow, fiscalYearStart)
+    : now.getUTCFullYear();
   const requestedYear = Number.parseInt(typeof query.year === "string" ? query.year : "", 10);
   const requestedLapseFromYear = Number.parseInt(typeof query.lapseFromYear === "string" ? query.lapseFromYear : "", 10);
   const requestedLapseThroughYear = Number.parseInt(typeof query.lapseThroughYear === "string" ? query.lapseThroughYear : "", 10);
@@ -198,15 +200,16 @@ function dollars(value: number): number {
 }
 
 function selectedYearRange(options: DonorLibraryReportOptions, year: number) {
-  return options.dateBasis === "fiscal"
+  return donationCalendarRange(options.dateBasis === "fiscal"
     ? getFiscalYearRange(year, options.fiscalYearStart)
-    : getYearRange(year);
+    : getYearRange(year));
 }
 
 function reportingYearForDate(options: DonorLibraryReportOptions, value: Date): number {
+  const calendarDate = new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
   return options.dateBasis === "fiscal"
-    ? getFiscalYearForDate(value, options.fiscalYearStart)
-    : value.getFullYear();
+    ? getFiscalYearForDate(calendarDate, options.fiscalYearStart)
+    : value.getUTCFullYear();
 }
 
 function iso(value: Date | null | undefined): string | null {

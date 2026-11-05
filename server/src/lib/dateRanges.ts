@@ -197,7 +197,7 @@ export function getPriorMonthComparableRange(now = new Date()): { gte: Date; lte
 
 /**
  * Donor retention formula helper (pure calculation, not a DB call).
- * Returns the integer percentage 0–100.
+ * Returns a percentage rounded to one decimal place.
  * Returns 0 (not NaN) when `totalLastYear` is zero — safe for display.
  *
  * @param retainedDonors Number of last-year donors who also gave this year.
@@ -208,13 +208,13 @@ export function calcRetentionRate(
   totalLastYear: number
 ): number {
   if (totalLastYear === 0) return 0;
-  return Math.round((retainedDonors / totalLastYear) * 100);
+  return Math.round((retainedDonors / totalLastYear) * 1000) / 10;
 }
 
 /**
  * Safe Year-over-Year percentage change.
  * Returns null when `previous` is zero (no prior data).
- * Returns a rounded integer percentage when `previous` > 0.
+ * Returns a percentage rounded to one decimal place.
  *
  * @param current  Current-period value.
  * @param previous Previous-period value.
@@ -224,5 +224,5 @@ export function calcYoYPercent(
   previous: number
 ): number | null {
   if (previous === 0) return null;
-  return Math.round(((current - previous) / previous) * 100);
+  return Math.round(((current - previous) / previous) * 1000) / 10;
 }

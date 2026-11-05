@@ -8,7 +8,9 @@ import { DEFAULT_MCP_POLICY, MCP_POLICY_KEY } from "@/server/src/chatgpt/policy"
 const req = { user: { sub: "synthetic-user", orgId: "org", role: "admin", email: "user@example.invalid" } } as Request;
 const report = (name: string, extra = {}) => callTool(req, "synthetic-grant", "run_report", { report: name, from: "2025-01-01", through: "2025-01-31", ...extra });
 beforeEach(async () => {
-  resetCreateRows(); vi.stubEnv("CHATGPT_PUBLIC_URL", "https://crm.example.invalid");
+  resetCreateRows();
+  await db.chatGptGrant.create({ data: { id: "synthetic-grant", userId: "synthetic-user", organizationId: "org", scopes: "reports.read", revokedAt: null, refreshExpiresAt: new Date(Date.now() + 86400000) } });
+  vi.stubEnv("CHATGPT_PUBLIC_URL", "https://crm.example.invalid");
   await db.organizationSettings.create({ data: { organizationId: "org", currency: "CAD", timezone: "America/Chicago", fiscalYearStart: 7 } });
   for (const id of ["a", "b"]) await db.constituent.create({ data: { id, organizationId: "org" } });
   await db.constituent.create({ data: { id: "foreign", organizationId: "other-org" } });
@@ -26,6 +28,17 @@ beforeEach(async () => {
   for (const gift of gifts) await db.donation.create({ data: { status: "COMPLETED", date: new Date("2025-01-01T00:00:00Z"), campaignId: "appeal", designationId: "fund", isRecurring: false, ...gift } });
 });
 describe("MCP financial reporting semantics", () => {
+  it("includes both July 1 and June 30 in a complete fiscal year", async () => {
+    for (const [id, date, amount] of [
+      ["fy-start", "2025-07-01T00:00:00Z", "10.01"],
+      ["fy-end", "2026-06-30T23:59:59.999Z", "20.02"],
+      ["next-fy", "2026-07-01T00:00:00Z", "999.00"],
+    ]) await db.donation.create({ data: { id, date: new Date(date), amount, constituentId: "a", status: "COMPLETED" } });
+    await db.pluginSetting.create({ data: { organizationId: "org", pluginKey: MCP_POLICY_KEY, config: { revision: 1, policy: { ...DEFAULT_MCP_POLICY, defaultDateBasis: "fiscal" } } } });
+    const result = await callTool(req, "synthetic-grant", "run_report", { report: "payment-method-summary", dateBasis: "fiscal", year: 2026 }) as Record<string, unknown>;
+    expect(result.exactRange).toEqual({ from: "2025-07-01T00:00:00.000Z", through: "2026-06-30T23:59:59.999Z", inclusive: true });
+    expect(result.summary).toContainEqual({ label: "Gift total", value: 30.03, type: "currency" });
+  });
   it("uses exact money arithmetic, completed status, tenant scope and inclusive cutoff dates", async () => {
     const result = await report("payment-method-summary") as Record<string, unknown>;
     expect(result.summary).toContainEqual({ label: "Gift total", value: 100.31, type: "currency" });

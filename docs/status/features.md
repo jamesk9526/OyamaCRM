@@ -1703,3 +1703,9 @@ OAuth and resource discovery now advertise five compact connection scopes. Exist
 ### MCP email draft persistence correction (2026-11-05)
 
 AI operation comparisons now ignore presentation order of fields and target records, preventing MySQL JSON key reordering from marking unchanged email drafts stale. Content values and record versions remain checked. Tool guidance explains importing ChatGPT image attachments or polling CRM image generation, embedding the returned media URL in email HTML, and keeping text editable with official branding.
+
+### Fiscal giving reconciliation (2026-11-05)
+
+Dashboard growth and retention helpers now retain one decimal place rather than rounding to an integer before displaying a decimal. The quoted $54,595.03/$70,193.44 comparison returns -22.2%; $293,210.45/$201,676.83 returns 45.4%. Donor report-library fiscal queries and MCP annual ranges now use the dashboard's UTC gift-date boundaries, including July 1 donations on non-UTC hosts. MCP retention compares the same dates one year earlier, preventing leap-year duration drift. Aggregate monthly analytics return whole-period distinct donors and gift counts, preventing sums of monthly donor counts. MCP reports identify full-year, YTD and explicit-date requests and explain grant-award versus grant-designation inclusion.
+
+A read-only audit command, `pnpm exec tsx scripts/audit-fiscal-giving.ts --organization-id ORG_ID --year 2026`, reconciles database aggregate giving with individual gift sums inside a repeatable-read transaction and returns fiscal periods, distinct cohorts, recurring donors, first gifts, monthly giving and matching prior-year totals without donor identities. Requires installation DB access and an explicit organization; no production execution or deployment was performed in this audit.

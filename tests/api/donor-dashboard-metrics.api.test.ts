@@ -39,6 +39,24 @@ describe("donor dashboard reporting contracts", () => {
     expect(db.donation.aggregate.mock.calls[0][0].where).toMatchObject({ constituent: { organizationId: "metrics-org" }, status: "COMPLETED", date: { gte: new Date("2026-01-01T00:00:00Z"), lte: new Date("2026-10-15T12:30:00Z") } });
   });
 
+  it("reconciles the quoted fiscal giving totals and preserves percentage precision", async () => {
+    vi.setSystemTime(new Date("2026-11-05T21:04:00Z"));
+    db.donation.aggregate.mockImplementation(async ({ where }) => ({ _sum: { amount: where.date?.gte?.getUTCFullYear() === 2025 ? "70193.44" : "54595.03" }, _count: 3 }));
+    const summary = await request(app).get("/api/reports/summary?dateBasis=fiscal");
+    expect(summary.body).toMatchObject({ ytdAmount: 54595.03, previousPeriodAmount: 70193.44, revenueChangePercent: -22.2 });
+    expect(summary.body.period).toMatchObject({ label: "FY 2027", from: "2026-07-01T00:00:00.000Z", yearComparisonFrom: "2025-07-01T00:00:00.000Z", yearComparisonThrough: "2025-11-05T21:04:00.000Z" });
+  });
+
+  it("uses full prior fiscal donor cohorts and returns fractional retention", async () => {
+    const prior = Array.from({ length: 199 }, (_, i) => ({ constituentId: `donor-${i}` }));
+    const current = [...prior.slice(0, 124), { constituentId: "new-donor" }];
+    db.donation.findMany.mockResolvedValueOnce(prior).mockResolvedValueOnce(current);
+    const response = await request(app).get("/api/reports/donor-retention?dateBasis=fiscal&year=2026");
+    expect(response.body).toMatchObject({ total: 199, retained: 124, rate: 62.3, year: 2026 });
+    expect(db.donation.findMany.mock.calls[0][0].where.date).toEqual({ gte: new Date("2024-07-01T00:00:00Z"), lt: new Date("2025-07-01T00:00:00Z") });
+    expect(db.donation.findMany.mock.calls[1][0].where.date).toEqual({ gte: new Date("2025-07-01T00:00:00Z"), lt: new Date("2026-07-01T00:00:00Z") });
+  });
+
   it("returns fiscal comparisons in order through the matching partial month", async () => {
     db.donation.findMany.mockResolvedValueOnce([{ date: new Date("2026-07-01T00:00:00Z"), amount: "150" }])
       .mockResolvedValueOnce([{ date: new Date("2025-07-01T00:00:00Z"), amount: "100" }]);

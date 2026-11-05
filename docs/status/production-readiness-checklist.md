@@ -1544,3 +1544,12 @@ Evidence: [gateway verification](audit-artifacts/2026-11-05-oauth-gateway/verifi
 - [ ] Deploy and retry the donor-reconnection draft through ChatGPT, checking the saved image and draft in CRM. Real MySQL persistence and provider generation remain acceptance checks.
 
 [Verification](audit-artifacts/2026-11-05-email-draft-json-order/verification.md).
+
+### Fiscal calculations and MCP reconciliation (2026-11-05)
+
+- [x] Audit completed-donation scoping, cent arithmetic, July-June labels, same-elapsed comparisons, distinct donor/recurring cohorts and separate grant-award inclusion.
+- [x] Correct percentage precision, host-timezone donation boundaries and leap-year MCP retention periods. 126 focused tests pass in America/Chicago; 20 fiscal/API checks also pass in UTC. Repository/server types pass; focused lint has zero errors and one pre-existing unused-parameter warning.
+- [x] Add explicit MCP period mode and a read-only live reconciliation command. No screen layout or document rendering changes.
+- [ ] Deploy and reconcile FY2025/FY2026/FY2027 using the installation's MySQL records. Quoted production dollar totals and donor counts remain unverified by this code audit.
+
+[Evidence and remaining limits](audit-artifacts/2026-11-05-fiscal-calculations/verification.md).

@@ -3,6 +3,7 @@ import type { ChatGptGrant } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { completedDonationWhere } from "../lib/donationScope.js";
 import { moneyToCents, centsToMoney } from "../lib/money.js";
+import { getPriorYearComparisonRange } from "../services/donor-dashboard-metrics.js";
 import { reportingContext } from "../chatgpt/reporting.js";
 import { CreateError } from "../oyama-create/domain.js";
 import { decideAccess, demandAccess } from "./policy.js";
@@ -11,7 +12,7 @@ import { resourceFor } from "./catalog.js";
 
 export const ANALYTICS = [
   { key: "giving-trend", title: "Monthly completed giving", definition: "Recorded completed gift amounts and gift counts grouped by UTC calendar month." },
-  { key: "donor-retention", title: "Donor retention", definition: "Donors giving in both the selected period and its immediately preceding equal-duration period, divided by distinct donors in that prior period. Zero prior donors gives null percent." },
+  { key: "donor-retention", title: "Donor retention", definition: "Donors giving in both the selected period and the same calendar-date window one year earlier, divided by distinct donors in that prior period. Zero prior donors gives null percent." },
   { key: "lapsed-donors", title: "Lapsed donors", definition: "Donors with completed giving before the selected period and no completed gift during it." },
   { key: "first-time-donors", title: "First-time donors", definition: "Donors whose earliest recorded completed gift falls within the selected period." },
   { key: "recurring-giving", title: "Recurring giving", definition: "Completed gifts marked recurring in the selected period; not a forecast or recurring-payment mandate." },
@@ -28,19 +29,21 @@ export async function runAnalytics(req: Request, grant: ChatGptGrant, report: st
   if (count > 50000) throw new CreateError(413, "This analysis exceeds the current 50,000-gift calculation limit. Use the CRM report library for this organization's larger history.");
   const gifts = await prisma.donation.findMany({ where, select: { id: true, constituentId: true, amount: true, date: true, isRecurring: true, eventId: true }, orderBy: { id: "asc" }, take: 50001 });
   if (gifts.length > 50000) throw new CreateError(413, "Giving history changed beyond the calculation limit. Run the CRM report library.");
-  const current = gifts.filter(gift => gift.date >= start), duration = end.getTime() - start.getTime() + 1;
-  const priorStart = new Date(start.getTime() - duration), priorEnd = new Date(start.getTime() - 1);
-  const currentIds = new Set(current.map(gift => gift.constituentId)), priorIds = new Set(gifts.filter(gift => gift.date >= priorStart && gift.date < start).map(gift => gift.constituentId));
+  const current = gifts.filter(gift => gift.date >= start);
+  const comparisonRange = getPriorYearComparisonRange({ gte: start, lte: end })!;
+  const priorStart = comparisonRange.gte as Date, priorEnd = comparisonRange.lte as Date;
+  const currentIds = new Set(current.map(gift => gift.constituentId)), priorIds = new Set(gifts.filter(gift => gift.date >= priorStart && gift.date <= priorEnd).map(gift => gift.constituentId));
   const first = new Map<string, Date>();
   for (const gift of gifts) if (!first.has(gift.constituentId) || first.get(gift.constituentId)! > gift.date) first.set(gift.constituentId, gift.date);
   let rows: Record<string, unknown>[] = [], summary: Record<string, unknown> = {};
   if (report === "giving-trend") {
+    summary = { gifts: current.length, distinctDonors: currentIds.size };
     const months = new Map<string, { cents: number; gifts: number; donors: Set<string> }>();
     for (const gift of current) { const key = gift.date.toISOString().slice(0, 7), group = months.get(key) || { cents: 0, gifts: 0, donors: new Set<string>() }; group.cents += moneyToCents(gift.amount); group.gifts++; group.donors.add(gift.constituentId); months.set(key, group); }
     rows = [...months].sort(([a], [b]) => a.localeCompare(b)).map(([month, group]) => ({ month, amount: centsToMoney(group.cents), gifts: group.gifts, distinctDonors: group.donors.size }));
   } else if (report === "donor-retention") {
     const retained = [...priorIds].filter(id => currentIds.has(id)).length;
-    summary = { priorDonors: priorIds.size, currentDonors: currentIds.size, retainedDonors: retained, retentionPercent: priorIds.size ? Math.round(retained / priorIds.size * 1000) / 10 : null, comparison: { from: priorStart.toISOString(), through: priorEnd.toISOString() } };
+    summary = { priorDonors: priorIds.size, currentDonors: currentIds.size, retainedDonors: retained, retentionPercent: priorIds.size ? Math.round(retained / priorIds.size * 1000) / 10 : null, comparison: { basis: "PRIOR_YEAR_SAME_DATES", from: priorStart.toISOString(), through: priorEnd.toISOString() } };
   } else if (report === "recurring-giving") {
     const recurring = current.filter(gift => gift.isRecurring);
     summary = { gifts: recurring.length, distinctDonors: new Set(recurring.map(gift => gift.constituentId)).size, amount: centsToMoney(recurring.reduce((sum, gift) => sum + moneyToCents(gift.amount), 0)) };

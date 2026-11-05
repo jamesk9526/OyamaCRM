@@ -6,6 +6,7 @@ import { trashedIds, isTrashed } from "../oyama-create/trash-state.js";
 import { CreateError, object } from "../oyama-create/domain.js";
 import { buildDonorLibraryReport, parseDonorLibraryReportOptions } from "../services/donor-report-library.js";
 import { connectionConfig } from "./config.js";
+import { donationCalendarRange } from "../services/donor-dashboard-metrics.js";
 import { getFiscalYearRange, getYearRange } from "../lib/dateRanges.js";
 import { REPORT_DEFINITIONS, reportingContext, scorecardComparison } from "./reporting.js";
 import { readMcpPolicy, toolAllowed, type McpPolicy } from "./policy.js";
@@ -26,7 +27,7 @@ export const TOOLS = [
   ...LETTER_TOOLS,
   { name: "list_reports", scope: "reports.read", description: "List supported aggregate reports. Uses the same reporting service as OyamaCRM; donor-level exports are not exposed.", inputSchema: schema({}), read: true },
   { name: "get_reporting_context", scope: "reports.read", description: "Read this organization's reporting currency, fiscal-year convention, date semantics, financial definitions and calculation limits. Use before interpreting giving as financial performance. No banking, ledger or private donor details are returned.", inputSchema: schema({}), read: true },
-  { name: "run_report", scope: "reports.read", description: "Run an aggregate CRM report for a calendar/fiscal year or inclusive date range. Returns report periods, money column metadata and notices. Do not invent missing results or treat currency amounts as cents.", inputSchema: schema({ report: { enum: aggregateReports }, year: { type: "integer", minimum: 2000, maximum: 2100 }, from: str, through: str, dateBasis: { enum: ["calendar", "fiscal"] } }, ["report"]), read: true },
+  { name: "run_report", scope: "reports.read", description: "Run an aggregate CRM report for a calendar/fiscal year or inclusive date range. Always cite exactRange, dateBasis and comparison basis. An explicit year requests the full year; no dates/year uses current year to date. Rolling/equal-duration scorecards are not automatically fiscal year-over-year comparisons. Returns report periods, money column metadata and notices. Do not invent missing results or treat currency amounts as cents.", inputSchema: schema({ report: { enum: aggregateReports }, year: { type: "integer", minimum: 2000, maximum: 2100 }, from: str, through: str, dateBasis: { enum: ["calendar", "fiscal"] } }, ["report"]), read: true },
 ] as const;
 export function toolAvailable(tool: (typeof TOOLS)[number], policy: McpPolicy) {
   return toolAllowed(tool.scope, policy) && (tool.name !== "generate_letter_image" || policy.allowImageGeneration && imageProviderConfigured());
@@ -91,7 +92,7 @@ export async function callTool(req: Request, grantId: string, name: string, args
     const options = parseDonorLibraryReportOptions(report, { ...args, dateBasis, year: args.year === undefined ? undefined : String(args.year), limit: String(policy.maxReportRows) }, new Date(), { fiscalYearStart: settings?.fiscalYearStart });
     if (args.from === undefined && args.through === undefined) {
       const year = args.year === undefined ? options.selectedYear : Number(args.year);
-      const range = options.dateBasis === "fiscal" ? getFiscalYearRange(year, options.fiscalYearStart) : getYearRange(year);
+      const range = donationCalendarRange(options.dateBasis === "fiscal" ? getFiscalYearRange(year, options.fiscalYearStart) : getYearRange(year));
       options.from = range.gte; options.through = args.year === undefined ? new Date() : new Date(range.lt.getTime() - 1);
     }
     const result = await buildDonorLibraryReport(org, report, options);
@@ -99,7 +100,7 @@ export async function callTool(req: Request, grantId: string, name: string, args
     void _ids;
     const comparison = report === "crm-performance-scorecard" ? scorecardComparison(result, options.from, options.through) : undefined;
     if (comparison) delete safe.comparisonMatrix; // UI year/third-column placeholders are not financial observations.
-    return { ...safe, comparison, financialContext: reportingContext(settings), appliedPolicy: { defaultDateBasis: policy.defaultDateBasis, allowDateBasisOverride: policy.allowDateBasisOverride }, definition: REPORT_DEFINITIONS[report], dateBasis: options.dateBasis, exactRange: { from: options.from.toISOString(), through: options.through.toISOString(), inclusive: true }, rows: safe.rows.slice(0, policy.maxReportRows), totalRows: safe.rows.length, truncated: safe.rows.length > policy.maxReportRows, url: `${origin}/reports`, rowLimit: policy.maxReportRows };
+    return { ...safe, comparison, financialContext: reportingContext(settings), appliedPolicy: { defaultDateBasis: policy.defaultDateBasis, allowDateBasisOverride: policy.allowDateBasisOverride }, definition: REPORT_DEFINITIONS[report], dateBasis: options.dateBasis, periodMode: args.from !== undefined || args.through !== undefined ? "EXPLICIT_DATE_RANGE" : args.year === undefined ? "YEAR_TO_DATE" : "FULL_YEAR", exactRange: { from: options.from.toISOString(), through: options.through.toISOString(), inclusive: true }, rows: safe.rows.slice(0, policy.maxReportRows), totalRows: safe.rows.length, truncated: safe.rows.length > policy.maxReportRows, url: `${origin}/reports`, rowLimit: policy.maxReportRows };
   }
   await demand(req, "letters.view");
   if (name === "search_letters") {

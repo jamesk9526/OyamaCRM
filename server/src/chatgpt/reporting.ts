@@ -26,8 +26,8 @@ export function reportingContext(settings: { currency: string; timezone: string;
     organizationTimezone: settings?.timezone || "America/Chicago", serverCalendarTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     fiscalYearStartMonth: settings?.fiscalYearStart || 1,
     fiscalYearLabel: "For a non-January fiscal start, the year is the year in which the fiscal period ends.",
-    dates: "Explicit YYYY-MM-DD inputs use inclusive UTC calendar days in the existing report library. Whole calendar/fiscal years use the server calendar timezone. Exact ISO boundaries are returned with every report; cite them when a cutoff matters.",
-    inclusion: "Only donation records with status COMPLETED, scoped through their constituent organization and filtered by recorded donation date. Other donation statuses and unreceived pledges are excluded. Recorded IN_KIND gifts and signed amounts are included when COMPLETED. This is not cash-only reporting.",
+    dates: "Explicit YYYY-MM-DD inputs use inclusive UTC calendar days in the existing report library. Whole donation calendar/fiscal years use UTC calendar-date boundaries. Exact ISO boundaries are returned with every report; cite them when a cutoff matters.",
+    inclusion: "Only donation records with status COMPLETED, scoped through their constituent organization and filtered by recorded donation date. Other donation statuses and unreceived pledges are excluded. Separately recorded grant awards are not added; completed donations assigned to grant-named designations remain included. Recorded IN_KIND gifts and signed amounts are included when COMPLETED. This is not cash-only reporting.",
     interpretation: [
       "Recorded giving does not establish bank cash, deposits, processor settlements, net receipts after fees/refunds, available funds, or general-ledger revenue recognition.",
       "Donation amount is not automatically the tax-deductible portion. Use the dedicated receipt/statement workflow for deductible giving.",

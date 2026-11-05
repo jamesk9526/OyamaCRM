@@ -115,7 +115,7 @@ describe.sequential("ChatGPT account connection", () => {
     const t = await tokens("reports.read");
     const response = await rpc(t.access_token, "tools/call", { name: "run_report", arguments: { report: "campaign-performance", year: 2024 } });
     const result = resultOf(response); expect(result.rows[0].totalAmount).toBe(123.45); expect(result.audienceConstituentIds).toBeUndefined();
-    const [org, key, options] = reporting.build.mock.calls[0]; expect(org).toBe("org"); expect(key).toBe("campaign-performance"); expect(options.from.getFullYear()).toBe(2024); expect(options.from.getMonth()).toBe(0); expect(options.through.getFullYear()).toBe(2024);
+    const [org, key, options] = reporting.build.mock.calls[0]; expect(org).toBe("org"); expect(key).toBe("campaign-performance"); expect(options.from.getUTCFullYear()).toBe(2024); expect(options.from.getUTCMonth()).toBe(0); expect(options.through.getUTCFullYear()).toBe(2024);
     const invalid = await rpc(t.access_token, "tools/call", { name: "run_report", arguments: { report: "donor-notes" } }); expect(invalid.body.result.isError).toBe(true);
   });
   it("isolates legacy letters to donor CRM and organization", async () => {
@@ -306,7 +306,7 @@ describe.sequential("ChatGPT account connection", () => {
   it("supports fiscal reporting and rejects invalid dates or extra inputs", async () => {
     const t = await tokens("reports.read");
     await rpc(t.access_token, "tools/call", { name: "run_report", arguments: { report: "designation-performance", year: 2025, dateBasis: "fiscal" } });
-    const options = reporting.build.mock.calls[0][2]; expect(options.from.getFullYear()).toBe(2024); expect(options.from.getMonth()).toBe(6); expect(options.through.getFullYear()).toBe(2025); expect(options.through.getMonth()).toBe(5);
+    const options = reporting.build.mock.calls[0][2]; expect(options.from.getUTCFullYear()).toBe(2024); expect(options.from.getUTCMonth()).toBe(6); expect(options.through.getUTCFullYear()).toBe(2025); expect(options.through.getUTCMonth()).toBe(5);
     for (const bad of [{ from: "2025-02-30" }, { from: "2025-11-01", through: "2025-01-01" }, { organizationId: "foreign" }]) expect((await rpc(t.access_token, "tools/call", { name: "run_report", arguments: { report: "campaign-performance", ...bad } })).body.result.isError).toBe(true);
   });
   it("continues legacy search past 100 records without including another tenant", async () => {
