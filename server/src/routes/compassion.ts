@@ -3404,6 +3404,7 @@ router.post("/follow-ups", careTransaction(async (req, res) => {
       clientId,
       caseId,
       appointmentId,
+      visitId,
       title,
       dueDate,
       priority,
@@ -3426,6 +3427,9 @@ router.post("/follow-ups", careTransaction(async (req, res) => {
       res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Select a client and related records in this care workspace." } }); return;
     }
 
+    if (visitId && !await prisma.compassionVisit.findFirst({ where: { id: String(visitId), organizationId, clientId: String(clientId), ...(caseId ? { caseId: String(caseId) } : {}) } })) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Choose this client’s visit." } }); return;
+    }
     const normalizedAssignedCompassionStaffId = normalizeOptionalId(assignedCompassionStaffId);
     let normalizedAssignedStaffId = normalizeOptionalId(assignedStaffId);
 
@@ -3453,6 +3457,7 @@ router.post("/follow-ups", careTransaction(async (req, res) => {
         clientId,
         caseId: caseId ?? null,
         appointmentId: appointmentId ?? null,
+        visitId: visitId ?? null,
         title: title.trim(),
         dueDate: new Date(dueDate),
         priority: (priority ?? "MEDIUM") as CompassionPriority,

@@ -9,7 +9,7 @@ async function preview(req: Request, sourceId: string, targetId: string) {
   const source = await client(req, sourceId); const target = await client(req, targetId);
   check(!await prisma.compassionClientRedirect.findFirst({ where: { organizationId: org(req), sourceId: { in: [sourceId, targetId] } } }), "Choose current client records; these records have already been merged.");
   const where = { organizationId: org(req), clientId: sourceId };
-  const counts = { cases: await prisma.compassionCase.count({ where }), appointments: await prisma.compassionAppointment.count({ where }), charts: await prisma.compassionChart.count({ where }), documents: await prisma.compassionDocument.count({ where }), services: await prisma.compassionService.count({ where }), followUps: await prisma.compassionFollowUp.count({ where }) };
+  const counts = { cases: await prisma.compassionCase.count({ where }), appointments: await prisma.compassionAppointment.count({ where }), charts: await prisma.compassionChart.count({ where }), documents: await prisma.compassionDocument.count({ where }), services: await prisma.compassionService.count({ where }), followUps: await prisma.compassionFollowUp.count({ where }), forms: await prisma.compassionFormRecord.count({ where }), visits: await prisma.compassionVisit.count({ where }) };
   const checksum = digest(JSON.stringify({ sourceId, targetId, sourceUpdated: source.updatedAt, targetUpdated: target.updatedAt, counts }));
   return { source: { id: source.id, name: `${source.firstName} ${source.lastName}`, email: source.email, phone: source.phone, birthDate: source.dateOfBirth }, target: { id: target.id, name: `${target.firstName} ${target.lastName}`, email: target.email, phone: target.phone, birthDate: target.dateOfBirth }, counts, checksum };
 }
@@ -22,6 +22,15 @@ identityRoutes.post("/merge/commit", ...route("manage", async (req, res) => {
   check(req.body.approve === true && req.body.checksum === plan.checksum, "Review and approve an unchanged merge preview.");
   const scope = { organizationId: org(req), clientId: sourceId };
   // Preserve every signed version while rebinding encrypted storage to the kept client.
+  for (const row of await prisma.compassionFormRecord.findMany({ where: scope })) {
+    for (const revision of await prisma.compassionFormRevision.findMany({ where: { organizationId: org(req), formId: row.id } })) {
+      await prisma.compassionFormRevision.update({ where: { id: revision.id }, data: { encryptedAnswers: seal(unseal(revision.encryptedAnswers, `${org(req)}:${sourceId}:form`), `${org(req)}:${targetId}:form`) } });
+    }
+    await prisma.compassionFormRecord.update({ where: { id: row.id }, data: { clientId: targetId, encryptedAnswers: seal(unseal(row.encryptedAnswers, `${org(req)}:${sourceId}:form`), `${org(req)}:${targetId}:form`) } });
+  }
+  for (const row of await prisma.compassionVisit.findMany({ where: scope })) {
+    await prisma.compassionVisit.update({ where: { id: row.id }, data: { clientId: targetId, encryptedFacts: seal(unseal(row.encryptedFacts, `${org(req)}:${sourceId}:visit`), `${org(req)}:${targetId}:visit`) } });
+  }
   for (const row of await prisma.compassionChart.findMany({ where: scope })) {
     const content = unseal(row.encryptedContent, `${org(req)}:${sourceId}:chart`);
     await prisma.compassionChart.update({ where: { id: row.id }, data: { clientId: targetId, encryptedContent: seal(content, `${org(req)}:${targetId}:chart`) } });

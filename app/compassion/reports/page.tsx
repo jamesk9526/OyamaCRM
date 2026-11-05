@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
+import MonthlyRegister from "@/app/components/compassion/MonthlyRegister";
 
 interface ReportCountRow {
   label: string;
@@ -87,7 +88,7 @@ function DistributionCard({ title, rows }: { title: string; rows: ReportCountRow
  * CompassionReportsPage provides operational reporting for client-care teams.
  * Access enforcement is handled by CompassionLayout and /api/compassion middleware.
  */
-export default function CompassionReportsPage() {
+function OperationalReports() {
   const [summary, setSummary] = useState<ReportsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -267,4 +268,10 @@ export default function CompassionReportsPage() {
       )}
     </div>
   );
+}
+
+export default function CompassionReportsPage() {
+  const [summary, setSummary] = useState(false);
+  useEffect(() => { setSummary(new URLSearchParams(window.location.search).get("view") === "summary"); }, []);
+  return summary ? <><a className="care-button secondary" href="/compassion/reports">Monthly statistics</a><OperationalReports /></> : <MonthlyRegister />;
 }

@@ -70,9 +70,11 @@ function priorityTone(priority: FollowUpPriority): string {
  */
 export default function ClientFollowUpsTab({
   clientId,
+  visitId,
   developmentNotice,
 }: {
   clientId: string;
+  visitId?: string;
   developmentNotice?: string;
 }) {
   const [items, setItems] = useState<FollowUpItem[]>([]);
@@ -167,6 +169,7 @@ export default function ClientFollowUpsTab({
         method: "POST",
         body: JSON.stringify({
           clientId,
+          visitId,
           title: form.title.trim(),
           dueDate: new Date(form.dueDate).toISOString(),
           priority: form.priority,

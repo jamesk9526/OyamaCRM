@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
+import { AI_SCOPES } from "../ai-access/catalog.js";
 
-export const SCOPES = ["letters.read", "letters.write", "reports.read"] as const;
+export const SCOPES: readonly string[] = [...new Set(["letters.read", "letters.write", "reports.read", ...AI_SCOPES])];
 export function connectionConfig() {
   const raw = process.env.CHATGPT_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "";
   const issues: string[] = []; let url = new URL("http://localhost:3000"), originConfigured = false;

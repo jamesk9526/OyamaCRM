@@ -3,8 +3,10 @@ import { prisma } from "./database.js";
 import { audit, digest, org, seal, unseal } from "./security.js";
 import { CareError, check, client, route, text } from "./http.js";
 import { validateUltrasoundContent } from "./ultrasound-validation.js";
+import { FORM_TEMPLATES, validateAnswers, answerIssues } from "./form-templates.js";
+import { careLinks } from "./paper-forms.js";
 
-export const CHART_KINDS = ["PREGNANCY_TEST", "PREGNANCY_HISTORY", "ULTRASOUND", "STD_TEST", "CLINICAL_NOTE", "CONSENT"] as const;
+export const CHART_KINDS = ["PREGNANCY_TEST", "PREGNANCY_HISTORY", "ULTRASOUND", "STD_TEST", "CLINICAL_NOTE", "CONSENT", "HEALTH_PREGNANCY_INTAKE", "VITALS"] as const;
 export function mayEditChart(status: string, authorId: string, userId: string): boolean { return status === "DRAFT" && authorId === userId; }
 export function signedChartDigest(input: { id: string; version: number; content: string; signer: string; signedAt: string }): string {
   return digest(JSON.stringify(input));
@@ -43,6 +45,10 @@ router.post("/charts", ...route("clinical", async (req, res) => {
   check(req.body.content && typeof req.body.content === "object" && !Array.isArray(req.body.content), "Chart content must be an object.");
   check(!req.body.content._signoff && !req.body.content._review, "Review and sign-off provenance is assigned only by the server.");
   if (req.body.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), clientId, req.body.content);
+  const template = FORM_TEMPLATES[req.body.kind];
+  if (template) check(validateAnswers(req.body.kind, req.body.content.answers).length === 0, "Check the form’s field types and answer choices.");
+  await careLinks(req, clientId, req.body.caseId, req.body.visitId);
+  if (template) { req.body.content.templateSource = template.source; req.body.content.templateDigest = template.sourceSha256 ?? digest(JSON.stringify(template)); }
   const content = JSON.stringify(req.body.content); check(content.length <= 100000, "Chart is too large.");
   let version = 1;
   const previousId = req.body.previousId ? text(req.body.previousId, 191) : null;
@@ -53,7 +59,7 @@ router.post("/charts", ...route("clinical", async (req, res) => {
     check(typeof req.body.content.amendmentReason === "string" && req.body.content.amendmentReason.trim(), "Record the reason for amendment.");
     version = previous.version + 1;
   }
-  const row = await prisma.compassionChart.create({ data: { organizationId: org(req), clientId, kind: req.body.kind, version, previousId, authorId: req.user!.sub, encryptedContent: seal(content, `${org(req)}:${clientId}:chart`) } });
+  const row = await prisma.compassionChart.create({ data: { organizationId: org(req), clientId, caseId: req.body.caseId || null, visitId: req.body.visitId || null, kind: req.body.kind, version, previousId, authorId: req.user!.sub, encryptedContent: seal(content, `${org(req)}:${clientId}:chart`) } });
   await audit(req, previousId ? "CHART_AMENDMENT_CREATED" : "CHART_CREATED", row.id);
   res.status(201).json({ id: row.id });
 }));
@@ -64,8 +70,10 @@ router.patch("/charts/:id", ...route("clinical", async (req, res) => {
   check(req.body?.content && typeof req.body.content === "object" && !Array.isArray(req.body.content), "Chart content must be an object.");
   check(!req.body.content._signoff && !req.body.content._review, "Review and sign-off provenance is assigned only by the server.");
   if (row.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), row.clientId, req.body.content);
+  if (FORM_TEMPLATES[row.kind]) check(validateAnswers(row.kind, req.body.content.answers).length === 0, "Check the form’s field types and answer choices.");
   if (row.previousId) check(typeof req.body.content.amendmentReason === "string" && req.body.content.amendmentReason.trim(), "Keep the reason for amendment with this chart version.");
   const previous = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
+  if (FORM_TEMPLATES[row.kind]) { req.body.content.templateSource = previous.templateSource; req.body.content.templateDigest = previous.templateDigest; }
   const content = JSON.stringify({ ...req.body.content, ...(previous._review ? { _review: previous._review } : {}) }); check(content.length <= 100000, "Chart is too large.");
   await prisma.compassionChart.update({ where: { id: row.id }, data: { encryptedContent: seal(content, `${org(req)}:${row.clientId}:chart`) } });
   await audit(req, "CHART_DRAFT_UPDATED", row.id); res.json({ id: row.id });
@@ -76,6 +84,10 @@ router.post("/charts/:id/submit", ...route("clinical", async (req, res) => {
   checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
   const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
   if (row.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), row.clientId, content);
+  if (FORM_TEMPLATES[row.kind]) {
+    check(validateAnswers(row.kind, content.answers).length === 0 && answerIssues(row.kind, content.answers).length === 0, "Review invalid or conflicting form answers before submitting.");
+    if (row.kind === "HEALTH_PREGNANCY_INTAKE") check(content.answers.name?.trim() && content.answers.visitDate && content.answers.testStaff?.trim() && content.answers.testResult && content.answers.testType, "Record the client, visit date, test staff, result, and type before clinical review.");
+  }
   if (row.previousId) check(typeof content.amendmentReason === "string" && content.amendmentReason.trim(), "Record the reason for amendment before submitting.");
   const required: Record<string, string[]> = { PREGNANCY_TEST: ["testDate", "method", "result", "clinicalNotes"], PREGNANCY_HISTORY: ["historyDate", "pregnancyHistory", "clinicalNotes"], ULTRASOUND: ["examDate", "indication", "findings", "impression", "followUp"], STD_TEST: ["specimenDate", "testName", "result", "clinicalNotes"], CLINICAL_NOTE: ["encounterDate", "note"], CONSENT: content.sourceIntakeId ? ["consentVersion"] : ["consentVersion", "consentText", "signedName", "signedDate"] };
   check((required[row.kind] ?? []).every((key) => typeof content[key] === "string" && content[key].trim()), "Complete all required chart fields before submitting.");

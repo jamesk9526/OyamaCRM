@@ -1210,6 +1210,7 @@ model ConstituentGroupMember {
 
 model Household {
   id                String   @id @default(cuid())
+  organizationId    String?
   name              String
   headConstituentId String?  @unique
   addressLine1      String?
@@ -1223,16 +1224,19 @@ model Household {
 
   head    Constituent?  @relation("HouseholdHead", fields: [headConstituentId], references: [id])
   members Constituent[] @relation("HouseholdMembers")
+  @@index([organizationId])
 }
 
 model Tag {
   id          String   @id @default(cuid())
+  organizationId String?
   name        String
   color       String   @default("#16a34a")
   description String?
   createdAt   DateTime @default(now())
 
   constituents ConstituentTag[]
+  @@index([organizationId])
 }
 
 model ConstituentTag {
@@ -1479,6 +1483,7 @@ model Pledge {
 
 model Designation {
   id          String   @id @default(cuid())
+  organizationId String?
   name        String
   description String?
   active      Boolean  @default(true)
@@ -1486,6 +1491,7 @@ model Designation {
 
   donations Donation[]
   pledges   Pledge[]
+  @@index([organizationId])
 }
 
 // ─── Campaigns ───────────────────────────────────────────────────────────────
@@ -3639,6 +3645,9 @@ model CompassionService {
   organizationId String
   clientId       String
   caseId         String?
+  visitId        String?
+  sourceKey      String?
+  @@unique([organizationId, sourceKey], map: "CompassionService_retry_key")
 
   serviceType                 CompassionServiceType @default(OTHER)
   serviceDate                 DateTime              @default(now())
@@ -3665,6 +3674,7 @@ model CompassionFollowUp {
   appointmentId  String?
   /// Optional protected-chart association; clinical findings stay in the encrypted chart.
   chartId        String?
+  visitId        String?
 
   title                     String
   dueDate                   DateTime
@@ -3771,6 +3781,7 @@ model CompassionChart {
   kind String @db.VarChar(50)
   version Int @default(1)
   templateVersion Int @default(1)
+  visitId String?
   status String @default("DRAFT") @db.VarChar(20)
   encryptedContent String @db.LongText
   authorId String
@@ -3789,6 +3800,8 @@ model CompassionDocument {
   organizationId String
   clientId String
   chartId String?
+  formId String?
+  accessScope String @default("CLINICAL") @db.VarChar(20)
   name String
   mimeType String @db.VarChar(100)
   checksum String @db.VarChar(64)
@@ -3998,7 +4011,8 @@ model ChatGptGrant {
   clientId String
   redirectUri String @db.Text
   resource String @db.Text
-  scopes String
+  scopes String @db.Text
+  consentJson Json?
   challenge String
   codeHash String? @unique @db.VarChar(64)
   codeExpiresAt DateTime
@@ -4010,6 +4024,45 @@ model ChatGptGrant {
   lastUsedAt DateTime?
   createdAt DateTime @default(now())
   @@index([userId, organizationId, revokedAt])
+}
+
+// AI policies are versioned independently of staff CRM permissions. New capabilities
+// are denied until both an administrator and the connecting user grant access.
+model AiAccessRevision {
+  id             String   @id @default(cuid())
+  organizationId String
+  revision       Int
+  actorId        String
+  documentJson   Json
+  createdAt      DateTime @default(now())
+  @@unique([organizationId, revision])
+}
+
+// One durable operation is also its idempotency receipt and, when needed, approval.
+// A claimed operation is never automatically retried after an uncertain outcome.
+model AiOperation {
+  id             String    @id @default(cuid())
+  organizationId String
+  actorId        String
+  grantId        String
+  capability     String
+  requestKey     String    @db.VarChar(100)
+  fingerprint    String    @db.VarChar(64)
+  payloadJson    Json
+  previewJson    Json
+  resultJson     Json?
+  status         String    @default("PENDING") @db.VarChar(24)
+  reviewerId     String?
+  reviewedAt     DateTime?
+  reviewReason   String?   @db.VarChar(500)
+  expiresAt      DateTime
+  claimedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  @@unique([organizationId, actorId, requestKey])
+  @@index([organizationId, status, createdAt])
+  @@index([grantId, status])
 }
 
 model ChatGptDraftRequest {
@@ -4043,4 +4096,63 @@ model ChatGptImageJob {
   @@unique([grantId, requestKey])
   @@unique([organizationId, quotaDay, quotaSlot])
   @@index([status, createdAt])
+}
+
+
+model CompassionFormRecord {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  caseId String?
+  visitId String?
+  kind String @db.VarChar(50)
+  templateVersion Int @default(1)
+  sourceDigest String @db.VarChar(64)
+  status String @default("DRAFT") @db.VarChar(20)
+  version Int @default(1)
+  encryptedAnswers String @db.LongText
+  authorId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([organizationId, clientId, createdAt], map: "CompassionFormRecord_client_idx")
+}
+
+model CompassionFormRevision {
+  id String @id @default(cuid())
+  organizationId String
+  formId String
+  version Int
+  encryptedAnswers String @db.LongText
+  actorId String
+  createdAt DateTime @default(now())
+  @@unique([formId, version], map: "CompassionFormRevision_version_key")
+}
+
+model CompassionVisit {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  caseId String?
+  appointmentId String? @unique(map: "CompassionVisit_appointment_key")
+  staffId String?
+  recordKey String
+  visitDate DateTime @db.Date
+  location String
+  status String @default("IN_PROGRESS") @db.VarChar(20)
+  authorId String
+  encryptedFacts String @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([organizationId, recordKey], map: "CompassionVisit_retry_key")
+  @@index([organizationId, visitDate, location], map: "CompassionVisit_register_idx")
+}
+
+model CompassionReportDefinition {
+  id String @id @default(cuid())
+  organizationId String
+  version Int
+  config Json
+  authorId String
+  createdAt DateTime @default(now())
+  @@unique([organizationId, version], map: "CompassionReportDefinition_version_key")
 }

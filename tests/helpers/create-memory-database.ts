@@ -20,6 +20,14 @@ const related = (model: string, row: Row, key: string): [string, Row | Row[] | u
   if (model === "donation" && key === "campaign") return one("campaign", row.campaignId);
   if (model === "donation" && key === "designation") return one("designation", row.designationId);
   if ((model === "donation" || model === "pledge") && key === "constituent") return one("constituent", row.constituentId);
+  const definition = Prisma.dmmf.datamodel.models.find(item => item.name.charAt(0).toLowerCase() + item.name.slice(1) === model);
+  const field = definition?.fields.find(item => item.kind === "object" && item.name === key);
+  if (field) {
+    const target = field.type.charAt(0).toLowerCase() + field.type.slice(1);
+    if (field.relationFromFields?.length === 1) return one(target, row[field.relationFromFields[0]]);
+    const reverse = Prisma.dmmf.datamodel.models.find(item => item.name === field.type)?.fields.find(item => item.kind === "object" && item.relationName === field.relationName && item.relationFromFields?.length === 1);
+    if (field.isList && reverse) return many(target, reverse.relationFromFields![0]);
+  }
   return ["", undefined];
 };
 function matches(model: string, row: Row, where: Row = {}): boolean {
@@ -30,7 +38,7 @@ function matches(model: string, row: Row, where: Row = {}): boolean {
     if (key === "AND") return (Array.isArray(expected) ? expected : [expected]).every((item: Row) => matches(model, row, item));
     const [target, relation] = related(model, row, key);
     if (target && Array.isArray(relation)) return expected.some ? relation.some(item => matches(target, item, expected.some)) : expected.none ? !relation.some(item => matches(target, item, expected.none)) : expected.every ? relation.every(item => matches(target, item, expected.every)) : false;
-    if (target) return !!relation && !Array.isArray(relation) && matches(target, relation, expected);
+    if (target) return expected === null ? !relation : !!relation && !Array.isArray(relation) && matches(target, relation, expected);
     const actual = row[key];
     if (expected && typeof expected === "object" && !(expected instanceof Date)) {
       if (!(key in row) && key.includes("_")) return matches(model, row, expected);
@@ -39,6 +47,8 @@ function matches(model: string, row: Row, where: Row = {}): boolean {
         if (operator === "in") return (value as unknown[]).includes(actual);
         if (operator === "notIn") return !(value as unknown[]).includes(actual);
         if (operator === "not") return actual !== value;
+        if (operator === "equals") return JSON.stringify(actual) === JSON.stringify(value);
+        if (operator === "startsWith") return String(actual || "").startsWith(String(value));
         if (operator === "contains") return String(actual || "").includes(String(value));
         if (operator === "lt") return actual < value!;
         if (operator === "gt") return actual > value!;
@@ -59,7 +69,7 @@ function projected(model: string, row: Row, args: Row = {}): Row {
     const [target, relation] = related(model, row, key);
     if (!target) { if (args.select) result[key] = clone(row[key]); continue; }
     const nested = option === true ? {} : option as Row;
-    result[key] = Array.isArray(relation) ? relation.map(item => projected(target, item, nested)).slice(0, nested.take || Infinity) : relation ? projected(target, relation, nested) : null;
+    result[key] = Array.isArray(relation) ? relation.filter(item => matches(target, item, nested.where)).map(item => projected(target, item, nested)).slice(0, nested.take || Infinity) : relation ? projected(target, relation, nested) : null;
   }
   return result;
 }
@@ -74,6 +84,7 @@ function defaults(model: string, data: Row): Row {
     emailCampaign: { status: "DRAFT", purpose: "MARKETING", totalRecipients: 0, sentAt: null, scheduledAt: null, audienceFilter: null, previewText: null, replyToEmail: null },
     letterTemplate: { status: "DRAFT", crmScope: "DONOR", revision: 0, printLayoutJson: null, documentJson: null },
     chatGptImageJob: { status: "QUEUED", assetId: null, error: null, startedAt: null },
+    aiOperation: { status: "PENDING", resultJson: null, reviewerId: null, reviewedAt: null, reviewReason: null, claimedAt: null, finishedAt: null },
     createLead: { status: "PENDING" },
     createTrashItem: { revision: 1, restoredAt: null, removedAt: now }, createBrandDraft: { revision: 1 }, createBrandRevision: { publishedAt: now }, createBrandBinding: { revision: 1 },
   };
@@ -83,7 +94,9 @@ function update(row: Row, data: Row) { for (const [key, value] of Object.entries
 const uniques: Record<string, string[][]> = { chatGptGrant: [["codeHash"], ["accessHash"], ["refreshHash"]], chatGptDraftRequest: [["grantId", "requestKey"]], chatGptImageJob: [["grantId", "requestKey"], ["organizationId", "quotaDay", "quotaSlot"]], createImportRun: [["organizationId"]], createImportSource: [["organizationId", "sourceType", "sourceId"]], createImportSourceRevision: [["sourceId", "fingerprint"]], createTrashItem: [["organizationId", "kind", "resourceId"]], createBrandDraft: [["organizationId"]], createBrandRevision: [["organizationId", "revision"]], createBrandBinding: [["organizationId", "channel", "resourceId"]], createResponseCode: [["code"], ["lookupKey"]], createPrintArtifact: [["deliveryId", "kind"]], createVariant: [["organizationId", "channel", "legacyId"], ["contentId", "channel"]], createRelease: [["campaignId", "campaignRevision"]], createDelivery: [["deliveryKey"]], createConnection: [["organizationId", "provider"]], createSmsConsent: [["organizationId", "phone"]], createWebhookEvent: [["organizationId", "provider", "eventKey"]] };
 const models = ["designation","chatGptGrant", "chatGptDraftRequest", "chatGptImageJob", "createImportRun","createImportSource","createImportSourceRevision","createTrashItem","user", "userPermission", "organization", "organizationSettings", "createCampaign", "createContent", "createVariant", "createDocumentRevision", "createRelease", "createDelivery", "createConnection", "createSmsConsent", "createWebhookEvent", "createLead", "createPublication", "emailCampaign", "emailSendRecipient", "emailCampaignDeliveryEvent", "emailRecipientList", "emailRecipientListMember", "letterTemplate", "constituent", "campaign", "event", "auditLog", "donation", "generatedLetter", "letterRenderJob", "pluginSetting", "letterHeaderPreset", "letterFooterPreset", "letterSignatureBlock", "createBrandDraft", "createBrandRevision", "createBrandBinding", "createStudioAsset", "createStudioSection", "createResponseCode", "createPrintArtifact", "pledge", "recurringDonation"];
 export const createMemoryDatabase: any = {};
-for (const model of models) {
+uniques.aiOperation = [["organizationId", "actorId", "requestKey"]];
+uniques.aiAccessRevision = [["organizationId", "revision"]];
+for (const model of new Set([...models, ...Prisma.dmmf.datamodel.models.map(item => item.name.charAt(0).toLowerCase() + item.name.slice(1))])) {
   createRows[model] = [];
   const methods = {
     findMany: async (args: Row = {}) => {
@@ -102,6 +115,8 @@ for (const model of models) {
     createMany: async (args: Row) => { for (const data of args.data) await methods.create({ data }); return { count: args.data.length }; },
     updateMany: async (args: Row) => { const rows = createRows[model].filter(row => matches(model, row, args.where)); rows.forEach(row => update(row, args.data)); return { count: rows.length }; },
     update: async (args: Row) => { const row = createRows[model].find(row => matches(model, row, args.where)); if (!row) throw new Error(`${model} not found`); update(row, args.data); return projected(model, row, args); },
+    deleteMany: async (args: Row) => { const original = createRows[model]; createRows[model] = original.filter(row => !matches(model, row, args.where)); return { count: original.length - createRows[model].length }; },
+    delete: async (args: Row) => { const row = createRows[model].find(row => matches(model, row, args.where)); if (!row) throw new Error(`${model} not found`); createRows[model] = createRows[model].filter(item => item !== row); return projected(model, row, args); },
     upsert: async (args: Row) => await methods.findFirst({ where: args.where }) ? methods.update({ where: args.where, data: args.update }) : methods.create({ data: args.create }),
     count: async (args: Row = {}) => createRows[model].filter(row => matches(model, row, args.where)).length,
     groupBy: async () => [], aggregate: async () => ({ _sum: { amount: 0 }, _count: { _all: 0 } }),

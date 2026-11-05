@@ -4,7 +4,7 @@ export const careNavigation = [
   { label: "Daily work", items: [
     { name: "Today", href: "/compassion", icon: LayoutGrid, capability: "records" },
     { name: "Schedule", href: "/compassion/appointments", icon: CalendarDays, capability: "schedule" },
-    { name: "Clients", href: "/compassion/clients", icon: Users, capability: "records" },
+    { name: "Client Files", href: "/compassion/clients", icon: Users, capability: "records" },
     { name: "Follow-ups", href: "/compassion/follow-ups", icon: ClipboardCheck, capability: "casework" },
   ] },
   { label: "Care & support", items: [

@@ -14,6 +14,7 @@
  * @module routes/donations
  */
 import { Router } from "express";
+import { aiMutationContext } from "../ai-access/mutation-context.js";
 import { DonationStatus, PaymentMethod, RecurringFrequency, type Prisma } from "@prisma/client";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
@@ -693,7 +694,7 @@ router.post("/", async (req, res) => {
   });
 
   // Execute Steward Paths after the donation response path so heavy automations do not block data entry.
-  if (organizationId && donation.status === "COMPLETED") {
+  if (organizationId && donation.status === "COMPLETED" && !aiMutationContext.getStore()) {
     void executeStewardPathsForTrigger({
       organizationId,
       trigger: "DONATION_RECEIVED",
@@ -730,7 +731,7 @@ router.post("/", async (req, res) => {
 
   // Completed gifts enter the one-way accounting sink on the server. This is
   // intentionally independent of browser state so every entry path is reliable.
-  await ensureDonationQueuedForQuickBooks(organizationId, donation.id).catch((queueError) => {
+  if (!aiMutationContext.getStore()) await ensureDonationQueuedForQuickBooks(organizationId, donation.id).catch((queueError) => {
     console.error("Failed to queue donation for QuickBooks", { donationId: donation.id, queueError });
   });
 
@@ -835,7 +836,7 @@ router.put("/:id", async (req, res) => {
 
   // Keep constituent giving rollups aligned after manual edits.
   await recalculateConstituentGivingRollups(donation.constituentId);
-  await ensureDonationQueuedForQuickBooks(organizationId, donation.id).catch((queueError) => {
+  if (!aiMutationContext.getStore()) await ensureDonationQueuedForQuickBooks(organizationId, donation.id).catch((queueError) => {
     console.error("Failed to queue updated donation for QuickBooks", { donationId: donation.id, queueError });
   });
 

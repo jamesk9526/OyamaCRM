@@ -10,6 +10,8 @@ import { letterRoutes } from "./letters.js";
 import { identityRoutes } from "./identity.js";
 import { ultrasoundRoutes } from "./ultrasounds.js";
 import { OPEN_CARE_TASK_STATUSES } from "./care-team.js";
+import { paperFormRoutes } from "./paper-forms.js";
+import { visitRoutes } from "./visits.js";
 
 export const careRoutes = Router();
 export const publicCareRoutes = Router();
@@ -45,7 +47,7 @@ router.use(async (req, res, next) => {
   }
   next();
 });
-router.use(clinicalRoutes, ultrasoundRoutes, migrationRoutes, identityRoutes, letterRoutes);
+router.use(paperFormRoutes, visitRoutes, clinicalRoutes, ultrasoundRoutes, migrationRoutes, identityRoutes, letterRoutes);
 
 router.get("/today", ...route("records", async (req, res) => {
   const now = new Date(); const start = req.query.start ? date(req.query.start) : new Date(now); if (!req.query.start) start.setHours(0, 0, 0, 0);
@@ -109,7 +111,7 @@ router.patch("/resources/:id", ...route("manage", async (req, res) => {
 router.get("/reservations", ...route("schedule", async (req, res) => res.json(await prisma.compassionReservation.findMany({ where: { organizationId: org(req), ...(req.query.appointmentId ? { appointmentId: String(req.query.appointmentId) } : {}) }, take: 1000 }))));
 router.put("/clients/:id/contact-preferences", ...route("casework", async (req, res) => {
   const row = await client(req, String(req.params.id));
-  const safeContact = { email: req.body.email === true, sms: req.body.sms === true, voicemail: req.body.voicemail === true, preferredName: req.body.preferredName ? text(req.body.preferredName, 191) : "", notes: req.body.notes ? text(req.body.notes, 1000) : "" };
+  const safeContact = { phone: req.body.phone === true, email: req.body.email === true, sms: req.body.sms === true, voicemail: req.body.voicemail === true, preferredName: req.body.preferredName ? text(req.body.preferredName, 191) : "", notes: req.body.notes ? text(req.body.notes, 1000) : "" };
   await prisma.compassionClient.update({ where: { id: row.id }, data: { safeContact } });
   await audit(req, "SAFE_CONTACT_UPDATED", row.id); res.json(safeContact);
 }));

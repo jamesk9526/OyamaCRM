@@ -27,6 +27,7 @@ dotenv.config();
 import authRoutes from "./routes/auth.js";
 import chatGptRoutes, { discoveryRouter } from "./chatgpt/routes.js";
 import { startLetterImageWorker, stopLetterImageWorker } from "./chatgpt/letter-images.js";
+import { startAiOperationWorker, stopAiOperationWorker } from "./ai-access/operations.js";
 import constituentRoutes from "./routes/constituents.js";
 import donationRoutes from "./routes/donations.js";
 import campaignRoutes from "./routes/campaigns.js";
@@ -348,6 +349,7 @@ if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
   startCreateWorker();
   startLetterImageWorker();
+  startAiOperationWorker("");
   startImportWorker();
   startStewardPathsWorker();
   startQuickBooksSyncWorker();
@@ -357,6 +359,7 @@ if (process.env.NODE_ENV !== "test") {
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
     stopCreateWorker();
     stopLetterImageWorker();
+    stopAiOperationWorker();
     stopImportWorker();
     void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker()]).finally(() => process.exit(0));
   });

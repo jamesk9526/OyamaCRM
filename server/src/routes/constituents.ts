@@ -19,6 +19,7 @@
  * @module routes/constituents
  */
 import { Router } from "express";
+import { aiMutationContext } from "../ai-access/mutation-context.js";
 import { randomUUID } from "node:crypto";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
@@ -1323,14 +1324,14 @@ router.post("/", async (req, res) => {
   });
 
   // Execute Steward Paths for new constituent onboarding.
-  await executeStewardPathsForTrigger({
+  if (!aiMutationContext.getStore()) await executeStewardPathsForTrigger({
     organizationId: resolvedOrganizationId,
     trigger: "CONSTITUENT_CREATED",
     constituentId: constituent.id,
     userId: req.user?.sub,
     source: "api/constituents:create",
   });
-  await enrollConstituentInTriggeredStewardPaths({
+  if (!aiMutationContext.getStore()) await enrollConstituentInTriggeredStewardPaths({
     organizationId: resolvedOrganizationId,
     constituentId: constituent.id,
     triggerTypes: ["CONSTITUENT_CREATED", ...(constituent.type === "DONOR" && constituent.donorStatus === "NEW" ? ["FIRST_TIME_DONOR"] : [])],

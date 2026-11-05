@@ -12,6 +12,10 @@ import { readMcpPolicy, toolAllowed, type McpPolicy } from "./policy.js";
 import { LETTER_TOOLS, validateLetterArguments, type LetterToolName } from "./letter-tool-contract.js";
 import { createLetterDraft, updateLetterDraft, letterDesignOptions, previewLetterDraft } from "./letter-drafts.js";
 import { imageProviderConfigured, listLetterImages, importLetterImage, queueLetterImage, getLetterImageJob } from "./letter-images.js";
+import { LEGACY_TOOLS } from "../ai-access/catalog.js";
+import { demandAccess } from "../ai-access/policy.js";
+import { submitOperation, currentGrant, registerLegacyExecutor } from "../ai-access/operations.js";
+import { aiMutationContext } from "../ai-access/mutation-context.js";
 
 const aggregateReports = ["payment-method-summary", "designation-performance", "crm-performance-scorecard", "campaign-performance"] as const;
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
@@ -59,6 +63,12 @@ export async function callTool(req: Request, grantId: string, name: string, args
   const org = req.user!.orgId, origin = publicOrigin || connectionConfig().origin;
   const { policy } = await readMcpPolicy(org);
   if (!toolAvailable(tool, policy)) throw new CreateError(403, "This tool is disabled by your organization's MCP controls or installation configuration.");
+  const legacy = LEGACY_TOOLS[name];
+  if (legacy && !aiMutationContext.getStore()) {
+    const grant = await currentGrant(grantId, org);
+    await demandAccess(req, legacy.capability, grant);
+    if (!legacy.read) return submitOperation(req, grant, legacy.capability, { requestKey: args.requestKey as string, legacy: { name, arguments: args } }, origin);
+  }
   const letterTool = LETTER_TOOLS.find(entry => entry.name === name);
   if (letterTool) {
     validateLetterArguments(letterTool.inputSchema, args);
@@ -130,3 +140,4 @@ export async function callTool(req: Request, grantId: string, name: string, args
   }
   throw new CreateError(400, "Unknown tool.");
 }
+registerLegacyExecutor(callTool);

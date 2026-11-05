@@ -7,6 +7,7 @@
  */
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../lib/auth.js";
+import { tenantContext } from "../lib/tenant-context.js";
 
 /**
  * Express middleware that enforces JWT authentication on a route.
@@ -38,7 +39,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
       res.status(403).json({ error: { code: "CLIENT_CARE_ONLY", message: "This account is limited to Compassion client care." } });
       return;
     }
-    next();
+    tenantContext.run(req.user.orgId, next);
   } catch {
     res.status(401).json({ error: { code: "TOKEN_EXPIRED", message: "Access token is expired or invalid" } });
   }
