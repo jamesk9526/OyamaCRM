@@ -21,6 +21,7 @@ await context.route('**/api/**',async route=>{
  if(path==='/api/compassion/clients/paper-client/forms')return send([...records.values()].map(r=>({...r,recordType:r.kind==='HEALTH_PREGNANCY_INTAKE'?'chart':'casework'})));
  if(path==='/api/compassion/staff')return send([{id:'staff',firstName:'Taylor',lastName:'Reed'}]);
  if(path==='/api/compassion/visits')return send([]);
+ if(path==='/api/compassion/documentation-queue')return send([]);
  if(path==='/api/compassion/documents')return send(documents);
  if(path==='/api/compassion/case-forms' || path==='/api/compassion/charts'){
    if(req.method()==='POST'){if(failSave)return send({error:{message:'Synthetic save unavailable'}},503);const body=req.postDataJSON();const id=`paper-record-${++revision}`;const row={...body,id,authorId:'paper-author',version:1,status:'DRAFT',updatedAt:new Date().toISOString(),createdAt:new Date().toISOString()};records.set(id,row);return send({id,...row},201);}return send([]);
@@ -44,7 +45,7 @@ try{
  for(const kind of ['CASE_INTAKE','HEALTH_PREGNANCY_INTAKE']){
   await go(`/compassion/clients/paper-client/forms/new?kind=${kind}`);await page.locator('.paper-page').first().waitFor();assert.equal(await page.locator('.paper-page').count(),3);
   const fieldCount=FORM_TEMPLATES[kind].pages.flat().flatMap(s=>s.fields).length;assert.equal(await page.locator('.paper-field,.paper-choice-field').count(),fieldCount);
-  for(const section of FORM_TEMPLATES[kind].pages.flat())for(const field of section.fields){if(field.options)for(const option of field.options)assert.equal(await page.locator(`input[name="paper-${field.key}"]`).count(),field.options.length);}
+  for(const section of FORM_TEMPLATES[kind].pages.flat())for(const field of section.fields){if(field.options){const labels=await page.locator(`input[name="paper-${field.key}"]`).evaluateAll(inputs=>inputs.map(input=>input.parentElement.textContent.trim()));assert.deepEqual(labels,field.options);}}
   await page.locator('.paper-page').first().screenshot({path:`${evidence}/${kind.toLowerCase()}-page1-1440.png`});await overflow();
   await page.emulateMedia({media:'print'});await page.pdf({path:`${evidence}/${kind.toLowerCase()}-print.pdf`,preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'});
   checks.push(`${kind}: all fields/choices rendered in three source pages; print proof captured`);
@@ -53,11 +54,22 @@ try{
  failSave=true;await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('alert').filter({hasText:'Synthetic save unavailable'}).waitFor();assert.equal(await page.locator('#paper-firstName').inputValue(),'Synthetic');failSave=false;
  await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.waitForURL(/forms\/paper-record-/);await page.locator('#paper-firstName').waitFor();assert.equal(await page.locator('#paper-firstName').inputValue(),'Synthetic');checks.push('Paper entry retains edits after failed save; draft persists and resumes');
  await page.locator('#paper-firstName').fill('Updated');await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('status').filter({hasText:'Draft saved securely.'}).waitFor();assert.equal(records.values().next().value.version,2);checks.push('Existing draft saves a revision');
+ await page.locator('input[name="paper-phonePermission"]').first().check();
+ assert.equal(await page.locator('input[name="paper-phonePermission"]').first().isChecked(),true);
+ page.removeAllListeners('dialog');let prompted=false;page.on('dialog',async d=>{prompted=true;await d.dismiss();});
+ await page.getByRole('link',{name:'Client file',exact:false}).first().click();assert.equal(prompted,true);assert.match(page.url(),/forms\/paper-record-/);
+ page.removeAllListeners('dialog');page.on('dialog',d=>d.accept());
+ await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('status').filter({hasText:'Draft saved securely.'}).waitFor();
+ checks.push('Checkbox entry and cancellation of unsaved navigation');
+ await page.locator('#paper-outsideHelp').fill('Synthetic continuation detail. '.repeat(30));
+ await page.emulateMedia({media:'print'});await page.pdf({path:`${evidence}/case-long-answer-print.pdf`,preferCSSPageSize:true,printBackground:true});await page.emulateMedia({media:'screen'});
+ assert.equal(await page.locator('.paper-continuation').count(),1);checks.push('Long paper answers receive an explicit continuation page');
+ await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByRole('status').filter({hasText:'Draft saved securely.'}).waitFor();
  await page.setViewportSize({width:768,height:1024});await page.screenshot({path:`${evidence}/case-intake-768.png`,fullPage:true});await overflow();
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:`${evidence}/case-intake-390.png`,fullPage:true});await overflow();await page.getByRole('button',{name:'Open navigation'}).click();await page.getByRole('link',{name:'Client Files',exact:true}).waitFor();await page.keyboard.press('Escape');checks.push('Tablet/mobile form wrapping, confined viewport, navigation dismissal');
  await page.locator('#paper-firstName').focus();await page.keyboard.press('Tab');assert.ok(await page.evaluate(()=>getComputedStyle(document.activeElement).outlineStyle!=='none'));checks.push('Keyboard focus remains visible');
  await page.setViewportSize({width:1440,height:1080});await go('/compassion/reports');await page.getByRole('heading',{name:'Monthly statistics',exact:true}).waitFor();await page.getByText('Not configured — no total is inferred.').first().waitFor();await page.screenshot({path:`${evidence}/monthly-register-1440.png`,fullPage:true});checks.push('Empty monthly register explains source rules and unconfigured columns');
  role='RECEPTION';await go('/compassion/clients/paper-client/forms/new?kind=HEALTH_PREGNANCY_INTAKE');await page.getByRole('alert').filter({hasText:'Your role cannot open this form.'}).waitFor();assert.equal(await page.locator('.paper-page').count(),0);checks.push('Reception cannot render the clinical form');
  assert.deepEqual(errors,[]);await writeFile(`${evidence}/ui-checks.json`,JSON.stringify({synthetic:true,checks,errors,requests},null,2));console.log(JSON.stringify({checks,errors}));
-}finally{await browser.close();}
+}catch(error){await page.screenshot({path:`${evidence}/failure.png`,fullPage:true});console.error(JSON.stringify({url:page.url(),errors,body:(await page.locator('body').innerText()).slice(0,2200)}));throw error;}finally{await browser.close();}
 

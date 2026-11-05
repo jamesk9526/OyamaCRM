@@ -1,7 +1,22 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { calendarMonth, csvCell } from "@/server/src/compassion/visit-fields";
 import { describe, expect, it } from "vitest";
 import { PAPER_TEMPLATES, answerIssues, validateAnswers, contactPreferences } from "@/server/src/compassion/form-templates";
 
 describe("paper intake answer integrity", () => {
+  it("pins the source PDFs to their recorded document identity", () => {
+    for(const [kind,file] of [["CASE_INTAKE","case-intake-v1.pdf"],["HEALTH_PREGNANCY_INTAKE","health-pregnancy-v1.pdf"]]) {
+      expect(createHash("sha256").update(readFileSync(`docs/references/compassion/${file}`)).digest("hex")).toBe(PAPER_TEMPLATES[kind].sourceSha256);
+    }
+  });
+  it("uses calendar months and neutralizes spreadsheet formulas in CSV", () => {
+    expect(calendarMonth("2026-11").start.toISOString()).toBe("2026-11-01T00:00:00.000Z");
+    expect(calendarMonth("2026-12").end.toISOString()).toBe("2027-01-01T00:00:00.000Z");
+    expect(()=>calendarMonth("2026-13")).toThrow();
+    expect(csvCell("=1+1")).toBe('"\'=1+1"');
+    expect(csvCell('A "quoted" name')).toBe('"A ""quoted"" name"');
+  });
   it("preserves all six pages and distinct answer vocabularies", () => {
     expect(PAPER_TEMPLATES.CASE_INTAKE.pages).toHaveLength(3);
     expect(PAPER_TEMPLATES.HEALTH_PREGNANCY_INTAKE.pages).toHaveLength(3);

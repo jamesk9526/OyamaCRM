@@ -507,6 +507,7 @@ function ConstituentProfile({ id }: { id: string }) {
                     OYAMADonorPROFILE
                   </Link>
                   <Link href={`/meetings?constituentId=${id}`} className="donor-button">Log a meeting or call</Link>
+                  <Link href={`/surveys/records/DONOR/${encodeURIComponent(id)}`} className="donor-button">Survey history</Link>
                   <button type="button" onClick={() => setTab("notes")} className="donor-button">Add a note</button>
                   <button type="button" onClick={() => setCloseAccountOpen(true)} className="donor-button text-red-700">Close account</button>
                 </CRMSecondaryMenu>

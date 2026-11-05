@@ -17,6 +17,10 @@ const router = clinicalRoutes;
 function checkVersion(updatedAt: Date, expected: unknown) {
   if (expected !== undefined && expected !== updatedAt.toISOString()) throw new CareError(409, "CHART_CHANGED", "This chart has changed. Reload it before continuing.");
 }
+function checkChartVersion(row: { kind: string; updatedAt: Date }, expected: unknown) {
+  if (FORM_TEMPLATES[row.kind]) check(typeof expected === "string", "Reload this form and send its current save version.");
+  checkVersion(row.updatedAt, expected);
+}
 
 async function validateUltrasoundLink(organizationId: string, clientId: string, content: Record<string, unknown>) {
   validateUltrasoundContent(content);
@@ -59,14 +63,14 @@ router.post("/charts", ...route("clinical", async (req, res) => {
     check(typeof req.body.content.amendmentReason === "string" && req.body.content.amendmentReason.trim(), "Record the reason for amendment.");
     version = previous.version + 1;
   }
-  const row = await prisma.compassionChart.create({ data: { organizationId: org(req), clientId, caseId: req.body.caseId || null, visitId: req.body.visitId || null, kind: req.body.kind, version, previousId, authorId: req.user!.sub, encryptedContent: seal(content, `${org(req)}:${clientId}:chart`) } });
+  const row = await prisma.compassionChart.create({ data: { organizationId: org(req), clientId, caseId: req.body.caseId || null, visitId: req.body.visitId || null, kind: req.body.kind, templateVersion: template?.version ?? 1, version, previousId, authorId: req.user!.sub, encryptedContent: seal(content, `${org(req)}:${clientId}:chart`) } });
   await audit(req, previousId ? "CHART_AMENDMENT_CREATED" : "CHART_CREATED", row.id);
   res.status(201).json({ id: row.id });
 }));
 router.patch("/charts/:id", ...route("clinical", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row && mayEditChart(row.status, row.authorId, req.user!.sub), "Only the author may edit a draft. Signed records require an amendment.");
-  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  checkChartVersion(row, req.body?.expectedUpdatedAt);
   check(req.body?.content && typeof req.body.content === "object" && !Array.isArray(req.body.content), "Chart content must be an object.");
   check(!req.body.content._signoff && !req.body.content._review, "Review and sign-off provenance is assigned only by the server.");
   if (row.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), row.clientId, req.body.content);
@@ -81,7 +85,7 @@ router.patch("/charts/:id", ...route("clinical", async (req, res) => {
 router.post("/charts/:id/submit", ...route("clinical", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row && mayEditChart(row.status, row.authorId, req.user!.sub), "Only the author can submit a draft.");
-  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  checkChartVersion(row, req.body?.expectedUpdatedAt);
   const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
   if (row.kind === "ULTRASOUND") await validateUltrasoundLink(org(req), row.clientId, content);
   if (FORM_TEMPLATES[row.kind]) {
@@ -99,7 +103,7 @@ router.post("/charts/:id/submit", ...route("clinical", async (req, res) => {
 router.post("/charts/:id/return", ...route("sign", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row?.status === "REVIEW", "Only unsigned charts awaiting review can be returned for correction.");
-  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  checkChartVersion(row, req.body?.expectedUpdatedAt);
   const reason = text(req.body?.reason, 5000);
   const content = JSON.parse(unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`));
   content._review = { reason, reviewerId: req.user!.sub, returnedAt: new Date().toISOString() };
@@ -110,7 +114,7 @@ router.post("/charts/:id/return", ...route("sign", async (req, res) => {
 router.post("/charts/:id/sign", ...route("sign", async (req, res) => {
   const row = await prisma.compassionChart.findFirst({ where: { id: String(req.params.id), organizationId: org(req) } });
   check(row?.status === "REVIEW", "Only charts awaiting review may be signed.");
-  checkVersion(row.updatedAt, req.body?.expectedUpdatedAt);
+  checkChartVersion(row, req.body?.expectedUpdatedAt);
   check(req.body?.attest === true, "Confirm that you reviewed the chart and its attachments.");
   const signedAt = new Date();
   const original = unseal(row.encryptedContent, `${org(req)}:${row.clientId}:chart`);

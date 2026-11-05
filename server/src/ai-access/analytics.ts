@@ -6,7 +6,7 @@ import { moneyToCents, centsToMoney } from "../lib/money.js";
 import { reportingContext } from "../chatgpt/reporting.js";
 import { CreateError } from "../oyama-create/domain.js";
 import { decideAccess, demandAccess } from "./policy.js";
-import { rawRecord, presentRecord, constraintWhere } from "./records.js";
+import { rawRecord, presentRecord, allowedFields, constraintWhere } from "./records.js";
 import { resourceFor } from "./catalog.js";
 
 export const ANALYTICS = [
@@ -51,13 +51,18 @@ export async function runAnalytics(req: Request, grant: ChatGptGrant, report: st
     for (const [eventId, group] of groups) {
       if (eventId === "unattributed") { rows.push({ event: "Unattributed", amount: centsToMoney(group.cents), gifts: group.gifts }); continue; }
       if (!eventsGranted) continue;
-      try { const event = await rawRecord(req, resourceFor("events")!, eventId, grant); rows.push({ eventId, event: event.name, amount: centsToMoney(group.cents), gifts: group.gifts, url: `${origin}/events/${encodeURIComponent(eventId)}` }); }
+      try {
+        const res = resourceFor("events")!, event = await rawRecord(req, res, eventId, grant);
+        const item = await presentRecord(req, res, event, grant, origin);
+        rows.push({ eventId: item.id, event: item.title, amount: centsToMoney(group.cents), gifts: group.gifts, url: item.url });
+      }
       catch (error) { if (!(error instanceof CreateError && [403, 404].includes(error.status))) throw error; }
     }
   } else {
     const candidates = [...first].filter(([id, date]) => report === "lapsed-donors" ? date < start && !currentIds.has(id) : date >= start).map(([id]) => id);
     summary = { matchingDonors: candidates.length };
-    if ((await decideAccess(req, "constituents.read", grant)).mode !== "blocked" && (await decideAccess(req, "gifts.read", grant)).mode !== "blocked") for (const id of candidates) {
+    const individualGiving = giftAccess.mode !== "blocked" && (await allowedFields(req, giftsResource, grant, giftAccess)).has("amount");
+    if ((await decideAccess(req, "constituents.read", grant)).mode !== "blocked" && individualGiving) for (const id of candidates) {
       try { const res = resourceFor("constituents")!, raw = await rawRecord(req, res, id, grant); rows.push(await presentRecord(req, res, raw, grant, origin)); }
       catch (error) { if (!(error instanceof CreateError && [403, 404].includes(error.status))) throw error; }
       if (rows.length >= access.limits.maxRows) break;

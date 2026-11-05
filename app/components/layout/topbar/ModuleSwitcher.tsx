@@ -5,8 +5,12 @@ import { useRouter, usePathname } from "next/navigation";
 import type { TopBarModuleKey } from "@/app/lib/navigation-boundaries";
 import type { WorkspaceSettings } from "@/app/lib/workspace-settings";
 import { resolveModuleSwitcherTone } from "./theme-tokens";
+import { ClipboardList } from "lucide-react";
+import { useAuth } from "@/app/components/auth/AuthProvider";
+import { surveyWorkspaceAccess } from "@/app/components/surveys/client";
 /** Workspace switcher icon set using inline SVG (no custom image assets). */
 function WorkspaceSwitcherIcon({ moduleKey, className = "w-4 h-4" }: { moduleKey: TopBarModuleKey; className?: string }) {
+  if (moduleKey === "surveys") return <ClipboardList aria-hidden="true" className={className} />;
   if (moduleKey === "letters") {
     return (
       <svg className={className} fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24" aria-hidden="true">
@@ -70,8 +74,19 @@ export default function ModuleSwitcher({
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+  const [surveyAccess, setSurveyAccess] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef, open, () => setOpen(false));
+
+  useEffect(() => {
+    if (!open || !user) return;
+    const controller = new AbortController();
+    surveyWorkspaceAccess(user.role === "compassion_user", controller.signal).then(access => {
+      if (!controller.signal.aborted) setSurveyAccess(access.DONOR.includes("view") || access.CLIENT.includes("view"));
+    }, () => { if (!controller.signal.aborted) setSurveyAccess(false); });
+    return () => controller.abort();
+  }, [open, user]);
 
   const modules = useMemo(() => [
     { key: "compassion", label: "Compassion CRM", helper: "Client care", href: "/compassion", icon: <WorkspaceSwitcherIcon moduleKey="compassion" />, active: moduleKey === "compassion" },
@@ -99,10 +114,20 @@ export default function ModuleSwitcher({
       icon: <WorkspaceSwitcherIcon moduleKey="events" />,
       active: moduleKey === "events",
     },
+    {
+      key: "surveys",
+      label: "Surveys",
+      helper: "Feedback studio",
+      href: "/surveys",
+      icon: <WorkspaceSwitcherIcon moduleKey="surveys" />,
+      active: moduleKey === "surveys",
+    },
   ].filter((module) => {
+    if (module.key === "surveys") return module.active || surveyAccess;
+    if (user?.role === "compassion_user") return module.key === "compassion";
     if (module.key === "donor") return settings.donorEnabled;
     return true;
-  }), [moduleKey, pathname, settings.donorEnabled]);
+  }), [moduleKey, pathname, settings.donorEnabled, surveyAccess, user?.role]);
 
   const current = useMemo(() => modules.find((m) => m.active) ?? modules[0], [modules]);
 

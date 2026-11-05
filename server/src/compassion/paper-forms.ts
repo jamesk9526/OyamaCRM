@@ -17,6 +17,12 @@ const reveal = (row: { encryptedAnswers: string; clientId: string; [key: string]
   const { encryptedAnswers, ...metadata } = row;
   return { ...metadata, answers: JSON.parse(unseal(encryptedAnswers, `${organizationId}:${row.clientId}:form`)) };
 };
+router.get("/documentation-queue", ...route("casework", async (req,res) => {
+  const drafts=await prisma.compassionFormRecord.findMany({where:{organizationId:org(req),status:"DRAFT"},select:{id:true,kind:true,clientId:true,status:true},orderBy:{updatedAt:"desc"},take:20});
+  const charts=hasCareCapability(res.locals.careRole,"clinical")?await prisma.compassionChart.findMany({where:{organizationId:org(req),kind:{in:Object.keys(FORM_TEMPLATES).filter(k=>FORM_TEMPLATES[k].capability==="clinical")},status:{in:["DRAFT","REVIEW"]}},select:{id:true,kind:true,clientId:true,status:true},orderBy:{updatedAt:"desc"},take:20}):[];
+  const rows=[...drafts,...charts];const patients=await prisma.compassionClient.findMany({where:{organizationId:org(req),id:{in:rows.map(r=>r.clientId)}},select:{id:true,firstName:true,lastName:true}});
+  await audit(req,"DOCUMENTATION_QUEUE_READ");res.json(rows.map(r=>{const patient=patients.find(p=>p.id===r.clientId);return {...r,clientName:patient?`${patient.firstName} ${patient.lastName}`:"Client unavailable"};}));
+}));
 router.get("/form-templates", ...route("casework", async (_req, res) => {
   res.json(Object.entries(FORM_TEMPLATES).filter(([, t]) => t.capability !== "clinical" || hasCareCapability(res.locals.careRole, "clinical")).map(([kind, t]) => ({ kind, ...t })));
 }));

@@ -23,7 +23,7 @@ router.post("/visits", ...route("casework", async (req, res) => {
   await careLinks(req, clientId, req.body.caseId, null);
   const recordKey = text(req.body.recordKey, 191);
   const previous = await prisma.compassionVisit.findFirst({ where: { organizationId: org(req), recordKey } });
-  if (previous) { check(previous.clientId === clientId, "Retry key belongs to another client."); res.json({ id: previous.id }); return; }
+  if (previous) { check(previous.clientId === clientId && previous.visitDate.toISOString().slice(0,10) === req.body.visitDate && previous.location === req.body.location && previous.caseId === (req.body.caseId || null) && previous.appointmentId === (req.body.appointmentId || null), "This retry key already saved a different visit. Reopen the saved visit before starting another."); res.json({ id: previous.id }); return; }
   const date = text(req.body.visitDate, 10); check(/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0,10) === date, "Choose a valid visit date.");
   const appointmentId = req.body.appointmentId ? text(req.body.appointmentId, 191) : null;
   if (appointmentId) {
@@ -62,7 +62,7 @@ router.post("/visits/:id/services", ...route("casework", async (req, res) => {
   if (["PREGNANCY_TEST", "ULTRASOUND"].includes(req.body.serviceType) && !hasCareCapability(res.locals.careRole, "clinical")) throw new CareError(403, "CLINICAL_ACCESS_REQUIRED", "Medical services require clinical access.");
   const sourceKey = text(req.body.sourceKey, 191);
   const old = await prisma.compassionService.findFirst({ where: { organizationId: org(req), sourceKey } });
-  if (old) { check(old.visitId === visit.id, "Retry key belongs to a different visit."); res.json({ id: old.id }); return; }
+  if (old) { check(old.visitId === visit.id && old.serviceType === req.body.serviceType && old.quantity === (req.body.quantity ?? 1), "This retry key already saved a different service. Refresh before recording another."); res.json({ id: old.id }); return; }
   const row = await prisma.compassionService.create({ data: { organizationId: org(req), clientId: visit.clientId, caseId: visit.caseId, visitId: visit.id, sourceKey, serviceType: req.body.serviceType, quantity: integer(req.body.quantity ?? 1, 1, 10000), serviceDate: visit.visitDate } });
   await audit(req, "VISIT_SERVICE_RECORDED", row.id); res.status(201).json({ id: row.id });
 }));
@@ -76,27 +76,33 @@ router.post("/reports/definitions", ...route("manage", async (req, res) => {
   check(new Set(columns.map(c => c.key)).size === CENTER_COLUMNS.length && columns.every(c => CENTER_COLUMNS.some(x => x.key === c.key) && typeof c.configured === "boolean" && typeof c.description === "string" && c.description.length <= 1000 && (!c.configured || c.description.trim().length > 0)), "Configured columns need a counting definition.");
   const latest = await prisma.compassionReportDefinition.findFirst({ where: { organizationId: org(req) }, orderBy: { version: "desc" } });
   if ((latest?.version ?? 0) !== req.body.expectedVersion) throw new CareError(409, "DEFINITION_CHANGED", "Report definitions changed. Reload before publishing.");
-  const row = await prisma.compassionReportDefinition.create({ data: { organizationId: org(req), version: (latest?.version ?? 0) + 1, config: JSON.parse(JSON.stringify(columns)), authorId: req.user!.sub } });
+  const row = await prisma.compassionReportDefinition.create({ data: { organizationId: org(req), version: (latest?.version ?? 0) + 1, config: columns.map(c=>({key:c.key,configured:c.configured,description:c.description})), authorId: req.user!.sub } });
   await audit(req, "REPORT_DEFINITION_PUBLISHED", row.id); res.status(201).json(row);
 }));
 router.get("/reports/monthly", ...route("export", async (req, res) => {
   let range: ReturnType<typeof calendarMonth>; try { range = calendarMonth(req.query.month); } catch { throw new CareError(400, "INVALID_MONTH", "Choose a calendar month."); }
   const { start, end } = range; const organizationId = org(req); const location = req.query.location ? text(req.query.location, 191) : null;
-  const definition = await prisma.compassionReportDefinition.findFirst({ where: { organizationId, ...(req.query.version ? { version: integer(Number(req.query.version), 1, 100000) } : {}) }, orderBy: { version: "desc" } });
-  check(!req.query.version || definition, "Report definition not found.");
+  const definition = req.query.version === "0" ? null : await prisma.compassionReportDefinition.findFirst({ where: { organizationId, ...(req.query.version ? { version: integer(Number(req.query.version), 1, 100000) } : {}) }, orderBy: { version: "desc" } });
+  check(!req.query.version || req.query.version === "0" || definition, "Report definition not found.");
   const configured = (definition?.config ?? []) as unknown as CenterDefinition[];
   const columns = CENTER_COLUMNS.filter(c => !c.clinical || hasCareCapability(res.locals.careRole, "clinical")).map(c => ({ ...c, ...configured.find(d => d.key === c.key), configured: configured.find(d => d.key === c.key)?.configured ?? false }));
   const visits = await prisma.compassionVisit.findMany({ where: { organizationId, visitDate: { gte: start, lt: end }, status: { not: "VOID" }, ...(location ? { location } : {}) }, orderBy: { visitDate: "asc" }, take: 10001 });
   check(visits.length <= 10000, "Narrow the location filter; this register exceeds 10,000 visits.");
   const clients = await prisma.compassionClient.findMany({ where: { organizationId, id: { in: [...new Set(visits.map(v => v.clientId))] } }, select: patientProjection });
-  const services = await prisma.compassionService.findMany({ where: { organizationId, visitId: { in: visits.filter(v => v.status === "COMPLETED").map(v => v.id) } }, select: { id: true, visitId: true, serviceType: true, quantity: true } });
+  const services = await prisma.compassionService.findMany({ where: { organizationId, visitId: { in: visits.filter(v => v.status === "COMPLETED").map(v => v.id) } }, select: { id: true, visitId: true, serviceType: true, quantity: true }, take:50001 });
+  check(services.length<=50000,"Narrow the location filter; this register exceeds 50,000 service entries.");
+  const patientsById=new Map(clients.map(c=>[c.id,c]));
+  const servicesByVisit=new Map<string,typeof services>();
+  for(const service of services) if(service.visitId) { const entries=servicesByVisit.get(service.visitId) ?? []; entries.push(service);servicesByVisit.set(service.visitId,entries); }
   // Appointment bounds use the explicitly selected center timezone, rather than server/browser time.
   const timezone = String(req.query.timezone || "America/Chicago"); try { new Intl.DateTimeFormat("en-US", { timeZone: timezone }); } catch { throw new CareError(400, "INVALID_TIMEZONE", "Choose an IANA timezone."); }
-  const appointments = await prisma.compassionAppointment.findMany({ where: { organizationId, startTime: { gte: new Date(start.getTime() - 86400000), lt: new Date(end.getTime() + 86400000) }, ...(location ? { location } : {}) }, select: { id: true, startTime: true, status: true } });
-  const monthAppointments = appointments.filter(a => { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit" }).formatToParts(a.startTime); return `${parts.find(p => p.type === "year")?.value}-${parts.find(p => p.type === "month")?.value}` === req.query.month; });
+  const appointments = await prisma.compassionAppointment.findMany({ where: { organizationId, startTime: { gte: new Date(start.getTime() - 86400000), lt: new Date(end.getTime() + 86400000) }, ...(location ? { location } : {}) }, select: { id: true, startTime: true, status: true },take:10001 });
+  check(appointments.length<=10000,"Narrow the location filter; this register exceeds 10,000 bookings.");
+  const dateFormatter=new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit" });
+  const monthAppointments = appointments.filter(a => { const parts = dateFormatter.formatToParts(a.startTime); return `${parts.find(p => p.type === "year")?.value}-${parts.find(p => p.type === "month")?.value}` === req.query.month; });
   const rows = visits.map(v => {
-    const patient = clients.find(c => c.id === v.clientId); const facts: VisitFacts = JSON.parse(unseal(v.encryptedFacts, `${organizationId}:${v.clientId}:visit`));
-    const delivered = v.status === "COMPLETED" ? services.filter(s => s.visitId === v.id) : [];
+    const patient = patientsById.get(v.clientId); const facts: VisitFacts = JSON.parse(unseal(v.encryptedFacts, `${organizationId}:${v.clientId}:visit`));
+    const delivered = v.status === "COMPLETED" ? servicesByVisit.get(v.id) ?? [] : [];
     return { id: v.id, clientId: v.clientId, clientName: patient ? `${patient.lastName}, ${patient.firstName}` : "Client unavailable", visitDate: v.visitDate.toISOString().slice(0,10), location: v.location, status: v.status,
       services: delivered.filter(s => hasCareCapability(res.locals.careRole, "clinical") || !["PREGNANCY_TEST", "ULTRASOUND"].includes(s.serviceType)),
       supplies: delivered.filter(s => ["DIAPERS", "CLOTHING", "FORMULA"].includes(s.serviceType)).reduce((n,s) => n + (s.quantity ?? 0), 0),

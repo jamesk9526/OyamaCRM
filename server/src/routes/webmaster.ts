@@ -17,6 +17,7 @@ import {
   listWebmasterPages,
   listWebmasterPublishVersions,
   listWebmasterSites,
+  publishWebmasterSite,
   WebmasterConnectedModule,
   WebmasterSiteType,
   updateWebmasterSite,
@@ -538,12 +539,6 @@ router.post("/sites/:siteId/publish", async (req, res) => {
   }
 
   const siteId = req.params.siteId;
-  const site = await getWebmasterSiteById({ organizationId, siteId });
-  if (!site) {
-    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
-    return;
-  }
-
   const body = req.body as { confirm?: boolean; note?: string };
   if (body.confirm !== true) {
     res.status(400).json({
@@ -552,45 +547,21 @@ router.post("/sites/:siteId/publish", async (req, res) => {
     return;
   }
 
-  const pages = await listWebmasterPages({ organizationId, siteId, limit: 500 });
-  const readiness = buildWebmasterPublishReadinessReport({ site, pages });
-  if (!readiness.preflightPassed) {
+  const publication = await publishWebmasterSite({ organizationId, siteId, createdById: req.user?.sub, note: body.note });
+  if (publication.status === "missing") {
+    res.status(404).json({ error: { code: "WEBMASTER_SITE_NOT_FOUND", message: "Site not found." } });
+    return;
+  }
+  if (publication.status === "blocked") {
     res.status(409).json({
       error: {
         code: "WEBMASTER_PUBLISH_PREFLIGHT_FAILED",
         message: "Publish preflight checks failed. Resolve blockers before publishing.",
       },
-      data: readiness,
+      data: publication.readiness,
     });
     return;
   }
-
-  for (const page of pages) {
-    if (page.status === "ARCHIVED") continue;
-    if (page.status !== "PUBLISHED") {
-      await updateWebmasterPage({
-        organizationId,
-        pageId: page.id,
-        status: "PUBLISHED",
-        updatedById: req.user?.sub,
-      });
-    }
-  }
-
-  const version = await createWebmasterPublishVersion({
-    organizationId,
-    siteId,
-    createdById: req.user?.sub,
-    note: body.note,
-  });
-
-  const updatedSite = await updateWebmasterSite({
-    organizationId,
-    siteId,
-    status: "ACTIVE",
-    lastPublishedAt: new Date().toISOString(),
-    publishedVersionId: version.id,
-  });
 
   await logAudit({
     action: "WEBMASTER_SITE_PUBLISHED",
@@ -599,9 +570,9 @@ router.post("/sites/:siteId/publish", async (req, res) => {
     userId: req.user?.sub,
     organizationId,
     metadata: {
-      publishedVersionId: version.id,
+      publishedVersionId: publication.version.id,
       note: body.note ?? null,
-      pageCount: pages.length,
+      pageCount: publication.pageCount,
     },
     ipAddress: req.ip,
     userAgent: req.headers["user-agent"],
@@ -609,8 +580,8 @@ router.post("/sites/:siteId/publish", async (req, res) => {
 
   res.json({
     item: {
-      site: updatedSite,
-      version,
+      site: publication.site,
+      version: publication.version,
     },
   });
 });

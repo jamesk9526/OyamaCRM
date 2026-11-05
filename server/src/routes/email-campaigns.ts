@@ -46,6 +46,7 @@ import {
 } from "../services/oyama-email/email-render-service.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requirePermission } from "../middleware/requirePermission.js";
+import { aiMutationContext } from "../ai-access/mutation-context.js";
 
 const router = Router();
 const EMAIL_MEDIA_ROOT = path.resolve(process.cwd(), "public", "uploads", "email-media");
@@ -2586,6 +2587,7 @@ interface CampaignValidationResult {
   checks: CampaignValidationCheck[];
   blockers: string[];
   audience: Omit<AudiencePreview, "recipients">;
+  deliveryReview?: { bodies: { html: string; text: string }; recipients: string[] };
 }
 
 export async function validateCampaignSendReadiness(params: {
@@ -2603,6 +2605,7 @@ export async function validateCampaignSendReadiness(params: {
     audienceFilter: string | null;
   };
   sendOptions?: CampaignSendOptions;
+  includeDeliveryReview?: boolean;
 }): Promise<CampaignValidationResult> {
   const purpose = parseEmailPurpose(params.campaign.purpose);
   const branding = await loadOrganizationBrandingContext(params.campaign.organizationId);
@@ -2741,6 +2744,7 @@ export async function validateCampaignSendReadiness(params: {
     valid: blockers.length === 0,
     checks,
     blockers,
+    ...(params.includeDeliveryReview ? { deliveryReview: { bodies: { html: deliveryBodies.html, text: deliveryBodies.text }, recipients: [...recipientPlan.recipients].sort() } } : {}),
     audience: {
       totalMatched: recipientPlan.audience.totalMatched,
       validEmail: recipientPlan.audience.validEmail,
@@ -2852,6 +2856,14 @@ export async function sendCampaignNow(
     const failedRecipients: Array<{ email: string; reason: string }> = [];
 
     for (const recipientEmail of to) {
+      const allowDelivery = aiMutationContext.getStore()?.allowDelivery;
+      if (allowDelivery) {
+        const current = await allowDelivery(recipientEmail) && await resolveRecipientPlan({ organizationId: campaign.organizationId, audienceFilter: campaign.audienceFilter, purpose }, { sendMode: "INDIVIDUAL", recipientEmails: [recipientEmail] });
+        if (!current || !current.recipients.includes(recipientEmail)) {
+          await prisma.emailSendRecipient.updateMany({ where: { campaignId: campaign.id, email: recipientEmail }, data: { queuedAt: null, ineligibilityReason: "AI_SCOPE_OR_RECIPIENT_CHANGED" } });
+          continue;
+        }
+      }
       const recipientDecision = recipientDecisions.get(recipientEmail);
       const personalizedContent = await personalizeCampaignContent({
         organizationId: campaign.organizationId,
@@ -5421,6 +5433,8 @@ router.post("/:id/send", async (req, res) => {
       return;
     }
 
+    const approvedEmail = aiMutationContext.getStore()?.approvedEmail;
+    if (approvedEmail?.campaignId === campaign.id) sendOptions.approvedBodies = approvedEmail.bodies;
     const updated = await sendCampaignNow(req.params.id as string, "MANUAL", sendOptions);
     const [eventStatsMap, failedMap] = await Promise.all([
       fetchCampaignEventStatsMap(organizationId, [updated.id]),

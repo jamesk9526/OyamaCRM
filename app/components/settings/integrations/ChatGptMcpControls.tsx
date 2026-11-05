@@ -32,6 +32,6 @@ export default function ChatGptMcpControls({ policy, revision, canManage, imageG
       {canManage && <button className="min-h-11 rounded-lg bg-blue-700 px-4 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 disabled:opacity-50" type="submit">{busy ? "Saving…" : "Save MCP controls"}</button>}
     </fieldset>
     {error && <p role="alert" className="mt-3 text-sm text-red-700">{error} <button type="button" className="underline" onClick={() => void onReload()}>Reload controls</button></p>}
-    <p className="mt-3 text-xs text-slate-600">Always enforced: tenant and ownership checks, financial definitions, audit logs, short-lived scoped credentials and review before release. MCP cannot send communications, change gifts, run arbitrary SQL or access clinical records.</p>
+    <p className="mt-3 text-xs text-slate-600">These defaults apply to the original letter and report tools. The capability matrix controls additional CRM records and actions. All tools require current CRM permissions.</p>
   </form>;
 }

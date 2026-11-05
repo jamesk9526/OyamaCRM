@@ -7,10 +7,10 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false), [error, setError] = useState(false);
   return <div className="min-w-0 rounded-lg border border-slate-200 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{label}</span><button type="button" className="min-h-9 rounded-md border border-slate-300 px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-blue-700" aria-label={`Copy ${label}`} onClick={async () => { try { await navigator.clipboard.writeText(value); setCopied(true); setError(false); } catch { setError(true); } }}>{copied ? "Copied" : "Copy"}</button></div><pre className="mt-2 whitespace-pre-wrap break-all text-xs text-slate-700">{value}</pre>{error && <p role="alert" className="mt-2 text-xs text-red-700">Select and copy the value above.</p>}</div>;
 }
-export default function ChatGptQuickSetup({ setup, origin, clientId, canManage, enabled, onReload }: { setup: ChatGptSetupState; origin: string; clientId: string; canManage: boolean; enabled: boolean; onReload: () => Promise<void> }) {
+export default function ChatGptQuickSetup({ setup, origin, clientId, canManage, enabled, scopeList, onReload }: { setup: ChatGptSetupState; origin: string; clientId: string; canManage: boolean; enabled: boolean; scopeList?: string[]; onReload: () => Promise<void> }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [checks, setChecks] = useState<ChatGptDiscoveryCheck[]>([]);
   const ready = checks.length > 0 && checks.every(check => check.ok);
-  const scopes = "letters.read\nletters.write\nreports.read";
+  const scopes = (scopeList || ["letters.read", "letters.write", "reports.read"]).join("\n");
   async function prepare(save: boolean) {
     setBusy(true); setError(""); setChecks([]);
     try {

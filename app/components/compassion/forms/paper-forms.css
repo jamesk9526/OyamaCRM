@@ -13,17 +13,17 @@
 .care-form-support h2 { font-weight:650; font-size:16px; }
 .care-form-support p { color:#435a75; }
 .care-form-support input:not([type=checkbox]) { border:1px solid #b9cde4; padding:9px; border-radius:4px; max-width:100%; }
-.paper-document { color:#111; font-family:"Times New Roman", Times, serif; font-size:16px; line-height:1.2; }
+.paper-document { color:#111; font-family:"Times New Roman", Times, serif; font-size:14px; line-height:1.2; }
 .paper-page { width:816px; max-width:100%; min-height:1056px; padding:55px 60px 50px; background:#fff; border:1px solid #cdd8e6; box-shadow:0 2px 8px #1437610c; margin:16px auto 24px; box-sizing:border-box; scroll-margin-top:72px; }
 .paper-logo { width:200px; height:auto; object-fit:contain; margin:0 0 18px; }
-.compassion-shell .paper-center-name { font-family:"Times New Roman",Times,serif; font-size:29px; font-weight:700; text-align:center; color:#111; margin:4px 0 20px; letter-spacing:0; }
+.compassion-shell .paper-center-name { font-family:"Times New Roman",Times,serif; font-size:28px; font-weight:700; text-align:center; color:#111; margin:4px 0 20px; letter-spacing:0; }
 .paper-title { font-size:18px; margin:0 0 27px; }
 .paper-title strong { font-size:22px; }
 .paper-health .paper-title { text-align:center; margin-bottom:20px; }
 .paper-health .paper-title strong { font-size:18px; }
 .compassion-shell .paper-section h2 { font-family:"Times New Roman",Times,serif; font-size:18px; font-weight:700; margin:18px 0 14px; color:#111; line-height:1.2; }
-.paper-section p { font-size:16px; line-height:1.35; margin-bottom:16px; }
-.paper-section .paper-bullet { padding-left:20px; position:relative; margin-bottom:22px; }
+.paper-section p { font-size:14px; line-height:1.35; margin-bottom:16px; }
+.paper-section .paper-bullet { padding-left:20px; position:relative; margin-bottom:18px; }
 .paper-bullet::before { content:"•"; position:absolute; left:0; }
 .paper-row { display:flex; flex-wrap:wrap; align-items:baseline; column-gap:9px; row-gap:2px; margin:3px 0; }
 .paper-field { display:flex; align-items:baseline; gap:5px; flex:1 1 auto; min-width:0; }
@@ -67,7 +67,7 @@
  @page { size:letter; margin:0; }
  .care-form-editor { padding:0; }
  .care-form-editor > .care-error { display:none; }
- .paper-document { font-size:12pt; color:#000; }
+ .paper-document { font-size:10.5pt; color:#000; }
  .paper-page { width:8.5in; max-width:none; min-height:11in; margin:0; border:0; box-shadow:none; padding:0.57in 0.62in; break-after:page; break-inside:avoid; }
  .paper-page:last-child { break-after:auto; }
  .paper-field input,.paper-field textarea { display:none; }
@@ -77,3 +77,13 @@
  .paper-options input { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
  .care-form-footer,.care-form-support,.care-form-tools,.care-form-editor-header { display:none !important; }
 }
+
+.paper-write-in { flex:0 1 180px; display:inline-flex; }
+.paper-field:has(#paper-middleInitial) { flex:0 1 68px; }
+.paper-field:has(#paper-middleInitial) input { width:35px; }
+.paper-health .paper-page-2 { font-size:14px; }
+@media print { .paper-case .paper-page-3 { font-size:10.5pt; } .paper-case .paper-page-3 .paper-section p { font-size:10.5pt; line-height:1.35; } }
+
+.paper-case .paper-center-name { text-align:left; }
+.paper-case .paper-title { border-bottom:1px solid #aaa; padding-bottom:22px; }
+.paper-case .paper-page-3 .paper-section h2 { max-width:none; }

@@ -37,6 +37,8 @@ function loadRouter(name: NativeRouter): Promise<Router> {
       case "webmaster": result = import("../routes/webmaster.js").then(moduleRouter); break;
       case "qr": result = import("../routes/qr-codes.js").then(moduleRouter); break;
       case "customReports": result = import("../routes/custom-reports.js").then(moduleRouter); break;
+      case "letters": result = import("../routes/letters.js").then(moduleRouter); break;
+      case "customFields": result = import("../routes/custom-fields.js").then(moduleRouter); break;
     }
     if (!result) throw new CreateError(400, "Unknown CRM command adapter.");
     routers.set(name, result);
@@ -66,7 +68,8 @@ export async function invokeNative(req: Request, capability: AiCapability, param
     const write = response.write.bind(response), end = response.end.bind(response);
     response.write = ((chunk: unknown, ...args: unknown[]) => { capture(chunk); return Reflect.apply(write, response, [chunk, ...args]); }) as typeof response.write;
     response.end = ((chunk: unknown, ...args: unknown[]) => { capture(chunk); return Reflect.apply(end, response, [chunk, ...args]); }) as typeof response.end;
-    const timeout = setTimeout(() => finish(new CreateError(504, "The CRM command has an uncertain outcome. Check its operation status; do not resubmit it with a new request key.")), 30000);
+    const timeoutMs = ["email.send", "email.schedule"].includes(capability.key) ? 10 * 60000 : 60000;
+    const timeout = setTimeout(() => finish(new CreateError(504, "The CRM command has an uncertain outcome. Check its operation status; keep the same request key.")), timeoutMs);
     response.on("finish", () => {
       let value: Record<string, unknown> = {};
       try { const text = Buffer.concat(chunks).toString("utf8"); if (text) value = JSON.parse(text) as Record<string, unknown>; }

@@ -1,3 +1,25 @@
+## OyamaSurveys Guided Studio — 2026-11-05
+
+Status **Partially Working** pending database deployment and live-provider acceptance.
+
+The new Surveys workspace includes donor and client libraries, reusable templates, eight question types, sections, conditional questions, draft saving, immutable publication revisions, mobile public forms, personal and anonymous links, reviewed email batches, scheduling, one reminder, response charts, NPS, individual feedback review, CSV export, and CRM record history links. Client surveys run through the independent Compassion API and require care membership. Client answers use encrypted storage. Anonymous answers carry no contact or invitation reference.
+
+The focused survey and navigation suite passed 33 tests. Production browser acceptance passed with synthetic API data across desktop, compact laptop, and phone widths. Prisma validation, targeted lint, repository/server types, and the web production build passed. The additive survey migration is prepared. Local MySQL was unavailable, so actual migration execution, database concurrency/restart behavior, and real email-provider acceptance remain open. See [implementation](../plans/oyama-surveys-workspace.md) and [verification](audit-artifacts/2026-11-05-surveys/verification.md).
+
+## ChatGPT CRM workspace and AI access — 2026-11-05
+
+Settings → AI access provides a capability matrix, profiles and overrides, connection restrictions, approvals, and activity. Administrators control reads, field groups, individual custom fields, record restrictions, and automatic or approval-based writes. Effective-access checks explain organization, role, user, connection, consent and CRM restrictions for an action, record or field.
+
+The registry contains 50 resource families, 235 capabilities and 106 typed actions. MCP tools add cross-module search, record details, relationships, chronological activity, giving analytics, and donor/operations writes, including existing Studio draft designs. Commands use verified IDs, record versions and idempotency receipts. Persistent approvals and jobs support scheduled sends, per-item batch outcomes, cancellation, and review of uncertain delivery. Existing letter, artwork and report grants retain their original authority.
+
+62 focused tests, repository/server types, targeted lint, production builds and desktop/mobile browser checks passed. An isolated MariaDB instance verified persistence across a database restart and one execution under concurrent worker claims. Deployment and real ChatGPT acceptance are still required. AI-created path enrollments start paused, automatic external-delivery paths require the native workflow, and imports currently create new constituents. See [tool coverage and setup](../integrations/chatgpt-mcp.md#ai-access-workspace) and [verification](audit-artifacts/2026-11-05-ai-access/verification.md).
+
+## Compassion client files and paper intake — 2026-11-05
+
+Compassion Client Files now brings cases, visits, forms, assistance, follow-ups, documents, and medical records into one workspace. Staff can transcribe both supplied three-page paper forms, resume encrypted drafts, attach signed originals, and print. The health and pregnancy form uses protected chart review, physician signing, and amendments. Monthly Statistics reports attendance, services, and supplies, with versioned definitions for center-specific outcomes.
+
+See [implementation notes](../plans/compassion-paper-forms-client-files.md) and [verification](audit-artifacts/2026-11-05-compassion-paper-forms/verification.md).
+
 ## ChatGPT letter authoring and artwork — 2026-11-05
 
 ChatGPT can create branded Studio drafts, configure page and print-pack settings, insert native merge fields and images, and revise the connected user's own standalone MCP drafts before release. The sample preview identifies missing assets and fields, including literal placeholders such as `[First Name]`. Draft creation works independently of the Create live-delivery and Studio default-editor switches.

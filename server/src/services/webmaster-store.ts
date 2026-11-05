@@ -3,7 +3,12 @@
  * Uses raw SQL via Prisma to avoid generated-client model drift during bootstrap phases.
  */
 import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { aiMutationContext } from "../ai-access/mutation-context.js";
+import { toolFingerprint } from "../chatgpt/receipts.js";
+import { CreateError } from "../oyama-create/domain.js";
+import { buildWebmasterPublishReadinessReport } from "./webmaster-publish-readiness.js";
 
 export type WebmasterSiteStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type WebmasterPageStatus = "DRAFT" | "REVIEW_READY" | "PUBLISHED" | "ARCHIVED";
@@ -283,17 +288,19 @@ function mapPublishVersionRow(row: Record<string, unknown>): WebmasterPublishVer
 /** Lists sites for one organization with page counts. */
 export async function listWebmasterSites(params: {
   organizationId: string;
+  siteId?: string;
   query?: string;
   status?: WebmasterSiteStatus;
   siteType?: WebmasterSiteType;
   connectedModule?: WebmasterConnectedModule;
   ownerId?: string;
+  afterId?: string;
   limit?: number;
-}): Promise<WebmasterSiteRecord[]> {
+}, db: Prisma.TransactionClient = prisma): Promise<WebmasterSiteRecord[]> {
   await ensureWebmasterSchema();
   const limit = Math.min(Math.max(params.limit ?? 100, 1), 300);
 
-  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+  const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `
       SELECT s.id, s.organization_id, s.created_by_id, s.site_name, s.site_slug, s.domain, s.description,
              s.owner_id, s.site_type, s.site_purpose, s.connected_module, s.connected_record_id, s.subdomain,
@@ -301,8 +308,10 @@ export async function listWebmasterSites(params: {
              s.last_published_at, s.published_version_id,
              s.site_status, s.created_at, s.updated_at, COUNT(p.id) AS page_count
       FROM webmaster_sites s
-      LEFT JOIN webmaster_pages p ON p.site_id = s.id
+      LEFT JOIN webmaster_pages p ON p.site_id = s.id AND p.organization_id = s.organization_id
       WHERE s.organization_id = ?
+        AND (? IS NULL OR s.id = ?)
+        AND (? IS NULL OR s.id > ?)
         AND (? = '' OR s.site_status = ?)
         AND (? = '' OR s.site_type = ?)
         AND (? = '' OR IFNULL(s.connected_module, '') = ?)
@@ -314,10 +323,14 @@ export async function listWebmasterSites(params: {
                s.site_purpose, s.connected_module, s.connected_record_id, s.domain, s.subdomain, s.launch_status,
                s.seo_health_score, s.publishing_target, s.launch_date, s.expires_at, s.archived_at, s.last_published_at,
                s.published_version_id, s.description, s.site_status, s.created_at, s.updated_at
-      ORDER BY s.updated_at DESC, s.site_name ASC
+      ORDER BY ${params.afterId === undefined ? "s.updated_at DESC, s.site_name ASC" : "s.id ASC"}
       LIMIT ?
     `,
     params.organizationId,
+    params.siteId ?? null,
+    params.siteId ?? null,
+    params.afterId ?? null,
+    params.afterId ?? null,
     params.status ?? "",
     params.status ?? "",
     params.siteType ?? "",
@@ -340,9 +353,13 @@ export async function listWebmasterSites(params: {
 export async function getWebmasterSiteById(params: {
   organizationId: string;
   siteId: string;
-}): Promise<WebmasterSiteRecord | null> {
-  const items = await listWebmasterSites({ organizationId: params.organizationId, limit: 300 });
-  return items.find((site) => site.id === params.siteId) ?? null;
+}, db: Prisma.TransactionClient = prisma): Promise<WebmasterSiteRecord | null> {
+  const [site] = await listWebmasterSites({ ...params, limit: 1 }, db);
+  return site ?? null;
+}
+
+function assertWebmasterVersion(current: WebmasterSiteRecord | WebmasterPageRecord | null, expected: Record<string, unknown> | undefined) {
+  if (!current || !expected || toolFingerprint(current) !== toolFingerprint(expected)) throw new CreateError(409, "The website or its pages changed. Prepare and review the current version again.");
 }
 
 /** Creates one persisted site row. */
@@ -432,10 +449,17 @@ export async function updateWebmasterSite(params: {
   publishedVersionId?: string | null;
   description?: string;
   status?: WebmasterSiteStatus;
-}): Promise<WebmasterSiteRecord> {
+}, transaction?: Prisma.TransactionClient): Promise<WebmasterSiteRecord> {
   await ensureWebmasterSchema();
-
-  await prisma.$executeRawUnsafe(
+  const { organizationId, siteId } = params;
+  const guard = aiMutationContext.getStore()?.guards.find(item => item.model === "WebmasterSite" && item.id === siteId);
+  if (guard && !transaction) return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM webmaster_sites WHERE organization_id = ${organizationId} AND id = ${siteId} FOR UPDATE`;
+    assertWebmasterVersion(await getWebmasterSiteById({ organizationId, siteId }, tx), guard.expected);
+    return updateWebmasterSite(params, tx);
+  });
+  const db = transaction || prisma;
+  await db.$executeRawUnsafe(
     `
       UPDATE webmaster_sites
       SET owner_id = COALESCE(?, owner_id),
@@ -488,7 +512,7 @@ export async function updateWebmasterSite(params: {
     params.siteId,
   );
 
-  const updated = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: params.siteId });
+  const updated = await getWebmasterSiteById({ organizationId, siteId }, db);
   if (!updated) throw new Error("Updated site could not be reloaded.");
   return updated;
 }
@@ -549,35 +573,40 @@ export async function duplicateWebmasterSite(params: {
   return newSite;
 }
 
-/** Lists pages under one site. */
+/** Lists pages under one site, or a bounded organization-wide page. */
 export async function listWebmasterPages(params: {
   organizationId: string;
-  siteId: string;
+  siteId?: string;
   query?: string;
   status?: WebmasterPageStatus;
+  afterId?: string;
   limit?: number;
-}): Promise<WebmasterPageRecord[]> {
+}, db: Prisma.TransactionClient = prisma): Promise<WebmasterPageRecord[]> {
   await ensureWebmasterSchema();
   const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
 
-  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+  const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `
       SELECT p.id, p.organization_id, p.site_id, s.site_name, p.created_by_id, p.updated_by_id,
              p.page_title, p.page_slug, p.page_path, p.page_status, p.content_json, p.seo_title,
              p.seo_description, p.published_at, p.created_at, p.updated_at
       FROM webmaster_pages p
-      INNER JOIN webmaster_sites s ON s.id = p.site_id
+      INNER JOIN webmaster_sites s ON s.id = p.site_id AND s.organization_id = p.organization_id
       WHERE p.organization_id = ?
-        AND p.site_id = ?
+        AND (? IS NULL OR p.id > ?)
+        AND (? = '' OR p.site_id = ?)
         AND (? = '' OR p.page_status = ?)
         AND (
           ? = '' OR p.page_title LIKE CONCAT('%', ?, '%') OR p.page_slug LIKE CONCAT('%', ?, '%') OR p.page_path LIKE CONCAT('%', ?, '%')
         )
-      ORDER BY p.updated_at DESC, p.page_title ASC
+      ORDER BY ${params.afterId === undefined ? "p.updated_at DESC, p.page_title ASC" : "p.id ASC"}
       LIMIT ?
     `,
     params.organizationId,
-    params.siteId,
+    params.afterId ?? null,
+    params.afterId ?? null,
+    params.siteId ?? "",
+    params.siteId ?? "",
     params.status ?? "",
     params.status ?? "",
     params.query ?? "",
@@ -594,15 +623,15 @@ export async function listWebmasterPages(params: {
 export async function getWebmasterPageById(params: {
   organizationId: string;
   pageId: string;
-}): Promise<WebmasterPageRecord | null> {
+}, db: Prisma.TransactionClient = prisma): Promise<WebmasterPageRecord | null> {
   await ensureWebmasterSchema();
-  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+  const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `
       SELECT p.id, p.organization_id, p.site_id, s.site_name, p.created_by_id, p.updated_by_id,
              p.page_title, p.page_slug, p.page_path, p.page_status, p.content_json, p.seo_title,
              p.seo_description, p.published_at, p.created_at, p.updated_at
       FROM webmaster_pages p
-      INNER JOIN webmaster_sites s ON s.id = p.site_id
+      INNER JOIN webmaster_sites s ON s.id = p.site_id AND s.organization_id = p.organization_id
       WHERE p.organization_id = ? AND p.id = ?
       LIMIT 1
     `,
@@ -671,10 +700,17 @@ export async function updateWebmasterPage(params: {
   seoTitle?: string;
   seoDescription?: string;
   contentJson?: Record<string, unknown>;
-}): Promise<WebmasterPageRecord> {
+}, transaction?: Prisma.TransactionClient): Promise<WebmasterPageRecord> {
   await ensureWebmasterSchema();
-
-  await prisma.$executeRawUnsafe(
+  const { organizationId, pageId } = params;
+  const guard = aiMutationContext.getStore()?.guards.find(item => item.model === "WebmasterPage" && item.id === pageId);
+  if (guard && !transaction) return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM webmaster_pages WHERE organization_id = ${organizationId} AND id = ${pageId} FOR UPDATE`;
+    assertWebmasterVersion(await getWebmasterPageById({ organizationId, pageId }, tx), guard.expected);
+    return updateWebmasterPage(params, tx);
+  });
+  const db = transaction || prisma;
+  await db.$executeRawUnsafe(
     `
       UPDATE webmaster_pages
       SET page_title = COALESCE(?, page_title),
@@ -707,7 +743,7 @@ export async function updateWebmasterPage(params: {
     params.pageId,
   );
 
-  const updated = await getWebmasterPageById({ organizationId: params.organizationId, pageId: params.pageId });
+  const updated = await getWebmasterPageById({ organizationId, pageId }, db);
   if (!updated) {
     throw new Error("Updated page could not be reloaded.");
   }
@@ -806,19 +842,19 @@ export async function createWebmasterPublishVersion(params: {
   createdById?: string;
   note?: string;
   rollbackFromVersionId?: string;
-}): Promise<WebmasterPublishVersionRecord> {
+}, db: Prisma.TransactionClient = prisma): Promise<WebmasterPublishVersionRecord> {
   await ensureWebmasterSchema();
 
-  const site = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: params.siteId });
+  const site = await getWebmasterSiteById({ organizationId: params.organizationId, siteId: params.siteId }, db);
   if (!site) {
     throw new Error("Site not found for publish snapshot.");
   }
 
-  const pages = await listWebmasterPages({ organizationId: params.organizationId, siteId: params.siteId, limit: 500 });
+  const pages = await listWebmasterPages({ organizationId: params.organizationId, siteId: params.siteId, limit: 500 }, db);
   const id = randomUUID();
   const versionLabel = `v${Date.now()}`;
 
-  await prisma.$executeRawUnsafe(
+  await db.$executeRawUnsafe(
     `
       INSERT INTO webmaster_publish_versions
       (id, organization_id, site_id, version_label, note, rollback_from_version_id, snapshot_json, created_by_id)
@@ -834,12 +870,38 @@ export async function createWebmasterPublishVersion(params: {
     params.createdById ?? null,
   );
 
-  const created = await getWebmasterPublishVersionById({ organizationId: params.organizationId, versionId: id });
+  const created = await getWebmasterPublishVersionById({ organizationId: params.organizationId, versionId: id }, db);
   if (!created) {
     throw new Error("Publish version snapshot could not be reloaded.");
   }
 
   return created;
+}
+
+export async function publishWebmasterSite(params: { organizationId: string; siteId: string; createdById?: string; note?: string }) {
+  await ensureWebmasterSchema();
+  const { organizationId, siteId, createdById } = params;
+  return prisma.$transaction(async tx => {
+    const sites = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM webmaster_sites WHERE organization_id = ${organizationId} AND id = ${siteId} FOR UPDATE`;
+    if (!sites.length) return { status: "missing" as const };
+    const pageIds = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM webmaster_pages WHERE organization_id = ${organizationId} AND site_id = ${siteId} FOR UPDATE`;
+    const site = (await getWebmasterSiteById({ organizationId, siteId }, tx))!;
+    const pages = await listWebmasterPages({ organizationId, siteId, limit: 500 }, tx);
+    const context = aiMutationContext.getStore();
+    if (context) {
+      assertWebmasterVersion(site, context.guards.find(item => item.model === "WebmasterSite" && item.id === siteId)?.expected);
+      const expected = new Map(context.guards.filter(item => item.model === "WebmasterPage").map(item => [item.id, item.expected]));
+      if (expected.size !== pageIds.length) throw new CreateError(409, "The website's pages changed. Prepare the publication again.");
+      for (const page of pages) assertWebmasterVersion(page, expected.get(page.id));
+    }
+    const readiness = buildWebmasterPublishReadinessReport({ site, pages });
+    if (!readiness.preflightPassed) return { status: "blocked" as const, readiness };
+    const pending = pages.filter(page => page.status !== "ARCHIVED" && page.status !== "PUBLISHED").map(page => page.id);
+    if (pending.length) await tx.$executeRaw`UPDATE webmaster_pages SET page_status = 'PUBLISHED', updated_by_id = ${createdById ?? null}, published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE organization_id = ${organizationId} AND site_id = ${siteId} AND id IN (${Prisma.join(pending)})`;
+    const version = await createWebmasterPublishVersion(params, tx);
+    const updatedSite = await updateWebmasterSite({ organizationId, siteId, status: "ACTIVE", lastPublishedAt: new Date().toISOString(), publishedVersionId: version.id }, tx);
+    return { status: "published" as const, site: updatedSite, version, pageCount: pages.length };
+  }, { timeout: 20000 });
 }
 
 /** Lists publish version snapshots for one site. */
@@ -871,9 +933,9 @@ export async function listWebmasterPublishVersions(params: {
 export async function getWebmasterPublishVersionById(params: {
   organizationId: string;
   versionId: string;
-}): Promise<WebmasterPublishVersionRecord | null> {
+}, db: Prisma.TransactionClient = prisma): Promise<WebmasterPublishVersionRecord | null> {
   await ensureWebmasterSchema();
-  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+  const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(
     `
       SELECT id, organization_id, site_id, version_label, note, rollback_from_version_id, snapshot_json, created_by_id, created_at
       FROM webmaster_publish_versions

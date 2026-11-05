@@ -16,6 +16,7 @@ export const careNavigation = [
     { name: "Messages", href: "/compassion/messages", icon: MessageSquare, capability: "messages" },
   ] },
   { label: "Tools", items: [
+    { name: "Surveys", href: "/surveys?audience=CLIENT", icon: ClipboardList, capability: "casework" },
     { name: "Client letters", href: "/compassion/letters", icon: FileText, capability: "casework" },
     { name: "Reports", href: "/compassion/reports", icon: Activity, capability: "export" },
   ] },

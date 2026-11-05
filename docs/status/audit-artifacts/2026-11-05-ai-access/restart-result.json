@@ -1,0 +1,11 @@
+{
+  "synthetic": true,
+  "date": "2026-11-05",
+  "database": "MariaDB 10.4.32",
+  "port": 33427,
+  "persistedAfterRestart": "QUEUED",
+  "workerCalls": 2,
+  "workerResult": "SUCCEEDED",
+  "taskCount": 1,
+  "reason": null
+}

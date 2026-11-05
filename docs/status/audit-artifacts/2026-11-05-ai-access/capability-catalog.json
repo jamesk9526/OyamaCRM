@@ -1,0 +1,4751 @@
+{
+  "generatedAt": "2026-11-05T19:00:18.092Z",
+  "resources": [
+    {
+      "key": "constituents",
+      "title": "People and organizations",
+      "module": "People"
+    },
+    {
+      "key": "households",
+      "title": "Households",
+      "module": "People"
+    },
+    {
+      "key": "groups",
+      "title": "Relationship groups",
+      "module": "People"
+    },
+    {
+      "key": "group_members",
+      "title": "Group relationships",
+      "module": "People"
+    },
+    {
+      "key": "tags",
+      "title": "Tags",
+      "module": "People"
+    },
+    {
+      "key": "gifts",
+      "title": "Gifts and receipts",
+      "module": "Giving"
+    },
+    {
+      "key": "pledges",
+      "title": "Pledges",
+      "module": "Giving"
+    },
+    {
+      "key": "funds",
+      "title": "Funds and designations",
+      "module": "Giving"
+    },
+    {
+      "key": "campaigns",
+      "title": "Fundraising campaigns",
+      "module": "Fundraising"
+    },
+    {
+      "key": "tasks",
+      "title": "Tasks",
+      "module": "Operations"
+    },
+    {
+      "key": "meetings",
+      "title": "Meetings",
+      "module": "Operations"
+    },
+    {
+      "key": "events",
+      "title": "Events",
+      "module": "Events"
+    },
+    {
+      "key": "event_guests",
+      "title": "Event guests",
+      "module": "Events"
+    },
+    {
+      "key": "event_orders",
+      "title": "Event orders",
+      "module": "Events"
+    },
+    {
+      "key": "event_tables",
+      "title": "Tables and hosts",
+      "module": "Events"
+    },
+    {
+      "key": "event_seats",
+      "title": "Event seats",
+      "module": "Events"
+    },
+    {
+      "key": "ticket_types",
+      "title": "Ticket types",
+      "module": "Events"
+    },
+    {
+      "key": "checkins",
+      "title": "Guest check-in history",
+      "module": "Events"
+    },
+    {
+      "key": "sponsors",
+      "title": "Sponsorships",
+      "module": "Events"
+    },
+    {
+      "key": "attendance",
+      "title": "Attendance",
+      "module": "Events"
+    },
+    {
+      "key": "volunteer_hours",
+      "title": "Volunteer hours",
+      "module": "Events"
+    },
+    {
+      "key": "grants",
+      "title": "Grants",
+      "module": "Fundraising"
+    },
+    {
+      "key": "funders",
+      "title": "Grant funders",
+      "module": "Fundraising"
+    },
+    {
+      "key": "grant_sections",
+      "title": "Grant sections",
+      "module": "Fundraising"
+    },
+    {
+      "key": "grant_activities",
+      "title": "Grant history",
+      "module": "Fundraising"
+    },
+    {
+      "key": "email",
+      "title": "Email campaigns",
+      "module": "Communications"
+    },
+    {
+      "key": "audiences",
+      "title": "Audience lists",
+      "module": "Communications"
+    },
+    {
+      "key": "audience_members",
+      "title": "Audience members",
+      "module": "Communications"
+    },
+    {
+      "key": "email_delivery",
+      "title": "Email delivery history",
+      "module": "Communications"
+    },
+    {
+      "key": "email_preferences",
+      "title": "Email preferences",
+      "module": "Communications"
+    },
+    {
+      "key": "letters",
+      "title": "Letter templates",
+      "module": "Communications"
+    },
+    {
+      "key": "create_campaigns",
+      "title": "Create campaigns",
+      "module": "Communications"
+    },
+    {
+      "key": "studio_content",
+      "title": "Studio designs",
+      "module": "Communications"
+    },
+    {
+      "key": "create_releases",
+      "title": "Create release history",
+      "module": "Communications"
+    },
+    {
+      "key": "generated_letters",
+      "title": "Generated letter history",
+      "module": "Communications"
+    },
+    {
+      "key": "paths",
+      "title": "Steward Paths",
+      "module": "Stewardship"
+    },
+    {
+      "key": "path_enrollments",
+      "title": "Path enrollments",
+      "module": "Stewardship"
+    },
+    {
+      "key": "path_steps",
+      "title": "Path steps",
+      "module": "Stewardship"
+    },
+    {
+      "key": "path_runs",
+      "title": "Path execution history",
+      "module": "Stewardship"
+    },
+    {
+      "key": "websites",
+      "title": "Websites",
+      "module": "Web"
+    },
+    {
+      "key": "web_pages",
+      "title": "Website pages",
+      "module": "Web"
+    },
+    {
+      "key": "qr_links",
+      "title": "QR links",
+      "module": "Web"
+    },
+    {
+      "key": "documents",
+      "title": "Your context documents",
+      "module": "Operations"
+    },
+    {
+      "key": "staff",
+      "title": "Staff directory",
+      "module": "Operations"
+    },
+    {
+      "key": "business_settings",
+      "title": "Business settings",
+      "module": "Operations"
+    },
+    {
+      "key": "custom_fields",
+      "title": "Custom field definitions",
+      "module": "People"
+    },
+    {
+      "key": "custom_values",
+      "title": "Custom field values",
+      "module": "People"
+    },
+    {
+      "key": "activities",
+      "title": "Record timeline",
+      "module": "Operations"
+    },
+    {
+      "key": "saved_reports",
+      "title": "Your saved reports",
+      "module": "Analytics"
+    },
+    {
+      "key": "import_history",
+      "title": "Create import history",
+      "module": "Data tools"
+    }
+  ],
+  "capabilities": [
+    {
+      "key": "constituents.read",
+      "title": "Read people and organizations",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "type",
+        "donorStatus",
+        "prefix",
+        "firstName",
+        "lastName",
+        "displayName",
+        "organizationName",
+        "contactFirstName",
+        "contactLastName",
+        "contactTitle",
+        "entityKind",
+        "organizationCategory",
+        "email",
+        "email2",
+        "phone",
+        "phone2",
+        "mobile",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "birthDate",
+        "employer",
+        "occupation",
+        "notes",
+        "householdId",
+        "isPrimaryContact",
+        "doNotEmail",
+        "doNotCall",
+        "doNotMail",
+        "doNotContact",
+        "emailOptOut",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "constituents.contact.read",
+      "title": "Read contact",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "type",
+        "donorStatus",
+        "prefix",
+        "firstName",
+        "lastName",
+        "displayName",
+        "organizationName",
+        "contactFirstName",
+        "contactLastName",
+        "contactTitle",
+        "entityKind",
+        "organizationCategory",
+        "email",
+        "email2",
+        "phone",
+        "phone2",
+        "mobile",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "birthDate",
+        "employer",
+        "occupation",
+        "notes",
+        "householdId",
+        "isPrimaryContact",
+        "doNotEmail",
+        "doNotCall",
+        "doNotMail",
+        "doNotContact",
+        "emailOptOut",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "constituents.birthDate.read",
+      "title": "Read birth dates",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "type",
+        "donorStatus",
+        "prefix",
+        "firstName",
+        "lastName",
+        "displayName",
+        "organizationName",
+        "contactFirstName",
+        "contactLastName",
+        "contactTitle",
+        "entityKind",
+        "organizationCategory",
+        "email",
+        "email2",
+        "phone",
+        "phone2",
+        "mobile",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "birthDate",
+        "employer",
+        "occupation",
+        "notes",
+        "householdId",
+        "isPrimaryContact",
+        "doNotEmail",
+        "doNotCall",
+        "doNotMail",
+        "doNotContact",
+        "emailOptOut",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "constituents.notes.read",
+      "title": "Read notes",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "type",
+        "donorStatus",
+        "prefix",
+        "firstName",
+        "lastName",
+        "displayName",
+        "organizationName",
+        "contactFirstName",
+        "contactLastName",
+        "contactTitle",
+        "entityKind",
+        "organizationCategory",
+        "email",
+        "email2",
+        "phone",
+        "phone2",
+        "mobile",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "birthDate",
+        "employer",
+        "occupation",
+        "notes",
+        "householdId",
+        "isPrimaryContact",
+        "doNotEmail",
+        "doNotCall",
+        "doNotMail",
+        "doNotContact",
+        "emailOptOut",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "households.read",
+      "title": "Read households",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "headConstituentId",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "households.contact.read",
+      "title": "Read contact",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "headConstituentId",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "groups.read",
+      "title": "Read relationship groups",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "groupType",
+        "description",
+        "primaryConstituentId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "groups.notes.read",
+      "title": "Read notes",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "groupType",
+        "description",
+        "primaryConstituentId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "group_members.read",
+      "title": "Read group relationships",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "groupId",
+        "constituentId",
+        "relationshipLabel",
+        "isPrimary",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "tags.read",
+      "title": "Read tags",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "color",
+        "description",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "tags.notes.read",
+      "title": "Read notes",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "color",
+        "description",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "gifts.read",
+      "title": "Read gifts and receipts",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "pledgeId",
+        "eventId",
+        "amount",
+        "feeAmount",
+        "date",
+        "paymentMethod",
+        "status",
+        "checkNumber",
+        "isRecurring",
+        "frequency",
+        "nextGiftDate",
+        "receiptNumber",
+        "receiptSentAt",
+        "acknowledgmentSentAt",
+        "taxDeductible",
+        "taxDeductibleAmount",
+        "taxDeductibleNotes",
+        "taxReceiptRequested",
+        "inKindDescription",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "gifts.giving.read",
+      "title": "Read giving",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "pledgeId",
+        "eventId",
+        "amount",
+        "feeAmount",
+        "date",
+        "paymentMethod",
+        "status",
+        "checkNumber",
+        "isRecurring",
+        "frequency",
+        "nextGiftDate",
+        "receiptNumber",
+        "receiptSentAt",
+        "acknowledgmentSentAt",
+        "taxDeductible",
+        "taxDeductibleAmount",
+        "taxDeductibleNotes",
+        "taxReceiptRequested",
+        "inKindDescription",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "gifts.notes.read",
+      "title": "Read notes",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "pledgeId",
+        "eventId",
+        "amount",
+        "feeAmount",
+        "date",
+        "paymentMethod",
+        "status",
+        "checkNumber",
+        "isRecurring",
+        "frequency",
+        "nextGiftDate",
+        "receiptNumber",
+        "receiptSentAt",
+        "acknowledgmentSentAt",
+        "taxDeductible",
+        "taxDeductibleAmount",
+        "taxDeductibleNotes",
+        "taxReceiptRequested",
+        "inKindDescription",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "pledges.read",
+      "title": "Read pledges",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "totalAmount",
+        "paidAmount",
+        "startDate",
+        "endDate",
+        "frequency",
+        "notes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "pledges.giving.read",
+      "title": "Read giving",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "totalAmount",
+        "paidAmount",
+        "startDate",
+        "endDate",
+        "frequency",
+        "notes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "pledges.notes.read",
+      "title": "Read notes",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "totalAmount",
+        "paidAmount",
+        "startDate",
+        "endDate",
+        "frequency",
+        "notes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "funds.read",
+      "title": "Read funds and designations",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "active",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "funds.notes.read",
+      "title": "Read notes",
+      "module": "Giving",
+      "read": true,
+      "permissions": [
+        "view:donations"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "active",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "campaigns.read",
+      "title": "Read fundraising campaigns",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "view:campaigns"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "category",
+        "goal",
+        "startDate",
+        "endDate",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "campaigns.notes.read",
+      "title": "Read notes",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "view:campaigns"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "category",
+        "goal",
+        "startDate",
+        "endDate",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "campaigns.giving.read",
+      "title": "Read giving",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "view:campaigns"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "category",
+        "goal",
+        "startDate",
+        "endDate",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "tasks.read",
+      "title": "Read tasks",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "assigneeId",
+        "createdById",
+        "title",
+        "description",
+        "type",
+        "status",
+        "priority",
+        "dueDate",
+        "reminderAt",
+        "snoozedUntil",
+        "archivedAt",
+        "completedAt",
+        "outcome",
+        "sourceModule",
+        "sourceType",
+        "sourceId",
+        "createdAt",
+        "updatedAt",
+        "meetingId"
+      ]
+    },
+    {
+      "key": "tasks.notes.read",
+      "title": "Read notes",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "assigneeId",
+        "createdById",
+        "title",
+        "description",
+        "type",
+        "status",
+        "priority",
+        "dueDate",
+        "reminderAt",
+        "snoozedUntil",
+        "archivedAt",
+        "completedAt",
+        "outcome",
+        "sourceModule",
+        "sourceType",
+        "sourceId",
+        "createdAt",
+        "updatedAt",
+        "meetingId"
+      ]
+    },
+    {
+      "key": "meetings.read",
+      "title": "Read meetings",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "title",
+        "type",
+        "status",
+        "startTime",
+        "endTime",
+        "timezone",
+        "locationType",
+        "location",
+        "meetingUrl",
+        "purpose",
+        "notes",
+        "privateNotes",
+        "outcome",
+        "followUpNeeded",
+        "constituentId",
+        "assignedStaffId",
+        "createdById",
+        "completedAt",
+        "canceledAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "meetings.contact.read",
+      "title": "Read contact",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "title",
+        "type",
+        "status",
+        "startTime",
+        "endTime",
+        "timezone",
+        "locationType",
+        "location",
+        "meetingUrl",
+        "purpose",
+        "notes",
+        "privateNotes",
+        "outcome",
+        "followUpNeeded",
+        "constituentId",
+        "assignedStaffId",
+        "createdById",
+        "completedAt",
+        "canceledAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "meetings.notes.read",
+      "title": "Read notes",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "title",
+        "type",
+        "status",
+        "startTime",
+        "endTime",
+        "timezone",
+        "locationType",
+        "location",
+        "meetingUrl",
+        "purpose",
+        "notes",
+        "privateNotes",
+        "outcome",
+        "followUpNeeded",
+        "constituentId",
+        "assignedStaffId",
+        "createdById",
+        "completedAt",
+        "canceledAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "events.read",
+      "title": "Read events",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "type",
+        "status",
+        "visibility",
+        "location",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "virtualUrl",
+        "startDate",
+        "endDate",
+        "registrationDeadline",
+        "capacity",
+        "registrationGoal",
+        "revenueGoal",
+        "ownerId",
+        "internalNotes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "events.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "type",
+        "status",
+        "visibility",
+        "location",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "virtualUrl",
+        "startDate",
+        "endDate",
+        "registrationDeadline",
+        "capacity",
+        "registrationGoal",
+        "revenueGoal",
+        "ownerId",
+        "internalNotes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "events.contact.read",
+      "title": "Read contact",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "type",
+        "status",
+        "visibility",
+        "location",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "virtualUrl",
+        "startDate",
+        "endDate",
+        "registrationDeadline",
+        "capacity",
+        "registrationGoal",
+        "revenueGoal",
+        "ownerId",
+        "internalNotes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "events.giving.read",
+      "title": "Read giving",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "type",
+        "status",
+        "visibility",
+        "location",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "virtualUrl",
+        "startDate",
+        "endDate",
+        "registrationDeadline",
+        "capacity",
+        "registrationGoal",
+        "revenueGoal",
+        "ownerId",
+        "internalNotes",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_guests.read",
+      "title": "Read event guests",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "orderId",
+        "constituentId",
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "paymentStatus",
+        "rsvpStatus",
+        "notes",
+        "source",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_guests.contact.read",
+      "title": "Read contact",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "orderId",
+        "constituentId",
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "paymentStatus",
+        "rsvpStatus",
+        "notes",
+        "source",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_guests.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "orderId",
+        "constituentId",
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "paymentStatus",
+        "rsvpStatus",
+        "notes",
+        "source",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_orders.read",
+      "title": "Read event orders",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "orderNumber",
+        "status",
+        "totalAmount",
+        "feeAmount",
+        "paymentMethod",
+        "paidAt",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_orders.giving.read",
+      "title": "Read giving",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "orderNumber",
+        "status",
+        "totalAmount",
+        "feeAmount",
+        "paymentMethod",
+        "paidAt",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_orders.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "orderNumber",
+        "status",
+        "totalAmount",
+        "feeAmount",
+        "paymentMethod",
+        "paidAt",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_tables.read",
+      "title": "Read tables and hosts",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "name",
+        "capacity",
+        "status",
+        "notes",
+        "tableNumber",
+        "isSponsored",
+        "sponsorName",
+        "hostName",
+        "hostEmail",
+        "hostPhone",
+        "xPosition",
+        "yPosition",
+        "shape",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_tables.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "name",
+        "capacity",
+        "status",
+        "notes",
+        "tableNumber",
+        "isSponsored",
+        "sponsorName",
+        "hostName",
+        "hostEmail",
+        "hostPhone",
+        "xPosition",
+        "yPosition",
+        "shape",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_tables.contact.read",
+      "title": "Read contact",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "name",
+        "capacity",
+        "status",
+        "notes",
+        "tableNumber",
+        "isSponsored",
+        "sponsorName",
+        "hostName",
+        "hostEmail",
+        "hostPhone",
+        "xPosition",
+        "yPosition",
+        "shape",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_seats.read",
+      "title": "Read event seats",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "tableId",
+        "seatNumber",
+        "status",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "event_seats.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "tableId",
+        "seatNumber",
+        "status",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "ticket_types.read",
+      "title": "Read ticket types",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "name",
+        "description",
+        "price",
+        "capacity",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "ticket_types.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "name",
+        "description",
+        "price",
+        "capacity",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "ticket_types.giving.read",
+      "title": "Read giving",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "name",
+        "description",
+        "price",
+        "capacity",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "checkins.read",
+      "title": "Read guest check-in history",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "guestId",
+        "method",
+        "status",
+        "checkedInAt",
+        "reversedAt"
+      ]
+    },
+    {
+      "key": "sponsors.read",
+      "title": "Read sponsorships",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "level",
+        "amount",
+        "benefits",
+        "logoUrl",
+        "websiteUrl",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "sponsors.giving.read",
+      "title": "Read giving",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "level",
+        "amount",
+        "benefits",
+        "logoUrl",
+        "websiteUrl",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "sponsors.attachments.read",
+      "title": "Read attachments",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "level",
+        "amount",
+        "benefits",
+        "logoUrl",
+        "websiteUrl",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "sponsors.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "level",
+        "amount",
+        "benefits",
+        "logoUrl",
+        "websiteUrl",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "attendance.read",
+      "title": "Read attendance",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:events"
+      ],
+      "fields": [
+        "id",
+        "eventId",
+        "constituentId",
+        "checkedInAt",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "volunteer_hours.read",
+      "title": "Read volunteer hours",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "eventId",
+        "hours",
+        "description",
+        "date",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "volunteer_hours.notes.read",
+      "title": "Read notes",
+      "module": "Events",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "eventId",
+        "hours",
+        "description",
+        "date",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "grants.read",
+      "title": "Read grants",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "funderId",
+        "assigneeId",
+        "title",
+        "programArea",
+        "status",
+        "amountRequested",
+        "amountAwarded",
+        "requiresLOI",
+        "loiDeadline",
+        "loiSubmittedAt",
+        "applicationDeadline",
+        "submittedAt",
+        "awardedAt",
+        "rejectedAt",
+        "grantPeriodStart",
+        "grantPeriodEnd",
+        "reportingDeadline",
+        "reportingSubmittedAt",
+        "notes",
+        "internalNotes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "grants.giving.read",
+      "title": "Read giving",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "funderId",
+        "assigneeId",
+        "title",
+        "programArea",
+        "status",
+        "amountRequested",
+        "amountAwarded",
+        "requiresLOI",
+        "loiDeadline",
+        "loiSubmittedAt",
+        "applicationDeadline",
+        "submittedAt",
+        "awardedAt",
+        "rejectedAt",
+        "grantPeriodStart",
+        "grantPeriodEnd",
+        "reportingDeadline",
+        "reportingSubmittedAt",
+        "notes",
+        "internalNotes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "grants.notes.read",
+      "title": "Read notes",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "funderId",
+        "assigneeId",
+        "title",
+        "programArea",
+        "status",
+        "amountRequested",
+        "amountAwarded",
+        "requiresLOI",
+        "loiDeadline",
+        "loiSubmittedAt",
+        "applicationDeadline",
+        "submittedAt",
+        "awardedAt",
+        "rejectedAt",
+        "grantPeriodStart",
+        "grantPeriodEnd",
+        "reportingDeadline",
+        "reportingSubmittedAt",
+        "notes",
+        "internalNotes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "funders.read",
+      "title": "Read grant funders",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "type",
+        "website",
+        "contactName",
+        "contactEmail",
+        "contactPhone",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "funders.contact.read",
+      "title": "Read contact",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "type",
+        "website",
+        "contactName",
+        "contactEmail",
+        "contactPhone",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "funders.notes.read",
+      "title": "Read notes",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "type",
+        "website",
+        "contactName",
+        "contactEmail",
+        "contactPhone",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "grant_sections.read",
+      "title": "Read grant sections",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "grantId",
+        "key",
+        "title",
+        "content",
+        "wordLimit",
+        "sortOrder",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "grant_sections.content.read",
+      "title": "Read content",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "grantId",
+        "key",
+        "title",
+        "content",
+        "wordLimit",
+        "sortOrder",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "grant_activities.read",
+      "title": "Read grant history",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "grantId",
+        "userId",
+        "type",
+        "description",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "grant_activities.notes.read",
+      "title": "Read notes",
+      "module": "Fundraising",
+      "read": true,
+      "permissions": [
+        "grants.view"
+      ],
+      "fields": [
+        "id",
+        "grantId",
+        "userId",
+        "type",
+        "description",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "email.read",
+      "title": "Read email campaigns",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "subject",
+        "purpose",
+        "previewText",
+        "fromName",
+        "fromEmail",
+        "replyToEmail",
+        "bodyHtml",
+        "bodyText",
+        "status",
+        "scheduledAt",
+        "sentAt",
+        "totalRecipients",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "unsubscribed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email.notes.read",
+      "title": "Read notes",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "subject",
+        "purpose",
+        "previewText",
+        "fromName",
+        "fromEmail",
+        "replyToEmail",
+        "bodyHtml",
+        "bodyText",
+        "status",
+        "scheduledAt",
+        "sentAt",
+        "totalRecipients",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "unsubscribed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email.contact.read",
+      "title": "Read contact",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "subject",
+        "purpose",
+        "previewText",
+        "fromName",
+        "fromEmail",
+        "replyToEmail",
+        "bodyHtml",
+        "bodyText",
+        "status",
+        "scheduledAt",
+        "sentAt",
+        "totalRecipients",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "unsubscribed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email.content.read",
+      "title": "Read content",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "subject",
+        "purpose",
+        "previewText",
+        "fromName",
+        "fromEmail",
+        "replyToEmail",
+        "bodyHtml",
+        "bodyText",
+        "status",
+        "scheduledAt",
+        "sentAt",
+        "totalRecipients",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "unsubscribed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "audiences.read",
+      "title": "Read audience lists",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "createdById",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "audiences.notes.read",
+      "title": "Read notes",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "createdById",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "audience_members.read",
+      "title": "Read audience members",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "listId",
+        "constituentId",
+        "email",
+        "firstName",
+        "lastName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "audience_members.contact.read",
+      "title": "Read contact",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "listId",
+        "constituentId",
+        "email",
+        "firstName",
+        "lastName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email_delivery.read",
+      "title": "Read email delivery history",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "campaignId",
+        "constituentId",
+        "email",
+        "purpose",
+        "eligibilityStatus",
+        "ineligibilityReason",
+        "queuedAt",
+        "sentAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email_delivery.contact.read",
+      "title": "Read contact",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "campaignId",
+        "constituentId",
+        "email",
+        "purpose",
+        "eligibilityStatus",
+        "ineligibilityReason",
+        "queuedAt",
+        "sentAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email_delivery.notes.read",
+      "title": "Read notes",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "campaignId",
+        "constituentId",
+        "email",
+        "purpose",
+        "eligibilityStatus",
+        "ineligibilityReason",
+        "queuedAt",
+        "sentAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email_preferences.read",
+      "title": "Read email preferences",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "email",
+        "globalStatus",
+        "source",
+        "subscribedAt",
+        "unsubscribedAt",
+        "confirmedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "email_preferences.contact.read",
+      "title": "Read contact",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "email",
+        "globalStatus",
+        "source",
+        "subscribedAt",
+        "unsubscribedAt",
+        "confirmedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "letters.read",
+      "title": "Read letter templates",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": [
+        "id",
+        "revision",
+        "documentJson",
+        "name",
+        "category",
+        "status",
+        "printSubject",
+        "printBody",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "letters.content.read",
+      "title": "Read content",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": [
+        "id",
+        "revision",
+        "documentJson",
+        "name",
+        "category",
+        "status",
+        "printSubject",
+        "printBody",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "create_campaigns.read",
+      "title": "Read create campaigns",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "objective",
+        "ownerId",
+        "status",
+        "revision",
+        "fundraisingCampaignId",
+        "eventId",
+        "channelsJson",
+        "deliveryMode",
+        "startsAt",
+        "endsAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "studio_content.read",
+      "title": "Read studio designs",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "campaignId",
+        "name",
+        "revision",
+        "documentJson",
+        "designJson",
+        "scheduledAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "studio_content.content.read",
+      "title": "Read content",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "campaignId",
+        "name",
+        "revision",
+        "documentJson",
+        "designJson",
+        "scheduledAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "create_releases.read",
+      "title": "Read create release history",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "campaignId",
+        "campaignRevision",
+        "status",
+        "approvedAt"
+      ]
+    },
+    {
+      "key": "generated_letters.read",
+      "title": "Read generated letter history",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": [
+        "id",
+        "templateId",
+        "constituentId",
+        "donationId",
+        "campaignId",
+        "eventId",
+        "status",
+        "generatedAt",
+        "printedAt",
+        "mailedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "paths.read",
+      "title": "Read steward paths",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "targetType",
+        "status",
+        "defaultOwnerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "paths.notes.read",
+      "title": "Read notes",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "name",
+        "description",
+        "targetType",
+        "status",
+        "defaultOwnerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_enrollments.read",
+      "title": "Read path enrollments",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "pathId",
+        "constituentId",
+        "status",
+        "currentStepId",
+        "ownerUserId",
+        "startedAt",
+        "completedAt",
+        "pausedAt",
+        "pausedReason",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_enrollments.notes.read",
+      "title": "Read notes",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "pathId",
+        "constituentId",
+        "status",
+        "currentStepId",
+        "ownerUserId",
+        "startedAt",
+        "completedAt",
+        "pausedAt",
+        "pausedReason",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_steps.read",
+      "title": "Read path steps",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "pathId",
+        "orderIndex",
+        "name",
+        "description",
+        "stepType",
+        "configJson",
+        "isRequired",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_steps.notes.read",
+      "title": "Read notes",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "pathId",
+        "orderIndex",
+        "name",
+        "description",
+        "stepType",
+        "configJson",
+        "isRequired",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_steps.content.read",
+      "title": "Read content",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "pathId",
+        "orderIndex",
+        "name",
+        "description",
+        "stepType",
+        "configJson",
+        "isRequired",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_runs.read",
+      "title": "Read path execution history",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "enrollmentId",
+        "stepId",
+        "status",
+        "scheduledFor",
+        "startedAt",
+        "completedAt",
+        "errorMessage",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "path_runs.notes.read",
+      "title": "Read notes",
+      "module": "Stewardship",
+      "read": true,
+      "permissions": [
+        "steward_paths.view"
+      ],
+      "fields": [
+        "id",
+        "enrollmentId",
+        "stepId",
+        "status",
+        "scheduledFor",
+        "startedAt",
+        "completedAt",
+        "errorMessage",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "websites.read",
+      "title": "Read websites",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "createdById",
+        "name",
+        "slug",
+        "domain",
+        "description",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "websites.notes.read",
+      "title": "Read notes",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "createdById",
+        "name",
+        "slug",
+        "domain",
+        "description",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "web_pages.read",
+      "title": "Read website pages",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "siteId",
+        "createdById",
+        "title",
+        "slug",
+        "path",
+        "status",
+        "contentJson",
+        "seoTitle",
+        "seoDescription",
+        "publishedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "web_pages.content.read",
+      "title": "Read content",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "siteId",
+        "createdById",
+        "title",
+        "slug",
+        "path",
+        "status",
+        "contentJson",
+        "seoTitle",
+        "seoDescription",
+        "publishedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "web_pages.notes.read",
+      "title": "Read notes",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "siteId",
+        "createdById",
+        "title",
+        "slug",
+        "path",
+        "status",
+        "contentJson",
+        "seoTitle",
+        "seoDescription",
+        "publishedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "qr_links.read",
+      "title": "Read qr links",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "createdById",
+        "name",
+        "slug",
+        "destinationUrl",
+        "notes",
+        "active",
+        "expiresAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "qr_links.notes.read",
+      "title": "Read notes",
+      "module": "Web",
+      "read": true,
+      "permissions": [
+        "view:communications"
+      ],
+      "fields": [
+        "id",
+        "createdById",
+        "name",
+        "slug",
+        "destinationUrl",
+        "notes",
+        "active",
+        "expiresAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "documents.read",
+      "title": "Read your context documents",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "userId",
+        "fileName",
+        "displayName",
+        "mimeType",
+        "fileType",
+        "sizeBytes",
+        "workspaceScope",
+        "description",
+        "indexingStatus",
+        "active",
+        "extractedText",
+        "createdAt",
+        "updatedAt",
+        "indexedAt"
+      ]
+    },
+    {
+      "key": "documents.notes.read",
+      "title": "Read notes",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "userId",
+        "fileName",
+        "displayName",
+        "mimeType",
+        "fileType",
+        "sizeBytes",
+        "workspaceScope",
+        "description",
+        "indexingStatus",
+        "active",
+        "extractedText",
+        "createdAt",
+        "updatedAt",
+        "indexedAt"
+      ]
+    },
+    {
+      "key": "documents.content.read",
+      "title": "Read content",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "userId",
+        "fileName",
+        "displayName",
+        "mimeType",
+        "fileType",
+        "sizeBytes",
+        "workspaceScope",
+        "description",
+        "indexingStatus",
+        "active",
+        "extractedText",
+        "createdAt",
+        "updatedAt",
+        "indexedAt"
+      ]
+    },
+    {
+      "key": "staff.read",
+      "title": "Read staff directory",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "role",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "staff.contact.read",
+      "title": "Read contact",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:tasks"
+      ],
+      "fields": [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "role",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "business_settings.read",
+      "title": "Read business settings",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "fiscalYearStart",
+        "currency",
+        "timezone",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "custom_fields.read",
+      "title": "Read custom field definitions",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:custom_fields"
+      ],
+      "fields": [
+        "id",
+        "entityType",
+        "name",
+        "key",
+        "fieldType",
+        "options",
+        "required",
+        "sortOrder",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "custom_values.read",
+      "title": "Read custom field values",
+      "module": "People",
+      "read": true,
+      "permissions": [
+        "view:custom_fields"
+      ],
+      "fields": [
+        "id",
+        "fieldId",
+        "entityId",
+        "entityType",
+        "value",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "activities.read",
+      "title": "Read record timeline",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "donationId",
+        "taskId",
+        "meetingId",
+        "userId",
+        "eventId",
+        "type",
+        "description",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "activities.notes.read",
+      "title": "Read notes",
+      "module": "Operations",
+      "read": true,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "id",
+        "constituentId",
+        "donationId",
+        "taskId",
+        "meetingId",
+        "userId",
+        "eventId",
+        "type",
+        "description",
+        "createdAt"
+      ]
+    },
+    {
+      "key": "saved_reports.read",
+      "title": "Read your saved reports",
+      "module": "Analytics",
+      "read": true,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": [
+        "id",
+        "config",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "saved_reports.content.read",
+      "title": "Read content",
+      "module": "Analytics",
+      "read": true,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": [
+        "id",
+        "config",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "import_history.read",
+      "title": "Read create import history",
+      "module": "Data tools",
+      "read": true,
+      "permissions": [
+        "import:data"
+      ],
+      "fields": [
+        "id",
+        "status",
+        "scanned",
+        "nextScanAt",
+        "lastError",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "import_history.notes.read",
+      "title": "Read notes",
+      "module": "Data tools",
+      "read": true,
+      "permissions": [
+        "import:data"
+      ],
+      "fields": [
+        "id",
+        "status",
+        "scanned",
+        "nextScanAt",
+        "lastError",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    {
+      "key": "constituents.create",
+      "title": "Create a person or organization",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "firstName",
+        "lastName",
+        "organizationName",
+        "type",
+        "donorStatus",
+        "entityKind",
+        "email",
+        "phone",
+        "mobile",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "employer",
+        "occupation",
+        "notes",
+        "doNotEmail",
+        "doNotCall",
+        "doNotMail"
+      ]
+    },
+    {
+      "key": "constituents.update",
+      "title": "Update a person or organization",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "firstName",
+        "lastName",
+        "organizationName",
+        "prefix",
+        "email",
+        "email2",
+        "phone",
+        "phone2",
+        "mobile",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country",
+        "employer",
+        "occupation",
+        "notes",
+        "type",
+        "donorStatus",
+        "doNotEmail",
+        "doNotCall",
+        "doNotMail"
+      ]
+    },
+    {
+      "key": "constituents.close",
+      "title": "Close a constituent account",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "reason"
+      ]
+    },
+    {
+      "key": "constituents.merge",
+      "title": "Merge constituent records",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "delete:constituents"
+      ],
+      "fields": [
+        "keepId",
+        "mergeId"
+      ]
+    },
+    {
+      "key": "constituents.delete",
+      "title": "Delete a constituent",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "delete:constituents"
+      ],
+      "fields": []
+    },
+    {
+      "key": "constituents.notes.append",
+      "title": "Append a donor note",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "notes"
+      ]
+    },
+    {
+      "key": "constituents.activity.create",
+      "title": "Log an interaction",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "type",
+        "description"
+      ]
+    },
+    {
+      "key": "households.update",
+      "title": "Update a household",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "name",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "state",
+        "zip",
+        "country"
+      ]
+    },
+    {
+      "key": "gifts.create",
+      "title": "Record a gift",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "pledgeId",
+        "eventId",
+        "amount",
+        "date",
+        "paymentMethod",
+        "status",
+        "checkNumber",
+        "isRecurring",
+        "frequency",
+        "nextGiftDate",
+        "taxDeductible",
+        "taxDeductibleAmount",
+        "taxDeductibleNotes",
+        "taxReceiptRequested",
+        "inKindDescription",
+        "notes"
+      ]
+    },
+    {
+      "key": "gifts.update",
+      "title": "Correct a gift",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "campaignId",
+        "designationId",
+        "amount",
+        "date",
+        "paymentMethod",
+        "status",
+        "checkNumber",
+        "isRecurring",
+        "frequency",
+        "taxDeductible",
+        "taxDeductibleAmount",
+        "taxDeductibleNotes",
+        "taxReceiptRequested",
+        "notes"
+      ]
+    },
+    {
+      "key": "gifts.delete",
+      "title": "Delete a gift",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "delete:donations"
+      ],
+      "fields": []
+    },
+    {
+      "key": "gifts.acknowledgment.update",
+      "title": "Update acknowledgment status",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "acknowledged"
+      ]
+    },
+    {
+      "key": "campaigns.create",
+      "title": "Create a fundraising campaign",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "edit:campaigns"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "category",
+        "goal",
+        "startDate",
+        "endDate",
+        "active"
+      ]
+    },
+    {
+      "key": "campaigns.update",
+      "title": "Update a fundraising campaign",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "edit:campaigns"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "category",
+        "goal",
+        "startDate",
+        "endDate",
+        "active"
+      ]
+    },
+    {
+      "key": "campaigns.delete",
+      "title": "Delete a fundraising campaign",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "edit:campaigns"
+      ],
+      "fields": []
+    },
+    {
+      "key": "tasks.create",
+      "title": "Create and assign a task",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": [
+        "title",
+        "description",
+        "constituentId",
+        "assigneeId",
+        "type",
+        "priority",
+        "dueDate",
+        "reminderAt"
+      ]
+    },
+    {
+      "key": "tasks.update",
+      "title": "Update or complete a task",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": [
+        "title",
+        "description",
+        "assigneeId",
+        "type",
+        "status",
+        "priority",
+        "dueDate",
+        "reminderAt",
+        "outcome"
+      ]
+    },
+    {
+      "key": "tasks.delete",
+      "title": "Delete a task",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": []
+    },
+    {
+      "key": "meetings.create",
+      "title": "Schedule a meeting",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": [
+        "title",
+        "type",
+        "startTime",
+        "endTime",
+        "timezone",
+        "locationType",
+        "location",
+        "meetingUrl",
+        "purpose",
+        "notes",
+        "privateNotes",
+        "constituentId",
+        "assignedStaffId"
+      ]
+    },
+    {
+      "key": "meetings.update",
+      "title": "Update a meeting",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": [
+        "title",
+        "type",
+        "startTime",
+        "endTime",
+        "timezone",
+        "locationType",
+        "location",
+        "meetingUrl",
+        "purpose",
+        "notes",
+        "privateNotes",
+        "outcome",
+        "followUpNeeded",
+        "assignedStaffId"
+      ]
+    },
+    {
+      "key": "meetings.complete",
+      "title": "Complete a meeting",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": [
+        "outcome",
+        "notes",
+        "followUpNeeded"
+      ]
+    },
+    {
+      "key": "meetings.cancel",
+      "title": "Cancel a meeting",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "edit:tasks"
+      ],
+      "fields": [
+        "outcome"
+      ]
+    },
+    {
+      "key": "events.create",
+      "title": "Create an event draft",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "type",
+        "visibility",
+        "location",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "virtualUrl",
+        "startDate",
+        "endDate",
+        "registrationDeadline",
+        "capacity",
+        "registrationGoal",
+        "revenueGoal",
+        "internalNotes",
+        "status"
+      ]
+    },
+    {
+      "key": "events.update",
+      "title": "Update an event",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "type",
+        "location",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "virtualUrl",
+        "startDate",
+        "endDate",
+        "registrationDeadline",
+        "capacity",
+        "registrationGoal",
+        "revenueGoal",
+        "internalNotes"
+      ]
+    },
+    {
+      "key": "events.publish",
+      "title": "Publish an event",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "visibility",
+        "status"
+      ]
+    },
+    {
+      "key": "events.registration.open",
+      "title": "Open event registration",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "status"
+      ]
+    },
+    {
+      "key": "events.cancel",
+      "title": "Cancel an event",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "status"
+      ]
+    },
+    {
+      "key": "events.delete",
+      "title": "Delete an event",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": []
+    },
+    {
+      "key": "event_guests.create",
+      "title": "Register an event guest",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "constituentId",
+        "rsvpStatus",
+        "paymentStatus",
+        "notes"
+      ]
+    },
+    {
+      "key": "event_guests.update",
+      "title": "Update an event guest",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "rsvpStatus",
+        "notes"
+      ]
+    },
+    {
+      "key": "event_guests.checkin",
+      "title": "Check in an event guest",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": []
+    },
+    {
+      "key": "event_guests.reverse_checkin",
+      "title": "Reverse a guest check-in",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "reason"
+      ]
+    },
+    {
+      "key": "event_tables.create",
+      "title": "Create an event table",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "name",
+        "capacity",
+        "tableNumber",
+        "notes",
+        "hostName",
+        "hostEmail",
+        "hostPhone"
+      ]
+    },
+    {
+      "key": "event_tables.update",
+      "title": "Update an event table",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "name",
+        "capacity",
+        "tableNumber",
+        "notes",
+        "hostName",
+        "hostEmail",
+        "hostPhone",
+        "xPosition",
+        "yPosition",
+        "shape"
+      ]
+    },
+    {
+      "key": "grants.create",
+      "title": "Create a grant",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.create"
+      ],
+      "fields": [
+        "title",
+        "funderId",
+        "assigneeId",
+        "programArea",
+        "status",
+        "amountRequested",
+        "requiresLOI",
+        "loiDeadline",
+        "applicationDeadline",
+        "notes",
+        "internalNotes"
+      ]
+    },
+    {
+      "key": "grants.update",
+      "title": "Update a grant",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.edit"
+      ],
+      "fields": [
+        "title",
+        "funderId",
+        "assigneeId",
+        "programArea",
+        "status",
+        "amountRequested",
+        "amountAwarded",
+        "requiresLOI",
+        "loiDeadline",
+        "loiSubmittedAt",
+        "applicationDeadline",
+        "submittedAt",
+        "awardedAt",
+        "rejectedAt",
+        "grantPeriodStart",
+        "grantPeriodEnd",
+        "reportingDeadline",
+        "reportingSubmittedAt",
+        "notes",
+        "internalNotes"
+      ]
+    },
+    {
+      "key": "grants.delete",
+      "title": "Delete a grant",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.delete"
+      ],
+      "fields": []
+    },
+    {
+      "key": "funders.create",
+      "title": "Create a grant funder",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.manage_funders"
+      ],
+      "fields": [
+        "name",
+        "type",
+        "website",
+        "contactName",
+        "contactEmail",
+        "contactPhone",
+        "notes"
+      ]
+    },
+    {
+      "key": "funders.update",
+      "title": "Update a grant funder",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.manage_funders"
+      ],
+      "fields": [
+        "name",
+        "type",
+        "website",
+        "contactName",
+        "contactEmail",
+        "contactPhone",
+        "notes"
+      ]
+    },
+    {
+      "key": "grant_sections.update",
+      "title": "Write a grant section",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.edit"
+      ],
+      "fields": [
+        "content",
+        "completed",
+        "wordLimit"
+      ]
+    },
+    {
+      "key": "grant_activities.create",
+      "title": "Log grant activity",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.edit"
+      ],
+      "fields": [
+        "type",
+        "description"
+      ]
+    },
+    {
+      "key": "email.draft.create",
+      "title": "Create an email draft",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "subject",
+        "purpose",
+        "previewText",
+        "fromName",
+        "fromEmail",
+        "replyToEmail",
+        "bodyHtml",
+        "bodyText"
+      ]
+    },
+    {
+      "key": "email.draft.update",
+      "title": "Edit an email draft",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "subject",
+        "purpose",
+        "previewText",
+        "fromName",
+        "fromEmail",
+        "replyToEmail",
+        "bodyHtml",
+        "bodyText"
+      ]
+    },
+    {
+      "key": "studio_content.update",
+      "title": "Edit an existing Studio draft design",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "designJson"
+      ]
+    },
+    {
+      "key": "email.send",
+      "title": "Send an email campaign",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "sendMode",
+        "recipientEmails"
+      ]
+    },
+    {
+      "key": "paths.create",
+      "title": "Create a Steward Path",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.create"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "targetType",
+        "defaultOwnerId"
+      ]
+    },
+    {
+      "key": "paths.update",
+      "title": "Update a Steward Path",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.edit"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "defaultOwnerId"
+      ]
+    },
+    {
+      "key": "path_enrollments.create",
+      "title": "Enroll a constituent in a path",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.enroll"
+      ],
+      "fields": [
+        "constituentId",
+        "ownerUserId"
+      ]
+    },
+    {
+      "key": "path_enrollments.pause",
+      "title": "Pause a path enrollment",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.pause"
+      ],
+      "fields": [
+        "status",
+        "reason"
+      ]
+    },
+    {
+      "key": "qr_links.create",
+      "title": "Create a QR link",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "slug",
+        "destinationUrl",
+        "notes",
+        "expiresAt"
+      ]
+    },
+    {
+      "key": "qr_links.update",
+      "title": "Update a QR link",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "destinationUrl",
+        "notes",
+        "active",
+        "expiresAt"
+      ]
+    },
+    {
+      "key": "web_pages.update",
+      "title": "Edit a website page",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "title",
+        "slug",
+        "path",
+        "contentJson",
+        "seoTitle",
+        "seoDescription"
+      ]
+    },
+    {
+      "key": "websites.publish",
+      "title": "Publish a website",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "confirm"
+      ]
+    },
+    {
+      "key": "saved_reports.create",
+      "title": "Save a custom report",
+      "module": "Analytics",
+      "read": false,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": [
+        "name",
+        "source",
+        "from",
+        "through",
+        "columns",
+        "groupBy",
+        "metric",
+        "contains"
+      ]
+    },
+    {
+      "key": "funds.create",
+      "title": "Create funds and designations",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "active"
+      ]
+    },
+    {
+      "key": "funds.update",
+      "title": "Update funds and designations",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "active"
+      ]
+    },
+    {
+      "key": "pledges.create",
+      "title": "Create pledges",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "totalAmount",
+        "startDate",
+        "endDate",
+        "frequency",
+        "notes",
+        "active"
+      ]
+    },
+    {
+      "key": "pledges.update",
+      "title": "Update pledges",
+      "module": "Giving",
+      "read": false,
+      "permissions": [
+        "edit:donations"
+      ],
+      "fields": [
+        "constituentId",
+        "campaignId",
+        "designationId",
+        "totalAmount",
+        "startDate",
+        "endDate",
+        "frequency",
+        "notes",
+        "active"
+      ]
+    },
+    {
+      "key": "volunteer_hours.create",
+      "title": "Create volunteer hours",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "constituentId",
+        "eventId",
+        "hours",
+        "description",
+        "date"
+      ]
+    },
+    {
+      "key": "volunteer_hours.update",
+      "title": "Update volunteer hours",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "constituentId",
+        "eventId",
+        "hours",
+        "description",
+        "date"
+      ]
+    },
+    {
+      "key": "custom_values.update",
+      "title": "Update a custom field value",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents",
+        "view:custom_fields"
+      ],
+      "fields": [
+        "fieldId",
+        "entityId",
+        "entityType",
+        "value"
+      ]
+    },
+    {
+      "key": "records.export",
+      "title": "Export accessible records",
+      "module": "Data tools",
+      "read": false,
+      "permissions": [
+        "export:data"
+      ],
+      "fields": []
+    },
+    {
+      "key": "records.import",
+      "title": "Import new constituents",
+      "module": "Data tools",
+      "read": false,
+      "permissions": [
+        "import:data",
+        "edit:constituents"
+      ],
+      "fields": []
+    },
+    {
+      "key": "records.batch",
+      "title": "Run an approved batch of record changes",
+      "module": "Data tools",
+      "read": false,
+      "permissions": [],
+      "fields": []
+    },
+    {
+      "key": "business_settings.update",
+      "title": "Change reporting calendar settings",
+      "module": "Operations",
+      "read": false,
+      "permissions": [
+        "view:constituents"
+      ],
+      "fields": [
+        "timezone",
+        "fiscalYearStart"
+      ]
+    },
+    {
+      "key": "tags.create",
+      "title": "Create a tag",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "name",
+        "color",
+        "description"
+      ]
+    },
+    {
+      "key": "tags.update",
+      "title": "Edit a tag",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "name",
+        "color",
+        "description"
+      ]
+    },
+    {
+      "key": "groups.create",
+      "title": "Create a relationship group",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "name",
+        "groupType",
+        "description",
+        "primaryConstituentId"
+      ]
+    },
+    {
+      "key": "constituents.tags.update",
+      "title": "Set a constituent's tags",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "tags"
+      ]
+    },
+    {
+      "key": "constituents.groups.update",
+      "title": "Set a constituent's group relationships",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "groupMemberships"
+      ]
+    },
+    {
+      "key": "households.member.add",
+      "title": "Add a household member",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:constituents"
+      ],
+      "fields": [
+        "constituentId"
+      ]
+    },
+    {
+      "key": "event_orders.create",
+      "title": "Record a ticket order",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "constituentId",
+        "items",
+        "paymentMethod",
+        "status",
+        "notes",
+        "paidAt"
+      ]
+    },
+    {
+      "key": "ticket_types.create",
+      "title": "Create an event ticket type",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "price",
+        "capacity",
+        "active"
+      ]
+    },
+    {
+      "key": "ticket_types.update",
+      "title": "Update an event ticket type",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "price",
+        "capacity",
+        "active"
+      ]
+    },
+    {
+      "key": "ticket_types.delete",
+      "title": "Delete an event ticket type",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": []
+    },
+    {
+      "key": "event_orders.update",
+      "title": "Update a ticket order",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "notes",
+        "status"
+      ]
+    },
+    {
+      "key": "sponsors.create",
+      "title": "Record an event sponsorship",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "constituentId",
+        "level",
+        "amount",
+        "benefits",
+        "logoUrl",
+        "websiteUrl",
+        "notes"
+      ]
+    },
+    {
+      "key": "sponsors.update",
+      "title": "Update a sponsorship",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "level",
+        "amount",
+        "benefits",
+        "logoUrl",
+        "websiteUrl",
+        "notes"
+      ]
+    },
+    {
+      "key": "event_seats.assign",
+      "title": "Assign a guest to a seat",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": [
+        "guestId"
+      ]
+    },
+    {
+      "key": "event_seats.clear",
+      "title": "Clear a seat assignment",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": []
+    },
+    {
+      "key": "event_tables.delete",
+      "title": "Delete an event table",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": []
+    },
+    {
+      "key": "event_guests.delete",
+      "title": "Delete an event guest",
+      "module": "Events",
+      "read": false,
+      "permissions": [
+        "edit:events"
+      ],
+      "fields": []
+    },
+    {
+      "key": "audiences.create",
+      "title": "Create an audience list",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "recipientConstituentIds"
+      ]
+    },
+    {
+      "key": "audiences.update",
+      "title": "Update an audience list",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "recipientConstituentIds"
+      ]
+    },
+    {
+      "key": "audiences.delete",
+      "title": "Delete an audience list",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": []
+    },
+    {
+      "key": "email.approve",
+      "title": "Validate an email for delivery",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": []
+    },
+    {
+      "key": "email.cancel",
+      "title": "Cancel an email campaign",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": []
+    },
+    {
+      "key": "email.archive",
+      "title": "Archive an email campaign",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": []
+    },
+    {
+      "key": "email.schedule",
+      "title": "Schedule a specific email send",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "sendMode",
+        "recipientEmails",
+        "scheduledAt"
+      ]
+    },
+    {
+      "key": "letters.templates.create",
+      "title": "Create a letter template",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.create"
+      ],
+      "fields": [
+        "name",
+        "category",
+        "printSubject",
+        "printBody"
+      ]
+    },
+    {
+      "key": "letters.templates.update",
+      "title": "Edit a letter template",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.edit"
+      ],
+      "fields": [
+        "name",
+        "category",
+        "printSubject",
+        "printBody"
+      ]
+    },
+    {
+      "key": "letters.templates.archive",
+      "title": "Archive a letter template",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.archive"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.prepare_pdf",
+      "title": "Prepare a personalized letter or gift receipt",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.generate"
+      ],
+      "fields": [
+        "constituentId",
+        "donationId",
+        "campaignId",
+        "eventId",
+        "year"
+      ]
+    },
+    {
+      "key": "grant_sections.create",
+      "title": "Create a grant section",
+      "module": "Fundraising",
+      "read": false,
+      "permissions": [
+        "grants.edit"
+      ],
+      "fields": [
+        "title",
+        "content",
+        "completed",
+        "wordLimit"
+      ]
+    },
+    {
+      "key": "path_steps.create",
+      "title": "Add a Steward Path step",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.edit"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "stepType",
+        "orderIndex",
+        "configJson",
+        "isRequired",
+        "isActive"
+      ]
+    },
+    {
+      "key": "path_steps.update",
+      "title": "Edit a Steward Path step",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.edit"
+      ],
+      "fields": [
+        "name",
+        "description",
+        "stepType",
+        "configJson",
+        "isRequired",
+        "isActive"
+      ]
+    },
+    {
+      "key": "path_steps.delete",
+      "title": "Remove a Steward Path step",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.edit"
+      ],
+      "fields": []
+    },
+    {
+      "key": "paths.activate",
+      "title": "Activate a Steward Path",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.activate"
+      ],
+      "fields": [
+        "status"
+      ]
+    },
+    {
+      "key": "paths.archive",
+      "title": "Archive a Steward Path",
+      "module": "Stewardship",
+      "read": false,
+      "permissions": [
+        "steward_paths.archive"
+      ],
+      "fields": []
+    },
+    {
+      "key": "websites.create",
+      "title": "Create a website",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "slug",
+        "description"
+      ]
+    },
+    {
+      "key": "websites.update",
+      "title": "Edit a website",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "name",
+        "slug",
+        "description"
+      ]
+    },
+    {
+      "key": "websites.archive",
+      "title": "Archive a website",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": []
+    },
+    {
+      "key": "websites.restore",
+      "title": "Restore a website",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": []
+    },
+    {
+      "key": "web_pages.create",
+      "title": "Create a website page",
+      "module": "Web",
+      "read": false,
+      "permissions": [
+        "edit:communications"
+      ],
+      "fields": [
+        "title",
+        "slug",
+        "path",
+        "contentJson",
+        "seoTitle",
+        "seoDescription"
+      ]
+    },
+    {
+      "key": "custom_fields.create",
+      "title": "Create a custom field definition",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:custom_fields"
+      ],
+      "fields": [
+        "name",
+        "key",
+        "entityType",
+        "fieldType",
+        "options",
+        "required",
+        "description",
+        "placeholder",
+        "defaultValue",
+        "sortOrder"
+      ]
+    },
+    {
+      "key": "custom_fields.update",
+      "title": "Edit a custom field definition",
+      "module": "People",
+      "read": false,
+      "permissions": [
+        "edit:custom_fields"
+      ],
+      "fields": [
+        "name",
+        "options",
+        "required",
+        "description",
+        "placeholder",
+        "defaultValue",
+        "sortOrder",
+        "active"
+      ]
+    },
+    {
+      "key": "crm.search",
+      "title": "Search accessible CRM records",
+      "module": "CRM context",
+      "read": true,
+      "permissions": [],
+      "fields": []
+    },
+    {
+      "key": "crm.context",
+      "title": "Read linked CRM context",
+      "module": "CRM context",
+      "read": true,
+      "permissions": [],
+      "fields": []
+    },
+    {
+      "key": "analytics.read",
+      "title": "Run expanded CRM analytics",
+      "module": "Analytics",
+      "read": true,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.search",
+      "title": "search letters",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.open",
+      "title": "read letter",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.design.read",
+      "title": "get letter design options",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.preview.read",
+      "title": "preview letter draft",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": []
+    },
+    {
+      "key": "images.read",
+      "title": "list letter images",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.view"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.draft.create",
+      "title": "create letter draft",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.create",
+        "letters.edit"
+      ],
+      "fields": []
+    },
+    {
+      "key": "letters.draft.update",
+      "title": "update letter draft",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.create",
+        "letters.edit"
+      ],
+      "fields": []
+    },
+    {
+      "key": "images.import",
+      "title": "import letter image",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.create",
+        "letters.edit"
+      ],
+      "fields": []
+    },
+    {
+      "key": "images.generate",
+      "title": "generate letter image",
+      "module": "Communications",
+      "read": false,
+      "permissions": [
+        "letters.create",
+        "letters.edit"
+      ],
+      "fields": []
+    },
+    {
+      "key": "images.jobs.read",
+      "title": "get letter image job",
+      "module": "Communications",
+      "read": true,
+      "permissions": [
+        "letters.edit"
+      ],
+      "fields": []
+    },
+    {
+      "key": "reports.list",
+      "title": "list reports",
+      "module": "Analytics",
+      "read": true,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": []
+    },
+    {
+      "key": "reports.context.read",
+      "title": "get reporting context",
+      "module": "Analytics",
+      "read": true,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": []
+    },
+    {
+      "key": "reports.run",
+      "title": "run report",
+      "module": "Analytics",
+      "read": true,
+      "permissions": [
+        "view:reports"
+      ],
+      "fields": []
+    }
+  ],
+  "typedWriteActions": 106
+}

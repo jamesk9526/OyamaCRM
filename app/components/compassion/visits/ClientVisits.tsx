@@ -6,9 +6,9 @@ import { useCareAccess } from "../CompassionShell";
 import { CareCard, CareEmpty, CareError, careWrite, useCareData } from "../care-ui";
 import { formUrl } from "../forms/ClientForms";
 interface Visit { id:string; visitDate:string; status:string; location:string; updatedAt:string; caseId?:string; appointmentId?:string; facts:{metrics?:Record<string,boolean>} }
-export default function ClientVisits({ clientId, cases, appointments }: { clientId:string; cases:Array<{id:string;caseNumber:string}>; appointments:Array<{id:string;startTime:string;status:string}> }) {
+export default function ClientVisits({ clientId, cases, appointments, initialVisitId = "" }: { initialVisitId?:string; clientId:string; cases:Array<{id:string;caseNumber:string}>; appointments:Array<{id:string;startTime:string;status:string}> }) {
   const access=useCareAccess(); const visits=useCareData<Visit[]>(`/api/compassion/visits?clientId=${encodeURIComponent(clientId)}`);const staff=useCareData<Array<{id:string;firstName:string;lastName:string}>>("/api/compassion/staff");
-  const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [key,setKey]=useState(()=>crypto.randomUUID());const [selected,setSelected]=useState("");
+  const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [key,setKey]=useState(()=>crypto.randomUUID());const [selected,setSelected]=useState(initialVisitId);
   const services=useCareData<Array<{id:string;serviceType:string;quantity:number}>>(selected?`/api/compassion/visits/${selected}/services`:null);
   const [serviceKey,setServiceKey]=useState(()=>crypto.randomUUID());
   async function run(work:()=>Promise<void>) {setBusy(true);setError("");try{await work();await visits.reload();if(selected)await services.reload();}catch(e){setError(e instanceof Error?e.message:"Unable to update visit.");}finally{setBusy(false);}}

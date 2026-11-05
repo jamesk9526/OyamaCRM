@@ -51,8 +51,8 @@ const DONOR_APPEARANCE_CHROME: Record<DonorAppearanceTheme, {
 
 // Module routes render their own shells — bypass AppShell wrapper. Steward Copilot
 // intentionally remains inside this shell so CRM navigation and context stay visible.
-const PUBLIC_PATHS = ["/connect/chatgpt", "/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/give/", "/campaign-pages/", "/event-reservations", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink"];
-const SHELL_BYPASS_PATHS = ["/compassion", "/events", "/oyama-letters", "/oyama-email", "/oyama-create", "/steward-paths"];
+const PUBLIC_PATHS = ["/connect/chatgpt", "/login", "/email-builder", "/setup", "/unsubscribe", "/preferences", "/give/", "/campaign-pages/", "/event-reservations", "/watchdog", "/webmaster", "/apps", "/trivia", "/tablelink", "/s/"];
+const SHELL_BYPASS_PATHS = ["/compassion", "/events", "/oyama-letters", "/oyama-email", "/oyama-create", "/steward-paths", "/surveys"];
 const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "api",
   "apps",
@@ -98,6 +98,8 @@ const RESERVED_ROOT_PUBLIC_EVENT_SEGMENTS = new Set([
   "steward-ai-workspace",
   "steward-paths",
   "steward-signals",
+  "surveys",
+  "s",
   "tasks",
   "unsubscribe",
   "volunteers",
@@ -246,7 +248,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     if (isCompassion) return;
-    if (user?.role === "compassion_user" && !isPublic) { router.replace("/compassion"); return; }
+    if (user?.role === "compassion_user" && !isPublic && pathname !== "/surveys" && !pathname.startsWith("/surveys/")) { router.replace("/compassion"); return; }
 
     // Redirect unauthenticated visitors to login
     if (!user && !isPublic) {
@@ -272,7 +274,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
 
-  }, [loading, user, isPublic, isBoard, isShareviewReports, isCompassion, router, workspaceSettings]);
+  }, [loading, user, isPublic, isBoard, isShareviewReports, isCompassion, pathname, router, workspaceSettings]);
 
   useEffect(() => {
     function handleLayoutSwitch(event: Event) {

@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js";
+import type { Prisma } from "@prisma/client";
 import { prismaModelExists } from "./prisma-model-fields.js";
 
 export const CONSTITUENT_GROUP_TYPES = ["CHURCH", "BUSINESS", "ORGANIZATION"] as const;
@@ -48,7 +49,7 @@ export async function syncConstituentGroupMemberships(params: {
   organizationId: string;
   constituentId: string;
   memberships: ConstituentGroupMembershipInput[];
-}): Promise<void> {
+}, db: Prisma.TransactionClient = prisma): Promise<void> {
   const { organizationId, constituentId, memberships } = params;
   if (!prismaModelExists("ConstituentGroup") || !prismaModelExists("ConstituentGroupMember")) {
     console.warn("[constituent-groups] Skipping group membership sync because Prisma runtime metadata is missing group models.", {
@@ -59,8 +60,8 @@ export async function syncConstituentGroupMemberships(params: {
     return;
   }
 
-  const groupDelegate = prisma.constituentGroup;
-  const memberDelegate = prisma.constituentGroupMember;
+  const groupDelegate = db.constituentGroup;
+  const memberDelegate = db.constituentGroupMember;
   if (!groupDelegate || !memberDelegate) {
     console.warn("[constituent-groups] Skipping group membership sync because Prisma client delegates are unavailable.", {
       organizationId,

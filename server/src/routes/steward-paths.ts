@@ -4,6 +4,7 @@
  */
 import { Prisma, type StewardPathCrmScope, type StewardPathEmailDraftStatus, type StewardPathEnrollmentStatus, type StewardPathStatus, type StewardPathStepType, type StewardPathTarget, type StewardPathTimelineEventType } from "@prisma/client";
 import { Router, type Request } from "express";
+import { aiMutationContext } from "../ai-access/mutation-context.js";
 import { resolveOrganizationId } from "../lib/organization.js";
 import { logAudit } from "../lib/audit.js";
 import { prisma } from "../lib/prisma.js";
@@ -993,6 +994,7 @@ router.post("/templates/:id/steps", requirePermission("steward_paths.edit"), asy
   const requestedOrder = parsePositiveInt(req.body?.orderIndex, steps.length, 0, steps.length);
 
   const created = await prisma.$transaction(async (tx) => {
+    await tx.stewardPath.update({ where: { id: path.id }, data: { lastEditedByUserId: userId } });
     // Update from highest to lowest index to avoid unique(pathId, orderIndex)
     // collisions while shifting rows up by +1.
     for (const step of steps
@@ -1017,8 +1019,6 @@ router.post("/templates/:id/steps", requirePermission("steward_paths.edit"), asy
       },
     });
   });
-
-  await prisma.stewardPath.update({ where: { id: path.id }, data: { lastEditedByUserId: userId } });
 
   await logAudit({
     action: "STEWARD_PATH_STEP_CREATED",
@@ -1080,12 +1080,10 @@ router.patch("/templates/:id/steps/:stepId", requirePermission("steward_paths.ed
   if (typeof req.body?.isRequired === "boolean") updateData.isRequired = req.body.isRequired;
   if (typeof req.body?.isActive === "boolean") updateData.isActive = req.body.isActive;
 
-  const updated = await prisma.stewardPathStep.update({
-    where: { id: step.id },
-    data: updateData,
+  const updated = await prisma.$transaction(async tx => {
+    await tx.stewardPath.update({ where: { id: path.id }, data: { lastEditedByUserId: userId } });
+    return tx.stewardPathStep.update({ where: { id: step.id }, data: updateData });
   });
-
-  await prisma.stewardPath.update({ where: { id: path.id }, data: { lastEditedByUserId: userId } });
 
   await logAudit({
     action: "STEWARD_PATH_STEP_UPDATED",
@@ -1202,12 +1200,10 @@ router.delete("/templates/:id/steps/:stepId", requirePermission("steward_paths.e
     return;
   }
 
-  await prisma.stewardPathStep.update({
-    where: { id: step.id },
-    data: { isActive: false },
+  await prisma.$transaction(async tx => {
+    await tx.stewardPath.update({ where: { id: getRouteId(req) }, data: { lastEditedByUserId: userId } });
+    await tx.stewardPathStep.update({ where: { id: step.id }, data: { isActive: false } });
   });
-
-  await prisma.stewardPath.update({ where: { id: getRouteId(req) }, data: { lastEditedByUserId: userId } });
 
   await logAudit({
     action: "STEWARD_PATH_STEP_ARCHIVED",
@@ -1292,7 +1288,7 @@ router.post("/templates/:id/enrollments", requirePermission("steward_paths.enrol
 
   const targetType = parseEnumValue(req.body?.targetType, TARGET_VALUES) ?? path.targetType;
   const ownerUserId = typeof req.body?.ownerUserId === "string" ? req.body.ownerUserId : path.defaultOwnerId;
-
+  const heldForAiReview = !!aiMutationContext.getStore();
   const enrollment = await prisma.stewardPathEnrollment.create({
     data: {
       organizationId,
@@ -1302,10 +1298,11 @@ router.post("/templates/:id/enrollments", requirePermission("steward_paths.enrol
       constituentId: typeof req.body?.constituentId === "string" ? req.body.constituentId : null,
       ownerUserId: ownerUserId ?? null,
       currentStepId: path.steps[0]?.id ?? null,
-      nextStepDueAt: req.body?.startAt
+      nextStepDueAt: heldForAiReview ? null : req.body?.startAt
         ? new Date(String(req.body.startAt))
         : new Date(),
-      status: "ACTIVE",
+      status: heldForAiReview ? "PAUSED" : "ACTIVE",
+      ...(heldForAiReview ? { pausedAt: new Date(), pausedReason: "AI prepared this enrollment. Review its downstream actions in CRM before activation." } : {}),
     },
     include: {
       path: { select: { id: true, name: true, status: true } },

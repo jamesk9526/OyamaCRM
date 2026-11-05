@@ -387,6 +387,20 @@ function resolveProviderSmtpSettings(base: ResolvedSmtpSettings, provider: Email
   };
 }
 
+/** Describes the configured sender for review without sending or exposing credentials. */
+export async function describeOrganizationEmailSender(organizationId: string): Promise<string | null> {
+  const [smtp, provider] = await Promise.all([
+    resolveOrganizationSmtpSettings(organizationId), resolveOrganizationEmailProviderSettings(organizationId),
+  ]);
+  if (provider.provider === "microsoft_graph") {
+    if (!provider.graphConnected || !provider.graphRefreshToken || !provider.microsoftClientId || !provider.microsoftClientSecret) return null;
+    return provider.microsoftMailbox.trim() || null;
+  }
+  const effective = resolveProviderSmtpSettings(smtp, provider);
+  if (getSmtpConfigurationIssue(effective)) return null;
+  return `${effective.smtpFromName || "OyamaCRM"} <${effective.smtpFromEmail}>`;
+}
+
 /** Creates one reusable outbound sender that respects selected email provider settings. */
 export async function createOrganizationEmailSender(organizationId: string): Promise<OrganizationEmailSender> {
   const [smtpSettings, provider] = await Promise.all([

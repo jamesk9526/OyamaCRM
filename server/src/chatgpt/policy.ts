@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { CreateError } from "../oyama-create/domain.js";
+import { pendingOperationStatuses } from "../ai-access/contracts.js";
+import { LEGACY_TOOLS } from "../ai-access/catalog.js";
 export const MCP_POLICY_KEY = "chatgpt-mcp-policy";
 export const DEFAULT_MCP_POLICY = { enabled: true, allowLetterRead: true, allowLetterDrafts: false, allowImageGeneration: false, allowReports: true, defaultDateBasis: "calendar" as "calendar" | "fiscal", allowDateBasisOverride: false, maxReportRows: 100 };
 export type McpPolicy = typeof DEFAULT_MCP_POLICY;
@@ -25,12 +27,17 @@ export async function saveMcpPolicy(org: string, revision: unknown, input: unkno
   if (!["calendar", "fiscal"].includes(String(fields.defaultDateBasis)) || !Number.isInteger(fields.maxReportRows) || Number(fields.maxReportRows) < 10 || Number(fields.maxReportRows) > 500) throw new CreateError(400, "Choose a reporting calendar and a row limit from 10 to 500.");
   const config = { revision: current.revision + 1, policy };
   try {
-    if (!current.row) await prisma.pluginSetting.create({ data: { organizationId: org, pluginKey: MCP_POLICY_KEY, enabled: true, config } });
-    else {
-      const stamp = new Date(Math.max(Date.now(), current.row.updatedAt.getTime() + 1));
-      const changed = await prisma.pluginSetting.updateMany({ where: { id: current.row.id, updatedAt: current.row.updatedAt }, data: { config, updatedAt: stamp } });
-      if (!changed.count) throw new CreateError(409, "MCP controls changed in another session. Reload before saving.");
-    }
+    await prisma.$transaction(async tx => {
+      if (!current.row) await tx.pluginSetting.create({ data: { organizationId: org, pluginKey: MCP_POLICY_KEY, enabled: true, config } });
+      else {
+        const stamp = new Date(Math.max(Date.now(), current.row.updatedAt.getTime() + 1));
+        const changed = await tx.pluginSetting.updateMany({ where: { id: current.row.id, updatedAt: current.row.updatedAt }, data: { config, updatedAt: stamp } });
+        if (!changed.count) throw new CreateError(409, "MCP controls changed in another session. Reload before saving.");
+      }
+      const blocked = Object.values(LEGACY_TOOLS).filter(tool => !tool.read && (tool.scope === "letters.write" && !policy.allowLetterDrafts || tool.capability === "images.generate" && !policy.allowImageGeneration)).map(tool => tool.capability);
+      if (!policy.enabled || blocked.length) await tx.aiOperation.updateMany({ where: { organizationId: org, status: { in: pendingOperationStatuses }, ...(policy.enabled ? { capability: { in: blocked } } : {}) }, data: { status: "CANCELLED", finishedAt: new Date(), reviewReason: "Organization MCP access was reduced before execution." } });
+      if (!policy.enabled || !policy.allowLetterDrafts || !policy.allowImageGeneration) await tx.chatGptImageJob.updateMany({ where: { organizationId: org, status: "QUEUED" }, data: { status: "FAILED", prompt: null, error: "Organization MCP access was reduced before execution." } });
+    });
   } catch (e) { if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new CreateError(409, "MCP controls were saved concurrently. Reload before saving."); throw e; }
   return { revision: config.revision, policy };
 }

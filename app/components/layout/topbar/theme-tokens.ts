@@ -127,6 +127,7 @@ export function resolveTopBarModuleChromePalette(
 
 /** Resolves the module home href used by topbar brand links and workspace jumps. */
 export function resolveTopBarHomeHref(moduleKey: TopBarModuleKey): string {
+  if (moduleKey === "surveys") return "/surveys";
   if (moduleKey === "events") return "/events/events";
   if (moduleKey === "watchdog") return "/watchdog";
   if (moduleKey === "webmaster") return "/webmaster";

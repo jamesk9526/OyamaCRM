@@ -1143,24 +1143,16 @@ router.put("/:id/tags", async (req, res) => {
   }
 
   const uniqueNames = normalizeTagNames(req.body?.tagNames);
-
-  const tags: Tag[] = [];
-  for (const name of uniqueNames) {
-    const existing = await prisma.tag.findFirst({ where: { name } });
-    if (existing) {
-      tags.push(existing);
-      continue;
+  await prisma.$transaction(async tx => {
+    await tx.constituent.update({ where: { id: constituent.id }, data: { updatedAt: new Date() } });
+    const tags: Tag[] = [];
+    for (const name of uniqueNames) {
+      const existing = await tx.tag.findFirst({ where: { name } });
+      tags.push(existing || await tx.tag.create({ data: { name, color: name.toLowerCase().includes("non") ? "#64748b" : "#16a34a" } }));
     }
-    tags.push(await prisma.tag.create({ data: { name, color: name.toLowerCase().includes("non") ? "#64748b" : "#16a34a" } }));
-  }
-
-  await prisma.constituentTag.deleteMany({ where: { constituentId: constituent.id } });
-  if (tags.length > 0) {
-    await prisma.constituentTag.createMany({
-      data: tags.map((tag) => ({ constituentId: constituent.id, tagId: tag.id })),
-      skipDuplicates: true,
-    });
-  }
+    await tx.constituentTag.deleteMany({ where: { constituentId: constituent.id } });
+    if (tags.length) await tx.constituentTag.createMany({ data: tags.map(tag => ({ constituentId: constituent.id, tagId: tag.id })), skipDuplicates: true });
+  });
 
   await logAudit({
     action: "CONSTITUENT_TAGS_UPDATED",
@@ -1405,51 +1397,28 @@ router.put("/:id", async (req, res) => {
     return;
   }
 
-  const constituent = await prisma.constituent.update({
-    where: { id: req.params.id },
-    data: omitUnavailableModelDataFields("Constituent", {
-      firstName, lastName, prefix, email, email2, phone, phone2, mobile,
-      organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
-      addressLine1, addressLine2, city, state, zip, country,
-      type, donorStatus, employer, occupation, notes,
-      doNotEmail, doNotCall, doNotMail,
-    }) as Prisma.ConstituentUncheckedUpdateInput,
-  });
-
-  // If switching to HOUSEHOLD type, ensure a Household record exists
-  if (type === "HOUSEHOLD") {
-    const existing = await prisma.household.findUnique({
-      where: { headConstituentId: req.params.id },
+  const constituent = await prisma.$transaction(async tx => {
+    const updated = await tx.constituent.update({
+      where: { id: req.params.id },
+      data: omitUnavailableModelDataFields("Constituent", {
+        firstName, lastName, prefix, email, email2, phone, phone2, mobile,
+        organizationName, contactFirstName, contactLastName, contactTitle, entityKind, organizationCategory,
+        addressLine1, addressLine2, city, state, zip, country,
+        type, donorStatus, employer, occupation, notes,
+        doNotEmail, doNotCall, doNotMail,
+      }) as Prisma.ConstituentUncheckedUpdateInput,
     });
-    if (!existing) {
-      await prisma.household.create({
-        data: {
-          name: `${lastName} Household`,
-          headConstituentId: req.params.id,
-          addressLine1: addressLine1 ?? null,
-          addressLine2: addressLine2 ?? null,
-          city: city ?? null,
-          state: state ?? null,
-          zip: zip ?? null,
-          country: country ?? "US",
-        },
+
+    // If switching to HOUSEHOLD type, ensure a Household record exists.
+    if (type === "HOUSEHOLD") {
+      const household = await tx.household.findUnique({ where: { headConstituentId: req.params.id } });
+      if (!household) await tx.household.create({
+        data: { name: `${lastName ?? updated.lastName} Household`, headConstituentId: req.params.id, addressLine1: addressLine1 ?? null, addressLine2: addressLine2 ?? null, city: city ?? null, state: state ?? null, zip: zip ?? null, country: country ?? "US" },
       });
     }
-  }
-
-  await syncConstituentGroupMemberships({
-    organizationId,
-    constituentId: constituent.id,
-    memberships: normalizeMembershipInputs(groupMemberships),
-  });
-
-  await prisma.activity.create({
-    data: {
-      constituentId: constituent.id,
-      type: "NOTE",
-      description: "Constituent profile updated",
-      metadata: { source: "api/constituents:update" },
-    },
+    if (groupMemberships !== undefined) await syncConstituentGroupMemberships({ organizationId, constituentId: updated.id, memberships: normalizeMembershipInputs(groupMemberships) }, tx);
+    await tx.activity.create({ data: { constituentId: updated.id, type: "NOTE", description: "Constituent profile updated", metadata: { source: "api/constituents:update" } } });
+    return updated;
   });
 
   // Audit trail for constituent update

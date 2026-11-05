@@ -1,5 +1,6 @@
 import { Prisma, type ChatGptImageJob, type CreateStudioAsset } from "@prisma/client";
 import type { Request } from "express";
+import { demandAccess } from "../ai-access/policy.js";
 import { prisma } from "../lib/prisma.js";
 import { managedPublicMedia } from "../lib/public-media.js";
 import { can, demand } from "../oyama-create/access.js";
@@ -108,6 +109,9 @@ export async function queueLetterImage(req: Request, grantId: string, { name, pr
   if (collectMergeFieldKeys(prompt).length) throw new CreateError(400, "Describe the artwork without letter merge fields or donor data.");
   const fingerprint = toolFingerprint([name, prompt, shape]), quotaDay = new Date().toISOString().slice(0, 10);
   const where = { grantId_requestKey: { grantId, requestKey } };
+  const grant = await prisma.chatGptGrant.findFirst({ where: { id: grantId, userId, organizationId, revokedAt: null, refreshExpiresAt: { gt: new Date() } } });
+  if (!grant) throw new CreateError(403, "The connected account is unavailable.");
+  const quota = Math.min(DAILY_IMAGE_LIMIT, (await demandAccess(req, "images.generate", grant)).limits.dailyImages);
   function replay(job: ChatGptImageJob) {
     if (job.fingerprint !== fingerprint) throw new CreateError(409, "This requestKey belongs to a different image request.");
     return jobSummary(job);
@@ -118,10 +122,10 @@ export async function queueLetterImage(req: Request, grantId: string, { name, pr
     if (existing) return replay(existing);
     const last = await prisma.chatGptImageJob.findFirst({ where: { organizationId, quotaDay }, orderBy: { quotaSlot: "desc" }, select: { quotaSlot: true } });
     const quotaSlot = (last?.quotaSlot || 0) + 1;
-    if (quotaSlot > DAILY_IMAGE_LIMIT) {
+    if (quotaSlot > quota) {
       const concurrent = await prisma.chatGptImageJob.findUnique({ where });
       if (concurrent) return replay(concurrent);
-      throw new CreateError(429, `This organization has used its ${DAILY_IMAGE_LIMIT} image requests for today (UTC). Use an existing image or try tomorrow.`);
+      throw new CreateError(429, `This connection has reached its ${quota}-image allowance for today (UTC). Use an existing image or try tomorrow.`);
     }
     try {
       return jobSummary(await prisma.chatGptImageJob.create({ data: { organizationId, userId, grantId, requestKey, fingerprint, quotaDay, quotaSlot, name, prompt, shape } }));
@@ -183,6 +187,7 @@ export async function processLetterImageQueue() {
         !user || user.role === "compassion_user" || !await can(context, "letters.create") || !await can(context, "letters.edit")) {
       throw new CreateError(403, "The connection or image permissions changed before generation began.");
     }
+    if (job.quotaSlot > (await demandAccess(context, "images.generate", grant)).limits.dailyImages) throw new CreateError(403, "The image allowance changed before generation began.");
     const bytes = await generateImage(key, job);
     await storeStudioImage({ org, actor, name: job.name, bytes, mimeType: "image/jpeg" }, data => prisma.$transaction(async tx => {
       const asset = await tx.createStudioAsset.create({ data });

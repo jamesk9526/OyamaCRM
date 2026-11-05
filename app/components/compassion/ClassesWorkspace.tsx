@@ -4,8 +4,8 @@ import { CareCard, CareEmpty, CareError, CareHeading, ClientPicker, careWrite, u
 interface ClassRow { id: string; title: string; startTime: string; capacity: number; points: number; location: string | null }
 interface Enrollment { id: string; clientId: string; status: string }
 interface Points { balance: number; entries: Array<{ id: string; amount: number; reason: string; createdAt: string }> }
-export default function ClassesWorkspace() {
-  const classes = useCareData<ClassRow[]>("/api/compassion/classes"); const [selected, setSelected] = useState(""); const [clientId, setClientId] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [showNew, setShowNew] = useState(false);
+export default function ClassesWorkspace({initialClientId=""}:{initialClientId?:string}) {
+  const classes = useCareData<ClassRow[]>("/api/compassion/classes"); const [selected, setSelected] = useState(""); const [clientId, setClientId] = useState(initialClientId); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [showNew, setShowNew] = useState(false);
   const roster = useCareData<Enrollment[]>(selected ? `/api/compassion/classes/${selected}/enrollments` : null); const points = useCareData<Points>(clientId ? `/api/compassion/clients/${clientId}/points` : null);
   async function run(work: () => Promise<unknown>) { setBusy(true); setError(""); try { await work(); await classes.reload(); if (selected) await roster.reload(); if (clientId) await points.reload(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to update class records."); } finally { setBusy(false); } }
   async function create(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); await run(async () => { await careWrite("/classes", { title: form.get("title"), startTime: new Date(String(form.get("startTime"))).toISOString(), capacity: Number(form.get("capacity")), points: Number(form.get("points")), location: form.get("location") }); setShowNew(false); }); }

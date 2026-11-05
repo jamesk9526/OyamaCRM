@@ -4,6 +4,9 @@ import rateLimit from "express-rate-limit";
 import coreRoutes from "../routes/compassion.js";
 import { careRoutes, publicCareRoutes } from "./routes.js";
 import bookingRoutes from "../routes/compassion-public.js";
+import { surveys } from "../surveys/routes.js";
+import { publicSurveys } from "../surveys/public.js";
+import { surveyDeliveryHealth } from "../surveys/worker.js";
 
 const app = express();
 app.disable("x-powered-by");
@@ -13,10 +16,12 @@ app.use((_req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   next();
 });
+app.use("/api/compassion-public/surveys", publicSurveys);
 app.use(express.json({ limit: "15mb" }));
-app.get("/health", (_req, res) => res.json({ service: "compassion-api", status: "running" }));
+app.get("/health", (_req, res) => res.json({ service: "compassion-api", status: "running", surveyDelivery: surveyDeliveryHealth() }));
 app.use("/api/compassion-public", rateLimit({ windowMs: 60000, limit: 30 }), publicCareRoutes);
 app.use("/api/compassion-public", bookingRoutes);
+app.use("/api/compassion/surveys", surveys);
 app.use("/api/compassion", careRoutes, coreRoutes);
 app.use((_req, res) => res.status(404).json({ error: { code: "NOT_FOUND", message: "Client-care endpoint not found." } }));
 const errors: ErrorRequestHandler = (error, _req, res, next) => {

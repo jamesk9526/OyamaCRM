@@ -13,6 +13,16 @@ const scopes = ['letters.read', 'letters.write', 'reports.read'];
 const params = new URLSearchParams({ response_type: 'code', client_id: 'oyama-chatgpt', redirect_uri: 'https://chatgpt.com/connector_platform/oauth/callback', resource: 'https://nonprofit.example.invalid/api/chatgpt/mcp', scope: scopes.join(' '), state: 'fixture-state', code_challenge: 'a'.repeat(43), code_challenge_method: 'S256' });
 let signedIn = true, connected = true, failure = false, setupEnabled = false, setupRevision = 0, imageGenerationConfigured = false;
 let policy = { enabled: true, allowLetterRead: true, allowLetterDrafts: false, allowImageGeneration: false, allowReports: true, defaultDateBasis: 'calendar', allowDateBasisOverride: false, maxReportRows: 100 }, policyRevision = 0;
+let accessRevision = 0, document = { version: 1, organization: {}, roles: {}, users: {}, connections: {}, limits: { maxRows: 100, maxBatch: 25, maxRecipients: 500, maxExport: 1000, dailyImages: 10 } };
+const capabilityList = [
+  { key: 'constituents.read', title: 'Read people and organizations', module: 'People', resource: 'constituents', read: true, risk: 'routine', permissions: ['view:constituents'] },
+  { key: 'constituents.contact.read', title: 'Read contact details', module: 'People', resource: 'constituents', read: true, risk: 'routine', permissions: ['view:constituents'] },
+  { key: 'gifts.update', title: 'Correct a gift', module: 'Giving', resource: 'gifts', read: false, risk: 'consequential', permissions: ['edit:donations'] },
+  { key: 'records.batch', title: 'Run a batch of record changes', module: 'Data tools', read: false, risk: 'consequential', permissions: [] },
+];
+let operationStatus = 'PENDING';
+const operation = { id: 'synthetic-operation', capability: 'gifts.update', actorId: user.id, createdAt: '2026-11-05T15:30:00Z', expiresAt: '2099-11-06T15:30:00Z' };
+const connection = { id: 'synthetic-connection', userId: user.id, scopes: scopes.join(' '), createdAt: '2026-11-04T12:00:00Z', lastUsedAt: null };
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, permissions: ['clipboard-read', 'clipboard-write'] });
   await context.route('**/.well-known/**', async route => {
@@ -31,6 +41,16 @@ try {
     if (path === '/api/chatgpt/setup' && method === 'PUT') { const body = req.postDataJSON(); assert.equal(body.origin, base); assert.equal(body.revision, setupRevision); setupEnabled = body.enabled; setupRevision++; return json({ origin: base, revision: setupRevision, enabled: setupEnabled }); }
     if (path === '/api/chatgpt/mcp') return route.fulfill({ status: setupEnabled ? 401 : 503, headers: setupEnabled ? { 'www-authenticate': `Bearer resource_metadata="${base}/api/chatgpt/resource-metadata"` } : {}, json: { error: setupEnabled ? 'invalid_token' : 'Unconfigured' } });
     if (path === '/api/chatgpt/settings' && method === 'PUT') { const body = req.postDataJSON(); assert.equal(body.revision, policyRevision); policy = body.policy; policyRevision++; return json({ policy, revision: policyRevision }); }
+    if (path === '/api/chatgpt/access/consent') return json({ proof: 'synthetic-proof', capabilities: [{ key: 'reports.run', title: 'Run aggregate reports', mode: 'automatic', read: true }] });
+    if (path === '/api/chatgpt/access' && method === 'PUT') { const body = req.postDataJSON(); assert.equal(body.revision, accessRevision); document = body.document; return json({ revision: ++accessRevision, document }); }
+    if (path === '/api/chatgpt/access') return json({ revision: accessRevision, document, canManage: true, userId: user.id,
+      capabilities: capabilityList.map(cap => ({ ...cap, effective: { capability: cap.key, mode: document.organization[cap.key]?.mode ?? 'blocked', reasons: ['Synthetic policy fixture'], constraints: [], limits: document.limits } })),
+      resources: [{ key: 'constituents', title: 'People', module: 'People', fields: ['firstName', 'lastName', 'email', 'phone', 'birthDate'] }, { key: 'gifts', title: 'Gifts', module: 'Giving', fields: ['amount', 'notes'], campaign: 'campaignId' }], users: [user], connections: connected ? [connection] : [], targets: { campaigns: [{ id: 'sample-campaign', name: 'Synthetic annual campaign' }], events: [], customFields: [] }, presets: { read: { 'constituents.read': { mode: 'automatic' }, 'constituents.contact.read': { mode: 'automatic' } }, drafting: {}, supervised: { 'gifts.update': { mode: 'approval' } } }, mcpPolicy: policy, mcpRevision: policyRevision, imageGenerationConfigured });
+    if (path === '/api/chatgpt/access/effective') return json({ capability: req.postDataJSON().capability, mode: 'blocked', reasons: ['This connection needs renewed consent for this capability.'], constraints: [], limits: document.limits });
+    if (path === '/api/chatgpt/access/operations') return json({ items: new URL(req.url()).searchParams.get('status') === 'PENDING' && operationStatus !== 'PENDING' ? [] : [{ ...operation, status: operationStatus }], nextCursor: null });
+    if (path === `/api/chatgpt/access/operations/${operation.id}/decision`) { assert.equal(req.postDataJSON().approved, true); operationStatus = 'QUEUED'; return json({ id: operation.id, status: operationStatus }); }
+    if (path === `/api/chatgpt/access/operations/${operation.id}/cancel`) { operationStatus = 'CANCELLED'; return json({ id: operation.id, status: operationStatus }); }
+    if (path === `/api/chatgpt/access/operations/${operation.id}`) return json({ ...operation, status: operationStatus, canCancel: true, ...(operation.capability === 'records.batch' ? { progress: { processed: 1, total: 20, items: [{ index: 1, status: 'SUCCEEDED' }] } } : {}), preview: { title: operation.capability === 'records.batch' ? 'Run a batch of record changes' : 'Correct a gift', changes: operation.capability === 'records.batch' ? [{ field: 'batch', before: null, after: '20 synthetic follow-up tasks' }] : [{ field: 'amount', before: '100.25', after: '101.50' }], targets: [], heldEffects: operation.capability === 'records.batch' ? [] : ['Accounting sync is held.'] } });
     if (path === '/api/chatgpt/connections') return json({ enabled: setupEnabled && policy.enabled, installationEnabled: setupEnabled, setup: { revision: setupRevision, saved: setupEnabled, source: setupEnabled ? 'settings' : 'unconfigured', origin: base, enabled: setupEnabled, locked: false, automaticClientRegistration: true, verifiedCallback: connected ? params.get('redirect_uri') : null, verifiedClientId: null }, policy, policyRevision, canManagePolicy: true, imageGenerationConfigured, mcpUrl: `${base}/api/chatgpt/mcp`, clientId: 'oyama-chatgpt', redirectUris: [params.get('redirect_uri')], scopes, connections: connected ? [{ id: 'synthetic-connection', scopes: scopes.join(' '), createdAt: '2026-11-04T12:00:00Z', lastUsedAt: null }] : [] });
     if (path === '/api/chatgpt/connections/synthetic-connection' && method === 'DELETE') { connected = false; return route.fulfill({ status: 204 }); }
     if (path === '/api/chatgpt/oauth/consent') { consents.push(req.postDataJSON()); return failure ? json({ error: { message: 'Synthetic permission change. Reconnect with reporting access.' } }, 403) : json({ redirectUrl: `${base}/connect/chatgpt?fixture_complete=1` }); }
@@ -67,7 +87,9 @@ try {
   assert.equal(await page.evaluate(() => sessionStorage.getItem('oyama-chatgpt-return')), null);
   checks.push('Existing CRM sign-in returns to the pending connection and clears the local return path.');
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(`${base}/settings/integrations`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('heading', { name: 'ChatGPT · Letters and reporting' }).waitFor();
+  await page.getByRole('heading', { name: 'ChatGPT · CRM workspace' }).waitFor();
+  const release = page.getByRole('button', { name: 'Got it, let’s get started', exact: true });
+  if (await release.isVisible()) await release.click();
   await page.getByRole('button', { name: 'Disconnect', exact: true }).waitFor();
   assert.equal(await page.getByLabel('This installation’s MCP URL', { exact: true }).inputValue(), `${base}/api/chatgpt/mcp`);
   await page.getByLabel('This installation’s MCP URL', { exact: true }).focus();
@@ -98,12 +120,62 @@ try {
   await manual.getByText('OIDC scopes supported', { exact: true }).scrollIntoViewIfNeeded(); await shot('manual-oauth-fields-end');
   await page.getByText('Manual OAuth fields and troubleshooting', { exact: true }).click();
   checks.push('MCP URL and manual fields copy exactly; automatic setup saves without env edits, checks public discovery and exposes actionable failures.');
+  await page.getByRole('link', { name: 'Open AI access', exact: true }).click();
+  await page.getByRole('heading', { name: 'AI access', exact: true }).waitFor();
+  await page.getByLabel('Search capabilities').fill('constituents');
+  const readScope = page.getByLabel('Access for constituents.read', { exact: true });
+  await readScope.selectOption('automatic');
+  await page.getByRole('button', { name: 'Configure constituents.read', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'email', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Save access', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'AI access saved' }).waitFor();
+  assert.equal(document.organization['constituents.read'].mode, 'automatic');
+  assert.equal(document.organization['constituents.read'].fields.includes('email'), false);
+  await page.getByRole('button', { name: 'Check effective access', exact: true }).click();
+  await page.getByText('This connection needs renewed consent for this capability.').waitFor();
+  await page.getByRole('combobox', { name: /^Field \(optional\)/ }).selectOption('email');
+  await page.getByRole('button', { name: 'Check effective access', exact: true }).click();
+  await page.getByText('This connection needs renewed consent for this capability.').waitFor();
+  await page.getByRole('heading', { name: 'AI access', exact: true }).scrollIntoViewIfNeeded();
+  await noOverflow(); await shot('ai-access-desktop');
+  await page.getByLabel('Search capabilities', { exact: true }).scrollIntoViewIfNeeded(); await shot('ai-access-matrix-desktop');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('heading', { name: 'AI access', exact: true }).scrollIntoViewIfNeeded();
+  await noOverflow(); await shot('ai-access-phone');
+  await page.getByText('Permitted fields', { exact: true }).scrollIntoViewIfNeeded(); await noOverflow(); await shot('ai-access-fields-phone');
+  await page.getByRole('button', { name: 'Profiles and overrides', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview profile changes', exact: true }).click();
+  await page.getByRole('heading', { name: 'Profile change preview', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Cancel preview', exact: true }).click();
+  checks.push('The scope manager saves field restrictions, previews a profile and explains effective access on desktop and phone.');
+  await page.getByRole('button', { name: 'Approvals', exact: true }).click();
+  await page.getByRole('button', { name: 'Review details', exact: true }).click();
+  await page.getByText('101.50', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Approve changes', exact: true }).scrollIntoViewIfNeeded();
+  await noOverflow(); await shot('ai-approval-phone');
+  await page.getByRole('button', { name: 'Approve changes', exact: true }).click();
+  await page.getByText('No requests are waiting for approval.').waitFor();
+  assert.equal(operationStatus, 'QUEUED');
+  checks.push('The mobile approval view displays the exact before and proposed amounts and queues the authorized request.');
+  operation.capability = 'records.batch'; operationStatus = 'RUNNING';
+  await page.getByRole('button', { name: 'Activity', exact: true }).click();
+  await page.getByRole('button', { name: 'Review details', exact: true }).click();
+  await page.getByText('1 of 20 actions processed', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Cancel remaining actions', exact: true }).scrollIntoViewIfNeeded();
+  await noOverflow(); await shot('batch-progress-phone');
+  await page.getByRole('button', { name: 'Cancel remaining actions', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Operation cancelled.' }).waitFor();
+  assert.equal(operationStatus, 'CANCELLED');
+  checks.push('Running batches display per-item progress and allow cancelling the remaining actions on a phone.');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Profiles and overrides', exact: true }).click();
   const images = page.getByRole('checkbox', { name: /^Generate AI letter images/ });
   assert.equal(await images.isDisabled(), true);
   await page.getByText(/Image provider setup is required/).waitFor();
   await page.getByRole('heading', { name: 'Organization MCP controls' }).scrollIntoViewIfNeeded(); await shot('letter-controls-provider-unavailable');
   imageGenerationConfigured = true;
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Profiles and overrides', exact: true }).click();
   await images.waitFor();
   assert.equal(await images.isDisabled(), false);
   await page.getByRole('combobox', { name: /Reporting calendar/ }).selectOption('fiscal');
@@ -113,10 +185,11 @@ try {
   await page.getByRole('button', { name: 'Save MCP controls', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'MCP controls saved' }).waitFor();
   assert.equal(policy.defaultDateBasis, 'fiscal'); assert.equal(policy.allowLetterDrafts, true); assert.equal(policy.allowImageGeneration, true); assert.equal(policy.maxReportRows, 25);
-  await noOverflow(); await page.getByRole('heading', { name: 'ChatGPT · Letters and reporting' }).scrollIntoViewIfNeeded(); await shot('settings-desktop');
+  await noOverflow(); await page.getByRole('heading', { name: 'AI access', exact: true }).scrollIntoViewIfNeeded(); await shot('settings-desktop');
   await page.getByRole('heading', { name: 'Organization MCP controls' }).scrollIntoViewIfNeeded(); await shot('letter-controls-desktop');
   checks.push('Organization controls save fiscal calendar, draft access and report limits with an optimistic revision.');
   checks.push('AI image generation shows provider readiness, can be toggled with the keyboard and saves separately from draft access.');
+  await page.getByRole('link', { name: 'Connection setup', exact: true }).click();
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
   await page.getByText('No active ChatGPT connections for your account.', { exact: true }).waitFor();
   await page.setViewportSize({ width: 768, height: 1024 }); await noOverflow();
@@ -126,6 +199,8 @@ try {
   await manual.locator('summary').scrollIntoViewIfNeeded(); await shot('manual-oauth-phone');
   await manual.getByText('OIDC scopes supported', { exact: true }).scrollIntoViewIfNeeded(); await shot('manual-oauth-phone-end');
   await page.getByText('Manual OAuth fields and troubleshooting', { exact: true }).click();
+  await page.getByRole('link', { name: 'Open AI access', exact: true }).click();
+  await page.getByRole('button', { name: 'Profiles and overrides', exact: true }).click();
   await page.getByRole('heading', { name: 'Organization MCP controls' }).scrollIntoViewIfNeeded(); await shot('settings-phone');
   await images.scrollIntoViewIfNeeded(); await noOverflow(); await shot('letter-controls-phone');
   await page.getByRole('combobox', { name: /Reporting calendar/ }).scrollIntoViewIfNeeded(); await shot('settings-phone-calendar');

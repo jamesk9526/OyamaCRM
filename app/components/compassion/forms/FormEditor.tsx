@@ -21,7 +21,7 @@ export default function FormEditor({ clientId, recordId }: { clientId: string; r
   const base = clinical ? "/charts" : "/case-forms";
   const editable = !row || (!clinical || (row.status === "DRAFT" && row.authorId === user?.id));
   useEffect(() => {
-    let active = true; setLoading(true); setError("");
+    let active = true; setLoading(true); setError(""); setRow(null); setAttachments([]);
     if (recordId === "new") { setRow(null); setAnswers({}); setLoading(false); return; }
     apiFetch<FormRecord>(`/api/compassion${base}/${encodeURIComponent(recordId)}`).then(value => {
       if (!active) return;
@@ -33,7 +33,7 @@ export default function FormEditor({ clientId, recordId }: { clientId: string; r
   useEffect(() => {
     if (!dirty) return;
     const unload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    const click = (e: MouseEvent) => { if (e.target instanceof Element && e.target.closest("a[href]") && !window.confirm("Discard unsaved form changes?")) { e.preventDefault(); e.stopPropagation(); } };
+    const click = (e: MouseEvent) => { const anchor=e.target instanceof Element?e.target.closest("a[href]"):null; if (anchor && !anchor.getAttribute("href")?.startsWith("#") && !window.confirm("Discard unsaved form changes?")) { e.preventDefault(); e.stopPropagation(); } };
     const navigation = (e: Event) => { const event = e as Event & { navigationType?: string; cancelable: boolean }; if (event.navigationType === "traverse" && event.cancelable && !window.confirm("Discard unsaved form changes?")) event.preventDefault(); };
     const nav = (window as unknown as { navigation?: EventTarget }).navigation;
     window.addEventListener("beforeunload",unload); document.addEventListener("click",click,true); nav?.addEventListener("navigate",navigation);

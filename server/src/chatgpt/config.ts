@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AI_SCOPES } from "../ai-access/catalog.js";
+import { AI_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE, LEGACY_SCOPES } from "../ai-access/catalog.js";
 
-export const SCOPES: readonly string[] = [...new Set(["letters.read", "letters.write", "reports.read", ...AI_SCOPES])];
+export const SCOPES: readonly string[] = [...new Set([...LEGACY_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE, ...AI_SCOPES])];
 export function connectionConfig() {
   const raw = process.env.CHATGPT_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "";
   const issues: string[] = []; let url = new URL("http://localhost:3000"), originConfigured = false;
@@ -22,7 +22,8 @@ export const opaqueToken = () => randomBytes(32).toString("base64url");
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 export function authorizationInput(raw: Record<string, unknown>, config = connectionConfig(), verifiedClient?: { clientId: string; redirects: string[] }) {
   const value = (key: string) => typeof raw[key] === "string" ? raw[key] as string : "";
-  const scopes = (value("scope") || "letters.read reports.read").split(" ").filter(Boolean);
+  if (value("scope").length > 6000) throw new Error("Use the CRM read and write scopes to authorize an access profile.");
+  const scopes = (value("scope") || "letters.read reports.read").split(/\s+/).filter(Boolean);
   const client = verifiedClient || { clientId: config.clientId, redirects: config.redirects };
   if (!config.enabled || value("client_id") !== client.clientId || !client.redirects.includes(value("redirect_uri")) || value("response_type") !== "code" || value("resource") !== config.resource || value("code_challenge_method") !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(value("code_challenge")) || !scopes.length || scopes.some(s => !(SCOPES as readonly string[]).includes(s)) || value("state").length > 2048) throw new Error("Invalid connection request. Check the client, exact callback URL, scopes, resource and PKCE settings.");
   return { clientId: client.clientId, redirectUri: value("redirect_uri"), resource: config.resource, challenge: value("code_challenge"), scopes: [...new Set(scopes)].join(" "), state: value("state") };

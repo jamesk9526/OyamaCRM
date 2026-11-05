@@ -2177,6 +2177,158 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum SurveyAudience {
+  DONOR
+  CLIENT
+}
+
+enum SurveyIdentity {
+  LINKED
+  ANONYMOUS
+}
+
+enum SurveyStatus {
+  DRAFT
+  LIVE
+  CLOSED
+  ARCHIVED
+}
+
+model Survey {
+  id             String         @id @default(cuid())
+  organizationId String
+  audience       SurveyAudience
+  identity       SurveyIdentity
+  status         SurveyStatus   @default(DRAFT)
+  draft          Json
+  editVersion    Int            @default(1)
+  published      Int            @default(0)
+  closesAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  revisions      SurveyRevision[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, audience, updatedAt])
+}
+
+model SurveyRevision {
+  id             String   @id @default(cuid())
+  organizationId String
+  surveyId       String
+  number         Int
+  definition     Json
+  publicKey      String?  @unique @db.VarChar(64)
+  createdAt      DateTime @default(now())
+  survey         Survey   @relation(fields: [organizationId, surveyId], references: [organizationId, id])
+  distributions  SurveyDistribution[]
+  responses      SurveyResponse[]
+  invitations    SurveyInvitation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, surveyId, number])
+}
+
+model SurveyTemplate {
+  id             String         @id @default(cuid())
+  organizationId String
+  audience       SurveyAudience
+  definition     Json
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId, audience, createdAt])
+}
+
+model SurveyDistribution {
+  id             String         @id @default(cuid())
+  organizationId String
+  revisionId     String
+  actorId        String
+  requestKey     String         @db.VarChar(64)
+  requestHash    String         @db.VarChar(64)
+  reviewHash     String         @db.VarChar(64)
+  message        String         @db.Text
+  subject        String         @db.VarChar(191)
+  sender         String         @db.VarChar(320)
+  origin         String         @db.VarChar(320)
+  sendAt         DateTime
+  reminderDays   Int?
+  createdAt      DateTime       @default(now())
+  revision       SurveyRevision @relation(fields: [organizationId, revisionId], references: [organizationId, id])
+  invitations    SurveyInvitation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, requestKey])
+  @@index([organizationId, revisionId, createdAt])
+}
+
+model SurveyInvitation {
+  id             String         @id @default(cuid())
+  organizationId String
+  revisionId     String
+  distributionId String?
+  contactId      String
+  addressHash    String?        @db.VarChar(64)
+  tokenHash      String?        @unique @db.VarChar(64)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  revision       SurveyRevision @relation(fields: [organizationId, revisionId], references: [organizationId, id])
+  distribution   SurveyDistribution? @relation(fields: [organizationId, distributionId], references: [organizationId, id])
+  jobs           SurveyDeliveryJob[]
+  responses      SurveyResponse[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, revisionId, contactId])
+  @@index([organizationId, distributionId])
+}
+
+model SurveyResponse {
+  id             String         @id @default(cuid())
+  organizationId String
+  revisionId     String
+  invitationId   String?
+  donorId        String?
+  clientId       String?
+  submissionKey  String         @db.VarChar(64)
+  payload        String         @db.LongText
+  createdAt      DateTime       @default(now())
+  revision       SurveyRevision @relation(fields: [organizationId, revisionId], references: [organizationId, id])
+  invitation     SurveyInvitation? @relation(fields: [organizationId, invitationId], references: [organizationId, id])
+
+  @@unique([organizationId, revisionId, submissionKey])
+  @@unique([organizationId, invitationId])
+  @@index([organizationId, revisionId, createdAt])
+  @@index([organizationId, donorId])
+  @@index([organizationId, clientId])
+}
+
+enum SurveyDeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  UNKNOWN
+  SKIPPED
+}
+
+model SurveyDeliveryJob {
+  id             String               @id @default(cuid())
+  organizationId String
+  invitationId   String
+  reminder       Boolean
+  dueAt          DateTime
+  status         SurveyDeliveryStatus @default(QUEUED)
+  claimedAt      DateTime?
+  finishedAt     DateTime?
+  outcome        String?              @db.VarChar(191)
+  invitation     SurveyInvitation     @relation(fields: [organizationId, invitationId], references: [organizationId, id])
+
+  @@unique([organizationId, invitationId, reminder])
+  @@index([status, dueAt])
+}
+
 model AuditLog {
   id             String   @id @default(cuid())
   organizationId String?
@@ -4056,6 +4208,7 @@ model AiOperation {
   reviewedAt     DateTime?
   reviewReason   String?   @db.VarChar(500)
   expiresAt      DateTime
+  runAfter       DateTime?
   claimedAt      DateTime?
   finishedAt     DateTime?
   createdAt      DateTime  @default(now())
@@ -4063,6 +4216,7 @@ model AiOperation {
   @@unique([organizationId, actorId, requestKey])
   @@index([organizationId, status, createdAt])
   @@index([grantId, status])
+  @@index([status, runAfter])
 }
 
 model ChatGptDraftRequest {

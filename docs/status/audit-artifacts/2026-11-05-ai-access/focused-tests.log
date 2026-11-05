@@ -1,0 +1,8 @@
+
+ RUN  v4.1.5 C:/Users/James/Documents/GitHub/OyamaCRM
+
+
+ Test Files  4 passed (4)
+      Tests  62 passed (62)
+   Start at  12:56:57
+   Duration  18.20s (transform 3.67s, setup 0ms, import 3.33s, tests 13.64s, environment 0ms)

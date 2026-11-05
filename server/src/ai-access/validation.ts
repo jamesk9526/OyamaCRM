@@ -7,21 +7,58 @@ const extra: Record<string, JsonSchema> = {
   reason: { type: "string", minLength: 1, maxLength: 500 }, note: { type: "string", minLength: 1, maxLength: 10000 },
   type: { type: "string", maxLength: 100 }, description: { type: "string", maxLength: 10000 },
   keepId: idSchema, mergeId: idSchema, acknowledged: { type: "boolean" },
-  sendMode: { type: "string", enum: ["LIST"] }, recipientEmails: { type: "array", maxItems: 10000, items: { type: "string", maxLength: 320 } },
+  sendMode: { type: "string", enum: ["LIST", "INDIVIDUAL"], description: "Optional. OyamaCRM derives the send mode from the recipient count." }, recipientEmails: { type: "array", maxItems: 10000, items: { type: "string", maxLength: 320 } },
   name: { type: "string", maxLength: 200 }, source: { type: "string", maxLength: 100 }, from: { type: "string", maxLength: 10 }, through: { type: "string", maxLength: 10 },
   columns: { type: "array", maxItems: 50, items: { type: "string", maxLength: 100 } }, filters: { type: "array", maxItems: 20, items: { type: "object" } }, sort: { type: "object" },
   fieldId: idSchema, entityId: idSchema, entityType: { type: "string", enum: ["constituent", "donation", "campaign", "event"] }, value: { type: "string", maxLength: 10000 },
+  guestId: idSchema, constituentId: idSchema, configJson: { type: "object" },
+  recipientConstituentIds: { type: "array", maxItems: 10000, items: idSchema },
+  tags: { type: "array", maxItems: 30, items: { type: "string", minLength: 1, maxLength: 100 } },
+  groupMemberships: { type: "array", maxItems: 50, items: objectSchema({ groupId: idSchema, relationshipLabel: { type: "string", maxLength: 80 }, isPrimary: { type: "boolean" } }, ["groupId"]) },
+  items: { type: "array", maxItems: 100, items: objectSchema({ ticketTypeId: idSchema, quantity: { type: "integer", minimum: 1, maximum: 1000 } }, ["ticketTypeId", "quantity"]) },
+  groupBy: { type: "string", maxLength: 64 }, metric: { type: "string", maxLength: 64 }, contains: { type: "string", maxLength: 100 },
+  year: { type: "integer", minimum: 2000, maximum: 2100 }, donationId: idSchema,
 };
 export function actionSchema(capability: AiCapability): JsonSchema {
   const res = capability.resource ? resourceFor(capability.resource) : undefined;
   const fields: Record<string, JsonSchema> = {};
   for (const name of capability.fields || []) {
     const field = res ? modelFields(res).find(item => item.name === name) : undefined;
-    fields[name] = field && res ? { ...fieldSchema(res, name), ...(!field.isRequired ? { anyOf: [fieldSchema(res, name), { type: "null" }] } : {}) } : extra[name] || { type: "string", maxLength: 1000 };
+    if (field && res) {
+      const schema = fieldSchema(res, name);
+      fields[name] = field.isRequired ? schema : { anyOf: [schema, { type: "null" }] };
+    } else fields[name] = extra[name] || { type: "string", maxLength: 1000 };
   }
+  if (capability.key === "paths.create") fields.targetType = { type: "string", enum: ["CONSTITUENT", "DONOR", "EVENT_ATTENDEE", "SPONSOR", "GRANT", "STAFF", "CUSTOM"] };
+  if (capability.key === "path_enrollments.pause") fields.status = { type: "string", enum: ["PAUSED", "CANCELLED"] };
+  if (capability.handler === "custom") fields.value = { anyOf: [{ type: "string", maxLength: 10000 }, { type: "number", minimum: -1000000000, maximum: 1000000000 }, { type: "boolean" }, { type: "array", maxItems: 100, items: { type: "string", maxLength: 191 } }, { type: "null" }] };
+  if (capability.key === "custom_fields.create" || capability.key === "custom_fields.update") fields.options = { type: "array", maxItems: 100, items: { type: "string", minLength: 1, maxLength: 191 } };
   if (capability.handler === "export") Object.assign(fields, { resource: { type: "string", maxLength: 100 }, query: { type: "string", maxLength: 200 } });
-  return objectSchema({ fields: objectSchema(fields, capability.required), id: idSchema, eventId: idSchema, grantId: idSchema, pathId: idSchema, key: idSchema,
+  if (capability.handler === "import") fields.records = { type: "array", maxItems: 100, items: objectSchema({ firstName: { type: "string", maxLength: 100 }, lastName: { type: "string", maxLength: 100 }, email: { type: "string", maxLength: 191 }, phone: { type: "string", maxLength: 50 }, addressLine1: { type: "string", maxLength: 191 }, city: { type: "string", maxLength: 100 }, state: { type: "string", maxLength: 100 }, zip: { type: "string", maxLength: 20 }, notes: { type: "string", maxLength: 10000 } }, ["firstName", "lastName"]) };
+  if (capability.handler === "batch") fields.actions = { type: "array", maxItems: 100, items: objectSchema({ capability: { type: "string", maxLength: 100 }, arguments: { type: "object" } }, ["capability", "arguments"]) };
+  return objectSchema({ fields: objectSchema(fields, capability.required), id: idSchema, eventId: idSchema, grantId: idSchema, pathId: idSchema, siteId: idSchema, key: idSchema,
     expectedVersion: { type: "string", minLength: 64, maxLength: 64 }, requestKey: { type: "string", minLength: 8, maxLength: 100 }, preview: { type: "boolean" } }, ["fields", "requestKey"]);
+}
+export function validateCustomValue(definition: { fieldType: unknown; options: unknown; required: unknown }, value: unknown) {
+  if (value === null) {
+    if (definition.required) throw new CreateError(400, "This custom field requires a value.");
+    return;
+  }
+  let options: unknown;
+  try { options = typeof definition.options === "string" ? JSON.parse(definition.options) : definition.options; } catch { options = []; }
+  const choices = Array.isArray(options) && options.every(option => typeof option === "string") ? options : [];
+  const types: Record<string, JsonSchema> = {
+    number: { type: "number", minimum: -1000000000, maximum: 1000000000 },
+    boolean: { type: "boolean" },
+    multiselect: { type: "array", maxItems: 100, items: { type: "string", enum: choices } },
+    select: { type: "string", enum: choices },
+  };
+  const schema = types[String(definition.fieldType)] || { type: "string", maxLength: 10000, minLength: definition.required ? 1 : 0 };
+  validate(schema, value, "custom field value");
+  if (definition.fieldType === "date") {
+    const date = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null;
+    if (!date || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new CreateError(400, "Use a valid YYYY-MM-DD custom field value.");
+  }
 }
 export function validate(schema: JsonSchema, input: unknown, path = "arguments", depth = 0): void {
   if (depth > 12) throw new CreateError(400, "Tool arguments are nested too deeply.");

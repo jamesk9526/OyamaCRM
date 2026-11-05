@@ -19,8 +19,8 @@ const templates: Record<string, string[]> = {
 };
 const pretty = (value: string) => value.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").toLowerCase();
 
-export default function CareWorkspace({ initialClientId = "" }: { initialClientId?: string }) {
-  const access = useCareAccess(); const [clientId, setClientId] = useState(initialClientId); const [kind, setKind] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("kind") === "STD_TEST" ? "STD_TEST" : "CLINICAL_NOTE"); const [content, setContent] = useState<Record<string, string>>({}); const [selected, setSelected] = useState<Chart | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [chartId, setChartId] = useState(""); const [historical, setHistorical] = useState(false); const [notice, setNotice] = useState("");
+export default function CareWorkspace({ initialClientId = "", initialKind = "CLINICAL_NOTE" }: { initialClientId?: string; initialKind?: string }) {
+  const access = useCareAccess(); const [clientId, setClientId] = useState(initialClientId); const [kind, setKind] = useState(Object.hasOwn(templates,initialKind) ? initialKind : "CLINICAL_NOTE"); const [content, setContent] = useState<Record<string, string>>({}); const [selected, setSelected] = useState<Chart | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [chartId, setChartId] = useState(""); const [historical, setHistorical] = useState(false); const [notice, setNotice] = useState("");
   const charts = useCareData<Chart[]>(`/api/compassion/charts${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`);
   const documents = useCareData<DocumentRow[]>(clientId ? `/api/compassion/documents?clientId=${encodeURIComponent(clientId)}` : null);
   async function action(work: () => Promise<unknown>) { setBusy(true); setError(""); setNotice(""); try { await work(); await charts.reload(); if (clientId) await documents.reload(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to complete this action."); } finally { setBusy(false); } }

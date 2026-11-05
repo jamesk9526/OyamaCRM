@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import MonthlyRegister from "@/app/components/compassion/MonthlyRegister";
+import Link from "next/link";
 
 interface ReportCountRow {
   label: string;
@@ -273,5 +274,5 @@ function OperationalReports() {
 export default function CompassionReportsPage() {
   const [summary, setSummary] = useState(false);
   useEffect(() => { setSummary(new URLSearchParams(window.location.search).get("view") === "summary"); }, []);
-  return summary ? <><a className="care-button secondary" href="/compassion/reports">Monthly statistics</a><OperationalReports /></> : <MonthlyRegister />;
+  return summary ? <><Link className="care-button secondary" href="/compassion/reports" onClick={()=>setSummary(false)}>Monthly statistics</Link><OperationalReports /></> : <MonthlyRegister />;
 }

@@ -127,6 +127,8 @@ const RESERVED_EVENT_PUBLIC_SLUGS = new Set([
   "steward-ai-workspace",
   "steward-paths",
   "steward-signals",
+  "surveys",
+  "s",
   "tasks",
   "unsubscribe",
   "volunteers",

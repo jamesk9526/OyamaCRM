@@ -408,6 +408,10 @@ const PERMISSION_GROUPS: { label: string; keys: string[] }[] = [
     keys: ["view:reports", "view:communications", "edit:communications"],
   },
   {
+    label: "Donor surveys",
+    keys: ["surveys.view", "surveys.edit", "surveys.publish", "surveys.send", "surveys.responses", "surveys.export"],
+  },
+  {
     label: "Tasks",
     keys: ["view:tasks", "edit:tasks"],
   },
@@ -494,6 +498,12 @@ const PERM_LABELS: Record<string, string> = {
   "view:reports":        "View Reports",
   "view:communications": "View Communications",
   "edit:communications": "Edit Communications",
+  "surveys.view": "View Surveys",
+  "surveys.edit": "Build Surveys",
+  "surveys.publish": "Publish and Close Surveys",
+  "surveys.send": "Distribute Surveys",
+  "surveys.responses": "Read Survey Responses",
+  "surveys.export": "Export Survey Responses",
   "view:tasks":          "View Tasks",
   "edit:tasks":          "Edit Tasks",
   "steward_paths.view": "Steward Paths: View",

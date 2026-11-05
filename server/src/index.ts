@@ -15,6 +15,9 @@
  * @module index
  */
 import { startNotificationEmailWorker, stopNotificationEmailWorker } from "./services/notification-email.js";
+import { surveys } from "./surveys/routes.js";
+import { publicSurveys } from "./surveys/public.js";
+import { startSurveyDeliveryWorker, stopSurveyDeliveryWorker, surveyDeliveryHealth } from "./surveys/worker.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -198,6 +201,7 @@ app.use("/api/watchdog/ops/backups/package/import", express.raw({ type: "applica
 // Import endpoint can receive 800+ records as JSON — raise the limit to 20 MB.
 // Remote MCP calls have a smaller input budget than CRM package imports.
 app.use("/api/chatgpt", express.json({ limit: "1mb" }), express.urlencoded({ extended: false, limit: "16kb" }));
+app.use("/api/public/surveys", publicSurveys);
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use(cookieParser());
@@ -252,6 +256,7 @@ async function healthHandler(_req: express.Request, res: express.Response) {
     stewardPaths,
     quickBooks,
     taskNotifications: getTaskNotificationWorkerStatus(),
+    surveyDelivery: surveyDeliveryHealth(),
   });
 }
 
@@ -283,6 +288,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/households", householdRoutes);
 app.use("/api/email-campaigns", emailCampaignRoutes);
+app.use("/api/surveys", surveys);
 app.use("/api/email", emailPreferenceRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/automations", automationRoutes);
@@ -355,13 +361,14 @@ if (process.env.NODE_ENV !== "test") {
   startQuickBooksSyncWorker();
   startTaskNotificationWorker();
   startNotificationEmailWorker();
+  startSurveyDeliveryWorker("DONOR");
   // Stop creating in-app reminders during the process manager's shutdown window.
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
     stopCreateWorker();
     stopLetterImageWorker();
     stopAiOperationWorker();
     stopImportWorker();
-    void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker()]).finally(() => process.exit(0));
+    void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker(), stopSurveyDeliveryWorker()]).finally(() => process.exit(0));
   });
   app.listen(PORT, () => {
     console.log(`[API] OyamaCRM API server running on http://localhost:${PORT}`);

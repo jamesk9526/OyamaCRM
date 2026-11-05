@@ -6,6 +6,7 @@
   "include": [
     "next-env.d.ts",
     "next.config.ts",
+    "server/src/types/express.d.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
     ".next/types/**/*.ts",

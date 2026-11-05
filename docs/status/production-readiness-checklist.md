@@ -1,3 +1,32 @@
+## OyamaSurveys Guided Studio — 2026-11-05
+
+- [x] Implement the approved Guided Studio flow with real API persistence paths, server authorization, immutable revisions, link collection, reviewed distributions, reminder jobs, reporting, CSV, and record history.
+- [x] Pass 33 focused survey and navigation tests covering tenant boundaries, permission denials, branching, publication revisions, retry conflicts, protected client answers, anonymous storage, expired/revoked links, recipient exclusions, and unknown delivery outcomes.
+- [x] Verify the production browser flow with synthetic records at 1440, 1366, 1280, and 390 pixels. Check header clearance, wrapping, keyboard error focus, dialogs, conditional questions, public submission, exports, and Compassion-only library access.
+- [x] Validate Prisma schema, targeted lint, repository/server type checks, and the production web build. See [verification](audit-artifacts/2026-11-05-surveys/verification.md).
+- [ ] Apply the additive survey migration on staging MySQL, then verify rollback, concurrent submissions/job claims, and persistence across restart.
+- [ ] Deploy the platform API, Compassion API, and web together. Verify public origin, stable survey-link signing configuration, client encryption key, and exact sender configuration.
+- [ ] Run an explicitly reviewed test invitation and reminder through the real organization email provider and confirm its acceptance.
+
+## ChatGPT CRM workspace and AI access — 2026-11-05
+
+- [x] Implement versioned organization, role, user and connection policy with consent snapshots and current CRM authorization.
+- [x] Implement the five Settings views, preset differences, field/record restrictions, effective-access explanations, approval details and activity links.
+- [x] Implement cross-module retrieval, chronological activity, defined analytics, typed actions, persistent approvals, idempotent jobs, scheduled cancellation and per-item batch outcomes.
+- [x] Preserve earlier OAuth discovery/CIMD and letter grants. Expand scope storage and quarantine ambiguous legacy ownership.
+- [x] Pass 62 focused tests, repository/server types, targeted lint, production builds and desktop/mobile browser verification. [Evidence](audit-artifacts/2026-11-05-ai-access/verification.md)
+- [x] Verify real MariaDB migrations, transaction guards, two-worker claims, running-batch cancellation and persistence through a database restart with synthetic records.
+- [ ] Apply migrations on staging MySQL, review legacy ownership quarantines, deploy API/web together and refresh ChatGPT tool metadata.
+- [ ] Reauthorize expanded connections and complete the six real ChatGPT acceptance conversations, including the configured gift/send approval modes.
+- [ ] Extend native automatic Steward execution and additional import modes with action-by-action authorization before enabling those workflows through MCP.
+
+## Compassion client files and paper intake — 2026-11-05
+
+- [x] Verify the six-page inventory, draft revisions, role checks, attachment isolation, and report behavior with synthetic fixtures.
+- [x] Review desktop and mobile layout and compare three-page print proofs with the supplied scans.
+- [ ] Apply the Compassion migration to a staging MySQL database and verify transaction rollback, concurrency, and persistence after restart.
+- [ ] Confirm center definitions against the actual reporting workbook before operational use.
+
 ## ChatGPT letter authoring and artwork — 2026-11-05
 
 - [x] Verify HTML draft compatibility, merge previews, managed asset import and placement, revision conflicts, release boundaries, and image queue retries with synthetic API fixtures.

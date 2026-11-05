@@ -38,6 +38,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
       { label: "Branding", href: "/oyama-create/library/brand", description: "Logos and public colors", iconSlug: "fund-designation" },
       { label: "Team users & access", href: "/settings/users", description: "Add users, staff accounts, passwords and roles", iconSlug: "users" },
       { label: "Roles & Scopes", href: "/settings/roles", description: "Permission reference", iconSlug: "system-status" },
+      { label: "AI access", href: "/settings/ai-access", description: "ChatGPT scopes, approvals and connections", iconSlug: "steward-ai" },
       { label: "Security & Audit", href: "/settings/security", description: "Authentication and recovery", iconSlug: "system-status" },
     ],
   },
