@@ -1,3 +1,14 @@
+## Production build memory reduction — 2026-11-04
+
+- [x] Retain strict web type validation while excluding standalone API, seed and test roots from the Next build worker. Existing full-repository/API checks remain unchanged.
+- [x] Enable separate Webpack build worker and supported memory optimizations; constrain page generation to one worker.
+- [x] Baseline and scoped TypeScript diagnostics passed; reported memory reduced from 2,280,039 KiB to 1,560,196 KiB. Targeted lint passed.
+- [x] Full Next production build passed under a 2 GiB Node heap cap, including TypeScript validation and all 225 generated pages/routes.
+- [x] Server compilation passed under the same heap cap; six existing synthetic production-browser acceptance groups passed with no page errors. Desktop/mobile screens compared with prior output.
+- [ ] Repeat the build on the reported Linux deployment after updating both configuration files. Local verification did not impose a 2 GB physical/cgroup memory limit or deploy/reload production.
+
+The user-reported MySQL log confirms the import and ChatGPT migrations applied and Prisma generation succeeded; this does not establish that the application build/reload or a real ChatGPT connection succeeded. [Verification](audit-artifacts/2026-11-04-build-memory/verification.md).
+
 ## Studio desktop layout and HTML mode — 2026-11-04
 
 ## ChatGPT MCP letters/reporting and administrator controls — 2026-11-04

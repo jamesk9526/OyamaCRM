@@ -76,7 +76,26 @@ Check the configured public URL and API health route for your installation as we
 | Prisma major-update notice | Informational; do not upgrade Prisma during routine deployment. |
 | Ignored Electron build scripts | Desktop dependency notice; not evidence of a web/PDF build failure. |
 | Proof remains queued | Check worker logs, database connectivity, artifact permissions, and environment consistency. |
+| `JavaScript heap out of memory` during `Running TypeScript` | Deploy the current `next.config.ts` and `tsconfig.web.json` together and retry `pnpm build`. The web build now checks only web roots and their imports, uses one page worker and releases Webpack worker memory between phases. Keep type validation enabled. |
 | SSH exits after an error | A shell running `set -e` may exit; the script runs as a child process so its failure should return to the SSH prompt. |
+
+### Build memory and type-check scope
+
+The production web build uses `tsconfig.web.json`, which extends the existing strict compiler settings and includes every file under `app`, the Next configuration and generated route types. Imported shared/server modules are still checked. Standalone API files, test suites and seed scripts are checked by the existing full-repository/API commands rather than being loaded into the Next build's TypeScript worker. `pnpm typecheck` and `pnpm build:server` retain their existing validation; no TypeScript errors are ignored.
+
+Next runs Webpack in a separate worker with its supported memory optimizations and uses one worker for static-page generation. This avoids retaining the compilation workload in the main process before the type-check phase and limits page-generation concurrency. Build output and runtime routes are unchanged.
+
+For the reported November 4 failure, a clean diagnostic run reduced TypeScript's reported memory from 2,280,039 KiB to 1,560,196 KiB (about 2.2 GiB to 1.5 GiB). A complete local production build then passed with `NODE_OPTIONS=--max-old-space-size=2048`, generating 225 pages/routes. These figures measure compiler usage and a Node heap limit, respectively; they are not a 1.5 GB bound on total server RAM usage. See [verification](../status/audit-artifacts/2026-11-04-build-memory/verification.md).
+
+When migrations and client generation have already succeeded, resume with the build commands; a web build failure does not undo those migrations:
+
+```bash
+pnpm build
+pnpm build:server
+pnpm build:letters
+```
+
+Only proceed to the deployment script's PM2 reload after every build passes. The Prisma major-version update notice is unrelated to this heap failure; keep the repository's locked Prisma version for this release.
 
 ## Recovery
 

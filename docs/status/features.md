@@ -1,3 +1,9 @@
+## Production build memory reduction — 2026-11-04
+
+Next now uses a strict web-specific TypeScript project instead of loading the API, tests and seed scripts into its build checker. Existing repository-wide and API checks remain enabled. Webpack builds in a separate worker with memory optimizations, and static generation uses one worker.
+
+Measured TypeScript memory dropped from approximately 2.2 GiB to 1.5 GiB. A complete production build passed with a 2 GiB Node heap limit and generated 225 pages/routes. This is a compiler/heap measurement on the local Windows host, not a total-memory guarantee for the reported small Linux server. The user supplied successful import/ChatGPT MySQL migration and Prisma generation logs; the subsequent failure occurred in the web build. See [evidence](audit-artifacts/2026-11-04-build-memory/verification.md) and [deployment recovery](../operations/LAUNCH.md#build-memory-and-type-check-scope).
+
 ## Studio desktop controls, bottom pages and whole-letter HTML — 2026-11-04
 
 ## ChatGPT MCP connection, financial context and organization controls — 2026-11-04

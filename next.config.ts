@@ -11,6 +11,14 @@ const compassionApiTarget = (process.env.COMPASSION_API_URL || "http://127.0.0.1
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Check all web code and its imports here; API and whole-repository checks
+  // retain their separate commands. Avoid loading tests/seeds into this worker.
+  typescript: { tsconfigPath: "tsconfig.web.json" },
+  experimental: {
+    cpus: 1,
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+  },
   allowedDevOrigins: ["www.crm.partnertpcc.com"],
   webpack(config) {
     // Browser-safe Studio contracts also compile as Node ESM on the server.
