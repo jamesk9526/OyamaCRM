@@ -46,3 +46,13 @@ The prior integration screen remains the connection entry point. The new access 
 - Exercise the remaining individual action variants on staging. The local suite covers each major family and checks declared native endpoints, while the catalog contains more actions than the individual database scenarios.
 
 AI-created Steward enrollments start paused. Automatic triggers and external-delivery paths use the native review workflow. Imports currently create new constituents and skip existing matches. Analytics calculate at most 50,000 historical gifts before directing larger histories to the established report library. These limits are exposed in the tool responses and setup guide.
+
+## Allow all and Settings follow-up
+
+Added an administrator Allow all preview at organization, role and user policy levels. Applying it makes current capabilities automatic and removes restrictions at the selected level; organization ceilings, CRM permissions, integration controls and renewed consent remain enforced. Connections can only narrow access. AI access and connection setup now copy the same policy-derived scope list. Removed the obsolete read-only scope hint from the unauthenticated MCP challenge.
+
+The Settings subagent consolidated navigation into six shared categories, added searchable overview cards and fixed active-route matching. Inspected desktop overview and phone scope-copy screenshots: readable spacing, wrapped content and accessible copy controls. Browser assertions cover search/reset, navigation, policy preview/save and clipboard contents on both setup screens.
+
+Validation: 44 focused API tests passed, web/server type checks and targeted lint passed, and the production Next build passed. The final copied-state reset is a small subsequent UI adjustment. The synthetic browser fixture completed without page errors; it does not certify live policy persistence or real ChatGPT authorization. See browser-checks.json, settings-overview-desktop.png, settings-overview-phone.png, settings-categories-phone.png and allow-all-scopes-phone.png.
+
+Public production probes returned 200 for OAuth discovery, resource discovery and health, and the expected unauthenticated 401 for MCP. Supplied PM2 logs show successful API starts and sanitizer warnings without a crash trace; the earlier 502 cause remains unconfirmed. These local changes have not been deployed. Real ChatGPT reconnection and expanded-consent acceptance remain required.

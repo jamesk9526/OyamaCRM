@@ -8,6 +8,10 @@ The focused survey and navigation suite passed 33 tests. Production browser acce
 
 ## ChatGPT CRM workspace and AI access — 2026-11-05
 
+Administrators can now choose **Allow all capabilities** at the organization, role or user policy level, review the complete change list and apply it before saving. The action enables current reads and automatic writes and clears restrictions at that level. Connection consent, other policy levels and integration controls continue to determine effective access.
+
+Settings now shares six navigation categories with its searchable overview. AI access, team access, organization and integrations have prominent shortcuts. Search includes descriptions, provides an empty-state reset and distinguishes the AI access route from the Steward AI route.
+
 Settings → AI access provides a capability matrix, profiles and overrides, connection restrictions, approvals, and activity. Administrators control reads, field groups, individual custom fields, record restrictions, and automatic or approval-based writes. Effective-access checks explain organization, role, user, connection, consent and CRM restrictions for an action, record or field.
 
 The registry contains 50 resource families, 235 capabilities and 106 typed actions. MCP tools add cross-module search, record details, relationships, chronological activity, giving analytics, and donor/operations writes, including existing Studio draft designs. Commands use verified IDs, record versions and idempotency receipts. Persistent approvals and jobs support scheduled sends, per-item batch outcomes, cancellation, and review of uncertain delivery. Existing letter, artwork and report grants retain their original authority.

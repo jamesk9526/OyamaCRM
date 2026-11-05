@@ -55,7 +55,7 @@ describe.sequential("ChatGPT account connection", () => {
   it("publishes discovery and rejects missing credentials", async () => {
     expect(authorizationMetadata()).toMatchObject({ issuer: origin, token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"] });
     expect((await request(app).get(`${root}/resource-metadata`)).body.resource).toBe(resource);
-    const response = await request(app).post(`${root}/mcp`).send({}); expect(response.status).toBe(401); expect(response.headers["www-authenticate"]).toContain("resource_metadata=");
+    const response = await request(app).post(`${root}/mcp`).send({}); expect(response.status).toBe(401); expect(response.headers["www-authenticate"]).toContain("resource_metadata="); expect(response.headers["www-authenticate"]).not.toContain('scope="letters.read reports.read"');
     const previous = process.env.NODE_ENV;
     try { vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("CHATGPT_PUBLIC_URL", ""); vi.stubEnv("NEXT_PUBLIC_APP_URL", ""); vi.stubEnv("FRONTEND_ORIGIN", ""); expect(connectionConfig().enabled).toBe(false); }
     finally { vi.stubEnv("NODE_ENV", previous); }

@@ -9,7 +9,7 @@ import { imageProviderConfigured } from "../chatgpt/letter-images.js";
 import { CAPABILITIES, RESOURCES, capabilityFields, capabilityFor, resourceFields } from "./catalog.js";
 import { SCOPES } from "../chatgpt/config.js";
 import { toolFingerprint } from "../chatgpt/receipts.js";
-import { AI_POLICY_KEY, accessPolicy, cancelWorkAfterPolicyChange, decideAccess, saveAccessPolicy, presetRules, consentSnapshot, validateDocument, ensureConnectionReduction } from "./policy.js";
+import { AI_POLICY_KEY, accessPolicy, cancelWorkAfterPolicyChange, connectionScopes, decideAccess, saveAccessPolicy, presetRules, consentSnapshot, validateDocument, ensureConnectionReduction } from "./policy.js";
 import { authorizeReviewer, currentGrant, reviewOperation, cancelOperation, operationResult, cancelGrantOperations } from "./operations.js";
 import { effectiveAccess, getRecord } from "./records.js";
 
@@ -39,7 +39,7 @@ router.get("/", handle(async (req, res) => {
     events: await prisma.event.findMany({ where: { organizationId: req.user!.orgId }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 200 }),
     customFields: await prisma.customField.findMany({ where: { organizationId: req.user!.orgId, active: true, entityType: { in: ["constituent", "donation", "campaign", "event"] } }, select: { id: true, name: true, entityType: true }, take: 200 }),
   } : { campaigns: [], events: [], customFields: [] };
-  res.json({ revision: policy.revision, document: admin ? policy.document : { ...policy.document, organization: {}, roles: {}, users: {}, connections: Object.fromEntries(connections.map(connection => [connection.id, policy.document.connections[connection.id] || {}])) }, canManage: admin, userId: req.user!.sub, capabilities, resources: RESOURCES.map(resource => ({ key: resource.key, title: resource.title, module: resource.module, fields: resourceFields(resource), owner: resource.owner, campaign: resource.campaign, event: resource.event })), users, connections, targets, mcpPolicy: mcp.policy, mcpRevision: mcp.revision, imageGenerationConfigured: imageProviderConfigured(), presets: { read: presetRules("read"), drafting: presetRules("drafting"), supervised: presetRules("supervised") } });
+  res.json({ scopes: await connectionScopes(req), revision: policy.revision, document: admin ? policy.document : { ...policy.document, organization: {}, roles: {}, users: {}, connections: Object.fromEntries(connections.map(connection => [connection.id, policy.document.connections[connection.id] || {}])) }, canManage: admin, userId: req.user!.sub, capabilities, resources: RESOURCES.map(resource => ({ key: resource.key, title: resource.title, module: resource.module, fields: resourceFields(resource), owner: resource.owner, campaign: resource.campaign, event: resource.event })), users, connections, targets, mcpPolicy: mcp.policy, mcpRevision: mcp.revision, imageGenerationConfigured: imageProviderConfigured(), presets: { read: presetRules("read"), drafting: presetRules("drafting"), supervised: presetRules("supervised") } });
 }));
 router.put("/", handle(async (req, res) => { res.json(await saveAccessPolicy(req, req.body.revision, req.body.document)); }));
 router.get("/consent", handle(async (req, res) => {

@@ -5,7 +5,7 @@ import { hasDefaultPermission, type PermissionKey } from "../lib/permissions.js"
 import { ROLE_HIERARCHY } from "../middleware/requireRole.js";
 import { CreateError } from "../oyama-create/domain.js";
 import { readMcpPolicy } from "../chatgpt/policy.js";
-import { CAPABILITIES, LEGACY_TOOLS, AI_READ_SCOPE, AI_WRITE_SCOPE, oauthScopesFor, capabilityFields, capabilityFor, resourceFor, resourceFields, type AccessMode } from "./catalog.js";
+import { CAPABILITIES, LEGACY_TOOLS, LEGACY_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE, oauthScopesFor, capabilityFields, capabilityFor, resourceFor, resourceFields, type AccessMode } from "./catalog.js";
 import { emptyAccessDocument, DEFAULT_LIMITS, pendingOperationStatuses, type AccessDecision, type AccessDocument, type AccessRule, type RuleSet, type ConsentSnapshot, type AccessLimits } from "./contracts.js";
 
 export const AI_POLICY_KEY = "ai-access-policy-v1";
@@ -217,4 +217,15 @@ export function presetRules(name: string): RuleSet {
     if (cap.read || name === "supervised" || name === "drafting" && draft) rules[cap.key] = { mode: cap.read || cap.risk === "routine" ? "automatic" : "approval" };
   }
   return rules;
+}
+export async function connectionScopes(req: Request) {
+  const available = new Set<string>();
+  const legacyConsent = await consentSnapshot(req, [...LEGACY_SCOPES]);
+  for (const cap of CAPABILITIES) {
+    const legacy = Object.values(LEGACY_TOOLS).find(tool => tool.capability === cap.key);
+    if (legacy) {
+      if (legacyConsent.capabilities[cap.key]) available.add(legacy.scope);
+    } else if ((await decideAccess(req, cap.key)).mode !== "blocked") available.add(cap.read ? AI_READ_SCOPE : AI_WRITE_SCOPE);
+  }
+  return [...LEGACY_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE].filter(scope => available.has(scope));
 }

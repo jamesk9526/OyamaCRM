@@ -13,8 +13,8 @@ import { imageProviderConfigured } from "./letter-images.js";
 import { effectiveConnectionConfig, readSetup, saveSetup } from "./setup.js";
 import { isChatGptClientId, verifyChatGptClient } from "./client-metadata.js";
 import aiAccessRoutes from "../ai-access/routes.js";
-import { consentSnapshot, decideAccess } from "../ai-access/policy.js";
-import { CAPABILITIES, LEGACY_TOOLS, LEGACY_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE } from "../ai-access/catalog.js";
+import { consentSnapshot, decideAccess, connectionScopes } from "../ai-access/policy.js";
+import { LEGACY_TOOLS, LEGACY_SCOPES } from "../ai-access/catalog.js";
 import { toolFingerprint } from "./receipts.js";
 import { aiPublicTools, isAiTool, callAiTool } from "../ai-access/tools.js";
 import { cancelGrantOperations } from "../ai-access/operations.js";
@@ -104,13 +104,8 @@ router.get("/connections", requireAuth, wrap(async (req, res) => {
   const connections = await prisma.chatGptGrant.findMany({ where: { userId: req.user.sub, organizationId: req.user.orgId, revokedAt: null, refreshExpiresAt: { gt: new Date() } }, select: { id: true, scopes: true, createdAt: true, lastUsedAt: true }, orderBy: { createdAt: "desc" } });
   const { policy, revision } = await readMcpPolicy(req.user.orgId);
   const latest = await prisma.chatGptGrant.findFirst({ where: { organizationId: req.user.orgId, ...(req.user.role !== "admin" ? { userId: req.user.sub } : {}) }, orderBy: { createdAt: "desc" }, select: { redirectUri: true, clientId: true } });
-  const availableScopes = new Set<string>();
-  for (const cap of CAPABILITIES) {
-    if ((await decideAccess(req, cap.key)).mode === "blocked") continue;
-    const legacy = Object.values(LEGACY_TOOLS).find(tool => tool.capability === cap.key);
-    availableScopes.add(legacy?.scope || (cap.read ? AI_READ_SCOPE : AI_WRITE_SCOPE));
-  }
-  res.json({ enabled: c.enabled && policy.enabled, installationEnabled: c.enabled, mcpUrl: c.resource, clientId: c.clientId, redirectUris: c.redirects, scopes: [...availableScopes], connections, policy, policyRevision: revision, canManagePolicy: req.user.role === "admin", imageGenerationConfigured: imageProviderConfigured(), setup: { revision: setup.saved?.revision || 0, saved: !!setup.saved, source: c.source, origin: c.origin, enabled: c.enabled, locked: process.env.CHATGPT_FORCE_DISABLED === "true", verifiedCallback: latest?.redirectUri || null, verifiedClientId: latest?.clientId || null, automaticClientRegistration: true } });
+  const availableScopes = await connectionScopes(req);
+  res.json({ enabled: c.enabled && policy.enabled, installationEnabled: c.enabled, mcpUrl: c.resource, clientId: c.clientId, redirectUris: c.redirects, scopes: availableScopes, connections, policy, policyRevision: revision, canManagePolicy: req.user.role === "admin", imageGenerationConfigured: imageProviderConfigured(), setup: { revision: setup.saved?.revision || 0, saved: !!setup.saved, source: c.source, origin: c.origin, enabled: c.enabled, locked: process.env.CHATGPT_FORCE_DISABLED === "true", verifiedCallback: latest?.redirectUri || null, verifiedClientId: latest?.clientId || null, automaticClientRegistration: true } });
 }));
 router.put("/setup", requireAuth, wrap(async (req, res) => {
   req.user = await currentUser(req.user!.sub, req.user!.orgId);
@@ -136,7 +131,7 @@ router.delete("/connections/:id", requireAuth, wrap(async (req, res) => {
 }));
 router.all("/mcp", wrap(async (req, res) => {
   const c = await effectiveConnectionConfig(req);
-  const unauthorized = () => { res.set("WWW-Authenticate", `Bearer resource_metadata="${c.origin}/api/chatgpt/resource-metadata", scope="letters.read reports.read"`); res.status(401).json({ error: "invalid_token" }); };
+  const unauthorized = () => { res.set("WWW-Authenticate", `Bearer resource_metadata="${c.origin}/api/chatgpt/resource-metadata"`); res.status(401).json({ error: "invalid_token" }); };
   if (!c.enabled) { res.status(503).json({ error: "The ChatGPT connection is not configured." }); return; }
   if (req.headers.origin && req.headers.origin !== c.origin && req.headers.origin !== "https://chatgpt.com") { res.status(403).end(); return; }
   const token = req.headers.authorization?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];

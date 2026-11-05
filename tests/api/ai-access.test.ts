@@ -68,6 +68,16 @@ describe.sequential("AI access and CRM context", () => {
     expect((await api("put", "/access", { revision: 0, document: doc })).status).toBe(409);
     expect((await api("put", "/access", { revision: 1, document: { ...doc, users: { other: { "constituents.read": { mode: "automatic" } } } } })).status).toBe(400);
   });
+  it("copies the same current consent scopes in AI access and connection setup", async () => {
+    await install();
+    const saved = rows.pluginSetting.find(row => row.pluginKey === MCP_POLICY_KEY)!;
+    await db.pluginSetting.update({ where: { id: saved.id }, data: { config: { revision: 2, policy: { ...DEFAULT_MCP_POLICY, allowLetterDrafts: false } } } });
+    const access = await api("get", "/access");
+    const connection = await api("get", "/connections");
+    expect(access.status).toBe(200); expect(connection.status).toBe(200);
+    expect(access.body.scopes).toEqual(connection.body.scopes);
+    expect(access.body.scopes).toEqual(expect.arrayContaining(["crm.read", "crm.write", "letters.read", "letters.write", "reports.read"]));
+  });
   it("resolves ceilings, role defaults, user exceptions and connection/consent limits", () => {
     const document = emptyAccessDocument();
     document.organization["gifts.update"] = { mode: "automatic" };

@@ -10,6 +10,7 @@
 
 ## ChatGPT CRM workspace and AI access — 2026-11-05
 
+- [x] Verify the Allow all profile, reorganized Settings overview, search/reset and desktop/mobile navigation in the combined production browser build.
 - [x] Implement versioned organization, role, user and connection policy with consent snapshots and current CRM authorization.
 - [x] Implement the five Settings views, preset differences, field/record restrictions, effective-access explanations, approval details and activity links.
 - [x] Implement cross-module retrieval, chronological activity, defined analytics, typed actions, persistent approvals, idempotent jobs, scheduled cancellation and per-item batch outcomes.
