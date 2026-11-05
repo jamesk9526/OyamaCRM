@@ -1,3 +1,15 @@
+## Automatic ChatGPT setup — 2026-11-05
+
+- [x] Organization administrator activation without editing `.env` or restarting, validated installation origin, revision conflicts, tenant isolation and audited persistence using existing PluginSetting storage.
+- [x] CIMD and issuer-aware OAuth discovery; bounded allowlisted HTTPS metadata retrieval, exact client/callback validation, public PKCE and success/cancel issuer responses. Forged/unavailable/oversized metadata fails closed. Legacy manual clients still work.
+- [x] Copyable MCP/manual OAuth values, numbered setup, public discovery/challenge checks, actionable failures, verified callback display and operator lock. DCR/OIDC are explicitly unavailable.
+- [x] 84 focused tests, full repository types, server compilation, targeted lint and production web build. Server/web builds passed with a 2 GiB Node heap cap. Production desktop/tablet/phone browser acceptance passed without uncaught errors; ChatGPT's public client metadata passed the real validator.
+- [x] Document saved-setup precedence over legacy CHATGPT_ENABLED and the new CHATGPT_FORCE_DISABLED operator lock; no new schema migration or environment-file writes.
+- [ ] Deploy/reload API and web, enable on the public installation domain and complete authenticated ChatGPT Plus sign-in/tool acceptance with real CRM records. Browser-origin checks are not proof of ChatGPT network reachability.
+- [ ] Verify real MySQL restart durability and simultaneous settings/token/draft behavior after deployment; local checks use synthetic in-memory persistence. User-reported prior migrations are applied, but this update has not been deployed.
+
+See [verification and visual comparison](audit-artifacts/2026-11-05-chatgpt-auto-setup/verification.md) and [operator/setup guide](../integrations/chatgpt-mcp.md).
+
 ## Production build memory reduction — 2026-11-04
 
 - [x] Retain strict web type validation while excluding standalone API, seed and test roots from the Next build worker. Existing full-repository/API checks remain unchanged.
@@ -9,8 +21,6 @@
 
 The user-reported MySQL log confirms the import and ChatGPT migrations applied and Prisma generation succeeded; this does not establish that the application build/reload or a real ChatGPT connection succeeded. [Verification](audit-artifacts/2026-11-04-build-memory/verification.md).
 
-## Studio desktop layout and HTML mode — 2026-11-04
-
 ## ChatGPT MCP letters/reporting and administrator controls — 2026-11-04
 
 - [x] Per-installation issuer/resource/endpoint; exact callback allowlist, S256 PKCE, single-use code exchange, hashed scoped tokens, rotation, expiry, revoke and current user/tenant/permission checks.
@@ -19,9 +29,11 @@ The user-reported MySQL log confirms the import and ChatGPT migrations applied a
 - [x] Administrator settings for MCP pause, read/draft/report access, fiscal/calendar default and lock, request-calendar overrides and row limit. Tenant isolation, stale-save rejection and enforcement on existing tokens verified.
 - [x] 75 focused tests, type checks, targeted zero-warning lint, server/web builds; final production desktop/mobile browser checks for consent/login/errors, controls and disconnect. Public deployment probe supplied and tested with real synthetic HTTP endpoints.
 - [ ] Deploy API/web and additive OAuth persistence migration to each installation; verify MySQL migration, restart durability, simultaneous refresh/draft transactions and real database access policy. Local MySQL/Docker engine were unavailable.
-- [ ] Configure each installation's public HTTPS origin/exact ChatGPT callback and complete an authenticated ChatGPT Plus connection, tool-discovery refresh and representative letter/financial acceptance against real CRM records. Confirm current account/workspace support for custom MCP connections.
+- [ ] Enable each installation on its public HTTPS domain and complete an authenticated ChatGPT Plus connection, tool-discovery refresh and representative letter/financial acceptance against real CRM records. Use automatic CIMD callbacks above, or explicitly allowlist a manual client's exact callback. Confirm current account/workspace support for custom MCP connections.
 
 See [deployment and acceptance guide](../integrations/chatgpt-mcp.md) and [actual evidence and limitations](audit-artifacts/2026-11-04-chatgpt-connection/verification.md). No production migration or sends were performed.
+
+## Studio desktop layout and HTML mode — 2026-11-04
 
 - [x] Collapsible bottom thumbnail dock, current-page navigation, zoom position retention and independent document/tool overflow.
 - [x] Separate resizable preview pane with Collapse/Show controls; reopening retains the channel and does not save or change delivery selection. Full-width mobile Edit/Preview and global navigation layering checked.

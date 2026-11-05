@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/app/lib/auth-client";
 import type { McpPolicy } from "@/server/src/chatgpt/policy";
 import ChatGptMcpControls from "./ChatGptMcpControls";
+import ChatGptQuickSetup, { type ChatGptSetupState } from "./ChatGptQuickSetup";
 
-type Setup = { enabled: boolean; installationEnabled: boolean; policy: McpPolicy; policyRevision: number; canManagePolicy: boolean; mcpUrl: string; clientId: string; redirectUris: string[]; scopes: string[]; connections: { id: string; scopes: string; createdAt: string; lastUsedAt: string | null }[] };
+type Setup = { setup?: ChatGptSetupState; enabled: boolean; installationEnabled: boolean; policy: McpPolicy; policyRevision: number; canManagePolicy: boolean; mcpUrl: string; clientId: string; redirectUris: string[]; scopes: string[]; connections: { id: string; scopes: string; createdAt: string; lastUsedAt: string | null }[] };
 export default function ChatGptConnection() {
   const [data, setData] = useState<Setup | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -24,19 +25,9 @@ export default function ChatGptConnection() {
     {!data && !error && <p role="status" className="mt-3">Loading connection settings…</p>}
     {data && <>
       <p className="mt-3 text-sm font-medium">{data.enabled ? "Ready to connect in ChatGPT" : data.installationEnabled ? "MCP access is paused for this organization" : "Server setup required"}</p>
-      {!data.installationEnabled && <p className="mt-2 text-sm text-slate-600">An administrator must configure this installation’s public HTTPS address, enable ChatGPT and allow the exact callback URL shown in ChatGPT’s connection setup.</p>}
-      {data.installationEnabled && data.mcpUrl !== `${instanceOrigin}/api/chatgpt/mcp` && <p role="alert" className="mt-2 text-sm text-amber-900">The server’s OAuth address differs from this domain. Set CHATGPT_PUBLIC_URL to this installation’s public origin before connecting, or open the correctly configured domain.</p>}
-      <h3 className="mt-4 font-semibold">How to connect</h3>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm">
-        <li>Have your administrator deploy the current app and run its database migrations. Use this installation’s public HTTPS domain.</li>
-        <li>In ChatGPT on the web, open <a href="https://chatgpt.com/plugins" target="_blank" rel="noreferrer" className="font-medium text-blue-700 underline">Plugins</a>, select <strong>+ → Add custom MCP server</strong>, and name it “OyamaCRM”. Custom server setup must be available for your account.</li>
-        <li>Choose a public MCP server connection and paste the MCP URL above. Select <strong>OAuth</strong>. Use client ID <code className="break-all">{data.clientId}</code> with public-client authentication and no client secret. If scopes are requested, use <code className="break-all">{data.scopes.join(" ")}</code>, or only <code>reports.read</code> for reporting access.</li>
-        <li>Copy the <strong>exact OAuth redirect URI shown by ChatGPT</strong>. Have your administrator allow it using the server setup below and restart the API. Return to ChatGPT, review the connection details and choose <strong>Create as a plugin</strong>. Refresh or retry if the server was previously disabled.</li>
-        <li>Connect your account, sign in to this OyamaCRM installation, complete any verification and choose <strong>Allow connection</strong>.</li>
-        <li>In a new ChatGPT conversation, type <strong>@</strong> and select OyamaCRM. Try the example requests below. Enable draft creation in MCP controls if you want ChatGPT to save new letters.</li>
-      </ol>
-      {data.canManagePolicy && <details className="mt-4 rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-semibold">Server setup · administrator</summary><p className="mt-2 text-sm text-slate-600">Add these values to this installation’s API environment, replace the callback placeholder with ChatGPT’s exact redirect URI, then restart the API. Apply the ChatGPT database migration first. These values identify your server; they contain no passwords or API keys.</p><pre className="mt-3 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{`CHATGPT_ENABLED=true\nCHATGPT_PUBLIC_URL=${instanceOrigin}\nCHATGPT_CLIENT_ID=${data.clientId}\nCHATGPT_REDIRECT_URIS=<exact redirect URI from ChatGPT>`}</pre><p className="mt-3 text-sm text-slate-600">Verify public routing with:</p><pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{`node scripts/chatgpt-check.mjs ${instanceOrigin}`}</pre><p className="mt-2 text-sm text-slate-600">Allow the OAuth discovery paths and /api/chatgpt/* through your reverse proxy. The standard OyamaCRM web proxy already forwards them.</p></details>}
-      <p className="mt-3 text-sm text-slate-600">Try: “Find our appeal letters” or “Run campaign performance for this year.” New drafts stay in Create for review.</p>
+      {!data.installationEnabled && <p className="mt-2 text-sm text-slate-600">Use Enable ChatGPT & check below. Setup is saved for this organization and takes effect immediately.</p>}
+      {data.installationEnabled && data.mcpUrl !== `${instanceOrigin}/api/chatgpt/mcp` && <p role="alert" className="mt-2 text-sm text-amber-900">The configured OAuth address differs from this domain. Open the configured domain or have the server operator correct its trusted public address before connecting.</p>}
+      <ChatGptQuickSetup setup={data.setup || { revision: 0, saved: false, source: "environment", origin: instanceOrigin, enabled: data.installationEnabled, locked: false, verifiedCallback: null, verifiedClientId: null, automaticClientRegistration: false }} origin={instanceOrigin} clientId={data.clientId} canManage={data.canManagePolicy} enabled={data.installationEnabled} onReload={load}/>
       {notice && <p role="status" className="mt-3 text-sm text-green-800">{notice}</p>}
       <ChatGptMcpControls key={data.policyRevision} policy={data.policy} revision={data.policyRevision} canManage={data.canManagePolicy} onReload={load} onSaved={async () => { await load(); setNotice("MCP controls saved. Subsequent requests use the updated policy."); }}/>
       <h3 className="mt-5 font-semibold">Your connected sessions</h3>

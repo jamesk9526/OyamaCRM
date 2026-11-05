@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { chromium } from 'playwright';
 const base = process.env.CHATGPT_UI_WEB || 'http://localhost:3218';
-const evidence = 'docs/status/audit-artifacts/2026-11-04-chatgpt-connection';
+const evidence = process.env.CHATGPT_EVIDENCE_DIR || 'docs/status/audit-artifacts/2026-11-04-chatgpt-connection';
 await fs.mkdir(evidence, { recursive: true });
 let debugPage;
 const browser = await chromium.launch({ headless: true, args: ['--no-proxy-server'] });
@@ -11,19 +11,27 @@ const errors = [], checks = [], consents = [];
 const user = { id: 'synthetic-staff', organizationId: 'synthetic-org', email: 'staff@example.invalid', firstName: 'Taylor', lastName: 'Sample', role: 'admin', permissions: [] };
 const scopes = ['letters.read', 'letters.write', 'reports.read'];
 const params = new URLSearchParams({ response_type: 'code', client_id: 'oyama-chatgpt', redirect_uri: 'https://chatgpt.com/connector_platform/oauth/callback', resource: 'https://nonprofit.example.invalid/api/chatgpt/mcp', scope: scopes.join(' '), state: 'fixture-state', code_challenge: 'a'.repeat(43), code_challenge_method: 'S256' });
-let signedIn = true, connected = true, failure = false;
+let signedIn = true, connected = true, failure = false, setupEnabled = false, setupRevision = 0;
 let policy = { enabled: true, allowLetterRead: true, allowLetterDrafts: false, allowReports: true, defaultDateBasis: 'calendar', allowDateBasisOverride: false, maxReportRows: 100 }, policyRevision = 0;
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  await context.route('**/.well-known/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes('oauth-protected-resource')) return route.fulfill({ json: { resource: `${base}/api/chatgpt/mcp`, authorization_servers: [base] } });
+    return route.fulfill({ json: { issuer: base, authorization_endpoint: `${base}/api/chatgpt/oauth/authorize`, token_endpoint: `${base}/api/chatgpt/oauth/token`, client_id_metadata_document_supported: true, token_endpoint_auth_methods_supported: ['none'], code_challenge_methods_supported: ['S256'] } });
+  });
   await context.route('**/api/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method();
+    if (path.startsWith('/.well-known/')) return route.fallback();
     const json = (body, status = 200) => route.fulfill({ status, json: body });
     if (path === '/api/auth/refresh') return signedIn ? json({ data: { accessToken: 'synthetic-session' } }) : json({ error: { message: 'Sign in' } }, 401);
     if (path === '/api/auth/me') return json({ data: user });
     if (path === '/api/auth/login') { signedIn = true; return json({ data: { accessToken: 'synthetic-session', user } }); }
     if (path === '/api/setup/status') return json({ data: { setupCompleted: true } });
+    if (path === '/api/chatgpt/setup' && method === 'PUT') { const body = req.postDataJSON(); assert.equal(body.origin, base); assert.equal(body.revision, setupRevision); setupEnabled = body.enabled; setupRevision++; return json({ origin: base, revision: setupRevision, enabled: setupEnabled }); }
+    if (path === '/api/chatgpt/mcp') return route.fulfill({ status: setupEnabled ? 401 : 503, headers: setupEnabled ? { 'www-authenticate': `Bearer resource_metadata="${base}/api/chatgpt/resource-metadata"` } : {}, json: { error: setupEnabled ? 'invalid_token' : 'Unconfigured' } });
     if (path === '/api/chatgpt/settings' && method === 'PUT') { const body = req.postDataJSON(); assert.equal(body.revision, policyRevision); policy = body.policy; policyRevision++; return json({ policy, revision: policyRevision }); }
-    if (path === '/api/chatgpt/connections') return json({ enabled: policy.enabled, installationEnabled: true, policy, policyRevision, canManagePolicy: true, mcpUrl: `${base}/api/chatgpt/mcp`, clientId: 'oyama-chatgpt', redirectUris: [params.get('redirect_uri')], scopes, connections: connected ? [{ id: 'synthetic-connection', scopes: scopes.join(' '), createdAt: '2026-11-04T12:00:00Z', lastUsedAt: null }] : [] });
+    if (path === '/api/chatgpt/connections') return json({ enabled: setupEnabled && policy.enabled, installationEnabled: setupEnabled, setup: { revision: setupRevision, saved: setupEnabled, source: setupEnabled ? 'settings' : 'unconfigured', origin: base, enabled: setupEnabled, locked: false, automaticClientRegistration: true, verifiedCallback: connected ? params.get('redirect_uri') : null, verifiedClientId: null }, policy, policyRevision, canManagePolicy: true, mcpUrl: `${base}/api/chatgpt/mcp`, clientId: 'oyama-chatgpt', redirectUris: [params.get('redirect_uri')], scopes, connections: connected ? [{ id: 'synthetic-connection', scopes: scopes.join(' '), createdAt: '2026-11-04T12:00:00Z', lastUsedAt: null }] : [] });
     if (path === '/api/chatgpt/connections/synthetic-connection' && method === 'DELETE') { connected = false; return route.fulfill({ status: 204 }); }
     if (path === '/api/chatgpt/oauth/consent') { consents.push(req.postDataJSON()); return failure ? json({ error: { message: 'Synthetic permission change. Reconnect with reporting access.' } }, 403) : json({ redirectUrl: `${base}/connect/chatgpt?fixture_complete=1` }); }
     if (path === '/api/settings/workspaces') return json({});
@@ -62,13 +70,34 @@ try {
   await page.getByRole('heading', { name: 'ChatGPT · Letters and reporting' }).waitFor();
   await page.getByRole('button', { name: 'Disconnect', exact: true }).waitFor();
   assert.equal(await page.getByLabel('This installation’s MCP URL', { exact: true }).inputValue(), `${base}/api/chatgpt/mcp`);
-  await page.getByRole('button', { name: 'Copy MCP URL', exact: true }).click();
+  await page.getByLabel('This installation’s MCP URL', { exact: true }).focus();
+  await page.keyboard.press('Tab');
+  assert.equal(await page.getByRole('button', { name: 'Copy MCP URL', exact: true }).evaluate(element => element === document.activeElement), true);
+  await page.keyboard.press('Enter');
   await page.getByRole('button', { name: 'Copied', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${base}/api/chatgpt/mcp`);
-  await page.getByText('Server setup · administrator', { exact: true }).click();
-  assert.ok((await page.locator('details').filter({ hasText: 'Server setup · administrator' }).innerText()).includes('CHATGPT_PUBLIC_URL=' + base));
-  await page.getByText('Server setup · administrator', { exact: true }).click();
-  checks.push('MCP URL is generated from the installation domain, copies exactly, and the administrator guide uses that origin.');
+  await page.getByRole('button', { name: 'Enable ChatGPT & check', exact: true }).scrollIntoViewIfNeeded(); await shot('setup-before');
+  await page.setViewportSize({ width: 390, height: 844 }); await noOverflow();
+  await page.getByRole('button', { name: 'Enable ChatGPT & check', exact: true }).scrollIntoViewIfNeeded(); await shot('setup-before-phone');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+  await page.getByText(/HTTP 503. Enable ChatGPT first/).waitFor();
+  await page.getByRole('button', { name: 'Enable ChatGPT & check', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Server checks passed' }).waitFor();
+  assert.equal(setupEnabled, true); assert.equal(setupRevision, 1);
+  await page.getByRole('button', { name: 'Check connection', exact: true }).scrollIntoViewIfNeeded(); await shot('setup-ready-desktop');
+  await page.getByRole('heading', { name: '3. Approve your account', exact: true }).scrollIntoViewIfNeeded(); await shot('setup-approval-desktop');
+  await page.getByText('Manual OAuth fields and troubleshooting', { exact: true }).click();
+  const manual = page.locator('details').filter({ hasText: 'Manual OAuth fields and troubleshooting' });
+  assert.ok((await manual.innerText()).includes(`${base}/api/chatgpt/oauth/token`));
+  assert.ok((await manual.innerText()).includes('OIDC userinfo endpoint'));
+  assert.ok((await manual.innerText()).includes('Registration URL / DCR'));
+  await page.getByRole('button', { name: 'Copy Auth URL', exact: true }).click();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${base}/api/chatgpt/oauth/authorize`);
+  await manual.locator('summary').scrollIntoViewIfNeeded(); await shot('manual-oauth-fields');
+  await manual.getByText('OIDC scopes supported', { exact: true }).scrollIntoViewIfNeeded(); await shot('manual-oauth-fields-end');
+  await page.getByText('Manual OAuth fields and troubleshooting', { exact: true }).click();
+  checks.push('MCP URL and manual fields copy exactly; automatic setup saves without env edits, checks public discovery and exposes actionable failures.');
   await page.getByRole('combobox', { name: /Reporting calendar/ }).selectOption('fiscal');
   await page.getByRole('checkbox', { name: /^Create letter drafts/ }).check();
   await page.getByLabel('Maximum report rows', { exact: false }).fill('25');
@@ -79,7 +108,13 @@ try {
   checks.push('Organization controls save fiscal calendar, draft access and report limits with an optimistic revision.');
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
   await page.getByText('No active ChatGPT connections for your account.', { exact: true }).waitFor();
+  await page.setViewportSize({ width: 768, height: 1024 }); await noOverflow();
+  await page.getByText('Manual OAuth fields and troubleshooting', { exact: true }).click();
+  await noOverflow(); await manual.locator('summary').scrollIntoViewIfNeeded(); await shot('manual-oauth-tablet');
   await page.setViewportSize({ width: 390, height: 844 }); await noOverflow();
+  await manual.locator('summary').scrollIntoViewIfNeeded(); await shot('manual-oauth-phone');
+  await manual.getByText('OIDC scopes supported', { exact: true }).scrollIntoViewIfNeeded(); await shot('manual-oauth-phone-end');
+  await page.getByText('Manual OAuth fields and troubleshooting', { exact: true }).click();
   await page.getByRole('heading', { name: 'Organization MCP controls' }).scrollIntoViewIfNeeded(); await shot('settings-phone');
   await page.getByRole('combobox', { name: /Reporting calendar/ }).scrollIntoViewIfNeeded(); await shot('settings-phone-calendar');
   checks.push('Settings shows this installation’s endpoint and active sessions; disconnect refreshes the session list.');

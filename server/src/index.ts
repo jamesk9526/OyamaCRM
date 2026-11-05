@@ -25,7 +25,7 @@ import path from "node:path";
 dotenv.config();
 
 import authRoutes from "./routes/auth.js";
-import chatGptRoutes, { authorizationMetadata, protectedResourceMetadata } from "./chatgpt/routes.js";
+import chatGptRoutes, { discoveryRouter } from "./chatgpt/routes.js";
 import constituentRoutes from "./routes/constituents.js";
 import donationRoutes from "./routes/donations.js";
 import campaignRoutes from "./routes/campaigns.js";
@@ -199,8 +199,7 @@ app.use("/api/chatgpt", express.json({ limit: "1mb" }), express.urlencoded({ ext
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use(cookieParser());
-app.get("/.well-known/oauth-authorization-server", (_req, res) => res.json(authorizationMetadata()));
-app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/chatgpt/mcp"], (_req, res) => res.json(protectedResourceMetadata()));
+app.use(discoveryRouter);
 app.disable("x-powered-by");
 
 // Campaign media is intentionally public: inbox clients fetch image sources

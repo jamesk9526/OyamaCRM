@@ -29,12 +29,12 @@ export const TOOLS = [
 ] as const;
 export function publicTools(scopes: string[], policy: McpPolicy) { return TOOLS.filter(t => scopes.includes(t.scope) && toolAllowed(t.scope, policy)).map(t => ({ name: t.name, description: t.description + (t.name === "run_report" ? ` Organization reporting calendar: ${policy.defaultDateBasis}. Per-request calendar changes: ${policy.allowDateBasisOverride ? "allowed" : "blocked"}. Maximum displayed rows: ${policy.maxReportRows}.` : ""), inputSchema: t.name === "run_report" ? { ...t.inputSchema, properties: { ...t.inputSchema.properties, dateBasis: { enum: policy.allowDateBasisOverride ? ["calendar", "fiscal"] : [policy.defaultDateBasis] } } } : t.inputSchema, securitySchemes: [{ type: "oauth2", scopes: [t.scope] }], annotations: { readOnlyHint: t.read, destructiveHint: false, idempotentHint: true, openWorldHint: false } })); }
 function text(v: unknown, max: number, required = false) { if (typeof v !== "string" || v.length > max || (required && !v.trim())) throw new CreateError(400, "Provide valid tool arguments."); return v; }
-export async function callTool(req: Request, grantId: string, name: string, args: Record<string, unknown>) {
+export async function callTool(req: Request, grantId: string, name: string, args: Record<string, unknown>, publicOrigin?: string) {
   const tool = TOOLS.find(t => t.name === name);
   if (!tool) throw new CreateError(400, "Unknown tool.");
   const properties = tool.inputSchema.properties;
   if (Object.keys(args).some(k => !(k in properties))) throw new CreateError(400, "Unexpected tool argument.");
-  const org = req.user!.orgId, actor = req.user!.sub, origin = connectionConfig().origin;
+  const org = req.user!.orgId, actor = req.user!.sub, origin = publicOrigin || connectionConfig().origin;
   const { policy } = await readMcpPolicy(org);
   if (!toolAllowed(tool.scope, policy)) throw new CreateError(403, "This tool is disabled by your organization's MCP controls.");
   if (name === "list_reports" || name === "run_report" || name === "get_reporting_context") {

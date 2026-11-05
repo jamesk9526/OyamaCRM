@@ -6,9 +6,11 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { CreateError } from "../oyama-create/domain.js";
 import { can } from "../oyama-create/access.js";
-import { SCOPES, authorizationInput, connectionConfig, hashToken, opaqueToken } from "./config.js";
+import { SCOPES, authorizationInput, connectionConfig, hashToken, opaqueToken, type ConnectionConfig } from "./config.js";
 import { TOOLS, callTool, publicTools } from "./tools.js";
 import { readMcpPolicy, saveMcpPolicy, toolAllowed } from "./policy.js";
+import { effectiveConnectionConfig, readSetup, saveSetup } from "./setup.js";
+import { isChatGptClientId, verifyChatGptClient } from "./client-metadata.js";
 
 const router = Router();
 export const chatGptRateLimiter = rateLimit({ windowMs: 60000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false });
@@ -19,22 +21,30 @@ async function currentUser(id: string, org?: string) {
   if (!user?.active || (org && user.organizationId !== org) || user.role === "compassion_user") throw new CreateError(401, "This CRM account is unavailable. Reconnect with an active donor CRM account.");
   return { sub: user.id, orgId: user.organizationId, role: user.role, email: user.email };
 }
-export function authorizationMetadata() {
-  const c = connectionConfig();
-  return { issuer: c.origin, authorization_endpoint: `${c.origin}/api/chatgpt/oauth/authorize`, token_endpoint: `${c.origin}/api/chatgpt/oauth/token`, revocation_endpoint: `${c.origin}/api/chatgpt/oauth/revoke`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"], scopes_supported: SCOPES };
+export function authorizationMetadata(c: ConnectionConfig = connectionConfig()) {
+  return { issuer: c.origin, authorization_response_iss_parameter_supported: true, authorization_endpoint: `${c.origin}/api/chatgpt/oauth/authorize`, token_endpoint: `${c.origin}/api/chatgpt/oauth/token`, revocation_endpoint: `${c.origin}/api/chatgpt/oauth/revoke`, client_id_metadata_document_supported: true, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"], scopes_supported: SCOPES };
 }
-export function protectedResourceMetadata() { const c = connectionConfig(); return { resource: c.resource, authorization_servers: [c.origin], scopes_supported: SCOPES, bearer_methods_supported: ["header"] }; }
-router.get("/resource-metadata", (_req, res) => res.json(protectedResourceMetadata()));
-router.get("/oauth/authorize", (req, res) => {
-  try { authorizationInput(req.query); const target = new URL("/connect/chatgpt", connectionConfig().origin); for (const [key, value] of Object.entries(req.query)) if (typeof value === "string") target.searchParams.set(key, value); res.redirect(target.href); }
-  catch { res.status(400).json({ error: "invalid_request", error_description: "Invalid OAuth authorization request. Check the configured connection." }); }
-});
+export function protectedResourceMetadata(c: ConnectionConfig = connectionConfig()) { return { resource: c.resource, authorization_servers: [c.origin], scopes_supported: SCOPES, bearer_methods_supported: ["header"] }; }
+export const discoveryRouter = Router();
+discoveryRouter.get("/.well-known/oauth-authorization-server", wrap(async (req, res) => { res.set("Cache-Control", "no-store").json(authorizationMetadata(await effectiveConnectionConfig(req))); }));
+discoveryRouter.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/chatgpt/mcp"], wrap(async (req, res) => { res.set("Cache-Control", "no-store").json(protectedResourceMetadata(await effectiveConnectionConfig(req))); }));
+router.get("/resource-metadata", wrap(async (req, res) => res.json(protectedResourceMetadata(await effectiveConnectionConfig(req)))));
+async function clientFor(raw: Record<string, unknown>, c: ConnectionConfig) {
+  const id = typeof raw.client_id === "string" ? raw.client_id : "";
+  return isChatGptClientId(id) ? verifyChatGptClient(id) : { clientId: c.clientId, redirects: c.redirects };
+}
+router.get("/oauth/authorize", wrap(async (req, res) => {
+  try { const c = await effectiveConnectionConfig(req), input = authorizationInput(req.query, c, await clientFor(req.query, c)); const target = new URL("/connect/chatgpt", c.origin); for (const [key, value] of Object.entries(req.query)) if (typeof value === "string") target.searchParams.set(key, value); target.searchParams.set("scope", input.scopes); res.redirect(target.href); }
+  catch (error) { res.status(error instanceof CreateError ? error.status : 400).json({ error: "invalid_request", error_description: error instanceof CreateError ? error.message : "Invalid OAuth authorization request. Check the configured connection." }); }
+}));
 router.post("/oauth/consent", requireAuth, wrap(async (req, res) => {
   req.user = await currentUser(req.user!.sub, req.user!.orgId);
   if (!(await readMcpPolicy(req.user.orgId)).policy.enabled) throw new CreateError(403, "MCP access is paused by your organization.");
   let input: ReturnType<typeof authorizationInput>;
-  try { input = authorizationInput(req.body); } catch { throw new CreateError(400, "Invalid OAuth connection request."); }
+  const c = await effectiveConnectionConfig(req, req.user.orgId);
+  try { input = authorizationInput(req.body, c, await clientFor(req.body, c)); } catch (e) { if (e instanceof CreateError) throw e; throw new CreateError(400, "Invalid OAuth connection request."); }
   const callback = new URL(input.redirectUri);
+  callback.searchParams.set("iss", c.origin);
   if (input.state) callback.searchParams.set("state", input.state);
   if (req.body.approved !== true) { callback.searchParams.set("error", "access_denied"); res.json({ redirectUrl: callback.href }); return; }
   for (const scope of input.scopes.split(" ")) {
@@ -48,16 +58,17 @@ router.post("/oauth/consent", requireAuth, wrap(async (req, res) => {
   callback.searchParams.set("code", code); res.json({ redirectUrl: callback.href });
 }));
 router.post("/oauth/token", wrap(async (req, res) => {
-  const c = connectionConfig(), b = req.body || {};
+  const c = await effectiveConnectionConfig(req), b = req.body || {};
   res.set("Pragma", "no-cache");
-  if (!c.enabled || b.client_id !== c.clientId || b.resource !== c.resource || !["authorization_code", "refresh_token"].includes(b.grant_type)) { res.status(400).json({ error: "invalid_request" }); return; }
+  if (!c.enabled || !(b.client_id === c.clientId || isChatGptClientId(b.client_id)) || b.resource !== c.resource || !["authorization_code", "refresh_token"].includes(b.grant_type)) { res.status(400).json({ error: "invalid_request" }); return; }
   const codeFlow = b.grant_type === "authorization_code";
   const secret = codeFlow ? b.code : b.refresh_token;
   if (typeof secret !== "string" || secret.length > 200) { res.status(400).json({ error: "invalid_grant" }); return; }
   const hash = hashToken(secret), now = new Date();
-  const grant = await prisma.chatGptGrant.findFirst({ where: { ...(codeFlow ? { codeHash: hash, codeExpiresAt: { gt: now } } : { refreshHash: hash, refreshExpiresAt: { gt: now } }), clientId: c.clientId, resource: c.resource, revokedAt: null } });
+  const grant = await prisma.chatGptGrant.findFirst({ where: { ...(codeFlow ? { codeHash: hash, codeExpiresAt: { gt: now } } : { refreshHash: hash, refreshExpiresAt: { gt: now } }), clientId: b.client_id, resource: c.resource, revokedAt: null } });
   if (!grant || (codeFlow && (b.redirect_uri !== grant.redirectUri || typeof b.code_verifier !== "string" || !/^[A-Za-z0-9._~-]{43,128}$/.test(b.code_verifier) || Buffer.from(hashToken(b.code_verifier), "hex").toString("base64url") !== grant.challenge)) || (b.scope && b.scope !== grant.scopes)) { res.status(400).json({ error: "invalid_grant" }); return; }
   try { await currentUser(grant.userId, grant.organizationId); } catch { res.status(400).json({ error: "invalid_grant" }); return; }
+  if (!(await effectiveConnectionConfig(req, grant.organizationId)).enabled) { res.status(400).json({ error: "invalid_grant" }); return; }
   if (!(await readMcpPolicy(grant.organizationId)).policy.enabled) { res.status(400).json({ error: "invalid_grant" }); return; }
   const access = opaqueToken(), refresh = opaqueToken();
   const changed = await prisma.chatGptGrant.updateMany({ where: { id: grant.id, revokedAt: null, ...(codeFlow ? { codeHash: hash, codeExpiresAt: { gt: now } } : { refreshHash: hash, refreshExpiresAt: { gt: now } }) }, data: { codeHash: null, accessHash: hashToken(access), refreshHash: hashToken(refresh), accessExpiresAt: new Date(Date.now() + 3600000), refreshExpiresAt: new Date(Date.now() + 30 * 86400000) } });
@@ -65,15 +76,24 @@ router.post("/oauth/token", wrap(async (req, res) => {
   res.json({ access_token: access, token_type: "Bearer", expires_in: 3600, refresh_token: refresh, scope: grant.scopes });
 }));
 router.post("/oauth/revoke", wrap(async (req, res) => {
-  if (req.body.client_id === connectionConfig().clientId && typeof req.body.token === "string" && req.body.token.length < 201) { const hash = hashToken(req.body.token); await prisma.chatGptGrant.updateMany({ where: { clientId: connectionConfig().clientId, OR: [{ accessHash: hash }, { refreshHash: hash }] }, data: { revokedAt: new Date(), accessHash: null, refreshHash: null } }); }
+  const c = await effectiveConnectionConfig(req);
+  if ((req.body.client_id === c.clientId || isChatGptClientId(req.body.client_id)) && typeof req.body.token === "string" && req.body.token.length < 201) { const hash = hashToken(req.body.token); await prisma.chatGptGrant.updateMany({ where: { clientId: req.body.client_id, resource: c.resource, OR: [{ accessHash: hash }, { refreshHash: hash }] }, data: { revokedAt: new Date(), accessHash: null, refreshHash: null } }); }
   res.status(200).end();
 }));
 router.get("/connections", requireAuth, wrap(async (req, res) => {
   req.user = await currentUser(req.user!.sub, req.user!.orgId);
-  const c = connectionConfig();
+  const c = await effectiveConnectionConfig(req, req.user.orgId), setup = await readSetup(req.user.orgId);
   const connections = await prisma.chatGptGrant.findMany({ where: { userId: req.user.sub, organizationId: req.user.orgId, revokedAt: null, refreshExpiresAt: { gt: new Date() } }, select: { id: true, scopes: true, createdAt: true, lastUsedAt: true }, orderBy: { createdAt: "desc" } });
   const { policy, revision } = await readMcpPolicy(req.user.orgId);
-  res.json({ enabled: c.enabled && policy.enabled, installationEnabled: c.enabled, mcpUrl: c.resource, clientId: c.clientId, redirectUris: c.redirects, scopes: SCOPES, connections, policy, policyRevision: revision, canManagePolicy: req.user.role === "admin" });
+  const latest = await prisma.chatGptGrant.findFirst({ where: { organizationId: req.user.orgId, ...(req.user.role !== "admin" ? { userId: req.user.sub } : {}) }, orderBy: { createdAt: "desc" }, select: { redirectUri: true, clientId: true } });
+  res.json({ enabled: c.enabled && policy.enabled, installationEnabled: c.enabled, mcpUrl: c.resource, clientId: c.clientId, redirectUris: c.redirects, scopes: SCOPES, connections, policy, policyRevision: revision, canManagePolicy: req.user.role === "admin", setup: { revision: setup.saved?.revision || 0, saved: !!setup.saved, source: c.source, origin: c.origin, enabled: c.enabled, locked: process.env.CHATGPT_FORCE_DISABLED === "true", verifiedCallback: latest?.redirectUri || null, verifiedClientId: latest?.clientId || null, automaticClientRegistration: true } });
+}));
+router.put("/setup", requireAuth, wrap(async (req, res) => {
+  req.user = await currentUser(req.user!.sub, req.user!.orgId);
+  if (req.user.role !== "admin") throw new CreateError(403, "Only an organization administrator may set up ChatGPT.");
+  const saved = await saveSetup(req, req.body);
+  await logAudit({ action: "CHATGPT_SETUP_SAVED", userId: req.user.sub, organizationId: req.user.orgId, metadata: { enabled: saved.enabled, origin: saved.origin, registration: "CIMD", revision: saved.revision } });
+  res.json(saved);
 }));
 router.put("/settings", requireAuth, wrap(async (req, res) => {
   req.user = await currentUser(req.user!.sub, req.user!.orgId);
@@ -87,15 +107,16 @@ router.delete("/connections/:id", requireAuth, wrap(async (req, res) => {
   await logAudit({ action: "CHATGPT_ACCOUNT_DISCONNECTED", userId: req.user!.sub, organizationId: req.user!.orgId }); res.status(204).end();
 }));
 router.all("/mcp", wrap(async (req, res) => {
-  const c = connectionConfig();
+  const c = await effectiveConnectionConfig(req);
   const unauthorized = () => { res.set("WWW-Authenticate", `Bearer resource_metadata="${c.origin}/api/chatgpt/resource-metadata", scope="${SCOPES.join(" ")}"`); res.status(401).json({ error: "invalid_token" }); };
   if (!c.enabled) { res.status(503).json({ error: "The ChatGPT connection is not configured." }); return; }
   if (req.headers.origin && req.headers.origin !== c.origin && req.headers.origin !== "https://chatgpt.com") { res.status(403).end(); return; }
   const token = req.headers.authorization?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
   if (!token) { unauthorized(); return; }
-  const grant = await prisma.chatGptGrant.findFirst({ where: { accessHash: hashToken(token), clientId: c.clientId, resource: c.resource, accessExpiresAt: { gt: new Date() }, revokedAt: null } });
+  const grant = await prisma.chatGptGrant.findFirst({ where: { accessHash: hashToken(token), resource: c.resource, accessExpiresAt: { gt: new Date() }, revokedAt: null } });
   if (!grant) { unauthorized(); return; }
   try { req.user = await currentUser(grant.userId, grant.organizationId); } catch { unauthorized(); return; }
+  if (!(await effectiveConnectionConfig(req, grant.organizationId)).enabled) { res.status(403).json({ error: "ChatGPT is disabled for this organization." }); return; }
   const { policy } = await readMcpPolicy(req.user.orgId);
   if (!policy.enabled) { res.status(403).json({ error: "MCP access is paused by your organization." }); return; }
   if (req.method !== "POST") { res.set("Allow", "POST"); res.status(405).end(); return; }
@@ -112,7 +133,7 @@ router.all("/mcp", wrap(async (req, res) => {
   const tool = TOOLS.find(t => t.name === name);
   if (!tool || !scopes.includes(tool.scope) || !toolAllowed(tool.scope, policy) || !args || Array.isArray(args) || typeof args !== "object") { res.json({ jsonrpc: "2.0", id: b.id, error: { code: -32602, message: "Unknown or disabled tool, missing scope or invalid arguments" } }); return; }
   try {
-    const result = await callTool(req, grant.id, name, args);
+    const result = await callTool(req, grant.id, name, args, c.origin);
     await prisma.chatGptGrant.updateMany({ where: { id: grant.id, revokedAt: null }, data: { lastUsedAt: new Date() } });
     await logAudit({ action: "CHATGPT_TOOL_USED", userId: req.user.sub, organizationId: req.user.orgId, entity: "ChatGptGrant", entityId: grant.id, metadata: { tool: name } });
     respond({ content: [{ type: "text", text: JSON.stringify(result) }] });

@@ -1,10 +1,16 @@
+## Automatic ChatGPT setup and verified callbacks — 2026-11-05
+
+Settings → Integrations → ChatGPT now offers **Enable ChatGPT & check**. It saves organization setup immediately using the installation's domain, checks public OAuth/MCP routing and provides copyable advanced fields. Automatic CIMD registration verifies ChatGPT's client and exact callback from allowlisted OpenAI HTTPS metadata; `CHATGPT_REDIRECT_URIS` and environment-file edits are unnecessary for this flow. Account sign-in and consent remain explicit in ChatGPT. Manual exact-allowlist clients remain compatible.
+
+Saved organization setup takes precedence over legacy `CHATGPT_ENABLED`; the documented `CHATGPT_FORCE_DISABLED=true` operator lock blocks all organizations and UI activation. Existing fiscal/calendar policy, CRM permissions, scoped grants and review requirements remain enforced. No new schema migration is needed for this update.
+
+84 focused tests, full repository/server types, targeted lint and web/server production builds passed. Production-browser acceptance covers activation, actionable failures, keyboard copy, expanded manual values, consent and controls at desktop/tablet/phone sizes. The validator also accepted ChatGPT's real public client metadata. Production deployment, real MySQL restart/concurrency checks and authenticated ChatGPT Plus acceptance remain open. See [setup](../integrations/chatgpt-mcp.md) and [evidence](audit-artifacts/2026-11-05-chatgpt-auto-setup/verification.md).
+
 ## Production build memory reduction — 2026-11-04
 
 Next now uses a strict web-specific TypeScript project instead of loading the API, tests and seed scripts into its build checker. Existing repository-wide and API checks remain enabled. Webpack builds in a separate worker with memory optimizations, and static generation uses one worker.
 
 Measured TypeScript memory dropped from approximately 2.2 GiB to 1.5 GiB. A complete production build passed with a 2 GiB Node heap limit and generated 225 pages/routes. This is a compiler/heap measurement on the local Windows host, not a total-memory guarantee for the reported small Linux server. The user supplied successful import/ChatGPT MySQL migration and Prisma generation logs; the subsequent failure occurred in the web build. See [evidence](audit-artifacts/2026-11-04-build-memory/verification.md) and [deployment recovery](../operations/LAUNCH.md#build-memory-and-type-check-scope).
-
-## Studio desktop controls, bottom pages and whole-letter HTML — 2026-11-04
 
 ## ChatGPT MCP connection, financial context and organization controls — 2026-11-04
 
@@ -13,6 +19,8 @@ Implemented per-installation OAuth/MCP account linking for ChatGPT, using existi
 Settings → Integrations now includes a domain-generated tool-server URL with Copy, an exact numbered connection guide and filled administrator setup values, connected sessions/disconnect and administrator MCP controls: pause, letter reading, draft creation (off by default), report reading, fiscal/calendar policy, request overrides and row limits. Controls apply to existing sessions and use tenant-scoped, revision-guarded persistence. Current CRM permissions, ownership, clinical exclusion, Trash, safe HTML, pinned branding and release review remain enforced. No OpenAI API key, automatic sends, financial mutations or arbitrary SQL are introduced.
 
 75 focused tests, type/lint checks, production builds and desktop/mobile browser acceptance passed. Live ChatGPT linking, deployed callback/HTTPS setup and real MySQL migration/concurrency acceptance remain open. See [setup guide](../integrations/chatgpt-mcp.md) and [evidence](audit-artifacts/2026-11-04-chatgpt-connection/verification.md).
+
+## Studio desktop controls, bottom pages and whole-letter HTML — 2026-11-04
 
 Studio now keeps page thumbnails in a collapsible bottom dock and contains scrolling inside the document, tools and preview. Live preview has a separate resizable area with Collapse/Show controls; closing it gives the editor the remaining width and reopening retains its channel. Compact command/ribbon controls, floating link/find dialogs, closeable tool panels and mobile Edit/Preview preserve existing editing capabilities.
 
