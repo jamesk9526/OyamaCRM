@@ -148,7 +148,8 @@ router.post("/campaigns/:id/approve", route(async (req, res, org, actor) => {
     const claimed = await tx.createCampaign.updateMany({ where: { id: campaign.id, organizationId: org, revision: campaign.revision }, data: { status: "APPROVED" } });
     if (!claimed.count) throw new CreateError(409, "Campaign content changed during review. Reload and review again.");
     for (const content of contents) for (const variant of content.variants) {
-      const current = await nativeRecord(org, variant, tx);
+      const frozenVariant=prepared.frozen.find(piece=>piece.id===content.id)?.variants.find(item=>item.channel===variant.channel);
+      const current = await nativeRecord(org, variant, tx, !!content.designJson&&!frozenVariant?.nativeFingerprint);
       if (current && current.fingerprint !== variant.legacyFingerprint) throw new CreateError(409, "A native layout changed during review. Review the new version first.");
     }
     const existing = await tx.createRelease.findUnique({ where: { campaignId_campaignRevision: { campaignId: campaign.id, campaignRevision: campaign.revision } } });

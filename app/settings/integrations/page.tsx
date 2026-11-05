@@ -1,6 +1,7 @@
 /** Unified integrations page combines integration readiness and plugin management. */
 import IntegrationsSettingsPage from "@/app/components/settings/integrations/IntegrationsSettingsPage";
 import PluginsSettingsPage from "@/app/components/settings/plugins/PluginsSettingsPage";
+import ChatGptConnection from "@/app/components/settings/integrations/ChatGptConnection";
 
 /** IntegrationsSettingsRoute renders one combined workspace for integrations and plugins. */
 export default function IntegrationsSettingsRoute() {
@@ -13,6 +14,7 @@ export default function IntegrationsSettingsRoute() {
         </p>
       </div>
 
+      <ChatGptConnection />
       <section id="readiness" className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Integration Readiness</h2>
         <IntegrationsSettingsPage embedded />

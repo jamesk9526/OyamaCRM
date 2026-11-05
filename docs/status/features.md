@@ -1,3 +1,27 @@
+## Studio desktop controls, bottom pages and whole-letter HTML — 2026-11-04
+
+## ChatGPT MCP connection, financial context and organization controls — 2026-11-04
+
+Implemented per-installation OAuth/MCP account linking for ChatGPT, using existing CRM login/MFA and a separately scoped credential. Initial tools search/read donor letters, save separate editable Create drafts and run aggregate payment-method, designation, campaign and CRM performance reports. Reporting includes source definitions, currency, exact date boundaries and financial interpretation limits.
+
+Settings → Integrations now includes a domain-generated tool-server URL with Copy, an exact numbered connection guide and filled administrator setup values, connected sessions/disconnect and administrator MCP controls: pause, letter reading, draft creation (off by default), report reading, fiscal/calendar policy, request overrides and row limits. Controls apply to existing sessions and use tenant-scoped, revision-guarded persistence. Current CRM permissions, ownership, clinical exclusion, Trash, safe HTML, pinned branding and release review remain enforced. No OpenAI API key, automatic sends, financial mutations or arbitrary SQL are introduced.
+
+75 focused tests, type/lint checks, production builds and desktop/mobile browser acceptance passed. Live ChatGPT linking, deployed callback/HTTPS setup and real MySQL migration/concurrency acceptance remain open. See [setup guide](../integrations/chatgpt-mcp.md) and [evidence](audit-artifacts/2026-11-04-chatgpt-connection/verification.md).
+
+Studio now keeps page thumbnails in a collapsible bottom dock and contains scrolling inside the document, tools and preview. Live preview has a separate resizable area with Collapse/Show controls; closing it gives the editor the remaining width and reopening retains its channel. Compact command/ribbon controls, floating link/find dialogs, closeable tool panels and mobile Edit/Preview preserve existing editing capabilities.
+
+Visual / HTML mode edits the whole letter, including page furniture and an enabled reply slip, without resolving donor fields into saved source. Markers retain unchanged Studio/CRM blocks. HTML can be previewed before saving, applied through guarded revision saves, canceled or downloaded. Complex layouts retain preserved HTML/review gates; unsafe, malformed and stale edits receive actionable errors while originals remain available.
+
+Verification: 157 focused tests, web/server types, targeted lint and both production builds pass. Production-browser checks cover docking, 20-page scrolling, pane separation/resizing/collapse, HTML round trips and recovery, protected Email overflow and desktop/tablet/phone use; the prior import/builder browser fixture also passes. See [before/after evidence and limits](audit-artifacts/2026-11-04-create-desktop-html/verification.md).
+
+## Automatic content import and unified Create builder — 2026-11-04
+
+Create now includes an organization import worker, preserved source revisions, paginated source/history readers, retry/pause/resume and reconciliation. The first authorized administrator visit records an initial read-only inventory and queues ingestion independently of delivery settings. Existing bindings, private ownership, edited designs and Trash are retained; later legacy edits require review. Browser recovery confirms the destination organization and keeps local originals. Clinical records and external mail/file providers are excluded.
+
+Studio uses shared editing on the left and independent Letter / Email / Social / Web / SMS previews on the right, with resizable desktop panes and mobile Edit/Preview panels. Explicit channel adaptations remain protected. Native conversion and editable preserved HTML retain complex source layouts with comparison/review; email-only campaigns no longer require a letter template. Existing release approval and publication paths remain explicit.
+
+Verification: 80 focused tests passed, production-browser checks and four inspected rasterized print proofs passed, and web/server builds and targeted types/lint passed during implementation. The additive migration and real MySQL contention checks remain unapplied/unverified locally; live inventory and exception rates have not been measured. The final managed-copy/empty-HTML guards and transition-aware browser assertion were subsequently verified in the desktop/HTML follow-up; the MySQL and production-data rollout gates remain open. See [implementation, evidence and rollout gates](audit-artifacts/2026-11-04-create-unified-import/verification.md).
+
 ## oyamaCreate guidance and block preview correction — 2026-11-04
 
 Home now explains the four steps from campaign setup through explicit release. Campaign tabs provide task instructions and working next-step navigation; setup explains what happens after saving. The Blocks gallery shows each block’s purpose and insertion instructions, confirms insertion and selects the inserted block for its settings.

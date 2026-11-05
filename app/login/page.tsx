@@ -23,6 +23,11 @@ export default function LoginPage() {
   const [checkingSetup, setCheckingSetup] = useState(true);
   const [mfaChallenge, setMfaChallenge] = useState<LoginMfaChallenge | null>(null);
   const [mfaCode, setMfaCode] = useState("");
+  function loginDestination(fallback: string) {
+    const pending = sessionStorage.getItem("oyama-chatgpt-return");
+    sessionStorage.removeItem("oyama-chatgpt-return");
+    return pending?.startsWith("/connect/chatgpt?") ? pending : fallback;
+  }
 
   /**
    * On mount: check whether setup has been completed.
@@ -67,7 +72,7 @@ export default function LoginPage() {
       }
 
       const workspaceSettings = await fetchWorkspaceSettings();
-      router.replace(resolveWorkspaceLandingPath(workspaceSettings));
+      router.replace(loginDestination(resolveWorkspaceLandingPath(workspaceSettings)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -87,7 +92,7 @@ export default function LoginPage() {
       await verifyEmailMfa(mfaChallenge.mfaTicket, mfaCode);
       await refreshUser();
       const workspaceSettings = await fetchWorkspaceSettings();
-      router.replace(resolveWorkspaceLandingPath(workspaceSettings));
+      router.replace(loginDestination(resolveWorkspaceLandingPath(workspaceSettings)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "MFA verification failed");
     } finally {

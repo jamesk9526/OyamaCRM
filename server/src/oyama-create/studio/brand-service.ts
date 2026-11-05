@@ -14,13 +14,13 @@ import { EMPTY_DOC, type BrandDocument } from "./types.js";
 export const brandReviewToken = (org: string, revision: number, publishedId: string | null, document: unknown) => createHash("sha256").update(JSON.stringify([org, revision, publishedId, document])).digest("hex");
 
 function legacyChrome(html:string){return html.replace(/padding:0 [0-9.]+in 0 [0-9.]+in/,"padding:0").replace(/class="pageNumber"/g,"data-studio-page-number").replace(/class="totalPages"/g,"data-studio-total-pages");}
-export async function readLegacyBrand(org: string): Promise<BrandDocument> {
+export async function readLegacyBrand(org: string, selected?: { headerId?: string | null; footerId?: string | null; signerId?: string | null }): Promise<BrandDocument> {
   const [stored, organization, headers, footers, signers, embeds, moneySettings] = await Promise.all([
     prisma.pluginSetting.findUnique({ where: { organizationId_pluginKey: { organizationId: org, pluginKey: "organization-branding" } } }),
     prisma.organization.findUnique({ where: { id: org }, select: { name: true } }),
-    prisma.letterHeaderPreset.findMany({ where: { organizationId: org }, take: 200 }),
-    prisma.letterFooterPreset.findMany({ where: { organizationId: org }, take: 200 }),
-    prisma.letterSignatureBlock.findMany({ where: { organizationId: org }, take: 200 }),
+    prisma.letterHeaderPreset.findMany({ where: { organizationId: org, ...(selected ? { OR: [{ isDefault: true }, ...(selected.headerId ? [{ id: selected.headerId }] : [])] } : {}) }, take: 100 }),
+    prisma.letterFooterPreset.findMany({ where: { organizationId: org, ...(selected ? { OR: [{ isDefault: true }, ...(selected.footerId ? [{ id: selected.footerId }] : [])] } : {}) }, take: 100 }),
+    prisma.letterSignatureBlock.findMany({ where: { organizationId: org, ...(selected ? { OR: [{ isDefault: true }, ...(selected.signerId ? [{ id: selected.signerId }] : [])] } : {}) }, take: 200 }),
     prisma.pluginSetting.findUnique({where:{organizationId_pluginKey:{organizationId:org,pluginKey:SITE_EMBEDS_PLUGIN_KEY}}}),
     prisma.organizationSettings.findUnique({where:{organizationId:org},select:{currency:true}}),
   ]);
@@ -109,4 +109,24 @@ export function sanitizeBrandHtml(brand: BrandDocument): BrandDocument {
 async function brandAvailability(org: string, document: BrandDocument): Promise<BrandDocument> {
   const [signers, presets] = await Promise.all([trashedIds(org, "SIGNATURE"), trashedIds(org, "PRESET")]);
   return { ...document, signers: document.signers.map(signer => ({ ...signer, trashed: signers.includes(signer.id) })), presets: document.presets.map(preset => ({ ...preset, trashed: presets.includes(preset.id) })) };
+}
+
+export async function brandForStudio(org: string, design: import("./types.js").StudioDesign, channel?: "LETTER"|"EMAIL"|"WEB"|"SOCIAL"|"SMS"): Promise<BrandDocument> {
+  if(design.brandRevisionId)return brandForDesign(org,design.brandRevisionId);
+  const revisionId = channel && design.channels?.[channel]?.sourceRevisionId || design.presentation?.sourceRevisionId;
+  if (revisionId) {
+    const revision = await prisma.createImportSourceRevision.findFirst({ where: { id: revisionId, source: { organizationId: org } } });
+    if (!revision) throw new CreateError(404, "The imported source snapshot is unavailable in this organization.");
+    const snapshot = object(revision.snapshotJson);
+    if (snapshot.brand) return normalizeBrand(snapshot.brand);
+  }
+  return brandForDesign(org, design.brandRevisionId);
+}
+
+
+export async function baselineBrand(org: string, actor: string) {
+  const existing = await prisma.createBrandRevision.findFirst({ where: { organizationId: org }, orderBy: { revision: "desc" } }); if (existing) return existing.id;
+  const document = await readLegacyBrand(org);
+  try { return (await prisma.createBrandRevision.create({ data: { organizationId: org, revision: 1, documentJson: json(document), publishedBy: actor } })).id; }
+  catch { const concurrent = await prisma.createBrandRevision.findFirst({ where: { organizationId: org }, orderBy: { revision: "desc" } }); if (!concurrent) throw new CreateError(409, "The initial brand could not be preserved. Try again."); return concurrent.id; }
 }

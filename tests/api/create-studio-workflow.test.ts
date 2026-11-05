@@ -15,6 +15,7 @@ import { publicBrandIdentity } from "@/server/src/oyama-create/studio/brand-serv
 import { normalizeBrand } from "@/server/src/oyama-create/studio/brand";
 import {assertStudioPrintAccess,maskStudioGenerated} from "@/server/src/oyama-create/studio/print-access";
 import { defaultDesign } from "@/server/src/oyama-create/studio/design";
+import { paragraph, newBlock } from "@/server/src/oyama-create/studio/registry";
 import { responseAttribution } from "@/server/src/oyama-create/studio/response";
 import { recordCreatePrintStatus, assertCurrentCreateArtifact } from "@/server/src/oyama-create/print-adapter";
 import { signAccessToken } from "@/server/src/lib/auth";
@@ -72,6 +73,31 @@ async function studio() {
   await db.createVariant.create({data:{organizationId:org,contentId:content.id,channel:"LETTER",documentJson:{},legacyId:null}});
   return {campaign,content};
 }
+describe("whole-letter HTML mode",()=>{
+ async function editable(){const {content,campaign}=await studio(),design=defaultDesign();design.body.content=[paragraph("source-copy","Original letter {{donor.fullName}}"),newBlock("studioSignature","source-signature")];const converted=await call("post",`/contents/${content.id}/studio/convert`,{design,confirm:true,campaignRevision:campaign.revision});expect(converted.status).toBe(200);return content;}
+ it("exports unmerged whole-letter HTML and previews conversion without writing a draft",async()=>{
+   const content=await editable(),original=structuredClone(rows.createContent[0]),count=rows.createDocumentRevision.length;
+   const source=await call("post",`/contents/${content.id}/studio/html`,{action:"EXPORT"});expect(source.status).toBe(200);expect(source.body.html).toContain('{{donor.fullName}}');expect(source.body.html).toContain('data-oyama-region="firstHeader"');expect(source.body.html).toContain('data-oyama-region="footer"');
+   const changed=await call("post",`/contents/${content.id}/studio/html`,{...source.body,action:"CONVERT",html:source.body.html.replace('Original letter','Revised letter')});expect(changed.status,JSON.stringify(changed.body)).toBe(200);expect(JSON.stringify(changed.body.design.body)).toContain('Revised letter');expect(rows.createContent[0]).toEqual(original);expect(rows.createDocumentRevision).toHaveLength(count);expect(rows.createRelease).toHaveLength(0);expect(rows.createDelivery).toHaveLength(0);
+ });
+ it("applies source edits through the guarded save path while retaining the prior visual revision and native original",async()=>{
+   const content=await editable(),native=structuredClone(rows.letterTemplate[0]);
+   const source=(await call("post",`/contents/${content.id}/studio/html`,{action:"EXPORT"})).body;
+   const converted=await call("post",`/contents/${content.id}/studio/html`,{...source,action:"CONVERT",html:source.html.replace('Original letter','Applied HTML letter')});
+   const saved=await call("patch",`/contents/${content.id}/studio`,{design:converted.body.design,revision:2,campaignRevision:2,sourceMode:"HTML"});expect(saved.status,JSON.stringify(saved.body)).toBe(200);expect(rows.createDocumentRevision).toHaveLength(3);expect(JSON.stringify(rows.createDocumentRevision[1].documentJson.studio.body)).toContain('Original letter');expect(JSON.stringify(rows.createContent[0].designJson.body)).toContain('Applied HTML letter');expect(rows.letterTemplate[0]).toEqual(native);
+ });
+ it("rejects stale, foreign and unauthorized HTML changes without replacing the saved content",async()=>{
+   const content=await editable(),path=`/contents/${content.id}/studio/html`,source=(await call("post",path,{action:"EXPORT"})).body,original=structuredClone(rows.createContent[0].designJson);
+   expect((await call("post",path,{...source,action:"CONVERT",fingerprint:"stale"})).status).toBe(409);expect((await call("post",path,{action:"EXPORT"},"admin","foreign")).status).toBe(404);
+   await db.userPermission.create({data:{userId:"synthetic-staff",permission:"letters.edit",granted:false}});expect((await call("post",path,{...source,action:"CONVERT"})).status).toBe(403);expect(rows.createContent[0].designJson).toEqual(original);
+ });
+ it("sanitizes active markup, rejects another tenant's images and exposes page furniture in letter previews",async()=>{
+   const content=await editable(),path=`/contents/${content.id}/studio/html`,source=(await call("post",path,{action:"EXPORT"})).body;
+   const safe=await call("post",path,{...source,action:"CONVERT",html:'<div style="padding:12px"><p>New whole letter</p></div><script>bad()</script>'});expect(safe.status).toBe(200);expect(JSON.stringify(safe.body.design)).not.toContain('bad()');expect(safe.body.diagnostics.length).toBeGreaterThan(0);
+   const foreign=await call("post",path,{...source,action:"CONVERT",html:'<p>New content</p><img src="/uploads/letter-media/foreign/image.png">'});expect(foreign.status).toBe(403);
+   const preview=await call("post",`/contents/${content.id}/studio/preview`,{channel:"LETTER"});expect(preview.status).toBe(200);expect(preview.body.pageChrome.header).toContain('Synthetic original organization');expect(rows.createDelivery).toHaveLength(0);
+ });
+});
 describe("Studio design persistence and personalization",()=>{
  it("saves sender settings and sends a test only with explicit reviewed authorization",async()=>{
   provider.send.mockClear();const {campaign,content}=await studio();rows.createCampaign[0].channelsJson=["LETTER","EMAIL"];await db.createVariant.create({data:{organizationId:org,contentId:content.id,channel:"EMAIL",documentJson:{},legacyId:null}});

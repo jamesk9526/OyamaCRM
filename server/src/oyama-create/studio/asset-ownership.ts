@@ -5,7 +5,7 @@ export function assertStudioAssetOwnership(org:string,value:unknown) {
   if(Array.isArray(value)){for(const item of value)assertStudioAssetOwnership(org,item);return;}
   if(!value||typeof value!=="object")return;
   for(const [key,item] of Object.entries(value)){
-    if(typeof item==="string"&&(/^(src|logoUrl|logoSquareUrl|signatureImageUrl)$/.test(key)||key.endsWith("avatarUrl"))){
+    if(typeof item==="string"&&(/^(src|logoUrl|logoSquareUrl|signatureImageUrl|thumbnail)$/.test(key)||key.endsWith("avatarUrl"))){
       assertSource(item);
     }else if(typeof item==="string"&&/html$/i.test(key)){
       mapHtmlImageSources(item,assertSource);

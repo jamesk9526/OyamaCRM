@@ -34,4 +34,10 @@ describe("individual Studio block previews", () => {
     expect(output.issues.map(issue => issue.code)).toEqual(["DONOR_PERMISSION"]);
     expect(output.text).not.toContain("Yes, I want to help");
   });
+  it("previews only the selected block while editing a protected channel document",()=>{
+    const design=defaultDesign();design.version=3;design.channels={EMAIL:{document:{type:'doc',content:[newBlock('studioResponse','reply')]},reviewedSource:null}};
+    const single=blockPreviewDesign(design,newBlock('studioHistory','giving'));
+    const output=renderStudio(single,emptyDonor(),brand,{channel:'EMAIL'});
+    expect(output.text).not.toContain('Yes, I want to help');expect(output.issues.map(item=>item.code)).toEqual(['DONOR_PERMISSION']);
+  });
 });

@@ -107,6 +107,9 @@ importers:
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1
+      htmlparser2:
+        specifier: 8.0.2
+        version: 8.0.2
       intuit-oauth:
         specifier: ^4.2.3
         version: 4.2.3

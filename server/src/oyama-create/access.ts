@@ -33,11 +33,15 @@ export async function assertCampaign(req: Request, id: string, manage = false, t
   const channels = campaign.channelsJson as Channel[];
   await demandChannels(req, channels.length ? channels : ["EMAIL"]);
   if (campaign.fundraisingCampaignId) await demand(req, "view:campaigns");
+  const imported = await tx.createImportSource.findMany({ where: { organizationId: req.user!.orgId, campaignId: id } });
+
   const bindings = await tx.createVariant.findMany({ where: { organizationId: req.user!.orgId, content: { campaignId: id }, channel: "EMAIL", legacyId: { not: null } }, select: { legacyId: true } });
   if (bindings.length) {
     const emails = await tx.emailCampaign.findMany({ where: { organizationId: req.user!.orgId, id: { in: bindings.map(item => item.legacyId!) } } });
+    if (imported.some(source => !(source.sourceType === "EMAIL" && emails.some(email => email.id === source.sourceId)) && source.ownerId && source.ownerId !== req.user!.sub && req.user!.role !== "admin" && (manage || !source.shared))) throw new CreateError(403, "This imported content is private or owned by another staff member.");
     if (emails.some(email => !emailRecordAccessible(email, req.user!.sub, req.user!.role, manage))) throw new CreateError(403, manage ? "Only the owner or an administrator may manage this bound email." : "This campaign contains a private email owned by another staff member.");
   }
+  if (!bindings.length && imported.some(source => source.ownerId && source.ownerId !== req.user!.sub && req.user!.role !== "admin" && (manage || !source.shared))) throw new CreateError(403,"This imported content is private.");
   return campaign;
 }
 export async function touchCampaign(tx: Prisma.TransactionClient, org: string, id: string, revision: number) {

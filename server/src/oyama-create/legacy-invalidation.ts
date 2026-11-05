@@ -1,8 +1,14 @@
+import { emailRecordSharing } from "./legacy.js";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 /** Awaited by legacy writers, so pending Create releases cannot outlive a changed native draft. */
 export async function invalidateLegacyBindings(org: string, channel: "EMAIL" | "LETTER", legacyId?: string) {
   try {
+    // Wake the independent ingestion worker; a paused run stays paused.
+    try { await prisma.createImportRun.updateMany({ where: { organizationId: org, status: { in: ["IDLE", "RUNNING"] } }, data: { nextScanAt: new Date() } }); } catch (error) { if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021")) throw error; }
+    if(channel==="EMAIL"&&legacyId){
+      try{const email=await prisma.emailCampaign.findFirst({where:{id:legacyId,organizationId:org}});if(email){const sharing=emailRecordSharing(email);await prisma.createImportSource.updateMany({where:{organizationId:org,sourceType:"EMAIL",sourceId:legacyId},data:{ownerId:sharing.ownerId,shared:sharing.sharedWithOrganization}});}}catch(error){if(!(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2021"))throw error;}
+    }
     const bindings = await prisma.createVariant.findMany({ where: { organizationId: org, channel, ...(legacyId ? { legacyId } : { legacyId: { not: null } }) }, include: { content: { select: { campaignId: true } } } });
     if (!bindings.length) return;
     await prisma.$transaction(async tx => {

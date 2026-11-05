@@ -1,6 +1,11 @@
 import type { StudioNode } from "./types.js";
 export type BlockDefinition = { type: string; name: string; category: "Writing" | "Layout" | "Brand" | "Donor" | "Fundraising"; description: string; sensitive?: boolean; printOnly?: boolean; attrs?: Record<string, unknown> };
 export const STUDIO_BLOCKS: BlockDefinition[] = [
+  { type: "studioButton", name: "Button", category: "Layout", description: "A labeled link with button styling", attrs: { label: "Learn more", href: "" } },
+  { type: "studioFile", name: "File link", category: "Layout", description: "Link to a document or download", attrs: { label: "Open document", href: "" } },
+  { type: "studioVideo", name: "Video thumbnail", category: "Layout", description: "A linked video thumbnail", attrs: { label: "Watch video", href: "", thumbnail: "" } },
+  { type: "studioSocial", name: "Social links", category: "Layout", description: "Links to your social profiles", attrs: { linksJson: "[]" } },
+  { type: "studioHtml", name: "Preserved HTML", category: "Layout", description: "Preserve a complex layout; edit and review its HTML", attrs: { html: "", reviewedHtml: "" } },
   { type: "paragraph", name: "Text", category: "Writing", description: "A fully formatted paragraph" },
   { type: "heading", name: "Heading", category: "Writing", description: "A section title", attrs: { level: 2 } },
   { type: "bulletList", name: "Bulleted list", category: "Writing", description: "An editable list" },

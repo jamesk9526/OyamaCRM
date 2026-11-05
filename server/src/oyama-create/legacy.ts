@@ -6,16 +6,16 @@ import { normalizeEmailTemplateDocument, normalizeEmailTemplateSettings, renderE
 import { CreateError, documentFrom, object, renderShared, string, variantFrom, type SharedDocument, type VariantDocument } from "./domain.js";
 
 export const fingerprint = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-export async function nativeRecord(org: string, variant: Pick<CreateVariant, "channel" | "legacyId">, db: Prisma.TransactionClient = prisma) {
+export async function nativeRecord(org: string, variant: Pick<CreateVariant, "channel" | "legacyId">, db: Prisma.TransactionClient = prisma, allowMissing = false) {
   if (!variant.legacyId) return null;
   if (variant.channel === "EMAIL") {
     const email = await db.emailCampaign.findFirst({ where: { id: variant.legacyId, organizationId: org } });
-    if (!email) throw new CreateError(409, "The linked email was removed. Review or replace the binding.");
+    if (!email) { if (allowMissing) return null; throw new CreateError(409, "The linked email was removed. Review or replace the binding."); }
     return { kind: "EMAIL" as const, record: email, fingerprint: fingerprint([email.subject, email.bodyHtml, email.bodyText, email.templateJson, email.fromName, email.fromEmail, email.replyToEmail]) };
   }
   if (variant.channel === "LETTER") {
     const letter = await db.letterTemplate.findFirst({ where: { id: variant.legacyId, organizationId: org, crmScope: "DONOR" } });
-    if (!letter) throw new CreateError(409, "The linked donor letter is unavailable.");
+    if (!letter) { if (allowMissing) return null; throw new CreateError(409, "The linked donor letter is unavailable."); }
     return { kind: "LETTER" as const, record: letter, fingerprint: fingerprint([letter.printSubject, letter.printBody, letter.printLayoutJson, letter.headerPresetId, letter.footerPresetId, letter.signatureBlockId, letter.documentJson]) };
   }
   return null;

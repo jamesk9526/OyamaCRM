@@ -34,7 +34,7 @@ beforeEach(async () => {
   rows.user.push({ id: "synthetic-user", organizationId: org, active: true, role: "admin" });
   rows.emailRecipientList.push({ id: "audience", organizationId: org, name: "Synthetic mixed audience" });
   rows.emailRecipientListMember.push({ id: "member", listId: "audience", constituentId: "person", email: "synthetic@example.invalid" });
-  rows.constituent.push({ id: "person", organizationId: org, firstName: "Synthetic", lastName: "Recipient", email: "synthetic@example.invalid", phone: "+15555550101", addressLine1: "100 Test Way", addressLine2: "", city: "Test City", state: "IL", zip: "60000", country: "US", doNotMail: false, doNotContact: false, doNotEmail: false, emailOptOut: false });
+  rows.constituent.push({ id: "person", organizationId: org, firstName: "Synthetic", lastName: "Recipient", tags: [], email: "synthetic@example.invalid", phone: "+15555550101", addressLine1: "100 Test Way", addressLine2: "", city: "Test City", state: "IL", zip: "60000", country: "US", doNotMail: false, doNotContact: false, doNotEmail: false, emailOptOut: false });
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 // Keep the compliance fixture deterministic while testing Create's routing and approval behavior.
@@ -118,10 +118,13 @@ describe("linked drafts and approved releases", () => {
 });
 describe("durable channel worker", () => {
   it("preserves canonical private ownership on generated email executions", async () => {
+    rows.pluginSetting.push({organizationId:org,pluginKey:"organization-branding",config:{organizationDisplayName:"Synthetic organization",streetAddress1:"100 Test Way",city:"Test City",stateProvince:"IL",postalCode:"60000"}});
     const source = await db.emailCampaign.create({ data: { organizationId: org, name: "Private campaign", subject: "Private message", bodyHtml: "<p>Private test copy</p>", bodyText: "Private test copy", templateJson: JSON.stringify({ sharedWithOrganization: true }), audienceFilter: JSON.stringify({ recipientListId: "audience", _sharing: { ownerId: "source-owner", sharedWithOrganization: false } }) } });
     const imported = await call("post", "/legacy/import", { channel: "EMAIL", legacyId: source.id }); expect(imported.status).toBe(201);
     expect(rows.createCampaign[0].isTemplate).toBe(false); expect(rows.createCampaign[0].audienceListIds).toEqual(["audience"]);
-    const approval = await call("post", `/campaigns/${imported.body.campaignId}/approve`, { confirm: true, revision: 1 }); expect(approval.status, JSON.stringify(approval.body)).toBe(201);
+    const sourceImport=rows.createImportSource.find(source=>source.contentId===imported.body.contentId)!;
+    const comparison=await call("post",`/imports/sources/${sourceImport.id}/review`,{confirm:true,fingerprint:sourceImport.fingerprint,contentRevision:rows.createContent.find(content=>content.id===imported.body.contentId)!.revision,campaignRevision:1});expect(comparison.status).toBe(200);
+    const approval = await call("post", `/campaigns/${imported.body.campaignId}/approve`, { confirm: true, revision: rows.createCampaign.find(campaign=>campaign.id===imported.body.campaignId)!.revision }); expect(approval.status, JSON.stringify(approval.body)).toBe(201);
     await call("post", `/releases/${approval.body.id}/release`, { confirm: true }); await processCreateQueue();
     const execution = rows.emailCampaign.find(row => row.id !== source.id)!;
     expect(JSON.parse(execution.audienceFilter)._sharing).toEqual({ ownerId: "source-owner", sharedWithOrganization: false });

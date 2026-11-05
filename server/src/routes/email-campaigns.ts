@@ -4342,6 +4342,7 @@ router.post("/", async (req, res) => {
     // Best-effort logging for revision-history surfaces.
   });
 
+  await invalidateLegacyBindings(organizationId,"EMAIL",campaign.id);
   res.status(201).json(withCampaignWorkspaceFields(campaign));
 });
 
@@ -5050,6 +5051,7 @@ router.post("/:id/duplicate", async (req, res) => {
     // Best-effort audit write.
   });
 
+  await invalidateLegacyBindings(organizationId,"EMAIL",duplicate.id);
   res.status(201).json(withCampaignWorkspaceFields(duplicate));
 });
 

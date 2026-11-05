@@ -4,6 +4,7 @@ import type { StudioDesign, StudioNode } from "@/server/src/oyama-create/studio/
 export function blockPreviewDesign(design: StudioDesign, node: StudioNode): StudioDesign {
   return {
     ...design,
+    channels: undefined,
     body: { type: "doc", content: [node] },
     pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } },
   };

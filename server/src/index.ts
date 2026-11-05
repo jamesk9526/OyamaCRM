@@ -25,6 +25,7 @@ import path from "node:path";
 dotenv.config();
 
 import authRoutes from "./routes/auth.js";
+import chatGptRoutes, { authorizationMetadata, protectedResourceMetadata } from "./chatgpt/routes.js";
 import constituentRoutes from "./routes/constituents.js";
 import donationRoutes from "./routes/donations.js";
 import campaignRoutes from "./routes/campaigns.js";
@@ -70,6 +71,7 @@ import systemUpdatesRoutes from "./routes/system-updates.js";
 import pwaRoutes from "./routes/pwa.js";
 import oyamaEmailRoutes from "./routes/oyama-email.js";
 import oyamaCreateRoutes from "./oyama-create/routes.js";
+import { startImportWorker, stopImportWorker } from "./oyama-create/import-service.js";
 import { startCreateWorker, stopCreateWorker } from "./oyama-create/worker.js";
 import dataToolsRoutes from "./routes/data-tools.js";
 import donorProfileRoutes from "./routes/donor-profile.js";
@@ -192,9 +194,13 @@ app.use("/api/site-embeds/public/stripe-webhook", express.raw({ type: "applicati
 app.use("/api/watchdog/ops/backups/package/import", express.raw({ type: "application/zip", limit: "1gb" }));
 
 // Import endpoint can receive 800+ records as JSON — raise the limit to 20 MB.
+// Remote MCP calls have a smaller input budget than CRM package imports.
+app.use("/api/chatgpt", express.json({ limit: "1mb" }), express.urlencoded({ extended: false, limit: "16kb" }));
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use(cookieParser());
+app.get("/.well-known/oauth-authorization-server", (_req, res) => res.json(authorizationMetadata()));
+app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/chatgpt/mcp"], (_req, res) => res.json(protectedResourceMetadata()));
 app.disable("x-powered-by");
 
 // Campaign media is intentionally public: inbox clients fetch image sources
@@ -256,6 +262,7 @@ app.get("/api/health", healthHandler);
 
 // Block non-admin API traffic while maintenance mode is enabled by System Update Manager.
 app.use("/api", maintenanceModeGuard);
+app.use("/api/chatgpt", chatGptRoutes);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
@@ -340,6 +347,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
   startCreateWorker();
+  startImportWorker();
   startStewardPathsWorker();
   startQuickBooksSyncWorker();
   startTaskNotificationWorker();
@@ -347,6 +355,7 @@ if (process.env.NODE_ENV !== "test") {
   // Stop creating in-app reminders during the process manager's shutdown window.
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
     stopCreateWorker();
+    stopImportWorker();
     void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker()]).finally(() => process.exit(0));
   });
   app.listen(PORT, () => {

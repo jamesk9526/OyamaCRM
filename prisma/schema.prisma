@@ -521,6 +521,60 @@ model CreateTrashItem {
   @@index([organizationId, restoredAt, removedAt])
 }
 
+model CreateImportRun {
+  id String @id @default(cuid())
+  organizationId String @unique
+  actorId String
+  status String @default("RUNNING")
+  cursorJson Json
+  inventoryJson Json?
+  scanned Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime?
+  nextScanAt DateTime @default(now())
+  lastError String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, nextScanAt])
+}
+
+model CreateImportSource {
+  id String @id @default(cuid())
+  organizationId String
+  sourceType String
+  sourceId String
+  name String
+  status String @default("PENDING")
+  fingerprint String?
+  acceptedFingerprint String?
+  campaignId String?
+  contentId String?
+  ownerId String?
+  shared Boolean @default(false)
+  missing Boolean @default(false)
+  diagnostics Json
+  error String? @db.Text
+  sourceUpdatedAt DateTime?
+  lastSeenAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  revisions CreateImportSourceRevision[]
+  @@unique([organizationId, sourceType, sourceId])
+  @@index([organizationId, status, updatedAt])
+  @@index([organizationId, contentId])
+  @@index([organizationId, campaignId])
+}
+
+model CreateImportSourceRevision {
+  id String @id @default(cuid())
+  sourceId String
+  fingerprint String
+  snapshotJson Json
+  createdAt DateTime @default(now())
+  source CreateImportSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  @@unique([sourceId, fingerprint])
+}
+
 model CreateCampaign {
   id             String   @id @default(cuid())
   organizationId String
@@ -3934,4 +3988,36 @@ model CommunityReaction {
   post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@id([postId, userId])
+}
+
+// OAuth credentials are purpose-specific; hashes only, never reusable CRM tokens.
+model ChatGptGrant {
+  id String @id @default(cuid())
+  userId String
+  organizationId String
+  clientId String
+  redirectUri String @db.Text
+  resource String @db.Text
+  scopes String
+  challenge String
+  codeHash String? @unique @db.VarChar(64)
+  codeExpiresAt DateTime
+  accessHash String? @unique @db.VarChar(64)
+  accessExpiresAt DateTime?
+  refreshHash String? @unique @db.VarChar(64)
+  refreshExpiresAt DateTime?
+  revokedAt DateTime?
+  lastUsedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, organizationId, revokedAt])
+}
+
+model ChatGptDraftRequest {
+  id String @id @default(cuid())
+  grantId String
+  requestKey String @db.VarChar(100)
+  fingerprint String @db.VarChar(64)
+  resultJson Json
+  createdAt DateTime @default(now())
+  @@unique([grantId, requestKey])
 }

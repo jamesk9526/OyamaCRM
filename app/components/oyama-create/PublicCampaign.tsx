@@ -4,7 +4,7 @@ import type { SharedDocument, VariantDocument } from "./types";
 import { message } from "./types";
 import { effectiveBlocks } from "@/server/src/oyama-create/domain";
 import "./oyama-create.css";
-type PublicPage = { id: string; name: string; document: SharedDocument; format: VariantDocument; publishedAt: string; branding?:Record<string,string|number|boolean>|null };
+type PublicPage = { renderVersion?:number; html?:string; id: string; name: string; document: SharedDocument; format: VariantDocument; publishedAt: string; branding?:Record<string,string|number|boolean>|null };
 function PublicImage({ src, alt }: { src: string; alt: string }) {
   // Native images preserve the dimensions of reviewed public campaign assets.
   // eslint-disable-next-line @next/next/no-img-element
@@ -45,7 +45,7 @@ export default function PublicCampaign({ slug }: { slug: string }) {
     {error ? <><h1>Campaign page unavailable</h1><p role="alert">{error}</p></> : !page ? <p role="status">Loading campaign…</p> : <>
       {page.branding?.logoUrl&&<div style={{maxWidth:180,marginBottom:20}}><PublicImage src={String(page.branding.logoUrl)} alt={String(page.branding.organizationDisplayName||"Organization")}/></div>}
       {page.branding?.organizationDisplayName&&<p>{String(page.branding.organizationDisplayName)}</p>}<h1>{page.format.subject || page.name}</h1>
-      {effectiveBlocks(page.document, page.format).map(block => {
+      {page.renderVersion===2?<div dangerouslySetInnerHTML={{__html:page.html||""}}/>:effectiveBlocks(page.document, page.format).map(block => {
         if (block.kind === "heading") return <h2 key={block.id}>{block.text}</h2>;
         if (block.kind === "image" && block.url) return <figure key={block.id}><PublicImage src={block.url} alt={block.text}/></figure>;
         if (block.kind === "link" && block.url) return <p key={block.id}><a href={block.url}>{block.text}</a></p>;

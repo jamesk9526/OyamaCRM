@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
-import { escapeHtml } from "../domain.js";
+import { renderEnvelope } from "./envelope.js";
 import { freezeAsset, ProductionError } from "../../services/letter-production.js";
 import { defaultDesign, dimensions, walkNodes } from "./design.js";
 import { renderStudio, renderRegion, givingLink, regionIssues, designSensitive } from "./render.js";
@@ -17,12 +17,10 @@ export async function freezeStudioPrint(org: string, design: StudioDesign, donor
   rendered.issues.push(...regionIssues(design,donor,brand));
   const snapshot: FrozenStudioPrint = { sensitive:designSensitive(design)||brand.presets.some(preset=>designSensitive({...design,body:preset.content})), version: 1, kind, width: metrics.width / 96, height: metrics.height / 96, margins: { ...design.page.margins }, styles: { ...design.styles }, html: rendered.html, headers: [renderRegion(design, donor, brand, "firstHeader"), renderRegion(design, donor, brand, "header")], footers: [renderRegion(design, donor, brand, "firstFooter"), renderRegion(design, donor, brand, "footer")], assets: {}, issues: rendered.issues, responseCode: donor.responseCode, brandRevisionId: design.brandRevisionId };
   if (kind === "OUTER_ENVELOPE" || kind === "RETURN_ENVELOPE") {
-    const envelope = design.pack[kind === "OUTER_ENVELOPE" ? "outerEnvelope" : "returnEnvelope"], sender = [brand.identity.organizationDisplayName, brand.identity.streetAddress1, brand.identity.streetAddress2, [brand.identity.city, brand.identity.stateProvince, brand.identity.postalCode].filter(Boolean).join(" ")].filter(Boolean).join("\n"), address = kind === "OUTER_ENVELOPE" ? [donor.name, donor.address].filter(Boolean).join("\n") : sender;
-    [snapshot.width, snapshot.height] = envelope.size === "DL" ? [220 / 25.4, 110 / 25.4] : envelope.size === "#9" ? [8.875, 3.875] : [9.5, 4.125];
-    snapshot.margins = { top: 0, right: 0, bottom: 0, left: 0 }; snapshot.headers = ["", ""]; snapshot.footers = ["", ""]; snapshot.issues = [];
-    if (!address || kind === "OUTER_ENVELOPE" && (!donor.available || !donor.address)) snapshot.issues.push({ code: "ENVELOPE_ADDRESS", message: "Choose a recipient with a mailing address before production.", blocking: true });
-    if (envelope.addressX + envelope.offsetX < 0 || envelope.addressY + envelope.offsetY < 0 || envelope.addressX + envelope.offsetX + envelope.addressWidth > snapshot.width || envelope.addressY + envelope.offsetY + .9 > snapshot.height) snapshot.issues.push({ code: "ENVELOPE_BOUNDS", message: "The address position exceeds the envelope. Adjust offsets or width.", blocking: true });
-    snapshot.html = `<div style="position:absolute;left:.35in;top:.3in;font-size:9pt;white-space:pre-line">${escapeHtml(kind==="RETURN_ENVELOPE"?[donor.name,donor.address].filter(Boolean).join("\n"):sender)}</div><div style="position:absolute;left:${envelope.addressX + envelope.offsetX}in;top:${envelope.addressY + envelope.offsetY}in;width:${envelope.addressWidth}in;min-height:.9in;white-space:pre-line;${sample&&envelope.window ? "border:1px dashed #9caec2;" : ""}">${escapeHtml(address)}</div>`;
+    const renderedEnvelope=renderEnvelope(design,donor,brand,kind,sample);
+    snapshot.width=renderedEnvelope.width;snapshot.height=renderedEnvelope.height;
+    snapshot.margins={top:0,right:0,bottom:0,left:0};snapshot.headers=["",""];snapshot.footers=["",""];
+    snapshot.issues=renderedEnvelope.issues;snapshot.html=renderedEnvelope.html;
   }
   const sources = new Set<string>();
   for (const html of [snapshot.html, ...snapshot.headers, ...snapshot.footers]) for (const match of html.matchAll(/<img\b[^>]*src="([^"]+)"/gi)) sources.add(match[1].replace(/&amp;/g, "&"));

@@ -1,3 +1,42 @@
+## Studio desktop layout and HTML mode — 2026-11-04
+
+## ChatGPT MCP letters/reporting and administrator controls — 2026-11-04
+
+- [x] Per-installation issuer/resource/endpoint; exact callback allowlist, S256 PKCE, single-use code exchange, hashed scoped tokens, rotation, expiry, revoke and current user/tenant/permission checks.
+- [x] Letter search beyond 100 sources, authorized unmerged reads, private/Trash/clinical exclusion, sanitized separate Studio drafts with pinned branding, initial revision, diagnostics and idempotent retry receipts.
+- [x] Real financial calculation checks for cent arithmetic, included status/tenant/date filters, in-kind gifts, attribution, zero comparison base, empty results and preserved totals under row truncation. Currency, fiscal convention, exact boundaries and financial interpretation metadata included.
+- [x] Administrator settings for MCP pause, read/draft/report access, fiscal/calendar default and lock, request-calendar overrides and row limit. Tenant isolation, stale-save rejection and enforcement on existing tokens verified.
+- [x] 75 focused tests, type checks, targeted zero-warning lint, server/web builds; final production desktop/mobile browser checks for consent/login/errors, controls and disconnect. Public deployment probe supplied and tested with real synthetic HTTP endpoints.
+- [ ] Deploy API/web and additive OAuth persistence migration to each installation; verify MySQL migration, restart durability, simultaneous refresh/draft transactions and real database access policy. Local MySQL/Docker engine were unavailable.
+- [ ] Configure each installation's public HTTPS origin/exact ChatGPT callback and complete an authenticated ChatGPT Plus connection, tool-discovery refresh and representative letter/financial acceptance against real CRM records. Confirm current account/workspace support for custom MCP connections.
+
+See [deployment and acceptance guide](../integrations/chatgpt-mcp.md) and [actual evidence and limitations](audit-artifacts/2026-11-04-chatgpt-connection/verification.md). No production migration or sends were performed.
+
+- [x] Collapsible bottom thumbnail dock, current-page navigation, zoom position retention and independent document/tool overflow.
+- [x] Separate resizable preview pane with Collapse/Show controls; reopening retains the channel and does not save or change delivery selection. Full-width mobile Edit/Preview and global navigation layering checked.
+- [x] Whole-letter HTML export/edit/preview/apply, page furniture and reply slip regions, unmerged fields, retained structured markers, guarded source revisions, download/cancel and retained conflicting source.
+- [x] Complex layout preservation, supported styles/captions and dynamic footer page numbers; unsafe/malformed/foreign/stale/oversized content handling, tenant isolation and native-original preservation.
+- [x] 157 focused API/unit tests, web/server type checks, zero-warning targeted lint, production server compilation and optimized web build.
+- [x] Final production-browser acceptance for dock/panes/HTML, long protected Email content, mobile navigation and prior import/recovery/letter-only/email-only workflows. Screenshots inspected against the supplied reference.
+- [ ] Deploy API and web together and repeat staff/device/real-content acceptance. Existing import migration/MySQL/provider/physical-print rollout gates remain open; this task performed no live migration, sends or publications.
+
+See [actual checks and visual evidence](audit-artifacts/2026-11-04-create-desktop-html/verification.md).
+
+## Automatic import and unified Create rollout — 2026-11-04
+
+- [x] Additive import-run/source/immutable-revision migration, persisted initial inventory, bounded cursor/lease worker, five-minute reconciliation and shared automatic/manual/backfill service.
+- [x] Source/campaign/revision/delivery pagination, existing-binding upgrades, preserved originals/history, source-change review, clean history duplication, private copied snapshots, current source permissions and Trash protection.
+- [x] Version-3 shared content/protected adaptations with version-2 readers, conservative conversion, editable preserved HTML, missing-image diagnostics, selected branding snapshots and explicit browser recovery.
+- [x] Resizable editor/preview panes; five channel previews without saving; Email desktop/mobile/plain text; appeal-pack previews/PDF proof; phone/tablet Edit/Preview; email-only editing and release preparation.
+- [x] 80 focused API/unit tests passed. Production-browser synthetic acceptance covers letter-only/email-only/combined campaigns, preview switching, independent customization, recovery and older source search. Four Chromium proof PDFs match preview HTML and their rasterized pages were inspected.
+- [x] Prisma generation/validation, web/server types, targeted lint, and production builds passed during implementation. Later server changes received focused checks; exact timing and existing lint/database limits are recorded in the audit.
+- [x] Final managed-copy/empty-HTML guard regressions and the transition-aware browser fixture passed in the subsequent desktop/HTML verification (157 tests and production-browser acceptance).
+- [ ] Run all nine opt-in MySQL migration/contention tests in an empty disposable `oyama_create_test_*` schema. Local MySQL and Docker are unavailable; mocked persistence does not prove database contention behavior.
+- [ ] Back up/apply `20261104210000_create_automatic_import` after existing Create/Studio/Trash migrations, deploy schema/API/web in order, verify deployed worker/storage/roles, capture live inventory and measure conversion exceptions.
+- [ ] Review representative real layouts and assets, email clients, public projections and physical proofs before release. Migration testing performed no live sends/publications or production data migration.
+
+See [coverage, screenshots, inventory and remaining gates](audit-artifacts/2026-11-04-create-unified-import/verification.md).
+
 ## oyamaCreate guidance and gallery regression — 2026-11-04
 
 - [x] Home and campaign-tab instructions explain setup, writing, audience selection, review, approval, explicit release and results; next-step actions preserve existing save guards.

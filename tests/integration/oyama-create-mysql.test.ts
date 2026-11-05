@@ -18,6 +18,7 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     await connection.query(migration);
     await connection.query(await readFile("prisma/migrations/20261103200000_create_studio/migration.sql", "utf8"));
     await connection.query(await readFile("prisma/migrations/20261104120000_create_recoverable_trash/migration.sql", "utf8"));
+    await connection.query(await readFile("prisma/migrations/20261104210000_create_automatic_import/migration.sql", "utf8"));
     second = await mysql.createConnection(url!);
     await connection.execute("INSERT INTO CreateCampaign (id, organizationId, name, ownerId, audienceListIds, channelsJson, updatedAt) VALUES (?, 'synthetic', 'Synthetic concurrency test', 'synthetic', '[]', '[\"EMAIL\"]', NOW(3))", [prefix]);
   });
@@ -64,6 +65,26 @@ describe.skipIf(!url)("oyamaCreate MySQL migration and contention", () => {
     const update="UPDATE CreateTrashItem SET restoredAt=NOW(3),revision=revision+1 WHERE organizationId='synthetic' AND resourceId=? AND revision=1 AND restoredAt IS NULL";
     const winners=await Promise.all([connection.execute(update,[prefix]),second.execute(update,[prefix])]);
     expect(winners.map(([result])=>(result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0,1]);
+  });
+  it("enforces one import source and one immutable revision under contention",async()=>{
+    const insert="INSERT INTO CreateImportSource (id,organizationId,sourceType,sourceId,name,diagnostics,updatedAt) VALUES (?,'synthetic','EMAIL',?,'Synthetic source','[]',NOW(3))";
+    const outcomes=await Promise.allSettled([connection.execute(insert,[`${prefix}-source-1`,prefix]),second.execute(insert,[`${prefix}-source-2`,prefix])]);
+    expect(outcomes.filter(item=>item.status==="fulfilled")).toHaveLength(1);
+    const [sources]=await connection.execute("SELECT id FROM CreateImportSource WHERE organizationId='synthetic' AND sourceId=?",[prefix]);
+    const sourceId=(sources as Array<{id:string}>)[0].id;
+    const revision="INSERT INTO CreateImportSourceRevision (id,sourceId,fingerprint,snapshotJson) VALUES (?,?,'unchanged','{}')";
+    const revisions=await Promise.allSettled([connection.execute(revision,[`${prefix}-revision-1`,sourceId]),second.execute(revision,[`${prefix}-revision-2`,sourceId])]);
+    expect(revisions.filter(item=>item.status==="fulfilled")).toHaveLength(1);
+    await expect(connection.execute("DELETE FROM CreateImportSource WHERE id=?",[sourceId])).rejects.toThrow();
+  });
+  it("claims an import lease once and invalidates an old worker on pause",async()=>{
+    await connection.execute("INSERT INTO CreateImportRun (id,organizationId,actorId,cursorJson,updatedAt) VALUES (?,'synthetic','synthetic','{}',NOW(3))",[`${prefix}-import`]);
+    const claim="UPDATE CreateImportRun SET leaseToken=?,leaseUntil=DATE_ADD(NOW(3),INTERVAL 2 MINUTE) WHERE organizationId='synthetic' AND status='RUNNING' AND (leaseUntil IS NULL OR leaseUntil<NOW(3))";
+    const results=await Promise.all([connection.execute(claim,['worker-one']),second.execute(claim,['worker-two'])]);
+    expect(results.map(([result])=>(result as mysql.ResultSetHeader).affectedRows).sort()).toEqual([0,1]);
+    await connection.execute("UPDATE CreateImportRun SET status='PAUSED',leaseToken=NULL,leaseUntil=NULL WHERE organizationId='synthetic'");
+    const [stale]=await second.execute("UPDATE CreateImportRun SET cursorJson='{\"phase\":5}' WHERE organizationId='synthetic' AND leaseToken IN ('worker-one','worker-two')");
+    expect((stale as mysql.ResultSetHeader).affectedRows).toBe(0);
   });
 
 });

@@ -42,6 +42,8 @@ const nextConfig: NextConfig = {
       // public app origin so builder previews and delivered email use the same
       // stable URL, even when web and API run on separate hosts.
       beforeFiles: [
+        { source: "/.well-known/oauth-authorization-server", destination: `${apiProxyTarget}/.well-known/oauth-authorization-server` },
+        { source: "/.well-known/oauth-protected-resource/:path*", destination: `${apiProxyTarget}/.well-known/oauth-protected-resource/:path*` },
         {
           source: "/uploads/email-media/:path*",
           destination: `${apiProxyTarget}/api/email-campaigns/media/:path*`,

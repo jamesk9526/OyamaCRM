@@ -122,6 +122,7 @@
     "express-rate-limit": "^8.5.1",
     "fast-png": "6.4.0",
     "html2canvas": "^1.4.1",
+    "htmlparser2": "8.0.2",
     "intuit-oauth": "^4.2.3",
     "iobuffer": "5.4.0",
     "jsonwebtoken": "^9.0.3",

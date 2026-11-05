@@ -3,7 +3,7 @@ import { EMPTY_DOC, STUDIO_NODE_TYPES, type StudioDesign, type StudioDoc, type S
 import { paragraph } from "./registry.js";
 import { managedPublicMedia } from "../../lib/public-media.js";
 
-const ATTRS = new Set(["studioId", "level", "textAlign", "indent", "spacing", "keepTogether", "keepWithNext", "src", "alt", "width", "height", "crop", "focalX", "focalY", "caption", "href", "colspan", "rowspan", "colwidth", "background", "color", "borderColor", "signerId", "secondSignerId", "closing", "field", "operator", "value", "basis", "amounts", "multipliers", "fallback", "minimum", "maximum", "rounding", "label", "mode", "statement", "size", "html", "start", "emailOnly", "printOnly", "presetId"]);
+const ATTRS = new Set(["studioId", "level", "textAlign", "indent", "spacing", "keepTogether", "keepWithNext", "src", "alt", "width", "height", "crop", "focalX", "focalY", "caption", "href", "colspan", "rowspan", "colwidth", "background", "color", "borderColor", "signerId", "secondSignerId", "closing", "field", "operator", "value", "basis", "amounts", "multipliers", "fallback", "minimum", "maximum", "rounding", "label", "mode", "statement", "size", "html", "start", "emailOnly", "printOnly", "presetId", "reviewedHtml", "sourceRevisionId", "thumbnail", "linksJson"]);
 const MARKS = new Set(["bold", "italic", "underline", "strike", "code", "link", "textStyle", "highlight", "superscript", "subscript"]);
 const FIELDS = ["name", "salutation", "address", "entityKind", "gift.amount", "gift.date", "gift.fund", "gift.receiptNumber", "gift.deductible", "giving.total", "giving.count", "giving.lastAmount", "giving.lastDate", "pledge.balance", "campaign.name", "responseCode", "asOf"];
 export const DONOR_FIELDS = FIELDS;
@@ -16,7 +16,7 @@ export function studioUrl(value: unknown, asset = false): string {
   if (asset) { const managed = managedPublicMedia(text); if (managed) return managed.publicUrl; }
   if (asset && /^\/uploads\/[a-z0-9/_\-.]+$/i.test(text) && !text.includes("..")) return text;
   if (!asset && /^\/give\/[a-z0-9_-]+$/i.test(text)) return text;
-  try { const url = new URL(text); if (url.protocol === "https:" && !url.username && !url.password) return url.toString(); } catch { /* validated below */ }
+  try { const url = new URL(text); if (url.protocol === "https:" && !url.username && !url.password) return url.toString().replace(/%7B%7B([a-zA-Z0-9_.]+)%7D%7D/gi,"{{$1}}"); } catch { /* validated below */ }
   throw new CreateError(400, asset ? "Select an uploaded asset or complete HTTPS image URL." : "Choose a hosted giving page or complete HTTPS URL.");
 }
 export function studioLink(value: unknown) { const text = string(value).trim(); return /^(mailto:[^\s<>"']+@[^\s<>"']+|tel:\+?[\d(). -]{5,30})$/i.test(text) ? text : studioUrl(text); }
@@ -36,7 +36,7 @@ export function normalizeDoc(value: unknown): StudioDoc {
         if (!Array.isArray(value) || value.length > 25 || value.some(entry => typeof entry !== "number" || !Number.isFinite(entry) || entry < 0 || entry > 1_000_000)) throw new CreateError(400, `Invalid ${key} values.`);
         attrs[key] = value;
       } else if (typeof value === "boolean" || typeof value === "number" && Number.isFinite(value)) attrs[key] = value;
-      else if (typeof value === "string") attrs[key] = safeText(value, key === "html" ? 100000 : key === "statement" ? 5000 : 2000);
+      else if (typeof value === "string") attrs[key] = safeText(value, key === "html" || key === "reviewedHtml" ? 100000 : key === "statement" ? 5000 : 2000);
       else throw new CreateError(400, `Invalid block property: ${key}.`);
     }
     if(attrs.printOnly===true&&attrs.emailOnly===true)throw new CreateError(400,"A block cannot be both print-only and email-only. Choose one format or link both.");
@@ -45,6 +45,7 @@ export function normalizeDoc(value: unknown): StudioDoc {
       if (!/^[a-z0-9:_-]{1,100}$/i.test(id) || ids.has(id)) throw new CreateError(400, "Studio block identities must be unique.");
       ids.add(id);
     }
+    if (["studioButton", "studioFile", "studioVideo"].includes(type)) { attrs.href = studioLink(attrs.href); if (attrs.thumbnail) attrs.thumbnail = studioUrl(attrs.thumbnail, true); }
     if (type === "image") { attrs.src = studioUrl(attrs.src, true); attrs.width = number(attrs.width, 100, 5, 100); attrs.height = number(attrs.height, 0, 0, 900); attrs.focalX = number(attrs.focalX, 50, 0, 100); attrs.focalY = number(attrs.focalY, 50, 0, 100); attrs.crop = attrs.crop === "cover" ? "cover" : "contain"; attrs.href = studioUrl(attrs.href); }
     if (type === "heading") attrs.level = Math.round(number(attrs.level, 2, 1, 3));
     for (const key of ["colspan", "rowspan"]) if (attrs[key] !== undefined) attrs[key] = Math.round(number(attrs[key], 1, 1, 25));
@@ -97,9 +98,18 @@ export function defaultDesign(): StudioDesign {
   };
 }
 export function normalizeDesign(value: unknown): StudioDesign {
-  const raw = object(value); if (raw.version !== 2) throw new CreateError(400, "A version 2 Studio design is required.");
+  const raw = object(value); if (raw.version !== 2 && raw.version !== 3) throw new CreateError(400, "A version 2 or 3 Studio design is required.");
   const result = defaultDesign(), page = object(raw.page), margins = object(page.margins), styles = object(raw.styles), pack = object(raw.pack), data = object(raw.data), email = object(raw.email);
+  result.version = raw.version as 2 | 3;
   result.body = normalizeDoc(raw.body);
+  if (raw.version === 3) {
+    result.channels = {};
+    for (const channel of ["LETTER", "EMAIL", "WEB", "SOCIAL", "SMS"] as const) {
+      const entry = object(object(raw.channels)[channel]);
+      if (entry.document) result.channels[channel] = { document: normalizeDoc(entry.document), reviewedSource: string(entry.reviewedSource) || null, sourceRevisionId: safeText(entry.sourceRevisionId,191),...(entry.presentation?{presentation:normalizePresentation(entry.presentation)}:{}) };
+    }
+    result.presentation = normalizePresentation(raw.presentation);
+  }
   result.brandRevisionId = string(raw.brandRevisionId) || null; result.profileId = safeText(raw.profileId, 191);
   result.page.paper = page.paper === "A4" || page.paper === "LEGAL" ? page.paper : "LETTER"; result.page.orientation = page.orientation === "landscape" ? "landscape" : "portrait";
   for (const key of ["top", "right", "bottom", "left"] as const) result.page.margins[key] = number(margins[key], result.page.margins[key], .125, 1.5);
@@ -119,10 +129,19 @@ export function normalizeDesign(value: unknown): StudioDesign {
   return result;
 }
 export function walkNodes(doc: StudioNode): StudioNode[] { return [doc, ...(doc.content || []).flatMap(walkNodes)]; }
+function normalizePresentation(value:unknown){const input=object(value);return {emailWidth:number(input.emailWidth,640,320,1200),emailBackground:color(input.emailBackground,"#edf4fc"),suppressEmailChrome:input.suppressEmailChrome===true,emailIncludesFooter:input.emailIncludesFooter===true,sourceRevisionId:safeText(input.sourceRevisionId,191)};}
 export function sourceIdentity(design: StudioDesign): string { return JSON.stringify({ body: design.body, styles: design.styles, regions: design.regions, brand: design.brandRevisionId, data: design.data, profile: design.profileId }); }
 export function emailReviewRequired(design: StudioDesign) { return Object.keys(design.email.overrides).length > 0 && design.email.reviewedSource !== sourceIdentity(design); }
 export function dimensions(page: StudioDesign["page"]): { width: number; height: number; bodyWidth: number; bodyHeight: number } {
   let [width, height] = page.paper === "A4" ? [210 / 25.4, 297 / 25.4] : page.paper === "LEGAL" ? [8.5, 14] : [8.5, 11];
   if (page.orientation === "landscape") [width, height] = [height, width];
   return { width: width * 96, height: height * 96, bodyWidth: (width - page.margins.left - page.margins.right) * 96, bodyHeight: (height - page.margins.top - page.margins.bottom) * 96 };
+}
+
+export function channelDesign(design: StudioDesign, channel: "LETTER" | "EMAIL" | "WEB" | "SOCIAL" | "SMS"): StudioDesign {
+  const adaptation = design.channels?.[channel];
+  return adaptation ? { ...design, body: adaptation.document, channels: undefined, presentation:adaptation.presentation||design.presentation, ...(channel === "EMAIL" ? { email: { ...design.email, overrides: {} } } : {}) } : design;
+}
+export function channelReviewRequired(design: StudioDesign, channel: "LETTER" | "EMAIL" | "WEB" | "SOCIAL" | "SMS"): boolean {
+  return !!design.channels?.[channel] && design.channels[channel]!.reviewedSource !== sourceIdentity(design);
 }

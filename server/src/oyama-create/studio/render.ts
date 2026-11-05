@@ -1,11 +1,12 @@
+import { sanitizeStudioHtml } from "./html.js";
 import { escapeHtml, string } from "../domain.js";
 import { collectMergeFieldKeys, renderMergeFields } from "../../services/letters-merge.js";
-import { color, emailReviewRequired, number, walkNodes } from "./design.js";
+import { color, emailReviewRequired, number, walkNodes, channelDesign, channelReviewRequired } from "./design.js";
 import type { BrandDocument, DonorContext, StudioDesign, StudioIssue, StudioNode, StudioRender, ArtifactKind } from "./types.js";
 
 export function emptyDonor(asOf = new Date().toISOString()): DonorContext { return { available: false, sensitiveAllowed: false, constituentId: null, name: "", salutation: "", address: "", entityKind: "", gift: null, giving: null, pledge: null, campaign: null, tags: [], recurring: null, responseCode: "", asOf }; }
 export function plainText(html: string): string { return html.replace(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)").replace(/<img\b[^>]*alt="([^"]*)"[^>]*>/gi, "[$1]").replace(/<br\s*\/?\s*>|<\/(?:p|div|h[1-6]|tr|li|blockquote)>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/\n{3,}/g, "\n\n").trim(); }
-export function designSensitive(design: StudioDesign): boolean { if ([design.body,design.pack.replySlip.content,...Object.values(design.email.overrides),...Object.values(design.regions).map(region=>region.content)].flatMap(walkNodes).some(node=>node.type==="text"&&collectMergeFieldKeys(node.text).some(key=>/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key)))) return true; return [design.body, design.pack.replySlip.content, ...Object.values(design.regions).map(region => region.content), ...Object.values(design.email.overrides)].flatMap(walkNodes).some(node => ["studioReceipt", "studioHistory", "studioPledge"].includes(node.type) || node.type === "studioAsk" && node.attrs?.basis !== "fixed" || node.type === "studioField" && /^(gift|giving|pledge)\./.test(string(node.attrs?.field)) || node.type === "studioCondition" && ["hasGiving", "hasGift", "hasPledge", "recurring", "givingTotal", "lastGiftBefore"].includes(string(node.attrs?.field))); }
+export function designSensitive(design: StudioDesign): boolean { if ([design.body,...Object.values(design.channels||{}).map(channel=>channel.document),design.pack.replySlip.content,...Object.values(design.email.overrides),...Object.values(design.regions).map(region=>region.content)].flatMap(walkNodes).some(node=>(node.type==="text"||node.type==="studioHtml")&&collectMergeFieldKeys(node.text||string(node.attrs?.html)).some(key=>/^(gift\.|year\.|donor\.(?:total|lifetime))/.test(key)))) return true; return [design.body, ...Object.values(design.channels||{}).map(channel=>channel.document), design.pack.replySlip.content, ...Object.values(design.regions).map(region => region.content), ...Object.values(design.email.overrides)].flatMap(walkNodes).some(node => ["studioReceipt", "studioHistory", "studioPledge"].includes(node.type) || node.type === "studioAsk" && node.attrs?.basis !== "fixed" || node.type === "studioField" && /^(gift|giving|pledge)\./.test(string(node.attrs?.field)) || node.type === "studioCondition" && ["hasGiving", "hasGift", "hasPledge", "recurring", "givingTotal", "lastGiftBefore"].includes(string(node.attrs?.field))); }
 export function givingLink(design: StudioDesign, amount?: number, responseCode?: string): string {
   if (!design.data.givingUrl) return "";
   const url = new URL(design.data.givingUrl, "https://studio.invalid");
@@ -16,6 +17,8 @@ export function givingLink(design: StudioDesign, amount?: number, responseCode?:
   return design.data.givingUrl.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
 }
 export function renderStudio(design: StudioDesign, donor: DonorContext, brand: BrandDocument, options: { channel: "LETTER" | "EMAIL" | "WEB" | "SMS" | "SOCIAL"; artifact?: ArtifactKind; qrImages?: Record<string, string>; sample?: boolean } = { channel: "LETTER" }): StudioRender {
+  const adaptationNeedsReview = channelReviewRequired(design, options.channel);
+  design = channelDesign(design, options.channel);
   const issues: StudioIssue[] = [], adaptations: StudioIssue[] = [], decisions: StudioRender["decisions"] = [];
   const email = options.channel === "EMAIL", isPublic = ["WEB", "SMS", "SOCIAL"].includes(options.channel), e = (value: unknown) => escapeHtml(value == null ? "" : String(value));
   const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: donor.currency || string(brand.identity.currency) || "USD" }).format(value);
@@ -56,9 +59,29 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
     const a = node.attrs || {}, id = sourceId || string(a.studioId), type = node.type;
     if (options.channel !== "LETTER" && a.printOnly === true || !email && a.emailOnly === true) { adapt(node, `${type} is explicitly limited to the other format.`); return ""; }
     const attrs = node.attrs || {}, children = () => (node.content || []).map(child=>render(child)).join("");
+    const attributeKeys=collectMergeFieldKeys(JSON.stringify(Object.fromEntries(Object.entries(attrs).filter(([key])=>!["html","reviewedHtml","sourceRevisionId","studioId"].includes(key)))))
+      .concat((node.marks||[]).flatMap(mark=>collectMergeFieldKeys(JSON.stringify(mark.attrs||{}))));
+    if(attributeKeys.length&&isPublic&&attributeKeys.some(key=>!key.startsWith("organization.")&&!["campaign.name","currentDate"].includes(key)))return issue(node,"PRIVATE_CHANNEL","Recipient fields in links, images and block settings cannot appear in public content.");
+    if(attributeKeys.length)issue(node,"MERGE_ATTRIBUTE","Review merge fields in this block's link or settings. Use a preserved HTML block for dynamic legacy links.");
     const style = [attrs.textAlign ? `text-align:${e(attrs.textAlign)}` : "", attrs.indent ? `margin-left:${number(attrs.indent, 0, 0, 6) * 12}pt` : "", attrs.spacing !== undefined ? `margin-bottom:${number(attrs.spacing, 9, 0, 72)}pt` : "", attrs.keepTogether ? "break-inside:avoid" : "", attrs.keepWithNext ? "break-after:avoid" : ""].filter(Boolean).join(";");
     const attributes = (extra = "") => `${id ? ` data-studio-id="${e(id)}"` : ""}${style || extra ? ` style="${[style, extra].filter(Boolean).join(";")}"` : ""}`;
     const common = attributes();
+    if (type === "studioHtml") {
+      if (!attrs.html) return issue(node, "SOURCE_HTML", attrs.sourceRevisionId ? "Open the preserved original HTML to review this source." : "Add the preserved HTML or restore its original before release.");
+      if (attrs.reviewedHtml !== (attrs.sourceRevisionId || attrs.html)) issue(node, "HTML_REVIEW", "Compare and review the preserved HTML before release.");
+      if (isPublic && collectMergeFieldKeys(string(attrs.html)).some(key => !key.startsWith("organization.") && !["campaign.name", "currentDate"].includes(key))) return issue(node, "PRIVATE_CHANNEL", "Private recipient fields cannot appear in public HTML.");
+      const html = sanitizeStudioHtml(string(attrs.html)).replace(/\{\{[^{}]+\}\}/g, token => /\{\{(?:unsubscribeUrl|managePreferencesUrl|preferencesUrl)\}\}/.test(token) ? token : render({ type: "text", text: token }, false));
+      return `<div${common}>${sanitizeStudioHtml(html)}</div>`;
+    }
+    if (["studioButton", "studioFile", "studioVideo"].includes(type)) {
+      if (!attrs.href) return issue(node, "LINK_REQUIRED", "Set the destination link for this block.");
+      return `<p${common}><a href="${e(attrs.href)}"${type === "studioButton" ? ` style="display:inline-block;padding:10px 18px;background:${color(attrs.color, design.styles.primary)};color:#ffffff;text-decoration:none"` : ""}>${type === "studioVideo" && attrs.thumbnail ? `<img src="${e(attrs.thumbnail)}" alt="${e(attrs.label || "Video")}" style="max-width:100%;height:auto"><br>` : ""}${e(attrs.label || "Open link")}</a></p>`;
+    }
+    if (type === "studioSocial") {
+      let links: Array<{label?:string;url?:string}> = []; try { const parsed = JSON.parse(string(attrs.linksJson) || "[]"); if (Array.isArray(parsed)) links = parsed.slice(0,20); } catch { /* surfaced below */ }
+      if (!links.length) return issue(node, "SOCIAL_LINKS", "Add social profile links in block settings.");
+      return sanitizeStudioHtml(`<p${common}>${links.map(link=>`<a href="${e(link.url)}">${e(link.label || link.url)}</a>`).join(" · ")}</p>`);
+    }
     if (type === "doc") return children();
     if (type === "text") {
       const keys = collectMergeFieldKeys(node.text);
@@ -122,6 +145,7 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
     if (type === "studioLegacy") return issue(node, "LEGACY_REVIEW", "Review and convert the preserved legacy HTML before releasing this design.");
     return issue(node, "UNSUPPORTED_BLOCK", `Unsupported block: ${type}.`);
   }
+  if (adaptationNeedsReview) issues.push({ code: "CHANNEL_REVIEW", message: "Review this channel adaptation against the current shared content.", blocking: true, channel: options.channel });
   if (email && emailReviewRequired(design)) issues.push({ code: "EMAIL_REVIEW", message: "Review customized email blocks against the latest shared design.", blocking: true, channel: "EMAIL" });
   const ids = new Set(walkNodes(design.body).map(node => string(node.attrs?.studioId)).filter(Boolean));
   for (const id of email?Object.keys(design.email.overrides):[]) if (!ids.has(id)) issues.push({ code: "ORPHANED_EMAIL_BLOCK", nodeId: id, message: "A customized email block no longer has a shared source. Restore or remove it explicitly.", blocking: true, channel: "EMAIL" });
@@ -137,7 +161,7 @@ export function renderRegion(design: StudioDesign, donor: DonorContext, brand: B
   const selectedId = region.presetId || string(profile?.values[footer ? "footerPresetId" : "headerPresetId"]);
   const preset = selectedId ? brand.presets.find(item => item.id === selectedId && item.active && item.kind === (footer ? "footer" : "header")) : brand.presets.find(item => item.kind === (footer ? "footer" : "header") && item.active && item.isDefault);
   const doc = region.mode === "custom" ? region.content : preset?.content;
-  if (doc?.content.length) return renderStudio({ ...design, body: doc, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
+  if (doc?.content.length) return renderStudio({ ...design, channels:undefined, body: doc, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
   if (region.mode === "brand" && preset?.legacyHtml) return preset.legacyHtml;
   const identity = { ...brand.identity, ...profile?.values };
   if (footer) return `<div style="font-family:Inter,Arial,sans-serif;font-size:8pt">${e(identity.footerLegalText || identity.legalOrganizationName || identity.organizationDisplayName)}<span style="float:right">Page <span data-studio-page-number>1</span> of <span data-studio-total-pages>1</span></span></div>`;
@@ -150,21 +174,23 @@ export function regionIssues(design:StudioDesign,donor:DonorContext,brand:BrandD
     if(region.mode==="none")continue;const footer=key.toLowerCase().includes("footer"),selected=region.presetId||string(profile?.values[footer?"footerPresetId":"headerPresetId"]),preset=selected?brand.presets.find(item=>item.id===selected&&item.active&&item.kind===(footer?"footer":"header")):brand.presets.find(item=>item.kind===(footer?"footer":"header")&&item.active&&item.isDefault);
     if(selected&&!preset)issues.push({code:"REGION_PRESET",message:`${key}: the explicitly selected brand preset is unavailable.`,blocking:true});
     const doc=region.mode==="custom"?region.content:preset?.content;
-    if(doc){issues.push(...renderStudio({...design,body:doc,pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));if(walkNodes(doc).some(node=>node.type==="studioSignature"))issues.push({code:"REGION_SIGNATURE",message:"Place the signature in the letter body so it appears once, rather than in repeated page furniture.",blocking:true});}
+    if(doc){issues.push(...renderStudio({...design,channels:undefined,body:doc,pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}}},donor,brand).issues.map(issue=>({...issue,message:`${key}: ${issue.message}`})));if(walkNodes(doc).some(node=>node.type==="studioSignature"))issues.push({code:"REGION_SIGNATURE",message:"Place the signature in the letter body so it appears once, rather than in repeated page furniture.",blocking:true});}
     if(region.mode==="brand"&&preset?.legacyHtml&&collectMergeFieldKeys(preset.legacyHtml).length)issues.push({code:"REGION_LEGACY_MERGE",message:`${key}: convert preserved merge fields to structured CRM fields before production.`,blocking:true});
   }
   return issues;
 }
 export function renderEmailDocument(design: StudioDesign, donor: DonorContext, brand: BrandDocument): StudioRender {
   const rendered = renderStudio(design, donor, brand, { channel: "EMAIL" }), e = (value: unknown) => escapeHtml(value == null ? "" : String(value));
+  design=channelDesign(design,"EMAIL");
   const profile = brand.profiles.find(item => item.id === design.profileId && item.channel === "EMAIL") || brand.profiles.find(item => item.channel === "EMAIL" && !item.resourceId);
   const identity = { ...brand.identity, ...profile?.values }, address = [identity.streetAddress1, identity.streetAddress2, identity.city, identity.stateProvince, identity.postalCode, identity.country].filter(Boolean).join(", ");
   if (!address) rendered.issues.push({ code: "EMAIL_ADDRESS", message: "Configure the organization's physical address in Brand Hub.", blocking: true, channel: "EMAIL" });
-  const subject=renderStudio({...design,body:{type:"doc",content:[{type:"paragraph",content:design.email.subject?[{type:"text",text:design.email.subject}]:[]}]},pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}},email:{...design.email,overrides:{}}},donor,brand,{channel:"EMAIL"});rendered.subject=subject.text;rendered.issues.push(...subject.issues);
-  const header = string(identity.globalHeaderHtml) || `${identity.logoUrl ? `<img src="${e(identity.logoUrl)}" alt="${e(identity.organizationDisplayName)}" style="max-width:160px;height:auto"><br>` : ""}<strong>${e(identity.organizationDisplayName)}</strong>`;
-  const footer = string(identity.globalFooterHtml) || e(identity.footerLegalText || identity.legalOrganizationName || identity.organizationDisplayName);
+  const subject=renderStudio({...design,channels:undefined,body:{type:"doc",content:[{type:"paragraph",content:design.email.subject?[{type:"text",text:design.email.subject}]:[]}]},pack:{...design.pack,replySlip:{...design.pack.replySlip,enabled:false}},email:{...design.email,overrides:{}}},donor,brand,{channel:"EMAIL"});rendered.subject=subject.text;rendered.issues.push(...subject.issues);
+  const header = design.presentation?.suppressEmailChrome ? "" : string(identity.globalHeaderHtml) || `${identity.logoUrl ? `<img src="${e(identity.logoUrl)}" alt="${e(identity.organizationDisplayName)}" style="max-width:160px;height:auto"><br>` : ""}<strong>${e(identity.organizationDisplayName)}</strong>`;
+  const footer = design.presentation?.suppressEmailChrome ? "" : string(identity.globalFooterHtml) || e(identity.footerLegalText || identity.legalOrganizationName || identity.organizationDisplayName);
   for (const id of Object.keys(design.email.overrides)) if (!walkNodes(design.body).some(node => node.attrs?.studioId === id)) rendered.issues.push({code:"ORPHAN_EMAIL_OVERRIDE", message:"A customized email block was removed from the letter. Review and explicitly discard its customization.",nodeId:id,blocking:true,channel:"EMAIL"});
-  rendered.html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta charset="utf-8"><style>@media(max-width:600px){.studio-email-column{display:block!important;width:100%!important;padding:8px 0!important}.studio-email-main{padding:20px!important}}img{max-width:100%;height:auto}table{max-width:100%}td,th{overflow-wrap:anywhere}</style></head><body style="margin:0;padding:0;background:${color(identity.emailBackgroundColor, "#edf4fc")};color:${design.styles.color};font-family:${design.styles.emailFont};font-size:${design.styles.fontSize + 1}pt;line-height:${design.styles.lineHeight}"><div style="display:none;max-height:0;overflow:hidden">${e(design.email.previewText)}</div><table role="presentation" width="100%"><tr><td align="center" style="padding:20px 8px"><table role="presentation" width="100%" style="max-width:${number(identity.emailContentWidth, 640, 420, 760)}px;background:${design.styles.background}"><tr><td style="padding:20px 28px;border-bottom:1px solid #d7e2ef">${header}</td></tr><tr><td class="studio-email-main" style="padding:28px">${rendered.html}</td></tr><tr><td style="padding:20px 28px;font-family:Arial,sans-serif;font-size:11px;line-height:1.5;border-top:1px solid #d7e2ef">${footer}<p>${e(address)}</p><p><a href="{{unsubscribeUrl}}">Unsubscribe</a> · <a href="{{preferencesUrl}}">Email preferences</a></p></td></tr></table></td></tr></table></body></html>`;
+  if(design.presentation?.emailIncludesFooter){rendered.html=`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${rendered.html}</body></html>`;return rendered;}
+  rendered.html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta charset="utf-8"><style>@media(max-width:600px){.studio-email-column{display:block!important;width:100%!important;padding:8px 0!important}.studio-email-main{padding:20px!important}}img{max-width:100%;height:auto}table{max-width:100%}td,th{overflow-wrap:anywhere}</style></head><body style="margin:0;padding:0;background:${color(design.presentation?.emailBackground || identity.emailBackgroundColor, "#edf4fc")};color:${design.styles.color};font-family:${design.styles.emailFont};font-size:${design.styles.fontSize + 1}pt;line-height:${design.styles.lineHeight}"><div style="display:none;max-height:0;overflow:hidden">${e(design.email.previewText)}</div><table role="presentation" width="100%"><tr><td align="center" style="padding:20px 8px"><table role="presentation" width="100%" style="max-width:${number(design.presentation?.emailWidth || identity.emailContentWidth, 640, 320, 1200)}px;background:${design.styles.background}"><tr><td style="padding:20px 28px;border-bottom:1px solid #d7e2ef">${header}</td></tr><tr><td class="studio-email-main" style="padding:28px">${rendered.html}</td></tr><tr><td style="padding:20px 28px;font-family:Arial,sans-serif;font-size:11px;line-height:1.5;border-top:1px solid #d7e2ef">${footer}<p>${e(address)}</p><p><a href="{{unsubscribeUrl}}">Unsubscribe</a> · <a href="{{preferencesUrl}}">Email preferences</a></p></td></tr></table></td></tr></table></body></html>`;
   rendered.text = `${rendered.text}\n\n${plainText(footer)}\n${address}\nUnsubscribe: {{unsubscribeUrl}}\nPreferences: {{preferencesUrl}}`;
   return rendered;
 }

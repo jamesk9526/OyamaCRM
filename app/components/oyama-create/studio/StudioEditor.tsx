@@ -19,9 +19,9 @@ import StudioCanvasControls from "./StudioCanvasControls";
 import { blockDestinations, moveStudioBlock, selectedStudioBlock, studioBlocks } from "./block-actions";
 import { STUDIO_BLOCKS } from "@/server/src/oyama-create/studio/registry";
 
-export type StudioEditorContext = { design: StudioDesign; donor: DonorContext; brand: BrandDocument; channel?: "LETTER" | "EMAIL" };
+export type StudioEditorContext = { design: StudioDesign; donor: DonorContext; brand: BrandDocument; channel?: "LETTER" | "EMAIL" | "WEB" | "SOCIAL" | "SMS" };
 const PreviewContext = createContext<StudioEditorContext|null>(null);
-const defaults: Record<string, unknown> = { studioId: null, level: 2, textAlign: "left", indent: 0, spacing: null, keepTogether: false, keepWithNext: false, src: "", alt: "", width: 100, height: 0, crop: "contain", focalX: 50, focalY: 50, caption: "", href: "", color: "#edf4fc", signerId: "", secondSignerId: "", closing: "", field: "name", operator: "is", value: "true", basis: "fixed", amounts: [], multipliers: [1,1.5,2], fallback: [], minimum: 1, maximum: 100000, rounding: 5, label: "", mode: "summary", statement: "", size: 96, html: "", printOnly: false, emailOnly: false };
+const defaults: Record<string, unknown> = { studioId: null, level: 2, textAlign: "left", indent: 0, spacing: null, keepTogether: false, keepWithNext: false, src: "", alt: "", width: 100, height: 0, crop: "contain", focalX: 50, focalY: 50, caption: "", href: "", color: "#edf4fc", signerId: "", secondSignerId: "", closing: "", field: "name", operator: "is", value: "true", basis: "fixed", amounts: [], multipliers: [1,1.5,2], fallback: [], minimum: 1, maximum: 100000, rounding: 5, label: "", mode: "summary", statement: "", size: 96, html: "", reviewedHtml: "", sourceRevisionId: "", thumbnail: "", linksJson: "[]", printOnly: false, emailOnly: false };
 const attributes = () => Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, { default: value }]));
 function AtomicBlock({ node, selected, extension }: NodeViewProps) {
   const preview = useContext(PreviewContext);
@@ -111,5 +111,5 @@ export default function StudioEditor({ initial, context, onChange, onReady, onSe
     editor.view.dispatch(editor.state.tr.setSelection(Selection.near(editor.state.doc.resolve(position))).setMeta("addToHistory", false));
   }, [editor, initial, initialHtml]);
   useEffect(() => { editor?.setEditable(editable, false); }, [editor, editable]);
-  return <PreviewContext.Provider value={context.current}><EditorContent editor={editor}/>{editor && editable && <StudioCanvasControls editor={editor} onInsertRequest={onInsertRequest}/>}</PreviewContext.Provider>;
+  return <PreviewContext.Provider value={context.current}><EditorContent className="cs-editor-content" editor={editor}/>{editor && editable && <StudioCanvasControls editor={editor} onInsertRequest={onInsertRequest}/>}</PreviewContext.Provider>;
 }

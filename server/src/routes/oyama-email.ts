@@ -954,6 +954,7 @@ router.post("/templates/import", async (req, res) => {
     },
   });
 
+  await invalidateLegacyBindings(organizationId,"EMAIL",created.id);
   res.status(201).json(mapTemplateResponse(created, branding));
 });
 
@@ -1126,6 +1127,7 @@ router.post("/templates", async (req, res) => {
     },
   });
 
+  await invalidateLegacyBindings(organizationId,"EMAIL",created.id);
   res.status(201).json(mapTemplateResponse(created, branding));
 });
 
@@ -1210,6 +1212,7 @@ router.post("/templates/:id/create-letter-template", requirePermission("letters.
     metadata: { letterTemplateId: created.id, preservedBlockCount: stored.template.blocks.length },
   });
 
+  await invalidateLegacyBindings(organizationId,"LETTER",created.id);
   res.status(201).json({ letterTemplate: created, redirectTo: `/oyama-letters/templates/${created.id}` });
 });
 

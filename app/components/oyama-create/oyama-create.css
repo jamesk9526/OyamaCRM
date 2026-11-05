@@ -15,3 +15,5 @@
 .oc-task-guide p{font-size:13px;line-height:1.65;color:var(--oc-muted);margin:0;max-width:95ch}
 .oc-task-guide>.oc-button{flex-shrink:0}
 @media(max-width:850px){.oc-task-guide{align-items:flex-start;flex-direction:column;gap:12px}}
+
+.oc-import-progress{padding:20px;margin-bottom:20px}.oc-import-progress h2{font-size:17px;margin:0 0 10px}.oc-import-progress p{font-size:13px;line-height:1.65}.oc-import-counts{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0 20px}.oc-import-counts span{background:#f1f6fe;border:1px solid #d9e5f4;border-radius:7px;padding:10px;font-size:12px}.oc-source-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:20px 0}.oc-source-comparison iframe{width:100%;height:480px;background:#fff;border:1px solid #d4e0ef}.oc-source-comparison h3{font-size:14px;margin-bottom:10px}.oc-source-comparison pre{max-height:480px;overflow:auto;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:750px){.oc-source-comparison{grid-template-columns:1fr}.oc-source-comparison iframe{height:350px}}

@@ -59,7 +59,7 @@ router.patch("/contents/:id/variants/:channel", route(async (req, res, org, acto
     const before=variantFrom(variant.documentJson);if(JSON.stringify({...before,scheduledAt:null,enabled:null})!==JSON.stringify({...format,scheduledAt:null,enabled:null}))throw new CreateError(409,"Edit structured letter/email content in Studio. This view can change channel delivery dates only.");
   }
   if (Object.keys(format.overrides).some(id => !documentFrom(content.documentJson).blocks.some(block => block.id === id))) throw new CreateError(400, "A customized block no longer exists in the shared document.");
-  const external = await nativeChanged(org, variant);
+  const external = await nativeChanged(org, variant).catch(error=>{if(content.designJson)return false;throw error;});
   const saved = await prisma.$transaction(async tx => {
     await touchCampaign(tx, org, campaign.id, req.body.campaignRevision);
     const changed = await tx.createVariant.updateMany({ where: { id: variant.id, revision: req.body.revision }, data: { documentJson: json(format), revision: { increment: 1 }, needsReview: external || variant.nativeApproved } });

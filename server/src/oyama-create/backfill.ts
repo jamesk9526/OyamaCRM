@@ -1,33 +1,20 @@
-/** Explicitly scoped, resumable migration. Source executions and PDFs are never rewritten. */
+/** Explicitly scoped inventory/backfill using the same service as automatic imports. */
 import "dotenv/config";
 import type { Request } from "express";
 import { prisma } from "../lib/prisma.js";
-import { importSource } from "./imports.js";
-const args = process.argv.slice(2);
-const option = (key: string) => args[args.indexOf(key) + 1];
-async function main() {
-  const organizationId = option("--organization"), userId = option("--user");
-  if (!args.includes("--organization") || !args.includes("--user") || !organizationId || !userId) throw new Error("Usage: pnpm create:backfill --organization ORG_ID --user ADMIN_USER_ID [--apply]. Default is a read-only inventory.");
-  const actor = await prisma.user.findFirst({ where: { id: userId, organizationId, active: true, role: "admin" } });
-  if (!actor) throw new Error("Choose an active administrator belonging to the selected organization.");
-  const req = { user: { sub: actor.id, orgId: organizationId, role: actor.role, email: actor.email } } as Request;
-  const counts = { email: 0, letter: 0, existing: 0, imported: 0 };
-  for (const channel of ["EMAIL", "LETTER"] as const) {
-    let cursor: string | undefined;
-    for (;;) {
-      const input = { where: { organizationId }, orderBy: { id: "asc" as const }, take: 100, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) };
-      const sources = channel === "EMAIL" ? await prisma.emailCampaign.findMany({ ...input, select: { id: true } }) : await prisma.letterTemplate.findMany({ ...input, where: { organizationId, crmScope: "DONOR" }, select: { id: true } });
-      if (!sources.length) break;
-      for (const source of sources) {
-        counts[channel === "EMAIL" ? "email" : "letter"]++;
-        const bound = await prisma.createVariant.findFirst({ where: { organizationId, channel, legacyId: source.id }, select: { id: true } });
-        if (bound) { counts.existing++; continue; }
-        if (args.includes("--apply")) { await importSource(req, organizationId, actor.id, channel, source.id); counts.imported++; }
-      }
-      cursor = sources[sources.length - 1].id;
-    }
-  }
-  const generatedLetters = await prisma.generatedLetter.count({ where: { organizationId } });
-  console.log(JSON.stringify({ organizationId, mode: args.includes("--apply") ? "APPLIED" : "READ_ONLY_INVENTORY", ...counts, generatedLettersPreserved: generatedLetters, note: "Generated letters and delivery history remain attached through original source IDs. Only verified companion IDs are grouped. Rerunning skips existing bindings." }, null, 2));
+import { ensureImport, inventory, processImports } from "./import-service.js";
+const args=process.argv.slice(2);
+const option=(key:string)=>args.includes(key)?args[args.indexOf(key)+1]:undefined;
+async function main(){
+ const organizationId=option("--organization"),userId=option("--user");
+ if(!organizationId||!userId)throw new Error("Usage: pnpm create:backfill --organization ORG --user ADMIN [--apply]. Default is read-only inventory.");
+ const actor=await prisma.user.findFirst({where:{id:userId,organizationId,role:"admin",active:true}});
+ if(!actor)throw new Error("Choose an active administrator in the selected organization.");
+ console.log(JSON.stringify({mode:"READ_ONLY_INVENTORY",organizationId,...await inventory(organizationId)},null,2));
+ if(!args.includes("--apply"))return;
+ const req={user:{sub:actor.id,orgId:organizationId,role:actor.role,email:actor.email}} as Request;
+ const run=await ensureImport(req);const reset=await prisma.createImportRun.updateMany({where:{id:run.id,OR:[{leaseUntil:null},{leaseUntil:{lt:new Date()}}]},data:{status:"RUNNING",actorId:actor.id,leaseToken:null,leaseUntil:null,nextScanAt:new Date(),cursorJson:{phase:0,after:""}}});if(!reset.count)throw new Error("Another worker is processing this organization. Follow its progress in Create.");
+ for(;;){await processImports(25,organizationId);const current=await prisma.createImportRun.findUniqueOrThrow({where:{id:run.id}});if(current.status==="PAUSED")throw new Error(current.lastError||"Import paused; resume in Create.");if(current.status==="IDLE")break;if(current.leaseToken)throw new Error("Another worker is processing this organization. Follow its progress in Create.");}
+ console.log(JSON.stringify({mode:"APPLIED",organizationId,...await inventory(organizationId)},null,2));
 }
-main().catch(error => { console.error(error instanceof Error ? error.message : "Backfill failed."); process.exitCode = 1; }).finally(() => prisma.$disconnect());
+main().catch(error=>{console.error(error instanceof Error?error.message:"Import failed.");process.exitCode=1;}).finally(()=>prisma.$disconnect());
