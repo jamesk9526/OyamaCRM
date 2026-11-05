@@ -1,5 +1,11 @@
 import { dimensions } from "./design.js";
 import type { StudioDesign } from "./types.js";
+export const STUDIO_REGION_INSET_PX = 8;
+
+export function studioRegionCss(root: string) {
+  return `${root}{box-sizing:border-box;padding-top:${STUDIO_REGION_INSET_PX}px;font:9pt/normal Inter,Arial,sans-serif;text-align:left}${root} *{box-sizing:border-box}${root} img{display:inline;vertical-align:baseline}${root} strong,${root} b{font-weight:bolder}`;
+}
+
 /** Shared content metrics for editable fragmentation and the frozen Chromium proof. */
 export function studioContentCss(design: StudioDesign, root = ".studio-content"): string {
   const s = design.styles;

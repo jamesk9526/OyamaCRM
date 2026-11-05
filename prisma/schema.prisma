@@ -4021,3 +4021,26 @@ model ChatGptDraftRequest {
   createdAt DateTime @default(now())
   @@unique([grantId, requestKey])
 }
+
+model ChatGptImageJob {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  grantId        String
+  requestKey     String    @db.VarChar(100)
+  fingerprint    String    @db.VarChar(64)
+  quotaDay       String    @db.VarChar(10)
+  quotaSlot      Int
+  name           String
+  prompt         String?   @db.Text
+  shape          String    @db.VarChar(12)
+  status         String    @default("QUEUED") @db.VarChar(16)
+  assetId        String?
+  error          String?
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+
+  @@unique([grantId, requestKey])
+  @@unique([organizationId, quotaDay, quotaSlot])
+  @@index([status, createdAt])
+}

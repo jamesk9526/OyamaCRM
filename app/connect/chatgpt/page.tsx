@@ -4,7 +4,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import { apiFetch } from "@/app/lib/auth-client";
 import Link from "next/link";
 
-const scopeLabels: Record<string, string> = { "letters.read": "Search and read donor letters you can access", "letters.write": "Save new letter drafts in Create for review", "reports.read": "Run aggregate giving, campaign and CRM reports" };
+const scopeLabels: Record<string, string> = { "letters.read": "Read donor letters and preview merge fields with sample data", "letters.write": "Create and configure your ChatGPT letter drafts and add Studio images", "reports.read": "Run aggregate giving, campaign and CRM reports" };
 export default function ConnectChatGptPage() {
   const { user, loading } = useAuth();
   const [params, setParams] = useState<Record<string, string> | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");

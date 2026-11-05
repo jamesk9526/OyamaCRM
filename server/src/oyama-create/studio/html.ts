@@ -16,6 +16,21 @@ function safeUrl(value: string, image = false) {
   try { const url = new URL(normalized); return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.toString().replace(/%7B%7B([a-zA-Z0-9_.]+)%7D%7D/gi,"{{$1}}") : ""; } catch { return ""; }
 }
 
+/** Repair inherited logos whose dimensions were removed by the older brand sanitizer. */
+export function restoreLegacyLogoBounds(html: string, logoUrl: string) {
+  if (!logoUrl || !/<img\b/i.test(html)) return html;
+  const logo = normalizePublicMediaUrl(logoUrl);
+  const document = parseDocument(html);
+  let changed = false;
+  for (const image of DomUtils.getElementsByTagName("img", document.children)) {
+    const { src, style = "", width, height } = image.attribs;
+    if (!src || normalizePublicMediaUrl(src) !== logo || width || height || /(?:^|;)\s*(?:(?:min|max)-)?(?:width|height)\s*:/i.test(style)) continue;
+    image.attribs.style = `${style};max-width:140px;max-height:35px;vertical-align:middle`.replace(/^;/, "");
+    changed = true;
+  }
+  return changed ? DomUtils.getOuterHTML(document) : html;
+}
+
 /** Shared by conversion, validation and rendering. Originals are kept separately, never executed. */
 export function sanitizeStudioHtml(html: string): string {
   const serialize = (node: HtmlNode): string => {

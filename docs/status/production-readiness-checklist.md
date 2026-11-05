@@ -1,3 +1,17 @@
+## ChatGPT letter authoring and artwork — 2026-11-05
+
+- [x] Verify HTML draft compatibility, merge previews, managed asset import and placement, revision conflicts, release boundaries, and image queue retries with synthetic API fixtures.
+- [x] Verify keyboard controls and responsive provider readiness states with the synthetic desktop and phone browser flow.
+- [x] Pass 166 focused tests, full repository/server type checks, targeted lint and server/web builds. [Verification](audit-artifacts/2026-11-05-chatgpt-letter-authoring/verification.md)
+- [ ] Deploy the additive `ChatGptImageJob` migration, reload API/web and refresh OyamaCRM tools in ChatGPT. Verify a signed-in draft with a real managed image and a CRM PDF proof.
+- [ ] For installations that opt into billed generation, configure `CHATGPT_IMAGE_API_KEY`, enable the organization control, and run one approved provider request through asset insertion. Confirm MySQL queue claims and restart behavior on staging.
+
+## Studio letterhead and proof feedback — 2026-11-05
+
+- [x] Reproduce inherited header size loss and restore bounds in draft rendering. Keep frozen snapshot rendering independent of this repair.
+- [x] Compare editor and preview logo geometry and font loading in desktop and phone browsers. Verify an oversize-margin error, focused margin adjustment, and a successful Chromium PDF proof.
+- [ ] Deploy web/API together and proof the production letter with its real header, footer, merged recipient and print settings. [Evidence](audit-artifacts/2026-11-05-studio-letterhead/verification.md)
+
 ## Automatic ChatGPT setup — 2026-11-05
 
 - [x] Organization administrator activation without editing `.env` or restarting, validated installation origin, revision conflicts, tenant isolation and audited persistence using existing PluginSetting storage.
@@ -6,6 +20,7 @@
 - [x] 84 focused tests, full repository types, server compilation, targeted lint and production web build. Server/web builds passed with a 2 GiB Node heap cap. Production desktop/tablet/phone browser acceptance passed without uncaught errors; ChatGPT's public client metadata passed the real validator.
 - [x] Document saved-setup precedence over legacy CHATGPT_ENABLED and the new CHATGPT_FORCE_DISABLED operator lock; no new schema migration or environment-file writes.
 - [ ] Deploy/reload API and web, enable on the public installation domain and complete authenticated ChatGPT Plus sign-in/tool acceptance with real CRM records. Browser-origin checks are not proof of ChatGPT network reachability.
+- [x] Verify the live CloudPanel OAuth discovery fix. The public smoke check passed, and the linked ChatGPT session saved a draft that opened in Studio. [Vhost instructions](../HOSTINGER_DEPLOY_README.md#repair-chatgpt-discovery-on-an-existing-installation)
 - [ ] Verify real MySQL restart durability and simultaneous settings/token/draft behavior after deployment; local checks use synthetic in-memory persistence. User-reported prior migrations are applied, but this update has not been deployed.
 
 See [verification and visual comparison](audit-artifacts/2026-11-05-chatgpt-auto-setup/verification.md) and [operator/setup guide](../integrations/chatgpt-mcp.md).

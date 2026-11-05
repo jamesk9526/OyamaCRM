@@ -22,7 +22,9 @@ export function sanitizeLetterHtml(html: string, options: { authoredImages?: boo
       "text-decoration": [/^(underline|line-through|none)$/], "width": scalar, "height": scalar,
       "border": [/^\d+(?:px|pt) (?:solid|dashed) #[a-f\d]{3,8}$/i], "border-collapse": [/^collapse$/],
       "break-before": [/^page$/], "break-inside": [/^avoid$/],
-    } },
+    }, ...(options.authoredImages ? { img: {
+      "max-width": scalar, "max-height": scalar, "vertical-align": [/^(middle|top|bottom|baseline)$/],
+    } } : {}) },
   });
 }
 

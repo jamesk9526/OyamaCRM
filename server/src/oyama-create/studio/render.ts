@@ -1,4 +1,4 @@
-import { sanitizeStudioHtml } from "./html.js";
+import { restoreLegacyLogoBounds, sanitizeStudioHtml } from "./html.js";
 import { escapeHtml, string } from "../domain.js";
 import { collectMergeFieldKeys, renderMergeFields } from "../../services/letters-merge.js";
 import { color, emailReviewRequired, number, walkNodes, channelDesign, channelReviewRequired } from "./design.js";
@@ -110,7 +110,8 @@ export function renderStudio(design: StudioDesign, donor: DonorContext, brand: B
       if (!attrs.src) return issue(node, "IMAGE_REQUIRED", "Choose an image or remove this block.");
       if(!string(attrs.alt).trim())issue(node,"IMAGE_ALT","Add alternative text, or explicitly review this image as decorative.",false);
       if(email&&attrs.crop==="cover"&&attrs.height)issue(node,"EMAIL_IMAGE_CROP","Apply the image crop in the letter inspector so email clients receive the same immutable image.");
-      const image = `<img src="${e(attrs.src)}" alt="${e(attrs.alt)}" style="display:block;max-width:100%;width:${number(attrs.width, 100, 5, 100)}%;${attrs.height ? `height:${number(attrs.height, 0, 0, 900)}px;object-fit:${attrs.crop === "cover" ? "cover" : "contain"};object-position:${number(attrs.focalX, 50, 0, 100)}% ${number(attrs.focalY, 50, 0, 100)}%;` : "height:auto;"}">`;
+      const alignment = attrs.textAlign === "center" ? "margin-left:auto;margin-right:auto;" : attrs.textAlign === "right" ? "margin-left:auto;" : "";
+      const image = `<img src="${e(attrs.src)}" alt="${e(attrs.alt)}" style="display:block;max-width:100%;width:${number(attrs.width, 100, 5, 100)}%;${alignment}${attrs.height ? `height:${number(attrs.height, 0, 0, 900)}px;object-fit:${attrs.crop === "cover" ? "cover" : "contain"};object-position:${number(attrs.focalX, 50, 0, 100)}% ${number(attrs.focalY, 50, 0, 100)}%;` : "height:auto;"}">`;
       return `<div${attributes("break-inside:avoid")}>${attrs.href ? `<a href="${e(attrs.href)}">${image}</a>` : image}${attrs.caption ? `<p style="font-size:9pt;color:#526078">${e(attrs.caption)}</p>` : ""}</div>`;
     }
     if(type==="table"){const rows=[...(node.content||[])];let html="";if(rows[0]?.content?.every(cell=>cell.type==="tableHeader"))html+=`<thead>${render(rows.shift()!)}</thead>`;for(let start=0;start<rows.length;){let end=start;for(let index=start;index<=end&&index<rows.length;index++)for(const cell of rows[index].content||[])end=Math.max(end,index+number(cell.attrs?.rowspan,1,1,25)-1);if(end>=rows.length){issue(node,"TABLE_SPAN","A merged cell extends beyond the table. Split or repair it before production.");end=rows.length-1;}html+=`<tbody${end>start?' style="break-inside:avoid"':""}>${rows.slice(start,end+1).map(row=>render(row)).join("")}</tbody>`;start=end+1;}return `<table${attributes("width:100%;border-collapse:collapse;table-layout:fixed")}>${html}</table>`;}
@@ -162,8 +163,8 @@ export function renderRegion(design: StudioDesign, donor: DonorContext, brand: B
   const preset = selectedId ? brand.presets.find(item => item.id === selectedId && item.active && item.kind === (footer ? "footer" : "header")) : brand.presets.find(item => item.kind === (footer ? "footer" : "header") && item.active && item.isDefault);
   const doc = region.mode === "custom" ? region.content : preset?.content;
   if (doc?.content.length) return renderStudio({ ...design, channels:undefined, body: doc, pack: { ...design.pack, replySlip: { ...design.pack.replySlip, enabled: false } } }, donor, brand).html;
-  if (region.mode === "brand" && preset?.legacyHtml) return preset.legacyHtml;
   const identity = { ...brand.identity, ...profile?.values };
+  if (region.mode === "brand" && preset?.legacyHtml) return footer ? preset.legacyHtml : restoreLegacyLogoBounds(preset.legacyHtml, string(identity.logoUrl));
   if (footer) return `<div style="font-family:Inter,Arial,sans-serif;font-size:8pt">${e(identity.footerLegalText || identity.legalOrganizationName || identity.organizationDisplayName)}<span style="float:right">Page <span data-studio-page-number>1</span> of <span data-studio-total-pages>1</span></span></div>`;
   return `<div style="font-family:Inter,Arial,sans-serif;font-size:9pt">${identity.logoUrl ? `<img src="${e(identity.logoUrl)}" alt="${e(identity.organizationDisplayName)}" style="max-width:140px;max-height:42px;object-fit:contain;vertical-align:middle;margin-right:12px">` : ""}<strong>${e(identity.organizationDisplayName)}</strong><div>${e([identity.streetAddress1, [identity.city, identity.stateProvince, identity.postalCode].filter(Boolean).join(" "), identity.contactPhone].filter(Boolean).join(" · "))}</div></div>`;
 }

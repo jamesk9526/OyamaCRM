@@ -93,6 +93,34 @@ Use separate upstreams for web and API.
 				rewrite ^ https://$host$request_uri permanent;
 			}
 
+			# Exact matches take precedence over the generic .well-known handler.
+			location = /.well-known/oauth-authorization-server {
+				auth_basic off;
+				proxy_pass http://127.0.0.1:4000;
+				proxy_set_header Host $host;
+				proxy_set_header X-Forwarded-Host $host;
+				proxy_set_header X-Forwarded-Proto $scheme;
+				proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			}
+
+			location = /.well-known/oauth-protected-resource {
+				auth_basic off;
+				proxy_pass http://127.0.0.1:4000;
+				proxy_set_header Host $host;
+				proxy_set_header X-Forwarded-Host $host;
+				proxy_set_header X-Forwarded-Proto $scheme;
+				proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			}
+
+			location = /.well-known/oauth-protected-resource/api/chatgpt/mcp {
+				auth_basic off;
+				proxy_pass http://127.0.0.1:4000;
+				proxy_set_header Host $host;
+				proxy_set_header X-Forwarded-Host $host;
+				proxy_set_header X-Forwarded-Proto $scheme;
+				proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			}
+
 			location ~ /.well-known {
 				auth_basic off;
 				allow all;
@@ -143,6 +171,12 @@ Important:
 - Set Hostinger app port variable to 3650.
 - Keep API block fixed on 4000.
 - Do not add a trailing slash to the API `proxy_pass` target, or Nginx will strip the `/api` prefix and backend routes will 404.
+
+### Repair ChatGPT discovery on an existing installation
+
+If both `/.well-known` discovery checks return an Nginx HTML 404 while `GET /api/chatgpt/resource-metadata` returns JSON and the unauthenticated MCP check returns 401, the generic `/.well-known` handler is likely serving the requests as static files. In the CloudPanel Vhost editor, add the three exact-match OAuth locations above to the site's active HTTPS `server` block. Preserve the existing `/.well-known` handler for certificate validation. Use the same API upstream as the site's `/api/` block. Keep the `proxy_pass` target free of a URI or trailing slash so Express receives the full discovery path.
+
+If editing on the host directly, run `sudo nginx -t && sudo systemctl reload nginx` as an administrator after saving. The vhost change takes effect on reload. From the repo, run `node scripts/chatgpt-check.mjs https://<APP_DOMAIN>` once the integration is enabled. It checks for matching public metadata and a 401 OAuth challenge from MCP. Then rerun **Enable ChatGPT & check** in Settings.
 
 ## 4) Standard Deploy Flow
 

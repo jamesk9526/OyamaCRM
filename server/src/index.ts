@@ -26,6 +26,7 @@ dotenv.config();
 
 import authRoutes from "./routes/auth.js";
 import chatGptRoutes, { discoveryRouter } from "./chatgpt/routes.js";
+import { startLetterImageWorker, stopLetterImageWorker } from "./chatgpt/letter-images.js";
 import constituentRoutes from "./routes/constituents.js";
 import donationRoutes from "./routes/donations.js";
 import campaignRoutes from "./routes/campaigns.js";
@@ -346,6 +347,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 if (process.env.NODE_ENV !== "test") {
   startEmailQueueWorker();
   startCreateWorker();
+  startLetterImageWorker();
   startImportWorker();
   startStewardPathsWorker();
   startQuickBooksSyncWorker();
@@ -354,6 +356,7 @@ if (process.env.NODE_ENV !== "test") {
   // Stop creating in-app reminders during the process manager's shutdown window.
   for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => {
     stopCreateWorker();
+    stopLetterImageWorker();
     stopImportWorker();
     void Promise.all([stopTaskNotificationWorker(), stopNotificationEmailWorker()]).finally(() => process.exit(0));
   });

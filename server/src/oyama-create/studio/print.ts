@@ -5,14 +5,14 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import { renderEnvelope } from "./envelope.js";
 import { freezeAsset, ProductionError } from "../../services/letter-production.js";
-import { defaultDesign, dimensions, walkNodes } from "./design.js";
+import { channelDesign, defaultDesign, dimensions, walkNodes } from "./design.js";
 import { renderStudio, renderRegion, givingLink, regionIssues, designSensitive } from "./render.js";
-import { studioContentCss } from "./layout.js";
+import { STUDIO_REGION_INSET_PX, studioContentCss } from "./layout.js";
 import type { ArtifactKind, BrandDocument, DonorContext, FrozenStudioPrint, StudioDesign } from "./types.js";
 
 export async function freezeStudioPrint(org: string, design: StudioDesign, donor: DonorContext, brand: BrandDocument, kind: ArtifactKind = "LETTER", sample = false): Promise<FrozenStudioPrint> {
   const metrics = dimensions(design.page), url = givingLink(design, undefined, donor.responseCode), qrImages: Record<string, string> = {};
-  if (url && [design.body, design.pack.replySlip.content].flatMap(walkNodes).some(node => node.type === "studioQr")) qrImages[url] = await QRCode.toDataURL(new URL(url, process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "http://localhost:3000").toString(), { errorCorrectionLevel: "M", margin: 4, width: 384 });
+  if (url && [channelDesign(design, "LETTER").body, design.pack.replySlip.content].flatMap(walkNodes).some(node => node.type === "studioQr")) qrImages[url] = await QRCode.toDataURL(new URL(url, process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "http://localhost:3000").toString(), { errorCorrectionLevel: "M", margin: 4, width: 384 });
   const rendered = renderStudio(design, donor, brand, { channel: "LETTER", artifact: kind, qrImages, sample });
   rendered.issues.push(...regionIssues(design,donor,brand));
   const snapshot: FrozenStudioPrint = { sensitive:designSensitive(design)||brand.presets.some(preset=>designSensitive({...design,body:preset.content})), version: 1, kind, width: metrics.width / 96, height: metrics.height / 96, margins: { ...design.page.margins }, styles: { ...design.styles }, html: rendered.html, headers: [renderRegion(design, donor, brand, "firstHeader"), renderRegion(design, donor, brand, "header")], footers: [renderRegion(design, donor, brand, "firstFooter"), renderRegion(design, donor, brand, "footer")], assets: {}, issues: rendered.issues, responseCode: donor.responseCode, brandRevisionId: design.brandRevisionId };
@@ -54,9 +54,15 @@ export async function renderFrozenStudio(snapshot: FrozenStudioPrint, sample = f
         const html = source.replace(/<span[^>]*(?:data-studio-page-number|data-studio-total-pages)[^>]*>[\s\S]*?<\/span>/g, "").replace(/Page\s+\s*of\s*/g, ""), key = `${footer}:${html}`;
         if (!strips.has(key)) {
           await page.setViewportSize({ width: Math.round(snapshot.width * 96), height: 160 });
-          await page.setContent(`<html><head><style>${fonts}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;font-size:9pt}</style></head><body><div id="chrome" style="padding:8px ${snapshot.margins.right}in 0 ${snapshot.margins.left}in">${frozenHtml(snapshot, html)}</div></body></html>`);
+          await page.setContent(`<html><head><style>${fonts}*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;font-size:9pt}</style></head><body><div id="chrome" style="padding:${STUDIO_REGION_INSET_PX}px ${snapshot.margins.right}in 0 ${snapshot.margins.left}in">${frozenHtml(snapshot, html)}</div></body></html>`);
           await page.evaluate(async () => { await document.fonts.ready; await Promise.all(Array.from(document.images).map(image => image.decode())); });
-          if (await page.evaluate(() => document.getElementById("chrome")!.getBoundingClientRect().height) > inches * 96 + 2) throw new ProductionError(422,`The ${footer ? "footer" : "header"} exceeds its reserved margin. Increase the margin or reduce its content.`);
+          const height = await page.evaluate(() => document.getElementById("chrome")!.getBoundingClientRect().height);
+          if (height > inches * 96 + 2) {
+            const region = `${index ? "continuation" : "first-page"} ${footer ? "footer" : "header"}`;
+            const required = Math.ceil(height / 96 * 100) / 100, margin = footer ? "bottom" : "top";
+            const guidance = required <= 1.5 ? `Increase the ${margin} margin to at least ${required} in or reduce its content.` : `Reduce its content to fit the ${margin} margin, which can be at most 1.5 in.`;
+            throw new ProductionError(422, `The ${region} exceeds its reserved margin. ${guidance}`);
+          }
           const strip = await page.pdf({ width: `${snapshot.width}in`, height: `${inches}in`, margin: { top: 0, right: 0, bottom: 0, left: 0 }, printBackground: true, preferCSSPageSize: false }); strips.set(key, (await output.embedPdf(strip, [0]))[0]);
         }
         target.drawPage(strips.get(key)!, { x: 0, y: footer ? 0 : target.getHeight() - inches * 72, width: snapshot.width * 72, height: inches * 72 });

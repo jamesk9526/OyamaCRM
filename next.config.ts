@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      // The sandboxed Studio preview has an opaque origin and uses these public print fonts.
+      ...["inter-latin-variable", "noto-serif-latin"].map(font => ({
+        source: `/fonts/${font}.woff2`,
+        headers: [{ key: "Access-Control-Allow-Origin", value: "*" }],
+      })),
       {
         source: "/:path*",
         headers: [

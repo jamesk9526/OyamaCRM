@@ -6,12 +6,12 @@ OyamaCRM exposes its own OAuth-protected MCP tool server. Each nonprofit connect
 
 1. Deploy the **API and web together**, generate Prisma and rebuild/restart the processes. The existing ChatGPT migration must already be applied using the normal database deployment procedure. This automatic-setup update adds no migration. No production content is imported by connecting ChatGPT.
 2. Sign in as an organization administrator on the installation's **public HTTPS domain**. Open **Settings → Integrations → ChatGPT** and click **Enable ChatGPT & check**. The domain and MCP URL are generated automatically. Setup is saved per organization and takes effect immediately, without editing `.env` or restarting. A conflicting configured public URL must be corrected by the operator; the UI does not silently change the OAuth issuer.
-3. All public checks should pass. If discovery fails, the results identify the route or domain needing attention. The included Next proxy forwards `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/*` and `/api/chatgpt/*` to the API. Other reverse proxies must do the same, retaining `Authorization`, `WWW-Authenticate` and MCP headers. These routes must not return an unrelated login page or HTML challenge. Configure proxy trust and forwarded host/protocol consistently.
+3. All public checks should pass. The included Next proxy forwards `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/*` and `/api/chatgpt/*` to the API. In front of Next, a generic Nginx `/.well-known` handler can intercept discovery and return a 404 even when the protected MCP check passes. Apply the [Hostinger/CloudPanel vhost fix](../HOSTINGER_DEPLOY_README.md#repair-chatgpt-discovery-on-an-existing-installation) in that case. Other reverse proxies must forward discovery to the API too. Preserve `Authorization`, `WWW-Authenticate` and MCP headers, and configure proxy trust and forwarded host/protocol consistently.
 4. Open [ChatGPT Plugins](https://chatgpt.com/plugins). Use the **+ / Add menu at the top right → Add custom MCP server**. Name it OyamaCRM, paste the generated URL and select **OAuth**. Retry discovery if the form was opened before enabling the server.
 5. In OAuth advanced settings select **Client Identifier Metadata Document (CIMD)**, token authentication **none**, and no secret. Discovery fills the endpoints. The server fetches ChatGPT's own HTTPS client metadata, verifies the exact callback and returns the issuer in the authorization response. **Do not copy anything into `CHATGPT_REDIRECT_URIS` for CIMD.** The last authorized callback appears in Settings after approval. This uses [OpenAI's documented CIMD and issuer-aware callback flow](https://developers.openai.com/plugins/build/auth).
 6. If the form displays Default scopes, copy the scopes provided in Settings, one per line. Choose only the permissions needed: `reports.read` for reports, `letters.read` for letters, and `letters.write` for draft creation. Leave Base scopes empty. PKCE is **S256**; OpenID Connect stays off. Blank requested scopes default to read-only letters and reports. A user must possess each requested CRM permission.
 7. Create the connector, sign in to this OyamaCRM installation using the existing login/MFA, review the permissions and click **Allow connection**. Then select OyamaCRM with `@` in a ChatGPT conversation. The CRM cannot perform this account approval for the user. Follow [OpenAI's connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt) if the account's menus differ.
-8. Set **Organization MCP controls**: fiscal or calendar reporting, read access and report limits. Draft creation defaults off; enable it when desired. Create and Studio must also be enabled to save drafts. Run the acceptance prompts below.
+8. Set the **Organization MCP controls** for fiscal or calendar reporting, read access and report limits. Enable **Create letter drafts** to use the Studio draft tools. Run the acceptance prompts below.
 
 Each nonprofit uses its own domain, database and grants; no central Oyama proxy or OpenAI API key is needed. ChatGPT Plus is the requested plan; custom connection availability still depends on OpenAI's account rollout and workspace policies. Localhost/HTTP requires a supported development tunnel before ChatGPT can reach it. Browser checks verify public routes from the current browser; a completed ChatGPT connection verifies ChatGPT's network access too.
 
@@ -57,7 +57,8 @@ Controls are persisted per organization in the existing PluginSetting store, ind
 | --- | --- |
 | Allow MCP access | Blocks new consent, token renewal and subsequent MCP requests when off. In-flight work may finish. Sessions remain available for disconnect or later resume. |
 | Read letters | Controls search and read tools, with tenant, donor-scope, private ownership and Trash checks. |
-| Create letter drafts | Off by default. Permits separate, editable Create drafts; never overwrites an existing letter. |
+| Create letter drafts | Off by default. Permits new drafts, image import, and revision-checked edits to the user's own standalone MCP-created letter drafts before any release history. |
+| Generate AI letter images | Off by default. Requires draft access, a server-side `CHATGPT_IMAGE_API_KEY`, and an administrator enabling it for this organization. Calls use the installation's OpenAI API billing. |
 | Read aggregate reports | Enables supported reports and financial interpretation context. |
 | Reporting calendar | Calendar or fiscal year using the organization's configured fiscal start month. Default requests use the selected year-to-date period; explicit years use a full year. |
 | Allow a different calendar per request | Off by default. Conflicting `dateBasis` values are rejected. Explicit from/through date ranges remain exactly as requested; they are not silently expanded to fiscal years. |
@@ -67,18 +68,37 @@ MCP tool lists reflect current policy. Calling a hidden tool by name is also rej
 
 Financial definitions, tenant/owner checks, audit recording, review before release and credential protection are always enforced. There is no switch to disable them. Organization controls affect only that organization; the operator lock above blocks the whole installation.
 
-## Initial capabilities
+## Letter authoring and reporting tools
 
 | Tool | Behavior |
 | --- | --- |
 | `search_letters` | Paged Create/legacy donor letters. Continue `nextCursor` even when a scanned page has no accessible matches. |
 | `read_letter` | Unmerged structured content or HTML, saved revision and editor link. Large content returns an actionable error instead of silent truncation. |
-| `create_letter_draft` | Sanitizes/converts user-requested HTML into a new Studio draft with pinned branding and an initial revision. Complex markup retains preserved-HTML review diagnostics. Stable `requestKey` prevents duplicate retry drafts; a changed payload with the same key conflicts. No recipients, schedules, executions or releases are copied. |
+| `get_letter_design_options` | Lists supported inline merge tokens, Studio field blocks, page formats, and active header, footer and signer IDs. Pass a Studio letter ID for its pinned brand options. |
+| `create_letter_draft` | Saves sanitized HTML as an editable Studio draft with pinned branding. Optional `layout` and `insertBlocks` set typography, paper and margins, letterhead, envelopes, reply slips, images, fields, signatures, giving links and QR codes. |
+| `update_letter_draft` | Applies a layout or block patch to your own standalone MCP draft at its saved `revision`. Omit `html` to retain the existing body. Earlier revisions stay available in Studio. |
+| `preview_letter_draft` | Renders sample text and checks merge tokens, print settings and image availability. Returns an editor link for the PDF proof and real-recipient review. |
+| `list_letter_images` | Pages through the organization's active Studio image library. Use returned asset IDs for placement and cropping. |
+| `import_letter_image` | Imports an attached PNG, JPEG or WebP up to 5 MB into the Studio library. Upload other images through Studio and then use the library tool. |
+| `generate_letter_image`, `get_letter_image_job` | Queue one image from a visual brief and check for the finished Studio asset. When the job completes, pass `image.assetId` to an image block. |
 | `list_reports` | Supported aggregate reports and their definitions. |
 | `get_reporting_context` | Currency, fiscal convention, date rules, applied controls and financial interpretation limits. |
 | `run_report` | Payment-method summary, designation performance, campaign performance and CRM performance scorecard through the existing donor report library. |
 
-A user can read an existing letter, ask ChatGPT to revise it, then save the result as a new draft. Existing letters and frozen outputs remain unchanged. Sending, publishing, gift mutation, general SQL, clinical records, donor-level exports, bank account access and ledger posting are outside this tool set.
+### Create a branded draft
+
+1. Enable **Create letter drafts** under the organization MCP controls. The connected session needs `letters.write` for drafts and `letters.read` for design options and previews. Studio drafts open in the structured editor independently of the organization’s default editor and live-delivery rollout switches.
+2. Ask ChatGPT to create a draft with a CRM salutation, an image from the Studio library, and a giving QR code for a link you provide. For example, use `<p>Dear {{donor.salutation | fallback: "Friend"}},</p>` for a personal greeting. Use a `field` block such as `giving.total` for Studio's recipient-context currency formatting.
+3. Specify image placement with `afterBlock` (1-based, `0` for the start, omitted for the end). Image blocks accept alt text, caption, width, alignment, height and crop focal point. Use a stable `requestKey` for each write intent. A retry with the same payload reuses the original result.
+4. Ask for a sample preview and open the returned Studio link to check the PDF and recipient merge. Real recipients and release approval are handled in OyamaCRM.
+
+### Artwork options
+
+Use an existing Studio image, or attach an image in ChatGPT and ask OyamaCRM to import it. If the ChatGPT host cannot pass the file to the connector, upload it in Studio and use `list_letter_images`. Use shareable artwork only. Studio image URLs are public by design for communication output.
+
+For in-connector generation, deploy the `ChatGptImageJob` migration, set `CHATGPT_IMAGE_API_KEY` on the API server with a dedicated OpenAI project key, reload the API, and enable **Generate AI letter images** in the organization's MCP controls. Then refresh the plugin in ChatGPT. The worker sends the visual brief to the OpenAI Images API. Keep real donor names, records and merge values out of prompts. Each organization can queue up to 10 image requests per UTC day. A queued job survives an API restart. An interrupted provider call stops without automatic resubmission because it may have incurred a charge.
+
+The existing OAuth scopes cover the new draft tools. Refresh the OyamaCRM plugin after deploying. Reauthorize only if the session needs an additional scope.
 
 ## Financial interpretation
 
@@ -102,7 +122,8 @@ Run these on each deployed installation before staff use:
 
 - Connect from ChatGPT, complete normal login/MFA and verify the selected CRM account.
 - “Find our appeal letters.” Continue to older pages and verify another user's private letter cannot be read.
-- “Read this letter and save a revised copy as a new Create draft.” Check the returned editor, formatting, merge fields, branding and review diagnostics; retry with the same request key and confirm one draft.
+- “Read this letter and save a revised copy as a new Create draft.” Check the returned editor, formatting, merge fields, branding and review diagnostics. Retry with the same request key and confirm one draft.
+- “Add a centered image from the Studio library, a giving QR code for this link, and a first-name merge field. Show a sample preview.” Open the saved revision in Studio and generate a PDF proof.
 - “Explain our reporting currency and fiscal year.” Compare with organization settings.
 - “Run campaign performance for fiscal year 2025.” Verify exact dates, currency, completed gifts and totals against the CRM report. Under a calendar lock, explicitly request fiscal and verify a clear refusal.
 - Check a small known set of gifts including fractional currency, excluded statuses, an in-kind gift, a last-day gift and a zero prior-period comparison.

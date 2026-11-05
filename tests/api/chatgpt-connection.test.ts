@@ -1,7 +1,9 @@
 /** Synthetic persistence; real OAuth, MCP and Create handlers. No real donor data or OpenAI calls. */
 import express from "express";
+import { unlink } from "node:fs/promises";
+import { encode as encodePng } from "fast-png";
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryDatabase as db, createRows as rows, resetCreateRows } from "../helpers/create-memory-database";
 vi.mock("@/server/src/lib/prisma", async () => ({ prisma: (await import("../helpers/create-memory-database")).createMemoryDatabase }));
 const reporting = vi.hoisted(() => ({ build: vi.fn() }));
@@ -10,8 +12,13 @@ import router, { authorizationMetadata, chatGptRateLimiter, discoveryRouter } fr
 import { authorizationInput, connectionConfig, hashToken } from "@/server/src/chatgpt/config";
 import { signAccessToken } from "@/server/src/lib/auth";
 import { defaultDesign } from "@/server/src/oyama-create/studio/design";
+import { normalizeBrand } from "@/server/src/oyama-create/studio/brand";
+import { freezeStudioPrint } from "@/server/src/oyama-create/studio/print";
+import { emptyDonor } from "@/server/src/oyama-create/studio/render";
 import { checkChatGptConnection } from "../../scripts/chatgpt-check.mjs";
 import { DEFAULT_MCP_POLICY, MCP_POLICY_KEY } from "@/server/src/chatgpt/policy";
+import { DAILY_IMAGE_LIMIT, processLetterImageQueue } from "@/server/src/chatgpt/letter-images";
+import { managedPublicMedia } from "@/server/src/lib/public-media";
 const app = express(); app.use(express.json()); app.use(express.urlencoded({ extended: false })); app.use("/api/chatgpt", router);
 app.use(discoveryRouter);
 app.use((e: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => { void _next; res.status(500).json({ error: e.message }); });
@@ -23,16 +30,26 @@ async function consent(overrides = {}) { return request(app).post(`${root}/oauth
 async function exchange(code: string, overrides = {}) { return request(app).post(`${root}/oauth/token`).type("form").send({ grant_type: "authorization_code", code, code_verifier: verifier, client_id: "oyama-chatgpt", redirect_uri: redirect, resource, ...overrides }); }
 async function tokens(scope?: string) { const result = await consent(scope ? { scope } : {}); expect(result.status, JSON.stringify(result.body)).toBe(200); const code = new URL(result.body.redirectUrl).searchParams.get("code")!; const response = await exchange(code); expect(response.status, JSON.stringify(response.body)).toBe(200); return response.body; }
 async function rpc(token: string, method: string, params?: unknown) { return request(app).post(`${root}/mcp`).set("Authorization", `Bearer ${token}`).send({ jsonrpc: "2.0", id: 1, method, params }); }
+const tool = (token: string, name: string, args: object = {}) => rpc(token, "tools/call", { name, arguments: args });
 const resultOf = (response: { body: { result: { content: { text: string }[] } } }) => JSON.parse(response.body.result.content[0].text);
+const png = encodePng({ width: 2, height: 2, channels: 3, data: Uint8Array.from([30, 90, 160, 80, 140, 210, 80, 140, 210, 30, 90, 160]) });
+// Synthetic 2 × 2 JPEG returned by the mocked image provider.
+const jpegBase64 = "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD8qqKKKAP/2Q==";
 beforeEach(async () => {
   chatGptRateLimiter.resetKey("::ffff:127.0.0.1"); chatGptRateLimiter.resetKey("127.0.0.1");
-  resetCreateRows(); vi.unstubAllGlobals(); vi.stubEnv("CHATGPT_FORCE_DISABLED", ""); vi.stubEnv("CHATGPT_ENABLED", "true"); vi.stubEnv("CHATGPT_PUBLIC_URL", origin); vi.stubEnv("CHATGPT_REDIRECT_URIS", redirect);
+  resetCreateRows(); vi.unstubAllGlobals(); vi.stubEnv("CHATGPT_FORCE_DISABLED", ""); vi.stubEnv("CHATGPT_ENABLED", "true"); vi.stubEnv("CHATGPT_PUBLIC_URL", origin); vi.stubEnv("CHATGPT_REDIRECT_URIS", redirect); vi.stubEnv("CHATGPT_IMAGE_API_KEY", "");
   await db.user.create({ data: { id: "staff", organizationId: "org", active: true, role: "admin", email: "staff@example.invalid" } });
   await db.user.create({ data: { id: "other", organizationId: "other-org", active: true, role: "admin", email: "other@example.invalid" } });
   await db.organizationSettings.create({ data: { organizationId: "org", oyamaCreateEnabled: true, oyamaCreateStudioEnabled: true, fiscalYearStart: 7 } });
-  await db.createBrandRevision.create({ data: { id: "brand", organizationId: "org", revision: 1, documentJson: {} } });
+  await db.createBrandRevision.create({ data: { id: "brand", organizationId: "org", revision: 1, documentJson: { version: 1, identity: { organizationDisplayName: "Synthetic nonprofit" }, profiles: [], presets: [], signers: [], defaultSignerId: null } } });
   await db.pluginSetting.create({ data: { organizationId: "org", pluginKey: MCP_POLICY_KEY, config: { revision: 1, policy: { ...DEFAULT_MCP_POLICY, allowLetterDrafts: true, allowDateBasisOverride: true } } } });
   reporting.build.mockReset().mockResolvedValue({ report: "campaign-performance", title: "Synthetic aggregate report", rows: [{ campaign: "Synthetic appeal", totalAmount: 123.45 }], columns: [{ key: "totalAmount", type: "currency" }], audienceConstituentIds: ["private-donor"], notices: [] });
+});
+afterEach(async () => {
+  for (const asset of rows.createStudioAsset) {
+    const media = managedPublicMedia(asset.url);
+    if (media?.namespace === "letter-media" && media.organizationId === "org" && /^[a-f0-9-]{36}\.(?:png|jpg|webp)$/.test(media.fileName)) await unlink(`public${media.storagePath}`);
+  }
 });
 describe.sequential("ChatGPT account connection", () => {
   it("publishes discovery and rejects missing credentials", async () => {
@@ -108,6 +125,148 @@ describe.sequential("ChatGPT account connection", () => {
     const replay = resultOf(await rpc(t.access_token, "tools/call", { name: "create_letter_draft", arguments: args })); expect(replay.id).toBe(result.id); expect(rows.createContent).toHaveLength(1);
     expect(JSON.stringify(rows.createContent[0].designJson)).not.toContain("<script>"); expect(rows.createContent[0].designJson.brandRevisionId).toBe("brand"); expect(rows.createDocumentRevision[0].documentJson.studio).toBeTruthy(); expect(rows.createDelivery).toHaveLength(0); expect(rows.createRelease).toHaveLength(0);
     const conflict = await rpc(t.access_token, "tools/call", { name: "create_letter_draft", arguments: { ...args, html: "<p>Different</p>" } }); expect(conflict.body.result.isError).toBe(true);
+  });
+  it("authors and previews a branded merge letter even when both Create rollout switches are off", async () => {
+    await db.organizationSettings.update({ where: { organizationId: "org" }, data: { oyamaCreateEnabled: false, oyamaCreateStudioEnabled: false } });
+    const { access_token: token } = await tokens("letters.read letters.write");
+    const options = resultOf(await tool(token, "get_letter_design_options"));
+    expect(options.inlineMergeTokens).toContain("{{donor.salutation}}");
+    expect(options.fieldBlocks).toContain("giving.total");
+    const draft = resultOf(await tool(token, "create_letter_draft", {
+      name: "Synthetic appeal", requestKey: "studio-layout-01", html: '<h1>Thank you</h1><p>Dear {{donor.salutation | fallback: "Friend"}},</p><p>[Date] · Unsupported {{donor.fakeField}}</p>',
+      layout: { paper: "A4", orientation: "landscape", margins: { top: .75 }, font: "Inter", firstFooter: { mode: "none" }, replySlip: { enabled: true, placement: "separate", html: "<p>I would like to give.</p>" }, outerEnvelope: { enabled: true }, givingUrl: "/give/example" },
+      insertBlocks: [{ type: "field", field: "giving.total", afterBlock: 2 }, { type: "giving_qr" }],
+    }));
+    expect(draft).toMatchObject({ revision: 1, status: "DRAFT", reviewRequired: true });
+    const design = rows.createContent[0].designJson;
+    expect(design).toMatchObject({ page: { paper: "A4", orientation: "landscape", margins: { top: .75 } }, styles: { font: "Inter" }, regions: { firstFooter: { mode: "none" } }, pack: { replySlip: { enabled: true }, outerEnvelope: { enabled: true } } });
+    expect(design.body.content.map((item: { type: string }) => item.type)).toEqual(["heading", "paragraph", "studioField", "paragraph", "studioQr"]);
+    const preview = resultOf(await tool(token, "preview_letter_draft", { id: draft.id, revision: 1 }));
+    expect(preview.previewText).toContain("Dear Jordan,");
+    expect(preview.previewText).toContain("$150.00");
+    expect(preview.previewText).toContain("I would like to give.");
+    expect(preview).toMatchObject({ sample: true, page: { paper: "A4" }, printPack: { replySlip: true, outerEnvelope: true }, url: draft.url });
+    expect(preview.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MERGE_CONTEXT" })]));
+    expect(preview.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "LITERAL_PLACEHOLDER", blocking: false })]));
+    expect(rows.createRelease).toHaveLength(0);
+    expect(rows.createDelivery).toHaveLength(0);
+    expect(rows.organizationSettings[0]).toMatchObject({ oyamaCreateEnabled: false, oyamaCreateStudioEnabled: false });
+  });
+  it("revises only the owner's standalone MCP drafts and preserves prior document revisions", async () => {
+    const first = await tokens("letters.write");
+    const draft = resultOf(await tool(first.access_token, "create_letter_draft", { name: "Original", html: "<p>Original text</p>", requestKey: "original-draft" }));
+    const second = await tokens("letters.read letters.write");
+    const token = second.access_token;
+    const change = { id: draft.id, revision: 1, requestKey: "revise-layout", layout: { paper: "LEGAL", margins: { top: .5 } }, insertBlocks: [{ type: "page_break", afterBlock: 1 }, { type: "salutation", afterBlock: 1 }] };
+    const edited = resultOf(await tool(token, "update_letter_draft", change));
+    expect(edited.revision).toBe(2);
+    expect(resultOf(await tool(token, "update_letter_draft", change))).toEqual(edited);
+    expect((await tool(token, "update_letter_draft", { ...change, requestKey: "stale-revision" })).body.result.isError).toBe(true);
+    expect(rows.createDocumentRevision.map(row => row.revision)).toEqual([1, 2]);
+    expect(rows.createDocumentRevision[0].documentJson.studio.page.paper).toBe("LETTER");
+    expect(rows.createDocumentRevision[1].documentJson.studio.body.content[0].content[0].text).toBe("Original text");
+    await db.createRelease.create({ data: { organizationId: "org", campaignId: draft.campaignId, campaignRevision: 1, status: "SUPERSEDED" } });
+    expect((await tool(token, "update_letter_draft", { ...change, revision: 2, requestKey: "with-release" })).body.result.isError).toBe(true);
+    expect(rows.createRelease[0].status).toBe("SUPERSEDED");
+    const manual = await db.createCampaign.create({ data: { organizationId: "org", ownerId: "staff", name: "Manual", channelsJson: ["LETTER"] } });
+    const content = await db.createContent.create({ data: { organizationId: "org", campaignId: manual.id, name: "Manual", designJson: defaultDesign(), documentJson: {} } });
+    await db.createVariant.create({ data: { organizationId: "org", contentId: content.id, channel: "LETTER" } });
+    expect((await tool(token, "update_letter_draft", { ...change, id: content.id, requestKey: "manual-draft" })).body.result.isError).toBe(true);
+    expect((await tool(token, "update_letter_draft", { ...change, requestKey: "bad-layout", layout: { margins: { top: -1 } } })).body.result.isError).toBe(true);
+    expect(rows.createDocumentRevision).toHaveLength(2);
+  });
+  it("imports ChatGPT attachments, lists owned assets and inserts an editable image block", async () => {
+    const { access_token: token } = await tokens("letters.read letters.write");
+    const fetchImage = vi.fn(async () => new Response(Buffer.from(png), { headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", fetchImage);
+    const metadata = (await rpc(token, "tools/list")).body.result.tools;
+    expect(metadata.find((item: { name: string }) => item.name === "import_letter_image")._meta["openai/fileParams"]).toEqual(["file"]);
+    const args = { name: "Synthetic photo", requestKey: "import-artwork", file: { download_url: "https://files.oaiusercontent.com/file.png?sig=fixture", file_id: "fixture-image", mime_type: "image/png" } };
+    const image = resultOf(await tool(token, "import_letter_image", args));
+    expect(image).toMatchObject({ width: 2, height: 2, mimeType: "image/png" });
+    expect(resultOf(await tool(token, "import_letter_image", { ...args, file: { ...args.file, download_url: "https://files.oaiusercontent.com/file.png?sig=fresh" } }))).toEqual(image);
+    expect((await tool(token, "import_letter_image", { ...args, requestKey: "foreign-source", file: { ...args.file, download_url: "https://evil-oaiusercontent.com/file.png" } })).body.result.isError).toBe(true);
+    expect(fetchImage).toHaveBeenCalledTimes(1);
+    expect(resultOf(await tool(token, "list_letter_images", { query: "Synthetic" })).items).toEqual([image]);
+    const draft = resultOf(await tool(token, "create_letter_draft", { name: "Illustrated", html: "<p>Dear {{donor.firstName}}</p>", requestKey: "illustrated-draft" }));
+    const inserted = { id: draft.id, revision: draft.revision, requestKey: "insert-image", insertBlocks: [{ type: "image", assetId: image.assetId, alt: "A synthetic two-tone pattern", caption: "Illustration", align: "right", widthPercent: 45, afterBlock: 0 }] };
+    const edited = resultOf(await tool(token, "update_letter_draft", inserted));
+    expect(rows.createContent[0].designJson.body.content[0]).toMatchObject({ type: "image", attrs: { src: new URL(image.url).pathname, width: 45, textAlign: "right", caption: "Illustration" } });
+    const preview = resultOf(await tool(token, "preview_letter_draft", { id: draft.id, revision: edited.revision }));
+    expect(preview.issues).toEqual([]);
+    expect(preview.previewText).toContain("Dear Jordan");
+    await db.createTrashItem.create({ data: { organizationId: "org", kind: "ASSET", resourceId: image.assetId } });
+    expect(resultOf(await tool(token, "list_letter_images")).items).toEqual([]);
+    expect((await tool(token, "update_letter_draft", { ...inserted, revision: 2, requestKey: "trashed-asset" })).body.result.isError).toBe(true);
+  });
+  it("queues a single paid request per key and stores a ready-to-insert asset once", async () => {
+    const { access_token: token } = await tokens("letters.read letters.write");
+    const args = { name: "Synthetic generated art", requestKey: "generate-illustration", prompt: "A friendly watercolor illustration of a community garden", shape: "landscape" };
+    expect((await tool(token, "generate_letter_image", args)).body.error.code).toBe(-32602);
+    vi.stubEnv("CHATGPT_IMAGE_API_KEY", "synthetic-provider-key");
+    expect((await tool(token, "generate_letter_image", args)).body.error.code).toBe(-32602);
+    await db.pluginSetting.update({ where: { id: rows.pluginSetting[0].id }, data: { config: { revision: 2, policy: { ...DEFAULT_MCP_POLICY, allowLetterDrafts: true, allowImageGeneration: true } } } });
+    const fetchImage = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ data: [{ b64_json: jpegBase64 }] }));
+    vi.stubGlobal("fetch", fetchImage);
+    const queued = resultOf(await tool(token, "generate_letter_image", args));
+    expect(queued.status).toBe("QUEUED");
+    expect(resultOf(await tool(token, "generate_letter_image", args))).toEqual(queued);
+    expect((await tool(token, "generate_letter_image", { ...args, prompt: "Another illustration" })).body.result.isError).toBe(true);
+    expect(fetchImage).not.toHaveBeenCalled();
+    await Promise.all([processLetterImageQueue(), processLetterImageQueue()]);
+    expect(fetchImage).toHaveBeenCalledTimes(1);
+    expect(fetchImage.mock.calls[0][0]).toBe("https://api.openai.com/v1/images/generations");
+    expect(JSON.parse(String(fetchImage.mock.calls[0][1]?.body))).toMatchObject({ prompt: args.prompt, size: "1536x1024", output_format: "jpeg", n: 1 });
+    expect(rows.chatGptImageJob[0].prompt).toBeNull();
+    const completed = resultOf(await tool(token, "get_letter_image_job", { id: queued.jobId }));
+    expect(completed).toMatchObject({ status: "COMPLETED", image: { width: 2, height: 2, mimeType: "image/jpeg" } });
+    expect(rows.createStudioAsset).toHaveLength(1);
+    await tool(token, "create_letter_draft", {
+      name: "Draft with generated artwork", html: "<p>Dear {{donor.salutation}}</p>", requestKey: "generated-image-draft",
+      layout: { givingUrl: "https://example.invalid/give" },
+      insertBlocks: [{ type: "image", assetId: completed.image.assetId, alt: "Synthetic artwork", align: "right", widthPercent: 40 }, { type: "giving_qr" }],
+    });
+    const design = rows.createContent[0].designJson;
+    // Verify the effective LETTER body is used for the proof even with an independent channel document.
+    design.channels.LETTER = { document: design.body, reviewedSource: null };
+    design.body = { type: "doc", content: [] };
+    const snapshot = await freezeStudioPrint("org", design, { ...emptyDonor(), salutation: "Jordan" }, normalizeBrand(rows.createBrandRevision[0].documentJson), "LETTER", true);
+    expect(snapshot.html).toContain("width:40%;margin-left:auto;");
+    expect(snapshot.html).toContain('alt="Scan to give"');
+    expect(snapshot.assets[new URL(completed.image.url).pathname]).toBe(`data:image/jpeg;base64,${jpegBase64}`);
+    expect(JSON.stringify(rows.auditLog)).not.toContain(args.prompt);
+  });
+  it("caps queue submissions and drops queued requests when draft permission is revoked", async () => {
+    const { access_token: token } = await tokens("letters.write");
+    vi.stubEnv("CHATGPT_IMAGE_API_KEY", "synthetic-provider-key");
+    await db.pluginSetting.update({ where: { id: rows.pluginSetting[0].id }, data: { config: { revision: 2, policy: { ...DEFAULT_MCP_POLICY, allowLetterDrafts: true, allowImageGeneration: true } } } });
+    const args = { name: "Synthetic garden", prompt: "A garden" };
+    for (let i = 0; i < DAILY_IMAGE_LIMIT; i++) expect(resultOf(await tool(token, "generate_letter_image", { ...args, requestKey: `daily-image-${i}` })).status).toBe("QUEUED");
+    expect((await tool(token, "generate_letter_image", { ...args, requestKey: "over-daily-limit" })).body.result.content[0].text).toContain("for today");
+    await db.userPermission.create({ data: { userId: "staff", permission: "letters.edit", granted: false } });
+    const fetchImage = vi.fn(); vi.stubGlobal("fetch", fetchImage);
+    await processLetterImageQueue();
+    expect(fetchImage).not.toHaveBeenCalled();
+    expect(rows.chatGptImageJob[0]).toMatchObject({ status: "FAILED", prompt: null });
+  });
+  it("keeps failed and interrupted generation requests from making another provider call", async () => {
+    const { access_token: token } = await tokens("letters.write");
+    vi.stubEnv("CHATGPT_IMAGE_API_KEY", "synthetic-provider-key");
+    await db.pluginSetting.update({ where: { id: rows.pluginSetting[0].id }, data: { config: { revision: 2, policy: { ...DEFAULT_MCP_POLICY, allowLetterDrafts: true, allowImageGeneration: true } } } });
+    const args = { name: "Synthetic artwork", prompt: "A cheerful garden", requestKey: "failed-generation" };
+    const fetchImage = vi.fn<typeof fetch>().mockImplementation(async () => new Response("Provider unavailable", { status: 503 }));
+    vi.stubGlobal("fetch", fetchImage);
+    const queued = resultOf(await tool(token, "generate_letter_image", args));
+    await processLetterImageQueue();
+    expect(resultOf(await tool(token, "generate_letter_image", args))).toMatchObject({ jobId: queued.jobId, status: "FAILED" });
+    await processLetterImageQueue();
+    expect(fetchImage).toHaveBeenCalledTimes(1);
+    const interrupted = resultOf(await tool(token, "generate_letter_image", { ...args, requestKey: "interrupted-generation" }));
+    await db.chatGptImageJob.update({ where: { id: interrupted.jobId }, data: { status: "RUNNING", prompt: null, startedAt: new Date(Date.now() - 240_000) } });
+    await processLetterImageQueue();
+    expect(resultOf(await tool(token, "get_letter_image_job", { id: interrupted.jobId }))).toMatchObject({ status: "FAILED" });
+    expect(fetchImage).toHaveBeenCalledTimes(1);
+    expect(rows.createStudioAsset).toHaveLength(0);
   });
   it("protects Create private imports and Trash during search and reading", async () => {
     const t = await tokens("letters.read");

@@ -1,3 +1,15 @@
+## ChatGPT letter authoring and artwork — 2026-11-05
+
+ChatGPT can create branded Studio drafts, configure page and print-pack settings, insert native merge fields and images, and revise the connected user's own standalone MCP drafts before release. The sample preview identifies missing assets and fields, including literal placeholders such as `[First Name]`. Draft creation works independently of the Create live-delivery and Studio default-editor switches.
+
+The Studio library accepts approved ChatGPT image attachments and serves active image assets for placement and cropping. Optional OpenAI image generation queues a job with a per-organization daily cap and saves completed artwork as a Studio asset. See [setup and tool workflow](../integrations/chatgpt-mcp.md#letter-authoring-and-reporting-tools) and [verification](audit-artifacts/2026-11-05-chatgpt-letter-authoring/verification.md).
+
+The focused suite passed 166 tests, with repository/server type checks, targeted lint and server/web builds. Desktop and phone browser acceptance used synthetic CRM data and a mocked image provider. Deployment, the image-job migration, real MySQL queue verification and live provider acceptance remain open.
+
+## Studio letterhead and proof feedback — 2026-11-05
+
+Studio repairs missing inherited logo bounds and uses the printed page margins for letterhead in the editor and Live Preview. PDF layout failures show a dedicated proof warning with a margin action and retry. Correctly sized frozen output still renders, and oversized headers still require correction. The synthetic browser and real PDF renderer checks cover the reported clipping, loaded print fonts, attached reply-slip proof routing and phone wrapping. See [screenshots and limits](audit-artifacts/2026-11-05-studio-letterhead/verification.md).
+
 ## Automatic ChatGPT setup and verified callbacks — 2026-11-05
 
 Settings → Integrations → ChatGPT now offers **Enable ChatGPT & check**. It saves organization setup immediately using the installation's domain, checks public OAuth/MCP routing and provides copyable advanced fields. Automatic CIMD registration verifies ChatGPT's client and exact callback from allowlisted OpenAI HTTPS metadata; `CHATGPT_REDIRECT_URIS` and environment-file edits are unnecessary for this flow. Account sign-in and consent remain explicit in ChatGPT. Manual exact-allowlist clients remain compatible.
@@ -5,6 +17,8 @@ Settings → Integrations → ChatGPT now offers **Enable ChatGPT & check**. It 
 Saved organization setup takes precedence over legacy `CHATGPT_ENABLED`; the documented `CHATGPT_FORCE_DISABLED=true` operator lock blocks all organizations and UI activation. Existing fiscal/calendar policy, CRM permissions, scoped grants and review requirements remain enforced. No new schema migration is needed for this update.
 
 84 focused tests, full repository/server types, targeted lint and web/server production builds passed. Production-browser acceptance covers activation, actionable failures, keyboard copy, expanded manual values, consent and controls at desktop/tablet/phone sizes. The validator also accepted ChatGPT's real public client metadata. Production deployment, real MySQL restart/concurrency checks and authenticated ChatGPT Plus acceptance remain open. See [setup](../integrations/chatgpt-mcp.md) and [evidence](audit-artifacts/2026-11-05-chatgpt-auto-setup/verification.md).
+
+The [Hostinger/CloudPanel vhost template](../HOSTINGER_DEPLOY_README.md#repair-chatgpt-discovery-on-an-existing-installation) routes the public OAuth discovery URLs directly to Express. The live public smoke check passed after the vhost change, and the linked ChatGPT session saved an editable Studio draft.
 
 ## Production build memory reduction — 2026-11-04
 
