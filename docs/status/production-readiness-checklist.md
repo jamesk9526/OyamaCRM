@@ -1528,3 +1528,12 @@ The earlier Studio canvas slice is superseded by the 2026-11-04 word processor, 
 - [x] Restore Letters and Email alongside Create in desktop/mobile donor navigation and Apps.
 - [x] Focused navigation suite: 14 passing tests; targeted lint and web type checking pass. Inspect desktop/mobile screenshots with synthetic browser responses.
 - [ ] Repeat authenticated destination click-through in the deployment environment; local synthetic browser navigation timed out. See [evidence](audit-artifacts/2026-11-04-communications-navigation/verification.md).
+
+### OAuth sign-in gateway correction (2026-11-05)
+
+- [x] Reproduce authorization failure with synthetic state/PKCE: 226 scopes returned 502; five returned 302. Supplied nginx logs confirm an oversized upstream response header.
+- [x] Advertise five compact scopes while retaining granular grant validation; 44 OAuth/access tests, 16 renderer/image tests, server types and targeted lint pass.
+- [x] Validate production environment profiles for all five PM2 apps.
+- [ ] Deploy and refresh ChatGPT discovery, then complete authenticated sign-in.
+
+Evidence: [gateway verification](audit-artifacts/2026-11-05-oauth-gateway/verification.md).

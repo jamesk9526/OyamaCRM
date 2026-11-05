@@ -1,7 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import { AI_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE, LEGACY_SCOPES } from "../ai-access/catalog.js";
 
-export const SCOPES: readonly string[] = [...new Set([...LEGACY_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE, ...AI_SCOPES])];
+/** Keep discovery compact: clients may request every advertised scope during sign-in.
+ * Existing granular grants remain accepted without advertising the full policy catalog.
+ */
+export const DISCOVERY_SCOPES: readonly string[] = [...LEGACY_SCOPES, AI_READ_SCOPE, AI_WRITE_SCOPE];
+export const SCOPES: readonly string[] = [...new Set([...DISCOVERY_SCOPES, ...AI_SCOPES])];
 export function connectionConfig() {
   const raw = process.env.CHATGPT_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || "";
   const issues: string[] = []; let url = new URL("http://localhost:3000"), originConfigured = false;

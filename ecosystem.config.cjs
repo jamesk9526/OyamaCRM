@@ -5,7 +5,7 @@ const LETTERS_PORT = Number(process.env.LETTERS_PORT || 3001);
 
 module.exports = {
   apps: [
-    { name: "oyama-letter-production", script: "dist/server/workers/letters-production.js", interpreter: "node", instances: 1, exec_mode: "fork", max_memory_restart: "1G", env: { NODE_ENV: "production" } },
+    { name: "oyama-letter-production", script: "dist/server/workers/letters-production.js", interpreter: "node", instances: 1, exec_mode: "fork", max_memory_restart: "1G", env: { NODE_ENV: "production" }, env_production: { NODE_ENV: "production" } },
     {
       name: 'oyama-compassion-api',
       script: 'dist/server/compassion/index.js',
@@ -15,6 +15,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '512M',
       env: { NODE_ENV: 'production', COMPASSION_API_PORT: Number(process.env.COMPASSION_API_PORT || 4100) },
+      env_production: { NODE_ENV: 'production', COMPASSION_API_PORT: Number(process.env.COMPASSION_API_PORT || 4100) },
     },
     {
       name: 'oyama-crm-web',

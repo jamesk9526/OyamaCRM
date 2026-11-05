@@ -54,7 +54,16 @@ afterEach(async () => {
 describe.sequential("ChatGPT account connection", () => {
   it("publishes discovery and rejects missing credentials", async () => {
     expect(authorizationMetadata()).toMatchObject({ issuer: origin, token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"] });
-    expect((await request(app).get(`${root}/resource-metadata`)).body.resource).toBe(resource);
+    const expectedScopes = ["letters.read", "letters.write", "reports.read", "crm.read", "crm.write"];
+    expect(authorizationMetadata().scopes_supported).toEqual(expectedScopes);
+    const metadata = (await request(app).get(`${root}/resource-metadata`)).body;
+    expect(metadata.resource).toBe(resource);
+    expect(metadata.scopes_supported).toEqual(expectedScopes);
+    const discovery = await request(app).get("/.well-known/oauth-authorization-server");
+    expect(discovery.body.scopes_supported).toEqual(expectedScopes);
+    const authorize = await request(app).get(`${root}/oauth/authorize`).query({ ...input(), scope: metadata.scopes_supported.join(" ") });
+    expect(authorize.status).toBe(302);
+    expect(Buffer.byteLength(authorize.headers.location)).toBeLessThan(1024);
     const response = await request(app).post(`${root}/mcp`).send({}); expect(response.status).toBe(401); expect(response.headers["www-authenticate"]).toContain("resource_metadata="); expect(response.headers["www-authenticate"]).not.toContain('scope="letters.read reports.read"');
     const previous = process.env.NODE_ENV;
     try { vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("CHATGPT_PUBLIC_URL", ""); vi.stubEnv("NEXT_PUBLIC_APP_URL", ""); vi.stubEnv("FRONTEND_ORIGIN", ""); expect(connectionConfig().enabled).toBe(false); }

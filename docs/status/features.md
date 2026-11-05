@@ -1695,3 +1695,7 @@ Studio follows the approved Word-style mockup with a focused writing view, Home/
 ## Standalone communications navigation restored — 2026-11-04
 
 OyamaLetters and OyamaEmail are available directly beside oyamaCreate in the shared desktop/mobile donor navigation and the Apps launcher while Create is being completed. Both links use their existing standalone routes. Navigation tests (14), targeted ESLint and web type checking pass. Desktop/mobile screenshots and verification limits: [evidence](audit-artifacts/2026-11-04-communications-navigation/verification.md).
+
+### OAuth sign-in gateway correction (2026-11-05)
+
+OAuth and resource discovery now advertise five compact connection scopes. Existing granular grants and fine-grained AI policies remain supported. Public synthetic requests reproduced 502 with 226 scopes and 302 with five scopes; supplied nginx logs confirm upstream sent too big header on the authorization redirect. Missing PM2 production profiles were added for Compassion and the letter-production worker. Image freezing now shares the safe letter tag list, removing script/style warnings without disabling validation. Deployment and refreshed connector discovery remain required.

@@ -6,7 +6,7 @@ import { requireAuth } from "../middleware/requireAuth.js";
 import { logAudit } from "../lib/audit.js";
 import { CreateError } from "../oyama-create/domain.js";
 import { can } from "../oyama-create/access.js";
-import { SCOPES, authorizationInput, connectionConfig, hashToken, opaqueToken, type ConnectionConfig } from "./config.js";
+import { DISCOVERY_SCOPES, authorizationInput, connectionConfig, hashToken, opaqueToken, type ConnectionConfig } from "./config.js";
 import { TOOLS, callTool, publicTools, toolAvailable } from "./tools.js";
 import { readMcpPolicy, saveMcpPolicy } from "./policy.js";
 import { imageProviderConfigured } from "./letter-images.js";
@@ -30,9 +30,9 @@ async function currentUser(id: string, org?: string) {
   return { sub: user.id, orgId: user.organizationId, role: user.role, email: user.email };
 }
 export function authorizationMetadata(c: ConnectionConfig = connectionConfig()) {
-  return { issuer: c.origin, authorization_response_iss_parameter_supported: true, authorization_endpoint: `${c.origin}/api/chatgpt/oauth/authorize`, token_endpoint: `${c.origin}/api/chatgpt/oauth/token`, revocation_endpoint: `${c.origin}/api/chatgpt/oauth/revoke`, client_id_metadata_document_supported: true, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"], scopes_supported: SCOPES };
+  return { issuer: c.origin, authorization_response_iss_parameter_supported: true, authorization_endpoint: `${c.origin}/api/chatgpt/oauth/authorize`, token_endpoint: `${c.origin}/api/chatgpt/oauth/token`, revocation_endpoint: `${c.origin}/api/chatgpt/oauth/revoke`, client_id_metadata_document_supported: true, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"], scopes_supported: DISCOVERY_SCOPES };
 }
-export function protectedResourceMetadata(c: ConnectionConfig = connectionConfig()) { return { resource: c.resource, authorization_servers: [c.origin], scopes_supported: SCOPES, bearer_methods_supported: ["header"] }; }
+export function protectedResourceMetadata(c: ConnectionConfig = connectionConfig()) { return { resource: c.resource, authorization_servers: [c.origin], scopes_supported: DISCOVERY_SCOPES, bearer_methods_supported: ["header"] }; }
 export const discoveryRouter = Router();
 discoveryRouter.get("/.well-known/oauth-authorization-server", wrap(async (req, res) => { res.set("Cache-Control", "no-store").json(authorizationMetadata(await effectiveConnectionConfig(req))); }));
 discoveryRouter.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/chatgpt/mcp"], wrap(async (req, res) => { res.set("Cache-Control", "no-store").json(protectedResourceMetadata(await effectiveConnectionConfig(req))); }));

@@ -16,6 +16,10 @@ function fixture(): LetterSnapshot {
 }
 
 describe('production PDF frozen assets and chrome', () => {
+  it('removes script and style elements during image freezing while retaining authored layout', () => {
+    const html = freezeLetterImages('<script>alert(1)</script><style>body{display:none}</style><p style="color:#123456">Safe <strong>letter</strong></p>', {});
+    expect(html).toBe('<p style="color:#123456">Safe <strong>letter</strong></p>');
+  });
   it('resolves unquoted/entity-escaped image URLs and retains the frozen bytes through sanitization', () => {
     const src = '/uploads/a.png?a=1&b=2';
     const html = freezeLetterImages('<img src=/uploads/a.png?a=1&amp;b=2 alt="Letter image">', { [src]: image });
