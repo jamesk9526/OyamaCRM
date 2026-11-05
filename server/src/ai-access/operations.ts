@@ -478,7 +478,14 @@ async function runPrepared(req: Request, grant: ChatGptGrant, cap: AiCapability,
   });
 }
 function equivalentPreview(current: Preview, approved: Preview) {
-  return toolFingerprint([current.targets, current.changes, current.heldEffects, current.export]) === toolFingerprint([approved.targets, approved.changes, approved.heldEffects, approved.export]);
+  // MySQL JSON storage can reorder payload keys. Field order is presentation,
+  // while each field value, record version and nested content remains significant.
+  const comparable = (preview: Preview) => [
+    [...preview.targets].sort((a, b) => `${a.resource}:${a.id}`.localeCompare(`${b.resource}:${b.id}`)),
+    [...preview.changes].sort((a, b) => a.field.localeCompare(b.field)),
+    preview.heldEffects, preview.export,
+  ];
+  return toolFingerprint(comparable(current)) === toolFingerprint(comparable(approved));
 }
 export async function authorizeReviewer(req: Request, cap: AiCapability, preview: Preview, org: string) {
   if (req.user!.orgId !== org) throw new CreateError(403, "The reviewer belongs to a different organization.");

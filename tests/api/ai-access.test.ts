@@ -122,6 +122,49 @@ describe.sequential("AI access and CRM context", () => {
     expect(rows.aiOperation).toHaveLength(1);
     expect((await call(token, "crm_constituents_update", { ...args, requestKey: "update-donor-002" })).body.result.isError).toBe(true);
   });
+  it("saves email drafts when persistence reorders JSON field keys", async () => {
+    await install();
+    const token = await connect(["crm.read", "crm.write"]);
+    const originalCreate = db.aiOperation.create.bind(db.aiOperation);
+    const persist = vi.spyOn(db.aiOperation, "create").mockImplementationOnce(async args => {
+      const payload = JSON.parse(JSON.stringify(args.data.payloadJson));
+      payload.fields = Object.fromEntries(Object.entries(payload.fields).reverse());
+      return originalCreate({ ...args, data: { ...args.data, payloadJson: payload } });
+    });
+    try {
+      const result = output(await call(token, "crm_email_draft_create", {
+        requestKey: "draft-json-order-001",
+        fields: { name: "Synthetic appeal", subject: "Thank you", bodyHtml: "<p>Draft only</p>" },
+      }));
+      expect(result.status, JSON.stringify(result)).toBe("SUCCEEDED");
+      expect(rows.emailCampaign).toHaveLength(1);
+      expect(rows.emailCampaign[0].status).toBe("DRAFT");
+      const repeated = output(await call(token, "crm_email_draft_create", {
+        requestKey: "draft-json-order-001",
+        fields: { name: "Synthetic appeal", subject: "Thank you", bodyHtml: "<p>Draft only</p>" },
+      }));
+      expect(repeated.operationId).toBe(result.operationId);
+      expect(rows.emailCampaign).toHaveLength(1);
+    } finally { persist.mockRestore(); }
+  });
+  it("still rejects changed draft content after preparation", async () => {
+    await install();
+    const token = await connect(["crm.read", "crm.write"]);
+    const originalCreate = db.aiOperation.create.bind(db.aiOperation);
+    const persist = vi.spyOn(db.aiOperation, "create").mockImplementationOnce(async args => {
+      const payload = JSON.parse(JSON.stringify(args.data.payloadJson));
+      payload.fields.bodyHtml = "<p>Different content</p>";
+      return originalCreate({ ...args, data: { ...args.data, payloadJson: payload } });
+    });
+    try {
+      const result = output(await call(token, "crm_email_draft_create", {
+        requestKey: "draft-content-change-001",
+        fields: { name: "Synthetic appeal", subject: "Thank you", bodyHtml: "<p>Original</p>" },
+      }));
+      expect(result.status).toBe("STALE");
+      expect(rows.emailCampaign).toHaveLength(0);
+    } finally { persist.mockRestore(); }
+  });
   it("requires CRM review for financial writes, rejects stale reviews and prevents duplicate execution", async () => {
     await install(); const token = await connect(["crm.context", "funds.read", "funds.create"]);
     const pending = output(await call(token, "crm_funds_create", { fields: { name: "Synthetic fund" }, requestKey: "create-fund-001" }));

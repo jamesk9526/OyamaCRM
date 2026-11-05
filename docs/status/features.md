@@ -1699,3 +1699,7 @@ OyamaLetters and OyamaEmail are available directly beside oyamaCreate in the sha
 ### OAuth sign-in gateway correction (2026-11-05)
 
 OAuth and resource discovery now advertise five compact connection scopes. Existing granular grants and fine-grained AI policies remain supported. Public synthetic requests reproduced 502 with 226 scopes and 302 with five scopes; supplied nginx logs confirm upstream sent too big header on the authorization redirect. Missing PM2 production profiles were added for Compassion and the letter-production worker. Image freezing now shares the safe letter tag list, removing script/style warnings without disabling validation. Deployment and refreshed connector discovery remain required.
+
+### MCP email draft persistence correction (2026-11-05)
+
+AI operation comparisons now ignore presentation order of fields and target records, preventing MySQL JSON key reordering from marking unchanged email drafts stale. Content values and record versions remain checked. Tool guidance explains importing ChatGPT image attachments or polling CRM image generation, embedding the returned media URL in email HTML, and keeping text editable with official branding.

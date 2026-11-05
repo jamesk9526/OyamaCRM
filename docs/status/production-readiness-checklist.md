@@ -1537,3 +1537,10 @@ The earlier Studio canvas slice is superseded by the 2026-11-04 word processor, 
 - [ ] Deploy and refresh ChatGPT discovery, then complete authenticated sign-in.
 
 Evidence: [gateway verification](audit-artifacts/2026-11-05-oauth-gateway/verification.md).
+
+### MCP email draft persistence correction (2026-11-05)
+
+- [x] Reproduce false STALE email creation after persisted JSON keys reorder; verify successful draft creation, replay protection and rejection of changed content. 46 OAuth/access/image-handler tests pass.
+- [ ] Deploy and retry the donor-reconnection draft through ChatGPT, checking the saved image and draft in CRM. Real MySQL persistence and provider generation remain acceptance checks.
+
+[Verification](audit-artifacts/2026-11-05-email-draft-json-order/verification.md).
