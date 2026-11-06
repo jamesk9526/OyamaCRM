@@ -6,7 +6,7 @@ import { renderStudio, emptyDonor } from "./render.js";
 import { createHash } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { json } from "../../services/letter-production.js";
-import { letterChromeHtml, sanitizeLetterHtml } from "../../services/letter-production-renderer.js";
+import { authoredLetterChromeHtml, sanitizeLetterHtml } from "../../services/letter-production-renderer.js";
 import type { LetterSnapshot } from "../../services/letter-production-contract.js";
 import { CreateError, object, string } from "../domain.js";
 import { normalizeBrand, legacyBrandProjection, profileIdentity } from "./brand.js";
@@ -31,7 +31,7 @@ export async function readLegacyBrand(org: string, selected?: { headerId?: strin
   const branding = { organizationName: identity.organizationDisplayName, ...identity };
   const assets = Object.fromEntries([identity.logoUrl, identity.logoSquareUrl].filter(value => typeof value === "string" && value).map(value => [String(value), String(value)]));
   const snapshot: Pick<LetterSnapshot, "branding" | "assets" | "layout" | "header" | "footer"> = { branding, assets, layout: { paper: "Letter", margins: { top: .8, right: .75, bottom: .8, left: .75 } }, header: {}, footer: {} };
-  const presets = [...headers.map(header => ({ id: header.id, name: header.name, kind: "header", content: EMPTY_DOC(), legacyHtml: legacyChrome(letterChromeHtml({ ...snapshot, header }, false)), active: header.isActive, isDefault: header.isDefault })), ...footers.map(footer => ({ id: footer.id, name: footer.name, kind: "footer", content: EMPTY_DOC(), legacyHtml: legacyChrome(letterChromeHtml({ ...snapshot, footer }, true)), active: footer.isActive, isDefault: footer.isDefault }))];
+  const presets = [...headers.map(header => ({ id: header.id, name: header.name, kind: "header", content: EMPTY_DOC(), legacyHtml: legacyChrome(authoredLetterChromeHtml({ ...snapshot, header }, false)), active: header.isActive, isDefault: header.isDefault })), ...footers.map(footer => ({ id: footer.id, name: footer.name, kind: "footer", content: EMPTY_DOC(), legacyHtml: legacyChrome(authoredLetterChromeHtml({ ...snapshot, footer }, true)), active: footer.isActive, isDefault: footer.isDefault }))];
   return normalizeBrand({ version: 1, identity, signers: parsedSigners, presets, profiles: embeds ? parseSiteEmbedsConfig(embeds.config).sites.flatMap(site => (["WIDGET", "GIVING"] as const).map(channel => ({id:`legacy-${channel.toLowerCase()}-${site.id}`,name:`${site.name} ${channel.toLowerCase()}`,channel,resourceId:site.id,values:widgetBrandValues(site)}))) : [], defaultSignerId: activeSigner?.id || (identity.defaultLetterSignerName ? `legacy-${org}` : null) });
 }
 export async function readBrand(org: string) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { freezeLetterImages, letterBodyHtml, letterChromeHtml, renderProductionLetter, sanitizeLetterHtml } from '../../server/src/services/letter-production-renderer';
+import { authoredLetterChromeHtml, freezeLetterImages, letterBodyHtml, letterChromeHtml, renderProductionLetter, sanitizeLetterHtml } from '../../server/src/services/letter-production-renderer';
 import { readFile } from 'node:fs/promises';
 import type { LetterSnapshot } from '../../server/src/services/letter-production-contract';
 
@@ -16,6 +16,19 @@ function fixture(): LetterSnapshot {
 }
 
 describe('production PDF frozen assets and chrome', () => {
+  it('preserves sanitized editable letterhead images while production still requires frozen bytes', () => {
+    const snapshot = fixture();
+    snapshot.header = { customHtml: '<p><img src="/uploads/branding/fixture-org/header.png" onerror="unsafe()"></p>' };
+    expect(authoredLetterChromeHtml(snapshot, false)).toContain('src="/uploads/branding/fixture-org/header.png"');
+    expect(authoredLetterChromeHtml(snapshot, false)).not.toContain('onerror');
+    expect(() => letterChromeHtml(snapshot, false)).toThrow('frozen asset package');
+    snapshot.assets['/uploads/branding/fixture-org/header.png'] = image;
+    expect(letterChromeHtml(snapshot, false)).toContain(image);
+    snapshot.branding.logoUrl = 'javascript:unsafe()';
+    snapshot.header = {};
+    expect(authoredLetterChromeHtml(snapshot, false)).not.toContain('javascript:');
+    expect(() => letterChromeHtml(snapshot, false)).toThrow('logo is missing');
+  });
   it('removes script and style elements during image freezing while retaining authored layout', () => {
     const html = freezeLetterImages('<script>alert(1)</script><style>body{display:none}</style><p style="color:#123456">Safe <strong>letter</strong></p>', {});
     expect(html).toBe('<p style="color:#123456">Safe <strong>letter</strong></p>');

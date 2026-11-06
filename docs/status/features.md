@@ -1,3 +1,6 @@
+## Create letter/email import recovery — 2026-11-05
+
+Fixed the legacy letterhead image handling that prevented existing letters and emails from converting into Create. Editable brand imports now preserve sanitized header/footer image references; production PDFs continue requiring frozen images. The existing retry worker can recover affected failed sources without rewriting original letters/emails or sending communications. Reproduced the exact observed production error, then passed 55 focused import, branding and frozen-PDF checks. Deployment and live retry acceptance remain outstanding. See [verification and recovery steps](audit-artifacts/2026-11-05-create-letter-import-recovery/verification.md).
 ## Workspace interaction polish — 2026-11-05
 
 Donor CRM cards now share quiet layered shadows, short staggered entrances and a two-pixel lift for linked metrics on mouse/trackpad devices. Buttons have small press feedback, consistent keyboard outlines and timed color changes. Navigation, filter controls and priority cards settle with shared timing. Table/metric skeletons use a moving highlight; the mountain loader adds a small indeterminate activity track and a short fade on entry. Effects are scoped to the internal workspace, honor reduced motion and do not animate print output. Existing routes, data, permissions and actions are unchanged.

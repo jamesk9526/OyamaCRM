@@ -1,3 +1,9 @@
+## Create letter/email import recovery — 2026-11-05
+
+- [x] Diagnose the live History failure (32 letter templates among 297 failed sources) and reproduce its frozen-image error in a regression test.
+- [x] Separate authored letterhead import from frozen production rendering; retain sanitization and tenant asset checks.
+- [x] Pass 55 focused tests including failed-source retry recovery, unchanged originals, no dispatch, and strict PDF assets.
+- [ ] Deploy the API fix and retry failed imports; confirm affected letters/emails become available in Create Library and inspect representative previews. No schema change is required by this fix.
 ## Workspace interaction polish — 2026-11-05
 
 - [x] Consolidate dashboard motion and shared card/control feedback in scoped workspace styles.

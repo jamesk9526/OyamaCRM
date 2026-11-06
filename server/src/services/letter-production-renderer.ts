@@ -78,12 +78,21 @@ export function letterPrintHtml(snapshot: LetterSnapshot): string {
 }
 
 export function letterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "assets" | "layout" | "header" | "footer">, footer: boolean): string {
+  return renderLetterChromeHtml(snapshot, footer, false);
+}
+
+/** Editable brand imports preserve image references; production PDFs still require frozen assets. */
+export function authoredLetterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "assets" | "layout" | "header" | "footer">, footer: boolean): string {
+  return renderLetterChromeHtml(snapshot, footer, true);
+}
+
+function renderLetterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "assets" | "layout" | "header" | "footer">, footer: boolean, authoredImages: boolean): string {
   const source = footer ? snapshot.footer : snapshot.header;
   if (source.enabled === false) return "<div></div>";
   const b = snapshot.branding;
-  const logo = source.logoAlignment !== "NONE" ? snapshot.assets[string(b.logoUrl)] : undefined;
+  const logo = source.logoAlignment !== "NONE" ? authoredImages ? string(b.logoUrl) : snapshot.assets[string(b.logoUrl)] : undefined;
   if (!footer && source.logoAlignment !== "NONE" && b.logoUrl && !logo) throw new Error("The letterhead logo is missing from the frozen asset package. Regenerate this proof.");
-  const custom = freezeLetterImages(string(source.customHtml), snapshot.assets);
+  const custom = authoredImages ? string(source.customHtml) : freezeLetterImages(string(source.customHtml), snapshot.assets);
   const organization = source.showOrganizationName !== false ? string(b.organizationDisplayName || b.legalOrganizationName || b.organizationName) : "";
   const label = footer ? string(source.customText) || string(b.footerLegalText) || organization : organization;
   const contact = [
@@ -93,7 +102,8 @@ export function letterChromeHtml(snapshot: Pick<LetterSnapshot, "branding" | "as
     ...(source.showWebsite !== false ? [b.websiteUrl] : []),
     ...(footer && source.showTaxId === true ? [b.taxId] : []),
   ].filter(value => typeof value === "string" && value).map(escape).join(" · ");
-  return `<div style="box-sizing:border-box;font-family:Arial,sans-serif;font-size:8px;width:100%;padding:0 ${snapshot.layout.margins.right}in 0 ${snapshot.layout.margins.left}in;color:#243b58">${!footer && logo ? `<img src="${logo}" style="max-width:140px;max-height:35px;vertical-align:middle;margin-right:12px">` : ""}${custom ? sanitizeLetterHtml(custom) : `<strong>${escape(label)}</strong><div>${contact}</div>`}${footer && source.showPageNumber !== false ? '<span style="float:right">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' : ""}</div>`;
+  const logoHtml = !footer && logo ? `<img src="${escape(logo)}" style="max-width:140px;max-height:35px;vertical-align:middle;margin-right:12px">` : "";
+  return `<div style="box-sizing:border-box;font-family:Arial,sans-serif;font-size:8px;width:100%;padding:0 ${snapshot.layout.margins.right}in 0 ${snapshot.layout.margins.left}in;color:#243b58">${authoredImages ? sanitizeLetterHtml(logoHtml, { authoredImages: true }) : logoHtml}${custom ? sanitizeLetterHtml(custom, { authoredImages }) : `<strong>${escape(label)}</strong><div>${contact}</div>`}${footer && source.showPageNumber !== false ? '<span style="float:right">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>' : ""}</div>`;
 }
 
 /** Called only by the dedicated production worker. Every browser has a hard lifetime. */

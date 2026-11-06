@@ -13,6 +13,42 @@ const org='synthetic-import-org';
 const call=(method:'get'|'post'|'patch',path:string,body?:unknown,role='admin',orgId=org)=>request(app)[method]('/api/oyama-create'+path).set('Authorization','Bearer '+signAccessToken({sub:'admin',orgId,role,email:'synthetic@example.invalid'})).send(body as object);
 beforeEach(async()=>{resetCreateRows();await db.user.create({data:{id:'admin',organizationId:org,role:'admin',active:true,email:'synthetic@example.invalid'}});await db.organization.create({data:{id:org,name:'Synthetic organization'}});});
 describe('automatic Create import',()=>{
+ it('imports letters and emails when legacy letterhead contains unfrozen images',async()=>{
+  const headerHtml=`<p><img src="/uploads/branding/${org}/header.png" alt="Letterhead" onerror="unsafe()"></p>`;
+  const footerHtml='<p><img src="https://example.invalid/footer.png" alt="Footer"></p>';
+  await db.letterHeaderPreset.create({data:{id:'image-header',organizationId:org,name:'Image header',isDefault:true,isActive:true,customHtml:headerHtml}});
+  await db.letterFooterPreset.create({data:{id:'image-footer',organizationId:org,name:'Image footer',isDefault:true,isActive:true,customHtml:footerHtml}});
+  await db.letterTemplate.create({data:{id:'old-letter',organizationId:org,name:'Existing thank you',printBody:'<p>Original letter</p>',headerPresetId:'image-header',footerPresetId:'image-footer'}});
+  await db.emailCampaign.create({data:{id:'old-email',organizationId:org,name:'Existing email',subject:'Original',bodyHtml:'<p>Original email</p>'}});
+  const originalLetter=structuredClone(rows.letterTemplate[0]),originalEmail=structuredClone(rows.emailCampaign[0]);
+  for(const [channel,legacyId] of [['LETTER','old-letter'],['EMAIL','old-email']]){
+   const result=await call('post','/legacy/import',{channel,legacyId});
+   expect(result.status,result.text).toBe(201);
+  }
+  expect(rows.createCampaign).toHaveLength(2);
+  const brand=rows.createImportSourceRevision[0].snapshotJson.brand;
+  expect(brand.presets.find((item:{id:string})=>item.id==='image-header').legacyHtml).toContain(`/api/public-media/branding/${org}/header.png`);
+  expect(brand.presets.find((item:{id:string})=>item.id==='image-footer').legacyHtml).toContain('https://example.invalid/footer.png');
+  expect(JSON.stringify(brand)).not.toContain('onerror');
+  expect(rows.letterTemplate[0]).toEqual(originalLetter);expect(rows.emailCampaign[0]).toEqual(originalEmail);
+  expect(rows.createDelivery).toHaveLength(0);
+ });
+ it('recovers previously failed letter imports through the existing retry worker',async()=>{
+  await db.letterHeaderPreset.create({data:{id:'retry-header',organizationId:org,name:'Existing image header',isDefault:true,isActive:true,customHtml:`<img src="/uploads/branding/${org}/header.png">`}});
+  await db.letterTemplate.create({data:{id:'retry-letter',organizationId:org,name:'Previously missing letter',printBody:'<p>Retained message</p>',headerPresetId:'retry-header'}});
+  await db.createImportSource.create({data:{organizationId:org,sourceType:'LETTER',sourceId:'retry-letter',name:'Previously missing letter',status:'FAILED',error:'A document image is missing from its frozen asset package.',shared:true}});
+  expect((await call('post','/imports/control',{action:'RETRY'})).status).toBe(200);
+  for(let n=0;n<12;n++)await processImports(30);
+  const source=rows.createImportSource.find(item=>item.sourceId==='retry-letter');
+  expect(source?.status).toBe('CONVERTED');expect(source?.error).toBeNull();expect(source?.campaignId).toBeTruthy();
+  expect(rows.createCampaign).toHaveLength(1);expect(rows.createDelivery).toHaveLength(0);
+ });
+ it('still rejects another organization’s letterhead images during import',async()=>{
+  await db.letterHeaderPreset.create({data:{id:'foreign-header',organizationId:org,name:'Invalid header',isDefault:true,isActive:true,customHtml:'<img src="/uploads/branding/another-org/header.png">'}});
+  await db.letterTemplate.create({data:{id:'foreign-letter',organizationId:org,name:'Foreign image',printBody:'<p>Retained message</p>'}});
+  expect((await call('post','/legacy/import',{channel:'LETTER',legacyId:'foreign-letter'})).status).toBe(403);
+  expect(rows.createCampaign).toHaveLength(0);
+ });
  const actor=()=>({user:{sub:'admin',orgId:org,role:'admin',email:'synthetic@example.invalid'}} as Request);
  const email=(id:string,extra:Record<string,unknown>={})=>db.emailCampaign.create({data:{id,organizationId:org,name:id,subject:'Original',bodyHtml:'<p>Original</p>',...extra}});
  const finish=async()=>{for(let n=0;n<12;n++)await processImports(30);};
